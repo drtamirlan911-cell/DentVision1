@@ -11,19 +11,19 @@ export const ROLES = {
   superadmin: {
     label: 'Super Admin',
     icon: '⚙️',
-    pages: ['dashboard','schedule','patients','cashier','lab','ai','reminders','admin'],
+    pages: ['dashboard','schedule','patients','cashier','pricelist','lab','ai','reminders','admin'],
     canSeeSalary: true, canSeeSuperAdmin: true, canAddStaff: true,
   },
   director: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard','schedule','patients','cashier','lab','ai','reminders','staff'],
+    pages: ['dashboard','schedule','patients','cashier','pricelist','lab','ai','reminders','staff'],
     canSeeSalary: true, canSeeReports: true, canAddStaff: true, canSeeExpenses: true,
   },
   admin: {
     label: 'Администратор',
     icon: '💼',
-    pages: ['schedule','patients','cashier','lab','reminders','staff'],
+    pages: ['schedule','patients','cashier','pricelist','lab','reminders','staff'],
     canSeeSalary: false, canSeeExpenses: false, canAddStaff: true,
   },
   doctor: {

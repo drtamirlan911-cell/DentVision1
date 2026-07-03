@@ -29,9 +29,21 @@ export default function Schedule({ clinic }) {
 
   const dayAppts = appointments.filter(a => a.date === selDate);
 
+  // Опции услуг из прайса с ценами
+  const serviceOptions = [
+    { value: '', label: '— Выберите услугу —' },
+    ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${s.price} ₽` })),
+  ];
+
   const openNew = () => {
     setEditAppt(null);
     setForm(EMPTY_FORM);
+    setModalOpen(true);
+  };
+
+  const openSlotBooking = (time) => {
+    setEditAppt(null);
+    setForm({ ...EMPTY_FORM, time });
     setModalOpen(true);
   };
 

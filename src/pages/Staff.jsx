@@ -46,6 +46,7 @@ export default function Staff({ clinic, user }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [filter, setFilter] = useState('all');
+  const [editingStaff, setEditingStaff] = useState(null);
 
   const staff = getClinicStaff(clinic?.id || user?.clinicId);
 
@@ -61,6 +62,12 @@ export default function Staff({ clinic, user }) {
       showToast('Пароль должен быть не менее 6 символов', 'warning');
       return;
     }
+    
+    // Проверяем график работы для врачей
+    if (form.role === 'doctor' && form.workSchedule) {
+      // Сохраняем график работы
+    }
+    
     const result = addStaffMember({
       ...form,
       clinicId: clinic?.id || user?.clinicId,
@@ -72,6 +79,21 @@ export default function Staff({ clinic, user }) {
     showToast(`${ROLE_LABELS[form.role] || 'Сотрудник'} добавлен`, 'success');
     setModalOpen(false);
     setForm(EMPTY_FORM);
+    setEditingStaff(null);
+  };
+
+  const openEditStaff = (member) => {
+    setEditingStaff(member);
+    setForm({
+      name: member.name || '',
+      login: member.login || '',
+      password: '',
+      role: member.role || 'doctor',
+      spec: member.spec || '',
+      phone: member.phone || '',
+      workSchedule: member.workSchedule || { start: '09:00', end: '18:00', workDays: ['пн', 'вт', 'ср', 'чт', 'пт'] },
+    });
+    setModalOpen(true);
   };
 
   const canManage = roleInfo?.canAddStaff;
@@ -218,6 +240,65 @@ export default function Staff({ clinic, user }) {
               <Select label="Специализация" value={form.spec}
                 onChange={e => setForm({ ...form, spec: e.target.value })}
                 options={SPECS} />
+            )}
+
+            {/* График работы для врачей */}
+            {form.role === 'doctor' && (
+              <div style={{
+                padding: '12px',
+                background: 'rgba(255,255,255,0.03)',
+                border: `1px solid ${T.borderSub}`,
+                borderRadius: 8,
+                marginBottom: 12,
+              }}>
+                <div style={{ fontSize: 12, color: T.slate, marginBottom: 8, fontWeight: 600 }}>📅 График работы врача</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <Input
+                    label="Начало рабочего дня"
+                    type="time"
+                    value={form.workSchedule?.start || '09:00'}
+                    onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule, start: e.target.value } })}
+                  />
+                  <Input
+                    label="Конец рабочего дня"
+                    type="time"
+                    value={form.workSchedule?.end || '18:00'}
+                    onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule, end: e.target.value } })}
+                  />
+                </div>
+                <div style={{ marginTop: 8, fontSize: 11, color: T.slate }}>
+                  Рабочие дни:
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                    {['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map(day => {
+                      const isSelected = (form.workSchedule?.workDays || ['пн', 'вт', 'ср', 'чт', 'пт']).includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            const current = form.workSchedule?.workDays || ['пн', 'вт', 'ср', 'чт', 'пт'];
+                            const updated = isSelected
+                              ? current.filter(d => d !== day)
+                              : [...current, day];
+                            setForm({ ...form, workSchedule: { ...form.workSchedule, workDays: updated } });
+                          }}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: 11,
+                            borderRadius: 4,
+                            border: `1px solid ${isSelected ? T.gold : T.borderSub}`,
+                            background: isSelected ? `${T.gold}20` : 'transparent',
+                            color: isSelected ? T.gold : T.slate,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {day.toUpperCase()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             )}
 
             <Input label="Телефон" value={form.phone}
