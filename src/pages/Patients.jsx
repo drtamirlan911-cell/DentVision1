@@ -248,6 +248,7 @@ export default function Patients({ clinic }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
         <GBtn onClick={() => setSelected(null)}>← К списку</GBtn>
         <div style={{ display: 'flex', gap: 8 }}>
+          <PBtn onClick={() => setActiveTab('info')}>📋 План лечения</PBtn>
           <GBtn color={T.sapphire} onClick={() => openEdit(selected)}>✏ Редактировать</GBtn>
         </div>
       </div>

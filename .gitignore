@@ -1,18 +1,21 @@
 ```
 # Build artifacts
 dist/
-build/
 *.js
 
 # Dependencies
 node_modules/
 
-# Editors
-.vscode/
+# Logs and temp files
+*.log
+*.tmp
 
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
+
+# Editors
+.vscode/
+.idea/
 ```
-Nothing should be ignored based on the provided file changes, as they only contain source code files (.jsx) without any build artifacts, dependencies, or temporary files.
