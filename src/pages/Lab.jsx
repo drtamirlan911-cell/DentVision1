@@ -324,7 +324,6 @@ export default function Lab({ clinic }) {
                     <PBtn size="sm" onClick={() => changeStatus(order, 'delivered')}>📦 Выдать</PBtn>
                   )}
                   <GBtn size="sm" onClick={() => openEdit(order)}>✏ Изменить</GBtn>
-                  <GBtn size="sm" color={T.gold} onClick={() => printWorkOrder(order)}>🖨 Печать</GBtn>
                   {order.status === 'in_progress' && (
                     <GBtn size="sm" color={T.ruby} onClick={() => changeStatus(order, 'delayed')}>⏰ Просрочено</GBtn>
                   )}
