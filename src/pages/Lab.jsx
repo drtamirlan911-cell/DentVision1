@@ -152,8 +152,15 @@ export default function Lab({ clinic }) {
       return;
     }
     try {
-      await upsertLabOrder({ ...form, id: editOrder?.id || gid(), clinicId: clinic?.id });
+      const newOrder = { ...form, id: editOrder?.id || gid(), clinicId: clinic?.id };
+      await upsertLabOrder(newOrder);
       showToast(editOrder ? 'Заказ обновлён' : 'Заказ создан', 'success');
+      
+      // Автоматическая печать заказ-наряда при выборе коронки или моста с материалом
+      if ((form.labType === 'crown' || form.labType === 'bridge') && form.material) {
+        printWorkOrder(newOrder);
+      }
+      
       setModalOpen(false);
     } catch {
       showToast('Ошибка сохранения', 'error');
@@ -324,6 +331,7 @@ export default function Lab({ clinic }) {
                     <PBtn size="sm" onClick={() => changeStatus(order, 'delivered')}>📦 Выдать</PBtn>
                   )}
                   <GBtn size="sm" onClick={() => openEdit(order)}>✏ Изменить</GBtn>
+                  <GBtn size="sm" color={T.gold} onClick={() => printWorkOrder(order)}>🖨 Печать</GBtn>
                   {order.status === 'in_progress' && (
                     <GBtn size="sm" color={T.ruby} onClick={() => changeStatus(order, 'delayed')}>⏰ Просрочено</GBtn>
                   )}
