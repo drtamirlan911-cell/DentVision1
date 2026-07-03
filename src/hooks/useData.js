@@ -100,6 +100,7 @@ export function useData(clinicId) {
       const exists = prev.find(e => e.id === record.id);
       return exists ? prev.map(e => e.id === record.id ? record : e) : [...prev, record];
     });
+    trySync('expenses', record);
     return Promise.resolve(record);
   }, [clinicId]);
 
@@ -109,16 +110,57 @@ export function useData(clinicId) {
       const exists = prev.find(i => i.id === record.id);
       return exists ? prev.map(i => i.id === record.id ? record : i) : [...prev, record];
     });
+    trySync('inventory', record);
     return Promise.resolve(record);
   }, [clinicId]);
 
+  const [treatments, _setTreatments] = useState([]);
   const addTreatment = useCallback((treatment) => {
-    return Promise.resolve(treatment);
+    const record = { ...treatment, id: treatment.id || gid(), clinicId };
+    _setTreatments(prev => [...prev, record]);
+    trySync('treatments', record);
+    return Promise.resolve(record);
+  }, [clinicId]);
+
+  const [users, _setUsers] = useState(doctors);
+  const upsertUser = useCallback((userData) => {
+    const record = { ...userData, id: userData.id || gid(), clinicId };
+    _setUsers(prev => {
+      const exists = prev.find(u => u.id === record.id);
+      return exists ? prev.map(u => u.id === record.id ? record : u) : [...prev, record];
+    });
+    trySync('users', record);
+    return Promise.resolve(record);
+  }, [clinicId]);
+
+  const [subscriptions, _setSubscriptions] = useState([]);
+  const upsertSubscription = useCallback((subData) => {
+    const record = { ...subData, id: subData.id || gid(), clinicId };
+    _setSubscriptions(prev => {
+      const exists = prev.find(s => s.id === record.id);
+      return exists ? prev.map(s => s.id === record.id ? record : s) : [...prev, record];
+    });
+    trySync('subscriptions', record);
+    return Promise.resolve(record);
+  }, [clinicId]);
+
+  const [photos, _setPhotos] = useState([]);
+  const uploadPhoto = useCallback((photoData) => {
+    const record = { ...photoData, id: photoData.id || gid(), clinicId, uploadDate: today() };
+    _setPhotos(prev => [...prev, record]);
+    trySync('photos', record);
+    return Promise.resolve(record);
+  }, [clinicId]);
+
+  const deletePhoto = useCallback((id) => {
+    _setPhotos(prev => prev.filter(p => p.id !== id));
+    tryDelete('photos', id);
+    return Promise.resolve();
   }, []);
 
   return {
     patients, appointments, receipts, labOrders, expenses, inventory, doctors,
-    transactions: receipts,
+    transactions: receipts, treatments, users, subscriptions, photos,
     upsertPatient, deletePatient,
     upsertAppointment, deleteAppointment,
     upsertReceipt, upsertTransaction,
@@ -126,6 +168,9 @@ export function useData(clinicId) {
     upsertExpense,
     upsertInventoryItem,
     addTreatment,
+    upsertUser,
+    upsertSubscription,
+    uploadPhoto, deletePhoto,
   };
 }
 

@@ -46,7 +46,7 @@ export async function loadClinicData(clinicId) {
   return Array.isArray(rows) ? rows[0] : rows;
 }
 
-// Generic upsert for tables
+// Generic upsert for tables with fallback to direct REST API
 export async function upsertRow(table, row) {
   const fnMap = { 
     patients: "upsert_patient", 
@@ -62,8 +62,33 @@ export async function upsertRow(table, row) {
     referrals: "upsert_referral"
   };
   const fn = fnMap[table];
-  if (!fn) return;
-  return sbRpc(fn, { p: toSnakeRow(table, row) });
+  
+  // Try RPC first for tables with stored procedures
+  if (fn) {
+    try {
+      return await sbRpc(fn, { p: toSnakeRow(table, row) });
+    } catch (rpcError) {
+      // If RPC fails (function doesn't exist), fall back to direct REST API
+      console.log(`RPC ${fn} not available, using REST API fallback`);
+    }
+  }
+  
+  // Fallback: Direct REST API upsert
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+      method: "POST",
+      headers: { ...sbHeaders, Prefer: "return=representation" },
+      body: JSON.stringify(toSnakeRow(table, row)),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`REST upsert failed: ${res.status} ${text.slice(0,150)}`);
+    }
+    return res.json();
+  } catch (e) {
+    console.error(`Failed to sync ${table}:`, e.message);
+    throw e;
+  }
 }
 
 // Clinic management (Super Admin only)
