@@ -236,6 +236,7 @@ export default function Patients({ clinic }) {
   const TABS = [
     { id: 'info',        label: 'Карта' },
     { id: 'odontogram', label: '🦷 Одонтограмма' },
+    { id: 'payment',    label: '💰 Оплата' },
     { id: 'photos',     label: '📸 Фотопротокол' },
     { id: 'history',    label: '📋 История' },
   ];
@@ -361,6 +362,106 @@ export default function Patients({ clinic }) {
                     onSave={handleSaveToothSurfaces}
                     onCancel={() => setSelectedTooth(null)}
                   />
+                )}
+              </div>
+            )}
+
+            {/* Payment tab */}
+            {activeTab === 'payment' && (
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 14 }}>💰 Оплата и финансовые операции</div>
+                
+                {/* Payment summary */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                  {[
+                    { label: 'Всего оплачено', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').reduce((sum, a) => sum + (a.price || 0), 0), color: T.emerald },
+                    { label: 'Ожидает оплаты', value: patientAppts.filter(a => a.status === 'confirmed' || a.status === 'scheduled').reduce((sum, a) => sum + (a.price || 0), 0), color: T.amber },
+                    { label: 'Скидки', value: selected.category === 'vip' ? '15%' : selected.category === 'regular' ? '5%' : '0%', color: T.sapphire },
+                  ].map((s, i) => (
+                    <div key={i} style={{
+                      padding: 16, background: 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${T.borderSub}`, borderRadius: 10,
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: 11, color: T.slate, marginBottom: 6 }}>{s.label}</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>
+                        {typeof s.value === 'number' ? `${s.value.toLocaleString()} ₸` : s.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Payment form */}
+                <div style={{
+                  padding: 16, background: 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${T.borderSub}`, borderRadius: 10, marginBottom: 20,
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.white, marginBottom: 12 }}>✍️ Внести оплату</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: T.slate, marginBottom: 4, display: 'block' }}>Сумма (₸)</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        style={{
+                          width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.06)',
+                          border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13,
+                          color: T.white, outline: 'none', fontFamily: 'inherit',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: T.slate, marginBottom: 4, display: 'block' }}>Тип оплаты</label>
+                      <select
+                        style={{
+                          width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.06)',
+                          border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13,
+                          color: T.white, outline: 'none', fontFamily: 'inherit', cursor: 'pointer',
+                        }}
+                      >
+                        <option value="cash">💵 Наличные</option>
+                        <option value="card">💳 Карта</option>
+                        <option value="transfer">🏦 Перевод</option>
+                      </select>
+                    </div>
+                    <PBtn onClick={() => showToast('Оплата внесена успешно', 'success')}>Внести</PBtn>
+                  </div>
+                </div>
+
+                {/* Payment history */}
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.white, marginBottom: 12 }}>📜 История платежей</div>
+                {patientAppts.filter(a => a.price).length === 0 ? (
+                  <EmptyState icon="💰" text="Нет записей об оплате" sub="Платежи появятся после завершения приёмов" />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {patientAppts.filter(a => a.price).map(a => (
+                      <div key={a.id} style={{
+                        padding: '12px 14px',
+                        background: 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${T.borderSub}`,
+                        borderRadius: 9,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 13, color: T.white, fontWeight: 600 }}>{a.reason || a.service || '—'}</div>
+                          <div style={{ fontSize: 11, color: T.slate, marginTop: 3 }}>{fd(a.date)} · {a.time}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <Badge color={T.emerald} size="sm">+{a.price.toLocaleString()} ₸</Badge>
+                          <button
+                            onClick={() => showToast('Чек отправлен пациенту', 'success')}
+                            style={{
+                              padding: '6px 10px', background: 'rgba(255,255,255,0.05)',
+                              border: `1px solid ${T.borderSub}`, borderRadius: 6,
+                              color: T.slate, fontSize: 11, cursor: 'pointer',
+                            }}
+                          >
+                            📤 Чек
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
