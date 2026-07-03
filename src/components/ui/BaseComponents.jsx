@@ -402,6 +402,9 @@ export function Input({ label, type = 'text', value, onChange, placeholder, disa
 }
 
 export function Select({ label, value, onChange, options = [], disabled, placeholder, style, name, required }) {
+  // Проверка, есть ли вложенные опции (группировка)
+  const hasGroups = options.some(opt => opt.options && Array.isArray(opt.options));
+  
   return (
     <div style={{ marginBottom: 12 }}>
       {label && (
@@ -430,11 +433,23 @@ export function Select({ label, value, onChange, options = [], disabled, placeho
         }}
       >
         {placeholder && <option value="">{placeholder}</option>}
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value} style={{ background: T.navy }}>
-            {opt.label}
-          </option>
-        ))}
+        {hasGroups ? (
+          options.map((group, idx) => (
+            <optgroup key={group.label || idx} label={group.label}>
+              {group.options.map(opt => (
+                <option key={opt.value} value={opt.value} style={{ background: T.navy }}>
+                  {opt.label}
+                </option>
+              ))}
+            </optgroup>
+          ))
+        ) : (
+          options.map(opt => (
+            <option key={opt.value} value={opt.value} style={{ background: T.navy }}>
+              {opt.label}
+            </option>
+          ))
+        )}
       </select>
     </div>
   );

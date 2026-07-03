@@ -41,6 +41,93 @@ const TABS = [
   { id: 'waxup',     label: '🎨 Wax-Up / Smile Design' },
 ];
 
+// Функция печати заказ-наряда
+function printWorkOrder(order) {
+  const labTypeLabel = LAB_TYPES.find(t => t.value === order.labType)?.label || order.labType;
+  const materialLabel = MATERIALS.find(m => m.value === order.material)?.label || order.material;
+  
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Заказ-наряд №${order.id?.slice(-6) || 'NEW'}</title>
+      <style>
+        body { font-family: 'Arial', sans-serif; padding: 40px; color: #333; }
+        .header { text-align: center; border-bottom: 2px solid #C9A96E; padding-bottom: 20px; margin-bottom: 30px; }
+        .title { font-size: 24px; font-weight: bold; color: #C9A96E; margin-bottom: 10px; }
+        .subtitle { font-size: 14px; color: #666; }
+        .section { margin-bottom: 25px; }
+        .section-title { font-size: 16px; font-weight: bold; color: #0D1B2E; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 12px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .label { color: #666; font-size: 13px; }
+        .value { font-weight: 600; color: #333; font-size: 14px; }
+        .highlight { color: #C9A96E; }
+        .footer { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px; font-size: 12px; color: #999; text-align: center; }
+        .stamp { margin-top: 30px; display: flex; justify-content: space-between; }
+        .stamp-box { border: 1px solid #333; padding: 15px 30px; text-align: center; }
+        @media print {
+          body { padding: 20px; }
+          .no-print { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="title">🦷 ЗАКАЗ-НАРЯД</div>
+        <div class="subtitle">Стоматологическая лаборатория DentVision</div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">📋 Общая информация</div>
+        <div class="row"><span class="label">№ заказа:</span><span class="value highlight">${order.id?.slice(-6) || 'NEW'}</span></div>
+        <div class="row"><span class="label">Дата создания:</span><span class="value">${fd(order.createdAt || today())}</span></div>
+        <div class="row"><span class="label">Срок готовности:</span><span class="value highlight">${fd(order.dueDate)}</span></div>
+        <div class="row"><span class="label">Статус:</span><span class="value">${STATUS_CFG[order.status]?.label || order.status}</span></div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">👤 Пациент</div>
+        <div class="row"><span class="label">ФИО:</span><span class="value">${order.patientName}</span></div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">🔬 Параметры работы</div>
+        <div class="row"><span class="label">Тип работы:</span><span class="value highlight">${labTypeLabel}</span></div>
+        <div class="row"><span class="label">Материал:</span><span class="value highlight">${materialLabel}</span></div>
+        ${order.toothNumber ? `<div class="row"><span class="label">Зуб:</span><span class="value">${order.toothNumber}</span></div>` : ''}
+        ${order.shade ? `<div class="row"><span class="label">Цвет (Shade):</span><span class="value">${order.shade}</span></div>` : ''}
+      </div>
+      
+      ${order.notes ? `
+      <div class="section">
+        <div class="section-title">📝 Комментарии</div>
+        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.5;">${order.notes}</div>
+      </div>
+      ` : ''}
+      
+      <div class="stamp">
+        <div class="stamp-box">Врач<br>_____________</div>
+        <div class="stamp-box">Техник<br>_____________</div>
+        <div class="stamp-box">Пациент<br>_____________</div>
+      </div>
+      
+      <div class="footer">
+        DentVision Lab • Распечатано: ${new Date().toLocaleString('ru-RU')}
+      </div>
+      
+      <button class="no-print" onclick="window.print()" style="margin-top: 20px; padding: 10px 30px; background: #C9A96E; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">🖨 Печать</button>
+      <button class="no-print" onclick="window.close()" style="margin-top: 20px; margin-left: 10px; padding: 10px 30px; background: #666; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">Закрыть</button>
+      
+      <script>
+        setTimeout(() => window.print(), 500);
+      </script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
 export default function Lab({ clinic }) {
   const { labOrders, upsertLabOrder, doctors } = useData(clinic?.id);
   const { toast, showToast, clearToast } = useToast();
@@ -237,6 +324,7 @@ export default function Lab({ clinic }) {
                     <PBtn size="sm" onClick={() => changeStatus(order, 'delivered')}>📦 Выдать</PBtn>
                   )}
                   <GBtn size="sm" onClick={() => openEdit(order)}>✏ Изменить</GBtn>
+                  <GBtn size="sm" color={T.gold} onClick={() => printWorkOrder(order)}>🖨 Печать</GBtn>
                   {order.status === 'in_progress' && (
                     <GBtn size="sm" color={T.ruby} onClick={() => changeStatus(order, 'delayed')}>⏰ Просрочено</GBtn>
                   )}

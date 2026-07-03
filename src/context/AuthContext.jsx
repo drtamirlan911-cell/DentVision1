@@ -23,8 +23,8 @@ export const ROLES = {
   admin: {
     label: 'Администратор',
     icon: '💼',
-    pages: ['schedule','patients','cashier','lab','reminders'],
-    canSeeSalary: false, canSeeExpenses: false,
+    pages: ['schedule','patients','cashier','lab','reminders','staff'],
+    canSeeSalary: false, canSeeExpenses: false, canAddStaff: true,
   },
   doctor: {
     label: 'Врач',

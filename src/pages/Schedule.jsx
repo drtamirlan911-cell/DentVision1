@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useData, useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState } from '../components/ui/BaseComponents';
-import { T, APPOINTMENT_STATUS, HOURS, today, fd } from '../utils/constants';
+import { T, APPOINTMENT_STATUS, HOURS, today, fd, ALL_SERVICES } from '../utils/constants';
 
 const STATUS_CFG = {
   scheduled:  { label: 'Запланирован', color: T.sapphire },
@@ -14,8 +14,21 @@ const STATUS_CFG = {
 };
 
 const EMPTY_FORM = {
-  patientId: '', doctorId: '', service: '', time: '09:00', status: 'scheduled', notes: '',
+  patientId: '', doctorId: '', service: '', time: '09:00', duration: 60, status: 'scheduled', notes: '',
 };
+
+// Группировка услуг по категориям для селекта
+const GROUPED_SERVICES = (() => {
+  const groups = {};
+  ALL_SERVICES.forEach(s => {
+    if (!groups[s.cat]) groups[s.cat] = [];
+    groups[s.cat].push({ value: s.name, label: `${s.name} — ${s.price.toLocaleString()} ₸` });
+  });
+  return Object.entries(groups).map(([cat, items]) => ({
+    label: cat,
+    options: items
+  }));
+})();
 
 export default function Schedule({ clinic }) {
   const { appointments, patients, doctors, upsertAppointment, deleteAppointment } = useData(clinic?.id);
@@ -29,9 +42,10 @@ export default function Schedule({ clinic }) {
 
   const dayAppts = appointments.filter(a => a.date === selDate);
 
-  const openNew = () => {
+  // Открытие модального окна для новой записи с возможностью выбора времени при клике на слот
+  const openNew = (timeSlot) => {
     setEditAppt(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, time: timeSlot || '09:00' });
     setModalOpen(true);
   };
 
@@ -42,6 +56,7 @@ export default function Schedule({ clinic }) {
       doctorId:  a.doctorId  || '',
       service:   a.service   || a.reason || '',
       time:      a.time,
+      duration:  a.duration  || 60,
       status:    a.status,
       notes:     a.notes || '',
     });
@@ -61,6 +76,7 @@ export default function Schedule({ clinic }) {
         clinicId: clinic?.id,
         date:     selDate,
         reason:   form.service,
+        duration: Number(form.duration) || 60,
       });
       showToast(editAppt ? 'Запись обновлена' : 'Запись создана', 'success');
       setModalOpen(false);
@@ -186,9 +202,22 @@ export default function Schedule({ clinic }) {
                 </div>
 
                 {/* Appointments */}
-                <div style={{ flex: 1, padding: '8px 12px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <div 
+                  style={{ flex: 1, padding: '8px 12px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}
+                  onClick={() => slotAppts.length === 0 && isWorkHour && openNew(time)}
+                >
                   {slotAppts.length === 0 ? (
-                    <div style={{ fontSize: 12, color: T.slate + '60', padding: '6px 0', fontStyle: 'italic' }}>
+                    <div 
+                      style={{ 
+                        fontSize: 12, 
+                        color: T.slate + '60', 
+                        padding: '6px 0', 
+                        fontStyle: 'italic',
+                        cursor: isWorkHour ? 'pointer' : 'default',
+                        width: '100%',
+                      }}
+                      title={isWorkHour ? 'Нажмите чтобы добавить запись' : ''}
+                    >
                       {isWorkHour ? 'Свободно' : ''}
                     </div>
                   ) : (
@@ -283,11 +312,11 @@ export default function Schedule({ clinic }) {
               onChange={e => setForm({ ...form, doctorId: e.target.value })}
               options={doctorOptions}
             />
-            <Input
-              label="Услуга / причина визита"
+            <Select
+              label="Услуга из прайса"
               value={form.service}
               onChange={e => setForm({ ...form, service: e.target.value })}
-              placeholder="Лечение кариеса, консультация…"
+              options={GROUPED_SERVICES}
               required
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -298,6 +327,20 @@ export default function Schedule({ clinic }) {
                 options={HOURS.map(h => ({ value: h, label: h }))}
                 required
               />
+              <Select
+                label="Длительность (мин)"
+                value={form.duration}
+                onChange={e => setForm({ ...form, duration: Number(e.target.value) })}
+                options={[
+                  { value: 30, label: '30 мин' },
+                  { value: 45, label: '45 мин' },
+                  { value: 60, label: '60 мин' },
+                  { value: 90, label: '90 мин' },
+                  { value: 120, label: '120 мин' },
+                ]}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Select
                 label="Статус"
                 value={form.status}
