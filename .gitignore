@@ -86,4 +86,6 @@ htmlcov/
 *.tar.xz
 *.tar.zst
 
+# Build artifacts
+dist/
 ```
