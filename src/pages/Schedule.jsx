@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useData, useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState } from '../components/ui/BaseComponents';
-import { T, APPOINTMENT_STATUS, HOURS, today, fd } from '../utils/constants';
+import { T, APPOINTMENT_STATUS, HOURS, today, fd, ALL_SERVICES } from '../utils/constants';
 
 const STATUS_CFG = {
   scheduled:  { label: 'Запланирован', color: T.sapphire },
@@ -14,7 +14,7 @@ const STATUS_CFG = {
 };
 
 const EMPTY_FORM = {
-  patientId: '', doctorId: '', service: '', time: '09:00', status: 'scheduled', notes: '',
+  patientId: '', doctorId: '', service: '', time: '09:00', status: 'scheduled', notes: '', duration: 60,
 };
 
 export default function Schedule({ clinic }) {
@@ -54,13 +54,18 @@ export default function Schedule({ clinic }) {
       showToast('Выберите пациента и время', 'warning');
       return;
     }
+    // Получаем информацию об услуге из прайса
+    const selectedService = ALL_SERVICES.find(s => s.id === form.service);
     try {
       await upsertAppointment({
         ...form,
         id:       editAppt?.id,
         clinicId: clinic?.id,
         date:     selDate,
-        reason:   form.service,
+        serviceId: form.service,
+        serviceName: selectedService?.name || form.service,
+        servicePrice: selectedService?.price || 0,
+        reason:   selectedService?.name || form.service,
       });
       showToast(editAppt ? 'Запись обновлена' : 'Запись создана', 'success');
       setModalOpen(false);
@@ -186,10 +191,13 @@ export default function Schedule({ clinic }) {
                 </div>
 
                 {/* Appointments */}
-                <div style={{ flex: 1, padding: '8px 12px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <div 
+                  style={{ flex: 1, padding: '8px 12px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start', cursor: 'pointer' }}
+                  onClick={() => slotAppts.length === 0 && isWorkHour && openSlotBooking(time)}
+                >
                   {slotAppts.length === 0 ? (
                     <div style={{ fontSize: 12, color: T.slate + '60', padding: '6px 0', fontStyle: 'italic' }}>
-                      {isWorkHour ? 'Свободно' : ''}
+                      {isWorkHour ? 'Свободно (нажмите для записи)' : ''}
                     </div>
                   ) : (
                     slotAppts.map(appt => {
@@ -267,7 +275,7 @@ export default function Schedule({ clinic }) {
         <Modal
           title={editAppt ? 'Редактировать запись' : 'Новая запись'}
           onClose={() => setModalOpen(false)}
-          size="md"
+          size="lg"
         >
           <form onSubmit={handleSubmit}>
             <Select
@@ -283,12 +291,13 @@ export default function Schedule({ clinic }) {
               onChange={e => setForm({ ...form, doctorId: e.target.value })}
               options={doctorOptions}
             />
-            <Input
-              label="Услуга / причина визита"
+            <Select
+              label="Услуга из прайса"
               value={form.service}
               onChange={e => setForm({ ...form, service: e.target.value })}
-              placeholder="Лечение кариеса, консультация…"
+              options={serviceOptions}
               required
+              placeholder="Выберите услугу..."
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Select
@@ -298,6 +307,20 @@ export default function Schedule({ clinic }) {
                 options={HOURS.map(h => ({ value: h, label: h }))}
                 required
               />
+              <Select
+                label="Длительность (мин)"
+                value={form.duration}
+                onChange={e => setForm({ ...form, duration: Number(e.target.value) })}
+                options={[
+                  { value: 30, label: '30 мин' },
+                  { value: 45, label: '45 мин' },
+                  { value: 60, label: '1 час' },
+                  { value: 90, label: '1.5 часа' },
+                  { value: 120, label: '2 часа' },
+                ]}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Select
                 label="Статус"
                 value={form.status}

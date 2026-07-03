@@ -290,7 +290,7 @@ export default function Cashier({ clinic }) {
 
       {/* New transaction modal */}
       {modalOpen && (
-        <Modal title="Новая оплата" onClose={() => setModalOpen(false)}>
+        <Modal title="Новая оплата" onClose={() => setModalOpen(false)} size="lg">
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Input label="Пациент (ФИО)" value={form.patientName}
@@ -299,9 +299,22 @@ export default function Cashier({ clinic }) {
               <Input label="Сумма (₸)" type="number" value={form.amount}
                 onChange={e => setForm({ ...form, amount: e.target.value })} required />
             </div>
-            <Input label="Услуга" value={form.service}
-              onChange={e => setForm({ ...form, service: e.target.value })}
-              placeholder="Лечение кариеса, протезирование…" />
+            <Select 
+              label="Услуга из прайса" 
+              value={form.service}
+              onChange={e => {
+                const selectedService = ALL_SERVICES.find(s => s.id === e.target.value);
+                if (selectedService) {
+                  setForm({ ...form, service: selectedService.name, amount: selectedService.price });
+                } else {
+                  setForm({ ...form, service: '' });
+                }
+              }}
+              options={[
+                { value: '', label: '— Выберите услугу —' },
+                ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${s.price.toLocaleString()} ₸` })),
+              ]}
+            />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Select label="Способ оплаты" value={form.paymentMethod}
                 onChange={e => setForm({ ...form, paymentMethod: e.target.value })}
