@@ -12,7 +12,7 @@ const TABS = [
 ];
 
 const EMPTY_FORM = {
-  type: 'income', amount: '', patientName: '', service: '',
+  type: 'income', amount: '', patientId: '', patientName: '', service: '',
   paymentMethod: 'Kaspi QR', paymentType: 'full', notes: '',
 };
 
@@ -32,12 +32,25 @@ export default function Cashier({ clinic }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [expenseForm, setExpenseForm] = useState({ category: '', amount: '', notes: '' });
   const [expModalOpen, setExpModalOpen] = useState(false);
+  const [cashSettings, setCashSettings] = useState({ defaultMethod: 'Kaspi QR', autoReceipt: true, reminders: true });
 
-  const totalIncome  = receipts.filter(r => r.status === 'paid').reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0);
+  const todayKey = today();
+  const todayReceipts = receipts.filter((r) => (r.date || todayKey) === todayKey && (r.status === 'paid' || r.status === 'completed'));
+  const todayExpenses = expenses.filter((e) => (e.date || todayKey) === todayKey);
+  const currentMonthReceipts = receipts.filter((r) => (r.date || '').slice(0, 7) === todayKey.slice(0, 7));
+  const totalIncome = currentMonthReceipts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0);
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const debts = receipts.filter(r => r.paymentType === 'credit' || r.status === 'debt');
+  const debts = receipts.filter((r) => r.paymentType === 'credit' || r.status === 'debt');
+  const debtBalance = debts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0);
+  const todayRevenue = todayReceipts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0);
+  const todayExpenseAmount = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
-  const handleNewTransaction = () => { setForm(EMPTY_FORM); setModalOpen(true); };
+  const handleNewTransaction = () => { setForm({ ...EMPTY_FORM, paymentMethod: cashSettings.defaultMethod }); setModalOpen(true); };
+
+  const handleQuickPayment = (service) => {
+    setForm({ ...EMPTY_FORM, service: service.name, amount: service.price, paymentMethod: cashSettings.defaultMethod });
+    setModalOpen(true);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,16 +59,23 @@ export default function Cashier({ clinic }) {
       return;
     }
     try {
+      const status = form.paymentType === 'credit'
+        ? 'debt'
+        : form.paymentType === 'prepayment' || form.paymentType === 'installment' || form.paymentType === 'kaspi_installment'
+          ? 'partial'
+          : 'paid';
+
       await upsertReceipt({
         id: gid(),
         clinicId: clinic?.id,
         date: today(),
-        status: form.paymentType === 'credit' ? 'debt' : 'paid',
+        status,
         total: Number(form.amount),
         payMethod: form.paymentMethod,
         paymentType: form.paymentType,
         notes: form.notes,
-        patientName: form.patientName,
+        patientId: form.patientId || undefined,
+        patientName: form.patientName || patients.find((p) => p.id === form.patientId)?.name || '',
         service: form.service,
         items: form.service ? [{ name: form.service, price: Number(form.amount), qty: 1 }] : [],
       });
@@ -73,6 +93,12 @@ export default function Cashier({ clinic }) {
     setExpModalOpen(false);
     setExpenseForm({ category: '', amount: '', notes: '' });
   };
+
+  const quickPresets = [
+    { name: 'Профгигиена', price: 45000 },
+    { name: 'Лечение кариеса', price: 120000 },
+    { name: 'Имплантация', price: 650000 },
+  ];
 
   const demoPayroll = [
     { name: 'Д-р Ахметов',  role: 'Врач',          salary: 450000, paid: 320000 },
@@ -102,13 +128,52 @@ export default function Cashier({ clinic }) {
         </div>
       </div>
 
+      <div className="mb-4 rounded-2xl border border-[rgba(201,169,110,0.15)] bg-[#0E1A2B]/90 p-4">
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 10 }}>⚡ Быстрый приём оплаты</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {quickPresets.map((preset) => (
+            <button
+              key={preset.name}
+              onClick={() => handleQuickPayment(preset)}
+              className="rounded-lg border border-[#C9A96E]/20 bg-[#C9A96E]/10 px-3 py-2 text-sm font-semibold text-[#C9A96E] transition-colors hover:bg-[#C9A96E]/20"
+            >
+              {preset.name} · {tg(preset.price)}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
-        <StatCard title="Доход сегодня"         value={tg(125000)}    icon="💰" trend="+15%" color={T.emerald} />
-        <StatCard title="Расход сегодня"        value={tg(15000)}     icon="💸" trend="-5%"  color={T.ruby} />
-        <StatCard title="Доход за месяц"        value={tg(totalIncome || 2450000)} icon="📊" trend="+22%" color={T.gold} />
-        <StatCard title="Дебиторская задолж."   value={tg(340000)}    icon="📋" trend="+8%"  color={T.amber} />
+        <StatCard title="Доход сегодня" value={tg(todayRevenue)} icon="💰" trend="+15%" color={T.emerald} />
+        <StatCard title="Расход сегодня" value={tg(todayExpenseAmount)} icon="💸" trend="-5%" color={T.ruby} />
+        <StatCard title="Доход за месяц" value={tg(totalIncome)} icon="📊" trend="+22%" color={T.gold} />
+        <StatCard title="Дебиторская задолж." value={tg(debtBalance)} icon="📋" trend="+8%" color={T.amber} />
       </div>
+
+      <Card className="mb-4" style={{ padding: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 10 }}>⚙️ Настройки кассы</div>
+        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+            <div style={{ fontSize: 12, color: T.slate, marginBottom: 6 }}>Способ оплаты по умолчанию</div>
+            <Select
+              value={cashSettings.defaultMethod}
+              onChange={(e) => setCashSettings({ ...cashSettings, defaultMethod: e.target.value })}
+              options={PAY_METHODS.map((m) => ({ value: m, label: m }))}
+            />
+          </div>
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+            <button onClick={() => setCashSettings({ ...cashSettings, autoReceipt: !cashSettings.autoReceipt })} className="flex w-full items-center justify-between text-sm font-semibold text-white">
+              <span>Авто-чеки</span>
+              <span className="text-[#C9A96E]">{cashSettings.autoReceipt ? 'ВКЛ' : 'ВЫКЛ'}</span>
+            </button>
+            <button onClick={() => setCashSettings({ ...cashSettings, reminders: !cashSettings.reminders })} className="mt-2 flex w-full items-center justify-between text-sm font-semibold text-white">
+              <span>Напоминания по долгам</span>
+              <span className="text-[#C9A96E]">{cashSettings.reminders ? 'ВКЛ' : 'ВЫКЛ'}</span>
+            </button>
+          </div>
+        </div>
+      </Card>
 
       {/* Tabs */}
       <div style={{
@@ -145,22 +210,24 @@ export default function Cashier({ clinic }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {receipts.slice().reverse().map((r, i) => (
-                      <tr key={r.id} style={{ borderBottom: `1px solid ${T.borderSub}` }}>
-                        <td style={{ padding: '10px 12px', fontSize: 12, color: T.slateL }}>{fd(r.date)}</td>
-                        <td style={{ padding: '10px 12px', fontSize: 13, color: T.white, fontWeight: 600 }}>{r.patientName || patients.find(p => p.id === r.patientId)?.name || '—'}</td>
-                        <td style={{ padding: '10px 12px', fontSize: 12, color: T.slateL }}>{r.service || (r.items?.[0]?.name) || '—'}</td>
-                        <td style={{ padding: '10px 12px' }}><Badge color={T.sapphire} size="sm">{r.payMethod || '—'}</Badge></td>
-                        <td style={{ padding: '10px 12px' }}>
-                          <Badge color={r.status === 'debt' ? T.ruby : T.emerald} size="sm">
-                            {r.status === 'debt' ? 'Долг' : 'Оплачено'}
-                          </Badge>
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: r.status === 'debt' ? T.ruby : T.emerald, fontSize: 14 }}>
-                          +{tg(r.total || r.amount || 0)}
-                        </td>
-                      </tr>
-                    ))}
+                    {receipts.slice().reverse().map((r, i) => {
+                      const statusLabel = r.status === 'debt' ? 'Долг' : r.status === 'partial' ? 'Частично' : 'Оплачено';
+                      const statusColor = r.status === 'debt' ? T.ruby : r.status === 'partial' ? T.amber : T.emerald;
+                      return (
+                        <tr key={r.id} style={{ borderBottom: `1px solid ${T.borderSub}` }}>
+                          <td style={{ padding: '10px 12px', fontSize: 12, color: T.slateL }}>{fd(r.date)}</td>
+                          <td style={{ padding: '10px 12px', fontSize: 13, color: T.white, fontWeight: 600 }}>{r.patientName || patients.find(p => p.id === r.patientId)?.name || '—'}</td>
+                          <td style={{ padding: '10px 12px', fontSize: 12, color: T.slateL }}>{r.service || (r.items?.[0]?.name) || '—'}</td>
+                          <td style={{ padding: '10px 12px' }}><Badge color={T.sapphire} size="sm">{r.payMethod || '—'}</Badge></td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <Badge color={statusColor} size="sm">{statusLabel}</Badge>
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: statusColor, fontSize: 14 }}>
+                            +{tg(r.total || r.amount || 0)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -293,12 +360,24 @@ export default function Cashier({ clinic }) {
         <Modal title="Новая оплата" onClose={() => setModalOpen(false)} size="lg">
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Пациент (ФИО)" value={form.patientName}
-                onChange={e => setForm({ ...form, patientName: e.target.value })}
-                placeholder="Иванов Иван Иванович" />
+              <Select
+                label="Пациент"
+                value={form.patientId}
+                onChange={(e) => {
+                  const selectedPatient = patients.find((p) => p.id === e.target.value);
+                  setForm({ ...form, patientId: e.target.value, patientName: selectedPatient?.name || '' });
+                }}
+                options={[
+                  { value: '', label: '— Выберите пациента —' },
+                  ...patients.map((p) => ({ value: p.id, label: p.name })),
+                ]}
+              />
               <Input label="Сумма (₸)" type="number" value={form.amount}
                 onChange={e => setForm({ ...form, amount: e.target.value })} required />
             </div>
+            <Input label="Пациент (ФИО)" value={form.patientName}
+              onChange={e => setForm({ ...form, patientName: e.target.value })}
+              placeholder="Иванов Иван Иванович" />
             <Select 
               label="Услуга из прайса" 
               value={form.service}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -16,7 +16,6 @@ import {
   X,
   Moon,
   Sun,
-  Stethoscope,
 } from 'lucide-react';
 import { useUIStore } from '../stores/useUIStore';
 import { T } from '../utils/constants';
@@ -36,13 +35,13 @@ interface NavItem {
 }
 
 const ALL_NAV: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, path: '/dashboard' },
+  { id: 'dashboard', label: 'Главная', icon: <LayoutDashboard size={18} />, path: '/dashboard' },
   { id: 'schedule', label: 'Расписание', icon: <Calendar size={18} />, path: '/schedule' },
   { id: 'patients', label: 'Пациенты', icon: <Users size={18} />, path: '/patients' },
   { id: 'cashier', label: 'Финансы', icon: <DollarSign size={18} />, path: '/cashier' },
   { id: 'pricelist', label: 'Прайс-лист', icon: <FileText size={18} />, path: '/pricelist' },
   { id: 'lab', label: 'Лаборатория', icon: <FlaskConical size={18} />, path: '/lab' },
-  { id: 'ai', label: 'AI Команда', icon: <Bot size={18} />, path: '/ai' },
+  { id: 'ai', label: 'AI помощник', icon: <Bot size={18} />, path: '/ai' },
   { id: 'staff', label: 'Сотрудники', icon: <UserCog size={18} />, path: '/staff' },
   { id: 'admin', label: 'Super Admin', icon: <Settings size={18} />, path: '/admin' },
 ];
@@ -88,72 +87,54 @@ export function Sidebar({ user, clinic, roleInfo, allowedPages, onLogout }: Side
 
   return (
     <>
-      {/* Mobile overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={toggleSidebar}
-        />
+        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={toggleSidebar} />
       )}
 
-      {/* Sidebar */}
       <motion.aside
         initial={false}
         animate={{ x: sidebarOpen ? 0 : -280 }}
         className={cn(
-          'fixed top-0 left-0 h-full z-50 flex flex-col',
-          'w-72 border-r transition-colors duration-300',
-          'bg-[#0D1B2E] border-[rgba(201,169,110,0.15)]'
+          'fixed left-0 top-0 z-50 flex h-full w-72 flex-col border-r transition-colors duration-300',
+          'border-[rgba(201,169,110,0.15)] bg-[#0D1B2E]'
         )}
       >
-        {/* Logo */}
-        <div className="p-5 border-b border-[rgba(201,169,110,0.15)]">
+        <div className="border-b border-[rgba(201,169,110,0.15)] p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="text-2xl">🦷</div>
               <div>
-                <h1 className="font-serif text-xl font-bold text-[#C9A96E] tracking-tight">
-                  DentVision
-                </h1>
-                <p className="text-xs text-[#7A8899] truncate max-w-[180px]">
-                  {clinic?.name || 'CRM Панель'}
-                </p>
+                <h1 className="font-serif text-xl font-bold tracking-tight text-[#C9A96E]">DentVision</h1>
+                <p className="max-w-[180px] truncate text-xs text-[#7A8899]">{clinic?.name || 'CRM панель'}</p>
               </div>
             </div>
-            <button
-              onClick={toggleSidebar}
-              className="lg:hidden p-2 hover:bg-white/5 rounded-lg transition-colors"
-            >
+            <button onClick={toggleSidebar} className="rounded-lg p-2 transition-colors hover:bg-white/5 lg:hidden">
               <X size={20} className="text-[#7A8899]" />
             </button>
           </div>
         </div>
 
-        {/* User Profile */}
-        <div className="p-4 border-b border-[rgba(255,255,255,0.06)]">
+        <div className="border-b border-[rgba(255,255,255,0.06)] p-4">
           <div className="flex items-center gap-3">
             <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
-              style={{
-                background: `${roleColor}18`,
-                border: `2px solid ${roleColor}40`,
-              }}
+              className="flex h-10 w-10 items-center justify-center rounded-full text-lg"
+              style={{ background: `${roleColor}18`, border: `2px solid ${roleColor}40` }}
             >
               {ROLES[user?.role]?.icon || '👤'}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white truncate">
-                {user?.name || user?.login}
-              </p>
-              <p className="text-xs" style={{ color: roleColor, fontWeight: 600 }}>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-white">{user?.name || user?.login}</p>
+              <p className="text-xs font-semibold" style={{ color: roleColor }}>
                 {ROLE_LABELS[user?.role] || 'Сотрудник'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2">
+        <nav className="flex-1 overflow-y-auto px-2 py-3">
+          <div className="mb-2 px-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7A8899]">Основное</p>
+          </div>
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
@@ -161,11 +142,10 @@ export function Sidebar({ user, clinic, roleInfo, allowedPages, onLogout }: Side
                 key={item.id}
                 onClick={() => handleNavClick(item.path)}
                 className={cn(
-                  'w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1',
-                  'transition-all duration-200 text-left',
+                  'mb-1 flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-all duration-200',
                   isActive
-                    ? 'bg-[#C9A96E]/12 border-l-3 border-[#C9A96E] text-[#C9A96E] font-semibold'
-                    : 'text-[#7A8899] hover:text-[#B0BEC5] hover:bg-white/5'
+                    ? 'border-l-3 border-[#C9A96E] bg-[#C9A96E]/12 font-semibold text-[#C9A96E]'
+                    : 'text-[#7A8899] hover:bg-white/5 hover:text-[#B0BEC5]'
                 )}
               >
                 <span className={isActive ? 'text-[#C9A96E]' : ''}>{item.icon}</span>
@@ -175,33 +155,30 @@ export function Sidebar({ user, clinic, roleInfo, allowedPages, onLogout }: Side
           })}
         </nav>
 
-        {/* Bottom Section */}
-        <div className="p-4 border-t border-[rgba(201,169,110,0.15)] space-y-3">
-          {/* Plan Badge */}
+        <div className="space-y-3 border-t border-[rgba(201,169,110,0.15)] p-4">
           {clinic && (
-            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5">
-              <span className="text-xs text-[#7A8899]">Тариф:</span>
-              <span className="text-xs font-semibold uppercase text-[#C9A96E]">
-                {clinic.plan || 'Starter'}
-              </span>
+            <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+              <span className="text-xs text-[#7A8899]">Тариф</span>
+              <span className="text-xs font-semibold uppercase text-[#C9A96E]">{clinic.plan || 'Starter'}</span>
             </div>
           )}
 
-          {/* Dark Mode Toggle */}
+          <div className="rounded-lg border border-[#C9A96E]/15 bg-[#0B1627] p-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7A8899]">Состояние</p>
+            <p className="mt-1 text-sm font-semibold text-white">{menuItems.length} рабочих разделов доступно</p>
+          </div>
+
           <button
             onClick={toggleDarkMode}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+            className="flex w-full items-center justify-between rounded-lg bg-white/5 px-3 py-2 transition-colors hover:bg-white/10"
           >
-            <span className="text-xs text-[#7A8899]">
-              {darkMode ? 'Тёмная тема' : 'Светлая тема'}
-            </span>
+            <span className="text-xs text-[#7A8899]">{darkMode ? 'Тёмная тема' : 'Светлая тема'}</span>
             {darkMode ? <Moon size={16} className="text-[#C9A96E]" /> : <Sun size={16} className="text-[#F39C12]" />}
           </button>
 
-          {/* Logout */}
           <button
             onClick={onLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-[#E74C3C]/22 text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors"
+            className="flex w-full items-center gap-2 rounded-lg border border-[#E74C3C]/22 px-3 py-2 text-[#E74C3C] transition-colors hover:bg-[#E74C3C]/10"
           >
             <LogOut size={16} />
             <span className="text-sm font-semibold">Выйти из системы</span>
@@ -209,10 +186,9 @@ export function Sidebar({ user, clinic, roleInfo, allowedPages, onLogout }: Side
         </div>
       </motion.aside>
 
-      {/* Mobile Header Button */}
       <button
         onClick={toggleSidebar}
-        className="lg:hidden fixed top-4 left-4 z-30 p-3 rounded-lg bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] shadow-lg"
+        className="fixed left-4 top-4 z-30 rounded-lg border border-[rgba(201,169,110,0.15)] bg-[#0D1B2E] p-3 shadow-lg lg:hidden"
       >
         <Menu size={20} className="text-[#C9A96E]" />
       </button>
