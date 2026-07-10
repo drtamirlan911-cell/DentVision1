@@ -4,16 +4,12 @@ import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState, Texta
 import { Odontogram3D, SurfaceEditor, AutoTreatmentPlan, ToothLegend } from '../components/Odontogram3D';
 import { T, TOOTH_STATUS, PATIENT_CATEGORY, calculateAge, formatPhone, fd, tg, gid, today } from '../utils/constants';
 
+// Используем PATIENT_CATEGORY из constants вместо дублирования
+const CAT_CFG = PATIENT_CATEGORY;
+
 const EMPTY_FORM = {
   name: '', phone: '', email: '', dob: '', address: '',
   category: 'new', notes: '', teeth: {},
-};
-
-const CAT_CFG = {
-  new:     { label: 'Новый',      color: T.emerald },
-  regular: { label: 'Постоянный', color: T.gold },
-  vip:     { label: 'VIP ⭐',     color: T.purple },
-  debt:    { label: 'Должник',    color: T.ruby },
 };
 
 export default function Patients({ clinic }) {

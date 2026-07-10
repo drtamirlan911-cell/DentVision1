@@ -179,7 +179,8 @@ export function useToast() {
 
   const showToast = useCallback((msg, type = 'success') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
   }, []);
 
   const clearToast = useCallback(() => setToast(null), []);

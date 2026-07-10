@@ -5,7 +5,8 @@
 import { toSnakeRow, toCamelRow, FIELD_MAP } from './constants';
 
 const SUPABASE_URL = "https://yrokwnlabqxoztbzzhox.supabase.co";
-const SUPABASE_KEY = "sb_publishable_Zx5ZfAsOiEddSPNjun3TyA_eUiBDBlA";
+// WARNING: В production использовать переменные окружения VITE_SUPABASE_KEY
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || "sb_publishable_Zx5ZfAsOiEddSPNjun3TyA_eUiBDBlA";
 
 const sbHeaders = {
   "Content-Type": "application/json",
@@ -128,14 +129,31 @@ export async function getSubscriptionStatus(clinicId) {
   return rows && rows.length > 0 ? rows[0] : null;
 }
 
-// WhatsApp integration
+// WhatsApp integration - using proper API endpoint
 export async function sendWhatsAppMessage(phone, message) {
   try {
-    // Using WhatsApp Business API or third-party service
-    const res = await fetch("https://api.whatsapp.com/send", {
+    // Using WhatsApp Cloud API (Meta) or third-party service like Twilio
+    // Для production необходимо настроить API ключ в переменных окружения VITE_WHATSAPP_API_KEY
+    const API_URL = import.meta.env.VITE_WHATSAPP_API_URL || "https://graph.facebook.com/v17.0/YOUR_PHONE_ID/messages";
+    const API_KEY = import.meta.env.VITE_WHATSAPP_API_KEY;
+    
+    if (!API_KEY) {
+      console.warn("WhatsApp API key not configured. Message not sent.");
+      return false;
+    }
+    
+    const res = await fetch(API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, message }),
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${API_KEY}`,
+      },
+      body: JSON.stringify({ 
+        messaging_product: "whatsapp",
+        to: phone.replace(/\D/g, ""),
+        type: "text",
+        text: { body: message }
+      }),
     });
     return res.ok;
   } catch (e) {
