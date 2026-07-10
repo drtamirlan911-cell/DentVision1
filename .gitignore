@@ -5,7 +5,7 @@ node_modules/
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
 
 # Logs and temp files
 *.log
@@ -13,16 +13,4 @@ node_modules/
 
 # Editors
 .vscode/
-.idea/
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-venv/
-.venv/
-.env
-.env.local
 ```
