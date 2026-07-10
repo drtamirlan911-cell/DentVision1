@@ -1,4 +1,11 @@
 ```
+# Build artifacts
+dist/
+build/
+*.js
+*.css
+*.svg
+
 # Dependencies
 node_modules/
 
