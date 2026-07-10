@@ -1,15 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Register from './Register';
 import { T, GLOBAL_CSS } from '../utils/constants';
 import { Spinner } from '../components/ui/BaseComponents';
 
 export default function Login() {
-  const { login, loading, error } = useAuth();
+  const navigate = useNavigate();
+  const { user, login, loading, error } = useAuth();
   const [loginStr, setLoginStr] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState('');
   const [showRegister, setShowRegister] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   if (showRegister) return <Register onBack={() => setShowRegister(false)} />;
 

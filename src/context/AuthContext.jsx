@@ -67,10 +67,14 @@ export function AuthProvider({ children }) {
       try {
         const result = await api.login(loginStr, password);
         if (result && result.user) {
-          setUser(result.user);
-          if (result.user.clinicId) {
+          const resolvedUser = {
+            ...result.user,
+            clinicId: result.user.clinicId || _store.users.find(u => u.login === loginStr)?.clinicId || null,
+          };
+          setUser(resolvedUser);
+          if (resolvedUser.clinicId) {
             try {
-              const clinicData = await api.getClinic(result.user.clinicId);
+              const clinicData = await api.getClinic(resolvedUser.clinicId);
               setClinic(clinicData);
             } catch (_) {}
           }
