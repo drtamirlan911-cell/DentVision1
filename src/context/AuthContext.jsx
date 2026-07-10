@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { SUPER_ADMIN, INIT_CLINICS, INIT_USERS, gid, today } from '../utils/constants';
+import * as api from '../utils/api';
 
 // Persistent session store (survives HMR, resets on full reload)
 const _store = {
@@ -55,12 +56,31 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
+      // Check super admin first (local)
       if (loginStr === SUPER_ADMIN.login && password === SUPER_ADMIN.password) {
         setUser(SUPER_ADMIN);
         setClinic(null);
         return true;
       }
 
+      // Try API authentication first
+      try {
+        const result = await api.login(loginStr, password);
+        if (result && result.user) {
+          setUser(result.user);
+          if (result.user.clinicId) {
+            try {
+              const clinicData = await api.getClinic(result.user.clinicId);
+              setClinic(clinicData);
+            } catch (_) {}
+          }
+          return true;
+        }
+      } catch (apiError) {
+        console.log('API auth failed, trying fallback:', apiError.message);
+      }
+
+      // Fallback to local store
       const localUser = _store.users.find(
         u => u.login === loginStr && u.password === password
       );
@@ -70,6 +90,7 @@ export function AuthProvider({ children }) {
         return true;
       }
 
+      // Fallback to supabase
       try {
         const { verifyLogin, loadClinicData } = await import('../utils/supabase');
         const result = await verifyLogin(loginStr, password);
@@ -85,8 +106,8 @@ export function AuthProvider({ children }) {
 
       setError('Неверный логин или пароль');
       return false;
-    } catch {
-      setError('Ошибка соединения с сервером');
+    } catch (err) {
+      setError('Ошибка соединения с сервером: ' + err.message);
       return false;
     } finally {
       setLoading(false);
