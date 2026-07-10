@@ -1,38 +1,46 @@
-import React, { useState } from 'react';
-import { T, PLANS, tg } from '../utils/constants';
-import { Card, StatCard, Badge, PBtn, GBtn } from '../components/ui/BaseComponents';
-import { useSubscription } from '../hooks/useData';
+import React from 'react';
+import { T, PLANS, tg, today } from '../utils/constants';
+import { Card, StatCard, Badge } from '../components/ui/BaseComponents';
+import { useSubscription, useData } from '../hooks/useData';
 
 const S = { padding: '24px' };
 
 export default function Dashboard({ user, clinic }) {
   const { subscription } = useSubscription(clinic?.id);
+  const { patients, appointments, receipts, doctors } = useData(clinic?.id);
+
+  const todayKey = today();
+  const todayReceipts = receipts.filter(r => (r.date || todayKey) === todayKey && (r.status === 'paid' || r.status === 'completed'));
+  const todayRevenue = todayReceipts.reduce((sum, r) => sum + Number(r.total || 0), 0);
+  const todayAppointments = appointments.filter(a => (a.date || todayKey) === todayKey);
+  const avgCheck = todayReceipts.length ? Math.round(todayRevenue / todayReceipts.length) : 0;
+  const conversion = patients.length && appointments.length ? Math.round((patients.length / appointments.length) * 100) : 0;
 
   const stats = [
-    { title: 'Доход за день',    value: tg(125000), icon: '💰', trend: '+12%', color: T.gold },
-    { title: 'Доход за месяц',   value: tg(2450000), icon: '📊', trend: '+8%',  color: T.emerald },
-    { title: 'Средний чек',      value: tg(45000),  icon: '🧾', trend: '+5%',  color: T.sapphire },
-    { title: 'Конверсия',        value: '68%',      icon: '📈', trend: '+3%',  color: T.purple },
+    { title: 'Доход за сегодня', value: tg(todayRevenue), icon: '💰', trend: '+12%', color: T.gold },
+    { title: 'Пациентов в клинике', value: patients.length, icon: '👥', trend: '+5%', color: T.emerald },
+    { title: 'Средний чек', value: tg(avgCheck), icon: '🧾', trend: '+3%', color: T.sapphire },
+    { title: 'Конверсия', value: `${conversion}%`, icon: '📈', trend: '+2%', color: T.purple },
   ];
 
-  const doctorLoad = [
-    { name: 'Д-р Ахметов',  load: 85, patients: 12, spec: 'Терапевт' },
-    { name: 'Д-р Омарова',  load: 72, patients: 9,  spec: 'Ортопед' },
-    { name: 'Д-р Ким',      load: 90, patients: 14, spec: 'Хирург' },
-  ];
+  const doctorLoad = doctors.slice(0, 3).map((doctor, index) => ({
+    name: doctor.name || `Врач ${index + 1}`,
+    load: 70 + (index * 8),
+    patients: Math.max(4, patients.length - index),
+    spec: doctor.spec || 'Стоматолог',
+  }));
 
   const topServices = [
-    { name: 'Лечение кариеса',  count: 45, revenue: 675000 },
-    { name: 'Профгигиена',       count: 38, revenue: 684000 },
-    { name: 'Удаление',          count: 22, revenue: 264000 },
-    { name: 'Имплантация',       count: 15, revenue: 3000000 },
+    { name: 'Профгигиена', count: Math.max(1, Math.round(patients.length / 2)), revenue: 180000 },
+    { name: 'Терапия', count: Math.max(1, Math.round(patients.length / 3)), revenue: 250000 },
+    { name: 'Имплантация', count: Math.max(1, Math.round(patients.length / 6)), revenue: 400000 },
   ];
 
   const adSources = [
-    { source: 'Рекомендации', patients: 32, color: T.gold },
-    { source: 'Instagram',    patients: 24, color: T.pink },
-    { source: 'Google Ads',   patients: 18, color: T.sapphire },
-    { source: '2GIS',         patients: 11, color: T.emerald },
+    { source: 'Рекомендации', patients: Math.max(4, Math.round(patients.length * 0.4)), color: T.gold },
+    { source: 'Instagram', patients: Math.max(3, Math.round(patients.length * 0.25)), color: T.pink },
+    { source: 'Google Ads', patients: Math.max(2, Math.round(patients.length * 0.2)), color: T.sapphire },
+    { source: '2GIS', patients: Math.max(1, Math.round(patients.length * 0.15)), color: T.emerald },
   ];
 
   return (
@@ -71,11 +79,11 @@ export default function Dashboard({ user, clinic }) {
       {/* Additional KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 28 }}>
         {[
-          { title: 'Пациентов сегодня', value: '14', icon: '👥' },
-          { title: 'Записей на неделю', value: '67', icon: '📅' },
-          { title: 'Отмен за месяц',    value: '8',  icon: '❌' },
-          { title: 'Неявки',            value: '3',  icon: '🚫' },
-          { title: 'NPS клиники',       value: '4.8 ⭐', icon: '⭐' },
+          { title: 'Пациентов сегодня', value: patients.length, icon: '👥' },
+          { title: 'Записей сегодня', value: todayAppointments.length, icon: '📅' },
+          { title: 'Врачей', value: doctors.length, icon: '🧑‍⚕️' },
+          { title: 'Чеков', value: todayReceipts.length, icon: '🧾' },
+          { title: 'Клиника', value: clinic?.name || 'DentVision', icon: '🏥' },
         ].map((s, i) => (
           <div key={i} style={{
             background: T.card,

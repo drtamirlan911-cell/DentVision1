@@ -8,7 +8,6 @@ const TABS = [
   { id: 'clinics',       label: '🏥 Клиники' },
   { id: 'users',         label: '👥 Пользователи' },
   { id: 'subscriptions', label: '💳 Тарифы' },
-  { id: 'settings',      label: '⚙️ Настройки' },
 ];
 
 const PLAN_COLORS = { starter: T.sapphire, pro: T.gold, enterprise: T.purple };
@@ -248,60 +247,6 @@ export default function SuperAdmin({ user }) {
             );
           })}
         </div>
-      )}
-
-      {/* Settings */}
-      {activeTab === 'settings' && (
-        <Card>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 18 }}>Настройки системы</div>
-          {[
-            {
-              title: 'Авторегистрация клиник',
-              desc: 'Позволить клиникам регистрироваться самостоятельно без модерации',
-              control: (
-                <Select value="enabled" onChange={() => {}} options={[
-                  { value: 'enabled', label: 'Включено' },
-                  { value: 'moderation', label: 'С модерацией' },
-                  { value: 'disabled', label: 'Отключено' },
-                ]} style={{ width: 180 }} />
-              ),
-            },
-            {
-              title: 'WhatsApp уведомления',
-              desc: 'Автоматические напоминания пациентам о записях',
-              control: (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input type="password" placeholder="API ключ" style={{ width: 160, background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 12, color: T.white, outline: 'none', fontFamily: 'inherit' }} />
-                  <PBtn size="sm" onClick={() => showToast('Ключ сохранён', 'success')}>Сохранить</PBtn>
-                </div>
-              ),
-            },
-            {
-              title: 'Пробный период для новых клиник',
-              desc: 'Количество дней бесплатного доступа при регистрации',
-              control: (
-                <Select value="14" onChange={() => {}} options={[
-                  { value: '7', label: '7 дней' },
-                  { value: '14', label: '14 дней' },
-                  { value: '30', label: '30 дней' },
-                ]} style={{ width: 130 }} />
-              ),
-            },
-          ].map((s, i) => (
-            <div key={i} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '14px 16px', marginBottom: 10,
-              background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.borderSub}`, borderRadius: 10,
-              flexWrap: 'wrap', gap: 12,
-            }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.white }}>{s.title}</div>
-                <div style={{ fontSize: 12, color: T.slate, marginTop: 3 }}>{s.desc}</div>
-              </div>
-              {s.control}
-            </div>
-          ))}
-        </Card>
       )}
 
       {/* Modal */}

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useToast } from '../hooks/useData';
+import { useToast, useData } from '../hooks/useData';
 import { PBtn, GBtn, Card, Badge, Toast, Input } from '../components/ui/BaseComponents';
 import { T } from '../utils/constants';
+import { buildAiReply } from '../utils/aiHelpers';
 
 const ASSISTANTS = [
   {
@@ -60,6 +61,7 @@ const ASSISTANTS = [
 
 export default function AITeam({ clinic }) {
   const { toast, showToast, clearToast } = useToast();
+  const { patients, appointments, receipts, doctors } = useData(clinic?.id);
   const [activeId, setActiveId] = useState('consultant');
   const [chatHistory, setChatHistory] = useState([
     { role: 'assistant', content: 'Здравствуйте! Я AI-ассистент DentVision. Готов помочь автоматизировать вашу клинику. Чем могу помочь?' }
@@ -81,10 +83,16 @@ export default function AITeam({ clinic }) {
     setUserInput('');
     setProcessing(true);
 
-    const delay = 800 + Math.random() * 600;
+    const delay = 600 + Math.random() * 300;
     setTimeout(() => {
-      const replies = activeAssistant.replies;
-      const reply = replies[Math.floor(Math.random() * replies.length)];
+      const reply = buildAiReply({
+        message: msg,
+        clinicName: clinic?.name || 'DentVision',
+        patients,
+        appointments,
+        receipts,
+        doctors,
+      });
       setChatHistory(prev => [...prev, { role: 'assistant', content: reply }]);
       setProcessing(false);
     }, delay);
