@@ -3,21 +3,59 @@ import {
   INIT_PATIENTS, INIT_APPOINTMENTS, INIT_RECEIPTS,
   INIT_USERS, gid, today
 } from '../utils/constants';
+import * as api from '../utils/api';
 
 function trySync(table, row) {
-  import('../utils/supabase').then(({ upsertRow }) => {
-    upsertRow(table, row).catch(() => {});
-  });
+  // Sync to API backend based on table type
+  switch (table) {
+    case 'patients':
+      api.upsertPatient(row).catch(() => {});
+      break;
+    case 'appointments':
+      api.upsertAppointment(row).catch(() => {});
+      break;
+    case 'receipts':
+      api.upsertReceipt(row).catch(() => {});
+      break;
+    case 'lab_orders':
+      api.upsertLabOrder(row).catch(() => {});
+      break;
+    case 'expenses':
+      api.upsertExpense(row).catch(() => {});
+      break;
+    case 'inventory':
+      api.upsertInventoryItem(row).catch(() => {});
+      break;
+    case 'users':
+      api.upsertUser(row).catch(() => {});
+      break;
+    case 'subscriptions':
+      api.upsertSubscription(row).catch(() => {});
+      break;
+    case 'photos':
+      api.uploadPhoto(row).catch(() => {});
+      break;
+    default:
+      console.log('Unknown table for sync:', table);
+  }
 }
 
 function tryDelete(table, id) {
-  import('../utils/supabase').then(({ deleteRow }) => {
-    deleteRow(table, id).catch(() => {});
-  });
+  // Delete from API backend
+  if (table === 'patients') {
+    api.deletePatient(id).catch(() => {});
+  } else if (table === 'appointments') {
+    api.deleteAppointment(id).catch(() => {});
+  } else if (table === 'receipts') {
+    api.deleteReceipt(id).catch(() => {});
+  } else if (table === 'photos') {
+    api.deletePhoto(id).catch(() => {});
+  }
 }
 
 export function useData(clinicId) {
   const initRef = useRef(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const [patients, _setPatients] = useState(() =>
     clinicId ? INIT_PATIENTS.filter(p => p.clinicId === clinicId) : []
@@ -38,6 +76,59 @@ export function useData(clinicId) {
   ]);
 
   const doctors = INIT_USERS.filter(u => u.role === 'doctor' && (!clinicId || u.clinicId === clinicId));
+
+  // Load data from API on mount
+  useEffect(() => {
+    if (!clinicId || initRef.current) return;
+    initRef.current = true;
+
+    const loadData = async () => {
+      try {
+        // Load patients
+        const patientsData = await api.getPatients(clinicId).catch(() => []);
+        if (patientsData && patientsData.length > 0) {
+          _setPatients(patientsData);
+        }
+
+        // Load appointments
+        const appointmentsData = await api.getAppointments(clinicId).catch(() => []);
+        if (appointmentsData && appointmentsData.length > 0) {
+          _setAppointments(appointmentsData);
+        }
+
+        // Load receipts
+        const receiptsData = await api.getReceipts(clinicId).catch(() => []);
+        if (receiptsData && receiptsData.length > 0) {
+          _setReceipts(receiptsData);
+        }
+
+        // Load lab orders
+        const labOrdersData = await api.getLabOrders(clinicId).catch(() => []);
+        if (labOrdersData && labOrdersData.length > 0) {
+          _setLabOrders(labOrdersData);
+        }
+
+        // Load expenses
+        const expensesData = await api.getExpenses(clinicId).catch(() => []);
+        if (expensesData && expensesData.length > 0) {
+          _setExpenses(expensesData);
+        }
+
+        // Load inventory
+        const inventoryData = await api.getInventory(clinicId).catch(() => []);
+        if (inventoryData && inventoryData.length > 0) {
+          _setInventory(inventoryData);
+        }
+
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('Failed to load data from API:', error);
+        setIsInitialized(true);
+      }
+    };
+
+    loadData();
+  }, [clinicId]);
 
   const upsertPatient = useCallback((patientData) => {
     const isNew = !patientData.id;
