@@ -2,7 +2,6 @@
 # Build artifacts
 dist/
 build/
-*.js
 *.css
 
 # Dependencies
