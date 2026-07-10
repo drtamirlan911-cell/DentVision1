@@ -3,15 +3,8 @@ import { useData, useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState } from '../components/ui/BaseComponents';
 import { T, APPOINTMENT_STATUS, HOURS, today, fd, ALL_SERVICES } from '../utils/constants';
 
-const STATUS_CFG = {
-  scheduled:  { label: 'Запланирован', color: T.sapphire },
-  confirmed:  { label: 'Подтверждён',  color: T.emerald },
-  pending:    { label: 'Ожидает',      color: T.amber },
-  done:       { label: 'Завершён',     color: T.teal },
-  cancelled:  { label: 'Отменён',      color: T.ruby },
-  noshow:     { label: 'Неявка',       color: T.slate },
-  completed:  { label: 'Завершён',     color: T.teal },
-};
+// Используем APPOINTMENT_STATUS из constants вместо дублирования
+const STATUS_CFG = APPOINTMENT_STATUS;
 
 const EMPTY_FORM = {
   patientId: '', doctorId: '', service: '', time: '09:00', status: 'scheduled', notes: '', duration: 60,

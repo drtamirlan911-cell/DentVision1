@@ -236,6 +236,11 @@ export function tg(n) {
 }
 
 export function gid() { 
+  // Используем crypto.randomUUID() для гарантированной уникальности
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback для старых браузеров
   return Date.now().toString(36) + Math.random().toString(36).slice(2,5); 
 }
 
