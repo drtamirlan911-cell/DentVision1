@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useData, useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, StatCard, Toast, EmptyState } from '../components/ui/BaseComponents';
-import { T, tg, fd, gid, today, PAY_METHODS, ALL_SERVICES } from '../utils/constants';
+import { T, tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency } from '../utils/constants';
 
 const TABS = [
   { id: 'transactions', label: '💳 Операции' },
@@ -25,7 +25,7 @@ const PAY_TYPES = [
 ];
 
 export default function Cashier({ clinic }) {
-  const { receipts, patients, upsertReceipt, expenses, upsertExpense, inventory, upsertInventoryItem } = useData(clinic?.id);
+  const { receipts, patients, doctors, upsertReceipt, expenses, upsertExpense, inventory } = useData(clinic?.id);
   const { toast, showToast, clearToast } = useToast();
   const [activeTab, setActiveTab] = useState('transactions');
   const [modalOpen, setModalOpen] = useState(false);
@@ -33,13 +33,14 @@ export default function Cashier({ clinic }) {
   const [expenseForm, setExpenseForm] = useState({ category: '', amount: '', notes: '' });
   const [expModalOpen, setExpModalOpen] = useState(false);
   const [cashSettings, setCashSettings] = useState({ defaultMethod: 'Kaspi QR', autoReceipt: true, reminders: true });
+  const money = (value) => tg(value, clinic);
+  const { currency } = getClinicCurrency(clinic);
 
   const todayKey = today();
   const todayReceipts = receipts.filter((r) => (r.date || todayKey) === todayKey && (r.status === 'paid' || r.status === 'completed'));
   const todayExpenses = expenses.filter((e) => (e.date || todayKey) === todayKey);
   const currentMonthReceipts = receipts.filter((r) => (r.date || '').slice(0, 7) === todayKey.slice(0, 7));
   const totalIncome = currentMonthReceipts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0);
-  const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const debts = receipts.filter((r) => r.paymentType === 'credit' || r.status === 'debt');
   const debtBalance = debts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0);
   const todayRevenue = todayReceipts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0);
@@ -100,17 +101,20 @@ export default function Cashier({ clinic }) {
     { name: 'Имплантация', price: 650000 },
   ];
 
-  const demoPayroll = [
-    { name: 'Д-р Ахметов',  role: 'Врач',          salary: 450000, paid: 320000 },
-    { name: 'Д-р Омарова',  role: 'Врач',          salary: 380000, paid: 280000 },
-    { name: 'Иванова М.',   role: 'Администратор', salary: 250000, paid: 250000 },
-  ];
+  const payrollRows = doctors
+    .filter((doctor) => Number(doctor.salary || 0) > 0 || Number(doctor.paid || 0) > 0)
+    .map((doctor) => ({
+      name: doctor.name,
+      role: doctor.spec || 'Врач',
+      salary: Number(doctor.salary || 0),
+      paid: Number(doctor.paid || 0),
+    }));
 
-  const demoDebts = [
-    { patient: 'Петров В.В.',     amount: 120000, date: '2025-01-15' },
-    { patient: 'Сидорова Е.К.',   amount: 85000,  date: '2025-01-20' },
-    { patient: 'Алиев Н.Р.',      amount: 135000, date: '2025-02-05' },
-  ];
+  const debtRows = debts.map((debt) => ({
+    patient: debt.patientName || patients.find((p) => p.id === debt.patientId)?.name || 'Пациент не указан',
+    amount: debt.total || Number(debt.amount) || 0,
+    date: debt.date,
+  }));
 
   return (
     <div style={{ padding: 24 }}>
@@ -137,7 +141,7 @@ export default function Cashier({ clinic }) {
               onClick={() => handleQuickPayment(preset)}
               className="rounded-lg border border-[#C9A96E]/20 bg-[#C9A96E]/10 px-3 py-2 text-sm font-semibold text-[#C9A96E] transition-colors hover:bg-[#C9A96E]/20"
             >
-              {preset.name} · {tg(preset.price)}
+              {preset.name} · {money(preset.price)}
             </button>
           ))}
         </div>
@@ -145,10 +149,10 @@ export default function Cashier({ clinic }) {
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
-        <StatCard title="Доход сегодня" value={tg(todayRevenue)} icon="💰" trend="+15%" color={T.emerald} />
-        <StatCard title="Расход сегодня" value={tg(todayExpenseAmount)} icon="💸" trend="-5%" color={T.ruby} />
-        <StatCard title="Доход за месяц" value={tg(totalIncome)} icon="📊" trend="+22%" color={T.gold} />
-        <StatCard title="Дебиторская задолж." value={tg(debtBalance)} icon="📋" trend="+8%" color={T.amber} />
+        <StatCard title="Доход сегодня" value={money(todayRevenue)} icon="💰" trend="+15%" color={T.emerald} />
+        <StatCard title="Расход сегодня" value={money(todayExpenseAmount)} icon="💸" trend="-5%" color={T.ruby} />
+        <StatCard title="Доход за месяц" value={money(totalIncome)} icon="📊" trend="+22%" color={T.gold} />
+        <StatCard title="Дебиторская задолж." value={money(debtBalance)} icon="📋" trend="+8%" color={T.amber} />
       </div>
 
       <Card className="mb-4" style={{ padding: 16 }}>
@@ -210,7 +214,7 @@ export default function Cashier({ clinic }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {receipts.slice().reverse().map((r, i) => {
+                    {receipts.slice().reverse().map((r) => {
                       const statusLabel = r.status === 'debt' ? 'Долг' : r.status === 'partial' ? 'Частично' : 'Оплачено';
                       const statusColor = r.status === 'debt' ? T.ruby : r.status === 'partial' ? T.amber : T.emerald;
                       return (
@@ -223,7 +227,7 @@ export default function Cashier({ clinic }) {
                             <Badge color={statusColor} size="sm">{statusLabel}</Badge>
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: statusColor, fontSize: 14 }}>
-                            +{tg(r.total || r.amount || 0)}
+                            +{money(r.total || r.amount || 0)}
                           </td>
                         </tr>
                       );
@@ -238,7 +242,8 @@ export default function Cashier({ clinic }) {
         {activeTab === 'receivables' && (
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 16 }}>Долги пациентов</div>
-            {demoDebts.map((d, i) => (
+            {debtRows.length === 0 && <EmptyState icon="📋" text="Нет долгов" sub="Долги появятся только из операций этой клиники" />}
+            {debtRows.map((d, i) => (
               <div key={i} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '14px 16px', marginBottom: 10,
@@ -249,7 +254,7 @@ export default function Cashier({ clinic }) {
                   <div style={{ fontSize: 12, color: T.slate, marginTop: 2 }}>от {fd(d.date)}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: T.ruby }}>{tg(d.amount)}</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: T.ruby }}>{money(d.amount)}</span>
                   <GBtn size="sm" color={T.amber} onClick={() => showToast('Напоминание отправлено через WhatsApp', 'success')}>
                     💬 Напомнить
                   </GBtn>
@@ -262,7 +267,8 @@ export default function Cashier({ clinic }) {
         {activeTab === 'payroll' && (
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 16 }}>Зарплата сотрудников</div>
-            {demoPayroll.map((emp, i) => {
+            {payrollRows.length === 0 && <EmptyState icon="💼" text="Нет начислений" sub="Зарплатные данные для этой клиники пока не внесены" />}
+            {payrollRows.map((emp, i) => {
               const pct = Math.round((emp.paid / emp.salary) * 100);
               const remaining = emp.salary - emp.paid;
               return (
@@ -276,9 +282,9 @@ export default function Cashier({ clinic }) {
                       <div style={{ fontSize: 12, color: T.slate }}>{emp.role}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 13, color: T.slateL }}>Начислено: <span style={{ color: T.white, fontWeight: 600 }}>{tg(emp.salary)}</span></div>
-                      <div style={{ fontSize: 13, color: T.emerald }}>Выплачено: {tg(emp.paid)}</div>
-                      {remaining > 0 && <div style={{ fontSize: 11, color: T.ruby }}>Остаток: {tg(remaining)}</div>}
+                      <div style={{ fontSize: 13, color: T.slateL }}>Начислено: <span style={{ color: T.white, fontWeight: 600 }}>{money(emp.salary)}</span></div>
+                      <div style={{ fontSize: 13, color: T.emerald }}>Выплачено: {money(emp.paid)}</div>
+                      {remaining > 0 && <div style={{ fontSize: 11, color: T.ruby }}>Остаток: {money(remaining)}</div>}
                     </div>
                   </div>
                   <div style={{ height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 4 }}>
@@ -332,13 +338,8 @@ export default function Cashier({ clinic }) {
               <div style={{ fontSize: 14, fontWeight: 700, color: T.white }}>Расходы клиники</div>
               <GBtn color={T.ruby} onClick={() => setExpModalOpen(true)}>+ Расход</GBtn>
             </div>
-            {[
-              { category: 'Аренда',              amount: 450000, date: '2025-01-01' },
-              { category: 'Коммунальные услуги',  amount: 85000,  date: '2025-01-05' },
-              { category: 'Закупка материалов',   amount: 320000, date: '2025-01-10' },
-              { category: 'Маркетинг',            amount: 150000, date: '2025-01-12' },
-              ...expenses,
-            ].map((exp, i) => (
+            {expenses.length === 0 && <EmptyState icon="🧾" text="Нет расходов" sub="Добавьте расход для текущей клиники" />}
+            {expenses.map((exp, i) => (
               <div key={i} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '12px 14px', marginBottom: 8,
@@ -348,7 +349,7 @@ export default function Cashier({ clinic }) {
                   <div style={{ fontSize: 13, fontWeight: 600, color: T.white }}>{exp.category}</div>
                   <div style={{ fontSize: 11, color: T.slate }}>{fd(exp.date)}</div>
                 </div>
-                <span style={{ fontSize: 16, fontWeight: 700, color: T.ruby }}>−{tg(exp.amount)}</span>
+                <span style={{ fontSize: 16, fontWeight: 700, color: T.ruby }}>−{money(exp.amount)}</span>
               </div>
             ))}
           </div>
@@ -372,7 +373,7 @@ export default function Cashier({ clinic }) {
                   ...patients.map((p) => ({ value: p.id, label: p.name })),
                 ]}
               />
-              <Input label="Сумма (₸)" type="number" value={form.amount}
+              <Input label={`Сумма (${currency})`} type="number" value={form.amount}
                 onChange={e => setForm({ ...form, amount: e.target.value })} required />
             </div>
             <Input label="Пациент (ФИО)" value={form.patientName}
@@ -391,7 +392,7 @@ export default function Cashier({ clinic }) {
               }}
               options={[
                 { value: '', label: '— Выберите услугу —' },
-                ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${s.price.toLocaleString()} ₸` })),
+                ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${money(s.price)}` })),
               ]}
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -426,7 +427,7 @@ export default function Cashier({ clinic }) {
                 { value: 'Зарплата', label: 'Зарплата' },
                 { value: 'Прочее', label: 'Прочее' },
               ]} required />
-            <Input label="Сумма (₸)" type="number" value={expenseForm.amount}
+            <Input label={`Сумма (${currency})`} type="number" value={expenseForm.amount}
               onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })} required />
             <Input label="Комментарий" value={expenseForm.notes}
               onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })} />
