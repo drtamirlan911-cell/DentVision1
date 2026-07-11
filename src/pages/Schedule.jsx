@@ -10,7 +10,7 @@ const EMPTY_FORM = {
   patientId: '', doctorId: '', service: '', time: '09:00', status: 'scheduled', notes: '', duration: 60,
 };
 
-export default function Schedule({ clinic }) {
+export default function Schedule({ clinic, user, roleInfo }) {
   const { appointments, patients, doctors, upsertAppointment, deleteAppointment } = useData(clinic?.id);
   const { toast, showToast, clearToast } = useToast();
   const [selDate, setSelDate] = useState(today());
@@ -20,7 +20,11 @@ export default function Schedule({ clinic }) {
   const [dragged, setDragged] = useState(null);
   const [view, setView] = useState('day');
 
-  const dayAppts = appointments.filter(a => a.date === selDate);
+  // Фильтруем записи по текущему врачу, если это врач с ограниченным доступом
+  const ownDataOnly = !!roleInfo?.ownDataOnly && user?.role === 'doctor';
+  const dayAppts = ownDataOnly
+    ? appointments.filter(a => a.date === selDate && a.doctorId === user.id)
+    : appointments.filter(a => a.date === selDate);
 
   // Опции услуг из прайса с ценами
   const serviceOptions = [

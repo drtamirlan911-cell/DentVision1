@@ -10,6 +10,7 @@ import AITeam from './pages/AITeam';
 import SuperAdmin from './pages/SuperAdmin';
 import Staff from './pages/Staff';
 import PriceList from './pages/PriceList';
+import Reminders from './pages/Reminders';
 import { T, GLOBAL_CSS } from './utils/constants';
 import { Spinner, Badge } from './components/ui/BaseComponents';
 
@@ -22,6 +23,7 @@ const ALL_NAV = [
   { id: 'pricelist', label: 'Прайс-лист',   icon: '💵' },
   { id: 'lab',       label: 'Лаборатория',  icon: '🔬' },
   { id: 'ai',        label: 'AI Команда',   icon: '🤖' },
+  { id: 'reminders', label: 'Напоминания',  icon: '🔔' },
   { id: 'staff',     label: 'Сотрудники',   icon: '👥' },
   { id: 'admin',     label: 'Super Admin',  icon: '⚙️' },
 ];
@@ -77,7 +79,8 @@ export default function App() {
       case 'pricelist': return <PriceList clinic={clinic} user={user} roleInfo={roleInfo} />;
       case 'lab':       return <Lab       clinic={clinic} user={user} roleInfo={roleInfo} />;
       case 'ai':        return <AITeam    clinic={clinic} user={user} />;
-      case 'staff':     return <Staff     clinic={clinic} user={user} />;
+      case 'reminders': return <Reminders clinic={clinic} user={user} roleInfo={roleInfo} />;
+      case 'staff':     return <Staff     clinic={clinic} user={user} roleInfo={roleInfo} />;
       case 'admin':     return <SuperAdmin user={user} />;
       default:          return <Schedule  clinic={clinic} user={user} roleInfo={roleInfo} />;
     }

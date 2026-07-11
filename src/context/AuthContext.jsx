@@ -184,7 +184,8 @@ export function AuthProvider({ children }) {
   // Add staff to existing clinic (director/admin only)
   const addStaffMember = useCallback((staffData) => {
     if (!staffData.clinicId || !staffData.login || !staffData.password) return false;
-    if (_store.users.some(u => u.login === staffData.login)) return false;
+    // Проверяем уникальность логина только в рамках этой клиники
+    if (_store.users.some(u => u.clinicId === staffData.clinicId && u.login === staffData.login)) return false;
     const newUser = { ...staffData, id: gid() };
     _store.users.push(newUser);
     return newUser;

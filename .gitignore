@@ -2,29 +2,42 @@
 # Build artifacts
 dist/
 build/
-*.css
 
 # Dependencies
 node_modules/
-package-lock.json
+
+# Logs and temp files
+*.log
+*.tmp
 
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
 
 # Editors
 .vscode/
 .idea/
-
-# Logs
-*.log
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Compiled files
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
 
 # Compressed files
 *.zip

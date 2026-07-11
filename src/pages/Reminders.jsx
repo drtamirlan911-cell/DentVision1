@@ -13,15 +13,24 @@ export default function Reminders({ clinic, user, roleInfo }) {
   const readOnly = !!roleInfo?.readOnly;
   const ownDataOnly = !!roleInfo?.ownDataOnly && user?.role === 'doctor';
 
-  const scopedAppointments = ownDataOnly ? appointments.filter(a => a.doctorId === user.id) : appointments;
+  // Фильтруем данные по текущему врачу, если это врач
+  const scopedAppointments = ownDataOnly 
+    ? appointments.filter(a => a.doctorId === user.id) 
+    : appointments;
+    
   const scopedPatients = ownDataOnly
     ? patients.filter(p => scopedAppointments.some(a => a.patientId === p.id))
     : patients;
+    
+  // Для врачей также фильтруем список докторов для отображения
+  const scopedDoctors = ownDataOnly
+    ? doctors.filter(d => d.id === user.id)
+    : doctors;
 
   const appointmentReminders = useMemo(
-    () => getAppointmentReminders(scopedAppointments, patients, doctors),
+    () => getAppointmentReminders(scopedAppointments, scopedPatients, scopedDoctors),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scopedAppointments, patients, doctors, tick]
+    [scopedAppointments, scopedPatients, scopedDoctors, tick]
   );
 
   const hygieneReminders = useMemo(
