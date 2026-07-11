@@ -86,8 +86,8 @@ export const SUPER_ADMIN = {
 };
 
 export const INIT_CLINICS = [
-  { id: "c1", name: "DentVision Тараз — Центр", city: "Тараз", address: "ул. Толе би, 32", phone: "+7 726 222-33-44", plan: "pro", active: true, createdAt: "2025-01-01", color: "#C9A96E" },
-  { id: "c2", name: "DentVision Тараз — Север", city: "Тараз", address: "мкр. Мирас, 15", phone: "+7 726 255-11-22", plan: "starter", active: true, createdAt: "2025-03-15", color: "#3498DB" },
+  { id: "c1", name: "DentVision Тараз — Центр", city: "Тараз", address: "ул. Толе би, 32", phone: "+7 726 222-33-44", plan: "pro", active: true, createdAt: "2025-01-01", color: "#C9A96E", country: "KZ", currency: "KZT", locale: "ru-KZ" },
+  { id: "c2", name: "DentVision Тараз — Север", city: "Тараз", address: "мкр. Мирас, 15", phone: "+7 726 255-11-22", plan: "starter", active: true, createdAt: "2025-03-15", color: "#3498DB", country: "KZ", currency: "KZT", locale: "ru-KZ" },
 ];
 
 export const INIT_USERS = [
@@ -231,8 +231,39 @@ export function ft(timeStr) {
   return `${h}:${m}`;
 }
 
-export function tg(n) { 
-  return new Intl.NumberFormat("ru-KZ", { style: "currency", currency: "KZT", maximumFractionDigits: 0 }).format(n); 
+export const CIS_CURRENCY_BY_COUNTRY = {
+  KZ: { currency: "KZT", locale: "ru-KZ" },
+  RU: { currency: "RUB", locale: "ru-RU" },
+  KG: { currency: "KGS", locale: "ru-KG" },
+  UZ: { currency: "UZS", locale: "ru-UZ" },
+  TJ: { currency: "TJS", locale: "ru-TJ" },
+  AZ: { currency: "AZN", locale: "az-AZ" },
+  AM: { currency: "AMD", locale: "hy-AM" },
+  BY: { currency: "BYN", locale: "ru-BY" },
+  MD: { currency: "MDL", locale: "ro-MD" },
+};
+
+export function getClinicCurrency(clinic) {
+  const countryDefaults = CIS_CURRENCY_BY_COUNTRY[clinic?.country];
+  return {
+    currency: clinic?.currency || countryDefaults?.currency || "KZT",
+    locale: clinic?.locale || countryDefaults?.locale || "ru-KZ",
+  };
+}
+
+export function formatMoney(n, clinicOrCurrency) {
+  const settings = typeof clinicOrCurrency === "string"
+    ? { currency: clinicOrCurrency, locale: "ru-RU" }
+    : getClinicCurrency(clinicOrCurrency);
+  return new Intl.NumberFormat(settings.locale, {
+    style: "currency",
+    currency: settings.currency,
+    maximumFractionDigits: 0,
+  }).format(Number(n) || 0);
+}
+
+export function tg(n, clinicOrCurrency) {
+  return formatMoney(n, clinicOrCurrency);
 }
 
 export function gid() { 
