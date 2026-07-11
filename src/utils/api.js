@@ -10,16 +10,8 @@ async function request(_path, _options = {}) {
 
 export async function login(loginStr, password) {
   await mockDelay(0);
-  return {
-    user: {
-      id: 'local-user',
-      login: loginStr,
-      name: loginStr,
-      role: 'doctor',
-      clinicId: null,
-      password,
-    },
-  };
+  console.debug('API login shim is disabled; using local auth fallback', { login: loginStr, passwordProvided: Boolean(password) });
+  return null;
 }
 
 export async function getClinic(clinicId) {

@@ -1,261 +1,246 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   INIT_PATIENTS, INIT_APPOINTMENTS, INIT_RECEIPTS,
   INIT_USERS, gid, today
 } from '../utils/constants';
 import * as api from '../utils/api';
 
+const DEFAULT_INVENTORY = [
+  { id: 'i1', name: 'Пломбировочный материал', quantity: 45, unit: 'шт', min: 20 },
+  { id: 'i2', name: 'Анестетик Ультракаин', quantity: 12, unit: 'уп', min: 15 },
+  { id: 'i3', name: 'Перчатки латексные', quantity: 150, unit: 'пар', min: 100 },
+  { id: 'i4', name: 'Боры стоматологические', quantity: 8, unit: 'набор', min: 10 },
+];
+
+const store = {
+  patients: [...INIT_PATIENTS],
+  appointments: [...INIT_APPOINTMENTS],
+  receipts: [...INIT_RECEIPTS],
+  labOrders: [],
+  expenses: [],
+  inventory: [],
+  treatments: [],
+  users: [...INIT_USERS],
+  subscriptions: [],
+  photos: [],
+  loadedClinics: new Set(),
+  listeners: new Set(),
+};
+
+function notify() {
+  store.listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener) {
+  store.listeners.add(listener);
+  return () => store.listeners.delete(listener);
+}
+
+function rowsForClinic(rows, clinicId) {
+  return clinicId ? rows.filter((row) => row.clinicId === clinicId) : [];
+}
+
+function upsertRow(table, row) {
+  const rows = store[table];
+  const index = rows.findIndex((item) => item.id === row.id);
+  if (index >= 0) rows[index] = row;
+  else rows.push(row);
+  notify();
+}
+
+function replaceClinicRows(table, clinicId, rows) {
+  if (!rows?.length) return;
+  const normalizedRows = rows.map((row) => ({ ...row, clinicId: row.clinicId || clinicId }));
+  store[table] = [...store[table].filter((row) => row.clinicId !== clinicId), ...normalizedRows];
+  notify();
+}
+
+function removeRow(table, id) {
+  store[table] = store[table].filter((row) => row.id !== id);
+  notify();
+}
+
+function ensureInventory(clinicId) {
+  if (!clinicId) return;
+  const hasInventory = store.inventory.some((item) => item.clinicId === clinicId);
+  if (hasInventory) return;
+  DEFAULT_INVENTORY.forEach((item) => upsertRow('inventory', { ...item, id: `${clinicId}_${item.id}`, clinicId }));
+}
+
 function trySync(table, row) {
-  // Sync to API backend based on table type
   switch (table) {
-    case 'patients':
-      api.upsertPatient(row).catch(() => {});
-      break;
-    case 'appointments':
-      api.upsertAppointment(row).catch(() => {});
-      break;
-    case 'receipts':
-      api.upsertReceipt(row).catch(() => {});
-      break;
-    case 'lab_orders':
-      api.upsertLabOrder(row).catch(() => {});
-      break;
-    case 'expenses':
-      api.upsertExpense(row).catch(() => {});
-      break;
-    case 'inventory':
-      api.upsertInventoryItem(row).catch(() => {});
-      break;
-    case 'users':
-      api.upsertUser(row).catch(() => {});
-      break;
-    case 'subscriptions':
-      api.upsertSubscription(row).catch(() => {});
-      break;
-    case 'photos':
-      api.uploadPhoto(row).catch(() => {});
-      break;
-    default:
-      console.log('Unknown table for sync:', table);
+    case 'patients': api.upsertPatient(row).catch(() => {}); break;
+    case 'appointments': api.upsertAppointment(row).catch(() => {}); break;
+    case 'receipts': api.upsertReceipt(row).catch(() => {}); break;
+    case 'lab_orders': api.upsertLabOrder(row).catch(() => {}); break;
+    case 'expenses': api.upsertExpense(row).catch(() => {}); break;
+    case 'inventory': api.upsertInventoryItem(row).catch(() => {}); break;
+    case 'users': api.upsertUser(row).catch(() => {}); break;
+    case 'subscriptions': api.upsertSubscription(row).catch(() => {}); break;
+    case 'photos': api.uploadPhoto(row).catch(() => {}); break;
+    default: console.log('Unknown table for sync:', table);
   }
 }
 
 function tryDelete(table, id) {
-  // Delete from API backend
-  if (table === 'patients') {
-    api.deletePatient(id).catch(() => {});
-  } else if (table === 'appointments') {
-    api.deleteAppointment(id).catch(() => {});
-  } else if (table === 'receipts') {
-    api.deleteReceipt(id).catch(() => {});
-  } else if (table === 'photos') {
-    api.deletePhoto(id).catch(() => {});
-  }
+  if (table === 'patients') api.deletePatient(id).catch(() => {});
+  else if (table === 'appointments') api.deleteAppointment(id).catch(() => {});
+  else if (table === 'receipts') api.deleteReceipt(id).catch(() => {});
+  else if (table === 'photos') api.deletePhoto(id).catch(() => {});
 }
 
 export function useData(clinicId) {
-  const initRef = useRef(false);
-  const [isInitialized, setIsInitialized] = useState(false);
   const safeClinicId = clinicId || null;
+  const [, setVersion] = useState(0);
 
-  const [patients, _setPatients] = useState(() =>
-    safeClinicId ? INIT_PATIENTS.filter(p => p.clinicId === safeClinicId) : []
-  );
-  const [appointments, _setAppointments] = useState(() =>
-    safeClinicId ? INIT_APPOINTMENTS.filter(a => a.clinicId === safeClinicId) : []
-  );
-  const [receipts, _setReceipts] = useState(() =>
-    safeClinicId ? INIT_RECEIPTS.filter(r => r.clinicId === safeClinicId) : []
-  );
-  const [labOrders, _setLabOrders] = useState([]);
-  const [expenses, _setExpenses] = useState([]);
-  const [inventory, _setInventory] = useState([
-    { id: 'i1', clinicId: safeClinicId, name: 'Пломбировочный материал', quantity: 45, unit: 'шт', min: 20 },
-    { id: 'i2', clinicId: safeClinicId, name: 'Анестетик Ультракаин', quantity: 12, unit: 'уп', min: 15 },
-    { id: 'i3', clinicId: safeClinicId, name: 'Перчатки латексные', quantity: 150, unit: 'пар', min: 100 },
-    { id: 'i4', clinicId: safeClinicId, name: 'Боры стоматологические', quantity: 8, unit: 'набор', min: 10 },
-  ]);
+  useEffect(() => subscribe(() => setVersion((value) => value + 1)), []);
 
-  const doctors = INIT_USERS.filter(u => u.role === 'doctor' && (!safeClinicId || u.clinicId === safeClinicId));
-
-  // Load data from API on mount
   useEffect(() => {
-    if (!safeClinicId || initRef.current) return;
-    initRef.current = true;
+    if (!safeClinicId) return;
+    ensureInventory(safeClinicId);
+    if (store.loadedClinics.has(safeClinicId)) return;
+    store.loadedClinics.add(safeClinicId);
 
     const loadData = async () => {
       try {
-        // Load patients
-        const patientsData = await api.getPatients(safeClinicId).catch(() => []);
-        if (patientsData && patientsData.length > 0) {
-          _setPatients(patientsData);
-        }
+        const [patientsData, appointmentsData, receiptsData, labOrdersData, expensesData, inventoryData] = await Promise.all([
+          api.getPatients(safeClinicId).catch(() => []),
+          api.getAppointments(safeClinicId).catch(() => []),
+          api.getReceipts(safeClinicId).catch(() => []),
+          api.getLabOrders(safeClinicId).catch(() => []),
+          api.getExpenses(safeClinicId).catch(() => []),
+          api.getInventory(safeClinicId).catch(() => []),
+        ]);
 
-        // Load appointments
-        const appointmentsData = await api.getAppointments(safeClinicId).catch(() => []);
-        if (appointmentsData && appointmentsData.length > 0) {
-          _setAppointments(appointmentsData);
-        }
-
-        // Load receipts
-        const receiptsData = await api.getReceipts(safeClinicId).catch(() => []);
-        if (receiptsData && receiptsData.length > 0) {
-          _setReceipts(receiptsData);
-        }
-
-        // Load lab orders
-        const labOrdersData = await api.getLabOrders(safeClinicId).catch(() => []);
-        if (labOrdersData && labOrdersData.length > 0) {
-          _setLabOrders(labOrdersData);
-        }
-
-        // Load expenses
-        const expensesData = await api.getExpenses(safeClinicId).catch(() => []);
-        if (expensesData && expensesData.length > 0) {
-          _setExpenses(expensesData);
-        }
-
-        // Load inventory
-        const inventoryData = await api.getInventory(safeClinicId).catch(() => []);
-        if (inventoryData && inventoryData.length > 0) {
-          _setInventory(inventoryData);
-        }
-
-        setIsInitialized(true);
+        replaceClinicRows('patients', safeClinicId, patientsData);
+        replaceClinicRows('appointments', safeClinicId, appointmentsData);
+        replaceClinicRows('receipts', safeClinicId, receiptsData);
+        replaceClinicRows('labOrders', safeClinicId, labOrdersData);
+        replaceClinicRows('expenses', safeClinicId, expensesData);
+        replaceClinicRows('inventory', safeClinicId, inventoryData);
       } catch (error) {
         console.error('Failed to load data from API:', error);
-        setIsInitialized(true);
       }
     };
 
     loadData();
   }, [safeClinicId]);
 
-  const upsertPatient = useCallback((patientData) => {
-    const isNew = !patientData.id;
-    const record = { ...patientData, id: patientData.id || gid(), clinicId: safeClinicId };
-    _setPatients(prev => {
-      const exists = prev.find(p => p.id === record.id);
-      return exists ? prev.map(p => p.id === record.id ? record : p) : [...prev, record];
+  const scopedRecord = useCallback((data, defaults = {}) => {
+    const cleanData = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+    const record = { ...defaults, ...cleanData, id: data.id || gid(), clinicId: safeClinicId };
+    Object.keys(record).forEach((key) => {
+      if (record[key] === undefined) delete record[key];
     });
-    trySync('patients', record);
-    return Promise.resolve(record);
+    return record;
   }, [safeClinicId]);
 
+  const upsertPatient = useCallback((patientData) => {
+    const record = scopedRecord(patientData);
+    upsertRow('patients', record);
+    trySync('patients', record);
+    return Promise.resolve(record);
+  }, [scopedRecord]);
+
   const deletePatient = useCallback((id) => {
-    _setPatients(prev => prev.filter(p => p.id !== id));
+    removeRow('patients', id);
     tryDelete('patients', id);
     return Promise.resolve();
   }, []);
 
   const upsertAppointment = useCallback((apptData) => {
-    const record = { ...apptData, id: apptData.id || gid(), clinicId: safeClinicId, date: apptData.date || today() };
-    _setAppointments(prev => {
-      const exists = prev.find(a => a.id === record.id);
-      return exists ? prev.map(a => a.id === record.id ? record : a) : [...prev, record];
-    });
+    const record = scopedRecord(apptData, { date: today() });
+    upsertRow('appointments', record);
     trySync('appointments', record);
     return Promise.resolve(record);
-  }, [safeClinicId]);
+  }, [scopedRecord]);
 
   const deleteAppointment = useCallback((id) => {
-    _setAppointments(prev => prev.filter(a => a.id !== id));
+    removeRow('appointments', id);
     tryDelete('appointments', id);
     return Promise.resolve();
   }, []);
 
   const upsertReceipt = useCallback((data) => {
-    const record = { ...data, id: data.id || gid(), clinicId: safeClinicId, date: data.date || today() };
-    _setReceipts(prev => {
-      const exists = prev.find(r => r.id === record.id);
-      return exists ? prev.map(r => r.id === record.id ? record : r) : [...prev, record];
-    });
+    const record = scopedRecord(data, { date: today() });
+    upsertRow('receipts', record);
     trySync('receipts', record);
     return Promise.resolve(record);
-  }, [safeClinicId]);
-
-  const upsertTransaction = upsertReceipt;
+  }, [scopedRecord]);
 
   const upsertLabOrder = useCallback((data) => {
-    const record = { ...data, id: data.id || gid(), clinicId: safeClinicId };
-    _setLabOrders(prev => {
-      const exists = prev.find(o => o.id === record.id);
-      return exists ? prev.map(o => o.id === record.id ? record : o) : [...prev, record];
-    });
+    const record = scopedRecord(data);
+    upsertRow('labOrders', record);
     trySync('lab_orders', record);
     return Promise.resolve(record);
-  }, [safeClinicId]);
+  }, [scopedRecord]);
 
   const upsertExpense = useCallback((data) => {
-    const record = { ...data, id: data.id || gid(), clinicId: safeClinicId, date: data.date || today() };
-    _setExpenses(prev => {
-      const exists = prev.find(e => e.id === record.id);
-      return exists ? prev.map(e => e.id === record.id ? record : e) : [...prev, record];
-    });
+    const record = scopedRecord(data, { date: today() });
+    upsertRow('expenses', record);
     trySync('expenses', record);
     return Promise.resolve(record);
-  }, [safeClinicId]);
+  }, [scopedRecord]);
 
   const upsertInventoryItem = useCallback((data) => {
-    const record = { ...data, id: data.id || gid(), clinicId: safeClinicId };
-    _setInventory(prev => {
-      const exists = prev.find(i => i.id === record.id);
-      return exists ? prev.map(i => i.id === record.id ? record : i) : [...prev, record];
-    });
+    const record = scopedRecord(data);
+    upsertRow('inventory', record);
     trySync('inventory', record);
     return Promise.resolve(record);
-  }, [safeClinicId]);
+  }, [scopedRecord]);
 
-  const [treatments, _setTreatments] = useState([]);
   const addTreatment = useCallback((treatment) => {
-    const record = { ...treatment, id: treatment.id || gid(), clinicId: safeClinicId };
-    _setTreatments(prev => [...prev, record]);
+    const record = scopedRecord(treatment);
+    upsertRow('treatments', record);
     trySync('treatments', record);
     return Promise.resolve(record);
-  }, [safeClinicId]);
+  }, [scopedRecord]);
 
-  const [users, _setUsers] = useState(doctors);
   const upsertUser = useCallback((userData) => {
-    const record = { ...userData, id: userData.id || gid(), clinicId: safeClinicId };
-    _setUsers(prev => {
-      const exists = prev.find(u => u.id === record.id);
-      return exists ? prev.map(u => u.id === record.id ? record : u) : [...prev, record];
-    });
+    const record = scopedRecord(userData);
+    upsertRow('users', record);
     trySync('users', record);
     return Promise.resolve(record);
-  }, [safeClinicId]);
+  }, [scopedRecord]);
 
-  const [subscriptions, _setSubscriptions] = useState([]);
   const upsertSubscription = useCallback((subData) => {
-    const record = { ...subData, id: subData.id || gid(), clinicId: safeClinicId };
-    _setSubscriptions(prev => {
-      const exists = prev.find(s => s.id === record.id);
-      return exists ? prev.map(s => s.id === record.id ? record : s) : [...prev, record];
-    });
+    const record = scopedRecord(subData);
+    upsertRow('subscriptions', record);
     trySync('subscriptions', record);
     return Promise.resolve(record);
-  }, [safeClinicId]);
+  }, [scopedRecord]);
 
-  const [photos, _setPhotos] = useState([]);
   const uploadPhoto = useCallback((photoData) => {
-    const record = { ...photoData, id: photoData.id || gid(), clinicId: safeClinicId, uploadDate: today() };
-    _setPhotos(prev => [...prev, record]);
+    const record = scopedRecord(photoData, { uploadDate: today() });
+    upsertRow('photos', record);
     trySync('photos', record);
     return Promise.resolve(record);
-  }, [safeClinicId]);
+  }, [scopedRecord]);
 
   const deletePhoto = useCallback((id) => {
-    _setPhotos(prev => prev.filter(p => p.id !== id));
+    removeRow('photos', id);
     tryDelete('photos', id);
     return Promise.resolve();
   }, []);
+
+  const patients = rowsForClinic(store.patients, safeClinicId);
+  const appointments = rowsForClinic(store.appointments, safeClinicId);
+  const receipts = rowsForClinic(store.receipts, safeClinicId);
+  const labOrders = rowsForClinic(store.labOrders, safeClinicId);
+  const expenses = rowsForClinic(store.expenses, safeClinicId);
+  const inventory = rowsForClinic(store.inventory, safeClinicId);
+  const treatments = rowsForClinic(store.treatments, safeClinicId);
+  const users = rowsForClinic(store.users, safeClinicId);
+  const doctors = users.filter((user) => user.role === 'doctor');
+  const subscriptions = rowsForClinic(store.subscriptions, safeClinicId);
+  const photos = rowsForClinic(store.photos, safeClinicId);
 
   return {
     patients, appointments, receipts, labOrders, expenses, inventory, doctors,
     transactions: receipts, treatments, users, subscriptions, photos,
     upsertPatient, deletePatient,
     upsertAppointment, deleteAppointment,
-    upsertReceipt, upsertTransaction,
+    upsertReceipt, upsertTransaction: upsertReceipt,
     upsertLabOrder,
     upsertExpense,
     upsertInventoryItem,
@@ -293,16 +278,16 @@ export function useCloudTable(table, def) {
   return [state, setState, setState, { online: true }];
 }
 
-export function useClinicData(clinicId) {
+export function useClinicData(_clinicId) {
   return { data: null, loading: false, error: null };
 }
 
-export function useSubscription(clinicId) {
+export function useSubscription(_clinicId) {
   const [subscription] = useState({ plan: 'pro', active: true });
   return { subscription, loading: false, checkStatus: () => {}, upgrade: () => {} };
 }
 
-export function usePhotoProtocol(clinicId) {
+export function usePhotoProtocol(_clinicId) {
   const [photos, setPhotos] = useState([]);
   const uploadPhoto = useCallback(async (photoData) => {
     setPhotos(prev => [...prev, { ...photoData, id: gid() }]);

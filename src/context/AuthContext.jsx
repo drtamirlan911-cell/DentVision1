@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { SUPER_ADMIN, INIT_CLINICS, INIT_USERS, gid, today } from '../utils/constants';
 import * as api from '../utils/api';
 
@@ -76,7 +76,7 @@ export function AuthProvider({ children }) {
             try {
               const clinicData = await api.getClinic(resolvedUser.clinicId);
               setClinic(clinicData);
-            } catch (_) {}
+            } catch {}
           }
           return true;
         }
@@ -106,7 +106,7 @@ export function AuthProvider({ children }) {
           }
           return true;
         }
-      } catch (_) {}
+      } catch {}
 
       setError('Неверный логин или пароль');
       return false;

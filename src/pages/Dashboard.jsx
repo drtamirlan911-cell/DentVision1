@@ -10,38 +10,58 @@ export default function Dashboard({ user, clinic }) {
   const { patients, appointments, receipts, doctors } = useData(clinic?.id);
 
   const todayKey = today();
-  const todayReceipts = receipts.filter((r) => (r.date || todayKey) === todayKey && (r.status === 'paid' || r.status === 'completed'));
+  const currentClinicId = clinic?.id;
+  const clinicPatients = patients.filter((p) => !currentClinicId || p.clinicId === currentClinicId);
+  const clinicAppointments = appointments.filter((a) => !currentClinicId || a.clinicId === currentClinicId);
+  const clinicReceipts = receipts.filter((r) => !currentClinicId || r.clinicId === currentClinicId);
+  const clinicDoctors = doctors.filter((d) => !currentClinicId || d.clinicId === currentClinicId);
+  const todayReceipts = clinicReceipts.filter((r) => (r.date || todayKey) === todayKey && (r.status === 'paid' || r.status === 'completed'));
   const todayRevenue = todayReceipts.reduce((sum, r) => sum + Number(r.total || 0), 0);
-  const todayAppointments = appointments.filter((a) => (a.date || todayKey) === todayKey);
+  const todayAppointments = clinicAppointments.filter((a) => (a.date || todayKey) === todayKey);
   const avgCheck = todayReceipts.length ? Math.round(todayRevenue / todayReceipts.length) : 0;
-  const conversion = patients.length && appointments.length ? Math.round((patients.length / appointments.length) * 100) : 0;
+  const conversion = clinicPatients.length && clinicAppointments.length ? Math.round((clinicPatients.length / clinicAppointments.length) * 100) : 0;
 
   const stats = [
-    { title: 'Доход за сегодня', value: tg(todayRevenue), icon: '💰', trend: '+12%', color: T.gold },
-    { title: 'Пациентов в клинике', value: patients.length, icon: '👥', trend: '+5%', color: T.emerald },
-    { title: 'Средний чек', value: tg(avgCheck), icon: '🧾', trend: '+3%', color: T.sapphire },
+    { title: 'Доход за сегодня', value: tg(todayRevenue, clinic), icon: '💰', trend: '+12%', color: T.gold },
+    { title: 'Пациентов в клинике', value: clinicPatients.length, icon: '👥', trend: '+5%', color: T.emerald },
+    { title: 'Средний чек', value: tg(avgCheck, clinic), icon: '🧾', trend: '+3%', color: T.sapphire },
     { title: 'Конверсия', value: `${conversion}%`, icon: '📈', trend: '+2%', color: T.purple },
   ];
 
-  const doctorLoad = doctors.slice(0, 3).map((doctor, index) => ({
-    name: doctor.name || `Врач ${index + 1}`,
-    load: 70 + index * 8,
-    patients: Math.max(4, patients.length - index),
-    spec: doctor.spec || 'Стоматолог',
+  const doctorLoad = clinicDoctors.slice(0, 3).map((doctor) => {
+    const doctorAppointments = todayAppointments.filter((a) => a.doctorId === doctor.id);
+    const uniquePatients = new Set(doctorAppointments.map((a) => a.patientId).filter(Boolean));
+    const busyMinutes = doctorAppointments.reduce((sum, a) => sum + Number(a.duration || 60), 0);
+    return {
+      name: doctor.name || 'Врач',
+      load: Math.min(100, Math.round((busyMinutes / 480) * 100)),
+      patients: uniquePatients.size,
+      spec: doctor.spec || 'Стоматолог',
+    };
+  });
+
+  const serviceMap = new Map();
+  todayReceipts.forEach((receipt) => {
+    (receipt.items?.length ? receipt.items : [{ name: receipt.service || 'Услуга', price: receipt.total || receipt.amount || 0, qty: 1 }]).forEach((item) => {
+      const key = item.serviceId || item.name || 'service';
+      const current = serviceMap.get(key) || { name: item.name || 'Услуга', count: 0, revenue: 0 };
+      const qty = Number(item.qty || 1);
+      current.count += qty;
+      current.revenue += Number(item.price || 0) * qty;
+      serviceMap.set(key, current);
+    });
+  });
+  const topServices = Array.from(serviceMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 3);
+
+  const sourceColors = [T.gold, T.pink, T.sapphire, T.emerald];
+  const sourceMap = new Map();
+  clinicPatients.forEach((patient) => {
+    const source = patient.source || patient.referralSource || patient.channel;
+    if (source) sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
+  });
+  const adSources = Array.from(sourceMap.entries()).map(([source, count], index) => ({
+    source, patients: count, color: sourceColors[index % sourceColors.length],
   }));
-
-  const topServices = [
-    { name: 'Профгигиена', count: Math.max(1, Math.round(patients.length / 2)), revenue: 180000 },
-    { name: 'Терапия', count: Math.max(1, Math.round(patients.length / 3)), revenue: 250000 },
-    { name: 'Имплантация', count: Math.max(1, Math.round(patients.length / 6)), revenue: 400000 },
-  ];
-
-  const adSources = [
-    { source: 'Рекомендации', patients: Math.max(4, Math.round(patients.length * 0.4)), color: T.gold },
-    { source: 'Instagram', patients: Math.max(3, Math.round(patients.length * 0.25)), color: T.pink },
-    { source: 'Google Ads', patients: Math.max(2, Math.round(patients.length * 0.2)), color: T.sapphire },
-    { source: '2GIS', patients: Math.max(1, Math.round(patients.length * 0.15)), color: T.emerald },
-  ];
 
   const quickActions = [
     { label: 'Новый пациент', icon: '👤', color: T.gold, path: '/patients' },
@@ -85,9 +105,9 @@ export default function Dashboard({ user, clinic }) {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
-          { title: 'Пациентов сегодня', value: patients.length, icon: '👥' },
+          { title: 'Пациентов сегодня', value: clinicPatients.length, icon: '👥' },
           { title: 'Записей сегодня', value: todayAppointments.length, icon: '📅' },
-          { title: 'Врачей', value: doctors.length, icon: '🧑‍⚕️' },
+          { title: 'Врачей', value: clinicDoctors.length, icon: '🧑‍⚕️' },
           { title: 'Чеков', value: todayReceipts.length, icon: '🧾' },
           { title: 'Клиника', value: clinic?.name || 'DentVision', icon: '🏥' },
         ].map((s, i) => (
@@ -108,8 +128,8 @@ export default function Dashboard({ user, clinic }) {
           <div className="space-y-3">
             {[
               { label: 'Записи на сегодня', value: todayAppointments.length, hint: 'Проверьте очередь', action: () => navigate('/schedule') },
-              { label: 'Новых пациентов', value: patients.length, hint: 'Обработайте обращения', action: () => navigate('/patients') },
-              { label: 'Выручка', value: tg(todayRevenue), hint: 'Сравните с прошлым днём', action: () => navigate('/cashier') },
+              { label: 'Новых пациентов', value: clinicPatients.length, hint: 'Обработайте обращения', action: () => navigate('/patients') },
+              { label: 'Выручка', value: tg(todayRevenue, clinic), hint: 'Сравните с прошлым днём', action: () => navigate('/cashier') },
             ].map((item) => (
               <button key={item.label} onClick={item.action} className="flex w-full items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-3 text-left transition-colors hover:bg-white/10">
                 <div>
@@ -144,6 +164,7 @@ export default function Dashboard({ user, clinic }) {
         <Card>
           <div className="mb-4 text-sm font-semibold text-white">⚡ Загрузка врачей</div>
           <div className="space-y-4">
+            {doctorLoad.length === 0 && <div className="text-sm text-[#7A8899]">Нет врачей в текущей клинике.</div>}
             {doctorLoad.map((d, i) => (
               <div key={i}>
                 <div className="mb-2 flex items-center justify-between">
@@ -169,6 +190,7 @@ export default function Dashboard({ user, clinic }) {
         <Card>
           <div className="mb-4 text-sm font-semibold text-white">🏆 Топ услуг</div>
           <div className="space-y-3">
+            {topServices.length === 0 && <div className="text-sm text-[#7A8899]">Нет оплаченных услуг за сегодня.</div>}
             {topServices.map((s, i) => (
               <div key={i} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
                 <div className="flex items-center gap-3">
@@ -179,7 +201,7 @@ export default function Dashboard({ user, clinic }) {
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-semibold text-white">{s.count} шт</div>
-                  <div className="text-xs text-[#C9A96E]">{tg(s.revenue)}</div>
+                  <div className="text-xs text-[#C9A96E]">{tg(s.revenue, clinic)}</div>
                 </div>
               </div>
             ))}
@@ -191,6 +213,7 @@ export default function Dashboard({ user, clinic }) {
         <Card>
           <div className="mb-4 text-sm font-semibold text-white">📣 Источники пациентов</div>
           <div className="space-y-3">
+            {adSources.length === 0 && <div className="text-sm text-[#7A8899]">Источники не указаны у пациентов этой клиники.</div>}
             {adSources.map((a, i) => {
               const total = adSources.reduce((s, x) => s + x.patients, 0);
               const pct = Math.round((a.patients / total) * 100);
