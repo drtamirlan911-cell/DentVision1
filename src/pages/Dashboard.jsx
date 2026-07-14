@@ -223,6 +223,7 @@ export default function Dashboard() {
 
         <Card>
           <div className="mb-4 text-sm font-semibold text-white">🚀 Быстрые действия</div>
+          <div className="grid gap-2 sm:grid-cols-2">
             {quickActions.map((action) => (
               <button
                 key={action.label}
