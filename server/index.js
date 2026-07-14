@@ -603,7 +603,7 @@ async function initDatabase() {
         ('u4', 'c2', 'admin_c2', $2, 'Борис Сейткали', 'admin', NULL, '+77261234567'),
         ('u5', 'c2', 'doc1_c2', $3, 'Сидорова Елена Юрьевна', 'doctor', 'Терапевт', '+77265554433')
       ON CONFLICT DO NOTHING
-    `, [saPass, adminPass, docPass, dirPass, assistPass]);
+    `, [saPass, adminPass, docPass, docPass, dirPass, assistPass]);
 
     await client.query('COMMIT');
 
