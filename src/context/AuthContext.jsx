@@ -56,28 +56,22 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      // Try API authentication
-      try {
-        const result = await api.login(loginStr, password);
-        if (result && result.user) {
-          // Server returns { user: { id, clinicId, login, name, role, ... } }
-          setUser(result.user);
-          if (result.user.clinicId) {
-            try {
-              const clinicData = await api.getClinic(result.user.clinicId);
-              setClinic(clinicData);
-            } catch {}
-          }
-          return true;
+      const result = await api.login(loginStr, password);
+      if (result && result.user) {
+        setUser(result.user);
+        if (result.user.clinicId) {
+          try {
+            const clinicData = await api.getClinic(result.user.clinicId);
+            setClinic(clinicData);
+          } catch {}
         }
-      } catch (err) {
-        console.error('API login failed:', err);
+        return true;
       }
 
       setError('Неверный логин или пароль');
       return false;
     } catch (err) {
-      setError('Ошибка соединения с сервером: ' + err.message);
+      setError('Ошибка входа: ' + (err.message || 'неизвестная ошибка'));
       return false;
     } finally {
       setLoading(false);
@@ -121,45 +115,20 @@ export function AuthProvider({ children }) {
       }
 
       // Persist to PostgreSQL via API
-      try {
-        const result = await api.register(formData);
-        if (result && result.user && result.clinic) {
-          setUser(result.user);
-          setClinic(result.clinic);
-          // Also update local store for offline fallback
-          _store.clinics.push(result.clinic);
-          _store.users.push(result.user);
-          return true;
-        }
-      } catch (err) {
-        // If API fails, fall back to local-only
-        console.error('API register failed:', err);
-        if (_store.users.some(u => u.login === loginStr)) {
-          setError('Такой логин уже занят — выберите другой');
-          return false;
-        }
-
-        const newClinic = {
-          id: gid(), name: clinicName, city: city || '', phone: phone || '',
-          email: email || '', address: '', plan: 'starter', active: true,
-          createdAt: today(), color: '#C9A96E',
-        };
-        const newDirector = {
-          id: gid(), clinicId: newClinic.id, login: loginStr, password,
-          role: 'director', name: directorName, spec: 'Руководитель',
-        };
-
-        _store.clinics.push(newClinic);
-        _store.users.push(newDirector);
-        setUser(newDirector);
-        setClinic(newClinic);
+      const result = await api.register(formData);
+      if (result && result.user && result.clinic) {
+        setUser(result.user);
+        setClinic(result.clinic);
+        _store.clinics.push(result.clinic);
+        _store.users.push(result.user);
         return true;
       }
 
-      setError('Ошибка при регистрации');
+      setError('Ошибка при регистрации — сервер не вернул данные');
       return false;
-    } catch {
-      setError('Ошибка при регистрации');
+    } catch (err) {
+      const msg = err.message || 'Ошибка при регистрации';
+      setError('Ошибка регистрации: ' + msg);
       return false;
     } finally {
       setLoading(false);
