@@ -3,9 +3,11 @@ import { Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../hooks/useData';
 
 export function AppLayout() {
   const { user, clinic, loading, logout, roleInfo } = useAuth();
+  const clinicData = useData(clinic?.id);
 
   if (loading) {
     return (
@@ -34,7 +36,7 @@ export function AppLayout() {
         onLogout={logout}
       />
       <div className="lg:pl-72">
-        <Topbar user={user} clinic={clinic} onLogout={logout} />
+        <Topbar user={user} clinic={clinic} data={clinicData} onLogout={logout} />
         <main className="mx-auto max-w-7xl p-4 lg:p-6">
           <Outlet context={{ user, clinic, roleInfo }} />
         </main>

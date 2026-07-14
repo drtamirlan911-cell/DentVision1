@@ -1,16 +1,86 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Bell, Search, ChevronDown, Menu, UserCircle2, Settings, LogOut, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { Bell, Search, ChevronDown, Menu, UserCircle2, Settings, LogOut, Sparkles, AlertTriangle, Package, Calendar } from 'lucide-react';
 import { useUIStore } from '../stores/useUIStore';
-import { T } from '../utils/constants';
+import { T, tg, today } from '../utils/constants';
 
 interface TopbarProps {
   user: any;
   clinic: any;
+  data?: any;
   onSearch?: (query: string) => void;
   onLogout?: () => void;
 }
 
-export function Topbar({ user, clinic, onSearch, onLogout }: TopbarProps) {
+function generateNotifications(data: any) {
+  if (!data) return [];
+  const notes: Array<{ title: string; text: string; type: string; icon: React.ReactNode }> = [];
+  const todayStr = today();
+
+  // Today's appointments
+  const todayAppts = (data.appointments || []).filter((a: any) => a.date === todayStr && a.status !== 'cancelled');
+  if (todayAppts.length > 0) {
+    const nextAppt = todayAppts[0];
+    const patient = (data.patients || []).find((p: any) => p.id === nextAppt.patientId);
+    notes.push({
+      title: 'Записи на сегодня',
+      text: `${todayAppts.length} записей${patient ? `, ближайшая: ${patient.name} на ${nextAppt.time}` : ''}`,
+      type: 'info',
+      icon: <Calendar size={14} className="text-[#C9A96E]" />,
+    });
+  }
+
+  // Debts
+  const debts = (data.debts || []).filter((d: any) => d.status === 'pending' && d.amount > (d.paidAmount || 0));
+  if (debts.length > 0) {
+    const totalDebt = debts.reduce((sum: number, d: any) => sum + (d.amount - (d.paidAmount || 0)), 0);
+    notes.push({
+      title: 'Долги по оплате',
+      text: `${debts.length} должников — ${tg(totalDebt)}`,
+      type: 'warning',
+      icon: <AlertTriangle size={14} className="text-[#F39C12]" />,
+    });
+  }
+
+  // Low stock inventory
+  const lowStock = (data.inventory || []).filter((i: any) => {
+    const min = i.minQuantity || i.min || 0;
+    return min > 0 && i.quantity <= min;
+  });
+  if (lowStock.length > 0) {
+    notes.push({
+      title: 'Склад',
+      text: `${lowStock.length} позиций заканчивается: ${lowStock.map((i: any) => i.name).slice(0, 2).join(', ')}`,
+      type: 'warning',
+      icon: <Package size={14} className="text-[#E74C3C]" />,
+    });
+  }
+
+  // Active promotions
+  const activePromos = (data.promotions || []).filter((p: any) => p.active);
+  if (activePromos.length > 0) {
+    notes.push({
+      title: 'Акции',
+      text: `${activePromos.length} активных промоций`,
+      type: 'success',
+      icon: <Sparkles size={14} className="text-[#27AE60]" />,
+    });
+  }
+
+  // Pending bookings
+  const pendingBookings = (data.bookings || []).filter((b: any) => b.status === 'pending');
+  if (pendingBookings.length > 0) {
+    notes.push({
+      title: 'Онлайн-записи',
+      text: `${pendingBookings.length} заявок ожидают подтверждения`,
+      type: 'info',
+      icon: <Calendar size={14} className="text-[#2980B9]" />,
+    });
+  }
+
+  return notes.length > 0 ? notes : [{ title: 'Всё в порядке', text: 'Нет активных уведомлений', type: 'info', icon: <Sparkles size={14} className="text-[#7A8899]" /> }];
+}
+
+export function Topbar({ user, clinic, data, onSearch, onLogout }: TopbarProps) {
   const { toggleSidebar } = useUIStore();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -23,11 +93,8 @@ export function Topbar({ user, clinic, onSearch, onLogout }: TopbarProps) {
     month: 'long',
   });
 
-  const notifications = [
-    { title: 'Новая запись', text: 'Пациент Иванова М. записана на 14:30', type: 'info' },
-    { title: 'Долг по оплате', text: 'Петров В.В. — 120 000 ₸', type: 'warning' },
-    { title: 'Склад', text: 'Анестетик заканчивается', type: 'success' },
-  ];
+  const notifications = useMemo(() => generateNotifications(data), [data]);
+  const unreadCount = notifications.filter(n => n.type !== 'info' || n.title !== 'Всё в порядке').length;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -75,22 +142,26 @@ export function Topbar({ user, clinic, onSearch, onLogout }: TopbarProps) {
               className="relative rounded-lg p-2 transition-colors hover:bg-white/5"
             >
               <Bell size={20} className="text-[#7A8899]" />
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#E74C3C]" />
+              {unreadCount > 0 && (
+                <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#E74C3C] text-[9px] font-bold text-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-72 rounded-xl border border-[rgba(201,169,110,0.2)] bg-[#0F1A2D] p-3 shadow-xl">
+              <div className="absolute right-0 mt-2 w-80 rounded-xl border border-[rgba(201,169,110,0.2)] bg-[#0F1A2D] p-3 shadow-xl">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-sm font-semibold text-white">Уведомления</p>
-                  <span className="text-xs text-[#7A8899]">3 новых</span>
+                  <span className="text-xs text-[#7A8899]">{notifications.length} новых</span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-64 overflow-y-auto">
                   {notifications.map((item, index) => (
-                    <div key={index} className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <div key={index} className="rounded-lg border border-white/10 bg-white/5 p-2.5">
                       <div className="flex items-center gap-2">
-                        <Sparkles size={14} className="text-[#C9A96E]" />
+                        {item.icon}
                         <p className="text-sm font-semibold text-white">{item.title}</p>
                       </div>
-                      <p className="mt-1 text-xs text-[#7A8899]">{item.text}</p>
+                      <p className="mt-1 text-xs text-[#B0BEC5]">{item.text}</p>
                     </div>
                   ))}
                 </div>
