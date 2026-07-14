@@ -507,6 +507,11 @@ async function initDatabase() {
     await client.query('ALTER TABLE receipts ADD COLUMN IF NOT EXISTS items JSONB');
     await client.query('ALTER TABLE receipts ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT \'pending\'');
     await client.query('ALTER TABLE patients ADD COLUMN IF NOT EXISTS source VARCHAR(100)');
+    await client.query('ALTER TABLE documents ADD COLUMN IF NOT EXISTS signature_data TEXT');
+    await client.query('ALTER TABLE documents ADD COLUMN IF NOT EXISTS signed_at TIMESTAMP');
+    await client.query('ALTER TABLE documents ADD COLUMN IF NOT EXISTS signed_by_name VARCHAR(255)');
+    await client.query('ALTER TABLE documents ADD COLUMN IF NOT EXISTS patient_name VARCHAR(255)');
+    await client.query('ALTER TABLE documents ADD COLUMN IF NOT EXISTS signature_token VARCHAR(255)');
 
     // Seed ICD-10 (common dental diagnoses)
     const icd10Data = [
@@ -1128,6 +1133,58 @@ app.delete('/api/documents/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM documents WHERE id = $1 RETURNING *', [req.params.id]);
     res.json(result.rows[0] || { deleted: true, id: req.params.id });
   } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Document Signature: generate signing link ───
+app.post('/api/documents/:id/send-signature', async (req, res) => {
+  try {
+    const token = crypto.randomUUID();
+    const result = await pool.query(
+      'UPDATE documents SET signature_token = $1, status = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
+      [token, 'pending_signature', req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Document not found' });
+    const baseUrl = process.env.SIGNING_BASE_URL || req.headers.origin || 'https://dent-vision1.vercel.app';
+    res.json({ document: result.rows[0], signingUrl: `${baseUrl}/sign/${token}` });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Document Signature: save signature ───
+app.put('/api/documents/:id/sign', async (req, res) => {
+  try {
+    const { signature_data, signed_by_name, token } = req.body;
+    if (!signature_data) return res.status(400).json({ error: 'signature_data required' });
+
+    let query, params;
+    if (token) {
+      query = 'UPDATE documents SET signature_data = $1, signed_at = NOW(), signed_by_name = $2, status = $3, signature_token = NULL, updated_at = NOW() WHERE signature_token = $4 RETURNING *';
+      params = [signature_data, signed_by_name || 'Пациент', 'signed', token];
+    } else {
+      query = 'UPDATE documents SET signature_data = $1, signed_at = NOW(), signed_by_name = $2, status = $3, updated_at = NOW() WHERE id = $4 RETURNING *';
+      params = [signature_data, signed_by_name || 'Пациент', 'signed', req.params.id];
+    }
+    const result = await pool.query(query, params);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Document not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Public: view document by signing token ───
+app.get('/api/public/document/:token', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT d.*, c.name as clinic_name, c.phone as clinic_phone, c.address as clinic_address FROM documents d LEFT JOIN clinics c ON d.clinic_id = c.id WHERE d.signature_token = $1',
+      [req.params.token]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Document not found or already signed' });
+    res.json(result.rows[0]);
+  } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });

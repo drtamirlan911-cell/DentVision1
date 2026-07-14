@@ -1,13 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FileText, Plus, Search, Edit3, Save, X, Trash2, Download, Eye, Copy, Stethoscope, Shield, ClipboardList } from 'lucide-react';
+import { FileText, Plus, Search, Edit3, Save, X, Trash2, Download, Eye, Copy, Stethoscope, Shield, ClipboardList, PenTool, Send, Link2 } from 'lucide-react';
+import SignaturePad from '../components/ui/SignaturePad';
 import { T, gid, today } from '../utils/constants';
 import { useData, useToast } from '../hooks/useData';
 
 const DOC_STATUS = {
   draft: { l: 'Черновик', c: T.slate },
   active: { l: 'Действующий', c: T.emerald },
+  pending_signature: { l: 'Ожидает подписи', c: T.amber },
   signed: { l: 'Подписан', c: T.gold },
   archived: { l: 'Архив', c: T.sapphire },
 };
@@ -500,6 +502,49 @@ export default function Documents() {
     navigator.clipboard.writeText(content || '').then(() => toast.success('Скопировано в буфер'));
   };
 
+  const [signLink, setSignLink] = useState(null);
+
+  const handleSendForSignature = async (doc) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')}/api/documents/${doc.id}/send-signature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setSignLink(data.signingUrl);
+      toast.success('Ссылка для подписи создана');
+    } catch {
+      toast.error('Ошибка создания ссылки');
+    }
+  };
+
+  const handleSignInline = async (doc) => {
+    if (!signInlineDoc || signInlineDoc.id !== doc.id) {
+      setSignInlineDoc(doc);
+      return;
+    }
+  };
+
+  const [signInlineDoc, setSignInlineDoc] = useState(null);
+  const [signInlineName, setSignInlineName] = useState('');
+
+  const handleInlineSignSave = async (signatureData) => {
+    if (!signInlineName.trim()) { toast.warning('Введите имя'); return; }
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')}/api/documents/${signInlineDoc.id}/sign`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signature_data: signatureData, signed_by_name: signInlineName }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Документ подписан');
+      setSignInlineDoc(null);
+    } catch {
+      toast.error('Ошибка подписания');
+    }
+  };
+
   return (
     <div className="fade-in space-y-6">
       <div className="page-header flex items-center justify-between">
@@ -627,6 +672,16 @@ export default function Documents() {
             <div className="whitespace-pre-wrap rounded-lg bg-white/5 p-6 text-sm text-slate-300 font-mono leading-relaxed border border-white/5">
               {previewDoc.content || 'Нет содержания'}
             </div>
+            {previewDoc.signature_data && (
+              <div className="mt-4 rounded-lg border border-[#C9A96E]/20 bg-[#C9A96E]/5 p-4">
+                <p className="mb-2 text-xs font-semibold text-[#C9A96E]">Электронная подпись</p>
+                <img src={previewDoc.signature_data} alt="Подпись" style={{ maxHeight: 80, background: 'white', borderRadius: 6, padding: 4 }} />
+                <p className="mt-2 text-xs text-slate-500">
+                  {previewDoc.signed_by_name && `Подпись: ${previewDoc.signed_by_name}`}
+                  {previewDoc.signed_at && ` · ${new Date(previewDoc.signed_at).toLocaleString('ru-RU')}`}
+                </p>
+              </div>
+            )}
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => copyDoc(previewDoc.content)} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400 hover:text-white">
                 <Copy size={12} /> Копировать
@@ -690,8 +745,41 @@ export default function Documents() {
                     <button onClick={() => handleDelete(doc.id)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-[#E74C3C]" title="Удалить">
                       <Trash2 size={14} />
                     </button>
+                    {doc.status !== 'signed' && (
+                      <>
+                        <button onClick={() => handleSendForSignature(doc)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-amber-400" title="Отправить на подпись">
+                          <Send size={14} />
+                        </button>
+                        <button onClick={() => handleSignInline(doc)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-emerald-400" title="Подписать на планшете">
+                          <PenTool size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
+                {signLink && signInlineDoc?.id !== doc.id && (
+                  <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-400">
+                      <Link2 size={12} /> Ссылка для подписи
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 truncate text-xs text-[#DDE4EA]">{signLink}</code>
+                      <button onClick={() => { navigator.clipboard.writeText(signLink); toast.success('Скопировано'); }} className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold" style={{ background: T.gold, color: T.bg }}>Копировать</button>
+                      <button onClick={() => setSignLink(null)} className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-white">✕</button>
+                    </div>
+                  </div>
+                )}
+                {signInlineDoc?.id === doc.id && (
+                  <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <p className="mb-2 text-xs font-semibold text-emerald-400">Подпись на планшете</p>
+                    <input type="text" value={signInlineName} onChange={e => setSignInlineName(e.target.value)} placeholder="ФИО пациента"
+                      className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500" />
+                    <div className="flex justify-center">
+                      <SignaturePad onSave={handleInlineSignSave} width={Math.min(450, 380)} height={150} />
+                    </div>
+                    <button onClick={() => setSignInlineDoc(null)} className="mt-2 text-xs text-slate-500 hover:text-white">Отмена</button>
+                  </div>
+                )}
               </motion.div>
             );
           })

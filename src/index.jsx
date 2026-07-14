@@ -8,6 +8,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import PublicBooking from './pages/PublicBooking';
+import DocumentSign from './pages/DocumentSign';
 import './styles/global.css';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -58,6 +59,7 @@ if (container) {
                 <Route path="/login" element={<Login />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/book/:clinicId" element={<PublicBooking />} />
+                <Route path="/sign/:token" element={<DocumentSign />} />
                 <Route path="/" element={<AppLayout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
