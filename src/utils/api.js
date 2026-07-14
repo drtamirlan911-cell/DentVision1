@@ -2,7 +2,7 @@
 // DENTVISION API CLIENT — Real backend calls
 // ═══════════════════════════════════════════════════════════════════
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
 async function apiRequest(path, options = {}) {
   const res = await fetch(`${API_URL}${path}`, {

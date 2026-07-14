@@ -4,7 +4,7 @@ import { T, GLOBAL_CSS } from '../utils/constants';
 import { rateLimit, validatePassword } from '../utils/security';
 import { Spinner } from '../components/ui/BaseComponents';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
 export default function ForgotPassword() {
   const navigate = useNavigate();

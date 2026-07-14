@@ -4,7 +4,7 @@ import { T, HOURS, ALL_SERVICES } from '../utils/constants';
 import { rateLimit, validatePhone, validateEmail, escapeHtml, sanitizeInput } from '../utils/security';
 import { Spinner, Toast } from '../components/ui/BaseComponents';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
 export default function PublicBooking() {
   const { clinicId } = useParams();
