@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { T, HOURS, ALL_SERVICES, sanitizeInput } from '../utils/constants';
-import { rateLimit, validatePhone, validateEmail, escapeHtml } from '../utils/security';
+import { T, HOURS, ALL_SERVICES } from '../utils/constants';
+import { rateLimit, validatePhone, validateEmail, escapeHtml, sanitizeInput } from '../utils/security';
 import { Spinner, Toast } from '../components/ui/BaseComponents';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';

@@ -119,7 +119,7 @@ export default function Promotions() {
           { key: 'expired', label: 'Истёкшие' },
         ].map(f => (
           <button key={f.key} onClick={() => setFilter(f.key)} style={{
-            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, border: 'none', fontFamily: 'inherit',
+            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
             background: filter === f.key ? `${T.gold}20` : T.card,
             color: filter === f.key ? T.gold : T.slate,
             border: `1px solid ${filter === f.key ? T.gold + '40' : T.borderSub}`,
@@ -212,7 +212,7 @@ export default function Promotions() {
                   const selected = form.serviceIds?.includes(s.id);
                   return (
                     <button key={s.id} type="button" onClick={() => toggleService(s.id)} style={{
-                      padding: '4px 10px', borderRadius: 6, fontSize: 11, border: 'none', fontFamily: 'inherit', cursor: 'pointer',
+                      padding: '4px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'inherit', cursor: 'pointer',
                       background: selected ? `${T.gold}20` : 'rgba(255,255,255,0.04)',
                       color: selected ? T.gold : T.slate,
                       border: `1px solid ${selected ? T.gold + '40' : T.borderSub}`,

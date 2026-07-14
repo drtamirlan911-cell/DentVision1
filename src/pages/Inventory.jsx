@@ -155,7 +155,7 @@ export default function Inventory() {
           { key: 'expiring', label: 'Истекает' },
         ].map(f => (
           <button key={f.key} onClick={() => setFilter(f.key)} style={{
-            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, border: 'none', fontFamily: 'inherit',
+            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
             background: filter === f.key ? `${T.gold}20` : T.card,
             color: filter === f.key ? T.gold : T.slate,
             border: `1px solid ${filter === f.key ? T.gold + '40' : T.borderSub}`,
