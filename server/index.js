@@ -30,7 +30,7 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
 function isOriginAllowed(origin) {
   if (!origin) return true;
   if (ALLOWED_ORIGINS.includes(origin)) return true;
-  if (/^https:\/\/dentvision.*\.vercel\.app$/.test(origin)) return true;
+  if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return true;
   return false;
 }
 
