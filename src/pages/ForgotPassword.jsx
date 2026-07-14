@@ -154,7 +154,7 @@ export default function ForgotPassword() {
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Токен сброса</label>
                 <input type="text" value={token} onChange={e => setToken(e.target.value)}
                   placeholder="Вставьте токен из письма" required autoFocus
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', fontFamily: 'monospace' }} />
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
               </div>
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Новый пароль</label>
