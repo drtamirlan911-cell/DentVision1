@@ -589,6 +589,60 @@ app.get('/api/clinics', async (req, res) => {
   }
 });
 
+// ─── Registration: create clinic + director account ───
+app.post('/api/auth/register', authLimiter, async (req, res) => {
+  try {
+    const { clinicName, city, phone, email, directorName, login: loginStr, password } = req.body;
+
+    if (!clinicName || !loginStr || !password || !directorName) {
+      return res.status(400).json({ error: 'Заполните все обязательные поля' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
+    }
+
+    // Check if login already exists
+    const existing = await pool.query('SELECT id FROM users WHERE login = $1', [loginStr]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Такой логин уже занят — выберите другой' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const clinicId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+      await client.query(
+        `INSERT INTO clinics (id, name, city, phone, address, plan, active, color)
+         VALUES ($1, $2, $3, $4, '', 'starter', true, '#C9A96E')`,
+        [clinicId, clinicName, city || '', phone || '']
+      );
+
+      const directorId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+      const passwordHash = await bcrypt.hash(password, 10);
+      await client.query(
+        `INSERT INTO users (id, clinic_id, login, password_hash, name, role, spec, phone, email)
+         VALUES ($1, $2, $3, $4, $5, 'director', 'Руководитель', $6, $7)`,
+        [directorId, clinicId, loginStr, passwordHash, directorName, phone || '', email || '']
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        user: { id: directorId, clinicId, login: loginStr, name: directorName, role: 'director', spec: 'Руководитель', phone: phone || '' },
+        clinic: { id: clinicId, name: clinicName, city: city || '', plan: 'starter', active: true, color: '#C9A96E' },
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Authentication
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -615,7 +669,13 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const { password_hash, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
+    // Map snake_case to camelCase for frontend
+    const mapped = {
+      ...userWithoutPassword,
+      clinicId: userWithoutPassword.clinic_id,
+    };
+    delete mapped.clinic_id;
+    res.json(mapped);
   } catch {
     res.status(500).json({ error: 'Internal server error' });
   }

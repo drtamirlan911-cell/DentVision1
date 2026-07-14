@@ -30,6 +30,13 @@ export async function forgotPassword(login) {
   });
 }
 
+export async function register(data) {
+  return apiRequest('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function resetPassword(token, newPassword) {
   return apiRequest('/api/auth/reset-password', {
     method: 'POST',

@@ -138,7 +138,7 @@ export function Topbar({ user, clinic, data, onSearch, onLogout }: TopbarProps) 
         <div className="flex items-center gap-3">
           <div className="relative" ref={notificationsRef}>
             <button
-              onClick={() => setShowNotifications((v) => !v)}
+              onClick={() => { setShowNotifications((v) => !v); setShowProfile(false); }}
               className="relative rounded-lg p-2 transition-colors hover:bg-white/5"
             >
               <Bell size={20} className="text-[#7A8899]" />
@@ -149,7 +149,7 @@ export function Topbar({ user, clinic, data, onSearch, onLogout }: TopbarProps) 
               )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 rounded-xl border border-[rgba(201,169,110,0.2)] bg-[#0F1A2D] p-3 shadow-xl">
+              <div className="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-[rgba(201,169,110,0.2)] bg-[#0F1A2D] p-3 shadow-xl">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-sm font-semibold text-white">Уведомления</p>
                   <span className="text-xs text-[#7A8899]">{notifications.length} новых</span>
@@ -177,7 +177,7 @@ export function Topbar({ user, clinic, data, onSearch, onLogout }: TopbarProps) 
               <p className="text-xs text-[#7A8899]">{clinic?.name || ''}</p>
             </div>
             <button
-              onClick={() => setShowProfile((v) => !v)}
+              onClick={() => { setShowProfile((v) => !v); setShowNotifications(false); }}
               className="flex items-center gap-2 rounded-lg p-1.5 transition-colors hover:bg-white/5"
             >
               <div
@@ -189,7 +189,7 @@ export function Topbar({ user, clinic, data, onSearch, onLogout }: TopbarProps) 
               <ChevronDown size={16} className="text-[#7A8899]" />
             </button>
             {showProfile && (
-              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-[rgba(201,169,110,0.2)] bg-[#0F1A2D] p-3 shadow-xl">
+              <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-[rgba(201,169,110,0.2)] bg-[#0F1A2D] p-3 shadow-xl">
                 <div className="mb-3 flex items-center gap-3 rounded-lg bg-white/5 p-2">
                   <UserCircle2 size={18} className="text-[#C9A96E]" />
                   <div>

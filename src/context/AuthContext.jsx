@@ -60,34 +60,19 @@ export function AuthProvider({ children }) {
       try {
         const result = await api.login(loginStr, password);
         if (result && result.user) {
-          const resolvedUser = {
-            ...result.user,
-            clinicId: result.user.clinicId || _store.users.find(u => u.login === loginStr)?.clinicId || null,
-          };
-          setUser(resolvedUser);
-          if (resolvedUser.clinicId) {
+          // Server returns { user: { id, clinicId, login, name, role, ... } }
+          setUser(result.user);
+          if (result.user.clinicId) {
             try {
-              const clinicData = await api.getClinic(resolvedUser.clinicId);
+              const clinicData = await api.getClinic(result.user.clinicId);
               setClinic(clinicData);
             } catch {}
           }
           return true;
         }
-      } catch {}
-
-      // Fallback to supabase
-      try {
-        const { verifyLogin, loadClinicData } = await import('../utils/supabase');
-        const result = await verifyLogin(loginStr, password);
-        if (result) {
-          setUser(result);
-          if (result.clinicId) {
-            const clinicData = await loadClinicData(result.clinicId).catch(() => null);
-            setClinic(clinicData);
-          }
-          return true;
-        }
-      } catch {}
+      } catch (err) {
+        console.error('API login failed:', err);
+      }
 
       setError('Неверный логин или пароль');
       return false;
@@ -134,40 +119,45 @@ export function AuthProvider({ children }) {
         setError('Пароль должен быть не менее 6 символов');
         return false;
       }
-      if (_store.users.some(u => u.login === loginStr)) {
-        setError('Такой логин уже занят — выберите другой');
-        return false;
+
+      // Persist to PostgreSQL via API
+      try {
+        const result = await api.register(formData);
+        if (result && result.user && result.clinic) {
+          setUser(result.user);
+          setClinic(result.clinic);
+          // Also update local store for offline fallback
+          _store.clinics.push(result.clinic);
+          _store.users.push(result.user);
+          return true;
+        }
+      } catch (err) {
+        // If API fails, fall back to local-only
+        console.error('API register failed:', err);
+        if (_store.users.some(u => u.login === loginStr)) {
+          setError('Такой логин уже занят — выберите другой');
+          return false;
+        }
+
+        const newClinic = {
+          id: gid(), name: clinicName, city: city || '', phone: phone || '',
+          email: email || '', address: '', plan: 'starter', active: true,
+          createdAt: today(), color: '#C9A96E',
+        };
+        const newDirector = {
+          id: gid(), clinicId: newClinic.id, login: loginStr, password,
+          role: 'director', name: directorName, spec: 'Руководитель',
+        };
+
+        _store.clinics.push(newClinic);
+        _store.users.push(newDirector);
+        setUser(newDirector);
+        setClinic(newClinic);
+        return true;
       }
 
-      const newClinic = {
-        id: gid(),
-        name: clinicName,
-        city: city || '',
-        phone: phone || '',
-        email: email || '',
-        address: '',
-        plan: 'starter',
-        active: true,
-        createdAt: today(),
-        color: '#C9A96E',
-      };
-
-      const newDirector = {
-        id: gid(),
-        clinicId: newClinic.id,
-        login: loginStr,
-        password,
-        role: 'director',
-        name: directorName,
-        spec: 'Руководитель',
-      };
-
-      _store.clinics.push(newClinic);
-      _store.users.push(newDirector);
-
-      setUser(newDirector);
-      setClinic(newClinic);
-      return true;
+      setError('Ошибка при регистрации');
+      return false;
     } catch {
       setError('Ошибка при регистрации');
       return false;
@@ -177,10 +167,24 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Add staff to existing clinic (director/admin only)
-  const addStaffMember = useCallback((staffData) => {
+  const addStaffMember = useCallback(async (staffData) => {
     if (!staffData.clinicId || !staffData.login || !staffData.password) return false;
-    // Проверяем уникальность логина только в рамках этой клиники
+    // Check uniqueness within this clinic
     if (_store.users.some(u => u.clinicId === staffData.clinicId && u.login === staffData.login)) return false;
+
+    // Persist to DB via API
+    try {
+      const result = await api.upsertUser(staffData);
+      if (result) {
+        const newUser = { ...staffData, id: result.id || gid() };
+        _store.users.push(newUser);
+        return newUser;
+      }
+    } catch (err) {
+      console.error('API addStaff failed:', err);
+    }
+
+    // Fallback to local-only
     const newUser = { ...staffData, id: gid() };
     _store.users.push(newUser);
     return newUser;
