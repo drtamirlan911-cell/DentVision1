@@ -28,6 +28,7 @@ const store = {
   medicalCards: [],
   visits: [],
   documents: [],
+  waitingList: [],
   loadedClinics: new Set(),
   listeners: new Set(),
 };
@@ -113,7 +114,7 @@ export function useData(clinicId) {
 
     const loadData = async () => {
       try {
-        const [patientsData, appointmentsData, receiptsData, labOrdersData, expensesData, inventoryData, promotionsData, bookingsData, medicalCardsData, visitsData, documentsData] = await Promise.all([
+        const [patientsData, appointmentsData, receiptsData, labOrdersData, expensesData, inventoryData, promotionsData, bookingsData, medicalCardsData, visitsData, documentsData, waitingListData] = await Promise.all([
           api.getPatients(safeClinicId).catch(() => []),
           api.getAppointments(safeClinicId).catch(() => []),
           api.getReceipts(safeClinicId).catch(() => []),
@@ -124,6 +125,7 @@ export function useData(clinicId) {
           api.getBookings(safeClinicId).catch(() => []),
           api.getVisits(safeClinicId).catch(() => []),
           api.getDocuments(safeClinicId).catch(() => []),
+          api.getWaitingList(safeClinicId).catch(() => []),
         ]);
 
         replaceClinicRows('patients', safeClinicId, patientsData);
@@ -136,6 +138,7 @@ export function useData(clinicId) {
         replaceClinicRows('bookings', safeClinicId, bookingsData);
         replaceClinicRows('visits', safeClinicId, visitsData);
         replaceClinicRows('documents', safeClinicId, documentsData);
+        replaceClinicRows('waitingList', safeClinicId, waitingListData);
       } catch (error) {
         console.error('Failed to load data from API:', error);
       }
@@ -287,6 +290,19 @@ export function useData(clinicId) {
     return Promise.resolve();
   }, []);
 
+  const upsertWaitingListItem = useCallback((data) => {
+    const record = scopedRecord(data);
+    upsertRow('waitingList', record);
+    trySync('waiting_list', record);
+    return Promise.resolve(record);
+  }, [scopedRecord]);
+
+  const deleteWaitingListItem = useCallback((id) => {
+    removeRow('waitingList', id);
+    tryDelete('waiting_list', id);
+    return Promise.resolve();
+  }, []);
+
   const patients = rowsForClinic(store.patients, safeClinicId);
   const appointments = rowsForClinic(store.appointments, safeClinicId);
   const receipts = rowsForClinic(store.receipts, safeClinicId);
@@ -303,11 +319,12 @@ export function useData(clinicId) {
   const medicalCards = rowsForClinic(store.medicalCards, safeClinicId);
   const visits = rowsForClinic(store.visits, safeClinicId);
   const documents = rowsForClinic(store.documents, safeClinicId);
+  const waitingList = rowsForClinic(store.waitingList, safeClinicId);
 
   return {
     patients, appointments, receipts, labOrders, expenses, inventory, doctors,
     transactions: receipts, treatments, users, subscriptions, photos,
-    promotions, bookings, medicalCards, visits, documents,
+    promotions, bookings, medicalCards, visits, documents, waitingList,
     upsertPatient, deletePatient,
     upsertAppointment, deleteAppointment,
     upsertReceipt, upsertTransaction: upsertReceipt,
@@ -323,6 +340,7 @@ export function useData(clinicId) {
     upsertMedicalCard,
     upsertVisit,
     upsertDocument, deleteDocument,
+    upsertWaitingListItem, deleteWaitingListItem,
   };
 }
 

@@ -243,3 +243,8 @@ export async function upsertTreatment(data) {
 export async function getTreatments(clinicId) {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.treatments || []);
 }
+
+// ─── Waiting List ───
+export async function getWaitingList(clinicId) {
+  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.waitingList || d.waiting_list || []);
+}

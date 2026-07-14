@@ -409,7 +409,7 @@ function TemplateCard({ template, onSelect }) {
 
 export default function Documents() {
   const { clinic, user } = useOutletContext();
-  const { patients, documents, upsertDocument, deleteDocument } = useData(clinic?.id);
+  const { patients, doctors, documents, upsertDocument, deleteDocument } = useData(clinic?.id);
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -417,8 +417,9 @@ export default function Documents() {
   const [editingId, setEditingId] = useState(null);
   const [previewDoc, setPreviewDoc] = useState(null);
   const [filterType, setFilterType] = useState('all');
+  const [contentSnapshot, setContentSnapshot] = useState('');
   const [form, setForm] = useState({
-    patient_id: '', doc_type: '', title: '', content: '', status: 'draft',
+    patient_id: '', doctor_id: '', doc_type: '', title: '', content: '', status: 'draft',
   });
 
   const allTypes = useMemo(() => {
@@ -444,15 +445,45 @@ export default function Documents() {
   }, [documents, searchQuery, filterType]);
 
   const resetForm = () => {
-    setForm({ patient_id: '', doc_type: '', title: '', content: '', status: 'draft' });
+    setForm({ patient_id: '', doctor_id: '', doc_type: '', title: '', content: '', status: 'draft' });
+    setContentSnapshot('');
     setEditingId(null);
     setShowForm(false);
     setShowTemplates(false);
   };
 
+  const autoFillContent = (content, patientId, doctorId) => {
+    if (!content) return content;
+    let filled = content;
+    const patient = patients.find(p => p.id === patientId);
+    const doctor = doctors.find(d => d.id === doctorId);
+    const clinicName = clinic?.name || 'Клиника';
+    filled = filled.replace(/{clinic_name}/g, clinicName);
+    if (patient) {
+      const pName = patient.name || '';
+      filled = filled.replace(/_{15,}\s*\(ФИО пациента\)/g, pName.padEnd(35, ' '));
+      filled = filled.replace(/_{10,}\s*\(ФИО\)/g, pName.padEnd(25, ' '));
+      if (patient.dob) filled = filled.replace(/дата рождения: _________________/g, `дата рождения: ${patient.dob}`);
+      if (patient.phone) filled = filled.replace(/Телефон: _________________/g, `Телефон: ${patient.phone}`);
+      if (patient.passport) filled = filled.replace(/паспорт: _________________/g, `паспорт: ${patient.passport}`);
+      if (patient.address) filled = filled.replace(/Адрес: _________________/g, `Адрес: ${patient.address}`);
+    }
+    if (doctor) {
+      const dName = doctor.name || '';
+      filled = filled.replace(/Врач: _________________/g, `Врач: ${dName.padEnd(30, ' ')}`);
+      filled = filled.replace(/Хирург: _________________/g, `Хирург: ${dName.padEnd(30, ' ')}`);
+      filled = filled.replace(/Врач-стоматолог: _________________/g, `Врач-стоматолог: ${dName.padEnd(20, ' ')}`);
+      filled = filled.replace(/_{15,}\s*\(ФИО врача\)/g, dName.padEnd(35, ' '));
+      if (doctor.spec) filled = filled.replace(/_{10,}\s*\(специальность\)/g, doctor.spec);
+    }
+    return filled;
+  };
+
   const applyTemplate = (template) => {
     const clinicName = clinic?.name || 'Клиника';
-    const content = template.content.replace(/{clinic_name}/g, clinicName);
+    let content = template.content.replace(/{clinic_name}/g, clinicName);
+    content = autoFillContent(content, form.patient_id, form.doctor_id);
+    setContentSnapshot(content);
     setForm(f => ({ ...f, doc_type: template.type, title: template.title, content }));
     setShowTemplates(false);
     setShowForm(true);
@@ -461,22 +492,52 @@ export default function Documents() {
   const startEdit = (doc) => {
     setForm({
       patient_id: doc.patient_id || doc.patientId || '',
+      doctor_id: doc.doctor_id || '',
       doc_type: doc.doc_type || '',
       title: doc.title || '',
       content: doc.content || '',
       status: doc.status || 'draft',
     });
+    setContentSnapshot(doc.content || '');
     setEditingId(doc.id);
     setShowForm(true);
   };
 
+  const handlePatientChange = (patientId) => {
+    setForm(f => {
+      const newForm = { ...f, patient_id: patientId };
+      if (contentSnapshot && f.content) {
+        const reverted = f.content !== contentSnapshot ? contentSnapshot : f.content;
+        const newContent = autoFillContent(reverted, patientId, f.doctor_id);
+        setContentSnapshot(newContent);
+        return { ...newForm, content: newContent };
+      }
+      return newForm;
+    });
+  };
+
+  const handleDoctorChange = (doctorId) => {
+    setForm(f => {
+      const newForm = { ...f, doctor_id: doctorId };
+      if (contentSnapshot && f.content) {
+        const reverted = f.content !== contentSnapshot ? contentSnapshot : f.content;
+        const newContent = autoFillContent(reverted, f.patient_id, doctorId);
+        setContentSnapshot(newContent);
+        return { ...newForm, content: newContent };
+      }
+      return newForm;
+    });
+  };
+
   const saveDocument = async () => {
     if (!form.title || !form.doc_type) { toast.error('Заполните тип и название документа'); return; }
+    const patient = patients.find(p => p.id === form.patient_id);
     await upsertDocument({
       id: editingId || gid(),
       ...form,
       clinic_id: clinic.id,
-      doctor_id: user?.id,
+      doctor_id: form.doctor_id || user?.id,
+      patient_name: patient?.name || '',
       user_id: user?.id,
       user_name: user?.name,
     });
@@ -602,7 +663,7 @@ export default function Documents() {
             <h3 className="text-sm font-bold text-white">{editingId ? 'Редактирование' : 'Новый документ'}</h3>
             <button onClick={resetForm} className="text-slate-500 hover:text-white"><X size={18} /></button>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Тип документа *</label>
               <select value={form.doc_type} onChange={e => setForm(f => ({ ...f, doc_type: e.target.value }))}>
@@ -616,9 +677,16 @@ export default function Documents() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Пациент</label>
-              <select value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))}>
+              <select value={form.patient_id} onChange={e => handlePatientChange(e.target.value)}>
                 <option value="">Не выбран</option>
                 {(patients || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Врач</label>
+              <select value={form.doctor_id} onChange={e => handleDoctorChange(e.target.value)}>
+                <option value="">Не выбран</option>
+                {(doctors || []).map(d => <option key={d.id} value={d.id}>{d.name}{d.spec ? ` (${d.spec})` : ''}</option>)}
               </select>
             </div>
             <div>

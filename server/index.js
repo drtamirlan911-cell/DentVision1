@@ -20,7 +20,7 @@ const ALLOWED_TABLES = [
   'clinics', 'users', 'patients', 'appointments', 'treatments',
   'receipts', 'subscriptions', 'lab_orders', 'photos', 'expenses',
   'inventory', 'debts', 'referrals', 'promotions', 'bookings',
-  'medical_cards', 'visits', 'documents',
+  'medical_cards', 'visits', 'documents', 'waiting_list',
 ];
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
@@ -462,6 +462,25 @@ async function initDatabase() {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS waiting_list (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50) REFERENCES clinics(id),
+        patient_id VARCHAR(50) REFERENCES patients(id),
+        patient_name VARCHAR(255),
+        patient_phone VARCHAR(50),
+        doctor_id VARCHAR(50),
+        doctor_name VARCHAR(255),
+        preferred_date DATE,
+        preferred_time VARCHAR(10),
+        preferred_service VARCHAR(255),
+        notes TEXT,
+        status VARCHAR(50) DEFAULT 'waiting',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS audit_log (
         id VARCHAR(50) PRIMARY KEY,
         clinic_id VARCHAR(50) REFERENCES clinics(id),
@@ -741,7 +760,7 @@ app.get('/api/clinic/:clinicId/data', async (req, res) => {
   try {
     const { clinicId } = req.params;
 
-    const [patients, appointments, treatments, receipts, subscriptions, labOrders, photos, expenses, inventory, debts, referrals, promotions, bookings, medicalCards, visits, documents] = await Promise.all([
+    const [patients, appointments, treatments, receipts, subscriptions, labOrders, photos, expenses, inventory, debts, referrals, promotions, bookings, medicalCards, visits, documents, waitingList] = await Promise.all([
       pool.query('SELECT * FROM patients WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM appointments WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM treatments WHERE clinic_id = $1', [clinicId]),
@@ -758,6 +777,7 @@ app.get('/api/clinic/:clinicId/data', async (req, res) => {
       pool.query('SELECT * FROM medical_cards WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM visits WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM documents WHERE clinic_id = $1', [clinicId]),
+      pool.query('SELECT * FROM waiting_list WHERE clinic_id = $1', [clinicId]),
     ]);
 
     res.json({
@@ -777,6 +797,7 @@ app.get('/api/clinic/:clinicId/data', async (req, res) => {
       medicalCards: medicalCards.rows,
       visits: visits.rows,
       documents: documents.rows,
+      waitingList: waitingList.rows,
     });
   } catch {
     res.status(500).json({ error: 'Internal server error' });
