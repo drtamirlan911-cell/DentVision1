@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { T, PLANS, tg, today } from '../utils/constants';
 import { Card, StatCard, Badge } from '../components/ui/BaseComponents';
 import { useSubscription, useData } from '../hooks/useData';
+import QrCode from '../components/ui/QrCode';
 
 export default function Dashboard() {
   const { user, clinic } = useOutletContext();
@@ -64,6 +65,28 @@ export default function Dashboard() {
     source, patients: count, color: sourceColors[index % sourceColors.length],
   }));
 
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+
+  const bookingUrl = `${window.location.origin}/book/${clinic?.id || 'your-clinic-id'}`;
+
+  const copyBookingUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(bookingUrl);
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = bookingUrl;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+    }
+  };
+
   const quickActions = [
     { label: 'Новый пациент', icon: '👤', color: T.gold, path: '/patients' },
     { label: 'Новая запись', icon: '📅', color: T.sapphire, path: '/schedule' },
@@ -120,6 +143,61 @@ export default function Dashboard() {
         ))}
       </div>
 
+      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <Card>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="text-sm font-semibold text-white">🌐 Онлайн-запись</div>
+            <span className="text-xs text-[#7A8899]">Доступна для пациентов</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <p className="mb-2 text-xs text-[#7A8899]">Ссылка для записи:</p>
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-2">
+                <span className="flex-1 truncate font-mono text-xs text-[#DDE4EA]">{bookingUrl}</span>
+                <button onClick={copyBookingUrl} className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors" style={{ background: copiedUrl ? T.emerald : T.gold, color: T.bg }}>
+                  {copiedUrl ? '✓ Скопировано' : 'Копировать'}
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => window.open(bookingUrl, '_blank')} className="flex-1 rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-2 text-xs font-semibold text-[#DDE4EA] transition-colors hover:bg-white/10">
+                  Открыть страницу
+                </button>
+                <button onClick={() => setShowQr(!showQr)} className="flex-1 rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-2 text-xs font-semibold text-[#DDE4EA] transition-colors hover:bg-white/10">
+                  {showQr ? 'Скрыть QR' : 'QR-код'}
+                </button>
+              </div>
+            </div>
+            {showQr && (
+              <div className="shrink-0">
+                <QrCode value={bookingUrl} size={120} label="Сканируйте для записи" />
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="mb-4 text-sm font-semibold text-white">🎯 Сегодняшняя активность</div>
+          <div className="space-y-3">
+            {[
+              { label: 'Записи на сегодня', value: todayAppointments.length, icon: '📅', hint: 'Проверьте очередь' },
+              { label: 'Новых пациентов', value: clinicPatients.length, icon: '👥', hint: 'Обработайте обращения' },
+              { label: 'Выручка', value: tg(todayRevenue, clinic), icon: '💰', hint: 'Сравните с прошлым днём' },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{item.icon}</span>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{item.label}</p>
+                    <p className="text-xs text-[#7A8899]">{item.hint}</p>
+                  </div>
+                </div>
+                <span className="text-sm font-semibold text-[#C9A96E]">{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <div className="mb-4 flex items-center justify-between">
@@ -145,7 +223,6 @@ export default function Dashboard() {
 
         <Card>
           <div className="mb-4 text-sm font-semibold text-white">🚀 Быстрые действия</div>
-          <div className="grid gap-2 sm:grid-cols-2">
             {quickActions.map((action) => (
               <button
                 key={action.label}
