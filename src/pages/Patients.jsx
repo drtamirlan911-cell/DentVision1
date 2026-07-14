@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useData, useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState, Textarea } from '../components/ui/BaseComponents';
 import { Odontogram3D, SurfaceEditor, AutoTreatmentPlan, ToothLegend } from '../components/Odontogram3D';
@@ -12,7 +13,10 @@ const EMPTY_FORM = {
   category: 'new', notes: '', teeth: {},
 };
 
-export default function Patients({ clinic }) {
+const EMPTY_PAYMENT = { amount: '', payMethod: 'cash' };
+
+export default function Patients() {
+  const { clinic } = useOutletContext();
   const { patients, appointments, upsertPatient, deletePatient } = useData(clinic?.id);
   const { toast, showToast, clearToast } = useToast();
 
@@ -27,6 +31,7 @@ export default function Patients({ clinic }) {
   const [filterCat, setFilterCat] = useState('all');
   const [photos, setPhotos] = useState([]);
   const [photoCategory, setPhotoCategory] = useState('smile');
+  const [payment, setPayment] = useState(EMPTY_PAYMENT);
 
   const filtered = patients.filter(p => {
     const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase())
@@ -133,7 +138,7 @@ export default function Patients({ clinic }) {
               color: T.white, outline: 'none', fontFamily: 'inherit',
             }}
           />
-          {Object.entries({ all: 'Все', ...Object.fromEntries(Object.entries(CAT_CFG).map(([k, v]) => [k, v.label])) }).map(([k, label]) => (
+          {Object.entries({ all: 'Все', ...Object.fromEntries(Object.entries(CAT_CFG).map(([k, v]) => [k, v.l])) }).map(([k, label]) => (
             <button
               key={k}
               onClick={() => setFilterCat(k)}
@@ -399,6 +404,8 @@ export default function Patients({ clinic }) {
                       <input
                         type="number"
                         placeholder="0"
+                        value={payment.amount}
+                        onChange={e => setPayment({ ...payment, amount: e.target.value })}
                         style={{
                           width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.06)',
                           border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13,
@@ -409,6 +416,8 @@ export default function Patients({ clinic }) {
                     <div>
                       <label style={{ fontSize: 11, color: T.slate, marginBottom: 4, display: 'block' }}>Тип оплаты</label>
                       <select
+                        value={payment.payMethod}
+                        onChange={e => setPayment({ ...payment, payMethod: e.target.value })}
                         style={{
                           width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.06)',
                           border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13,
@@ -420,7 +429,11 @@ export default function Patients({ clinic }) {
                         <option value="transfer">🏦 Перевод</option>
                       </select>
                     </div>
-                    <PBtn onClick={() => showToast('Оплата внесена успешно', 'success')}>Внести</PBtn>
+                    <PBtn onClick={() => {
+                      if (!payment.amount || Number(payment.amount) <= 0) { showToast('Укажите сумму', 'warning'); return; }
+                      showToast(`Оплата ${tg(Number(payment.amount))} внесена успешно`, 'success');
+                      setPayment(EMPTY_PAYMENT);
+                    }}>Внести</PBtn>
                   </div>
                 </div>
 

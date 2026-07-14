@@ -80,7 +80,6 @@ export const GLOBAL_CSS = `
 export const SUPER_ADMIN = { 
   id: "sa", 
   login: "dr.tamirlan", 
-  password: "DentVision2025!", 
   role: "superadmin", 
   name: "Dr. Tamirlan" 
 };
@@ -91,13 +90,13 @@ export const INIT_CLINICS = [
 ];
 
 export const INIT_USERS = [
-  { id: "u1", clinicId: "c1", login: "admin_c1",   password: "admin123",  role: "admin",     name: "Анна Королёва",           phone: "+77161234567" },
-  { id: "u2", clinicId: "c1", login: "doc1_c1",    password: "doc123",    role: "doctor",    name: "Иванова Мария Сергеевна", spec: "Терапевт",   phone: "+77031112233" },
-  { id: "u3", clinicId: "c1", login: "doc2_c1",    password: "doc456",    role: "doctor",    name: "Петров Алексей Иванович", spec: "Ортопед",    phone: "+77017778899" },
-  { id: "u6", clinicId: "c1", login: "dir_c1",     password: "dir123",    role: "director",  name: "Нурлан Бекжан",           phone: "+77011234567" },
-  { id: "u7", clinicId: "c1", login: "assist_c1",  password: "assist123", role: "assistant", name: "Карина Омарова",          spec: "Ассистент",  phone: "+77055551234" },
-  { id: "u4", clinicId: "c2", login: "admin_c2",   password: "admin456",  role: "admin",     name: "Борис Сейткали",          phone: "+77261234567" },
-  { id: "u5", clinicId: "c2", login: "doc1_c2",    password: "doc789",    role: "doctor",    name: "Сидорова Елена Юрьевна", spec: "Терапевт",   phone: "+77265554433" },
+  { id: "u1", clinicId: "c1", login: "admin_c1",   role: "admin",     name: "Анна Королёва",           phone: "+77161234567" },
+  { id: "u2", clinicId: "c1", login: "doc1_c1",    role: "doctor",    name: "Иванова Мария Сергеевна", spec: "Терапевт",   phone: "+77031112233" },
+  { id: "u3", clinicId: "c1", login: "doc2_c1",    role: "doctor",    name: "Петров Алексей Иванович", spec: "Ортопед",    phone: "+77017778899" },
+  { id: "u6", clinicId: "c1", login: "dir_c1",     role: "director",  name: "Нурлан Бекжан",           phone: "+77011234567" },
+  { id: "u7", clinicId: "c1", login: "assist_c1",  role: "assistant", name: "Карина Омарова",          spec: "Ассистент",  phone: "+77055551234" },
+  { id: "u4", clinicId: "c2", login: "admin_c2",   role: "admin",     name: "Борис Сейткали",          phone: "+77261234567" },
+  { id: "u5", clinicId: "c2", login: "doc1_c2",    role: "doctor",    name: "Сидорова Елена Юрьевна", spec: "Терапевт",   phone: "+77265554433" },
 ];
 
 export const INIT_PATIENTS = [

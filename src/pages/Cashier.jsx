@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useData, useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, StatCard, Toast, EmptyState } from '../components/ui/BaseComponents';
 import { T, tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency } from '../utils/constants';
@@ -24,7 +25,8 @@ const PAY_TYPES = [
   { value: 'credit',            label: 'Долг' },
 ];
 
-export default function Cashier({ clinic }) {
+export default function Cashier() {
+  const { clinic } = useOutletContext();
   const { receipts, patients, doctors, upsertReceipt, expenses, upsertExpense, inventory } = useData(clinic?.id);
   const { toast, showToast, clearToast } = useToast();
   const [activeTab, setActiveTab] = useState('transactions');
@@ -269,7 +271,7 @@ export default function Cashier({ clinic }) {
             <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 16 }}>Зарплата сотрудников</div>
             {payrollRows.length === 0 && <EmptyState icon="💼" text="Нет начислений" sub="Зарплатные данные для этой клиники пока не внесены" />}
             {payrollRows.map((emp, i) => {
-              const pct = Math.round((emp.paid / emp.salary) * 100);
+              const pct = emp.salary > 0 ? Math.round((emp.paid / emp.salary) * 100) : 0;
               const remaining = emp.salary - emp.paid;
               return (
                 <div key={i} style={{

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useAuth, ROLES } from '../context/AuthContext';
 import { useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState } from '../components/ui/BaseComponents';
@@ -40,7 +41,8 @@ const SPECS = [
 
 const EMPTY_FORM = { name: '', login: '', password: '', role: 'doctor', spec: '', phone: '' };
 
-export default function Staff({ clinic, user }) {
+export default function Staff() {
+  const { clinic, user } = useOutletContext();
   const { getClinicStaff, addStaffMember, roleInfo } = useAuth();
   const { toast, showToast, clearToast } = useToast();
   const [modalOpen, setModalOpen] = useState(false);
@@ -63,13 +65,9 @@ export default function Staff({ clinic, user }) {
       return;
     }
     
-    // Проверяем график работы для врачей
-    if (form.role === 'doctor' && form.workSchedule) {
-      // Сохраняем график работы
-    }
-    
     const result = addStaffMember({
       ...form,
+      workSchedule: form.role === 'doctor' ? form.workSchedule : undefined,
       clinicId: clinic?.id || user?.clinicId,
     });
     if (result === false) {

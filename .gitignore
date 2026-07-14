@@ -1,4 +1,3 @@
-```
 # Build artifacts
 dist/
 build/
@@ -58,4 +57,3 @@ htmlcov/
 *.Z
 *.lz
 *.lzo
-```

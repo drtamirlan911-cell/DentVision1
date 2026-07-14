@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useData, useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState } from '../components/ui/BaseComponents';
 import { T, APPOINTMENT_STATUS, HOURS, today, fd, ALL_SERVICES } from '../utils/constants';
+import { tg } from '../utils/constants';
 
 // Используем APPOINTMENT_STATUS из constants вместо дублирования
 const STATUS_CFG = APPOINTMENT_STATUS;
@@ -10,7 +12,8 @@ const EMPTY_FORM = {
   patientId: '', doctorId: '', service: '', time: '09:00', status: 'scheduled', notes: '', duration: 60,
 };
 
-export default function Schedule({ clinic, user, roleInfo }) {
+export default function Schedule() {
+  const { clinic, user, roleInfo } = useOutletContext();
   const { appointments, patients, doctors, upsertAppointment, deleteAppointment } = useData(clinic?.id);
   const { toast, showToast, clearToast } = useToast();
   const [selDate, setSelDate] = useState(today());
@@ -29,7 +32,7 @@ export default function Schedule({ clinic, user, roleInfo }) {
   // Опции услуг из прайса с ценами
   const serviceOptions = [
     { value: '', label: '— Выберите услугу —' },
-    ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${s.price} ₽` })),
+    ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${tg(s.price)}` })),
   ];
 
   const openNew = () => {
@@ -159,7 +162,7 @@ export default function Schedule({ clinic, user, roleInfo }) {
         <GBtn onClick={() => setSelDate(today())} color={T.gold}>Сегодня</GBtn>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {Object.entries(STATUS_CFG).slice(0, 4).map(([k, v]) => (
-            <Badge key={k} color={v.color} size="sm">{v.label}</Badge>
+            <Badge key={k} color={v.dot} size="sm">{v.label}</Badge>
           ))}
         </div>
       </div>
@@ -224,9 +227,9 @@ export default function Schedule({ clinic, user, roleInfo }) {
                             maxWidth: 280,
                             padding: '10px 12px',
                             borderRadius: 9,
-                            background: `${sc.color}12`,
-                            border: `1px solid ${sc.color}30`,
-                            borderLeft: `3px solid ${sc.color}`,
+                            background: `${sc.dot}12`,
+                            border: `1px solid ${sc.dot}30`,
+                            borderLeft: `3px solid ${sc.dot}`,
                             cursor: 'pointer',
                             transition: 'all .12s',
                           }}

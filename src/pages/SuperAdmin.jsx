@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, StatCard, Toast } from '../components/ui/BaseComponents';
@@ -6,7 +7,8 @@ import { T, PLANS, tg, gid, fd } from '../utils/constants';
 
 const PLAN_COLORS = { starter: T.sapphire, pro: T.gold, enterprise: T.purple };
 
-export default function SuperAdmin({ user }) {
+export default function SuperAdmin() {
+  const { user } = useOutletContext();
   const { allClinics, allUsers } = useAuth();
   const { toast, showToast, clearToast } = useToast();
   

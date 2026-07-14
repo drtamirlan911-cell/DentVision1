@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useData, useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState } from '../components/ui/BaseComponents';
 import { T, tg, ALL_SERVICES } from '../utils/constants';
 
 const CATEGORIES = [...new Set(ALL_SERVICES.map(s => s.cat))];
 
-export default function PriceList({ clinic }) {
+export default function PriceList() {
+  const { clinic } = useOutletContext();
   const { toast, showToast, clearToast } = useToast();
   const [clinicPrices, setClinicPrices] = useState({});
   const [modalOpen, setModalOpen] = useState(false);

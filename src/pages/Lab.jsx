@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useData, useToast } from '../hooks/useData';
 import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState } from '../components/ui/BaseComponents';
 import { T, gid, fd, today } from '../utils/constants';
@@ -41,7 +42,16 @@ const TABS = [
   { id: 'waxup',     label: '🎨 Wax-Up / Smile Design' },
 ];
 
-// Функция печати заказ-наряда
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function printWorkOrder(order) {
   const labTypeLabel = LAB_TYPES.find(t => t.value === order.labType)?.label || order.labType;
   const materialLabel = MATERIALS.find(m => m.value === order.material)?.label || order.material;
@@ -51,7 +61,7 @@ function printWorkOrder(order) {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Заказ-наряд №${order.id?.slice(-6) || 'NEW'}</title>
+      <title>Заказ-наряд №${escapeHtml(order.id?.slice(-6) || 'NEW')}</title>
       <style>
         body { font-family: 'Arial', sans-serif; padding: 40px; color: #333; }
         .header { text-align: center; border-bottom: 2px solid #C9A96E; padding-bottom: 20px; margin-bottom: 30px; }
@@ -80,29 +90,29 @@ function printWorkOrder(order) {
       
       <div class="section">
         <div class="section-title">📋 Общая информация</div>
-        <div class="row"><span class="label">№ заказа:</span><span class="value highlight">${order.id?.slice(-6) || 'NEW'}</span></div>
-        <div class="row"><span class="label">Дата создания:</span><span class="value">${fd(order.createdAt || today())}</span></div>
-        <div class="row"><span class="label">Срок готовности:</span><span class="value highlight">${fd(order.dueDate)}</span></div>
-        <div class="row"><span class="label">Статус:</span><span class="value">${STATUS_CFG[order.status]?.label || order.status}</span></div>
+        <div class="row"><span class="label">№ заказа:</span><span class="value highlight">${escapeHtml(order.id?.slice(-6) || 'NEW')}</span></div>
+        <div class="row"><span class="label">Дата создания:</span><span class="value">${escapeHtml(fd(order.createdAt || today()))}</span></div>
+        <div class="row"><span class="label">Срок готовности:</span><span class="value highlight">${escapeHtml(fd(order.dueDate))}</span></div>
+        <div class="row"><span class="label">Статус:</span><span class="value">${escapeHtml(STATUS_CFG[order.status]?.label || order.status)}</span></div>
       </div>
       
       <div class="section">
         <div class="section-title">👤 Пациент</div>
-        <div class="row"><span class="label">ФИО:</span><span class="value">${order.patientName}</span></div>
+        <div class="row"><span class="label">ФИО:</span><span class="value">${escapeHtml(order.patientName)}</span></div>
       </div>
       
       <div class="section">
         <div class="section-title">🔬 Параметры работы</div>
-        <div class="row"><span class="label">Тип работы:</span><span class="value highlight">${labTypeLabel}</span></div>
-        <div class="row"><span class="label">Материал:</span><span class="value highlight">${materialLabel}</span></div>
-        ${order.toothNumber ? `<div class="row"><span class="label">Зуб:</span><span class="value">${order.toothNumber}</span></div>` : ''}
-        ${order.shade ? `<div class="row"><span class="label">Цвет (Shade):</span><span class="value">${order.shade}</span></div>` : ''}
+        <div class="row"><span class="label">Тип работы:</span><span class="value highlight">${escapeHtml(labTypeLabel)}</span></div>
+        <div class="row"><span class="label">Материал:</span><span class="value highlight">${escapeHtml(materialLabel)}</span></div>
+        ${order.toothNumber ? `<div class="row"><span class="label">Зуб:</span><span class="value">${escapeHtml(order.toothNumber)}</span></div>` : ''}
+        ${order.shade ? `<div class="row"><span class="label">Цвет (Shade):</span><span class="value">${escapeHtml(order.shade)}</span></div>` : ''}
       </div>
       
       ${order.notes ? `
       <div class="section">
         <div class="section-title">📝 Комментарии</div>
-        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.5;">${order.notes}</div>
+        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.5;">${escapeHtml(order.notes)}</div>
       </div>
       ` : ''}
       
@@ -128,7 +138,8 @@ function printWorkOrder(order) {
   printWindow.document.close();
 }
 
-export default function Lab({ clinic }) {
+export default function Lab() {
+  const { clinic } = useOutletContext();
   const { labOrders, upsertLabOrder, doctors } = useData(clinic?.id);
   const { toast, showToast, clearToast } = useToast();
   const [activeTab, setActiveTab] = useState('active');

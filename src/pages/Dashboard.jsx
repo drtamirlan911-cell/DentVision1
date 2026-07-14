@@ -1,10 +1,11 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { T, PLANS, tg, today } from '../utils/constants';
 import { Card, StatCard, Badge } from '../components/ui/BaseComponents';
 import { useSubscription, useData } from '../hooks/useData';
 
-export default function Dashboard({ user, clinic }) {
+export default function Dashboard() {
+  const { user, clinic } = useOutletContext();
   const navigate = useNavigate();
   const { subscription } = useSubscription(clinic?.id);
   const { patients, appointments, receipts, doctors } = useData(clinic?.id);

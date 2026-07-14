@@ -7,43 +7,60 @@ import { Pool } from 'pg';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+const ALLOWED_TABLES = [
+  'clinics', 'users', 'patients', 'appointments', 'treatments',
+  'receipts', 'subscriptions', 'lab_orders', 'photos', 'expenses',
+  'inventory', 'debts', 'referrals',
+];
+
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
+app.use(helmet());
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
+app.use(express.json({ limit: '1mb' }));
+
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+app.use('/api/', apiLimiter);
+app.use('/api/auth/login', authLimiter);
 
 // PostgreSQL connection pool (Neon)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
-
-// Проверка подключения к БД
-pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL (Neon)');
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
 pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle client', err);
+  console.error('Unexpected error on idle client', err);
 });
 
-// ═══════════════════════════════════════════════════════════════════
-// DATABASE INITIALIZATION
-// ═══════════════════════════════════════════════════════════════════
+function validateTable(table) {
+  return ALLOWED_TABLES.includes(table);
+}
 
+function sanitizeColumnName(col) {
+  return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(col);
+}
+
+// DATABASE INITIALIZATION
 async function initDatabase() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    
-    // Таблица клиник
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS clinics (
         id VARCHAR(50) PRIMARY KEY,
@@ -58,7 +75,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица пользователей
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(50) PRIMARY KEY,
@@ -73,7 +89,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица пациентов
     await client.query(`
       CREATE TABLE IF NOT EXISTS patients (
         id VARCHAR(50) PRIMARY KEY,
@@ -92,7 +107,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица приёмов
     await client.query(`
       CREATE TABLE IF NOT EXISTS appointments (
         id VARCHAR(50) PRIMARY KEY,
@@ -108,7 +122,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица лечений
     await client.query(`
       CREATE TABLE IF NOT EXISTS treatments (
         id VARCHAR(50) PRIMARY KEY,
@@ -126,7 +139,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица оплат
     await client.query(`
       CREATE TABLE IF NOT EXISTS receipts (
         id VARCHAR(50) PRIMARY KEY,
@@ -141,7 +153,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица подписок
     await client.query(`
       CREATE TABLE IF NOT EXISTS subscriptions (
         id VARCHAR(50) PRIMARY KEY,
@@ -155,7 +166,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица лабораторных заказов
     await client.query(`
       CREATE TABLE IF NOT EXISTS lab_orders (
         id VARCHAR(50) PRIMARY KEY,
@@ -171,7 +181,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица фотографий
     await client.query(`
       CREATE TABLE IF NOT EXISTS photos (
         id VARCHAR(50) PRIMARY KEY,
@@ -183,7 +192,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица расходов
     await client.query(`
       CREATE TABLE IF NOT EXISTS expenses (
         id VARCHAR(50) PRIMARY KEY,
@@ -195,7 +203,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица инвентаря
     await client.query(`
       CREATE TABLE IF NOT EXISTS inventory (
         id VARCHAR(50) PRIMARY KEY,
@@ -209,7 +216,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица долгов
     await client.query(`
       CREATE TABLE IF NOT EXISTS debts (
         id VARCHAR(50) PRIMARY KEY,
@@ -224,7 +230,6 @@ async function initDatabase() {
       )
     `);
 
-    // Таблица рефералов
     await client.query(`
       CREATE TABLE IF NOT EXISTS referrals (
         id VARCHAR(50) PRIMARY KEY,
@@ -237,7 +242,7 @@ async function initDatabase() {
       )
     `);
 
-    // Индексы для производительности
+    // Indexes
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_clinic ON users(clinic_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_patients_clinic ON patients(clinic_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_appointments_clinic ON appointments(clinic_id)`);
@@ -245,9 +250,9 @@ async function initDatabase() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_treatments_patient ON treatments(patient_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_receipts_clinic ON receipts(clinic_id)`);
 
-    // Вставка начальных данных (Super Admin и клиники)
-    const hashedPassword = await bcrypt.hash('DentVision2025!', 10);
-    
+    // Seed data with environment variable passwords
+    const hashedPassword = await bcrypt.hash(process.env.SUPERADMIN_PASSWORD || 'changeme', 10);
+
     await client.query(`
       INSERT INTO clinics (id, name, city, address, phone, plan, active, color)
       VALUES 
@@ -270,84 +275,84 @@ async function initDatabase() {
       ON CONFLICT (id) DO NOTHING
     `, [
       hashedPassword,
-      await bcrypt.hash('admin123', 10),
-      await bcrypt.hash('doc123', 10),
-      await bcrypt.hash('doc456', 10),
-      await bcrypt.hash('dir123', 10),
-      await bcrypt.hash('assist123', 10),
-      await bcrypt.hash('admin456', 10),
-      await bcrypt.hash('doc789', 10)
+      await bcrypt.hash(process.env.ADMIN1_PASSWORD || 'changeme', 10),
+      await bcrypt.hash(process.env.DOCTOR1_PASSWORD || 'changeme', 10),
+      await bcrypt.hash(process.env.DOCTOR2_PASSWORD || 'changeme', 10),
+      await bcrypt.hash(process.env.DIRECTOR_PASSWORD || 'changeme', 10),
+      await bcrypt.hash(process.env.ASSISTANT_PASSWORD || 'changeme', 10),
+      await bcrypt.hash(process.env.ADMIN2_PASSWORD || 'changeme', 10),
+      await bcrypt.hash(process.env.DOCTOR3_PASSWORD || 'changeme', 10)
     ]);
 
     await client.query('COMMIT');
-    console.log('✅ Database initialized successfully');
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('❌ Database initialization error:', err);
+    console.error('Database initialization error:', err.message);
     throw err;
   } finally {
     client.release();
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
 // API ROUTES
-// ═══════════════════════════════════════════════════════════════════
 
 // Health check
-app.get('/health', async (req, res) => {
+app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT NOW()');
     res.json({ status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+  } catch {
+    res.status(500).json({ status: 'error', message: 'Database connection failed' });
   }
 });
 
-// Получить все клиники
-app.get('/clinics', async (req, res) => {
+// Clinics
+app.get('/api/clinics', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM clinics ORDER BY name');
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Аутентификация
-app.post('/auth/login', async (req, res) => {
+// Authentication
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { login, password } = req.body;
-    
+
+    if (!login || !password) {
+      return res.status(400).json({ error: 'Login and password required' });
+    }
+
     const result = await pool.query(
       'SELECT * FROM users WHERE login = $1',
       [login]
     );
-    
+
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Неверный логин или пароль' });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
-    
+
     const user = result.rows[0];
     const isValid = await bcrypt.compare(password, user.password_hash);
-    
+
     if (!isValid) {
-      return res.status(401).json({ error: 'Неверный логин или пароль' });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
-    
-    // Убираем хэш пароля из ответа
+
     const { password_hash, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Загрузка данных клиники
-app.get('/clinic/:clinicId/data', async (req, res) => {
+// Clinic data
+app.get('/api/clinic/:clinicId/data', async (req, res) => {
   try {
     const { clinicId } = req.params;
-    
+
     const [patients, appointments, treatments, receipts, subscriptions, labOrders, photos, expenses, inventory, debts, referrals] = await Promise.all([
       pool.query('SELECT * FROM patients WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM appointments WHERE clinic_id = $1', [clinicId]),
@@ -361,7 +366,7 @@ app.get('/clinic/:clinicId/data', async (req, res) => {
       pool.query('SELECT * FROM debts WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM referrals WHERE clinic_id = $1', [clinicId])
     ]);
-    
+
     res.json({
       patients: patients.rows,
       appointments: appointments.rows,
@@ -375,56 +380,70 @@ app.get('/clinic/:clinicId/data', async (req, res) => {
       debts: debts.rows,
       referrals: referrals.rows
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Универсальный endpoint для upsert
-app.post('/:table/upsert', async (req, res) => {
+// Generic upsert with table whitelist
+app.post('/api/:table/upsert', async (req, res) => {
   try {
     const { table } = req.params;
+    if (!validateTable(table)) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
     const row = req.body;
-    
-    const columns = Object.keys(row);
-    const values = Object.values(row);
+
+    const columns = Object.keys(row).filter(sanitizeColumnName);
+    if (columns.length === 0) {
+      return res.status(400).json({ error: 'No valid columns provided' });
+    }
+    const values = columns.map(c => row[c]);
     const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
     const updates = columns.map((col, i) => `${col} = EXCLUDED.${col}`).join(', ');
-    
+
     const query = `
       INSERT INTO ${table} (${columns.join(', ')})
       VALUES (${placeholders})
       ON CONFLICT (id) DO UPDATE SET ${updates}
       RETURNING *
     `;
-    
+
     const result = await pool.query(query, values);
     res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Удаление записи
-app.delete('/:table/:id', async (req, res) => {
+// Generic delete with table whitelist
+app.delete('/api/:table/:id', async (req, res) => {
   try {
     const { table, id } = req.params;
+    if (!validateTable(table)) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
     const result = await pool.query(
       `DELETE FROM ${table} WHERE id = $1 RETURNING *`,
       [id]
     );
     res.json(result.rows[0] || { deleted: true, id });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Создание пользователя с хешированием пароля
-app.post('/users/create', async (req, res) => {
+// User creation with password hashing
+app.post('/api/users/create', async (req, res) => {
   try {
     const { id, clinic_id, login, password, name, role, spec, phone } = req.body;
+
+    if (!login || !password || !name || !role) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
     const password_hash = await bcrypt.hash(password, 10);
-    
+
     const result = await pool.query(
       `INSERT INTO users (id, clinic_id, login, password_hash, name, role, spec, phone)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -438,28 +457,34 @@ app.post('/users/create', async (req, res) => {
        RETURNING *`,
       [id, clinic_id, login, password_hash, name, role, spec, phone]
     );
-    
+
     const { password_hash: _, ...user } = result.rows[0];
     res.json(user);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ═══════════════════════════════════════════════════════════════════
-// START SERVER
-// ═══════════════════════════════════════════════════════════════════
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await pool.end();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  await pool.end();
+  process.exit(0);
+});
 
 async function startServer() {
   try {
     await initDatabase();
-    
+
     app.listen(PORT, () => {
-      console.log(`🚀 API Server running on http://localhost:${PORT}`);
-      console.log(`📊 PostgreSQL connected: ${process.env.DATABASE_URL ? 'Yes' : 'No'}`);
+      console.log(`API Server running on http://localhost:${PORT}`);
     });
   } catch (err) {
-    console.error('Failed to start server:', err);
+    console.error('Failed to start server:', err.message);
     process.exit(1);
   }
 }

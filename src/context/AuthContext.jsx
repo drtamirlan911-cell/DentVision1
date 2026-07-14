@@ -56,14 +56,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      // Check super admin first (local)
-      if (loginStr === SUPER_ADMIN.login && password === SUPER_ADMIN.password) {
-        setUser(SUPER_ADMIN);
-        setClinic(null);
-        return true;
-      }
-
-      // Try API authentication first
+      // Try API authentication
       try {
         const result = await api.login(loginStr, password);
         if (result && result.user) {
@@ -80,19 +73,7 @@ export function AuthProvider({ children }) {
           }
           return true;
         }
-      } catch (apiError) {
-        console.log('API auth failed, trying fallback:', apiError.message);
-      }
-
-      // Fallback to local store
-      const localUser = _store.users.find(
-        u => u.login === loginStr && u.password === password
-      );
-      if (localUser) {
-        setUser(localUser);
-        setClinic(resolveClinic(localUser.clinicId));
-        return true;
-      }
+      } catch {}
 
       // Fallback to supabase
       try {

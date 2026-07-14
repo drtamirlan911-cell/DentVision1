@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useToast, useData } from '../hooks/useData';
 import { PBtn, GBtn, Card, Badge, Toast, Input } from '../components/ui/BaseComponents';
 import { T } from '../utils/constants';
@@ -59,7 +60,8 @@ const ASSISTANTS = [
   },
 ];
 
-export default function AITeam({ clinic }) {
+export default function AITeam() {
+  const { clinic } = useOutletContext();
   const { toast, showToast, clearToast } = useToast();
   const { patients, appointments, receipts, doctors } = useData(clinic?.id);
   const [activeId, setActiveId] = useState('consultant');

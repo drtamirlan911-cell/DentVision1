@@ -26,7 +26,7 @@ function resolveColor(color, type) {
   return T.slate;
 }
 
-export function PBtn({ children, onClick, style, disabled, variant = 'primary', type = 'button', size = 'md' }) {
+export const PBtn = React.memo(function PBtn({ children, onClick, style, disabled, variant = 'primary', type = 'button', size = 'md' }) {
   const bg = variant === 'primary'
     ? `linear-gradient(135deg,${T.gold},${T.goldDim})`
     : variant === 'danger'
@@ -61,12 +61,12 @@ export function PBtn({ children, onClick, style, disabled, variant = 'primary', 
         ...style,
       }}
     >
-      {children}
+            {children}
     </button>
   );
-}
+});
 
-export function GBtn({ children, onClick, color, style, size = 'sm', type = 'button', disabled }) {
+export const GBtn = React.memo(function GBtn({ children, onClick, color, style, size = 'sm', type = 'button', disabled }) {
   const c = color || T.slateL;
   const padding = size === 'sm' ? '6px 12px' : size === 'md' ? '9px 17px' : '12px 22px';
   const fontSize = size === 'sm' ? 12 : size === 'md' ? 13 : 15;
@@ -96,9 +96,9 @@ export function GBtn({ children, onClick, color, style, size = 'sm', type = 'but
       {children}
     </button>
   );
-}
+});
 
-export function Card({ children, style, onClick, hoverable = false, className }) {
+export const Card = React.memo(function Card({ children, style, onClick, hoverable = false, className }) {
   return (
     <div
       onClick={onClick}
@@ -124,9 +124,9 @@ export function Card({ children, style, onClick, hoverable = false, className })
       {children}
     </div>
   );
-}
+});
 
-export function StatCard({ label, title, value, icon, color, subtext, trend }) {
+export const StatCard = React.memo(function StatCard({ label, title, value, icon, color, subtext, trend }) {
   const displayLabel = label || title;
   const displayColor = color ? (TYPE_COLORS[color] || color) : T.gold;
   return (
@@ -167,7 +167,7 @@ export function StatCard({ label, title, value, icon, color, subtext, trend }) {
       {subtext && <div style={{ fontSize: 10, color: T.slate, marginTop: 4 }}>{subtext}</div>}
     </div>
   );
-}
+});
 
 export function PH({ title, subtitle, children }) {
   return (
@@ -337,7 +337,7 @@ export function Spinner({ size = 24, color = T.gold }) {
   );
 }
 
-export function Badge({ children, color, type, size = 'sm' }) {
+export const Badge = React.memo(function Badge({ children, color, type, size = 'sm' }) {
   const c = resolveColor(color, type);
   const sizes = {
     sm: { padding: '2px 8px', fontSize: 10 },
@@ -360,7 +360,7 @@ export function Badge({ children, color, type, size = 'sm' }) {
       {children}
     </span>
   );
-}
+});
 
 export function Input({ label, type = 'text', value, onChange, placeholder, disabled, error, hint, style, name, required, onKeyPress, onKeyDown }) {
   return (
