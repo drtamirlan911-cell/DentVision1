@@ -132,6 +132,35 @@ async function initDatabase() {
   try {
     await client.query('BEGIN');
 
+    // Reset DB if RESET_DB=true (set in Render env vars, then remove after one deploy)
+    if (process.env.RESET_DB === 'true') {
+      console.log('RESET_DB is true — dropping all tables...');
+      await client.query(`
+        DROP TABLE IF EXISTS audit_log CASCADE;
+        DROP TABLE IF EXISTS documents CASCADE;
+        DROP TABLE IF EXISTS visits CASCADE;
+        DROP TABLE IF EXISTS medical_cards CASCADE;
+        DROP TABLE IF EXISTS icd10 CASCADE;
+        DROP TABLE IF EXISTS password_resets CASCADE;
+        DROP TABLE IF EXISTS referrals CASCADE;
+        DROP TABLE IF EXISTS debts CASCADE;
+        DROP TABLE IF EXISTS bookings CASCADE;
+        DROP TABLE IF EXISTS promotions CASCADE;
+        DROP TABLE IF EXISTS inventory CASCADE;
+        DROP TABLE IF EXISTS expenses CASCADE;
+        DROP TABLE IF EXISTS photos CASCADE;
+        DROP TABLE IF EXISTS lab_orders CASCADE;
+        DROP TABLE IF EXISTS subscriptions CASCADE;
+        DROP TABLE IF EXISTS receipts CASCADE;
+        DROP TABLE IF EXISTS treatments CASCADE;
+        DROP TABLE IF EXISTS appointments CASCADE;
+        DROP TABLE IF EXISTS patients CASCADE;
+        DROP TABLE IF EXISTS users CASCADE;
+        DROP TABLE IF EXISTS clinics CASCADE;
+      `);
+      console.log('All tables dropped. Recreating...');
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS clinics (
         id VARCHAR(50) PRIMARY KEY,
@@ -547,15 +576,19 @@ async function initDatabase() {
       );
     }
 
-    // Seed data with environment variable passwords
-    const hashedPassword = await bcrypt.hash(process.env.SUPERADMIN_PASSWORD || 'changeme', 10);
+    // Seed data
+    const saPass = await bcrypt.hash('DentVision2025!', 10);
+    const adminPass = await bcrypt.hash('admin123', 10);
+    const docPass = await bcrypt.hash('doc123', 10);
+    const dirPass = await bcrypt.hash('dir123', 10);
+    const assistPass = await bcrypt.hash('assist123', 10);
 
     await client.query(`
       INSERT INTO clinics (id, name, city, address, phone, plan, active, color)
       VALUES 
         ('c1', 'DentVision Тараз — Центр', 'Тараз', 'ул. Толе би, 32', '+7 726 222-33-44', 'pro', true, '#C9A96E'),
         ('c2', 'DentVision Тараз — Север', 'Тараз', 'мкр. Мирас, 15', '+7 726 255-11-22', 'starter', true, '#3498DB')
-      ON CONFLICT (id) DO NOTHING
+      ON CONFLICT DO NOTHING
     `);
 
     await client.query(`
@@ -567,19 +600,10 @@ async function initDatabase() {
         ('u3', 'c1', 'doc2_c1', $4, 'Петров Алексей Иванович', 'doctor', 'Ортопед', '+77017778899'),
         ('u6', 'c1', 'dir_c1', $5, 'Нурлан Бекжан', 'director', NULL, '+77011234567'),
         ('u7', 'c1', 'assist_c1', $6, 'Карина Омарова', 'assistant', 'Ассистент', '+77055551234'),
-        ('u4', 'c2', 'admin_c2', $7, 'Борис Сейткали', 'admin', NULL, '+77261234567'),
-        ('u5', 'c2', 'doc1_c2', $8, 'Сидорова Елена Юрьевна', 'doctor', 'Терапевт', '+77265554433')
+        ('u4', 'c2', 'admin_c2', $2, 'Борис Сейткали', 'admin', NULL, '+77261234567'),
+        ('u5', 'c2', 'doc1_c2', $3, 'Сидорова Елена Юрьевна', 'doctor', 'Терапевт', '+77265554433')
       ON CONFLICT DO NOTHING
-    `, [
-      hashedPassword,
-      await bcrypt.hash(process.env.ADMIN1_PASSWORD || 'changeme', 10),
-      await bcrypt.hash(process.env.DOCTOR1_PASSWORD || 'changeme', 10),
-      await bcrypt.hash(process.env.DOCTOR2_PASSWORD || 'changeme', 10),
-      await bcrypt.hash(process.env.DIRECTOR_PASSWORD || 'changeme', 10),
-      await bcrypt.hash(process.env.ASSISTANT_PASSWORD || 'changeme', 10),
-      await bcrypt.hash(process.env.ADMIN2_PASSWORD || 'changeme', 10),
-      await bcrypt.hash(process.env.DOCTOR3_PASSWORD || 'changeme', 10)
-    ]);
+    `, [saPass, adminPass, docPass, dirPass, assistPass]);
 
     await client.query('COMMIT');
 
