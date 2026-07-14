@@ -569,7 +569,7 @@ async function initDatabase() {
         ('u7', 'c1', 'assist_c1', $6, 'Карина Омарова', 'assistant', 'Ассистент', '+77055551234'),
         ('u4', 'c2', 'admin_c2', $7, 'Борис Сейткали', 'admin', NULL, '+77261234567'),
         ('u5', 'c2', 'doc1_c2', $8, 'Сидорова Елена Юрьевна', 'doctor', 'Терапевт', '+77265554433')
-      ON CONFLICT (id) DO NOTHING
+      ON CONFLICT DO NOTHING
     `, [
       hashedPassword,
       await bcrypt.hash(process.env.ADMIN1_PASSWORD || 'changeme', 10),
