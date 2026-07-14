@@ -6,6 +6,8 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import { AppLayout } from './layouts/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import PublicBooking from './pages/PublicBooking';
 import './styles/global.css';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -17,6 +19,8 @@ const AITeam = lazy(() => import('./pages/AITeam'));
 const SuperAdmin = lazy(() => import('./pages/SuperAdmin'));
 const Staff = lazy(() => import('./pages/Staff'));
 const PriceList = lazy(() => import('./pages/PriceList'));
+const Promotions = lazy(() => import('./pages/Promotions'));
+const Inventory = lazy(() => import('./pages/Inventory'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +50,8 @@ if (container) {
             <AuthProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/book/:clinicId" element={<PublicBooking />} />
                 <Route path="/" element={<AppLayout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
@@ -55,6 +61,8 @@ if (container) {
                   <Route path="pricelist" element={<Suspense fallback={<PageLoader />}><PriceList /></Suspense>} />
                   <Route path="lab" element={<Suspense fallback={<PageLoader />}><Lab /></Suspense>} />
                   <Route path="ai" element={<Suspense fallback={<PageLoader />}><AITeam /></Suspense>} />
+                  <Route path="promotions" element={<Suspense fallback={<PageLoader />}><Promotions /></Suspense>} />
+                  <Route path="inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
                   <Route path="staff" element={<Suspense fallback={<PageLoader />}><Staff /></Suspense>} />
                   <Route path="admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
                 </Route>

@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3001;
 const ALLOWED_TABLES = [
   'clinics', 'users', 'patients', 'appointments', 'treatments',
   'receipts', 'subscriptions', 'lab_orders', 'photos', 'expenses',
-  'inventory', 'debts', 'referrals',
+  'inventory', 'debts', 'referrals', 'promotions', 'bookings',
 ];
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
@@ -85,6 +85,11 @@ async function initDatabase() {
         role VARCHAR(50) NOT NULL,
         spec VARCHAR(100),
         phone VARCHAR(50),
+        email VARCHAR(255),
+        bio TEXT,
+        photo_url TEXT,
+        visibility VARCHAR(20) DEFAULT 'public',
+        experience_years INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -211,7 +216,44 @@ async function initDatabase() {
         quantity INTEGER DEFAULT 0,
         unit VARCHAR(50),
         min_quantity INTEGER DEFAULT 0,
+        category VARCHAR(100),
+        supplier VARCHAR(255),
+        cost DECIMAL(10,2) DEFAULT 0,
+        expiry_date DATE,
         last_order DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS promotions (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50) REFERENCES clinics(id),
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        discount_percent INTEGER DEFAULT 0,
+        service_ids TEXT,
+        start_date DATE,
+        end_date DATE,
+        active BOOLEAN DEFAULT true,
+        image_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bookings (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50) REFERENCES clinics(id),
+        patient_name VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) NOT NULL,
+        email VARCHAR(255),
+        doctor_id VARCHAR(50) REFERENCES users(id),
+        service_name VARCHAR(255),
+        date DATE NOT NULL,
+        time VARCHAR(10) NOT NULL,
+        notes TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -238,6 +280,15 @@ async function initDatabase() {
         referred_by VARCHAR(255),
         reward DECIMAL(10,2) DEFAULT 0,
         status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        user_id VARCHAR(50) PRIMARY KEY REFERENCES users(id),
+        token VARCHAR(255) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -353,7 +404,7 @@ app.get('/api/clinic/:clinicId/data', async (req, res) => {
   try {
     const { clinicId } = req.params;
 
-    const [patients, appointments, treatments, receipts, subscriptions, labOrders, photos, expenses, inventory, debts, referrals] = await Promise.all([
+    const [patients, appointments, treatments, receipts, subscriptions, labOrders, photos, expenses, inventory, debts, referrals, promotions, bookings] = await Promise.all([
       pool.query('SELECT * FROM patients WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM appointments WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM treatments WHERE clinic_id = $1', [clinicId]),
@@ -364,7 +415,9 @@ app.get('/api/clinic/:clinicId/data', async (req, res) => {
       pool.query('SELECT * FROM expenses WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM inventory WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM debts WHERE clinic_id = $1', [clinicId]),
-      pool.query('SELECT * FROM referrals WHERE clinic_id = $1', [clinicId])
+      pool.query('SELECT * FROM referrals WHERE clinic_id = $1', [clinicId]),
+      pool.query('SELECT * FROM promotions WHERE clinic_id = $1', [clinicId]),
+      pool.query('SELECT * FROM bookings WHERE clinic_id = $1', [clinicId]),
     ]);
 
     res.json({
@@ -378,7 +431,9 @@ app.get('/api/clinic/:clinicId/data', async (req, res) => {
       expenses: expenses.rows,
       inventory: inventory.rows,
       debts: debts.rows,
-      referrals: referrals.rows
+      referrals: referrals.rows,
+      promotions: promotions.rows,
+      bookings: bookings.rows,
     });
   } catch {
     res.status(500).json({ error: 'Internal server error' });
@@ -463,6 +518,118 @@ app.post('/api/users/create', async (req, res) => {
   } catch {
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// ─── Public Booking (no auth required) ───
+const publicBookingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+
+app.get('/api/public/clinic/:clinicId', async (req, res) => {
+  try {
+    const { clinicId } = req.params;
+    const clinicResult = await pool.query('SELECT id, name, city, address, phone, color FROM clinics WHERE id = $1 AND active = true', [clinicId]);
+    if (clinicResult.rows.length === 0) return res.status(404).json({ error: 'Clinic not found' });
+
+    const doctorsResult = await pool.query(
+      "SELECT id, name, spec, bio, photo_url, experience_years FROM users WHERE clinic_id = $1 AND role = 'doctor' AND (visibility = 'public' OR visibility IS NULL) ORDER BY name",
+      [clinicId]
+    );
+
+    const servicesResult = await pool.query(
+      "SELECT id, name FROM pg_tables WHERE schemaname = 'public'"
+    );
+
+    res.json({
+      clinic: clinicResult.rows[0],
+      doctors: doctorsResult.rows,
+    });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/public/booking', publicBookingLimiter, async (req, res) => {
+  try {
+    const { clinic_id, patient_name, phone, email, doctor_id, service_name, date, time, notes } = req.body;
+
+    if (!clinic_id || !patient_name || !phone || !date || !time) {
+      return res.status(400).json({ error: 'Заполните обязательные поля' });
+    }
+
+    if (!/^\d{10,15}$/.test(phone.replace(/\D/g, ''))) {
+      return res.status(400).json({ error: 'Некорректный номер телефона' });
+    }
+
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).slice(2);
+
+    const result = await pool.query(
+      `INSERT INTO bookings (id, clinic_id, patient_name, phone, email, doctor_id, service_name, date, time, notes, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
+       RETURNING *`,
+      [id, clinic_id, patient_name, phone, email || null, doctor_id || null, service_name || null, date, time, notes || null]
+    );
+
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Password Reset (simple token-based) ───
+app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
+  try {
+    const { login } = req.body;
+    if (!login) return res.status(400).json({ error: 'Введите логин' });
+
+    const result = await pool.query('SELECT id, login, name FROM users WHERE login = $1', [login]);
+    if (result.rows.length === 0) {
+      return res.json({ message: 'Если аккаунт существует, инструкция отправлена' });
+    }
+
+    const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const expires = new Date(Date.now() + 60 * 60 * 1000);
+
+    await pool.query(
+      `INSERT INTO password_resets (user_id, token, expires_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET token = $2, expires_at = $3`,
+      [result.rows[0].id, token, expires]
+    );
+
+    res.json({ message: 'Если аккаунт существует, инструкция отправлена', _devToken: token });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) return res.status(400).json({ error: 'Токен и новый пароль обязательны' });
+    if (newPassword.length < 6) return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
+
+    const result = await pool.query(
+      'SELECT user_id FROM password_resets WHERE token = $1 AND expires_at > NOW()',
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(400).json({ error: 'Неверный или просроченный токен' });
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, result.rows[0].user_id]);
+    await pool.query('DELETE FROM password_resets WHERE token = $1', [token]);
+
+    res.json({ message: 'Пароль успешно изменён' });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── CSP Header endpoint ───
+app.get('/api/csp-policy', (_req, res) => {
+  res.json({
+    policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+  });
 });
 
 // Graceful shutdown

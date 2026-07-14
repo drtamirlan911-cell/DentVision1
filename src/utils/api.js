@@ -49,6 +49,16 @@ export async function getInventory() {
   return [];
 }
 
+export async function getPromotions() {
+  await mockDelay(0);
+  return [];
+}
+
+export async function getBookings() {
+  await mockDelay(0);
+  return [];
+}
+
 export async function upsertPatient(data) {
   await request('/patients', { method: 'POST', body: data });
   return data;
@@ -132,4 +142,44 @@ export async function deleteExpense(id) {
 export async function deleteSubscription(id) {
   await request(`/subscriptions/${id}`, { method: 'DELETE' });
   return true;
+}
+
+export async function upsertPromotion(data) {
+  await request('/promotions', { method: 'POST', body: data });
+  return data;
+}
+
+export async function deletePromotion(id) {
+  await request(`/promotions/${id}`, { method: 'DELETE' });
+  return true;
+}
+
+export async function upsertBooking(data) {
+  await request('/bookings', { method: 'POST', body: data });
+  return data;
+}
+
+export async function deleteBooking(id) {
+  await request(`/bookings/${id}`, { method: 'DELETE' });
+  return true;
+}
+
+export async function getPublicClinic(clinicId) {
+  await mockDelay(0);
+  return null;
+}
+
+export async function submitBooking(data) {
+  await request('/public/booking', { method: 'POST', body: data });
+  return data;
+}
+
+export async function forgotPassword(login) {
+  await request('/auth/forgot-password', { method: 'POST', body: { login } });
+  return { message: 'OK' };
+}
+
+export async function resetPassword(token, newPassword) {
+  await request('/auth/reset-password', { method: 'POST', body: { token, newPassword } });
+  return { message: 'OK' };
 }

@@ -90,6 +90,14 @@ export default function Login() {
                 onFocus={e => e.target.style.borderColor = T.gold}
                 onBlur={e => e.target.style.borderColor = T.border}
               />
+              <div style={{ textAlign: 'right', marginTop: 6 }}>
+                <button type="button" onClick={() => navigate('/forgot-password')} style={{
+                  background: 'none', border: 'none', color: T.gold, fontSize: 12,
+                  cursor: 'pointer', fontFamily: 'inherit', padding: 0,
+                }}>
+                  Забыли пароль?
+                </button>
+              </div>
             </div>
 
             <button

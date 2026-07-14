@@ -23,6 +23,8 @@ const store = {
   users: [...INIT_USERS],
   subscriptions: [],
   photos: [],
+  promotions: [],
+  bookings: [],
   loadedClinics: new Set(),
   listeners: new Set(),
 };
@@ -78,7 +80,9 @@ function trySync(table, row) {
     case 'users': api.upsertUser(row).catch(() => {}); break;
     case 'subscriptions': api.upsertSubscription(row).catch(() => {}); break;
     case 'photos': api.uploadPhoto(row).catch(() => {}); break;
-    default: console.log('Unknown table for sync:', table);
+    case 'promotions': api.upsertPromotion(row).catch(() => {}); break;
+    case 'bookings': api.upsertBooking(row).catch(() => {}); break;
+    default: break;
   }
 }
 
@@ -103,13 +107,15 @@ export function useData(clinicId) {
 
     const loadData = async () => {
       try {
-        const [patientsData, appointmentsData, receiptsData, labOrdersData, expensesData, inventoryData] = await Promise.all([
+        const [patientsData, appointmentsData, receiptsData, labOrdersData, expensesData, inventoryData, promotionsData, bookingsData] = await Promise.all([
           api.getPatients(safeClinicId).catch(() => []),
           api.getAppointments(safeClinicId).catch(() => []),
           api.getReceipts(safeClinicId).catch(() => []),
           api.getLabOrders(safeClinicId).catch(() => []),
           api.getExpenses(safeClinicId).catch(() => []),
           api.getInventory(safeClinicId).catch(() => []),
+          api.getPromotions(safeClinicId).catch(() => []),
+          api.getBookings(safeClinicId).catch(() => []),
         ]);
 
         replaceClinicRows('patients', safeClinicId, patientsData);
@@ -118,6 +124,8 @@ export function useData(clinicId) {
         replaceClinicRows('labOrders', safeClinicId, labOrdersData);
         replaceClinicRows('expenses', safeClinicId, expensesData);
         replaceClinicRows('inventory', safeClinicId, inventoryData);
+        replaceClinicRows('promotions', safeClinicId, promotionsData);
+        replaceClinicRows('bookings', safeClinicId, bookingsData);
       } catch (error) {
         console.error('Failed to load data from API:', error);
       }
@@ -223,6 +231,25 @@ export function useData(clinicId) {
     return Promise.resolve();
   }, []);
 
+  const upsertPromotion = useCallback((data) => {
+    const record = scopedRecord(data);
+    upsertRow('promotions', record);
+    trySync('promotions', record);
+    return Promise.resolve(record);
+  }, [scopedRecord]);
+
+  const deletePromotion = useCallback((id) => {
+    removeRow('promotions', id);
+    return Promise.resolve();
+  }, []);
+
+  const upsertBooking = useCallback((data) => {
+    const record = scopedRecord(data);
+    upsertRow('bookings', record);
+    trySync('bookings', record);
+    return Promise.resolve(record);
+  }, [scopedRecord]);
+
   const patients = rowsForClinic(store.patients, safeClinicId);
   const appointments = rowsForClinic(store.appointments, safeClinicId);
   const receipts = rowsForClinic(store.receipts, safeClinicId);
@@ -234,10 +261,13 @@ export function useData(clinicId) {
   const doctors = users.filter((user) => user.role === 'doctor');
   const subscriptions = rowsForClinic(store.subscriptions, safeClinicId);
   const photos = rowsForClinic(store.photos, safeClinicId);
+  const promotions = rowsForClinic(store.promotions, safeClinicId);
+  const bookings = rowsForClinic(store.bookings, safeClinicId);
 
   return {
     patients, appointments, receipts, labOrders, expenses, inventory, doctors,
     transactions: receipts, treatments, users, subscriptions, photos,
+    promotions, bookings,
     upsertPatient, deletePatient,
     upsertAppointment, deleteAppointment,
     upsertReceipt, upsertTransaction: upsertReceipt,
@@ -248,6 +278,8 @@ export function useData(clinicId) {
     upsertUser,
     upsertSubscription,
     uploadPhoto, deletePhoto,
+    upsertPromotion, deletePromotion,
+    upsertBooking,
   };
 }
 

@@ -12,19 +12,19 @@ export const ROLES = {
   superadmin: {
     label: 'Super Admin',
     icon: '⚙️',
-    pages: ['dashboard','schedule','patients','cashier','pricelist','lab','ai','reminders','admin'],
+    pages: ['dashboard','schedule','patients','cashier','pricelist','lab','ai','reminders','promotions','inventory','admin'],
     canSeeSalary: true, canSeeSuperAdmin: true, canAddStaff: true,
   },
   director: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard','schedule','patients','cashier','pricelist','lab','ai','reminders','staff'],
+    pages: ['dashboard','schedule','patients','cashier','pricelist','lab','ai','reminders','promotions','inventory','staff'],
     canSeeSalary: true, canSeeReports: true, canAddStaff: true, canSeeExpenses: true,
   },
   admin: {
     label: 'Администратор',
     icon: '💼',
-    pages: ['schedule','patients','cashier','pricelist','lab','reminders','staff'],
+    pages: ['schedule','patients','cashier','pricelist','lab','reminders','promotions','inventory','staff'],
     canSeeSalary: false, canSeeExpenses: false, canAddStaff: true,
   },
   doctor: {
@@ -105,6 +105,20 @@ export function AuthProvider({ children }) {
     setError(null);
   }, []);
 
+  const forgotPassword = useCallback(async (loginStr) => {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    try {
+      const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: loginStr }),
+      });
+      return await res.json();
+    } catch {
+      return { error: 'Ошибка соединения' };
+    }
+  }, []);
+
   // Register a brand-new clinic + director account
   const register = useCallback(async (formData) => {
     setLoading(true);
@@ -180,7 +194,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, clinic, loading, error,
-      login, logout, register,
+      login, logout, register, forgotPassword,
       addStaffMember, getClinicStaff,
       isAuthenticated: !!user,
       role: user?.role || null,

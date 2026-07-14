@@ -16,6 +16,8 @@ import {
   X,
   Moon,
   Sun,
+  Megaphone,
+  Package,
 } from 'lucide-react';
 import { useUIStore } from '../stores/useUIStore';
 import { T } from '../utils/constants';
@@ -42,6 +44,8 @@ const ALL_NAV: NavItem[] = [
   { id: 'pricelist', label: 'Прайс-лист', icon: <FileText size={18} />, path: '/pricelist' },
   { id: 'lab', label: 'Лаборатория', icon: <FlaskConical size={18} />, path: '/lab' },
   { id: 'ai', label: 'AI помощник', icon: <Bot size={18} />, path: '/ai' },
+  { id: 'promotions', label: 'Акции', icon: <Megaphone size={18} />, path: '/promotions' },
+  { id: 'inventory', label: 'Склад', icon: <Package size={18} />, path: '/inventory' },
   { id: 'staff', label: 'Сотрудники', icon: <UserCog size={18} />, path: '/staff' },
   { id: 'admin', label: 'Super Admin', icon: <Settings size={18} />, path: '/admin' },
 ];

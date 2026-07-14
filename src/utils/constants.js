@@ -329,7 +329,7 @@ export function formatDateRange(start, end) {
 // Snake/Camel case conversion for Supabase
 export const FIELD_MAP = {
   clinics:      { camelToSnake: { createdAt: "created_at" } },
-  users:        { camelToSnake: { clinicId: "clinic_id", spec: "spec" } },
+  users:        { camelToSnake: { clinicId: "clinic_id", spec: "spec", photoUrl: "photo_url", visibility: "visibility", experienceYears: "experience_years" } },
   patients:     { camelToSnake: { clinicId: "clinic_id" } },
   appointments: { camelToSnake: { clinicId: "clinic_id", patientId: "patient_id", doctorId: "doctor_id" } },
   treatments:   { camelToSnake: { clinicId: "clinic_id", patientId: "patient_id", doctorId: "doctor_id" } },
@@ -338,7 +338,9 @@ export const FIELD_MAP = {
   labOrders:    { camelToSnake: { clinicId: "clinic_id", patientId: "patient_id", doctorId: "doctor_id", dueDate: "due_date" } },
   photos:       { camelToSnake: { clinicId: "clinic_id", patientId: "patient_id", uploadDate: "upload_date" } },
   expenses:     { camelToSnake: { clinicId: "clinic_id", categoryId: "category_id", createdAt: "created_at" } },
-  inventory:    { camelToSnake: { clinicId: "clinic_id", lastOrder: "last_order" } },
+  inventory:    { camelToSnake: { clinicId: "clinic_id", lastOrder: "last_order", minQuantity: "min_quantity", expiryDate: "expiry_date" } },
+  promotions:   { camelToSnake: { clinicId: "clinic_id", discountPercent: "discount_percent", serviceIds: "service_ids", startDate: "start_date", endDate: "end_date", imageUrl: "image_url", createdAt: "created_at" } },
+  bookings:     { camelToSnake: { clinicId: "clinic_id", patientName: "patient_name", doctorId: "doctor_id", serviceName: "service_name", createdAt: "created_at" } },
 };
 
 export function toSnakeRow(table, obj) {
@@ -358,3 +360,50 @@ export function toCamelRow(table, obj) {
 
 // In-memory cache for session
 export const MEM_CACHE = {};
+
+// ═══════════════════════════════════════════════════════════════════
+// PROMOTIONS, BOOKING, INVENTORY CONSTANTS
+// ═══════════════════════════════════════════════════════════════════
+
+export const PROMOTION_STATUS = {
+  active:   { l: "Активна", c: T.emerald },
+  inactive: { l: "Неактивна", c: T.slate },
+  expired:  { l: "Истекла", c: T.ruby },
+};
+
+export const BOOKING_STATUS = {
+  pending:   { l: "Ожидает", c: T.amber, dot: T.amber },
+  confirmed: { l: "Подтверждена", c: T.emerald, dot: T.emerald },
+  cancelled: { l: "Отменена", c: T.ruby, dot: T.ruby },
+  completed: { l: "Завершена", c: T.sapphire, dot: T.sapphire },
+};
+
+export const INVENTORY_CATEGORIES = [
+  "Расходные материалы",
+  "Инструменты",
+  "Анестетики",
+  "Лекарства",
+  "Ортопедия",
+  "Ортодонтия",
+  "Гигиена",
+  "Рентген",
+  "Лаборатория",
+  "Прочее",
+];
+
+export const INVENTORY_UNITS = [
+  { value: "шт", label: "Шт." },
+  { value: "уп", label: "Уп." },
+  { value: "пар", label: "Пар" },
+  { value: "набор", label: "Набор" },
+  { value: "фл", label: "Фл." },
+  { value: "мл", label: "мл" },
+  { value: "г", label: "г" },
+  { value: "кг", label: "кг" },
+  { value: "коробка", label: "Коробка" },
+];
+
+export const VISIBILITY_OPTIONS = [
+  { value: "public", label: "Публичный — виден на сайте" },
+  { value: "private", label: "Приватный — только в CRM" },
+];
