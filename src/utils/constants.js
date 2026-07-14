@@ -341,6 +341,10 @@ export const FIELD_MAP = {
   inventory:    { camelToSnake: { clinicId: "clinic_id", lastOrder: "last_order", minQuantity: "min_quantity", expiryDate: "expiry_date" } },
   promotions:   { camelToSnake: { clinicId: "clinic_id", discountPercent: "discount_percent", serviceIds: "service_ids", startDate: "start_date", endDate: "end_date", imageUrl: "image_url", createdAt: "created_at" } },
   bookings:     { camelToSnake: { clinicId: "clinic_id", patientName: "patient_name", doctorId: "doctor_id", serviceName: "service_name", createdAt: "created_at" } },
+  medical_cards:{ camelToSnake: { clinicId: "clinic_id", patientId: "patient_id", bloodType: "blood_type", chronicDiseases: "chronic_diseases", pastSurgeries: "past_surgeries", familyHistory: "family_history", emergencyContact: "emergency_contact", emergencyPhone: "emergency_phone", insuranceProvider: "insurance_provider", insuranceNumber: "insurance_number", createdAt: "created_at", updatedAt: "updated_at" } },
+  visits:       { camelToSnake: { clinicId: "clinic_id", patientId: "patient_id", doctorId: "doctor_id", appointmentId: "appointment_id", visitDate: "visit_date", chiefComplaint: "chief_complaint", icd10Codes: "icd10_codes", treatmentPlan: "treatment_plan", proceduresDone: "procedures_done", nextVisitDate: "next_visit_date", createdAt: "created_at" } },
+  documents:    { camelToSnake: { clinicId: "clinic_id", patientId: "patient_id", doctorId: "doctor_id", docType: "doc_type", fileUrl: "file_url", createdAt: "created_at", updatedAt: "updated_at" } },
+  audit_log:    { camelToSnake: { clinicId: "clinic_id", userId: "user_id", userName: "user_name", entityType: "entity_type", entityId: "entity_id", ipAddress: "ip_address", createdAt: "created_at" } },
 };
 
 export function toSnakeRow(table, obj) {
@@ -407,3 +411,29 @@ export const VISIBILITY_OPTIONS = [
   { value: "public", label: "Публичный — виден на сайте" },
   { value: "private", label: "Приватный — только в CRM" },
 ];
+
+// ═══════════════════════════════════════════════════════════════════
+// MIS COMPLIANCE CONSTANTS (Stage 2)
+// ═══════════════════════════════════════════════════════════════════
+
+export const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+export const DOC_TYPES = [
+  'Согласие на лечение', 'Согласие на анестезию', 'Согласие на операцию',
+  'Медицинское заключение', 'Справка', 'Рецепт', 'Направление',
+  'Эпикриз', 'Договор', 'Претензия', 'Другое'
+];
+
+export const DOC_STATUS = {
+  draft:   { l: 'Черновик', c: T.slate },
+  active:  { l: 'Действующий', c: T.emerald },
+  archived:{ l: 'Архив', c: T.sapphire },
+};
+
+export const AUDIT_ACTIONS = {
+  create_patient:    { l: 'Создал пациента', c: T.emerald },
+  update_patient:    { l: 'Обновил пациента', c: T.sapphire },
+  delete_patient:    { l: 'Удалил пациента', c: T.ruby },
+  create_visit:      { l: 'Добавил посещение', c: T.gold },
+  backup:            { l: 'Резервное копирование', c: T.teal },
+};

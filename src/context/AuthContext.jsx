@@ -12,31 +12,31 @@ export const ROLES = {
   superadmin: {
     label: 'Super Admin',
     icon: '⚙️',
-    pages: ['dashboard','schedule','patients','cashier','pricelist','lab','ai','reminders','promotions','inventory','admin'],
-    canSeeSalary: true, canSeeSuperAdmin: true, canAddStaff: true,
+    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','admin','audit','backup'],
+    canSeeSalary: true, canSeeSuperAdmin: true, canAddStaff: true, canSeeAudit: true, canBackup: true,
   },
   director: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard','schedule','patients','cashier','pricelist','lab','ai','reminders','promotions','inventory','staff'],
-    canSeeSalary: true, canSeeReports: true, canAddStaff: true, canSeeExpenses: true,
+    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','staff','audit','backup'],
+    canSeeSalary: true, canSeeReports: true, canAddStaff: true, canSeeExpenses: true, canSeeAudit: true, canBackup: true,
   },
   admin: {
     label: 'Администратор',
     icon: '💼',
-    pages: ['schedule','patients','cashier','pricelist','lab','reminders','promotions','inventory','staff'],
+    pages: ['schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','reminders','promotions','inventory','staff','documents'],
     canSeeSalary: false, canSeeExpenses: false, canAddStaff: true,
   },
   doctor: {
     label: 'Врач',
     icon: '👨‍⚕️',
-    pages: ['schedule','patients','lab','ai','reminders'],
+    pages: ['schedule','patients','medical-card','visits','icd10','documents','lab','ai','reminders'],
     canSeeSalary: false, ownDataOnly: true,
   },
   assistant: {
     label: 'Ассистент',
     icon: '🤝',
-    pages: ['schedule','patients','reminders'],
+    pages: ['schedule','patients','visits','documents','reminders'],
     canSeeSalary: false, ownDataOnly: true, readOnly: true,
   },
 };

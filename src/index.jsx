@@ -21,6 +21,12 @@ const Staff = lazy(() => import('./pages/Staff'));
 const PriceList = lazy(() => import('./pages/PriceList'));
 const Promotions = lazy(() => import('./pages/Promotions'));
 const Inventory = lazy(() => import('./pages/Inventory'));
+const MedicalCard = lazy(() => import('./pages/MedicalCard'));
+const ICD10 = lazy(() => import('./pages/ICD10'));
+const Visits = lazy(() => import('./pages/Visits'));
+const Documents = lazy(() => import('./pages/Documents'));
+const AuditLog = lazy(() => import('./pages/AuditLog'));
+const Backup = lazy(() => import('./pages/Backup'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +69,12 @@ if (container) {
                   <Route path="ai" element={<Suspense fallback={<PageLoader />}><AITeam /></Suspense>} />
                   <Route path="promotions" element={<Suspense fallback={<PageLoader />}><Promotions /></Suspense>} />
                   <Route path="inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
+                  <Route path="medical-card" element={<Suspense fallback={<PageLoader />}><MedicalCard /></Suspense>} />
+                  <Route path="icd10" element={<Suspense fallback={<PageLoader />}><ICD10 /></Suspense>} />
+                  <Route path="visits" element={<Suspense fallback={<PageLoader />}><Visits /></Suspense>} />
+                  <Route path="documents" element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
+                  <Route path="audit" element={<Suspense fallback={<PageLoader />}><AuditLog /></Suspense>} />
+                  <Route path="backup" element={<Suspense fallback={<PageLoader />}><Backup /></Suspense>} />
                   <Route path="staff" element={<Suspense fallback={<PageLoader />}><Staff /></Suspense>} />
                   <Route path="admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
                 </Route>

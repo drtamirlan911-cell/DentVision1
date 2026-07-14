@@ -18,6 +18,11 @@ import {
   Sun,
   Megaphone,
   Package,
+  Stethoscope,
+  BookOpen,
+  ClipboardList,
+  Shield,
+  Database,
 } from 'lucide-react';
 import { useUIStore } from '../stores/useUIStore';
 import { T } from '../utils/constants';
@@ -40,6 +45,10 @@ const ALL_NAV: NavItem[] = [
   { id: 'dashboard', label: 'Главная', icon: <LayoutDashboard size={18} />, path: '/dashboard' },
   { id: 'schedule', label: 'Расписание', icon: <Calendar size={18} />, path: '/schedule' },
   { id: 'patients', label: 'Пациенты', icon: <Users size={18} />, path: '/patients' },
+  { id: 'medical-card', label: 'Мед. карты', icon: <Stethoscope size={18} />, path: '/medical-card' },
+  { id: 'visits', label: 'Журнал посещений', icon: <ClipboardList size={18} />, path: '/visits' },
+  { id: 'icd10', label: 'МКБ-10', icon: <BookOpen size={18} />, path: '/icd10' },
+  { id: 'documents', label: 'Документы', icon: <FileText size={18} />, path: '/documents' },
   { id: 'cashier', label: 'Финансы', icon: <DollarSign size={18} />, path: '/cashier' },
   { id: 'pricelist', label: 'Прайс-лист', icon: <FileText size={18} />, path: '/pricelist' },
   { id: 'lab', label: 'Лаборатория', icon: <FlaskConical size={18} />, path: '/lab' },
@@ -47,6 +56,8 @@ const ALL_NAV: NavItem[] = [
   { id: 'promotions', label: 'Акции', icon: <Megaphone size={18} />, path: '/promotions' },
   { id: 'inventory', label: 'Склад', icon: <Package size={18} />, path: '/inventory' },
   { id: 'staff', label: 'Сотрудники', icon: <UserCog size={18} />, path: '/staff' },
+  { id: 'audit', label: 'Аудит-журнал', icon: <Shield size={18} />, path: '/audit' },
+  { id: 'backup', label: 'Резерв. копии', icon: <Database size={18} />, path: '/backup' },
   { id: 'admin', label: 'Super Admin', icon: <Settings size={18} />, path: '/admin' },
 ];
 

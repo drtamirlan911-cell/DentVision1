@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ const ALLOWED_TABLES = [
   'clinics', 'users', 'patients', 'appointments', 'treatments',
   'receipts', 'subscriptions', 'lab_orders', 'photos', 'expenses',
   'inventory', 'debts', 'referrals', 'promotions', 'bookings',
+  'medical_cards', 'visits', 'documents',
 ];
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
@@ -46,6 +48,68 @@ const pool = new Pool({
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
 });
+
+// ═══════════════════════════════════════════════════════════════
+// ENCRYPTION (AES-256-GCM for sensitive patient data)
+// ═══════════════════════════════════════════════════════════════
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32);
+const ENCRYPTION_IV_LENGTH = 16;
+
+function encrypt(text) {
+  if (!text) return text;
+  try {
+    const iv = crypto.randomBytes(ENCRYPTION_IV_LENGTH);
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'utf8'), iv);
+    let encrypted = cipher.update(String(text), 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+  } catch { return text; }
+}
+
+function decrypt(text) {
+  if (!text || !text.includes(':')) return text;
+  try {
+    const [ivHex, encrypted] = text.split(':');
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'utf8'), iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch { return text; }
+}
+
+// Fields to encrypt in patients table
+const PATIENT_ENCRYPT_FIELDS = ['address', 'email', 'notes'];
+
+function encryptPatient(row) {
+  if (!row) return row;
+  const out = { ...row };
+  for (const f of PATIENT_ENCRYPT_FIELDS) { if (out[f]) out[f] = encrypt(out[f]); }
+  return out;
+}
+
+function decryptPatient(row) {
+  if (!row) return row;
+  const out = { ...row };
+  for (const f of PATIENT_ENCRYPT_FIELDS) { if (out[f]) out[f] = decrypt(out[f]); }
+  return out;
+}
+
+function decryptPatients(rows) { return rows.map(decryptPatient); }
+
+// ═══════════════════════════════════════════════════════════════
+// AUDIT LOG HELPER
+// ═══════════════════════════════════════════════════════════════
+async function writeAuditLog(clinicId, userId, userName, action, entityType, entityId, details) {
+  try {
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    await pool.query(
+      `INSERT INTO audit_log (id, clinic_id, user_id, user_name, action, entity_type, entity_id, details)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, clinicId, userId, userName, action, entityType, entityId || null, details ? JSON.stringify(details) : null]
+    );
+  } catch (e) { console.error('Audit log write failed:', e.message); }
+}
 
 function validateTable(table) {
   return ALLOWED_TABLES.includes(table);
@@ -293,6 +357,89 @@ async function initDatabase() {
       )
     `);
 
+    // ═══ Stage 2 MIS Tables ═══
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS medical_cards (
+        id VARCHAR(50) PRIMARY KEY,
+        patient_id VARCHAR(50) REFERENCES patients(id) ON DELETE CASCADE,
+        clinic_id VARCHAR(50) REFERENCES clinics(id),
+        blood_type VARCHAR(10),
+        allergies TEXT,
+        chronic_diseases TEXT,
+        medications TEXT,
+        past_surgeries TEXT,
+        family_history TEXT,
+        emergency_contact VARCHAR(255),
+        emergency_phone VARCHAR(50),
+        insurance_provider VARCHAR(255),
+        insurance_number VARCHAR(100),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS icd10 (
+        code VARCHAR(10) PRIMARY KEY,
+        name VARCHAR(500) NOT NULL,
+        category VARCHAR(255),
+        description TEXT
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS visits (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50) REFERENCES clinics(id),
+        patient_id VARCHAR(50) REFERENCES patients(id),
+        doctor_id VARCHAR(50) REFERENCES users(id),
+        appointment_id VARCHAR(50),
+        visit_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        chief_complaint TEXT,
+        diagnosis TEXT,
+        icd10_codes TEXT,
+        treatment_plan TEXT,
+        procedures_done TEXT,
+        prescriptions TEXT,
+        next_visit_date DATE,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS documents (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50) REFERENCES clinics(id),
+        patient_id VARCHAR(50) REFERENCES patients(id),
+        doctor_id VARCHAR(50) REFERENCES users(id),
+        doc_type VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        content TEXT,
+        file_url TEXT,
+        status VARCHAR(50) DEFAULT 'draft',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50) REFERENCES clinics(id),
+        user_id VARCHAR(50),
+        user_name VARCHAR(255),
+        action VARCHAR(100) NOT NULL,
+        entity_type VARCHAR(100),
+        entity_id VARCHAR(50),
+        details TEXT,
+        ip_address VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Indexes
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_clinic ON users(clinic_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_patients_clinic ON patients(clinic_id)`);
@@ -300,6 +447,81 @@ async function initDatabase() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(date)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_treatments_patient ON treatments(patient_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_receipts_clinic ON receipts(clinic_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_medical_cards_patient ON medical_cards(patient_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_visits_clinic ON visits(clinic_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_visits_patient ON visits(patient_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_clinic ON documents(clinic_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_clinic ON audit_log(clinic_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_icd10_name ON icd10 USING gin(to_tsvector('russian', name))`);
+
+    // Seed ICD-10 (common dental diagnoses)
+    const icd10Data = [
+      ['K02', 'Кариес зубов', 'Кариес и некариозные поражения', 'Поражение твёрдых тканей зубов'],
+      ['K02.0', 'Кариес эмали', 'Кариес', 'Начальный кариес в стадии белого пятна'],
+      ['K02.1', 'Кариес дентина', 'Кариес', 'Кариес, поражающий дентин'],
+      ['K02.2', 'Кариес цемента', 'Кариес', 'Кариес корня зуба'],
+      ['K02.9', 'Кариес зубов неуточнённый', 'Кариес', 'Кариес без уточнения'],
+      ['K03', 'Другие болезни твёрдых тканей зубов', 'Некариозные поражения', ''],
+      ['K03.0', 'Атрия зубов', 'Некариозные поражения', 'Патологическая стираемость'],
+      ['K03.1', 'Абразия зубов', 'Некариозные поражения', 'Стирание от внешних факторов'],
+      ['K03.2', 'Эрозия зубов', 'Некариозные поражения', 'Химическое поражение эмали'],
+      ['K03.6', 'Гиперцементоз', 'Некариозные поражения', 'Избыточное отложение цемента'],
+      ['K04', 'Болезни пульпы и периапикальных тканей', 'Эндодонтия', ''],
+      ['K04.0', 'Пульпит', 'Эндодонтия', 'Воспаление пульпы зуба'],
+      ['K04.1', 'Пulpus gangraena', 'Эндодонтия', 'Гангрена пульпы'],
+      ['K04.2', 'Дегенерация пульпы', 'Эндодонтия', 'Дегенеративные изменения пульпы'],
+      ['K04.3', 'Острый апикальный периодонтит', 'Эндодонтия', 'Воспаление периодонта у верхушки корня'],
+      ['K04.4', 'Хронический апикальный периодонтит', 'Эндодонтия', ''],
+      ['K04.5', 'Хронический периапикальный абсцесс', 'Эндодонтия', ''],
+      ['K04.6', 'Абсцесс периапикальный с窦道', 'Эндодонтия', ''],
+      ['K05', 'Гингивит и болезни пародонта', 'Пародонтология', ''],
+      ['K05.0', 'Острый гингивит', 'Пародонтология', ''],
+      ['K05.1', 'Хронический гингивит', 'Пародонтология', ''],
+      ['K05.2', 'Острый пародонтит', 'Пародонтология', ''],
+      ['K05.3', 'Хронический пародонтит', 'Пародонтология', ''],
+      ['K05.4', 'Пародонтоз', 'Пародонтология', 'Атрофия альвеолярного отростка'],
+      ['K06', 'Другие изменений десны и беззубого альвеолярного гребня', 'Пародонтология', ''],
+      ['K07', 'Деформации челюстей и зубо-челюстного аппарата', 'Ортодонтия', ''],
+      ['K07.1', 'Деформации зубных рядов', 'Ортодонтия', 'Неправильный прикус'],
+      ['K07.2', 'Аномалии соотношений челюстей', 'Ортодонтия', 'Скелетная аномалия'],
+      ['K07.3', 'Аномалии положения зубов', 'Ортодонтия', 'Дистопия, ретенция'],
+      ['K08', 'Потеря зубов и замещение дефектов', 'Ортопедия', ''],
+      ['K08.1', 'Потеря зубов вследствие травмы', 'Ортопедия', ''],
+      ['K08.2', 'Потеря зубов по другой причине', 'Ортопедия', ''],
+      ['K09', 'Кисты челюстных костей', 'Хирургия', ''],
+      ['K09.0', 'Кисты развития зубов', 'Хирургия', 'Фолликулярная, радикулярная киста'],
+      ['K09.1', 'Кисты неodontогенного происхождения', 'Хирургия', 'Новообразования неodontогенного характера'],
+      ['K10', 'Другие болезни челюстей', 'Хирургия', ''],
+      ['K10.0', 'Развивающиеся кисты челюсти', 'Хирургия', ''],
+      ['K10.1', 'Гранулема челюсти', 'Хирургия', ''],
+      ['K10.2', 'Остеомиелит челюсти', 'Хирургия', 'Воспаление костной ткани'],
+      ['K11', 'Болезни слюнных желёз', 'Хирургия', ''],
+      ['K11.1', 'Гипертрофия слюнных желёз', 'Хирургия', ''],
+      ['K11.2', 'Сиалоаденит', 'Хирургия', 'Воспаление слюнной железы'],
+      ['K12', 'Стоматит и связанные поражения', 'Терапия', ''],
+      ['K12.0', 'Рецидивирующее афтозное воспаление полости рта', 'Терапия', 'Афты'],
+      ['K12.1', 'Другие формы стоматита', 'Терапия', ''],
+      ['K13', 'Другие болезни губ и слизистой оболочки полости рта', 'Терапия', ''],
+      ['K13.1', 'Травма слизистой оболочки полости рта', 'Терапия', ''],
+      ['K13.2', 'Лейкоплакия полости рта', 'Терапия', 'Предраковое состояние'],
+      ['K14', 'Болезни языка', 'Терапия', ''],
+      ['S02', 'Перелом черепа и лицевых костей', 'Травматология', ''],
+      ['S02.4', 'Перелом верхней челюсти', 'Травматология', ''],
+      ['S02.5', 'Перелом нижней челюсти', 'Травматология', ''],
+      ['S09', 'Другие травмы головы', 'Травматология', ''],
+      ['M26', 'Деформации челюстно-лицевой области', 'Ортодонтия', 'Врождённые и приобретённые'],
+      ['Z01', 'Особые состояния, связанные с обследованием', 'Прочее', ''],
+      ['Z01.2', 'Стоматологическое обследование', 'Прочее', ''],
+      ['Z46.0', 'Замена и ремонт зубного протеза', 'Прочее', ''],
+      ['Z58', 'Проблемы, связанные с физической средой', 'Прочее', ''],
+    ];
+    for (const [code, name, category, description] of icd10Data) {
+      await client.query(
+        `INSERT INTO icd10 (code, name, category, description) VALUES ($1, $2, $3, $4) ON CONFLICT (code) DO NOTHING`,
+        [code, name, category, description]
+      );
+    }
 
     // Seed data with environment variable passwords
     const hashedPassword = await bcrypt.hash(process.env.SUPERADMIN_PASSWORD || 'changeme', 10);
@@ -404,7 +626,7 @@ app.get('/api/clinic/:clinicId/data', async (req, res) => {
   try {
     const { clinicId } = req.params;
 
-    const [patients, appointments, treatments, receipts, subscriptions, labOrders, photos, expenses, inventory, debts, referrals, promotions, bookings] = await Promise.all([
+    const [patients, appointments, treatments, receipts, subscriptions, labOrders, photos, expenses, inventory, debts, referrals, promotions, bookings, medicalCards, visits, documents] = await Promise.all([
       pool.query('SELECT * FROM patients WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM appointments WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM treatments WHERE clinic_id = $1', [clinicId]),
@@ -418,10 +640,13 @@ app.get('/api/clinic/:clinicId/data', async (req, res) => {
       pool.query('SELECT * FROM referrals WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM promotions WHERE clinic_id = $1', [clinicId]),
       pool.query('SELECT * FROM bookings WHERE clinic_id = $1', [clinicId]),
+      pool.query('SELECT * FROM medical_cards WHERE clinic_id = $1', [clinicId]),
+      pool.query('SELECT * FROM visits WHERE clinic_id = $1', [clinicId]),
+      pool.query('SELECT * FROM documents WHERE clinic_id = $1', [clinicId]),
     ]);
 
     res.json({
-      patients: patients.rows,
+      patients: decryptPatients(patients.rows),
       appointments: appointments.rows,
       treatments: treatments.rows,
       receipts: receipts.rows,
@@ -434,6 +659,9 @@ app.get('/api/clinic/:clinicId/data', async (req, res) => {
       referrals: referrals.rows,
       promotions: promotions.rows,
       bookings: bookings.rows,
+      medicalCards: medicalCards.rows,
+      visits: visits.rows,
+      documents: documents.rows,
     });
   } catch {
     res.status(500).json({ error: 'Internal server error' });
@@ -465,6 +693,17 @@ app.post('/api/:table/upsert', async (req, res) => {
     `;
 
     const result = await pool.query(query, values);
+
+    // Write audit log for write operations
+    if (row.clinic_id && result.rows[0]) {
+      const action = table === 'patients' ? 'update_patient' :
+                     table === 'users' ? 'update_user' :
+                     table === 'appointments' ? 'update_appointment' :
+                     table === 'receipts' ? 'update_receipt' :
+                     `upsert_${table}`;
+      writeAuditLog(row.clinic_id, row.user_id, row.user_name, action, table, row.id, { table, id: row.id });
+    }
+
     res.json(result.rows[0]);
   } catch {
     res.status(500).json({ error: 'Internal server error' });
@@ -482,6 +721,12 @@ app.delete('/api/:table/:id', async (req, res) => {
       `DELETE FROM ${table} WHERE id = $1 RETURNING *`,
       [id]
     );
+
+    // Write audit log for deletes
+    if (req.query.clinic_id && result.rows[0]) {
+      writeAuditLog(req.query.clinic_id, req.query.user_id, req.query.user_name, `delete_${table}`, table, id, { table, id });
+    }
+
     res.json(result.rows[0] || { deleted: true, id });
   } catch {
     res.status(500).json({ error: 'Internal server error' });
@@ -630,6 +875,192 @@ app.get('/api/csp-policy', (_req, res) => {
   res.json({
     policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// STAGE 2 MIS ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+// ─── ICD-10 Dictionary ───
+app.get('/api/icd10', async (req, res) => {
+  try {
+    const { search } = req.query;
+    let result;
+    if (search && search.length >= 2) {
+      result = await pool.query(
+        `SELECT * FROM icd10 WHERE code ILIKE $1 OR name ILIKE $1 ORDER BY code LIMIT 50`,
+        [`%${search}%`]
+      );
+    } else {
+      result = await pool.query('SELECT * FROM icd10 ORDER BY code LIMIT 200');
+    }
+    res.json(result.rows);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Medical Card ───
+app.get('/api/medical-cards/:patientId', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM medical_cards WHERE patient_id = $1 ORDER BY updated_at DESC LIMIT 1', [req.params.patientId]);
+    res.json(result.rows[0] || null);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/medical-cards/upsert', async (req, res) => {
+  try {
+    const row = req.body;
+    const columns = Object.keys(row).filter(sanitizeColumnName);
+    if (columns.length === 0) return res.status(400).json({ error: 'No valid columns' });
+    const values = columns.map(c => row[c]);
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    const updates = columns.map((col, i) => `${col} = EXCLUDED.${col}`).join(', ');
+    const result = await pool.query(
+      `INSERT INTO medical_cards (${columns.join(', ')})
+       VALUES (${placeholders})
+       ON CONFLICT (id) DO UPDATE SET ${updates}, updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      values
+    );
+    await writeAuditLog(row.clinic_id, row.user_id, row.user_name, 'upsert', 'medical_card', row.id, { patient_id: row.patient_id });
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Visits ───
+app.get('/api/visits', async (req, res) => {
+  try {
+    const { clinic_id, patient_id } = req.query;
+    let query = 'SELECT v.*, p.full_name as patient_name, u.name as doctor_name FROM visits v LEFT JOIN patients p ON v.patient_id = p.id LEFT JOIN users u ON v.doctor_id = u.id WHERE 1=1';
+    const params = [];
+    let idx = 1;
+    if (clinic_id) { query += ` AND v.clinic_id = $${idx++}`; params.push(clinic_id); }
+    if (patient_id) { query += ` AND v.patient_id = $${idx++}`; params.push(patient_id); }
+    query += ' ORDER BY v.visit_date DESC LIMIT 200';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/visits/upsert', async (req, res) => {
+  try {
+    const row = req.body;
+    const id = row.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+    const result = await pool.query(
+      `INSERT INTO visits (id, clinic_id, patient_id, doctor_id, appointment_id, chief_complaint, diagnosis, icd10_codes, treatment_plan, procedures_done, prescriptions, next_visit_date, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       ON CONFLICT (id) DO UPDATE SET
+         chief_complaint=EXCLUDED.chief_complaint, diagnosis=EXCLUDED.diagnosis,
+         icd10_codes=EXCLUDED.icd10_codes, treatment_plan=EXCLUDED.treatment_plan,
+         procedures_done=EXCLUDED.procedures_done, prescriptions=EXCLUDED.prescriptions,
+         next_visit_date=EXCLUDED.next_visit_date, notes=EXCLUDED.notes
+       RETURNING *`,
+      [id, row.clinic_id, row.patient_id, row.doctor_id || null, row.appointment_id || null,
+       row.chief_complaint || null, row.diagnosis || null, row.icd10_codes || null,
+       row.treatment_plan || null, row.procedures_done || null, row.prescriptions || null,
+       row.next_visit_date || null, row.notes || null]
+    );
+    await writeAuditLog(row.clinic_id, row.user_id, row.user_name, 'create_visit', 'visit', id, { patient_id: row.patient_id, diagnosis: row.diagnosis });
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Documents ───
+app.get('/api/documents', async (req, res) => {
+  try {
+    const { clinic_id, patient_id } = req.query;
+    let query = 'SELECT d.*, p.full_name as patient_name, u.name as doctor_name FROM documents d LEFT JOIN patients p ON d.patient_id = p.id LEFT JOIN users u ON d.doctor_id = u.id WHERE 1=1';
+    const params = [];
+    let idx = 1;
+    if (clinic_id) { query += ` AND d.clinic_id = $${idx++}`; params.push(clinic_id); }
+    if (patient_id) { query += ` AND d.patient_id = $${idx++}`; params.push(patient_id); }
+    query += ' ORDER BY d.created_at DESC LIMIT 200';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/documents/upsert', async (req, res) => {
+  try {
+    const row = req.body;
+    const columns = Object.keys(row).filter(sanitizeColumnName);
+    if (columns.length === 0) return res.status(400).json({ error: 'No valid columns' });
+    const values = columns.map(c => row[c]);
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    const updates = columns.map((col, i) => `${col} = EXCLUDED.${col}`).join(', ');
+    const result = await pool.query(
+      `INSERT INTO documents (${columns.join(', ')})
+       VALUES (${placeholders})
+       ON CONFLICT (id) DO UPDATE SET ${updates}, updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      values
+    );
+    await writeAuditLog(row.clinic_id, row.user_id, row.user_name, 'upsert', 'document', row.id, { title: row.title, doc_type: row.doc_type });
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/documents/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM documents WHERE id = $1 RETURNING *', [req.params.id]);
+    res.json(result.rows[0] || { deleted: true, id: req.params.id });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Audit Log ───
+app.get('/api/audit-log', async (req, res) => {
+  try {
+    const { clinic_id, limit = 100 } = req.query;
+    const result = await pool.query(
+      'SELECT * FROM audit_log WHERE clinic_id = $1 ORDER BY created_at DESC LIMIT $2',
+      [clinic_id, parseInt(limit)]
+    );
+    res.json(result.rows);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Backup ───
+app.post('/api/backup', async (req, res) => {
+  try {
+    const { clinic_id } = req.body;
+    if (!clinic_id) return res.status(400).json({ error: 'clinic_id required' });
+
+    const tables = ['patients', 'appointments', 'treatments', 'receipts', 'lab_orders', 'photos', 'expenses', 'inventory', 'debts', 'referrals', 'promotions', 'bookings', 'medical_cards', 'visits', 'documents', 'audit_log'];
+    const backup = {};
+    for (const t of tables) {
+      const result = await pool.query(`SELECT * FROM ${t} WHERE clinic_id = $1`, [clinic_id]);
+      backup[t] = result.rows;
+    }
+    backup.metadata = {
+      clinic_id,
+      backup_date: new Date().toISOString(),
+      tables: tables.length,
+      records: Object.values(backup).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0),
+    };
+
+    await writeAuditLog(clinic_id, req.body.user_id, req.body.user_name, 'backup', 'system', null, backup.metadata);
+
+    res.json(backup);
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Graceful shutdown

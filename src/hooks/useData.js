@@ -25,6 +25,9 @@ const store = {
   photos: [],
   promotions: [],
   bookings: [],
+  medicalCards: [],
+  visits: [],
+  documents: [],
   loadedClinics: new Set(),
   listeners: new Set(),
 };
@@ -82,6 +85,9 @@ function trySync(table, row) {
     case 'photos': api.uploadPhoto(row).catch(() => {}); break;
     case 'promotions': api.upsertPromotion(row).catch(() => {}); break;
     case 'bookings': api.upsertBooking(row).catch(() => {}); break;
+    case 'medical_cards': api.upsertMedicalCard(row).catch(() => {}); break;
+    case 'visits': api.upsertVisit(row).catch(() => {}); break;
+    case 'documents': api.upsertDocument(row).catch(() => {}); break;
     default: break;
   }
 }
@@ -107,7 +113,7 @@ export function useData(clinicId) {
 
     const loadData = async () => {
       try {
-        const [patientsData, appointmentsData, receiptsData, labOrdersData, expensesData, inventoryData, promotionsData, bookingsData] = await Promise.all([
+        const [patientsData, appointmentsData, receiptsData, labOrdersData, expensesData, inventoryData, promotionsData, bookingsData, medicalCardsData, visitsData, documentsData] = await Promise.all([
           api.getPatients(safeClinicId).catch(() => []),
           api.getAppointments(safeClinicId).catch(() => []),
           api.getReceipts(safeClinicId).catch(() => []),
@@ -116,6 +122,8 @@ export function useData(clinicId) {
           api.getInventory(safeClinicId).catch(() => []),
           api.getPromotions(safeClinicId).catch(() => []),
           api.getBookings(safeClinicId).catch(() => []),
+          api.getVisits(safeClinicId).catch(() => []),
+          api.getDocuments(safeClinicId).catch(() => []),
         ]);
 
         replaceClinicRows('patients', safeClinicId, patientsData);
@@ -126,6 +134,8 @@ export function useData(clinicId) {
         replaceClinicRows('inventory', safeClinicId, inventoryData);
         replaceClinicRows('promotions', safeClinicId, promotionsData);
         replaceClinicRows('bookings', safeClinicId, bookingsData);
+        replaceClinicRows('visits', safeClinicId, visitsData);
+        replaceClinicRows('documents', safeClinicId, documentsData);
       } catch (error) {
         console.error('Failed to load data from API:', error);
       }
@@ -250,6 +260,33 @@ export function useData(clinicId) {
     return Promise.resolve(record);
   }, [scopedRecord]);
 
+  const upsertMedicalCard = useCallback((data) => {
+    const record = scopedRecord(data);
+    upsertRow('medicalCards', record);
+    trySync('medical_cards', record);
+    return Promise.resolve(record);
+  }, [scopedRecord]);
+
+  const upsertVisit = useCallback((data) => {
+    const record = scopedRecord(data);
+    upsertRow('visits', record);
+    trySync('visits', record);
+    return Promise.resolve(record);
+  }, [scopedRecord]);
+
+  const upsertDocument = useCallback((data) => {
+    const record = scopedRecord(data);
+    upsertRow('documents', record);
+    trySync('documents', record);
+    return Promise.resolve(record);
+  }, [scopedRecord]);
+
+  const deleteDocument = useCallback((id) => {
+    removeRow('documents', id);
+    api.deleteDocument(id).catch(() => {});
+    return Promise.resolve();
+  }, []);
+
   const patients = rowsForClinic(store.patients, safeClinicId);
   const appointments = rowsForClinic(store.appointments, safeClinicId);
   const receipts = rowsForClinic(store.receipts, safeClinicId);
@@ -263,11 +300,14 @@ export function useData(clinicId) {
   const photos = rowsForClinic(store.photos, safeClinicId);
   const promotions = rowsForClinic(store.promotions, safeClinicId);
   const bookings = rowsForClinic(store.bookings, safeClinicId);
+  const medicalCards = rowsForClinic(store.medicalCards, safeClinicId);
+  const visits = rowsForClinic(store.visits, safeClinicId);
+  const documents = rowsForClinic(store.documents, safeClinicId);
 
   return {
     patients, appointments, receipts, labOrders, expenses, inventory, doctors,
     transactions: receipts, treatments, users, subscriptions, photos,
-    promotions, bookings,
+    promotions, bookings, medicalCards, visits, documents,
     upsertPatient, deletePatient,
     upsertAppointment, deleteAppointment,
     upsertReceipt, upsertTransaction: upsertReceipt,
@@ -280,6 +320,9 @@ export function useData(clinicId) {
     uploadPhoto, deletePhoto,
     upsertPromotion, deletePromotion,
     upsertBooking,
+    upsertMedicalCard,
+    upsertVisit,
+    upsertDocument, deleteDocument,
   };
 }
 
