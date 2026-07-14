@@ -462,6 +462,23 @@ async function initDatabase() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_icd10_name ON icd10 USING gin(to_tsvector('russian', name))`);
 
+    // MIGRATION: add missing columns to existing tables
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT \'public\'');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS experience_years INTEGER DEFAULT 0');
+    await client.query('ALTER TABLE clinics ADD COLUMN IF NOT EXISTS color VARCHAR(7) DEFAULT \'#C9A96E\'');
+    await client.query('ALTER TABLE clinics ADD COLUMN IF NOT EXISTS city VARCHAR(100)');
+    await client.query('ALTER TABLE patients ADD COLUMN IF NOT EXISTS source VARCHAR(100)');
+    await client.query('ALTER TABLE patients ADD COLUMN IF NOT EXISTS notes TEXT');
+    await client.query('ALTER TABLE appointments ADD COLUMN IF NOT EXISTS duration INTEGER DEFAULT 60');
+    await client.query('ALTER TABLE appointments ADD COLUMN IF NOT EXISTS notes TEXT');
+    await client.query('ALTER TABLE receipts ADD COLUMN IF NOT EXISTS items JSONB');
+    await client.query('ALTER TABLE receipts ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT \'pending\'');
+    await client.query('ALTER TABLE patients ADD COLUMN IF NOT EXISTS source VARCHAR(100)');
+
     // Seed ICD-10 (common dental diagnoses)
     const icd10Data = [
       ['K02', 'Кариес зубов', 'Кариес и некариозные поражения', 'Поражение твёрдых тканей зубов'],
@@ -565,6 +582,8 @@ async function initDatabase() {
     ]);
 
     await client.query('COMMIT');
+
+    console.log('Database initialized successfully');
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Database initialization error:', err.message);
