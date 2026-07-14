@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: dentvision-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://dentvision1.vercel.app,https://dentvision1-git-main-drtamirlan911-cells-projects.vercel.app

@@ -24,11 +24,18 @@ const ALLOWED_TABLES = [
 ];
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
   : ['http://localhost:5173', 'http://localhost:3000'];
 
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  if (/^https:\/\/dentvision.*\.vercel\.app$/.test(origin)) return true;
+  return false;
+}
+
 app.use(helmet());
-app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
+app.use(cors({ origin: (origin, cb) => cb(null, isOriginAllowed(origin)), credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });
