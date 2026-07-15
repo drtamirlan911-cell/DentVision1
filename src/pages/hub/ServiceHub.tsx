@@ -8,19 +8,14 @@ import {
   BarChart3,
   Bot,
   Settings,
-  Calendar,
-  Users,
-  FileText,
-  DollarSign,
   Shield,
   Database,
+  FileText,
   ArrowRight,
-  Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/ds/Avatar'
-import { Badge } from '@/components/ui/ds/Badge'
 
 interface ServiceCard {
   id: string
@@ -31,7 +26,6 @@ interface ServiceCard {
   color: string
   gradient: string
   requiredPages: string[]
-  stats?: { label: string; value: string }[]
 }
 
 const SERVICES: ServiceCard[] = [
@@ -44,11 +38,6 @@ const SERVICES: ServiceCard[] = [
     color: '#C9A96E',
     gradient: 'from-[#C9A96E]/20 to-[#C9A96E]/5',
     requiredPages: ['schedule', 'patients'],
-    stats: [
-      { label: 'Расписание', icon: '📅' },
-      { label: 'Пациенты', icon: '👥' },
-      { label: 'Документы', icon: '📄' },
-    ],
   },
   {
     id: 'shop',
@@ -59,11 +48,6 @@ const SERVICES: ServiceCard[] = [
     color: '#3498DB',
     gradient: 'from-[#3498DB]/20 to-[#3498DB]/5',
     requiredPages: ['shop'],
-    stats: [
-      { label: 'Каталог', icon: '🛍️' },
-      { label: 'Заказы', icon: '📦' },
-      { label: 'Поставщики', icon: '🚚' },
-    ],
   },
   {
     id: 'school',
@@ -74,11 +58,6 @@ const SERVICES: ServiceCard[] = [
     color: '#27AE60',
     gradient: 'from-[#27AE60]/20 to-[#27AE60]/5',
     requiredPages: ['school'],
-    stats: [
-      { label: 'Курсы', icon: '📚' },
-      { label: 'Сертификаты', icon: '🎓' },
-      { label: 'Клинические случаи', icon: '🏥' },
-    ],
   },
   {
     id: 'ai',
@@ -89,10 +68,6 @@ const SERVICES: ServiceCard[] = [
     color: '#8E44AD',
     gradient: 'from-[#8E44AD]/20 to-[#8E44AD]/5',
     requiredPages: ['ai'],
-    stats: [
-      { label: 'Диагностика', icon: '🔍' },
-      { label: 'Анализ', icon: '📊' },
-    ],
   },
   {
     id: 'analytics',
@@ -103,10 +78,6 @@ const SERVICES: ServiceCard[] = [
     color: '#E67E22',
     gradient: 'from-[#E67E22]/20 to-[#E67E22]/5',
     requiredPages: ['analytics'],
-    stats: [
-      { label: 'Отчёты', icon: '📈' },
-      { label: 'Тренды', icon: '📊' },
-    ],
   },
   {
     id: 'settings',
@@ -117,10 +88,6 @@ const SERVICES: ServiceCard[] = [
     color: '#95A5A6',
     gradient: 'from-[#95A5A6]/20 to-[#95A5A6]/5',
     requiredPages: ['settings'],
-    stats: [
-      { label: 'Клиника', icon: '🏥' },
-      { label: 'Сотрудники', icon: '👥' },
-    ],
   },
 ]
 
@@ -258,24 +225,9 @@ export default function ServiceHub() {
                   <h3 className="text-base font-semibold text-txt-primary mb-1 group-hover:text-dv-gold transition-colors">
                     {service.name}
                   </h3>
-                  <p className="text-sm text-txt-muted mb-4 line-clamp-2">
+                  <p className="text-sm text-txt-muted line-clamp-2">
                     {service.description}
                   </p>
-
-                  {/* Stats pills */}
-                  {service.stats && (
-                    <div className="flex flex-wrap gap-2">
-                      {service.stats.map((stat, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-3 text-xs text-txt-secondary"
-                        >
-                          <span>{stat.icon}</span>
-                          <span>{stat.label}</span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </button>
             </motion.div>

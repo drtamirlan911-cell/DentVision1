@@ -13,7 +13,7 @@ import DocumentSign from './pages/DocumentSign';
 import './styles/global.css';
 
 // Platform pages (service hub, settings, analytics, admin, etc.)
-const ServiceHub = lazy(() => import('./pages/hub/ServiceHub').then(m => ({ default: m.ServiceHub })));
+const ServiceHub = lazy(() => import('./pages/hub/ServiceHub'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AITeam = lazy(() => import('./pages/AITeam'));
 const SuperAdmin = lazy(() => import('./pages/SuperAdmin'));
