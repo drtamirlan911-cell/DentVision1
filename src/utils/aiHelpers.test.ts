@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAiReply } from './aiHelpers.js';
+import { buildAiReply } from './aiHelpers.ts';
 
 test('buildAiReply returns practical pricing guidance for price questions', () => {
   const reply = buildAiReply({

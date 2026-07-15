@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAiReply } from './aiHelpers.js';
+import { buildAiReply } from './aiHelpers.ts';
 import { INIT_USERS } from './constants.js';
 
 test('demo users are available for login flow', () => {

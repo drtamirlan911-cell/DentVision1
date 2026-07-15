@@ -1,10 +1,18 @@
 import { tg } from './constants.js';
+import type { Appointment, Patient, Receipt } from '../types';
 
-function normalize(text) {
+function normalize(text: string): string {
   return (text || '').toLowerCase();
 }
 
-function summarizeCounts(patients = [], appointments = [], receipts = [], doctors = []) {
+interface AiSummary {
+  patientsCount: number;
+  appointmentsCount: number;
+  revenue: number;
+  doctorsCount: number;
+}
+
+function summarizeCounts(patients: Patient[] = [], appointments: Appointment[] = [], receipts: Receipt[] = [], doctors: Patient[] = []): AiSummary {
   const paidRevenue = receipts.reduce((sum, receipt) => sum + Number(receipt.total || 0), 0);
   return {
     patientsCount: patients.length,
@@ -14,7 +22,16 @@ function summarizeCounts(patients = [], appointments = [], receipts = [], doctor
   };
 }
 
-export function buildAiReply({ message, clinicName, patients, appointments, receipts, doctors }) {
+interface BuildAiReplyParams {
+  message: string;
+  clinicName: string;
+  patients: Patient[];
+  appointments: Appointment[];
+  receipts: Receipt[];
+  doctors: Patient[];
+}
+
+export function buildAiReply({ message, clinicName, patients, appointments, receipts, doctors }: BuildAiReplyParams): string {
   const text = normalize(message);
   const summary = summarizeCounts(patients, appointments, receipts, doctors);
 

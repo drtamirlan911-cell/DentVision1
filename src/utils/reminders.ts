@@ -2,9 +2,15 @@
 // PATIENT REMINDERS ENGINE — WhatsApp click-to-send + hygiene tracking
 // ═══════════════════════════════════════════════════════════════════
 
+import type { Appointment, Patient, Receipt } from '../types';
+
 const SENT_KEY = 'dv_reminders_sent_v1';
 
-function loadSentLog() {
+interface SentLog {
+  [reminderId: string]: string;
+}
+
+function loadSentLog(): SentLog {
   try {
     return JSON.parse(localStorage.getItem(SENT_KEY) || '{}');
   } catch {
@@ -12,24 +18,24 @@ function loadSentLog() {
   }
 }
 
-function saveSentLog(log) {
+function saveSentLog(log: SentLog): void {
   try {
     localStorage.setItem(SENT_KEY, JSON.stringify(log));
   } catch {}
 }
 
-export function isSent(reminderId) {
+export function isSent(reminderId: string): boolean {
   const log = loadSentLog();
   return !!log[reminderId];
 }
 
-export function markSent(reminderId) {
+export function markSent(reminderId: string): void {
   const log = loadSentLog();
   log[reminderId] = new Date().toISOString();
   saveSentLog(log);
 }
 
-export function normalizePhone(phone) {
+export function normalizePhone(phone: string | undefined | null): string {
   if (!phone) return '';
   let digits = String(phone).replace(/\D/g, '');
   if (digits.startsWith('8') && digits.length === 11) digits = '7' + digits.slice(1);
@@ -37,21 +43,45 @@ export function normalizePhone(phone) {
   return digits;
 }
 
-export function buildWaLink(phone, message) {
+export function buildWaLink(phone: string | undefined | null, message: string): string {
   const num = normalizePhone(phone);
   return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
 }
 
 const HYGIENE_RE = /гигиен/i;
 
-function daysBetween(dateStr) {
+interface AppointmentReminder {
+  id: string;
+  type: 'appointment';
+  appointment: Appointment;
+  patient: Patient;
+  doctor: Patient | undefined;
+  dueAt: Date;
+  message: string;
+  waLink: string;
+  sent: boolean;
+}
+
+interface HygieneReminder {
+  id: string;
+  type: 'hygiene';
+  patient: Patient;
+  lastDate: string | null;
+  monthsSince: number | null;
+  daysSince: number;
+  message: string;
+  waLink: string;
+  sent: boolean;
+}
+
+function daysBetween(dateStr: string): number {
   const d = new Date(dateStr);
-  if (isNaN(d)) return Infinity;
+  if (isNaN(d.getTime())) return Infinity;
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
 // ── Appointment reminders: scheduled visits happening within next N hours ──
-export function getAppointmentReminders(appointments, patients, doctors, hoursWindow = 24) {
+export function getAppointmentReminders(appointments: Appointment[], patients: Patient[], doctors: Patient[], hoursWindow = 24): AppointmentReminder[] {
   const now = new Date();
   const windowEnd = new Date(now.getTime() + hoursWindow * 3600 * 1000);
 
@@ -75,12 +105,12 @@ export function getAppointmentReminders(appointments, patients, doctors, hoursWi
         sent: isSent(id),
       };
     })
-    .filter(Boolean)
-    .sort((x, y) => x.dueAt - y.dueAt);
+    .filter((r): r is AppointmentReminder => r !== null)
+    .sort((x, y) => x.dueAt.getTime() - y.dueAt.getTime());
 }
 
 // ── Hygiene reminders: patients with no professional cleaning in N months ──
-export function getHygieneReminders(patients, appointments, receipts, monthsThreshold = 6) {
+export function getHygieneReminders(patients: Patient[], appointments: Appointment[], receipts: Receipt[], monthsThreshold = 6): HygieneReminder[] {
   const thresholdDays = monthsThreshold * 30;
 
   return patients
@@ -109,18 +139,28 @@ export function getHygieneReminders(patients, appointments, receipts, monthsThre
         sent: isSent(id),
       };
     })
-    .filter(Boolean)
+    .filter((r): r is HygieneReminder => r !== null)
     .sort((a, b) => b.daysSince - a.daysSince);
 }
 
-export function getAllReminders(data) {
+export function getAllReminders(data: {
+  appointments?: Appointment[];
+  patients?: Patient[];
+  doctors?: Patient[];
+  receipts?: Receipt[];
+}): { appointmentReminders: AppointmentReminder[]; hygieneReminders: HygieneReminder[] } {
   const { appointments = [], patients = [], doctors = [], receipts = [] } = data;
   const appt = getAppointmentReminders(appointments, patients, doctors);
   const hyg = getHygieneReminders(patients, appointments, receipts);
   return { appointmentReminders: appt, hygieneReminders: hyg };
 }
 
-export function getPendingCount(data) {
+export function getPendingCount(data: {
+  appointments?: Appointment[];
+  patients?: Patient[];
+  doctors?: Patient[];
+  receipts?: Receipt[];
+}): number {
   const { appointmentReminders, hygieneReminders } = getAllReminders(data);
   return [...appointmentReminders, ...hygieneReminders].filter(r => !r.sent).length;
 }

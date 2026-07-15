@@ -2,14 +2,36 @@
 // DENTVISION API CLIENT — JWT authenticated
 // ═══════════════════════════════════════════════════════════════════
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
+import type {
+  User,
+  Clinic,
+  Patient,
+  Appointment,
+  Receipt,
+  LabOrder,
+  Expense,
+  InventoryItem,
+  MedicalCard,
+  Visit,
+  Document,
+  Promotion,
+  Booking,
+  Photo,
+  Subscription,
+  WaitingListItem,
+  AuditLogEntry,
+  ICD10Code,
+  LoginResponse,
+} from '../types';
+
+const API_URL: string = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
 // ─── Token Management ───
-let _accessToken = null;
-let _refreshToken = null;
-let _refreshPromise = null;
+let _accessToken: string | null = null;
+let _refreshToken: string | null = null;
+let _refreshPromise: Promise<string> | null = null;
 
-export function setTokens(access, refresh) {
+export function setTokens(access: string | null, refresh: string | null): void {
   _accessToken = access;
   _refreshToken = refresh;
   if (access && refresh) {
@@ -19,7 +41,7 @@ export function setTokens(access, refresh) {
   }
 }
 
-export function loadTokens() {
+export function loadTokens(): { accessToken: string; refreshToken: string } | null {
   try {
     const stored = localStorage.getItem('dv_tokens');
     if (stored) {
@@ -32,16 +54,16 @@ export function loadTokens() {
   return null;
 }
 
-export function clearTokens() {
+export function clearTokens(): void {
   _accessToken = null;
   _refreshToken = null;
   try { localStorage.removeItem('dv_tokens'); } catch {}
 }
 
-export function getAccessToken() { return _accessToken; }
+export function getAccessToken(): string | null { return _accessToken; }
 
 // ─── Token Refresh ───
-async function refreshAccessToken() {
+async function refreshAccessToken(): Promise<string> {
   if (!_refreshToken) throw new Error('No refresh token');
   // Deduplicate concurrent refresh calls
   if (_refreshPromise) return _refreshPromise;
@@ -71,8 +93,8 @@ async function refreshAccessToken() {
 }
 
 // ─── Core API Request ───
-async function apiRequest(path, options = {}) {
-  const headers = { 'Content-Type': 'application/json', ...options.headers };
+async function apiRequest(path: string, options: RequestInit = {}): Promise<any> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...options.headers as Record<string, string> };
 
   // Attach access token
   if (_accessToken) {
@@ -99,32 +121,32 @@ async function apiRequest(path, options = {}) {
 }
 
 // ─── Auth ───
-export async function login(loginStr, password) {
+export async function login(loginStr: string, password: string): Promise<LoginResponse> {
   return apiRequest('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ login: loginStr, password }),
   });
 }
 
-export async function register(data) {
+export async function register(data: Partial<User> & { password: string }): Promise<any> {
   return apiRequest('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function getMe() {
+export async function getMe(): Promise<User> {
   return apiRequest('/api/auth/me');
 }
 
-export async function forgotPassword(login) {
+export async function forgotPassword(login: string): Promise<any> {
   return apiRequest('/api/auth/forgot-password', {
     method: 'POST',
     body: JSON.stringify({ login }),
   });
 }
 
-export async function resetPassword(token, newPassword) {
+export async function resetPassword(token: string, newPassword: string): Promise<any> {
   return apiRequest('/api/auth/reset-password', {
     method: 'POST',
     body: JSON.stringify({ token, newPassword }),
@@ -132,238 +154,238 @@ export async function resetPassword(token, newPassword) {
 }
 
 // ─── Clinics ───
-export async function getClinics() {
+export async function getClinics(): Promise<Clinic[]> {
   return apiRequest('/api/clinics');
 }
 
-export async function getClinic(clinicId) {
+export async function getClinic(clinicId: string): Promise<Clinic> {
   const data = await apiRequest(`/api/clinic/${clinicId}/data`);
   return { id: clinicId, name: 'Clinic', active: true, ...data };
 }
 
 // ─── Clinic Data ───
-export async function getPatients(clinicId) {
+export async function getPatients(clinicId: string): Promise<Patient[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.patients || []);
 }
 
-export async function getAppointments(clinicId) {
+export async function getAppointments(clinicId: string): Promise<Appointment[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.appointments || []);
 }
 
-export async function getReceipts(clinicId) {
+export async function getReceipts(clinicId: string): Promise<Receipt[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.receipts || []);
 }
 
-export async function getLabOrders(clinicId) {
+export async function getLabOrders(clinicId: string): Promise<LabOrder[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.labOrders || []);
 }
 
-export async function getExpenses(clinicId) {
+export async function getExpenses(clinicId: string): Promise<Expense[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.expenses || []);
 }
 
-export async function getInventory(clinicId) {
+export async function getInventory(clinicId: string): Promise<InventoryItem[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.inventory || []);
 }
 
-export async function getPromotions(clinicId) {
+export async function getPromotions(clinicId: string): Promise<Promotion[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.promotions || []);
 }
 
-export async function getBookings(clinicId) {
+export async function getBookings(clinicId: string): Promise<Booking[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.bookings || []);
 }
 
 // ─── Upserts ───
-export async function upsertPatient(data) {
+export async function upsertPatient(data: Partial<Patient>): Promise<any> {
   return apiRequest('/api/patients/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertAppointment(data) {
+export async function upsertAppointment(data: Partial<Appointment>): Promise<any> {
   return apiRequest('/api/appointments/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertReceipt(data) {
+export async function upsertReceipt(data: Partial<Receipt>): Promise<any> {
   return apiRequest('/api/receipts/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertLabOrder(data) {
+export async function upsertLabOrder(data: Partial<LabOrder>): Promise<any> {
   return apiRequest('/api/lab_orders/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertExpense(data) {
+export async function upsertExpense(data: Partial<Expense>): Promise<any> {
   return apiRequest('/api/expenses/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertInventoryItem(data) {
+export async function upsertInventoryItem(data: Partial<InventoryItem>): Promise<any> {
   return apiRequest('/api/inventory/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertUser(data) {
+export async function upsertUser(data: Partial<User>): Promise<any> {
   return apiRequest('/api/clinic/users/create', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertSubscription(data) {
+export async function upsertSubscription(data: Partial<Subscription>): Promise<any> {
   return apiRequest('/api/subscriptions/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function uploadPhoto(data) {
+export async function uploadPhoto(data: Partial<Photo>): Promise<any> {
   return apiRequest('/api/photos/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertPromotion(data) {
+export async function upsertPromotion(data: Partial<Promotion>): Promise<any> {
   return apiRequest('/api/promotions/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertBooking(data) {
+export async function upsertBooking(data: Partial<Booking>): Promise<any> {
   return apiRequest('/api/bookings/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
 // ─── Deletes ───
-export async function deletePatient(id) {
+export async function deletePatient(id: string): Promise<any> {
   return apiRequest(`/api/patients/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteAppointment(id) {
+export async function deleteAppointment(id: string): Promise<any> {
   return apiRequest(`/api/appointments/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteReceipt(id) {
+export async function deleteReceipt(id: string): Promise<any> {
   return apiRequest(`/api/receipts/${id}`, { method: 'DELETE' });
 }
 
-export async function deletePhoto(id) {
+export async function deletePhoto(id: string): Promise<any> {
   return apiRequest(`/api/photos/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteInventoryItem(id) {
+export async function deleteInventoryItem(id: string): Promise<any> {
   return apiRequest(`/api/inventory/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteLabOrder(id) {
+export async function deleteLabOrder(id: string): Promise<any> {
   return apiRequest(`/api/lab_orders/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteExpense(id) {
+export async function deleteExpense(id: string): Promise<any> {
   return apiRequest(`/api/expenses/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteSubscription(id) {
+export async function deleteSubscription(id: string): Promise<any> {
   return apiRequest(`/api/subscriptions/${id}`, { method: 'DELETE' });
 }
 
-export async function deletePromotion(id) {
+export async function deletePromotion(id: string): Promise<any> {
   return apiRequest(`/api/promotions/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteBooking(id) {
+export async function deleteBooking(id: string): Promise<any> {
   return apiRequest(`/api/bookings/${id}`, { method: 'DELETE' });
 }
 
 // ─── Public Booking ───
-export async function getPublicClinic(clinicId) {
+export async function getPublicClinic(clinicId: string): Promise<Clinic> {
   return apiRequest(`/api/public/clinic/${clinicId}`);
 }
 
-export async function submitBooking(data) {
+export async function submitBooking(data: Partial<Booking>): Promise<any> {
   return apiRequest('/api/public/booking', { method: 'POST', body: JSON.stringify(data) });
 }
 
 // ─── Medical Cards ───
-export async function getMedicalCard(patientId) {
+export async function getMedicalCard(patientId: string): Promise<MedicalCard> {
   return apiRequest(`/api/medical-cards/${patientId}`);
 }
 
-export async function upsertMedicalCard(data) {
+export async function upsertMedicalCard(data: Partial<MedicalCard>): Promise<any> {
   return apiRequest('/api/medical-cards/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
 // ─── ICD-10 ───
-export async function getICD10(search) {
+export async function getICD10(search: string): Promise<ICD10Code[]> {
   const q = search ? `?search=${encodeURIComponent(search)}` : '';
   return apiRequest(`/api/icd10${q}`);
 }
 
 // ─── Visits ───
-export async function getVisits(clinicId, patientId) {
+export async function getVisits(clinicId: string, patientId: string): Promise<Visit[]> {
   const params = new URLSearchParams();
   if (clinicId) params.set('clinic_id', clinicId);
   if (patientId) params.set('patient_id', patientId);
   return apiRequest(`/api/visits?${params}`);
 }
 
-export async function upsertVisit(data) {
+export async function upsertVisit(data: Partial<Visit>): Promise<any> {
   return apiRequest('/api/visits/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
 // ─── Documents ───
-export async function getDocuments(clinicId, patientId) {
+export async function getDocuments(clinicId: string, patientId: string): Promise<Document[]> {
   const params = new URLSearchParams();
   if (clinicId) params.set('clinic_id', clinicId);
   if (patientId) params.set('patient_id', patientId);
   return apiRequest(`/api/documents?${params}`);
 }
 
-export async function upsertDocument(data) {
+export async function upsertDocument(data: Partial<Document>): Promise<any> {
   return apiRequest('/api/documents/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function deleteDocument(id) {
+export async function deleteDocument(id: string): Promise<any> {
   return apiRequest(`/api/documents/${id}`, { method: 'DELETE' });
 }
 
 // ─── Audit Log ───
-export async function getAuditLog(clinicId, limit = 100) {
+export async function getAuditLog(clinicId: string, limit: number = 100): Promise<AuditLogEntry[]> {
   return apiRequest(`/api/audit-log?clinic_id=${clinicId}&limit=${limit}`);
 }
 
 // ─── Backup ───
-export async function createBackup(clinicId) {
+export async function createBackup(clinicId: string): Promise<any> {
   return apiRequest('/api/backup', { method: 'POST', body: JSON.stringify({ clinic_id: clinicId }) });
 }
 
 // ─── Treatments ───
-export async function upsertTreatment(data) {
+export async function upsertTreatment(data: any): Promise<any> {
   return apiRequest('/api/treatments/upsert', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function getTreatments(clinicId) {
+export async function getTreatments(clinicId: string): Promise<any[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.treatments || []);
 }
 
 // ─── Waiting List ───
-export async function getWaitingList(clinicId) {
+export async function getWaitingList(clinicId: string): Promise<WaitingListItem[]> {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.waitingList || d.waiting_list || []);
 }
 
 // ─── Shop ───
-export async function getShopCategories() { return apiRequest('/api/shop/categories'); }
-export async function getShopProducts(params = {}) {
+export async function getShopCategories(): Promise<any> { return apiRequest('/api/shop/categories'); }
+export async function getShopProducts(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
   return apiRequest(`/api/shop/products?${q}`);
 }
-export async function getShopProduct(id) { return apiRequest(`/api/shop/products/${id}`); }
-export async function getShopSuppliers() { return apiRequest('/api/shop/suppliers'); }
-export async function createShopOrder(data) { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
-export async function getShopOrders(clinicId) { return apiRequest(`/api/shop/orders?clinic_id=${clinicId}`); }
-export async function createShopReview(data) { return apiRequest('/api/shop/reviews', { method: 'POST', body: JSON.stringify(data) }); }
-export async function toggleShopFavorite(data) { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }
-export async function getShopFavorites(clinicId) { return apiRequest(`/api/shop/favorites?clinic_id=${clinicId}`); }
+export async function getShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`); }
+export async function getShopSuppliers(): Promise<any> { return apiRequest('/api/shop/suppliers'); }
+export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getShopOrders(clinicId: string): Promise<any> { return apiRequest(`/api/shop/orders?clinic_id=${clinicId}`); }
+export async function createShopReview(data: any): Promise<any> { return apiRequest('/api/shop/reviews', { method: 'POST', body: JSON.stringify(data) }); }
+export async function toggleShopFavorite(data: any): Promise<any> { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getShopFavorites(clinicId: string): Promise<any> { return apiRequest(`/api/shop/favorites?clinic_id=${clinicId}`); }
 
 // ─── School ───
-export async function getSchoolCourses(params = {}) {
+export async function getSchoolCourses(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
   return apiRequest(`/api/school/courses?${q}`);
 }
-export async function getSchoolCourse(id) { return apiRequest(`/api/school/courses/${id}`); }
-export async function enrollCourse(data) { return apiRequest('/api/school/enrollments', { method: 'POST', body: JSON.stringify(data) }); }
-export async function getEnrollments(userId) { return apiRequest(`/api/school/enrollments?user_id=${userId}`); }
-export async function getSchoolClinicalCases(category) { return apiRequest(`/api/school/clinical-cases${category ? `?category=${category}` : ''}`); }
-export async function getSchoolLibrary(params = {}) {
+export async function getSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`); }
+export async function enrollCourse(data: any): Promise<any> { return apiRequest('/api/school/enrollments', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getEnrollments(userId: string): Promise<any> { return apiRequest(`/api/school/enrollments?user_id=${userId}`); }
+export async function getSchoolClinicalCases(category: string): Promise<any> { return apiRequest(`/api/school/clinical-cases${category ? `?category=${category}` : ''}`); }
+export async function getSchoolLibrary(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
   return apiRequest(`/api/school/library?${q}`);
 }
-export async function getSchoolCertificates(userId) { return apiRequest(`/api/school/certificates?user_id=${userId}`); }
+export async function getSchoolCertificates(userId: string): Promise<any> { return apiRequest(`/api/school/certificates?user_id=${userId}`); }

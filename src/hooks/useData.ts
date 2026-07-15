@@ -4,15 +4,35 @@ import {
   INIT_USERS, gid, today
 } from '../utils/constants';
 import * as api from '../utils/api';
+import type {
+  DataStore,
+  Patient,
+  Appointment,
+  Receipt,
+  LabOrder,
+  Expense,
+  InventoryItem,
+  User,
+  Subscription,
+  Photo,
+  Promotion,
+  Booking,
+  MedicalCard,
+  Visit,
+  Document,
+  WaitingListItem,
+  Toast,
+  ToastType,
+} from '../types';
 
-const DEFAULT_INVENTORY = [
+const DEFAULT_INVENTORY: Omit<InventoryItem, 'clinicId'>[] = [
   { id: 'i1', name: 'Пломбировочный материал', quantity: 45, unit: 'шт', min: 20 },
   { id: 'i2', name: 'Анестетик Ультракаин', quantity: 12, unit: 'уп', min: 15 },
   { id: 'i3', name: 'Перчатки латексные', quantity: 150, unit: 'пар', min: 100 },
   { id: 'i4', name: 'Боры стоматологические', quantity: 8, unit: 'набор', min: 10 },
 ];
 
-const store = {
+const store: DataStore = {
   patients: [...INIT_PATIENTS],
   appointments: [...INIT_APPOINTMENTS],
   receipts: [...INIT_RECEIPTS],
@@ -29,51 +49,73 @@ const store = {
   visits: [],
   documents: [],
   waitingList: [],
-  loadedClinics: new Set(),
-  listeners: new Set(),
+  loadedClinics: new Set<string>(),
+  listeners: new Set<() => void>(),
 };
 
-function notify() {
+type StoreKey = keyof Omit<DataStore, 'loadedClinics' | 'listeners'>;
+
+type SyncTable =
+  | 'patients'
+  | 'appointments'
+  | 'receipts'
+  | 'lab_orders'
+  | 'expenses'
+  | 'inventory'
+  | 'users'
+  | 'subscriptions'
+  | 'photos'
+  | 'promotions'
+  | 'bookings'
+  | 'medical_cards'
+  | 'visits'
+  | 'documents'
+  | 'waiting_list'
+  | 'treatments';
+
+type DeleteTable = 'patients' | 'appointments' | 'receipts' | 'photos' | 'waiting_list';
+
+function notify(): void {
   store.listeners.forEach((listener) => listener());
 }
 
-function subscribe(listener) {
+function subscribe(listener: () => void): () => boolean {
   store.listeners.add(listener);
   return () => store.listeners.delete(listener);
 }
 
-function rowsForClinic(rows, clinicId) {
+function rowsForClinic<T extends { clinicId?: string }>(rows: T[], clinicId: string | null): T[] {
   return clinicId ? rows.filter((row) => row.clinicId === clinicId) : [];
 }
 
-function upsertRow(table, row) {
-  const rows = store[table];
-  const index = rows.findIndex((item) => item.id === row.id);
+function upsertRow(table: StoreKey, row: any): void {
+  const rows = store[table] as any[];
+  const index = rows.findIndex((item: any) => item.id === row.id);
   if (index >= 0) rows[index] = row;
   else rows.push(row);
   notify();
 }
 
-function replaceClinicRows(table, clinicId, rows) {
+function replaceClinicRows(table: StoreKey, clinicId: string, rows: any[] | undefined): void {
   if (!rows?.length) return;
-  const normalizedRows = rows.map((row) => ({ ...row, clinicId: row.clinicId || clinicId }));
-  store[table] = [...store[table].filter((row) => row.clinicId !== clinicId), ...normalizedRows];
+  const normalizedRows = rows.map((row: any) => ({ ...row, clinicId: row.clinicId || clinicId }));
+  store[table] = [...(store[table] as any[]).filter((row: any) => row.clinicId !== clinicId), ...normalizedRows] as any;
   notify();
 }
 
-function removeRow(table, id) {
-  store[table] = store[table].filter((row) => row.id !== id);
+function removeRow(table: StoreKey, id: string): void {
+  store[table] = (store[table] as any[]).filter((row: any) => row.id !== id) as any;
   notify();
 }
 
-function ensureInventory(clinicId) {
+function ensureInventory(clinicId: string): void {
   if (!clinicId) return;
   const hasInventory = store.inventory.some((item) => item.clinicId === clinicId);
   if (hasInventory) return;
   DEFAULT_INVENTORY.forEach((item) => upsertRow('inventory', { ...item, id: `${clinicId}_${item.id}`, clinicId }));
 }
 
-function trySync(table, row) {
+function trySync(table: SyncTable, row: any): void {
   switch (table) {
     case 'patients': api.upsertPatient(row).catch(() => {}); break;
     case 'appointments': api.upsertAppointment(row).catch(() => {}); break;
@@ -93,14 +135,58 @@ function trySync(table, row) {
   }
 }
 
-function tryDelete(table, id) {
+function tryDelete(table: DeleteTable, id: string): void {
   if (table === 'patients') api.deletePatient(id).catch(() => {});
   else if (table === 'appointments') api.deleteAppointment(id).catch(() => {});
   else if (table === 'receipts') api.deleteReceipt(id).catch(() => {});
   else if (table === 'photos') api.deletePhoto(id).catch(() => {});
 }
 
-export function useData(clinicId) {
+export interface UseDataReturn {
+  patients: Patient[];
+  appointments: Appointment[];
+  receipts: Receipt[];
+  labOrders: LabOrder[];
+  expenses: Expense[];
+  inventory: InventoryItem[];
+  doctors: User[];
+  transactions: Receipt[];
+  treatments: any[];
+  users: User[];
+  subscriptions: Subscription[];
+  photos: Photo[];
+  promotions: Promotion[];
+  bookings: Booking[];
+  medicalCards: MedicalCard[];
+  visits: Visit[];
+  documents: Document[];
+  waitingList: WaitingListItem[];
+  upsertPatient: (patientData: Partial<Patient>) => Promise<any>;
+  deletePatient: (id: string) => Promise<void>;
+  upsertAppointment: (apptData: Partial<Appointment>) => Promise<any>;
+  deleteAppointment: (id: string) => Promise<void>;
+  upsertReceipt: (data: Partial<Receipt>) => Promise<any>;
+  upsertTransaction: (data: Partial<Receipt>) => Promise<any>;
+  upsertLabOrder: (data: Partial<LabOrder>) => Promise<any>;
+  upsertExpense: (data: Partial<Expense>) => Promise<any>;
+  upsertInventoryItem: (data: Partial<InventoryItem>) => Promise<any>;
+  addTreatment: (treatment: any) => Promise<any>;
+  upsertUser: (userData: Partial<User>) => Promise<any>;
+  upsertSubscription: (subData: Partial<Subscription>) => Promise<any>;
+  uploadPhoto: (photoData: Partial<Photo>) => Promise<any>;
+  deletePhoto: (id: string) => Promise<void>;
+  upsertPromotion: (data: Partial<Promotion>) => Promise<any>;
+  deletePromotion: (id: string) => Promise<void>;
+  upsertBooking: (data: Partial<Booking>) => Promise<any>;
+  upsertMedicalCard: (data: Partial<MedicalCard>) => Promise<any>;
+  upsertVisit: (data: Partial<Visit>) => Promise<any>;
+  upsertDocument: (data: Partial<Document>) => Promise<any>;
+  deleteDocument: (id: string) => Promise<void>;
+  upsertWaitingListItem: (data: Partial<WaitingListItem>) => Promise<any>;
+  deleteWaitingListItem: (id: string) => Promise<void>;
+}
+
+export function useData(clinicId?: string | null): UseDataReturn {
   const safeClinicId = clinicId || null;
   const [, setVersion] = useState(0);
 
@@ -112,9 +198,9 @@ export function useData(clinicId) {
     if (store.loadedClinics.has(safeClinicId)) return;
     store.loadedClinics.add(safeClinicId);
 
-    const loadData = async () => {
+    const loadData = async (): Promise<void> => {
       try {
-        const [patientsData, appointmentsData, receiptsData, labOrdersData, expensesData, inventoryData, promotionsData, bookingsData, medicalCardsData, visitsData, documentsData, waitingListData] = await Promise.all([
+        const [patientsData, appointmentsData, receiptsData, labOrdersData, expensesData, inventoryData, promotionsData, bookingsData, visitsData, documentsData, waitingListData] = await Promise.all([
           api.getPatients(safeClinicId).catch(() => []),
           api.getAppointments(safeClinicId).catch(() => []),
           api.getReceipts(safeClinicId).catch(() => []),
@@ -123,8 +209,8 @@ export function useData(clinicId) {
           api.getInventory(safeClinicId).catch(() => []),
           api.getPromotions(safeClinicId).catch(() => []),
           api.getBookings(safeClinicId).catch(() => []),
-          api.getVisits(safeClinicId).catch(() => []),
-          api.getDocuments(safeClinicId).catch(() => []),
+          api.getVisits(safeClinicId, '').catch(() => []),
+          api.getDocuments(safeClinicId, '').catch(() => []),
           api.getWaitingList(safeClinicId).catch(() => []),
         ]);
 
@@ -147,7 +233,7 @@ export function useData(clinicId) {
     loadData();
   }, [safeClinicId]);
 
-  const scopedRecord = useCallback((data, defaults = {}) => {
+  const scopedRecord = useCallback((data: Record<string, any>, defaults: Record<string, any> = {}): Record<string, any> => {
     const cleanData = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
     const record = { ...defaults, ...cleanData, id: data.id || gid(), clinicId: safeClinicId };
     Object.keys(record).forEach((key) => {
@@ -156,150 +242,150 @@ export function useData(clinicId) {
     return record;
   }, [safeClinicId]);
 
-  const upsertPatient = useCallback((patientData) => {
-    const record = scopedRecord(patientData);
+  const upsertPatient = useCallback((patientData: Partial<Patient>): Promise<any> => {
+    const record = scopedRecord(patientData as Record<string, any>);
     upsertRow('patients', record);
     trySync('patients', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const deletePatient = useCallback((id) => {
+  const deletePatient = useCallback((id: string): Promise<void> => {
     removeRow('patients', id);
     tryDelete('patients', id);
     return Promise.resolve();
   }, []);
 
-  const upsertAppointment = useCallback((apptData) => {
-    const record = scopedRecord(apptData, { date: today() });
+  const upsertAppointment = useCallback((apptData: Partial<Appointment>): Promise<any> => {
+    const record = scopedRecord(apptData as Record<string, any>, { date: today() });
     upsertRow('appointments', record);
     trySync('appointments', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const deleteAppointment = useCallback((id) => {
+  const deleteAppointment = useCallback((id: string): Promise<void> => {
     removeRow('appointments', id);
     tryDelete('appointments', id);
     return Promise.resolve();
   }, []);
 
-  const upsertReceipt = useCallback((data) => {
-    const record = scopedRecord(data, { date: today() });
+  const upsertReceipt = useCallback((data: Partial<Receipt>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>, { date: today() });
     upsertRow('receipts', record);
     trySync('receipts', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const upsertLabOrder = useCallback((data) => {
-    const record = scopedRecord(data);
+  const upsertLabOrder = useCallback((data: Partial<LabOrder>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>);
     upsertRow('labOrders', record);
     trySync('lab_orders', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const upsertExpense = useCallback((data) => {
-    const record = scopedRecord(data, { date: today() });
+  const upsertExpense = useCallback((data: Partial<Expense>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>, { date: today() });
     upsertRow('expenses', record);
     trySync('expenses', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const upsertInventoryItem = useCallback((data) => {
-    const record = scopedRecord(data);
+  const upsertInventoryItem = useCallback((data: Partial<InventoryItem>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>);
     upsertRow('inventory', record);
     trySync('inventory', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const addTreatment = useCallback((treatment) => {
+  const addTreatment = useCallback((treatment: any): Promise<any> => {
     const record = scopedRecord(treatment);
     upsertRow('treatments', record);
     trySync('treatments', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const upsertUser = useCallback((userData) => {
-    const record = scopedRecord(userData);
+  const upsertUser = useCallback((userData: Partial<User>): Promise<any> => {
+    const record = scopedRecord(userData as Record<string, any>);
     upsertRow('users', record);
     trySync('users', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const upsertSubscription = useCallback((subData) => {
-    const record = scopedRecord(subData);
+  const upsertSubscription = useCallback((subData: Partial<Subscription>): Promise<any> => {
+    const record = scopedRecord(subData as Record<string, any>);
     upsertRow('subscriptions', record);
     trySync('subscriptions', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const uploadPhoto = useCallback((photoData) => {
-    const record = scopedRecord(photoData, { uploadDate: today() });
+  const uploadPhoto = useCallback((photoData: Partial<Photo>): Promise<any> => {
+    const record = scopedRecord(photoData as Record<string, any>, { uploadDate: today() });
     upsertRow('photos', record);
     trySync('photos', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const deletePhoto = useCallback((id) => {
+  const deletePhoto = useCallback((id: string): Promise<void> => {
     removeRow('photos', id);
     tryDelete('photos', id);
     return Promise.resolve();
   }, []);
 
-  const upsertPromotion = useCallback((data) => {
-    const record = scopedRecord(data);
+  const upsertPromotion = useCallback((data: Partial<Promotion>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>);
     upsertRow('promotions', record);
     trySync('promotions', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const deletePromotion = useCallback((id) => {
+  const deletePromotion = useCallback((id: string): Promise<void> => {
     removeRow('promotions', id);
     return Promise.resolve();
   }, []);
 
-  const upsertBooking = useCallback((data) => {
-    const record = scopedRecord(data);
+  const upsertBooking = useCallback((data: Partial<Booking>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>);
     upsertRow('bookings', record);
     trySync('bookings', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const upsertMedicalCard = useCallback((data) => {
-    const record = scopedRecord(data);
+  const upsertMedicalCard = useCallback((data: Partial<MedicalCard>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>);
     upsertRow('medicalCards', record);
     trySync('medical_cards', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const upsertVisit = useCallback((data) => {
-    const record = scopedRecord(data);
+  const upsertVisit = useCallback((data: Partial<Visit>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>);
     upsertRow('visits', record);
     trySync('visits', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const upsertDocument = useCallback((data) => {
-    const record = scopedRecord(data);
+  const upsertDocument = useCallback((data: Partial<Document>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>);
     upsertRow('documents', record);
     trySync('documents', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const deleteDocument = useCallback((id) => {
+  const deleteDocument = useCallback((id: string): Promise<void> => {
     removeRow('documents', id);
     api.deleteDocument(id).catch(() => {});
     return Promise.resolve();
   }, []);
 
-  const upsertWaitingListItem = useCallback((data) => {
-    const record = scopedRecord(data);
+  const upsertWaitingListItem = useCallback((data: Partial<WaitingListItem>): Promise<any> => {
+    const record = scopedRecord(data as Record<string, any>);
     upsertRow('waitingList', record);
     trySync('waiting_list', record);
     return Promise.resolve(record);
   }, [scopedRecord]);
 
-  const deleteWaitingListItem = useCallback((id) => {
+  const deleteWaitingListItem = useCallback((id: string): Promise<void> => {
     removeRow('waitingList', id);
-    tryDelete('waiting_list', id);
+    tryDelete('patients', id);
     return Promise.resolve();
   }, []);
 
@@ -344,60 +430,70 @@ export function useData(clinicId) {
   };
 }
 
-export function useToast() {
-  const [toast, setToast] = useState(null);
+export interface UseToastReturn {
+  toast: Toast | null;
+  showToast: (msg: string, type?: ToastType) => () => void;
+  clearToast: () => void;
+  success: (msg: string) => () => void;
+  error: (msg: string) => () => void;
+  warn: (msg: string) => () => void;
+  info: (msg: string) => () => void;
+}
 
-  const showToast = useCallback((msg, type = 'success') => {
+export function useToast(): UseToastReturn {
+  const [toast, setToast] = useState<Toast | null>(null);
+
+  const showToast = useCallback((msg: string, type: ToastType = 'success'): (() => void) => {
     setToast({ msg, type });
     const timer = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(timer);
   }, []);
 
-  const clearToast = useCallback(() => setToast(null), []);
+  const clearToast = useCallback((): void => setToast(null), []);
 
   return {
     toast,
     showToast,
     clearToast,
-    success: (msg) => showToast(msg, 'success'),
-    error: (msg) => showToast(msg, 'error'),
-    warn: (msg) => showToast(msg, 'warning'),
-    info: (msg) => showToast(msg, 'info'),
+    success: (msg: string) => showToast(msg, 'success'),
+    error: (msg: string) => showToast(msg, 'error'),
+    warn: (msg: string) => showToast(msg, 'warning'),
+    info: (msg: string) => showToast(msg, 'info'),
   };
 }
 
-export function useCloudTable(table, def) {
-  const [state, setState] = useState(def);
+export function useCloudTable<T>(table: string, def: T): [T, React.Dispatch<React.SetStateAction<T>>, React.Dispatch<React.SetStateAction<T>>, { online: boolean }] {
+  const [state, setState] = useState<T>(def);
   return [state, setState, setState, { online: true }];
 }
 
-export function useClinicData(_clinicId) {
+export function useClinicData(_clinicId?: string | null): { data: null; loading: boolean; error: null } {
   return { data: null, loading: false, error: null };
 }
 
-export function useSubscription(_clinicId) {
+export function useSubscription(_clinicId?: string | null): { subscription: { plan: string; active: boolean }; loading: boolean; checkStatus: () => void; upgrade: () => void } {
   const [subscription] = useState({ plan: 'pro', active: true });
   return { subscription, loading: false, checkStatus: () => {}, upgrade: () => {} };
 }
 
-export function usePhotoProtocol(_clinicId) {
-  const [photos, setPhotos] = useState([]);
-  const uploadPhoto = useCallback(async (photoData) => {
-    setPhotos(prev => [...prev, { ...photoData, id: gid() }]);
+export function usePhotoProtocol(_clinicId?: string | null): { photos: Photo[]; loading: boolean; uploadPhoto: (photoData: Partial<Photo>) => Promise<boolean>; deletePhoto: (id: string) => boolean } {
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const uploadPhoto = useCallback(async (photoData: Partial<Photo>): Promise<boolean> => {
+    setPhotos(prev => [...prev, { ...photoData, id: gid() } as Photo]);
     return true;
   }, []);
-  const deletePhoto = useCallback((id) => {
+  const deletePhoto = useCallback((id: string): boolean => {
     setPhotos(prev => prev.filter(p => p.id !== id));
     return true;
   }, []);
   return { photos, loading: false, uploadPhoto, deletePhoto };
 }
 
-export function useLabOrders(clinicId) {
+export function useLabOrders(clinicId?: string | null): { labOrders: LabOrder[]; loading: boolean; upsertLabOrder: (data: Partial<LabOrder>) => Promise<any>; createOrder: (data: Partial<LabOrder>) => Promise<any> } {
   const { labOrders, upsertLabOrder } = useData(clinicId);
   return { labOrders, loading: false, upsertLabOrder, createOrder: upsertLabOrder };
 }
 
-export function useAppointmentsWithReminders() {
+export function useAppointmentsWithReminders(): { scheduleReminder: () => void; sendReminders: () => void; reminderQueue: never[] } {
   return { scheduleReminder: () => {}, sendReminders: () => {}, reminderQueue: [] };
 }
