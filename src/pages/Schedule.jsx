@@ -50,6 +50,7 @@ export default function Schedule() {
     upsertWaitingListItem, deleteWaitingListItem,
   } = useData(clinic?.id)
 
+  const navigate = useNavigate()
   const [selDate, setSelDate] = useState(today())
   const [modalOpen, setModalOpen] = useState(false)
   const [editAppt, setEditAppt] = useState(null)
@@ -119,7 +120,7 @@ export default function Schedule() {
     if (!patientId || !form.time) { showToast('Выберите пациента и время', 'warning'); return }
     try {
       await upsertAppointment({ ...form, id: editAppt?.id, clinicId: clinic?.id, date: selDate, patientId, serviceId: form.service, serviceName: selectedService?.name || form.service, servicePrice: selectedService?.price || 0, reason: selectedService?.name || form.service, diagnosis: form.diagnosis, toothNumber: form.toothNumber, paymentStatus: 'unpaid' })
-      showToast(editAppt ? 'Запись обновлена' : 'Запись создана', 'success')
+      showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
       setModalOpen(false)
     } catch { showToast('Ошибка сохранения', 'error') }
   }
@@ -223,6 +224,7 @@ export default function Schedule() {
       <motion.div variants={fadeUp} className="flex items-center justify-between gap-3">
         <PageHeader title="Расписание" subtitle="Управление записями и лист ожидания" icon={<Calendar size={20} />} />
         <div className="flex gap-2 flex-shrink-0">
+          <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>Касса</Button>
           <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
           <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
           {roleInfo?.canSeeSuperAdmin !== false && (

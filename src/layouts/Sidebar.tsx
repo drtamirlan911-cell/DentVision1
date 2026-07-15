@@ -67,7 +67,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'business',
     label: 'Бизнес',
     items: [
-      { id: 'cashier', label: 'Финансы', icon: <DollarSign size={18} />, path: '/crm/cashier' },
+      { id: 'cashier', label: 'Финансы', icon: <DollarSign size={18} />, path: '/crm/cashier', badge: '●' },
       { id: 'pricelist', label: 'Прайс-лист', icon: <FileText size={18} />, path: '/crm/pricelist' },
       { id: 'lab', label: 'Лаборатория', icon: <FlaskConical size={18} />, path: '/crm/lab' },
       { id: 'inventory', label: 'Склад', icon: <Package size={18} />, path: '/crm/inventory' },
@@ -259,7 +259,7 @@ export function Sidebar({ allowedPages, onLogout }: SidebarProps) {
                     )}
 
                     {item.badge && (
-                      <Badge variant="error" size="xs" className={cn('ml-auto', collapsed && 'absolute -top-1 -right-1')}>
+                      <Badge variant={item.id === 'cashier' ? 'gold' : 'error'} size="xs" className={cn('ml-auto', collapsed && 'absolute -top-1 -right-1')}>
                         {item.badge}
                       </Badge>
                     )}
