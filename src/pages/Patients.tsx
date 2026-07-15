@@ -18,17 +18,18 @@ import { Avatar } from '../components/ui/ds/Avatar'
 import { Odontogram3D, SurfaceEditor, AutoTreatmentPlan, ToothLegend } from '../components/Odontogram3D'
 import { T, PATIENT_CATEGORY, calculateAge, formatPhone, fd, tg, gid, today } from '../utils/constants'
 import { cn, formatMoney } from '../lib/utils'
+import type { Patient, Appointment, Clinic, User as UserType, RoleInfo } from '../types'
 
 const CAT_CFG = PATIENT_CATEGORY
 
-const CAT_BADGE = {
+const CAT_BADGE: Record<string, string> = {
   new: 'success',
   regular: 'gold',
   vip: 'info',
   debt: 'error',
 }
 
-const STATUS_BADGE = {
+const STATUS_BADGE: Record<string, string> = {
   scheduled: 'info',
   confirmed: 'success',
   done: 'success',
@@ -38,7 +39,7 @@ const STATUS_BADGE = {
   reminderSent: 'warning',
 }
 
-const STATUS_LABEL = {
+const STATUS_LABEL: Record<string, string> = {
   scheduled: 'Запланирован',
   confirmed: 'Подтверждён',
   done: 'Завершён',
@@ -47,14 +48,14 @@ const STATUS_LABEL = {
   noShow: 'Неявка',
 }
 
-const PHOTO_LABELS = {
+const PHOTO_LABELS: Record<string, string> = {
   smile: 'Улыбка',
   face: 'Лицо',
   intraoral: 'Интраоральные',
   xray: 'Рентген',
 }
 
-const PHOTO_ICONS = {
+const PHOTO_ICONS: Record<string, React.ReactNode> = {
   smile: <Smile size={14} />,
   face: <User size={14} />,
   intraoral: <Smile size={14} />,
@@ -71,22 +72,28 @@ const EMPTY_PAYMENT = { amount: '', payMethod: 'cash' }
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
+interface OutletContext {
+  clinic: Clinic
+  user: UserType
+  roleInfo?: RoleInfo
+}
+
 export default function Patients() {
-  const { clinic } = useOutletContext()
+  const { clinic } = useOutletContext<OutletContext>()
   const { patients, appointments, upsertPatient, deletePatient } = useData(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
 
-  const [selected, setSelected] = useState(null)
+  const [selected, setSelected] = useState<Patient | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('info')
   const [search, setSearch] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
-  const [editPatient, setEditPatient] = useState(null)
-  const [teethState, setTeethState] = useState({})
-  const [selectedTooth, setSelectedTooth] = useState(null)
+  const [editPatient, setEditPatient] = useState<Patient | null>(null)
+  const [teethState, setTeethState] = useState<Record<number, any>>({})
+  const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
   const [filterCat, setFilterCat] = useState('all')
-  const [photos, setPhotos] = useState([])
+  const [photos, setPhotos] = useState<Array<{ id: string; url: string; category: string; date: string; name: string }>>([])
   const [photoCategory, setPhotoCategory] = useState('smile')
   const [payment, setPayment] = useState(EMPTY_PAYMENT)
 
@@ -104,7 +111,7 @@ export default function Patients() {
     setModalOpen(true)
   }
 
-  const openEdit = (p) => {
+  const openEdit = (p: Patient) => {
     setEditPatient(p)
     setForm({
       name: p.name || '', phone: p.phone || '', email: p.email || '',
@@ -114,7 +121,7 @@ export default function Patients() {
     setModalOpen(true)
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
     try {
@@ -122,7 +129,7 @@ export default function Patients() {
       showToast(editPatient ? 'Данные обновлены' : 'Пациент добавлен', 'success')
       setModalOpen(false)
       if (selected && selected.id === editPatient?.id) {
-        setSelected(s => ({ ...s, ...form }))
+        setSelected(s => s ? { ...s, ...form } as Patient : null)
       }
     } catch {
       showToast('Ошибка сохранения', 'error')
@@ -137,18 +144,18 @@ export default function Patients() {
     if (selected?.id === editPatient.id) setSelected(null)
   }
 
-  const handleToothClick = useCallback((toothNum) => {
+  const handleToothClick = useCallback((toothNum: number) => {
     setSelectedTooth(t => t === toothNum ? null : toothNum)
   }, [])
 
-  const handleSaveToothSurfaces = (toothNum, surfaces) => {
+  const handleSaveToothSurfaces = (toothNum: number, surfaces: any) => {
     const updated = { ...teethState, [toothNum]: { ...teethState[toothNum], surfaces } }
     setTeethState(updated)
     setSelectedTooth(null)
   }
 
-  const handlePhotoUpload = (e) => {
-    const files = Array.from(e.target.files)
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
     const newPhotos = files.map(file => ({
       id: gid(),
       url: URL.createObjectURL(file),
@@ -481,7 +488,7 @@ export default function Patients() {
                   </div>
                   <AutoTreatmentPlan
                     teeth={teethState}
-                    onAddToPlan={(recs) => showToast(`Добавлено ${recs.length} процедур в план`, 'success')}
+                    onAddToPlan={(recs: any[]) => showToast(`Добавлено ${recs.length} процедур в план`, 'success')}
                   />
                 </motion.div>
               )}

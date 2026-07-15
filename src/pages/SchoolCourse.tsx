@@ -5,22 +5,50 @@ import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, Fil
 import { Button, Badge, EmptyState, Card } from '../components/ui/ds';
 import * as api from '../utils/api';
 
-const DIFF_COLORS = { beginner: '#27AE60', intermediate: '#C9A96E', advanced: '#E74C3C' };
-const DIFF_LABELS = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
-const TYPE_ICONS = { video: Video, text: FileText, test: HelpCircle };
-const TYPE_LABELS = { video: 'Видео', text: 'Статья', test: 'Тест' };
+interface Lesson {
+  id: string;
+  title: string;
+  type: string;
+  duration_minutes: number;
+  content?: string;
+  is_free?: boolean;
+}
+
+interface CourseModule {
+  id: string;
+  title: string;
+  lessons?: Lesson[];
+}
+
+interface CourseDetail {
+  id: string;
+  title: string;
+  subtitle?: string;
+  category: string;
+  difficulty?: string;
+  duration_hours: number;
+  lesson_count: number;
+  enrolled_count: number;
+  rating: number;
+  modules?: CourseModule[];
+}
+
+const DIFF_COLORS: Record<string, string> = { beginner: '#27AE60', intermediate: '#C9A96E', advanced: '#E74C3C' };
+const DIFF_LABELS: Record<string, string> = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
+const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = { video: Video, text: FileText, test: HelpCircle };
+const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест' };
 
 export default function SchoolCourse() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [course, setCourse] = useState(null);
+  const [course, setCourse] = useState<CourseDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeLesson, setActiveLesson] = useState(null);
+  const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [enrolled, setEnrolled] = useState(false);
-  const [expandedModules, setExpandedModules] = useState({});
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    api.getSchoolCourse(id).then(c => {
+    api.getSchoolCourse(id).then((c: CourseDetail) => {
       setCourse(c);
       if (c.modules?.[0]?.lessons?.[0]) setActiveLesson(c.modules[0].lessons[0]);
     }).catch(() => {}).finally(() => setLoading(false));
@@ -31,7 +59,7 @@ export default function SchoolCourse() {
     setEnrolled(true);
   };
 
-  const toggleModule = (modId) => {
+  const toggleModule = (modId: string) => {
     setExpandedModules(prev => ({ ...prev, [modId]: !prev[modId] }));
   };
 
@@ -45,7 +73,6 @@ export default function SchoolCourse() {
 
   return (
     <div className="min-h-screen">
-      {/* Breadcrumb */}
       <div className="px-6 py-3 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-2 text-xs text-[var(--slate)]">
           <button
@@ -65,16 +92,14 @@ export default function SchoolCourse() {
         className="grid gap-0 min-h-[calc(100vh-60px)]"
         style={{ gridTemplateColumns: activeLesson ? '350px 1fr' : '1fr' }}
       >
-        {/* Course sidebar / modules */}
         <div className="border-r border-[var(--border-subtle)] overflow-y-auto max-h-[calc(100vh-60px)]">
-          {/* Course info header */}
           <div className="p-5 border-b border-[var(--border-subtle)]">
             <div className="flex gap-1.5 mb-2">
               <span
                 className="text-[10px] font-bold px-2 py-0.5 rounded-md"
-                style={{ background: DIFF_COLORS[course.difficulty] + '15', color: DIFF_COLORS[course.difficulty] }}
+                style={{ background: DIFF_COLORS[course.difficulty!] + '15', color: DIFF_COLORS[course.difficulty!] }}
               >
-                {DIFF_LABELS[course.difficulty]}
+                {DIFF_LABELS[course.difficulty!]}
               </span>
               <Badge variant="gold" size="xs">{course.category}</Badge>
             </div>
@@ -102,7 +127,6 @@ export default function SchoolCourse() {
             )}
           </div>
 
-          {/* Modules */}
           <div className="p-2">
             {course.modules?.map((mod, mi) => {
               const isExpanded = expandedModules[mod.id] !== false;
@@ -159,7 +183,6 @@ export default function SchoolCourse() {
           </div>
         </div>
 
-        {/* Lesson content area */}
         {activeLesson ? (
           <motion.div
             key={activeLesson.id}
@@ -168,7 +191,6 @@ export default function SchoolCourse() {
             transition={{ duration: 0.3 }}
             className="p-8 overflow-y-auto max-h-[calc(100vh-60px)]"
           >
-            {/* Video / content area */}
             <div className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center mb-6 border border-[var(--border-subtle)] relative">
               {activeLesson.type === 'video' ? (
                 <div className="text-center">
@@ -200,7 +222,6 @@ export default function SchoolCourse() {
               )}
             </div>
 
-            {/* Lesson info */}
             <div className="mb-5">
               <h2 className="text-xl font-bold text-white m-0 mb-1.5">{activeLesson.title}</h2>
               <div className="flex gap-3 text-xs text-[var(--slate)] flex-wrap">
@@ -213,14 +234,12 @@ export default function SchoolCourse() {
               </div>
             </div>
 
-            {/* Content placeholder */}
             <div className="bg-white/[0.02] border border-[var(--border-subtle)] rounded-xl p-6 min-h-[200px]">
               <p className="text-sm text-[var(--slate-light)] leading-relaxed">
                 {activeLesson.content || `Содержание урока «${activeLesson.title}» будет доступно после начала курса. Видеоматериалы, иллюстрации и интерактивные элементы помогут вам освоить материал.`}
               </p>
             </div>
 
-            {/* Navigation */}
             <div className="flex justify-between mt-5">
               <button
                 onClick={() => {

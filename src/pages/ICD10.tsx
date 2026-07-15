@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, type ChangeEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, BookOpen, Tag, Filter } from 'lucide-react';
@@ -7,12 +7,13 @@ import { Card } from '../components/ui/ds/Card';
 import { Badge } from '../components/ui/ds/Badge';
 import { EmptyState } from '../components/ui/ds/EmptyState';
 import { PageHeader } from '../components/ui/ds/StatCard';
+import type { Clinic, User, RoleInfo, ICD10Code } from '../types';
 
 export default function ICD10() {
-  const { clinic } = useOutletContext();
-  const [codes, setCodes] = useState([]);
+  const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
+  const [codes, setCodes] = useState<ICD10Code[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,7 +25,7 @@ export default function ICD10() {
 
   const categories = useMemo(() => {
     const cats = new Set(codes.map(c => c.category).filter(Boolean));
-    return ['all', ...Array.from(cats).sort()];
+    return ['all', ...Array.from(cats).sort()] as string[];
   }, [codes]);
 
   const filteredCodes = useMemo(() => {

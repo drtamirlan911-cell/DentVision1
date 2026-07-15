@@ -18,9 +18,9 @@ const item = {
 
 export default function SettingsPage() {
   const { user, clinic } = useAuth()
-  const [notifications, setNotifications] = React.useState(true)
-  const [darkMode, setDarkMode] = React.useState(true)
-  const [autoSave, setAutoSave] = React.useState(true)
+  const [notifications, setNotifications] = React.useState<boolean>(true)
+  const [darkMode, setDarkMode] = React.useState<boolean>(true)
+  const [autoSave, setAutoSave] = React.useState<boolean>(true)
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="max-w-3xl mx-auto space-y-6">

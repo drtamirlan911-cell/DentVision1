@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Car
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/hooks/useData'
+import type { Receipt } from '@/types'
 
 const container = {
   hidden: { opacity: 0 },
@@ -21,7 +22,7 @@ export default function Analytics() {
 
   const patients = data.patients || []
   const appointments = data.appointments || []
-  const receipts = data.receipts || []
+  const receipts: Receipt[] = data.receipts || []
 
   const totalRevenue = receipts.reduce((s, r) => s + (Number(r.amount) || 0), 0)
   const thisMonth = new Date().toISOString().slice(0, 7)

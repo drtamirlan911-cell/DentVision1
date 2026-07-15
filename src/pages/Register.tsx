@@ -5,16 +5,31 @@ import { Loader2, Stethoscope, AlertTriangle, Check, Calendar, DollarSign, Bot, 
 
 const STEPS = ['Клиника', 'Руководитель', 'Готово'];
 
-export default function Register({ onBack }) {
+interface RegisterProps {
+  onBack: () => void;
+}
+
+interface RegisterForm {
+  clinicName: string;
+  city: string;
+  phone: string;
+  email: string;
+  directorName: string;
+  login: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export default function Register({ onBack }: RegisterProps) {
   const { register, loading, error } = useAuth();
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<RegisterForm>({
     clinicName: '', city: '', phone: '', email: '',
     directorName: '', login: '', password: '', confirmPassword: '',
   });
   const [localError, setLocalError] = useState('');
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: keyof RegisterForm, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const nextStep = () => {
     setLocalError('');
@@ -89,15 +104,15 @@ export default function Register({ onBack }) {
           {step === 0 && (
             <div>
               <Field label="Название клиники *" value={form.clinicName}
-                onChange={v => set('clinicName', v)} placeholder="Стоматология «Улыбка»" />
+                onChange={(v: string) => set('clinicName', v)} placeholder="Стоматология «Улыбка»" />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Город *" value={form.city}
-                  onChange={v => set('city', v)} placeholder="Алматы" />
+                  onChange={(v: string) => set('city', v)} placeholder="Алматы" />
                 <Field label="Телефон" value={form.phone} type="tel"
-                  onChange={v => set('phone', v)} placeholder="+7 777 000 00 00" />
+                  onChange={(v: string) => set('phone', v)} placeholder="+7 777 000 00 00" />
               </div>
               <Field label="Email" value={form.email} type="email"
-                onChange={v => set('email', v)} placeholder="clinic@example.com" />
+                onChange={(v: string) => set('email', v)} placeholder="clinic@example.com" />
 
               <div className="mt-4 p-3.5 bg-[#27AE60]/[0.08] border border-[#27AE60]/20 rounded-[10px]">
                 <div className="text-xs text-[#27AE60] font-bold mb-1.5">
@@ -117,15 +132,15 @@ export default function Register({ onBack }) {
                 Данные <span className="text-[#C9A96E]">руководителя</span> — человека, который будет управлять клиникой
               </div>
               <Field label="ФИО руководителя *" value={form.directorName}
-                onChange={v => set('directorName', v)} placeholder="Иванов Иван Иванович" />
+                onChange={(v: string) => set('directorName', v)} placeholder="Иванов Иван Иванович" />
               <Field label="Логин для входа *" value={form.login}
-                onChange={v => set('login', v.toLowerCase().replace(/\s/g, '_'))}
+                onChange={(v: string) => set('login', v.toLowerCase().replace(/\s/g, '_'))}
                 placeholder="director_clinic" hint="Только латиница, цифры, _ (мин. 4 символа)" />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Пароль *" value={form.password} type="password"
-                  onChange={v => set('password', v)} placeholder="Минимум 6 символов" />
+                  onChange={(v: string) => set('password', v)} placeholder="Минимум 6 символов" />
                 <Field label="Повторите пароль *" value={form.confirmPassword} type="password"
-                  onChange={v => set('confirmPassword', v)} placeholder="••••••" />
+                  onChange={(v: string) => set('confirmPassword', v)} placeholder="••••••" />
               </div>
             </div>
           )}
@@ -208,7 +223,16 @@ export default function Register({ onBack }) {
   );
 }
 
-function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
+interface FieldProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  type?: string;
+  hint?: string;
+}
+
+function Field({ label, value, onChange, placeholder, type = 'text', hint }: FieldProps) {
   return (
     <div className="mb-3.5">
       <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">
@@ -217,7 +241,7 @@ function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
       <input
         type={type}
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         placeholder={placeholder}
         className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#C9A96E] transition-colors"
       />

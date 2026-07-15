@@ -21,7 +21,7 @@ export default function Login() {
 
   if (showRegister) return <Register onBack={() => setShowRegister(false)} />;
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError('');
     if (!loginStr.trim() || !password.trim()) {
@@ -61,7 +61,7 @@ export default function Login() {
             <div className="mb-3.5">
               <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Логин</label>
               <input
-                type="text" value={loginStr} onChange={e => setLoginStr(e.target.value)}
+                type="text" value={loginStr} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLoginStr(e.target.value)}
                 placeholder="admin_c1" autoComplete="username" required
                 className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors"
               />
@@ -70,7 +70,7 @@ export default function Login() {
             <div className="mb-6">
               <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Пароль</label>
               <input
-                type="password" value={password} onChange={e => setPassword(e.target.value)}
+                type="password" value={password} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                 placeholder="••••••••" autoComplete="current-password" required
                 className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors"
               />

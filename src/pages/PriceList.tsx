@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, type ChangeEvent } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { DollarSign, Download, Edit, RotateCcw } from 'lucide-react'
@@ -11,6 +11,7 @@ import { Modal } from '../components/ui/ds/Modal'
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard'
 import { T, tg, ALL_SERVICES } from '../utils/constants'
 import { cn } from '../lib/utils'
+import type { Clinic, User, RoleInfo } from '../types'
 
 const CATEGORIES = [...new Set(ALL_SERVICES.map(s => s.cat))]
 
@@ -18,20 +19,20 @@ const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { stag
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function PriceList() {
-  const { clinic } = useOutletContext()
+  const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>()
   const { toast, showToast, clearToast } = useToast()
-  const [clinicPrices, setClinicPrices] = useState({})
+  const [clinicPrices, setClinicPrices] = useState<Record<string, number>>({})
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingService, setEditingService] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [editingService, setEditingService] = useState<{ id: string; cat: string; name: string; price: number } | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
-  const getServicePrice = (serviceId) => {
+  const getServicePrice = (serviceId: string): number => {
     const custom = clinicPrices[serviceId]
     const base = ALL_SERVICES.find(s => s.id === serviceId)
     return custom !== undefined ? custom : base?.price || 0
   }
 
-  const handleSavePrice = (serviceId, newPrice) => {
+  const handleSavePrice = (serviceId: string, newPrice: number) => {
     setClinicPrices(prev => ({ ...prev, [serviceId]: Number(newPrice) }))
   }
 
@@ -39,7 +40,7 @@ export default function PriceList() {
     ? ALL_SERVICES
     : ALL_SERVICES.filter(s => s.cat === selectedCategory)
 
-  const openEdit = (service) => {
+  const openEdit = (service: { id: string; cat: string; name: string; price: number }) => {
     setEditingService({ ...service, price: getServicePrice(service.id) })
     setModalOpen(true)
   }
@@ -55,7 +56,7 @@ export default function PriceList() {
     setEditingService(null)
   }
 
-  const handleReset = (serviceId) => {
+  const handleReset = (serviceId: string) => {
     setClinicPrices(prev => { const next = { ...prev }; delete next[serviceId]; return next })
     showToast('Цена сброшена к стандартной', 'success')
   }

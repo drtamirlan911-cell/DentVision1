@@ -8,7 +8,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includ
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
-  const [step, setStep] = useState('request');
+  const [step, setStep] = useState<'request' | 'reset'>('request');
   const [login, setLogin] = useState('');
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -17,7 +17,7 @@ export default function ForgotPassword() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const handleRequest = async (e) => {
+  const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!rateLimit('forgot-password', { maxAttempts: 3, windowMs: 60000 })) {
@@ -50,7 +50,7 @@ export default function ForgotPassword() {
     }
   };
 
-  const handleReset = async (e) => {
+  const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!token.trim()) {
@@ -76,8 +76,8 @@ export default function ForgotPassword() {
       if (!res.ok) throw new Error(data.error || 'Ошибка');
       setSuccess('Пароль успешно изменён!');
       setTimeout(() => navigate('/login'), 2000);
-    } catch (err) {
-      setError(err.message || 'Ошибка при смене пароля');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ошибка при смене пароля');
     } finally {
       setLoading(false);
     }
@@ -118,7 +118,7 @@ export default function ForgotPassword() {
             <form onSubmit={handleRequest}>
               <div className="mb-5">
                 <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Логин</label>
-                <input type="text" value={login} onChange={e => setLogin(e.target.value)}
+                <input type="text" value={login} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLogin(e.target.value)}
                   placeholder="admin_c1" required autoFocus
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
@@ -135,19 +135,19 @@ export default function ForgotPassword() {
             <form onSubmit={handleReset}>
               <div className="mb-3.5">
                 <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Токен сброса</label>
-                <input type="text" value={token} onChange={e => setToken(e.target.value)}
+                <input type="text" value={token} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setToken(e.target.value)}
                   placeholder="Вставьте токен из письма" required autoFocus
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors font-mono" />
               </div>
               <div className="mb-3.5">
                 <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Новый пароль</label>
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                <input type="password" value={newPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
                   placeholder="Минимум 6 символов" required
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <div className="mb-5">
                 <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Подтвердите пароль</label>
-                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                <input type="password" value={confirmPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
                   placeholder="Повторите пароль" required
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>

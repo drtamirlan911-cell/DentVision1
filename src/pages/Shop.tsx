@@ -15,6 +15,55 @@ import { Badge } from '../components/ui/ds/Badge';
 import { EmptyState } from '../components/ui/ds/EmptyState';
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard';
 
+interface ShopProductItem {
+  id: string;
+  name: string;
+  brand: string;
+  price: number;
+  old_price?: number;
+  rating: number;
+  review_count: number;
+  stock: number;
+  min_stock: number;
+  category_id: string;
+  category_name: string;
+  description?: string;
+  tags?: string;
+}
+
+interface ShopCategory {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+interface ShopSupplier {
+  id: string;
+  name: string;
+}
+
+interface CartItem {
+  id: string;
+  name: string;
+  brand: string;
+  price: number;
+  qty: number;
+}
+
+interface FavoriteItem {
+  id: string;
+  name: string;
+  brand: string;
+  price: number;
+  rating: number;
+}
+
+interface AiResponse {
+  query: string;
+  results: ShopProductItem[];
+  summary: string;
+}
+
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } } };
 const scaleIn = { hidden: { opacity: 0, scale: 0.92 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -28,18 +77,18 @@ const SORT_OPTIONS = [
 
 export default function Shop() {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
-  const [cart, setCart] = useState(() => { try { return JSON.parse(localStorage.getItem('dv_cart') || '[]'); } catch { return []; } });
-  const [favorites, setFavorites] = useState(() => { try { return JSON.parse(localStorage.getItem('dv_favs') || '[]'); } catch { return []; } });
+  const [categories, setCategories] = useState<ShopCategory[]>([]);
+  const [products, setProducts] = useState<ShopProductItem[]>([]);
+  const [suppliers, setSuppliers] = useState<ShopSupplier[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => { try { return JSON.parse(localStorage.getItem('dv_cart') || '[]'); } catch { return []; } });
+  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => { try { return JSON.parse(localStorage.getItem('dv_favs') || '[]'); } catch { return []; } });
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState('');
   const [sortBy, setSortBy] = useState('');
   const [loading, setLoading] = useState(true);
   const [showCart, setShowCart] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
-  const [aiResponse, setAiResponse] = useState(null);
+  const [aiResponse, setAiResponse] = useState<AiResponse | null>(null);
   const [showAi, setShowAi] = useState(false);
 
   useEffect(() => {
@@ -61,7 +110,7 @@ export default function Shop() {
     }
     if (sortBy === 'price_asc') list.sort((a, b) => a.price - b.price);
     else if (sortBy === 'price_desc') list.sort((a, b) => b.price - a.price);
-    else if (sortBy === 'newest') list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    else if (sortBy === 'newest') list.sort((a, b) => new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime());
     else list.sort((a, b) => b.rating - a.rating);
     return list;
   }, [products, selectedCat, search, sortBy]);
@@ -69,7 +118,7 @@ export default function Shop() {
   const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.price * i.qty, 0), [cart]);
   const cartCount = useMemo(() => cart.reduce((s, i) => s + i.qty, 0), [cart]);
 
-  const addToCart = (product) => {
+  const addToCart = (product: ShopProductItem) => {
     setCart(prev => {
       const ex = prev.find(i => i.id === product.id);
       if (ex) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
@@ -77,7 +126,7 @@ export default function Shop() {
     });
   };
 
-  const toggleFav = (product) => {
+  const toggleFav = (product: ShopProductItem) => {
     setFavorites(prev => {
       const exists = prev.find(f => f.id === product.id);
       if (exists) return prev.filter(f => f.id !== product.id);
@@ -166,8 +215,8 @@ export default function Shop() {
                 <div className="flex gap-3">
                   <input
                     value={aiQuery}
-                    onChange={e => setAiQuery(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleAiSearch()}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiQuery(e.target.value)}
+                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAiSearch()}
                     placeholder="Например: лучший композит для фронтальных реставраций..."
                     className="flex-1 !rounded-xl"
                   />
@@ -228,14 +277,14 @@ export default function Shop() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--slate)]" />
           <input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             placeholder="Поиск товаров, брендов..."
             className="w-full !pl-10 !rounded-xl"
           />
         </div>
         <select
           value={sortBy}
-          onChange={e => setSortBy(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSortBy(e.target.value)}
           className="!w-auto !rounded-xl min-w-[160px]"
         >
           {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -320,7 +369,7 @@ export default function Shop() {
                   <motion.button
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={(e) => { e.stopPropagation(); toggleFav(product); }}
+                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); toggleFav(product); }}
                     className="absolute top-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-lg border-none bg-black/30 hover:bg-black/40 cursor-pointer"
                   >
                     <Heart size={14} className={isFav ? 'text-error fill-error' : 'text-white'} />
@@ -360,7 +409,7 @@ export default function Shop() {
                     <motion.button
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
-                      onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); addToCart(product); }}
                       disabled={product.stock <= 0}
                       className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border-none transition-all ${
                         product.stock > 0
@@ -373,7 +422,7 @@ export default function Shop() {
                     <motion.button
                       whileHover={{ scale: 1.08 }}
                       whileTap={{ scale: 0.95 }}
-                      onClick={(e) => { e.stopPropagation(); navigate(`/shop/${product.id}`); }}
+                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); navigate(`/shop/${product.id}`); }}
                       className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-white/5 text-[var(--slate-light)] cursor-pointer hover:bg-white/[0.08]"
                     >
                       <Eye size={14} />

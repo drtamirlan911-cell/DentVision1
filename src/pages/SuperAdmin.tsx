@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Building2, CheckCircle, Ban, AlertTriangle, Users, Banknote, Pencil, KeyRound, Trash2, Plus, Info } from 'lucide-react';
@@ -11,29 +11,40 @@ import { Badge } from '../components/ui/ds/Badge';
 import { Modal } from '../components/ui/ds/Modal';
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard';
 import { PLANS, tg, gid, fd } from '../utils/constants';
+import type { Clinic, User, RoleInfo } from '../types';
 
-const PLAN_COLORS = { starter: '#4e8cff', pro: '#c9a96e', enterprise: '#9b5de5' };
-const PLAN_BADGE_CLASSES = {
+const PLAN_COLORS: Record<string, string> = { starter: '#4e8cff', pro: '#c9a96e', enterprise: '#9b5de5' };
+const PLAN_BADGE_CLASSES: Record<string, string> = {
   starter: 'bg-[#4e8cff]/10 text-[#4e8cff] border-[#4e8cff]/20',
   pro: 'bg-dv-gold/10 text-dv-gold border-dv-gold/20',
   enterprise: 'bg-[#9b5de5]/10 text-[#9b5de5] border-[#9b5de5]/20',
   default: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
 };
 
+interface ClinicForm {
+  name: string;
+  city: string;
+  address: string;
+  phone: string;
+  email: string;
+  plan: string;
+  active: boolean;
+}
+
 export default function SuperAdmin() {
-  const { user } = useOutletContext();
+  const { user } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
   const { allClinics, allUsers } = useAuth();
   const { showToast } = useToast();
 
-  const [clinics, setClinics] = useState(allClinics);
+  const [clinics, setClinics] = useState<Clinic[]>(allClinics);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editClinic, setEditClinic] = useState(null);
-  const [form, setForm] = useState({ name: '', city: '', address: '', phone: '', email: '', plan: 'starter', active: true });
+  const [editClinic, setEditClinic] = useState<Clinic | null>(null);
+  const [form, setForm] = useState<ClinicForm>({ name: '', city: '', address: '', phone: '', email: '', plan: 'starter', active: true });
   const [resetModalOpen, setResetModalOpen] = useState(false);
-  const [resetUser, setResetUser] = useState(null);
+  const [resetUser, setResetUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [clinicToDelete, setClinicToDelete] = useState(null);
+  const [clinicToDelete, setClinicToDelete] = useState<Clinic | null>(null);
 
   const users = allUsers;
 
@@ -43,37 +54,37 @@ export default function SuperAdmin() {
     setModalOpen(true);
   };
 
-  const openEdit = (c) => {
+  const openEdit = (c: Clinic) => {
     setEditClinic(c);
-    setForm({ name: c.name, city: c.city || '', address: c.address || '', phone: c.phone || '', email: c.email || '', plan: c.plan || 'starter', active: c.active });
+    setForm({ name: c.name, city: c.city || '', address: c.address || '', phone: c.phone || '', email: c.email || '', plan: c.plan || 'starter', active: c.active ?? true });
     setModalOpen(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { showToast('Введите название клиники', 'warning'); return; }
     if (editClinic) {
       setClinics(prev => prev.map(c => c.id === editClinic.id ? { ...c, ...form } : c));
       showToast('Клиника обновлена', 'success');
     } else {
-      const newClinic = { ...form, id: gid(), createdAt: new Date().toISOString().slice(0, 10), color: '#c9a96e', subscriptionStart: new Date().toISOString().slice(0, 10), subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) };
+      const newClinic: Clinic = { ...form, id: gid(), createdAt: new Date().toISOString().slice(0, 10), color: '#c9a96e', subscriptionStart: new Date().toISOString().slice(0, 10), subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) };
       setClinics(prev => [...prev, newClinic]);
       showToast('Клиника добавлена', 'success');
     }
     setModalOpen(false);
   };
 
-  const toggleActive = (id) => {
+  const toggleActive = (id: string) => {
     setClinics(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
     showToast('Статус обновлён', 'info');
   };
 
-  const changePlan = (clinicId, newPlan) => {
+  const changePlan = (clinicId: string, newPlan: string) => {
     setClinics(prev => prev.map(c => c.id === clinicId ? { ...c, plan: newPlan } : c));
     showToast('Тариф изменён', 'success');
   };
 
-  const extendSubscription = (clinicId, months = 1) => {
+  const extendSubscription = (clinicId: string, months = 1) => {
     setClinics(prev => prev.map(c => {
       if (c.id === clinicId) {
         const currentEnd = c.subscriptionEnd ? new Date(c.subscriptionEnd) : new Date();
@@ -85,20 +96,20 @@ export default function SuperAdmin() {
     showToast(`Подписка продлена на ${months} мес.`, 'success');
   };
 
-  const openResetPassword = (u) => {
+  const openResetPassword = (u: User) => {
     setResetUser(u);
     setNewPassword('');
     setResetModalOpen(true);
   };
 
-  const handleResetPassword = (e) => {
+  const handleResetPassword = (e: FormEvent) => {
     e.preventDefault();
     if (!newPassword || newPassword.length < 6) { showToast('Пароль должен быть не менее 6 символов', 'warning'); return; }
-    showToast(`Пароль для ${resetUser.login} сброшен`, 'success');
+    showToast(`Пароль для ${resetUser?.login} сброшен`, 'success');
     setResetModalOpen(false);
   };
 
-  const openDelete = (c) => {
+  const openDelete = (c: Clinic) => {
     setClinicToDelete(c);
     setDeleteModalOpen(true);
   };
@@ -122,7 +133,7 @@ export default function SuperAdmin() {
       if (!c.subscriptionEnd) return false;
       const endDate = new Date(c.subscriptionEnd);
       const now = new Date();
-      const daysLeft = (endDate - now) / (1000 * 60 * 60 * 24);
+      const daysLeft = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
       return daysLeft <= 7 && daysLeft >= 0;
     }).length,
   };
@@ -163,9 +174,9 @@ export default function SuperAdmin() {
             <tbody>
               <AnimatePresence>
                 {clinics.map(c => {
-                  const clinicUsers = users.filter(u => u.clinicId === c.id);
+                  const clinicUsers = users.filter((u: User) => u.clinicId === c.id);
                   const endDate = c.subscriptionEnd ? new Date(c.subscriptionEnd) : null;
-                  const daysLeft = endDate ? Math.floor((endDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
+                  const daysLeft = endDate ? Math.floor((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
                   const isExpiring = daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
                   const isExpired = daysLeft !== null && daysLeft < 0;
                   return (
@@ -189,13 +200,13 @@ export default function SuperAdmin() {
                       <td className="px-4 py-3">
                         <Badge
                           size="sm"
-                          className={PLAN_BADGE_CLASSES[c.plan] || PLAN_BADGE_CLASSES.default}
+                          className={PLAN_BADGE_CLASSES[c.plan || ''] || PLAN_BADGE_CLASSES.default}
                         >
-                          {PLANS[c.plan]?.name || c.plan}
+                          {PLANS[c.plan || '']?.name || c.plan}
                         </Badge>
                         <div className="mt-1.5">
                           <Select
-                            value={c.plan}
+                            value={c.plan || ''}
                             onChange={(e) => changePlan(c.id, e.target.value)}
                             options={Object.entries(PLANS).map(([k, v]) => ({ value: k, label: v.name }))}
                             className="w-auto min-w-[100px] h-7 text-xs px-2"
@@ -241,7 +252,7 @@ export default function SuperAdmin() {
                             size="icon-sm"
                             variant="ghost"
                             onClick={() => {
-                              const director = clinicUsers.find(u => u.role === 'director');
+                              const director = clinicUsers.find((u: User) => u.role === 'director');
                               if (director) openResetPassword(director);
                               else showToast('Нет директора у этой клиники', 'warning');
                             }}

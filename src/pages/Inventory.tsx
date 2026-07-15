@@ -12,6 +12,7 @@ import { EmptyState } from '../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard'
 import { gid, today, INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../utils/constants'
 import { cn, formatMoney } from '../lib/utils'
+import type { InventoryItem, Clinic, User as UserType, RoleInfo } from '../types'
 
 const EMPTY_FORM = {
   name: '', quantity: 0, unit: 'шт', minQuantity: 0,
@@ -21,13 +22,30 @@ const EMPTY_FORM = {
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
+interface OutletContext {
+  clinic: Clinic & { id: string; name: string }
+  user: UserType
+  roleInfo?: RoleInfo
+}
+
+interface InventoryForm {
+  name: string
+  quantity: number | string
+  unit: string
+  minQuantity: number | string
+  category: string
+  supplier: string
+  cost: number | string
+  expiryDate: string
+}
+
 export default function Inventory() {
-  const { clinic } = useOutletContext()
+  const { clinic } = useOutletContext<OutletContext>()
   const { showToast, toast, clearToast } = useToast()
   const { inventory, upsertInventoryItem } = useData(clinic?.id)
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [editing, setEditing] = useState(null)
+  const [form, setForm] = useState<InventoryForm>(EMPTY_FORM)
+  const [editing, setEditing] = useState<InventoryItem | null>(null)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('name')
@@ -64,7 +82,7 @@ export default function Inventory() {
     return items
   }, [inventory, search, filter, sortBy])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.name.trim()) { showToast('Введите название', 'warning'); return }
     upsertInventoryItem({
@@ -74,14 +92,14 @@ export default function Inventory() {
       quantity: Number(form.quantity) || 0,
       minQuantity: Number(form.minQuantity) || 0,
       cost: Number(form.cost) || 0,
-    })
+    } as any)
     showToast(editing ? 'Товар обновлён' : 'Товар добавлен', 'success')
     setModalOpen(false)
     setForm(EMPTY_FORM)
     setEditing(null)
   }
 
-  const openEdit = (item) => {
+  const openEdit = (item: InventoryItem) => {
     setEditing(item)
     setForm({
       name: item.name || '', quantity: item.quantity || 0, unit: item.unit || 'шт',
@@ -91,12 +109,12 @@ export default function Inventory() {
     setModalOpen(true)
   }
 
-  const quickAdjust = (item, delta) => {
+  const quickAdjust = (item: InventoryItem, delta: number) => {
     const newQty = Math.max(0, (item.quantity || 0) + delta)
     upsertInventoryItem({ ...item, quantity: newQty, clinicId: clinic?.id })
   }
 
-  const getStockVariant = (item) => {
+  const getStockVariant = (item: InventoryItem) => {
     const min = item.minQuantity || item.min || 0
     if (min > 0 && item.quantity <= min) return 'error'
     if (min > 0 && item.quantity <= min * 1.5) return 'warning'

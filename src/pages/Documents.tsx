@@ -12,8 +12,9 @@ import { Input, Textarea, Select } from '../components/ui/ds/Input';
 import { Modal } from '../components/ui/ds/Modal';
 import { EmptyState } from '../components/ui/ds/EmptyState';
 import { PageHeader } from '../components/ui/ds/StatCard';
+import type { Document, Patient, User as UserType, Clinic, RoleInfo } from '../types';
 
-const DOC_STATUS = {
+const DOC_STATUS: Record<string, { l: string; v: string }> = {
   draft: { l: 'Черновик', v: 'slate' },
   active: { l: 'Действующий', v: 'emerald' },
   pending_signature: { l: 'Ожидает подписи', v: 'gold' },
@@ -398,11 +399,32 @@ _______________________________
   },
 ];
 
-function getAllTemplates() {
+interface DocForm {
+  patient_id: string
+  doctor_id: string
+  doc_type: string
+  title: string
+  content: string
+  status: string
+}
+
+interface TemplateItem {
+  type: string
+  title: string
+  content: string
+}
+
+interface OutletContext {
+  clinic: Clinic & { id: string; name: string }
+  user: UserType
+  roleInfo?: RoleInfo
+}
+
+function getAllTemplates(): TemplateItem[] {
   return DOC_TEMPLATES.flatMap(cat => cat.items);
 }
 
-function TemplateCard({ template, onSelect }) {
+function TemplateCard({ template, onSelect }: { template: TemplateItem; onSelect: (t: TemplateItem) => void }) {
   return (
     <button
       onClick={() => onSelect(template)}
@@ -415,22 +437,22 @@ function TemplateCard({ template, onSelect }) {
 }
 
 export default function Documents() {
-  const { clinic, user } = useOutletContext();
+  const { clinic, user } = useOutletContext<OutletContext>();
   const { patients, doctors, documents, upsertDocument, deleteDocument } = useData(clinic?.id);
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [previewDoc, setPreviewDoc] = useState(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [filterType, setFilterType] = useState('all');
   const [contentSnapshot, setContentSnapshot] = useState('');
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<DocForm>({
     patient_id: '', doctor_id: '', doc_type: '', title: '', content: '', status: 'draft',
   });
 
   const allTypes = useMemo(() => {
-    const types = new Set((documents || []).map(d => d.doc_type).filter(Boolean));
+    const types = new Set<string>((documents || []).map(d => d.doc_type).filter(Boolean) as string[]);
     DOC_TEMPLATES.forEach(cat => cat.items.forEach(t => types.add(t.type)));
     return ['all', ...Array.from(types).sort()];
   }, [documents]);
@@ -459,7 +481,7 @@ export default function Documents() {
     setShowTemplates(false);
   };
 
-  const autoFillContent = (content, patientId, doctorId) => {
+  const autoFillContent = (content: string, patientId: string, doctorId: string): string => {
     if (!content) return content;
     let filled = content;
     const patient = patients.find(p => p.id === patientId);
@@ -486,7 +508,7 @@ export default function Documents() {
     return filled;
   };
 
-  const applyTemplate = (template) => {
+  const applyTemplate = (template: TemplateItem) => {
     const clinicName = clinic?.name || 'Клиника';
     let content = template.content.replace(/{clinic_name}/g, clinicName);
     content = autoFillContent(content, form.patient_id, form.doctor_id);
@@ -496,7 +518,7 @@ export default function Documents() {
     setShowForm(true);
   };
 
-  const startEdit = (doc) => {
+  const startEdit = (doc: Document) => {
     setForm({
       patient_id: doc.patient_id || doc.patientId || '',
       doctor_id: doc.doctor_id || '',
@@ -510,7 +532,7 @@ export default function Documents() {
     setShowForm(true);
   };
 
-  const handlePatientChange = (patientId) => {
+  const handlePatientChange = (patientId: string) => {
     setForm(f => {
       const newForm = { ...f, patient_id: patientId };
       if (contentSnapshot && f.content) {
@@ -523,7 +545,7 @@ export default function Documents() {
     });
   };
 
-  const handleDoctorChange = (doctorId) => {
+  const handleDoctorChange = (doctorId: string) => {
     setForm(f => {
       const newForm = { ...f, doctor_id: doctorId };
       if (contentSnapshot && f.content) {
@@ -547,18 +569,18 @@ export default function Documents() {
       patient_name: patient?.name || '',
       user_id: user?.id,
       user_name: user?.name,
-    });
+    } as any);
     toast.success(editingId ? 'Документ обновлён' : 'Документ создан');
     resetForm();
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Удалить документ?')) return;
     await deleteDocument(id);
     toast.success('Документ удалён');
   };
 
-  const downloadDoc = (doc) => {
+  const downloadDoc = (doc: Document) => {
     const blob = new Blob([doc.content || ''], { type: 'text/plain;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -566,13 +588,13 @@ export default function Documents() {
     link.click();
   };
 
-  const copyDoc = (content) => {
+  const copyDoc = (content: string) => {
     navigator.clipboard.writeText(content || '').then(() => toast.success('Скопировано в буфер'));
   };
 
-  const [signLink, setSignLink] = useState(null);
+  const [signLink, setSignLink] = useState<string | null>(null);
 
-  const handleSendForSignature = async (doc) => {
+  const handleSendForSignature = async (doc: Document) => {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')}/api/documents/${doc.id}/send-signature`, {
         method: 'POST',
@@ -587,20 +609,20 @@ export default function Documents() {
     }
   };
 
-  const [signInlineDoc, setSignInlineDoc] = useState(null);
+  const [signInlineDoc, setSignInlineDoc] = useState<Document | null>(null);
   const [signInlineName, setSignInlineName] = useState('');
 
-  const handleSignInline = async (doc) => {
+  const handleSignInline = async (doc: Document) => {
     if (!signInlineDoc || signInlineDoc.id !== doc.id) {
       setSignInlineDoc(doc);
       return;
     }
   };
 
-  const handleInlineSignSave = async (signatureData) => {
+  const handleInlineSignSave = async (signatureData: string) => {
     if (!signInlineName.trim()) { toast.warning('Введите имя'); return; }
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')}/api/documents/${signInlineDoc.id}/sign`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')}/api/documents/${signInlineDoc!.id}/sign`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ signature_data: signatureData, signed_by_name: signInlineName }),
@@ -766,7 +788,7 @@ export default function Documents() {
               </div>
             )}
             <div className="flex justify-end gap-2 mt-4">
-              <Button variant="secondary" size="sm" icon={<Copy size={12} />} onClick={() => copyDoc(previewDoc.content)}>Копировать</Button>
+              <Button variant="secondary" size="sm" icon={<Copy size={12} />} onClick={() => copyDoc(previewDoc.content || '')}>Копировать</Button>
               <Button variant="secondary" size="sm" icon={<Download size={12} />} onClick={() => downloadDoc(previewDoc)}>Скачать</Button>
             </div>
           </div>
@@ -782,7 +804,7 @@ export default function Documents() {
           />
         ) : (
           filteredDocs.map((doc, i) => {
-            const statusInfo = DOC_STATUS[doc.status] || DOC_STATUS.draft;
+            const statusInfo = DOC_STATUS[doc.status || 'draft'] || DOC_STATUS.draft;
             return (
               <motion.div
                 key={doc.id}
@@ -799,7 +821,7 @@ export default function Documents() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="text-sm font-bold text-txt-primary">{doc.title}</h4>
-                          <Badge variant={statusInfo.v} size="xs">{statusInfo.l}</Badge>
+                          <Badge variant={statusInfo.v as any} size="xs">{statusInfo.l}</Badge>
                         </div>
                         <p className="text-xs text-txt-muted mt-0.5">
                           {doc.doc_type} · {doc.patient_name || 'Без пациента'} · {doc.created_at ? new Date(doc.created_at).toLocaleDateString('ru-RU') : '—'}
@@ -808,7 +830,7 @@ export default function Documents() {
                     </div>
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon-xs" icon={<Eye size={14} />} onClick={() => setPreviewDoc(doc)} title="Просмотр" />
-                      <Button variant="ghost" size="icon-xs" icon={<Copy size={14} />} onClick={() => copyDoc(doc.content)} title="Копировать" />
+                      <Button variant="ghost" size="icon-xs" icon={<Copy size={14} />} onClick={() => copyDoc(doc.content || '')} title="Копировать" />
                       <Button variant="ghost" size="icon-xs" icon={<Download size={14} />} onClick={() => downloadDoc(doc)} title="Скачать" />
                       <Button variant="ghost" size="icon-xs" icon={<Edit3 size={14} />} onClick={() => startEdit(doc)} title="Редактировать" />
                       <Button variant="ghost" size="icon-xs" icon={<Trash2 size={14} />} onClick={() => handleDelete(doc.id)} title="Удалить" className="text-txt-muted hover:text-error" />

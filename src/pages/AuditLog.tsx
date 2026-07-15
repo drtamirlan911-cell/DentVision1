@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Shield, Search, RefreshCw, Filter, Clock, User, ArrowRight, Download } from 'lucide-react';
+import { Shield, Search, RefreshCw, Filter, Clock, User as UserIcon, ArrowRight, Download } from 'lucide-react';
 import * as api from '../utils/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/ds/Card';
 import { Button } from '../components/ui/ds/Button';
 import { Badge } from '../components/ui/ds/Badge';
 import { EmptyState } from '../components/ui/ds/EmptyState';
 import { PageHeader } from '../components/ui/ds/StatCard';
+import type { Clinic, User, RoleInfo, AuditLogEntry } from '../types';
 
-const ACTION_LABELS = {
+const ACTION_LABELS: Record<string, { l: string; v: string }> = {
   create_patient: { l: 'Создал пациента', v: 'emerald' },
   update_patient: { l: 'Обновил пациента', v: 'sky' },
   upsert_patient: { l: 'Изменил пациента', v: 'sky' },
@@ -29,16 +30,16 @@ const ACTION_LABELS = {
   upsert_user: { l: 'Изменил сотрудника', v: 'sky' },
 };
 
-function getActionInfo(action) {
+function getActionInfo(action: string): { l: string; v: string } {
   return ACTION_LABELS[action] || { l: action, v: 'slate' };
 }
 
 export default function AuditLog() {
-  const { clinic, user } = useOutletContext();
-  const [logs, setLogs] = useState([]);
+  const { clinic, user } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterAction, setFilterAction] = useState('all');
+  const [filterAction, setFilterAction] = useState<string>('all');
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -50,8 +51,8 @@ export default function AuditLog() {
   }, [clinic?.id, refreshKey]);
 
   const actionTypes = useMemo(() => {
-    const types = new Set(logs.map(l => l.action));
-    return ['all', ...Array.from(types).sort()];
+    const types = new Set(logs.map(l => l.action).filter(Boolean));
+    return ['all', ...Array.from(types).sort()] as string[];
   }, [logs]);
 
   const filteredLogs = useMemo(() => {
@@ -79,7 +80,7 @@ export default function AuditLog() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `audit_log_${clinic.id}_${new Date().toISOString().slice(0,10)}.csv`;
+    link.download = `audit_log_${clinic?.id}_${new Date().toISOString().slice(0,10)}.csv`;
     link.click();
   };
 
@@ -138,7 +139,7 @@ export default function AuditLog() {
               </thead>
               <tbody>
                 {filteredLogs.map((log, i) => {
-                  const actionInfo = getActionInfo(log.action);
+                  const actionInfo = getActionInfo(log.action || '');
                   return (
                     <tr key={log.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
                       <td className="px-4 py-3 text-xs text-txt-secondary whitespace-nowrap">
@@ -149,12 +150,12 @@ export default function AuditLog() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <User size={12} className="text-txt-ghost" />
+                          <UserIcon size={12} className="text-txt-ghost" />
                           <span className="text-xs text-txt-primary">{log.user_name || '—'}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant={actionInfo.v} size="xs">{actionInfo.l}</Badge>
+                        <Badge variant={actionInfo.v as any} size="xs">{actionInfo.l}</Badge>
                       </td>
                       <td className="px-4 py-3 text-xs text-txt-secondary">{log.entity_type || '—'}</td>
                       <td className="px-4 py-3 text-xs text-txt-ghost font-mono truncate max-w-[120px]">{log.entity_id || '—'}</td>

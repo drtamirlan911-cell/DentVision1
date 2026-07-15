@@ -9,10 +9,40 @@ import { Card, CardContent } from '../components/ui/ds/Card';
 import { Badge } from '../components/ui/ds/Badge';
 import { EmptyState } from '../components/ui/ds/EmptyState';
 
+interface ProductReview {
+  user_name?: string;
+  rating: number;
+  pros?: string;
+  cons?: string;
+  comment?: string;
+}
+
+interface ProductDetail {
+  id: string;
+  name: string;
+  brand: string;
+  model?: string;
+  price: number;
+  old_price?: number;
+  rating: number;
+  review_count: number;
+  stock: number;
+  unit?: string;
+  sku?: string;
+  category_name: string;
+  description?: string;
+  supplier_name?: string;
+  supplier_country?: string;
+  delivery_days?: number;
+  delivery_cost?: number;
+  reviews?: ProductReview[];
+  related?: { id: string; name: string; brand: string; price: number }[];
+}
+
 export default function ShopProduct() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [product, setProduct] = useState(null);
+  const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('description');
   const [reviewForm, setReviewForm] = useState({ rating: 5, pros: '', cons: '', comment: '' });
@@ -40,7 +70,6 @@ export default function ShopProduct() {
 
   return (
     <div className="px-6 max-w-[1000px] mx-auto">
-      {/* Breadcrumb */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -58,9 +87,7 @@ export default function ShopProduct() {
         <span className="text-white">{product.name}</span>
       </motion.div>
 
-      {/* Product Header */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        {/* Image */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -74,13 +101,11 @@ export default function ShopProduct() {
           )}
         </motion.div>
 
-        {/* Info */}
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
           <div className="text-xs text-[#C9A96E] font-semibold uppercase mb-1.5">{product.brand}</div>
           <h1 className="text-2xl font-extrabold text-white m-0 mb-2 leading-relaxed">{product.name}</h1>
           <div className="text-[13px] text-[#7A8899] mb-3">{product.model}</div>
 
-          {/* Rating */}
           <div className="flex items-center gap-2 mb-4">
             <div className="flex gap-0.5">
               {[...Array(5)].map((_, i) => (
@@ -91,7 +116,6 @@ export default function ShopProduct() {
             <span className="text-xs text-[#7A8899]">({product.review_count} отзывов)</span>
           </div>
 
-          {/* Price */}
           <div className="flex items-baseline gap-3 mb-4">
             <span className="text-[28px] font-extrabold text-white">{tg(product.price)}</span>
             {product.old_price && (
@@ -99,7 +123,6 @@ export default function ShopProduct() {
             )}
           </div>
 
-          {/* Stock */}
           <div className="flex items-center gap-1.5 mb-4">
             <div className={`w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-[#27AE60]' : 'bg-[#E74C3C]'}`} />
             <span className={`text-[13px] font-semibold ${product.stock > 0 ? 'text-[#27AE60]' : 'text-[#E74C3C]'}`}>
@@ -107,7 +130,6 @@ export default function ShopProduct() {
             </span>
           </div>
 
-          {/* Delivery info */}
           {product.supplier_name && (
             <div className="bg-[#2980B9]/10 border border-[#2980B9]/20 rounded-[10px] px-3.5 py-2.5 mb-4 flex items-center gap-2.5">
               <Truck size={16} color="#2980B9" />
@@ -119,7 +141,6 @@ export default function ShopProduct() {
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex gap-2.5">
             <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="flex-1">
               <Button
@@ -141,7 +162,6 @@ export default function ShopProduct() {
         </motion.div>
       </div>
 
-      {/* Tabs */}
       <div className="border-b border-[var(--border-subtle)] flex gap-0 mb-6">
         {tabs.map(tab => (
           <button
@@ -158,7 +178,6 @@ export default function ShopProduct() {
         ))}
       </div>
 
-      {/* Tab Content */}
       <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         {activeTab === 'description' && (
           <div>
@@ -176,7 +195,7 @@ export default function ShopProduct() {
               ['Поставщик', product.supplier_name],
               ['Страна', product.supplier_country],
               ['Доставка', `${product.delivery_days} дн.`],
-              ['Стоимость доставки', product.delivery_cost === 0 ? 'Бесплатно' : tg(product.delivery_cost)],
+              ['Стоимость доставки', product.delivery_cost === 0 ? 'Бесплатно' : tg(product.delivery_cost as number)],
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between py-2 px-3 bg-white/[0.02] rounded-md">
                 <span className="text-xs text-[#7A8899]">{label}</span>
@@ -188,7 +207,7 @@ export default function ShopProduct() {
 
         {activeTab === 'reviews' && (
           <div>
-            {product.reviews?.length > 0 ? product.reviews.map((review, i) => (
+            {product.reviews?.length! > 0 ? product.reviews!.map((review, i) => (
               <div key={i} className="py-4 border-b border-[var(--border-subtle)]">
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">
@@ -240,12 +259,11 @@ export default function ShopProduct() {
         )}
       </motion.div>
 
-      {/* Related Products */}
-      {product.related?.length > 0 && (
+      {product.related! && product.related!.length > 0 && (
         <div className="mt-10">
           <h3 className="text-base font-bold text-white mb-4">Похожие товары</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {product.related.map(rel => (
+            {product.related!.map(rel => (
               <motion.div key={rel.id} whileHover={{ y: -3 }} onClick={() => navigate(`/shop/${rel.id}`)}>
                 <Card hover padding="sm" className="cursor-pointer">
                   <p className="text-[11px] text-[#C9A96E] font-semibold m-0">{rel.brand}</p>

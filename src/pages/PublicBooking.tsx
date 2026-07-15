@@ -6,15 +6,44 @@ import { Loader2, Stethoscope, MapPin, Phone, CheckCircle2, X } from 'lucide-rea
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
+interface PublicClinic {
+  name?: string;
+  address?: string;
+  city?: string;
+  phone?: string;
+}
+
+interface PublicDoctor {
+  id: string;
+  name: string;
+  spec?: string;
+}
+
+interface BookingForm {
+  patientName: string;
+  phone: string;
+  email: string;
+  doctorId: string;
+  serviceName: string;
+  date: string;
+  time: string;
+  notes: string;
+}
+
+interface ToastState {
+  msg: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+}
+
 export default function PublicBooking() {
   const { clinicId } = useParams();
-  const [clinic, setClinic] = useState(null);
-  const [doctors, setDoctors] = useState([]);
+  const [clinic, setClinic] = useState<PublicClinic | null>(null);
+  const [doctors, setDoctors] = useState<PublicDoctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [form, setForm] = useState({
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [form, setForm] = useState<BookingForm>({
     patientName: '',
     phone: '',
     email: '',
@@ -42,7 +71,7 @@ export default function PublicBooking() {
     if (clinicId) loadClinic();
   }, [clinicId]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rateLimit('booking', { maxAttempts: 5, windowMs: 60000 })) {
       setToast({ msg: 'Слишком много заявок. Подождите минуту.', type: 'warning' });
@@ -161,7 +190,7 @@ export default function PublicBooking() {
           <form onSubmit={handleSubmit}>
             <div className="mb-3.5">
               <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Ваше имя *</label>
-              <input type="text" value={form.patientName} onChange={e => setForm({ ...form, patientName: e.target.value })}
+              <input type="text" value={form.patientName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, patientName: e.target.value })}
                 placeholder="Иванов Иван Иванович" required
                 className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
             </div>
@@ -169,13 +198,13 @@ export default function PublicBooking() {
             <div className="grid grid-cols-2 gap-3 mb-3.5">
               <div>
                 <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Телефон *</label>
-                <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                <input type="tel" value={form.phone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, phone: e.target.value })}
                   placeholder="+7 777 000 00 00" required
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Email</label>
-                <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+                <input type="email" value={form.email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, email: e.target.value })}
                   placeholder="email@example.com"
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
@@ -184,7 +213,7 @@ export default function PublicBooking() {
             {doctors.length > 0 && (
               <div className="mb-3.5">
                 <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Врач</label>
-                <select value={form.doctorId} onChange={e => setForm({ ...form, doctorId: e.target.value })}
+                <select value={form.doctorId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, doctorId: e.target.value })}
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors">
                   <option value="" className="bg-[#0D1B2E]">Любой доступный</option>
                   {doctors.map(d => (
@@ -196,10 +225,10 @@ export default function PublicBooking() {
 
             <div className="mb-3.5">
               <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Услуга</label>
-              <select value={form.serviceName} onChange={e => setForm({ ...form, serviceName: e.target.value })}
+              <select value={form.serviceName} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, serviceName: e.target.value })}
                 className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors">
                 <option value="" className="bg-[#0D1B2E]">Выберите услугу</option>
-                {Object.entries(ALL_SERVICES.reduce((acc, s) => { (acc[s.cat] = acc[s.cat] || []).push(s); return acc; }, {})).map(([cat, services]) => (
+                {Object.entries(ALL_SERVICES.reduce<Record<string, typeof ALL_SERVICES>>((acc, s) => { (acc[s.cat] = acc[s.cat] || []).push(s); return acc; }, {})).map(([cat, services]) => (
                   <optgroup key={cat} label={cat}>
                     {services.map(s => <option key={s.id} value={s.name} className="bg-[#0D1B2E]">{s.name}</option>)}
                   </optgroup>
@@ -210,12 +239,12 @@ export default function PublicBooking() {
             <div className="grid grid-cols-2 gap-3 mb-3.5">
               <div>
                 <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Дата *</label>
-                <input type="date" value={form.date} min={minDate} onChange={e => setForm({ ...form, date: e.target.value })}
+                <input type="date" value={form.date} min={minDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, date: e.target.value })}
                   required className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Время *</label>
-                <select value={form.time} onChange={e => setForm({ ...form, time: e.target.value })}
+                <select value={form.time} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, time: e.target.value })}
                   required className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors">
                   <option value="" className="bg-[#0D1B2E]">Выберите</option>
                   {HOURS.map(h => <option key={h} value={h} className="bg-[#0D1B2E]">{h}</option>)}
@@ -225,7 +254,7 @@ export default function PublicBooking() {
 
             <div className="mb-5">
               <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Комментарий</label>
-              <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+              <textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, notes: e.target.value })}
                 rows={3} placeholder="Опишите жалобы или пожелания..."
                 className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors resize-y" />
             </div>

@@ -18,6 +18,7 @@ import { Tabs } from '../components/ui/ds/Misc'
 import { Switch } from '../components/ui/ds/Misc'
 import { tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency, TOOTH_NAMES } from '../utils/constants'
 import { cn, formatMoney } from '../lib/utils'
+import type { Receipt, Appointment, Patient, Expense, InventoryItem, Clinic, User as UserType, RoleInfo } from '../types'
 
 const TABS = [
   { id: 'unpaid', label: 'К оплате', icon: <Clock size={14} /> },
@@ -53,18 +54,44 @@ const EXPENSE_CATEGORIES = [
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
+interface OutletContext {
+  clinic: Clinic
+  user: UserType
+  roleInfo?: RoleInfo
+}
+
+interface CashierForm {
+  type: string
+  amount: string
+  patientId: string
+  patientName: string
+  service: string
+  paymentMethod: string
+  paymentType: string
+  notes: string
+  appointmentId?: string
+  diagnosis?: string
+  toothNumber?: string | number
+}
+
+interface ExpenseForm {
+  category: string
+  amount: string
+  notes: string
+}
+
 export default function Cashier() {
-  const { clinic } = useOutletContext()
+  const { clinic } = useOutletContext<OutletContext>()
   const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useData(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
   const [activeTab, setActiveTab] = useState('unpaid')
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [expenseForm, setExpenseForm] = useState({ category: '', amount: '', notes: '' })
+  const [form, setForm] = useState<CashierForm>(EMPTY_FORM)
+  const [expenseForm, setExpenseForm] = useState<ExpenseForm>({ category: '', amount: '', notes: '' })
   const [expModalOpen, setExpModalOpen] = useState(false)
   const [cashSettings, setCashSettings] = useState({ defaultMethod: 'Kaspi QR', autoReceipt: true, reminders: true })
   const [searchUnpaid, setSearchUnpaid] = useState('')
-  const money = (value) => tg(value, clinic)
+  const money = (value: number) => tg(value, clinic)
   const { currency } = getClinicCurrency(clinic)
 
   const todayKey = today()
@@ -91,7 +118,7 @@ export default function Cashier() {
 
   const unpaidCount = unpaidAppointments.length
 
-  const openPaymentModal = (appt) => {
+  const openPaymentModal = (appt: Appointment) => {
     const patient = patients.find(p => p.id === appt.patientId)
     setForm({
       ...EMPTY_FORM,
@@ -109,12 +136,12 @@ export default function Cashier() {
 
   const handleNewTransaction = () => { setForm({ ...EMPTY_FORM, paymentMethod: cashSettings.defaultMethod }); setModalOpen(true) }
 
-  const handleQuickPayment = (service) => {
+  const handleQuickPayment = (service: { name: string; price: number }) => {
     setForm({ ...EMPTY_FORM, service: service.name, amount: service.price, paymentMethod: cashSettings.defaultMethod })
     setModalOpen(true)
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.amount || isNaN(Number(form.amount))) {
       showToast('Введите корректную сумму', 'warning')
@@ -156,9 +183,9 @@ export default function Cashier() {
     }
   }
 
-  const handleExpenseSubmit = async (e) => {
+  const handleExpenseSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    await upsertExpense({ ...expenseForm, amount: Number(expenseForm.amount), date: today() })
+    await upsertExpense({ ...expenseForm, amount: Number(expenseForm.amount), date: today() } as any)
     showToast('Расход добавлен', 'success')
     setExpModalOpen(false)
     setExpenseForm({ category: '', amount: '', notes: '' })
@@ -558,7 +585,7 @@ export default function Cashier() {
             <div className="p-3 rounded-xl bg-warning/5 border border-warning/20 space-y-2">
               <p className="text-xs font-semibold text-warning">Оплата из расписания</p>
               {form.diagnosis && <p className="text-xs text-txt-secondary">Диагноз: <span className="text-txt-primary font-medium">{form.diagnosis}</span></p>}
-              {form.toothNumber && <p className="text-xs text-txt-secondary">Зуб: <span className="text-emerald-400 font-medium">{form.toothNumber} — {TOOTH_NAMES[form.toothNumber]}</span></p>}
+              {form.toothNumber && <p className="text-xs text-txt-secondary">Зуб: <span className="text-emerald-400 font-medium">{form.toothNumber} — {TOOTH_NAMES[form.toothNumber as number]}</span></p>}
             </div>
           )}
 

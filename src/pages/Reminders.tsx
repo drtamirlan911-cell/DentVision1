@@ -21,13 +21,20 @@ import { Button } from '../components/ui/ds/Button';
 import { EmptyState } from '../components/ui/ds/EmptyState';
 import { PageHeader } from '../components/ui/ds/StatCard';
 import { fd } from '../utils/constants';
+import type { Clinic, User, RoleInfo } from '../types';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 };
 
-export default function Reminders({ clinic, user, roleInfo }) {
+interface RemindersProps {
+  clinic: Clinic;
+  user: User;
+  roleInfo: RoleInfo;
+}
+
+export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
   const { patients, appointments, receipts, doctors } = useData(clinic?.id);
   const { showToast } = useToast();
   const [tick, setTick] = useState(0);
@@ -63,14 +70,14 @@ export default function Reminders({ clinic, user, roleInfo }) {
   const pendingAppt = appointmentReminders.filter(r => !r.sent).length;
   const pendingHyg = hygieneReminders.filter(r => !r.sent).length;
 
-  const handleSend = (reminder) => {
+  const handleSend = (reminder: any) => {
     window.open(reminder.waLink, '_blank', 'noopener,noreferrer');
     markSent(reminder.id);
     setTick(t => t + 1);
     showToast(`Напоминание отправлено: ${reminder.patient.name}`, 'success');
   };
 
-  const handleMark = (reminder) => {
+  const handleMark = (reminder: any) => {
     markSent(reminder.id);
     setTick(t => t + 1);
     showToast('Отмечено как отправлено', 'info');

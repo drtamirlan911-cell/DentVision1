@@ -5,11 +5,28 @@ import SignaturePad from '../components/ui/SignaturePad';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
+interface DocumentData {
+  title?: string;
+  doc_type?: string;
+  content?: string;
+  status?: string;
+  patient_name?: string;
+  signed_by_name?: string;
+  clinic_name?: string;
+  clinic_address?: string;
+  clinic_phone?: string;
+}
+
+interface ToastState {
+  msg: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+}
+
 export default function DocumentSign() {
   const { token } = useParams();
-  const [doc, setDoc] = useState(null);
+  const [doc, setDoc] = useState<DocumentData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [signed, setSigned] = useState(false);
   const [signing, setSigning] = useState(false);
   const [name, setName] = useState('');
@@ -19,7 +36,7 @@ export default function DocumentSign() {
       try {
         const res = await fetch(`${API_URL}/api/public/document/${token}`);
         if (!res.ok) throw new Error('Not found');
-        const data = await res.json();
+        const data: DocumentData = await res.json();
         setDoc(data);
         if (data.status === 'signed') setSigned(true);
         if (data.patient_name) setName(data.patient_name);
@@ -32,7 +49,7 @@ export default function DocumentSign() {
     if (token) loadDoc();
   }, [token]);
 
-  const handleSign = async (signatureData) => {
+  const handleSign = async (signatureData: string) => {
     if (!name.trim()) {
       setToast({ msg: 'Введите ваше имя', type: 'warning' });
       return;
@@ -118,7 +135,7 @@ export default function DocumentSign() {
 
           <div className="mb-3.5">
             <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Ваше ФИО *</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)}
+            <input type="text" value={name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               placeholder="Иванов Иван Иванович"
               className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
           </div>

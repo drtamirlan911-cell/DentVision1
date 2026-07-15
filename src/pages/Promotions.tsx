@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, type FormEvent } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Target, Plus, Calendar, Percent } from 'lucide-react'
@@ -14,8 +14,19 @@ import { Switch } from '../components/ui/ds/Misc'
 import { gid, today, ALL_SERVICES } from '../utils/constants'
 import { useData } from '../hooks/useData'
 import { cn } from '../lib/utils'
+import type { Clinic, User, RoleInfo, Promotion } from '../types'
 
-const EMPTY_FORM = {
+interface PromotionForm {
+  title: string;
+  description: string;
+  discountPercent: number;
+  serviceIds: string[];
+  startDate: string;
+  endDate: string;
+  active: boolean;
+}
+
+const EMPTY_FORM: PromotionForm = {
   title: '', description: '', discountPercent: 0,
   serviceIds: [], startDate: today(), endDate: '', active: true,
 }
@@ -24,13 +35,13 @@ const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { stag
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Promotions() {
-  const { clinic } = useOutletContext()
+  const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>()
   const { showToast, toast, clearToast } = useToast()
   const { promotions, upsertPromotion } = useData(clinic?.id)
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [editing, setEditing] = useState(null)
-  const [filter, setFilter] = useState('all')
+  const [form, setForm] = useState<PromotionForm>(EMPTY_FORM)
+  const [editing, setEditing] = useState<Promotion | null>(null)
+  const [filter, setFilter] = useState<string>('all')
 
   const filtered = useMemo(() => {
     if (filter === 'all') return promotions
@@ -40,7 +51,7 @@ export default function Promotions() {
     return promotions
   }, [promotions, filter])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!form.title.trim()) { showToast('Введите название акции', 'warning'); return }
     upsertPromotion({
@@ -56,7 +67,7 @@ export default function Promotions() {
     setEditing(null)
   }
 
-  const openEdit = (promo) => {
+  const openEdit = (promo: Promotion) => {
     setEditing(promo)
     setForm({
       title: promo.title || '', description: promo.description || '',
@@ -67,7 +78,7 @@ export default function Promotions() {
     setModalOpen(true)
   }
 
-  const toggleService = (serviceId) => {
+  const toggleService = (serviceId: string) => {
     setForm(prev => ({
       ...prev,
       serviceIds: prev.serviceIds.includes(serviceId)
@@ -150,7 +161,7 @@ export default function Promotions() {
                           <Target size={14} className="text-dv-gold shrink-0" />
                           <p className="text-sm font-bold text-txt-primary group-hover:text-dv-gold transition-colors truncate">{promo.title}</p>
                         </div>
-                        {promo.discountPercent > 0 && (
+                        {(promo.discountPercent ?? 0) > 0 && (
                           <Badge variant="error" size="sm">
                             <Percent size={10} /> -{promo.discountPercent}%
                           </Badge>
@@ -166,7 +177,7 @@ export default function Promotions() {
                     <div className="flex gap-3 text-xs text-txt-muted">
                       {promo.startDate && <span>С {promo.startDate}</span>}
                       {promo.endDate && <span>До {promo.endDate}</span>}
-                      {promo.serviceIds?.length > 0 && <span>{promo.serviceIds.length} услуг</span>}
+                      {promo.serviceIds && promo.serviceIds.length > 0 && <span>{promo.serviceIds.length} услуг</span>}
                     </div>
                   </div>
                 </Card>
@@ -191,8 +202,8 @@ export default function Promotions() {
             placeholder="Подробное описание акции..." rows={3} />
           <div className="grid grid-cols-2 gap-3 items-end">
             <Input label="Скидка (%)" type="number" min="0" max="100" value={form.discountPercent}
-              onChange={e => setForm({ ...form, discountPercent: e.target.value })} />
-            <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} label="Активна" />
+              onChange={e => setForm({ ...form, discountPercent: Number(e.target.value) })} />
+            <Switch checked={form.active} onCheckedChange={(v: boolean) => setForm({ ...form, active: v })} label="Активна" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Input label="Дата начала" type="date" value={form.startDate}

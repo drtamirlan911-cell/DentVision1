@@ -17,6 +17,7 @@ import { PageHeader } from '../components/ui/ds/StatCard'
 import { Avatar } from '../components/ui/ds/Avatar'
 import { VISIBILITY_OPTIONS } from '../utils/constants'
 import { cn } from '../lib/utils'
+import type { User as UserType, Clinic, RoleInfo } from '../types'
 
 const ROLE_OPTIONS = [
   { value: 'doctor', label: 'Врач' },
@@ -25,21 +26,21 @@ const ROLE_OPTIONS = [
   { value: 'director', label: 'Руководитель' },
 ]
 
-const ROLE_ICON = {
+const ROLE_ICON: Record<string, React.ReactNode> = {
   director: <Crown size={18} />,
   admin: <Briefcase size={18} />,
   doctor: <Stethoscope size={18} />,
   assistant: <Shield size={18} />,
 }
 
-const ROLE_BADGE = {
+const ROLE_BADGE: Record<string, string> = {
   director: 'gold',
   admin: 'info',
   doctor: 'success',
   assistant: 'default',
 }
 
-const ROLE_LABELS = {
+const ROLE_LABELS: Record<string, string> = {
   director: 'Руководитель',
   admin: 'Администратор',
   doctor: 'Врач',
@@ -59,7 +60,7 @@ const SPECS = [
   { value: 'Администратор', label: 'Администратор' },
 ]
 
-const PAGE_ICONS = {
+const PAGE_ICONS: Record<string, string> = {
   dashboard: 'Дашборд', schedule: 'Расписание', patients: 'Пациенты', 'medical-card': 'Карта',
   visits: 'Визиты', icd10: 'МКБ-10', documents: 'Документы', cashier: 'Касса',
   pricelist: 'Прайс', lab: 'Лаборатория', ai: 'AI', staff: 'Сотрудники',
@@ -68,14 +69,39 @@ const PAGE_ICONS = {
   admin: 'Админ', audit: 'Аудит', backup: 'Бэкап',
 }
 
-const ROLE_DESC = {
+const ROLE_DESC: Record<string, string> = {
   director: 'Полный доступ: Dashboard, расписание, пациенты, финансы, лаборатория, AI, персонал. Видит зарплаты и расходы.',
   admin: 'Доступ: расписание, пациенты, касса, лаборатория. Не видит зарплаты и подробную аналитику.',
   doctor: 'Доступ: своё расписание, пациенты, лаборатория, AI. Видит только свои записи.',
   assistant: 'Ограниченный доступ: расписание (только просмотр), базовая информация о пациентах. Не может редактировать данные.',
 }
 
-const EMPTY_FORM = {
+interface OutletContext {
+  clinic: Clinic & { id: string; name: string }
+  user: UserType
+  roleInfo?: RoleInfo
+}
+
+interface StaffForm {
+  name: string
+  login: string
+  password: string
+  role: string
+  spec: string
+  phone: string
+  email: string
+  bio: string
+  photoUrl: string
+  visibility: string
+  experienceYears: number | string
+  workSchedule?: {
+    start: string
+    end: string
+    workDays: string[]
+  }
+}
+
+const EMPTY_FORM: StaffForm = {
   name: '', login: '', password: '', role: 'doctor', spec: '', phone: '',
   email: '', bio: '', photoUrl: '', visibility: 'public', experienceYears: 0,
 }
@@ -84,19 +110,19 @@ const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { stag
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Staff() {
-  const { clinic, user } = useOutletContext()
+  const { clinic, user } = useOutletContext<OutletContext>()
   const { getClinicStaff, addStaffMember, roleInfo } = useAuth()
   const { toast, showToast, clearToast } = useToast()
   const [modalOpen, setModalOpen] = useState(false)
-  const [profileModal, setProfileModal] = useState(null)
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [profileModal, setProfileModal] = useState<UserType | null>(null)
+  const [form, setForm] = useState<StaffForm>(EMPTY_FORM)
   const [filter, setFilter] = useState('all')
-  const [editingStaff, setEditingStaff] = useState(null)
+  const [editingStaff, setEditingStaff] = useState<UserType | null>(null)
 
   const staff = getClinicStaff(clinic?.id || user?.clinicId)
   const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.name || !form.login || !form.password) {
       showToast('Заполните все обязательные поля', 'warning')
@@ -111,7 +137,7 @@ export default function Staff() {
       workSchedule: form.role === 'doctor' ? form.workSchedule : undefined,
       clinicId: clinic?.id || user?.clinicId,
       experienceYears: Number(form.experienceYears) || 0,
-    })
+    } as any)
     if (result === false) {
       showToast('Такой логин уже занят', 'error')
       return
@@ -122,7 +148,7 @@ export default function Staff() {
     setEditingStaff(null)
   }
 
-  const openEditStaff = (member) => {
+  const openEditStaff = (member: UserType) => {
     setEditingStaff(member)
     setForm({
       name: member.name || '',
@@ -132,11 +158,11 @@ export default function Staff() {
       spec: member.spec || '',
       phone: member.phone || '',
       email: member.email || '',
-      bio: member.bio || '',
+      bio: (member as any).bio || '',
       photoUrl: member.photoUrl || '',
       visibility: member.visibility || 'public',
       experienceYears: member.experienceYears || 0,
-      workSchedule: member.workSchedule || { start: '09:00', end: '18:00', workDays: ['пн', 'вт', 'ср', 'чт', 'пт'] },
+      workSchedule: (member as any).workSchedule || { start: '09:00', end: '18:00', workDays: ['пн', 'вт', 'ср', 'чт', 'пт'] },
     })
     setModalOpen(true)
   }
@@ -251,13 +277,13 @@ export default function Staff() {
                 label="Начало рабочего дня"
                 type="time"
                 value={form.workSchedule?.start || '09:00'}
-                onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule, start: e.target.value } })}
+                onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule!, start: e.target.value } })}
               />
               <Input
                 label="Конец рабочего дня"
                 type="time"
                 value={form.workSchedule?.end || '18:00'}
-                onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule, end: e.target.value } })}
+                onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule!, end: e.target.value } })}
               />
             </div>
             <p className="text-xs text-txt-muted mb-2">Рабочие дни:</p>
@@ -271,7 +297,7 @@ export default function Staff() {
                     onClick={() => {
                       const current = form.workSchedule?.workDays || ['пн', 'вт', 'ср', 'чт', 'пт']
                       const updated = isSelected ? current.filter(d => d !== day) : [...current, day]
-                      setForm({ ...form, workSchedule: { ...form.workSchedule, workDays: updated } })
+                      setForm({ ...form, workSchedule: { ...form.workSchedule!, workDays: updated } })
                     }}
                     className={cn(
                       'px-2.5 py-1 text-xs font-medium rounded-md border transition-colors',
@@ -339,7 +365,7 @@ export default function Staff() {
             <div>
               <p className="text-lg font-bold text-txt-primary">{profileModal.name}</p>
               <div className="flex gap-2 mt-1">
-                <Badge variant={ROLE_BADGE[profileModal.role] || 'default'}>{ROLE_LABELS[profileModal.role]}</Badge>
+                <Badge variant={ROLE_BADGE[profileModal.role] as any || 'default'}>{ROLE_LABELS[profileModal.role]}</Badge>
                 {profileModal.spec && <Badge variant="info">{profileModal.spec}</Badge>}
               </div>
             </div>
@@ -358,15 +384,15 @@ export default function Staff() {
                 <span>{profileModal.email}</span>
               </div>
             )}
-            {profileModal.experienceYears > 0 && (
+            {profileModal.experienceYears! > 0 && (
               <div className="flex items-center gap-2.5">
                 <Award size={14} className="text-txt-muted shrink-0" />
                 <span>Стаж: {profileModal.experienceYears} лет</span>
               </div>
             )}
-            {profileModal.bio && (
+            {(profileModal as any).bio && (
               <div className="mt-3 p-3 rounded-lg bg-white/[0.02] border border-bdr-subtle text-sm leading-relaxed">
-                {profileModal.bio}
+                {(profileModal as any).bio}
               </div>
             )}
           </div>
@@ -479,7 +505,7 @@ export default function Staff() {
                             {member.name}
                           </p>
                           <div className="flex items-center gap-1.5 mt-1">
-                            <Badge variant={ROLE_BADGE[member.role] || 'default'} size="sm">
+                            <Badge variant={ROLE_BADGE[member.role] as any || 'default'} size="sm">
                               {ROLE_LABELS[member.role] || member.role}
                             </Badge>
                             {member.visibility === 'private' && (
@@ -509,10 +535,10 @@ export default function Staff() {
                           <span className="truncate">{member.email}</span>
                         </div>
                       )}
-                      {member.experienceYears > 0 && (
+                      {member.experienceYears! > 0 && (
                         <div className="flex items-center gap-2">
                           <Award size={12} className="text-txt-muted shrink-0" />
-                          <span>Стаж: {member.experienceYears} {member.experienceYears === 1 ? 'год' : member.experienceYears < 5 ? 'года' : 'лет'}</span>
+                          <span>Стаж: {member.experienceYears} {member.experienceYears === 1 ? 'год' : member.experienceYears! < 5 ? 'года' : 'лет'}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2">
@@ -528,9 +554,9 @@ export default function Staff() {
                     </div>
 
                     {/* Bio preview */}
-                    {member.bio && (
+                    {(member as any).bio && (
                       <div className="mt-3 p-2.5 text-xs text-txt-secondary leading-relaxed rounded-lg bg-white/[0.02] border border-bdr-subtle line-clamp-2">
-                        {member.bio.length > 120 ? member.bio.slice(0, 120) + '...' : member.bio}
+                        {(member as any).bio.length > 120 ? (member as any).bio.slice(0, 120) + '...' : (member as any).bio}
                       </div>
                     )}
 
@@ -542,7 +568,7 @@ export default function Staff() {
                           <Badge key={p} variant="default" size="xs">{PAGE_ICONS[p] || p}</Badge>
                         ))}
                         {(ROLES[member.role]?.pages || []).length > 8 && (
-                          <Badge variant="default" size="xs">+{ROLES[member.role].pages.length - 8}</Badge>
+                          <Badge variant="default" size="xs">+{ROLES[member.role]!.pages.length - 8}</Badge>
                         )}
                       </div>
                     </div>

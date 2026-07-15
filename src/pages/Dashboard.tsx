@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/hooks/useData'
+import type { Appointment, Patient } from '@/types'
 
 const container = {
   hidden: { opacity: 0 },
@@ -116,7 +117,7 @@ const SERVICE_TILES = [
   },
 ]
 
-function QuickStats({ data }) {
+function QuickStats({ data }: { data: ReturnType<typeof useData> }) {
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0]
     const todayAppts = (data.appointments || []).filter((a) => a.date === today)
@@ -198,7 +199,7 @@ function ServiceGrid() {
   )
 }
 
-function UpcomingAppointments({ data }) {
+function UpcomingAppointments({ data }: { data: ReturnType<typeof useData> }) {
   const today = new Date().toISOString().split('T')[0]
   const appointments = (data.appointments || [])
     .filter((a) => a.date >= today)

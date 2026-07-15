@@ -19,8 +19,9 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { useToast } from '@/components/ui/ds/Toast'
+import { UserRole } from '@/types'
 
-const ROLE_LABELS = {
+const ROLE_LABELS: Record<string, string> = {
   superadmin: 'Super Admin',
   director: 'Руководитель',
   admin: 'Администратор',
@@ -28,7 +29,7 @@ const ROLE_LABELS = {
   assistant: 'Ассистент',
 }
 
-const ROLE_VARIANTS = {
+const ROLE_VARIANTS: Record<string, string> = {
   superadmin: 'purple',
   director: 'gold',
   admin: 'sky',
@@ -36,12 +37,18 @@ const ROLE_VARIANTS = {
   assistant: 'teal',
 }
 
+interface ProfileForm {
+  name: string
+  email: string
+  phone: string
+}
+
 export default function Profile() {
   const { user, clinic, logout } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ProfileForm>({
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || '',
@@ -83,7 +90,6 @@ export default function Profile() {
         icon={<User size={24} className="text-dv-gold" />}
       />
 
-      {/* Avatar + Name Card */}
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center gap-5">
@@ -96,8 +102,8 @@ export default function Profile() {
             <div className="flex-1">
               <h2 className="text-xl font-bold text-txt-primary">{user?.name || user?.login}</h2>
               <div className="flex items-center gap-2 mt-1">
-                <Badge variant={ROLE_VARIANTS[user?.role] || 'slate'} size="sm">
-                  {ROLE_LABELS[user?.role] || 'Сотрудник'}
+                <Badge variant={(ROLE_VARIANTS[user?.role!] || 'slate') as 'purple' | 'gold' | 'sky' | 'emerald' | 'teal' | 'slate'} size="sm">
+                  {ROLE_LABELS[user?.role!] || 'Сотрудник'}
                 </Badge>
                 {clinic && (
                   <span className="text-xs text-txt-muted flex items-center gap-1">
@@ -110,7 +116,6 @@ export default function Profile() {
         </CardContent>
       </Card>
 
-      {/* Personal Info */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -142,7 +147,7 @@ export default function Profile() {
                 {editing ? (
                   <input
                     value={form.name}
-                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="Ваше имя"
                   />
                 ) : (
@@ -158,7 +163,7 @@ export default function Profile() {
                   <input
                     type="email"
                     value={form.email}
-                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, email: e.target.value }))}
                     placeholder="email@example.com"
                   />
                 ) : (
@@ -173,7 +178,7 @@ export default function Profile() {
                 {editing ? (
                   <input
                     value={form.phone}
-                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, phone: e.target.value }))}
                     placeholder="+7..."
                   />
                 ) : (
@@ -187,7 +192,7 @@ export default function Profile() {
                 <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Роль</label>
                 <p className="text-sm text-txt-primary flex items-center gap-2">
                   <Shield size={14} className="text-txt-muted" />
-                  {ROLE_LABELS[user?.role] || 'Сотрудник'}
+                  {ROLE_LABELS[user?.role!] || 'Сотрудник'}
                 </p>
               </div>
             </div>
@@ -195,7 +200,6 @@ export default function Profile() {
         </CardContent>
       </Card>
 
-      {/* Clinic Info */}
       {clinic && (
         <Card>
           <CardHeader>
@@ -231,7 +235,6 @@ export default function Profile() {
         </Card>
       )}
 
-      {/* Security */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useToast, useData } from '../hooks/useData';
 import { Button } from '../components/ui/ds/Button';
@@ -18,8 +18,37 @@ import {
   Loader2,
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/ds/StatCard';
+import type { Clinic, User, RoleInfo } from '../types';
 
-const ASSISTANTS = [
+interface Assistant {
+  id: string;
+  name: string;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  color: string;
+  bg: string;
+  border: string;
+  dot: string;
+  role: string;
+  quickActions: string[];
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface Feature {
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  title: string;
+  desc: string;
+}
+
+interface AiFeature {
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  text: string;
+}
+
+const ASSISTANTS: Assistant[] = [
   {
     id: 'consultant',
     name: 'Консультант',
@@ -66,14 +95,14 @@ const ASSISTANTS = [
   },
 ];
 
-const FEATURES = [
+const FEATURES: Feature[] = [
   { Icon: Bot, title: 'Автоответы', desc: 'Мгновенные ответы на вопросы пациентов 24/7' },
   { Icon: Calendar, title: 'Умное расписание', desc: 'Автозаполнение окон в расписании' },
   { Icon: TrendingUp, title: 'Прогнозы', desc: 'Предсказание загрузки и доходов клиники' },
   { Icon: Target, title: 'Персонализация', desc: 'Индивидуальные предложения для каждого пациента' },
 ];
 
-const AI_FEATURES = [
+const AI_FEATURES: AiFeature[] = [
   { Icon: Bot, text: 'Автоответы 24/7' },
   { Icon: Calendar, text: 'Умное расписание' },
   { Icon: TrendingUp, text: 'Прогнозы доходов' },
@@ -82,16 +111,16 @@ const AI_FEATURES = [
 ];
 
 export default function AITeam() {
-  const { clinic } = useOutletContext();
+  const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
   const { showToast } = useToast();
   const { patients, appointments, receipts, doctors } = useData(clinic?.id);
-  const [activeId, setActiveId] = useState('consultant');
-  const [chatHistory, setChatHistory] = useState([
+  const [activeId, setActiveId] = useState<string>('consultant');
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     { role: 'assistant', content: 'Здравствуйте! Я AI-ассистент DentVision. Готов помочь автоматизировать вашу клинику. Чем могу помочь?' },
   ]);
-  const [userInput, setUserInput] = useState('');
-  const [processing, setProcessing] = useState(false);
-  const chatEndRef = useRef(null);
+  const [userInput, setUserInput] = useState<string>('');
+  const [processing, setProcessing] = useState<boolean>(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const activeAssistant = ASSISTANTS.find(a => a.id === activeId);
 
@@ -99,7 +128,7 @@ export default function AITeam() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, processing]);
 
-  const sendMessage = (text) => {
+  const sendMessage = (text?: string) => {
     const msg = text || userInput.trim();
     if (!msg) return;
     setChatHistory(prev => [...prev, { role: 'user', content: msg }]);
@@ -121,21 +150,23 @@ export default function AITeam() {
     }, delay);
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
 
-  const switchAssistant = (id) => {
+  const switchAssistant = (id: string) => {
     if (id === activeId) return;
     setActiveId(id);
     const assistant = ASSISTANTS.find(a => a.id === id);
-    setChatHistory([{
-      role: 'assistant',
-      content: `Привет! Я ${assistant.name}. ${assistant.role}. Чем могу помочь?`,
-    }]);
+    if (assistant) {
+      setChatHistory([{
+        role: 'assistant',
+        content: `Привет! Я ${assistant.name}. ${assistant.role}. Чем могу помочь?`,
+      }]);
+    }
   };
 
   return (
@@ -208,14 +239,14 @@ export default function AITeam() {
           {/* Chat header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-bdr-subtle">
             <div className="flex items-center gap-3">
-              <div className={`flex items-center justify-center w-11 h-11 rounded-full border-2 ${activeAssistant.bg} ${activeAssistant.border}`}>
-                <activeAssistant.Icon size={20} className={activeAssistant.color} />
+              <div className={`flex items-center justify-center w-11 h-11 rounded-full border-2 ${activeAssistant?.bg} ${activeAssistant?.border}`}>
+                {activeAssistant && <activeAssistant.Icon size={20} className={activeAssistant.color} />}
               </div>
               <div>
-                <div className="text-[15px] font-bold text-txt-primary">{activeAssistant.name}</div>
+                <div className="text-[15px] font-bold text-txt-primary">{activeAssistant?.name}</div>
                 <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
-                  <div className={`w-1.5 h-1.5 rounded-full ${activeAssistant.dot}`} />
-                  Онлайн · {activeAssistant.role}
+                  <div className={`w-1.5 h-1.5 rounded-full ${activeAssistant?.dot}`} />
+                  Онлайн · {activeAssistant?.role}
                 </div>
               </div>
             </div>
@@ -224,7 +255,7 @@ export default function AITeam() {
               size="sm"
               icon={<Trash2 size={14} />}
               onClick={() =>
-                setChatHistory([
+                activeAssistant && setChatHistory([
                   { role: 'assistant', content: `Привет! Я ${activeAssistant.name}. Чем могу помочь?` },
                 ])
               }
@@ -235,7 +266,7 @@ export default function AITeam() {
 
           {/* Quick actions */}
           <div className="flex gap-2 flex-wrap px-5 py-3 border-b border-bdr-subtle">
-            {activeAssistant.quickActions.map((action, i) => (
+            {activeAssistant?.quickActions.map((action, i) => (
               <button
                 key={i}
                 onClick={() => sendMessage(action)}
@@ -257,7 +288,7 @@ export default function AITeam() {
                   transition={{ duration: 0.2 }}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  {msg.role === 'assistant' && (
+                  {msg.role === 'assistant' && activeAssistant && (
                     <div className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 mr-2 mt-0.5 ${activeAssistant.bg}`}>
                       <activeAssistant.Icon size={16} className={activeAssistant.color} />
                     </div>
@@ -275,7 +306,7 @@ export default function AITeam() {
               ))}
             </AnimatePresence>
 
-            {processing && (
+            {processing && activeAssistant && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -298,7 +329,7 @@ export default function AITeam() {
               value={userInput}
               onChange={e => setUserInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`Написать ${activeAssistant.name.toLowerCase()}у\u2026 (Enter для отправки)`}
+              placeholder={activeAssistant ? `Написать ${activeAssistant.name.toLowerCase()}у\u2026 (Enter для отправки)` : ''}
               disabled={processing}
               className="flex-1"
             />

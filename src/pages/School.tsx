@@ -14,6 +14,38 @@ import { EmptyState } from '../components/ui/ds/EmptyState';
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard';
 import { Tabs } from '../components/ui/ds/Misc';
 
+interface SchoolCourse {
+  id: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  category: string;
+  difficulty?: string;
+  rating: number;
+  lesson_count: number;
+  duration_hours: number;
+  enrolled_count: number;
+  instructor: string;
+}
+
+interface ClinicalCase {
+  id?: string;
+  title: string;
+  description: string;
+  category: string;
+  difficulty?: string;
+  diagnosis: string;
+  author: string;
+}
+
+interface LibraryItem {
+  id?: string;
+  title: string;
+  type: string;
+  category: string;
+  author: string;
+}
+
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.07 } } };
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] } } };
 const scaleIn = { hidden: { opacity: 0, scale: 0.9 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -34,9 +66,9 @@ const CATEGORIES = [
   { key: 'Юридические вопросы', label: 'Юриспруденция', icon: Scale },
 ];
 
-const DIFF_BADGE = { beginner: 'success', intermediate: 'gold', advanced: 'error' };
-const DIFF_LABELS = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
-const CAT_ICONS = {
+const DIFF_BADGE: Record<string, string> = { beginner: 'success', intermediate: 'gold', advanced: 'error' };
+const DIFF_LABELS: Record<string, string> = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
+const CAT_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   'Терапия': Stethoscope, 'Хирургия': Scissors, 'Имплантация': Zap,
   'Ортодонтия': Building2, 'Эндодонтия': Microscope, 'Маркетинг': Sparkles,
   'Фотография': Camera, 'AI': Brain, 'Ортопедия': Shield,
@@ -50,9 +82,9 @@ const TABS = [
 
 export default function School() {
   const navigate = useNavigate();
-  const [courses, setCourses] = useState([]);
-  const [clinicalCases, setClinicalCases] = useState([]);
-  const [libraryItems, setLibraryItems] = useState([]);
+  const [courses, setCourses] = useState<SchoolCourse[]>([]);
+  const [clinicalCases, setClinicalCases] = useState<ClinicalCase[]>([]);
+  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState('');
   const [activeTab, setActiveTab] = useState('courses');
@@ -132,7 +164,7 @@ export default function School() {
         <Input
           icon={<Search size={16} />}
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
           placeholder={activeTab === 'courses' ? 'Поиск курсов, преподавателей...' : 'Поиск...'}
           className="flex-1 min-w-[200px]"
         />
@@ -185,8 +217,8 @@ export default function School() {
                     style={{ background: 'linear-gradient(135deg, var(--sapphire)25, var(--gold)12)' }}>
                     <CatIcon size={48} className="text-[var(--gold)]/40" />
                     <div className="absolute top-2.5 right-2.5">
-                      <Badge variant={DIFF_BADGE[course.difficulty] || 'info'} size="xs">
-                        {DIFF_LABELS[course.difficulty]}
+                      <Badge variant={(DIFF_BADGE[course.difficulty!] || 'info') as 'info' | 'success' | 'gold' | 'error' | 'default'} size="xs">
+                        {DIFF_LABELS[course.difficulty!]}
                       </Badge>
                     </div>
                     <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-black/50 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-md">
@@ -233,8 +265,8 @@ export default function School() {
               <Card hover padding="md" className="h-full">
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-[10px] font-semibold text-[var(--gold)] uppercase">{c.category}</span>
-                  <Badge variant={DIFF_BADGE[c.difficulty] || 'default'} size="xs">
-                    {DIFF_LABELS[c.difficulty]}
+                  <Badge variant={(DIFF_BADGE[c.difficulty!] || 'default') as 'info' | 'success' | 'gold' | 'error' | 'default'} size="xs">
+                    {DIFF_LABELS[c.difficulty!]}
                   </Badge>
                 </div>
                 <h3 className="text-sm font-bold text-white mb-1.5">{c.title}</h3>

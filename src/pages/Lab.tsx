@@ -16,8 +16,9 @@ import { PageHeader } from '../components/ui/ds/StatCard'
 import { Tabs } from '../components/ui/ds/Misc'
 import { gid, fd, today } from '../utils/constants'
 import { cn } from '../lib/utils'
+import type { LabOrder, User as UserType, Clinic, RoleInfo } from '../types'
 
-const STATUS_CFG = {
+const STATUS_CFG: Record<string, { label: string; variant: string }> = {
   in_progress: { label: 'В работе', variant: 'info' },
   ready: { label: 'Готово', variant: 'success' },
   delivered: { label: 'Выдано', variant: 'gold' },
@@ -25,7 +26,7 @@ const STATUS_CFG = {
   cancelled: { label: 'Отменено', variant: 'default' },
 }
 
-const STATUS_VARIANT = { in_progress: 'info', ready: 'success', delivered: 'gold', delayed: 'error', cancelled: 'default' }
+const STATUS_VARIANT: Record<string, string> = { in_progress: 'info', ready: 'success', delivered: 'gold', delayed: 'error', cancelled: 'default' }
 
 const LAB_TYPES = [
   { value: 'crown', label: 'Коронка' },
@@ -57,27 +58,33 @@ const TABS = [
   { id: 'waxup', label: 'Wax-Up / Smile Design', icon: <FlaskConical size={14} /> },
 ]
 
-function escapeHtml(str) {
+interface OutletContext {
+  clinic: Clinic & { id: string }
+  user: UserType
+  roleInfo?: RoleInfo
+}
+
+function escapeHtml(str: string): string {
   if (!str) return ''
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 }
 
-function printWorkOrder(order) {
+function printWorkOrder(order: Partial<LabOrder>): void {
   const labTypeLabel = LAB_TYPES.find(t => t.value === order.labType)?.label || order.labType
   const materialLabel = MATERIALS.find(m => m.value === order.material)?.label || order.material
   const printWindow = window.open('', '_blank')
-  printWindow.document.write(`<!DOCTYPE html><html><head><title>Заказ-наряд №${escapeHtml(order.id?.slice(-6) || 'NEW')}</title>
+  printWindow!.document.write(`<!DOCTYPE html><html><head><title>Заказ-наряд №${escapeHtml(order.id?.slice(-6) || 'NEW')}</title>
     <style>body{font-family:Arial,sans-serif;padding:40px;color:#333}.header{text-align:center;border-bottom:2px solid #C9A96E;padding-bottom:20px;margin-bottom:30px}.title{font-size:24px;font-weight:bold;color:#C9A96E;margin-bottom:10px}.subtitle{font-size:14px;color:#666}.section{margin-bottom:25px}.section-title{font-size:16px;font-weight:bold;color:#0D1B2E;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:12px}.row{display:flex;justify-content:space-between;margin-bottom:8px}.label{color:#666;font-size:13px}.value{font-weight:600;color:#333;font-size:14px}.highlight{color:#C9A96E}.footer{margin-top:40px;border-top:1px solid #ddd;padding-top:20px;font-size:12px;color:#999;text-align:center}.stamp{margin-top:30px;display:flex;justify-content:space-between}.stamp-box{border:1px solid #333;padding:15px 30px;text-align:center}@media print{body{padding:20px}.no-print{display:none}}</style></head><body>
     <div class="header"><div class="title">ЗАКАЗ-НАРЯД</div><div class="subtitle">Стоматологическая лаборатория DentVision</div></div>
     <div class="section"><div class="section-title">Общая информация</div>
     <div class="row"><span class="label">№ заказа:</span><span class="value highlight">${escapeHtml(order.id?.slice(-6) || 'NEW')}</span></div>
     <div class="row"><span class="label">Дата создания:</span><span class="value">${escapeHtml(fd(order.createdAt || today()))}</span></div>
     <div class="row"><span class="label">Срок готовности:</span><span class="value highlight">${escapeHtml(fd(order.dueDate))}</span></div>
-    <div class="row"><span class="label">Статус:</span><span class="value">${escapeHtml(STATUS_CFG[order.status]?.label || order.status)}</span></div></div>
-    <div class="section"><div class="section-title">Пациент</div><div class="row"><span class="label">ФИО:</span><span class="value">${escapeHtml(order.patientName)}</span></div></div>
+    <div class="row"><span class="label">Статус:</span><span class="value">${escapeHtml(STATUS_CFG[order.status || '']?.label || order.status || '')}</span></div></div>
+    <div class="section"><div class="section-title">Пациент</div><div class="row"><span class="label">ФИО:</span><span class="value">${escapeHtml(order.patientName || '')}</span></div></div>
     <div class="section"><div class="section-title">Параметры работы</div>
-    <div class="row"><span class="label">Тип работы:</span><span class="value highlight">${escapeHtml(labTypeLabel)}</span></div>
-    <div class="row"><span class="label">Материал:</span><span class="value highlight">${escapeHtml(materialLabel)}</span></div>
+    <div class="row"><span class="label">Тип работы:</span><span class="value highlight">${escapeHtml(labTypeLabel || '')}</span></div>
+    <div class="row"><span class="label">Материал:</span><span class="value highlight">${escapeHtml(materialLabel || '')}</span></div>
     ${order.toothNumber ? `<div class="row"><span class="label">Зуб:</span><span class="value">${escapeHtml(order.toothNumber)}</span></div>` : ''}
     ${order.shade ? `<div class="row"><span class="label">Цвет (Shade):</span><span class="value">${escapeHtml(order.shade)}</span></div>` : ''}</div>
     ${order.notes ? `<div class="section"><div class="section-title">Комментарии</div><div style="background:#f9f9f9;padding:15px;border-radius:8px;font-size:13px;line-height:1.5">${escapeHtml(order.notes)}</div></div>` : ''}
@@ -86,31 +93,31 @@ function printWorkOrder(order) {
     <button class="no-print" onclick="window.print()" style="margin-top:20px;padding:10px 30px;background:#C9A96E;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px">Печать</button>
     <button class="no-print" onclick="window.close()" style="margin-top:20px;margin-left:10px;padding:10px 30px;background:#666;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px">Закрыть</button>
     <script>setTimeout(()=>window.print(),500)</script></body></html>`)
-  printWindow.document.close()
+  printWindow!.document.close()
 }
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Lab() {
-  const { clinic } = useOutletContext()
+  const { clinic } = useOutletContext<OutletContext>()
   const { labOrders, upsertLabOrder, doctors } = useData(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
   const [activeTab, setActiveTab] = useState('active')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editOrder, setEditOrder] = useState(null)
+  const [editOrder, setEditOrder] = useState<LabOrder | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
 
-  const byStatus = (statuses) => labOrders.filter(o => statuses.includes(o.status))
+  const byStatus = (statuses: string[]) => labOrders.filter(o => statuses.includes(o.status))
   const active = byStatus(['in_progress'])
   const ready = byStatus(['ready'])
   const completed = byStatus(['delivered', 'cancelled'])
   const delayed = byStatus(['delayed'])
 
   const openNew = () => { setEditOrder(null); setForm(EMPTY_FORM); setModalOpen(true) }
-  const openEdit = (o) => { setEditOrder(o); setForm({ ...o }); setModalOpen(true) }
+  const openEdit = (o: LabOrder) => { setEditOrder(o); setForm({ ...o }); setModalOpen(true) }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.patientName || !form.dueDate) {
       showToast('Укажите пациента и срок готовности', 'warning')
@@ -129,8 +136,8 @@ export default function Lab() {
     }
   }
 
-  const changeStatus = async (order, newStatus) => {
-    await upsertLabOrder({ ...order, status: newStatus })
+  const changeStatus = async (order: LabOrder, newStatus: string) => {
+    await upsertLabOrder({ ...order, status: newStatus as any })
     showToast(`Статус изменён: ${STATUS_CFG[newStatus]?.label}`, 'success')
   }
 
@@ -228,7 +235,7 @@ export default function Lab() {
                         <p className="text-sm font-bold text-txt-primary">{order.patientName}</p>
                         <p className="text-xs text-txt-muted mt-0.5">Создан {fd(order.createdAt || today())}</p>
                       </div>
-                      <Badge variant={STATUS_VARIANT[order.status] || 'default'} size="sm">
+                      <Badge variant={STATUS_VARIANT[order.status] as any || 'default'} size="sm">
                         {STATUS_CFG[order.status]?.label || order.status}
                       </Badge>
                     </div>

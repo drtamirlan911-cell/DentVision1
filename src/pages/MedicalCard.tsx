@@ -10,6 +10,7 @@ import { Badge } from '../components/ui/ds/Badge';
 import { EmptyState } from '../components/ui/ds/EmptyState';
 import { PageHeader } from '../components/ui/ds/StatCard';
 import { Tabs } from '../components/ui/ds/Misc';
+import type { Patient, MedicalCard as MedicalCardType, Visit, Clinic, User as UserType, RoleInfo } from '../types';
 
 const CARD_SECTIONS = [
   { id: 'personal', label: 'Личные данные', icon: <User size={16} /> },
@@ -21,15 +22,39 @@ const CARD_SECTIONS = [
 
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
+interface OutletContext {
+  clinic: Clinic & { id: string }
+  user: UserType
+  roleInfo?: RoleInfo
+}
+
+interface MedicalCardForm {
+  blood_type: string
+  allergies: string
+  chronic_diseases: string
+  medications: string
+  past_surgeries: string
+  family_history: string
+  emergency_contact: string
+  emergency_phone: string
+  insurance_provider: string
+  insurance_number: string
+  notes: string
+}
+
 export default function MedicalCard() {
-  const { clinic, user } = useOutletContext();
+  const { clinic, user } = useOutletContext<OutletContext>();
   const { patients, medicalCards, upsertMedicalCard, visits } = useData(clinic?.id);
   const toast = useToast();
-  const [selectedPatientId, setSelectedPatientId] = useState(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [editing, setEditing] = useState(false);
   const [activeSection, setActiveSection] = useState('personal');
-  const [form, setForm] = useState({});
+  const [form, setForm] = useState<MedicalCardForm>({
+    blood_type: '', allergies: '', chronic_diseases: '', medications: '',
+    past_surgeries: '', family_history: '', emergency_contact: '', emergency_phone: '',
+    insurance_provider: '', insurance_number: '', notes: '',
+  });
 
   const filteredPatients = useMemo(() => {
     if (!patients) return [];
@@ -67,12 +92,12 @@ export default function MedicalCard() {
       user_id: user?.id,
       user_name: user?.name,
     };
-    await upsertMedicalCard(data);
+    await upsertMedicalCard(data as any);
     toast.success('Медицинская карта сохранена');
     setEditing(false);
   };
 
-  const Field = ({ label, children }) => (
+  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
     <div>
       <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-txt-muted">{label}</label>
       {children}

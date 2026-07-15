@@ -8,13 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/ds/Ca
 import { Button } from '../components/ui/ds/Button';
 import { Badge } from '../components/ui/ds/Badge';
 import { PageHeader } from '../components/ui/ds/StatCard';
+import type { Clinic, User, RoleInfo } from '../types';
 
 export default function Backup() {
-  const { clinic, user } = useOutletContext();
-  const [backupData, setBackupData] = useState(null);
+  const { clinic, user } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
+  const [backupData, setBackupData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [lastBackup, setLastBackup] = useState(null);
-  const [error, setError] = useState(null);
+  const [lastBackup, setLastBackup] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const createBackup = async () => {
     setLoading(true);
@@ -23,7 +24,7 @@ export default function Backup() {
       const data = await api.createBackup(clinic.id);
       setBackupData(data);
       setLastBackup(new Date());
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message || 'Ошибка создания бэкапа');
     } finally {
       setLoading(false);

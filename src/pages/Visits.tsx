@@ -9,15 +9,35 @@ import { Button } from '../components/ui/ds/Button';
 import { Badge } from '../components/ui/ds/Badge';
 import { EmptyState } from '../components/ui/ds/EmptyState';
 import { PageHeader } from '../components/ui/ds/StatCard';
+import type { Visit, Patient, User as UserType, Clinic, RoleInfo } from '../types';
+
+interface OutletContext {
+  clinic: Clinic & { id: string }
+  user: UserType
+  roleInfo?: RoleInfo
+}
+
+interface VisitForm {
+  patient_id: string
+  doctor_id: string
+  chief_complaint: string
+  diagnosis: string
+  icd10_codes: string
+  treatment_plan: string
+  procedures_done: string
+  prescriptions: string
+  next_visit_date: string
+  notes: string
+}
 
 export default function Visits() {
-  const { clinic, user } = useOutletContext();
+  const { clinic, user } = useOutletContext<OutletContext>();
   const { patients, doctors, visits, upsertVisit } = useData(clinic?.id);
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<VisitForm>({
     patient_id: '', doctor_id: '', chief_complaint: '', diagnosis: '',
     icd10_codes: '', treatment_plan: '', procedures_done: '',
     prescriptions: '', next_visit_date: '', notes: '',
@@ -40,7 +60,7 @@ export default function Visits() {
     setShowForm(false);
   };
 
-  const startEdit = (visit) => {
+  const startEdit = (visit: Visit) => {
     setForm({
       patient_id: visit.patient_id || visit.patientId || '',
       doctor_id: visit.doctor_id || visit.doctorId || '',
@@ -65,7 +85,7 @@ export default function Visits() {
       clinic_id: clinic.id,
       user_id: user?.id,
       user_name: user?.name,
-    });
+    } as any);
     toast.success(editingId ? 'Посещение обновлено' : 'Посещение добавлено');
     resetForm();
   };

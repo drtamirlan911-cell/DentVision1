@@ -19,6 +19,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
+import type { Appointment, Patient, WaitingListItem, User } from '@/types'
 
 const STATUS_CFG = APPOINTMENT_STATUS
 const WORK_START = '08:00'
@@ -33,9 +34,9 @@ const EMPTY_FORM = {
 const EMPTY_PATIENT = { name: '', phone: '', email: '', dob: '', gender: '', notes: '' }
 const EMPTY_WAIT = { patientId: '', patientName: '', patientPhone: '', doctorId: '', preferredDate: '', preferredTime: '', preferredService: '', notes: '' }
 
-function timeToMinutes(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-function minutesToTop(minutes) { return ((minutes - timeToMinutes(WORK_START)) / MIN_PER_SLOT) * (HOUR_HEIGHT / 2) }
-function formatDuration(mins) { if (mins < 60) return `${mins} мин`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h} ч ${m} мин` : `${h} ч` }
+function timeToMinutes(t: string): number { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+function minutesToTop(minutes: number): number { return ((minutes - timeToMinutes(WORK_START)) / MIN_PER_SLOT) * (HOUR_HEIGHT / 2) }
+function formatDuration(mins: number): string { if (mins < 60) return `${mins} мин`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h} ч ${m} мин` : `${h} ч` }
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
@@ -53,27 +54,27 @@ export default function Schedule() {
   const navigate = useNavigate()
   const [selDate, setSelDate] = useState(today())
   const [modalOpen, setModalOpen] = useState(false)
-  const [editAppt, setEditAppt] = useState(null)
+  const [editAppt, setEditAppt] = useState<Appointment | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
-  const [dragged, setDragged] = useState(null)
+  const [dragged, setDragged] = useState<Appointment | null>(null)
   const [viewMode, setViewMode] = useState('doctors')
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all')
   const [activeTab, setActiveTab] = useState('schedule')
   const [waitModalOpen, setWaitModalOpen] = useState(false)
   const [waitForm, setWaitForm] = useState(EMPTY_WAIT)
-  const [editWaitId, setEditWaitId] = useState(null)
+  const [editWaitId, setEditWaitId] = useState<string | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
   const [newPatient, setNewPatient] = useState(EMPTY_PATIENT)
   const [searchAppts, setSearchAppts] = useState('')
-  const [toast, setToast] = useState(null)
+  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
 
-  const showToast = (msg, type = 'info') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+  const showToast = (msg: string, type: string = 'info'): void => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
 
   const ownDataOnly = !!roleInfo?.ownDataOnly && user?.role === 'doctor'
 
   const dayAppts = useMemo(() => {
     let list = appointments.filter(a => a.date === selDate)
-    if (ownDataOnly) list = list.filter(a => a.doctorId === user.id)
+    if (ownDataOnly) list = list.filter(a => a.doctorId === user!.id)
     if (selectedDoctorFilter !== 'all') list = list.filter(a => a.doctorId === selectedDoctorFilter)
     if (searchAppts) {
       const q = searchAppts.toLowerCase()
@@ -101,11 +102,11 @@ export default function Schedule() {
   const serviceOptions = [{ value: '', label: '— Выберите услугу —' }, ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${tg(s.price)}` }))]
   const selectedService = ALL_SERVICES.find(s => s.id === form.service)
 
-  const openNew = () => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
-  const openSlotBooking = (time, doctorId) => { setEditAppt(null); setForm({ ...EMPTY_FORM, time, doctorId: doctorId || '' }); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
-  const openEdit = (a) => { setEditAppt(a); setForm({ patientId: a.patientId || '', doctorId: a.doctorId || '', service: a.service || a.reason || '', time: a.time, status: a.status, notes: a.notes || '', duration: a.duration || 60, diagnosis: a.diagnosis || '', toothNumber: a.toothNumber || '' }); setShowNewPatient(false); setModalOpen(true) }
+  const openNew = (): void => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
+  const openSlotBooking = (time: string, doctorId: string): void => { setEditAppt(null); setForm({ ...EMPTY_FORM, time, doctorId: doctorId || '' }); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
+  const openEdit = (a: Appointment): void => { setEditAppt(a); setForm({ patientId: a.patientId || '', doctorId: a.doctorId || '', service: a.service || a.reason || '', time: a.time, status: a.status, notes: a.notes || '', duration: a.duration || 60, diagnosis: a.diagnosis || '', toothNumber: a.toothNumber || '' }); setShowNewPatient(false); setModalOpen(true) }
 
-  const handleCreatePatient = async () => {
+  const handleCreatePatient = async (): Promise<Patient | null> => {
     if (!newPatient.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return null }
     const patientData = { ...newPatient, id: gid(), clinicId: clinic?.id, category: 'new' }
     const created = await upsertPatient(patientData)
@@ -113,7 +114,7 @@ export default function Schedule() {
     return created
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     let patientId = form.patientId
     if (showNewPatient && !patientId) { const created = await handleCreatePatient(); if (!created) return; patientId = created.id }
@@ -125,9 +126,9 @@ export default function Schedule() {
     } catch { showToast('Ошибка сохранения', 'error') }
   }
 
-  const handleDelete = async () => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
-  const handleDrop = async (e, timeSlot, doctorId) => { e.preventDefault(); if (!dragged) return; await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId }); showToast('Запись перенесена', 'success'); setDragged(null) }
-  const shiftDate = (days) => { const d = new Date(selDate); d.setDate(d.getDate() + days); setSelDate(d.toISOString().slice(0, 10)) }
+  const handleDelete = async (): Promise<void> => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>, timeSlot: string, doctorId: string): Promise<void> => { e.preventDefault(); if (!dragged) return; await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId }); showToast('Запись перенесена', 'success'); setDragged(null) }
+  const shiftDate = (days: number): void => { const d = new Date(selDate); d.setDate(d.getDate() + days); setSelDate(d.toISOString().slice(0, 10)) }
 
   const patientOptions = [{ value: '', label: '— Выберите пациента —' }, ...patients.map(p => ({ value: p.id, label: p.name }))]
   const doctorOptions = [{ value: '', label: '— Выберите врача —' }, ...doctors.map(d => ({ value: d.id, label: `${d.name} (${d.spec || 'Врач'})` }))]
@@ -139,7 +140,7 @@ export default function Schedule() {
     cancelled: dayAppts.filter(a => ['cancelled', 'noShow'].includes(a.status)).length,
   }), [dayAppts])
 
-  const handleSaveWait = async () => {
+  const handleSaveWait = async (): Promise<void> => {
     if (!waitForm.patientName.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
     const doctor = doctors.find(d => d.id === waitForm.doctorId)
     await upsertWaitingListItem({ id: editWaitId || gid(), clinicId: clinic?.id, patientId: waitForm.patientId || null, patientName: waitForm.patientName, patientPhone: waitForm.patientPhone, doctorId: waitForm.doctorId || null, doctorName: doctor?.name || '', preferredDate: waitForm.preferredDate || null, preferredTime: waitForm.preferredTime || null, preferredService: waitForm.preferredService || '', notes: waitForm.notes || '', status: 'waiting' })
@@ -147,16 +148,16 @@ export default function Schedule() {
     setWaitModalOpen(false); setEditWaitId(null); setWaitForm(EMPTY_WAIT)
   }
 
-  const handleDeleteWait = async (id) => { await deleteWaitingListItem(id); showToast('Удалено', 'success') }
+  const handleDeleteWait = async (id: string): Promise<void> => { await deleteWaitingListItem(id); showToast('Удалено', 'success') }
 
-  const handlePromoteFromWait = async (w) => {
+  const handlePromoteFromWait = async (w: any): Promise<void> => {
     setForm({ ...EMPTY_FORM, patientId: w.patient_id || '', doctorId: w.doctor_id || '', time: w.preferred_time || '09:00', service: w.preferred_service || '' })
-    setShowNewPatient(false); setShowPayment(false); setPayment(EMPTY_PAYMENT); setModalOpen(true)
+    setShowNewPatient(false); setModalOpen(true)
     await deleteWaitingListItem(w.id)
     showToast('Перенесён в форму записи', 'info')
   }
 
-  const renderAppointmentBlock = (appt, compact = false) => {
+  const renderAppointmentBlock = (appt: Appointment, compact = false): React.ReactNode => {
     const patient = patients.find(p => p.id === appt.patientId)
     const sc = STATUS_CFG[appt.status] || STATUS_CFG.scheduled
     const dur = appt.duration || 60
@@ -422,7 +423,7 @@ export default function Schedule() {
 
           <Select label="Врач" value={form.doctorId} onChange={e => setForm({ ...form, doctorId: e.target.value })} options={doctorOptions} />
           <Select label="Услуга из прайса" value={form.service}
-            onChange={e => { const svc = ALL_SERVICES.find(s => s.id === e.target.value); setForm({ ...form, service: e.target.value }); if (svc) setPayment({ ...payment, amount: svc.price }) }}
+            onChange={e => { const svc = ALL_SERVICES.find(s => s.id === e.target.value); setForm({ ...form, service: e.target.value }); if (svc) {} }}
             options={serviceOptions} required />
 
           <div className="grid grid-cols-3 gap-2">
