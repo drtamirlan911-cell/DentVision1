@@ -3,8 +3,10 @@
 // ═══════════════════════════════════════════════════════════════
 import { Router } from 'express';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission, requireSameClinic } from '../middleware/rbac.js';
+import prisma from '../lib/prisma.js';
 
 const ALLOWED_TABLES = [
   'clinics', 'users', 'patients', 'appointments', 'treatments',
@@ -55,7 +57,7 @@ function decryptPatients(rows) { return rows.map(decryptPatient); }
 function validateTable(table) { return ALLOWED_TABLES.includes(table); }
 function sanitizeColumnName(col) { return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(col); }
 
-export default function clinicRoutes(pool, writeAuditLog) {
+export default function clinicRoutes(writeAuditLog) {
   const router = Router();
 
   // ─── Clinic data (authenticated, same-clinic enforced) ───
@@ -63,42 +65,42 @@ export default function clinicRoutes(pool, writeAuditLog) {
     try {
       const { clinicId } = req.params;
       const [patients, appointments, treatments, receipts, subscriptions, labOrders, photos, expenses, inventory, debts, referrals, promotions, bookings, medicalCards, visits, documents, waitingList] = await Promise.all([
-        pool.query('SELECT * FROM patients WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM appointments WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM treatments WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM receipts WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM subscriptions WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM lab_orders WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM photos WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM expenses WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM inventory WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM debts WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM referrals WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM promotions WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM bookings WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM medical_cards WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM visits WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM documents WHERE clinic_id = $1', [clinicId]),
-        pool.query('SELECT * FROM waiting_list WHERE clinic_id = $1', [clinicId]),
+        prisma.patient.findMany({ where: { clinicId } }),
+        prisma.appointment.findMany({ where: { clinicId } }),
+        prisma.treatment.findMany({ where: { clinicId } }),
+        prisma.receipt.findMany({ where: { clinicId } }),
+        prisma.subscription.findMany({ where: { clinicId } }),
+        prisma.labOrder.findMany({ where: { clinicId } }),
+        prisma.photo.findMany({ where: { clinicId } }),
+        prisma.expense.findMany({ where: { clinicId } }),
+        prisma.inventory.findMany({ where: { clinicId } }),
+        prisma.debt.findMany({ where: { clinicId } }),
+        prisma.referral.findMany({ where: { clinicId } }),
+        prisma.promotion.findMany({ where: { clinicId } }),
+        prisma.booking.findMany({ where: { clinicId } }),
+        prisma.medicalCard.findMany({ where: { clinicId } }),
+        prisma.visit.findMany({ where: { clinicId } }),
+        prisma.document.findMany({ where: { clinicId } }),
+        prisma.waitingList.findMany({ where: { clinicId } }),
       ]);
       res.json({
-        patients: decryptPatients(patients.rows),
-        appointments: appointments.rows,
-        treatments: treatments.rows,
-        receipts: receipts.rows,
-        subscriptions: subscriptions.rows,
-        labOrders: labOrders.rows,
-        photos: photos.rows,
-        expenses: expenses.rows,
-        inventory: inventory.rows,
-        debts: debts.rows,
-        referrals: referrals.rows,
-        promotions: promotions.rows,
-        bookings: bookings.rows,
-        medicalCards: medicalCards.rows,
-        visits: visits.rows,
-        documents: documents.rows,
-        waitingList: waitingList.rows,
+        patients: decryptPatients(patients),
+        appointments,
+        treatments,
+        receipts,
+        subscriptions,
+        labOrders,
+        photos,
+        expenses,
+        inventory,
+        debts,
+        referrals,
+        promotions,
+        bookings,
+        medicalCards,
+        visits,
+        documents,
+        waitingList,
       });
     } catch {
       res.status(500).json({ error: 'Internal server error' });
@@ -117,12 +119,12 @@ export default function clinicRoutes(pool, writeAuditLog) {
       const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
       const updates = columns.map((col) => `${col} = EXCLUDED.${col}`).join(', ');
       const query = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates} RETURNING *`;
-      const result = await pool.query(query, values);
-      if (row.clinic_id && result.rows[0]) {
+      const result = await prisma.$queryRawUnsafe(query, ...values);
+      if (row.clinic_id && result[0]) {
         const action = `upsert_${table}`;
         writeAuditLog(row.clinic_id, req.user.id, req.user.name, action, table, row.id, { table, id: row.id });
       }
-      res.json(result.rows[0]);
+      res.json(result[0]);
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -133,11 +135,11 @@ export default function clinicRoutes(pool, writeAuditLog) {
     try {
       const { table, id } = req.params;
       if (!validateTable(table)) return res.status(400).json({ error: 'Invalid table name' });
-      const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 RETURNING *`, [id]);
-      if (result.rows[0]?.clinic_id) {
-        writeAuditLog(result.rows[0].clinic_id, req.user.id, req.user.name, `delete_${table}`, table, id, { table, id });
+      const result = await prisma.$queryRawUnsafe(`DELETE FROM ${table} WHERE id = $1 RETURNING *`, id);
+      if (result[0]?.clinic_id) {
+        writeAuditLog(result[0].clinic_id, req.user.id, req.user.name, `delete_${table}`, table, id, { table, id });
       }
-      res.json(result.rows[0] || { deleted: true, id });
+      res.json(result[0] || { deleted: true, id });
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -146,22 +148,21 @@ export default function clinicRoutes(pool, writeAuditLog) {
   // ─── User creation (authenticated, admin/director only) ───
   router.post('/users/create', authenticate, requirePermission('manage_users'), async (req, res) => {
     try {
-      const bcrypt = await import('bcryptjs');
       const { id, clinic_id, login, password, name, role, spec, phone } = req.body;
       if (!login || !password || !name || !role) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
-      // Ensure user can only create in their own clinic (unless superadmin)
       if (req.user.role !== 'superadmin' && clinic_id !== req.user.clinicId) {
         return res.status(403).json({ error: 'Cannot create users in other clinics' });
       }
-      const password_hash = await bcrypt.default.hash(password, 10);
-      const result = await pool.query(
-        `INSERT INTO users (id, clinic_id, login, password_hash, name, role, spec, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, login = EXCLUDED.login, name = EXCLUDED.name, role = EXCLUDED.role, spec = EXCLUDED.spec, phone = EXCLUDED.phone RETURNING *`,
-        [id, clinic_id, login, password_hash, name, role, spec, phone]
-      );
-      const { password_hash: _, ...user } = result.rows[0];
-      res.json(user);
+      const password_hash = await bcrypt.hash(password, 10);
+      const user = await prisma.user.upsert({
+        where: { id: id || '' },
+        update: { clinicId: clinic_id, login, name, role, spec, phone },
+        create: { id, clinicId: clinic_id, login, passwordHash: password_hash, name, role, spec, phone },
+      });
+      const { passwordHash: _, ...safeUser } = user;
+      res.json(safeUser);
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }
