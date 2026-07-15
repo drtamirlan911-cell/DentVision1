@@ -1,11 +1,12 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database } from 'lucide-react'
+import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, LayoutGrid } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
 import { Switch } from '@/components/ui/ds/Misc'
 import { useAuth } from '@/context/AuthContext'
+import * as api from '@/utils/api'
 
 const container = {
   hidden: { opacity: 0 },
@@ -16,11 +17,57 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 }
 
+interface ServiceToggle {
+  key: string
+  name: string
+  desc: string
+  locked?: boolean
+}
+
+const SERVICE_TOGGLES: ServiceToggle[] = [
+  { key: 'crm', name: 'CRM', desc: 'Расписание, пациенты, лечение', locked: true },
+  { key: 'shop', name: 'Магазин (Shop)', desc: 'Маркетплейс товаров' },
+  { key: 'school', name: 'Школа (School)', desc: 'Образовательная платформа' },
+  { key: 'ai', name: 'AI Помощник', desc: 'ИИ для диагностики' },
+  { key: 'analytics', name: 'Аналитика', desc: 'Отчёты и метрики' },
+  { key: 'settings', name: 'Настройки', desc: 'Управление клиникой' },
+]
+
 export default function SettingsPage() {
-  const { user, clinic } = useAuth()
+  const { user, clinic, roleInfo } = useAuth()
   const [notifications, setNotifications] = React.useState<boolean>(true)
   const [darkMode, setDarkMode] = React.useState<boolean>(true)
   const [autoSave, setAutoSave] = React.useState<boolean>(true)
+
+  const canManageServices = roleInfo?.pages?.includes('settings')
+  const [accessMap, setAccessMap] = React.useState<Record<string, boolean> | null>(null)
+  const [saving, setSaving] = React.useState<boolean>(false)
+  const [saved, setSaved] = React.useState<boolean>(false)
+
+  React.useEffect(() => {
+    if (canManageServices && clinic?.id) {
+      api.getServiceAccess(clinic.id)
+        .then(setAccessMap)
+        .catch(() => setAccessMap(null))
+    }
+  }, [canManageServices, clinic?.id])
+
+  const toggleService = (key: string, value: boolean) => {
+    if (!accessMap) return
+    setAccessMap({ ...accessMap, [key]: value })
+    setSaved(false)
+  }
+
+  const saveServices = async () => {
+    if (!accessMap || !clinic?.id) return
+    setSaving(true)
+    try {
+      await api.setServiceAccessBulk(clinic.id, accessMap)
+      setSaved(true)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="max-w-3xl mx-auto space-y-6">
@@ -31,6 +78,46 @@ export default function SettingsPage() {
           icon={<SettingsIcon size={20} />}
         />
       </motion.div>
+
+      {/* Services */}
+      {canManageServices && (
+        <motion.div variants={item}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LayoutGrid size={16} className="text-dv-gold" />
+                Сервисы
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xs text-txt-muted mb-4">
+                Включите или отключите сервисы для вашей клиники. Отключённые сервисы не будут видны сотрудникам.
+              </p>
+              <div className="space-y-4">
+                {SERVICE_TOGGLES.map((s) => (
+                  <div key={s.key} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-txt-primary">{s.name}</p>
+                      <p className="text-2xs text-txt-muted">{s.desc}</p>
+                    </div>
+                    <Switch
+                      checked={accessMap ? accessMap[s.key] !== false : true}
+                      disabled={s.locked || !accessMap}
+                      onCheckedChange={(v: boolean) => toggleService(s.key, v)}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex items-center gap-3">
+                <Button size="sm" onClick={saveServices} disabled={saving}>
+                  {saving ? 'Сохранение…' : 'Сохранить'}
+                </Button>
+                {saved && <span className="text-2xs text-dv-gold">Сохранено</span>}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Profile */}
       <motion.div variants={item}>
