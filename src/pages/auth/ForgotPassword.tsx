@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GLOBAL_CSS } from '../utils/constants';
-import { rateLimit, validatePassword } from '../utils/security';
+import { GLOBAL_CSS } from '../../utils/constants';
+import { rateLimit, validatePassword } from '../../utils/security';
 import { Loader2, KeyRound } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
@@ -21,11 +21,11 @@ export default function ForgotPassword() {
     e.preventDefault();
     setError('');
     if (!rateLimit('forgot-password', { maxAttempts: 3, windowMs: 60000 })) {
-      setError('Слишком много запросов. Подождите минуту.');
+      setError('╨б╨╗╨╕╤И╨║╨╛╨╝ ╨╝╨╜╨╛╨│╨╛ ╨╖╨░╨┐╤А╨╛╤Б╨╛╨▓. ╨Я╨╛╨┤╨╛╨╢╨┤╨╕╤В╨╡ ╨╝╨╕╨╜╤Г╤В╤Г.');
       return;
     }
     if (!login.trim()) {
-      setError('Введите логин');
+      setError('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨╗╨╛╨│╨╕╨╜');
       return;
     }
     setLoading(true);
@@ -38,13 +38,13 @@ export default function ForgotPassword() {
       const data = await res.json();
       if (data._devToken) {
         setToken(data._devToken);
-        setSuccess('Токен для сброса (dev): ' + data._devToken);
+        setSuccess('╨в╨╛╨║╨╡╨╜ ╨┤╨╗╤П ╤Б╨▒╤А╨╛╤Б╨░ (dev): ' + data._devToken);
       } else {
-        setSuccess(data.message || 'Инструкция отправлена');
+        setSuccess(data.message || '╨Ш╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╤П ╨╛╤В╨┐╤А╨░╨▓╨╗╨╡╨╜╨░');
       }
       setStep('reset');
     } catch {
-      setError('Ошибка соединения с сервером');
+      setError('╨Ю╤И╨╕╨▒╨║╨░ ╤Б╨╛╨╡╨┤╨╕╨╜╨╡╨╜╨╕╤П ╤Б ╤Б╨╡╤А╨▓╨╡╤А╨╛╨╝');
     } finally {
       setLoading(false);
     }
@@ -54,15 +54,15 @@ export default function ForgotPassword() {
     e.preventDefault();
     setError('');
     if (!token.trim()) {
-      setError('Введите токен');
+      setError('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╤В╨╛╨║╨╡╨╜');
       return;
     }
     if (!validatePassword(newPassword)) {
-      setError('Пароль должен быть не менее 6 символов');
+      setError('╨Я╨░╤А╨╛╨╗╤М ╨┤╨╛╨╗╨╢╨╡╨╜ ╨▒╤Л╤В╤М ╨╜╨╡ ╨╝╨╡╨╜╨╡╨╡ 6 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Пароли не совпадают');
+      setError('╨Я╨░╤А╨╛╨╗╨╕ ╨╜╨╡ ╤Б╨╛╨▓╨┐╨░╨┤╨░╤О╤В');
       return;
     }
     setLoading(true);
@@ -73,11 +73,11 @@ export default function ForgotPassword() {
         body: JSON.stringify({ token: token.trim(), newPassword }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Ошибка');
-      setSuccess('Пароль успешно изменён!');
+      if (!res.ok) throw new Error(data.error || '╨Ю╤И╨╕╨▒╨║╨░');
+      setSuccess('╨Я╨░╤А╨╛╨╗╤М ╤Г╤Б╨┐╨╡╤И╨╜╨╛ ╨╕╨╖╨╝╨╡╨╜╤С╨╜!');
       setTimeout(() => navigate('/login'), 2000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ошибка при смене пароля');
+      setError(err instanceof Error ? err.message : '╨Ю╤И╨╕╨▒╨║╨░ ╨┐╤А╨╕ ╤Б╨╝╨╡╨╜╨╡ ╨┐╨░╤А╨╛╨╗╤П');
     } finally {
       setLoading(false);
     }
@@ -95,10 +95,10 @@ export default function ForgotPassword() {
               <KeyRound size={40} />
             </div>
             <h1 className="font-['Georgia',serif] text-[22px] font-bold text-white m-0">
-              {step === 'request' ? 'Сброс пароля' : 'Новый пароль'}
+              {step === 'request' ? '╨б╨▒╤А╨╛╤Б ╨┐╨░╤А╨╛╨╗╤П' : '╨Э╨╛╨▓╤Л╨╣ ╨┐╨░╤А╨╛╨╗╤М'}
             </h1>
             <p className="text-xs text-[#7A8899] mt-1.5">
-              {step === 'request' ? 'Введите ваш логин для получения токена' : 'Введите токен и новый пароль'}
+              {step === 'request' ? '╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨▓╨░╤И ╨╗╨╛╨│╨╕╨╜ ╨┤╨╗╤П ╨┐╨╛╨╗╤Г╤З╨╡╨╜╨╕╤П ╤В╨╛╨║╨╡╨╜╨░' : '╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╤В╨╛╨║╨╡╨╜ ╨╕ ╨╜╨╛╨▓╤Л╨╣ ╨┐╨░╤А╨╛╨╗╤М'}
             </p>
           </div>
 
@@ -117,7 +117,7 @@ export default function ForgotPassword() {
           {step === 'request' ? (
             <form onSubmit={handleRequest}>
               <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Логин</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Ы╨╛╨│╨╕╨╜</label>
                 <input type="text" value={login} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLogin(e.target.value)}
                   placeholder="admin_c1" required autoFocus
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
@@ -128,27 +128,27 @@ export default function ForgotPassword() {
                     ? 'bg-[#8B6F3E] cursor-not-allowed'
                     : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer'
                 }`}>
-                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Отправка...</> : 'Получить токен'}
+                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> ╨Ю╤В╨┐╤А╨░╨▓╨║╨░...</> : '╨Я╨╛╨╗╤Г╤З╨╕╤В╤М ╤В╨╛╨║╨╡╨╜'}
               </button>
             </form>
           ) : (
             <form onSubmit={handleReset}>
               <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Токен сброса</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨в╨╛╨║╨╡╨╜ ╤Б╨▒╤А╨╛╤Б╨░</label>
                 <input type="text" value={token} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setToken(e.target.value)}
-                  placeholder="Вставьте токен из письма" required autoFocus
+                  placeholder="╨Т╤Б╤В╨░╨▓╤М╤В╨╡ ╤В╨╛╨║╨╡╨╜ ╨╕╨╖ ╨┐╨╕╤Б╤М╨╝╨░" required autoFocus
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors font-mono" />
               </div>
               <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Новый пароль</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Э╨╛╨▓╤Л╨╣ ╨┐╨░╤А╨╛╨╗╤М</label>
                 <input type="password" value={newPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
-                  placeholder="Минимум 6 символов" required
+                  placeholder="╨Ь╨╕╨╜╨╕╨╝╤Г╨╝ 6 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓" required
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Подтвердите пароль</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Я╨╛╨┤╤В╨▓╨╡╤А╨┤╨╕╤В╨╡ ╨┐╨░╤А╨╛╨╗╤М</label>
                 <input type="password" value={confirmPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
-                  placeholder="Повторите пароль" required
+                  placeholder="╨Я╨╛╨▓╤В╨╛╤А╨╕╤В╨╡ ╨┐╨░╤А╨╛╨╗╤М" required
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <button type="submit" disabled={loading}
@@ -157,14 +157,14 @@ export default function ForgotPassword() {
                     ? 'bg-[#8B6F3E] cursor-not-allowed'
                     : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer'
                 }`}>
-                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Сохранение...</> : 'Изменить пароль'}
+                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> ╨б╨╛╤Е╤А╨░╨╜╨╡╨╜╨╕╨╡...</> : '╨Ш╨╖╨╝╨╡╨╜╨╕╤В╤М ╨┐╨░╤А╨╛╨╗╤М'}
               </button>
             </form>
           )}
 
           <div className="text-center mt-4">
             <button onClick={() => navigate('/login')} className="bg-transparent border-none text-[#C9A96E] text-[13px] cursor-pointer underline">
-              ← Вернуться к входу
+              тЖР ╨Т╨╡╤А╨╜╤Г╤В╤М╤Б╤П ╨║ ╨▓╤Е╨╛╨┤╤Г
             </button>
           </div>
         </div>

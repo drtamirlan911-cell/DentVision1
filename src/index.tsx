@@ -6,13 +6,13 @@ import { AuthProvider } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/ds';
 
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import PublicBooking from './pages/PublicBooking';
-import DocumentSign from './pages/DocumentSign';
+import Login from './pages/auth/Login';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import PublicBooking from './pages/auth/PublicBooking';
+import DocumentSign from './pages/auth/DocumentSign';
 import './styles/global.css';
 
-// Platform pages (service hub, settings, analytics, admin, etc.)
+// Platform pages
 const ServiceHub = lazy(() => import('./pages/hub/ServiceHub'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AITeam = lazy(() => import('./pages/AITeam'));
@@ -24,26 +24,26 @@ const SettingsPage = lazy(() => import('./pages/Settings'));
 const Profile = lazy(() => import('./pages/Profile'));
 
 // CRM sub-app pages
-const Schedule = lazy(() => import('./pages/Schedule'));
-const Patients = lazy(() => import('./pages/Patients'));
-const Cashier = lazy(() => import('./pages/Cashier'));
-const Lab = lazy(() => import('./pages/Lab'));
-const Staff = lazy(() => import('./pages/Staff'));
-const PriceList = lazy(() => import('./pages/PriceList'));
-const Promotions = lazy(() => import('./pages/Promotions'));
-const Inventory = lazy(() => import('./pages/Inventory'));
-const MedicalCard = lazy(() => import('./pages/MedicalCard'));
-const ICD10 = lazy(() => import('./pages/ICD10'));
-const Visits = lazy(() => import('./pages/Visits'));
-const Documents = lazy(() => import('./pages/Documents'));
+const Schedule = lazy(() => import('./pages/crm/Schedule'));
+const Patients = lazy(() => import('./pages/crm/Patients'));
+const Cashier = lazy(() => import('./pages/crm/Cashier'));
+const Lab = lazy(() => import('./pages/crm/Lab'));
+const Staff = lazy(() => import('./pages/crm/Staff'));
+const PriceList = lazy(() => import('./pages/crm/PriceList'));
+const Promotions = lazy(() => import('./pages/crm/Promotions'));
+const Inventory = lazy(() => import('./pages/crm/Inventory'));
+const MedicalCard = lazy(() => import('./pages/crm/MedicalCard'));
+const ICD10 = lazy(() => import('./pages/crm/ICD10'));
+const Visits = lazy(() => import('./pages/crm/Visits'));
+const Documents = lazy(() => import('./pages/crm/Documents'));
 
 // Shop sub-app pages
-const Shop = lazy(() => import('./pages/Shop'));
-const ShopProduct = lazy(() => import('./pages/ShopProduct'));
+const Shop = lazy(() => import('./pages/shop/Shop'));
+const ShopProduct = lazy(() => import('./pages/shop/ShopProduct'));
 
 // School sub-app pages
-const School = lazy(() => import('./pages/School'));
-const SchoolCourse = lazy(() => import('./pages/SchoolCourse'));
+const School = lazy(() => import('./pages/school/School'));
+const SchoolCourse = lazy(() => import('./pages/school/SchoolCourse'));
 
 // Layouts
 import { CrmLayout } from './layouts/services/CrmLayout';

@@ -6,14 +6,14 @@ import {
   X, Plus, Minus, Eye, Sparkles, BarChart3, AlertTriangle, ShoppingBag,
   Brain, ArrowUpDown,
 } from 'lucide-react';
-import { tg } from '../utils/constants';
-import * as api from '../utils/api';
-import { Button } from '../components/ui/ds/Button';
-import { Card, CardContent } from '../components/ui/ds/Card';
-import { Input } from '../components/ui/ds/Input';
-import { Badge } from '../components/ui/ds/Badge';
-import { EmptyState } from '../components/ui/ds/EmptyState';
-import { StatCard, PageHeader } from '../components/ui/ds/StatCard';
+import { tg } from '../../utils/constants';
+import * as api from '../../utils/api';
+import { Button } from '../../components/ui/ds/Button';
+import { Card, CardContent } from '../../components/ui/ds/Card';
+import { Input } from '../../components/ui/ds/Input';
+import { Badge } from '../../components/ui/ds/Badge';
+import { EmptyState } from '../../components/ui/ds/EmptyState';
+import { StatCard, PageHeader } from '../../components/ui/ds/StatCard';
 
 interface ShopProductItem {
   id: string;
@@ -69,10 +69,10 @@ const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, tra
 const scaleIn = { hidden: { opacity: 0, scale: 0.92 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 const SORT_OPTIONS = [
-  { value: '', label: 'По рейтингу' },
-  { value: 'price_asc', label: 'Сначала дешевле' },
-  { value: 'price_desc', label: 'Сначала дороже' },
-  { value: 'newest', label: 'Новинки' },
+  { value: '', label: '╨Я╨╛ ╤А╨╡╨╣╤В╨╕╨╜╨│╤Г' },
+  { value: 'price_asc', label: '╨б╨╜╨░╤З╨░╨╗╨░ ╨┤╨╡╤И╨╡╨▓╨╗╨╡' },
+  { value: 'price_desc', label: '╨б╨╜╨░╤З╨░╨╗╨░ ╨┤╨╛╤А╨╛╨╢╨╡' },
+  { value: 'newest', label: '╨Э╨╛╨▓╨╕╨╜╨║╨╕' },
 ];
 
 export default function Shop() {
@@ -148,8 +148,8 @@ export default function Shop() {
       query: aiQuery,
       results: matched,
       summary: matched.length > 0
-        ? `Нашёл ${matched.length} товаров по запросу «${aiQuery}». Вот лучшие варианты:`
-        : `К сожалению, точных совпадений не найдено. Попробуйте другой запрос или выберите категорию.`,
+        ? `╨Э╨░╤И╤С╨╗ ${matched.length} ╤В╨╛╨▓╨░╤А╨╛╨▓ ╨┐╨╛ ╨╖╨░╨┐╤А╨╛╤Б╤Г ┬л${aiQuery}┬╗. ╨Т╨╛╤В ╨╗╤Г╤З╤И╨╕╨╡ ╨▓╨░╤А╨╕╨░╨╜╤В╤Л:`
+        : `╨Ъ ╤Б╨╛╨╢╨░╨╗╨╡╨╜╨╕╤О, ╤В╨╛╤З╨╜╤Л╤Е ╤Б╨╛╨▓╨┐╨░╨┤╨╡╨╜╨╕╨╣ ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╨╛. ╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨┤╤А╤Г╨│╨╛╨╣ ╨╖╨░╨┐╤А╨╛╤Б ╨╕╨╗╨╕ ╨▓╤Л╨▒╨╡╤А╨╕╤В╨╡ ╨║╨░╤В╨╡╨│╨╛╤А╨╕╤О.`,
     });
   };
 
@@ -159,7 +159,7 @@ export default function Shop() {
     <div className="p-6 min-h-screen">
       <PageHeader
         title="DentVision Shop"
-        subtitle="Стоматологический маркетплейс"
+        subtitle="╨б╤В╨╛╨╝╨░╤В╨╛╨╗╨╛╨│╨╕╤З╨╡╤Б╨║╨╕╨╣ ╨╝╨░╤А╨║╨╡╤В╨┐╨╗╨╡╨╣╤Б"
         icon={<ShoppingBag size={22} />}
         actions={
           <>
@@ -169,7 +169,7 @@ export default function Shop() {
               icon={<Brain size={15} />}
               onClick={() => setShowAi(!showAi)}
             >
-              AI Ассистент
+              AI ╨Р╤Б╤Б╨╕╤Б╤В╨╡╨╜╤В
             </Button>
             <Button
               variant="ghost"
@@ -178,7 +178,7 @@ export default function Shop() {
               onClick={() => setShowCart(true)}
               className="relative"
             >
-              Корзина
+              ╨Ъ╨╛╤А╨╖╨╕╨╜╨░
               {cartCount > 0 && (
                 <motion.span
                   initial={{ scale: 0 }}
@@ -209,7 +209,7 @@ export default function Shop() {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white m-0">AI Shopping Assistant</h3>
-                    <p className="text-xs text-[var(--slate)] m-0">Спросите что нужно — AI подберёт лучшие товары</p>
+                    <p className="text-xs text-[var(--slate)] m-0">╨б╨┐╤А╨╛╤Б╨╕╤В╨╡ ╤З╤В╨╛ ╨╜╤Г╨╢╨╜╨╛ тАФ AI ╨┐╨╛╨┤╨▒╨╡╤А╤С╤В ╨╗╤Г╤З╤И╨╕╨╡ ╤В╨╛╨▓╨░╤А╤Л</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -217,11 +217,11 @@ export default function Shop() {
                     value={aiQuery}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiQuery(e.target.value)}
                     onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAiSearch()}
-                    placeholder="Например: лучший композит для фронтальных реставраций..."
+                    placeholder="╨Э╨░╨┐╤А╨╕╨╝╨╡╤А: ╨╗╤Г╤З╤И╨╕╨╣ ╨║╨╛╨╝╨┐╨╛╨╖╨╕╤В ╨┤╨╗╤П ╤Д╤А╨╛╨╜╤В╨░╨╗╤М╨╜╤Л╤Е ╤А╨╡╤Б╤В╨░╨▓╤А╨░╤Ж╨╕╨╣..."
                     className="flex-1 !rounded-xl"
                   />
                   <Button variant="primary" size="md" icon={<Sparkles size={15} />} onClick={handleAiSearch}>
-                    Найти
+                    ╨Э╨░╨╣╤В╨╕
                   </Button>
                 </div>
                 {aiResponse && (
@@ -262,7 +262,7 @@ export default function Shop() {
         >
           <AlertTriangle size={16} className="text-error" />
           <span className="text-xs text-[var(--slate-light)]">
-            <strong className="text-error">Внимание:</strong> {lowStockProducts.length} товар(ов) требуют пополнения на складе
+            <strong className="text-error">╨Т╨╜╨╕╨╝╨░╨╜╨╕╨╡:</strong> {lowStockProducts.length} ╤В╨╛╨▓╨░╤А(╨╛╨▓) ╤В╤А╨╡╨▒╤Г╤О╤В ╨┐╨╛╨┐╨╛╨╗╨╜╨╡╨╜╨╕╤П ╨╜╨░ ╤Б╨║╨╗╨░╨┤╨╡
           </span>
         </motion.div>
       )}
@@ -278,7 +278,7 @@ export default function Shop() {
           <input
             value={search}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-            placeholder="Поиск товаров, брендов..."
+            placeholder="╨Я╨╛╨╕╤Б╨║ ╤В╨╛╨▓╨░╤А╨╛╨▓, ╨▒╤А╨╡╨╜╨┤╨╛╨▓..."
             className="w-full !pl-10 !rounded-xl"
           />
         </div>
@@ -308,7 +308,7 @@ export default function Shop() {
               : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)] hover:bg-white/5'
           }`}
         >
-          Все категории
+          ╨Т╤Б╨╡ ╨║╨░╤В╨╡╨│╨╛╤А╨╕╨╕
         </motion.button>
         {categories.map(cat => (
           <motion.button
@@ -330,10 +330,10 @@ export default function Shop() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-5">
         {[
-          { label: 'Всего товаров', value: products.length, icon: Package },
-          { label: 'Категорий', value: categories.length, icon: BarChart3 },
-          { label: 'Поставщиков', value: suppliers.length, icon: Truck },
-          { label: 'Нет в наличии', value: lowStockProducts.length, icon: AlertTriangle },
+          { label: '╨Т╤Б╨╡╨│╨╛ ╤В╨╛╨▓╨░╤А╨╛╨▓', value: products.length, icon: Package },
+          { label: '╨Ъ╨░╤В╨╡╨│╨╛╤А╨╕╨╣', value: categories.length, icon: BarChart3 },
+          { label: '╨Я╨╛╤Б╤В╨░╨▓╤Й╨╕╨║╨╛╨▓', value: suppliers.length, icon: Truck },
+          { label: '╨Э╨╡╤В ╨▓ ╨╜╨░╨╗╨╕╤З╨╕╨╕', value: lowStockProducts.length, icon: AlertTriangle },
         ].map((s, i) => (
           <StatCard key={i} label={s.label} value={s.value} icon={<s.icon size={18} />} />
         ))}
@@ -376,14 +376,14 @@ export default function Shop() {
                   </motion.button>
                   {product.stock <= product.min_stock && (
                     <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-warning/20 border border-warning/40 text-warning text-[10px] font-semibold px-2 py-0.5 rounded-md">
-                      <AlertTriangle size={10} /> Мало на складе
+                      <AlertTriangle size={10} /> ╨Ь╨░╨╗╨╛ ╨╜╨░ ╤Б╨║╨╗╨░╨┤╨╡
                     </div>
                   )}
                 </div>
 
                 <div className="p-3.5" onClick={() => navigate(`/shop/${product.id}`)}>
                   <div className="text-[10px] text-[var(--gold)] font-semibold mb-1 uppercase tracking-wide">
-                    {product.brand} · {product.category_name}
+                    {product.brand} ┬╖ {product.category_name}
                   </div>
                   <h3 className="text-sm font-bold text-white leading-snug mb-1.5 m-0">
                     {product.name}
@@ -396,7 +396,7 @@ export default function Shop() {
                     </div>
                     <span className="text-[11px] text-[var(--slate)]">({product.review_count})</span>
                     <Badge variant={product.stock > 0 ? 'success' : 'error'} size="xs">
-                      {product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет в наличии'}
+                      {product.stock > 0 ? `╨Т ╨╜╨░╨╗╨╕╤З╨╕╨╕: ${product.stock}` : '╨Э╨╡╤В ╨▓ ╨╜╨░╨╗╨╕╤З╨╕╨╕'}
                     </Badge>
                   </div>
                   <div className="flex items-baseline gap-2 mb-2.5">
@@ -417,7 +417,7 @@ export default function Shop() {
                           : 'bg-white/10 text-[var(--slate)] cursor-not-allowed'
                       }`}
                     >
-                      <ShoppingCart size={13} /> {product.stock > 0 ? 'В корзину' : 'Нет в наличии'}
+                      <ShoppingCart size={13} /> {product.stock > 0 ? '╨Т ╨║╨╛╤А╨╖╨╕╨╜╤Г' : '╨Э╨╡╤В ╨▓ ╨╜╨░╨╗╨╕╤З╨╕╨╕'}
                     </motion.button>
                     <motion.button
                       whileHover={{ scale: 1.08 }}
@@ -438,8 +438,8 @@ export default function Shop() {
       {!loading && filteredProducts.length === 0 && (
         <EmptyState
           icon={<Package size={32} />}
-          title="Товары не найдены"
-          description="Попробуйте изменить параметры поиска или выбрать другую категорию"
+          title="╨в╨╛╨▓╨░╤А╤Л ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╤Л"
+          description="╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨╕╨╖╨╝╨╡╨╜╨╕╤В╤М ╨┐╨░╤А╨░╨╝╨╡╤В╤А╤Л ╨┐╨╛╨╕╤Б╨║╨░ ╨╕╨╗╨╕ ╨▓╤Л╨▒╤А╨░╤В╤М ╨┤╤А╤Г╨│╤Г╤О ╨║╨░╤В╨╡╨│╨╛╤А╨╕╤О"
         />
       )}
 
@@ -462,7 +462,7 @@ export default function Shop() {
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
                 <h3 className="flex items-center gap-2 text-base font-bold text-white m-0">
-                  <ShoppingCart size={18} className="text-[var(--gold)]" /> Корзина ({cartCount})
+                  <ShoppingCart size={18} className="text-[var(--gold)]" /> ╨Ъ╨╛╤А╨╖╨╕╨╜╨░ ({cartCount})
                 </h3>
                 <button onClick={() => setShowCart(false)} className="text-[var(--slate)] hover:text-white transition-colors bg-transparent border-none cursor-pointer">
                   <X size={20} />
@@ -472,8 +472,8 @@ export default function Shop() {
                 {cart.length === 0 ? (
                   <EmptyState
                     icon={<ShoppingBag size={32} />}
-                    title="Корзина пуста"
-                    description="Добавьте товары из каталога"
+                    title="╨Ъ╨╛╤А╨╖╨╕╨╜╨░ ╨┐╤Г╤Б╤В╨░"
+                    description="╨Ф╨╛╨▒╨░╨▓╤М╤В╨╡ ╤В╨╛╨▓╨░╤А╤Л ╨╕╨╖ ╨║╨░╤В╨░╨╗╨╛╨│╨░"
                   />
                 ) : cart.map(item => (
                   <div key={item.id} className="flex items-center gap-3 py-3 border-b border-[var(--border-subtle)] last:border-b-0">
@@ -509,11 +509,11 @@ export default function Shop() {
               {cart.length > 0 && (
                 <div className="px-5 py-4 border-t border-[var(--border-subtle)]">
                   <div className="flex justify-between mb-3">
-                    <span className="text-sm text-[var(--slate-light)]">Итого:</span>
+                    <span className="text-sm text-[var(--slate-light)]">╨Ш╤В╨╛╨│╨╛:</span>
                     <span className="text-lg font-extrabold text-white">{tg(cartTotal)}</span>
                   </div>
                   <Button variant="primary" size="lg" className="w-full">
-                    Оформить заказ
+                    ╨Ю╤Д╨╛╤А╨╝╨╕╤В╤М ╨╖╨░╨║╨░╨╖
                   </Button>
                 </div>
               )}

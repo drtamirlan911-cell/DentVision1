@@ -5,25 +5,25 @@ import {
   Users, UserPlus, Shield, Stethoscope, Briefcase, Crown, Phone, Mail,
   Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings,
 } from 'lucide-react'
-import { useAuth, ROLES } from '../context/AuthContext'
-import { useToast } from '../hooks/useData'
-import { Button } from '../components/ui/ds/Button'
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/ds/Card'
-import { Input, Textarea, Select } from '../components/ui/ds/Input'
-import { Badge } from '../components/ui/ds/Badge'
-import { Modal } from '../components/ui/ds/Modal'
-import { EmptyState } from '../components/ui/ds/EmptyState'
-import { PageHeader } from '../components/ui/ds/StatCard'
-import { Avatar } from '../components/ui/ds/Avatar'
-import { VISIBILITY_OPTIONS } from '../utils/constants'
-import { cn } from '../lib/utils'
-import type { User as UserType, Clinic, RoleInfo } from '../types'
+import { useAuth, ROLES } from '../../context/AuthContext'
+import { useToast } from '../../hooks/useData'
+import { Button } from '../../components/ui/ds/Button'
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
+import { Input, Textarea, Select } from '../../components/ui/ds/Input'
+import { Badge } from '../../components/ui/ds/Badge'
+import { Modal } from '../../components/ui/ds/Modal'
+import { EmptyState } from '../../components/ui/ds/EmptyState'
+import { PageHeader } from '../../components/ui/ds/StatCard'
+import { Avatar } from '../../components/ui/ds/Avatar'
+import { VISIBILITY_OPTIONS } from '../../utils/constants'
+import { cn } from '../../lib/utils'
+import type { User as UserType, Clinic, RoleInfo } from '../../types'
 
 const ROLE_OPTIONS = [
-  { value: 'doctor', label: 'Врач' },
-  { value: 'assistant', label: 'Ассистент' },
-  { value: 'admin', label: 'Администратор' },
-  { value: 'director', label: 'Руководитель' },
+  { value: 'doctor', label: '╨Т╤А╨░╤З' },
+  { value: 'assistant', label: '╨Р╤Б╤Б╨╕╤Б╤В╨╡╨╜╤В' },
+  { value: 'admin', label: '╨Р╨┤╨╝╨╕╨╜╨╕╤Б╤В╤А╨░╤В╨╛╤А' },
+  { value: 'director', label: '╨а╤Г╨║╨╛╨▓╨╛╨┤╨╕╤В╨╡╨╗╤М' },
 ]
 
 const ROLE_ICON: Record<string, React.ReactNode> = {
@@ -41,39 +41,39 @@ const ROLE_BADGE: Record<string, string> = {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  director: 'Руководитель',
-  admin: 'Администратор',
-  doctor: 'Врач',
-  assistant: 'Ассистент',
+  director: '╨а╤Г╨║╨╛╨▓╨╛╨┤╨╕╤В╨╡╨╗╤М',
+  admin: '╨Р╨┤╨╝╨╕╨╜╨╕╤Б╤В╤А╨░╤В╨╛╤А',
+  doctor: '╨Т╤А╨░╤З',
+  assistant: '╨Р╤Б╤Б╨╕╤Б╤В╨╡╨╜╤В',
 }
 
 const SPECS = [
-  { value: '', label: '--- Без специализации ---' },
-  { value: 'Терапевт', label: 'Терапевт' },
-  { value: 'Ортопед', label: 'Ортопед' },
-  { value: 'Хирург', label: 'Хирург' },
-  { value: 'Ортодонт', label: 'Ортодонт' },
-  { value: 'Пародонтолог', label: 'Пародонтолог' },
-  { value: 'Детский стоматолог', label: 'Детский стоматолог' },
-  { value: 'Имплантолог', label: 'Имплантолог' },
-  { value: 'Ассистент', label: 'Ассистент' },
-  { value: 'Администратор', label: 'Администратор' },
+  { value: '', label: '--- ╨С╨╡╨╖ ╤Б╨┐╨╡╤Ж╨╕╨░╨╗╨╕╨╖╨░╤Ж╨╕╨╕ ---' },
+  { value: '╨в╨╡╤А╨░╨┐╨╡╨▓╤В', label: '╨в╨╡╤А╨░╨┐╨╡╨▓╤В' },
+  { value: '╨Ю╤А╤В╨╛╨┐╨╡╨┤', label: '╨Ю╤А╤В╨╛╨┐╨╡╨┤' },
+  { value: '╨е╨╕╤А╤Г╤А╨│', label: '╨е╨╕╤А╤Г╤А╨│' },
+  { value: '╨Ю╤А╤В╨╛╨┤╨╛╨╜╤В', label: '╨Ю╤А╤В╨╛╨┤╨╛╨╜╤В' },
+  { value: '╨Я╨░╤А╨╛╨┤╨╛╨╜╤В╨╛╨╗╨╛╨│', label: '╨Я╨░╤А╨╛╨┤╨╛╨╜╤В╨╛╨╗╨╛╨│' },
+  { value: '╨Ф╨╡╤В╤Б╨║╨╕╨╣ ╤Б╤В╨╛╨╝╨░╤В╨╛╨╗╨╛╨│', label: '╨Ф╨╡╤В╤Б╨║╨╕╨╣ ╤Б╤В╨╛╨╝╨░╤В╨╛╨╗╨╛╨│' },
+  { value: '╨Ш╨╝╨┐╨╗╨░╨╜╤В╨╛╨╗╨╛╨│', label: '╨Ш╨╝╨┐╨╗╨░╨╜╤В╨╛╨╗╨╛╨│' },
+  { value: '╨Р╤Б╤Б╨╕╤Б╤В╨╡╨╜╤В', label: '╨Р╤Б╤Б╨╕╤Б╤В╨╡╨╜╤В' },
+  { value: '╨Р╨┤╨╝╨╕╨╜╨╕╤Б╤В╤А╨░╤В╨╛╤А', label: '╨Р╨┤╨╝╨╕╨╜╨╕╤Б╤В╤А╨░╤В╨╛╤А' },
 ]
 
 const PAGE_ICONS: Record<string, string> = {
-  dashboard: 'Дашборд', schedule: 'Расписание', patients: 'Пациенты', 'medical-card': 'Карта',
-  visits: 'Визиты', icd10: 'МКБ-10', documents: 'Документы', cashier: 'Касса',
-  pricelist: 'Прайс', lab: 'Лаборатория', ai: 'AI', staff: 'Сотрудники',
-  promotions: 'Акции', inventory: 'Склад', shop: 'Магазин', school: 'Школа',
-  analytics: 'Аналитика', settings: 'Настройки', reminders: 'Напоминания',
-  admin: 'Админ', audit: 'Аудит', backup: 'Бэкап',
+  dashboard: '╨Ф╨░╤И╨▒╨╛╤А╨┤', schedule: '╨а╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╨╡', patients: '╨Я╨░╤Ж╨╕╨╡╨╜╤В╤Л', 'medical-card': '╨Ъ╨░╤А╤В╨░',
+  visits: '╨Т╨╕╨╖╨╕╤В╤Л', icd10: '╨Ь╨Ъ╨С-10', documents: '╨Ф╨╛╨║╤Г╨╝╨╡╨╜╤В╤Л', cashier: '╨Ъ╨░╤Б╤Б╨░',
+  pricelist: '╨Я╤А╨░╨╣╤Б', lab: '╨Ы╨░╨▒╨╛╤А╨░╤В╨╛╤А╨╕╤П', ai: 'AI', staff: '╨б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨╕',
+  promotions: '╨Р╨║╤Ж╨╕╨╕', inventory: '╨б╨║╨╗╨░╨┤', shop: '╨Ь╨░╨│╨░╨╖╨╕╨╜', school: '╨и╨║╨╛╨╗╨░',
+  analytics: '╨Р╨╜╨░╨╗╨╕╤В╨╕╨║╨░', settings: '╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨╕', reminders: '╨Э╨░╨┐╨╛╨╝╨╕╨╜╨░╨╜╨╕╤П',
+  admin: '╨Р╨┤╨╝╨╕╨╜', audit: '╨Р╤Г╨┤╨╕╤В', backup: '╨С╤Н╨║╨░╨┐',
 }
 
 const ROLE_DESC: Record<string, string> = {
-  director: 'Полный доступ: Dashboard, расписание, пациенты, финансы, лаборатория, AI, персонал. Видит зарплаты и расходы.',
-  admin: 'Доступ: расписание, пациенты, касса, лаборатория. Не видит зарплаты и подробную аналитику.',
-  doctor: 'Доступ: своё расписание, пациенты, лаборатория, AI. Видит только свои записи.',
-  assistant: 'Ограниченный доступ: расписание (только просмотр), базовая информация о пациентах. Не может редактировать данные.',
+  director: '╨Я╨╛╨╗╨╜╤Л╨╣ ╨┤╨╛╤Б╤В╤Г╨┐: Dashboard, ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╨╡, ╨┐╨░╤Ж╨╕╨╡╨╜╤В╤Л, ╤Д╨╕╨╜╨░╨╜╤Б╤Л, ╨╗╨░╨▒╨╛╤А╨░╤В╨╛╤А╨╕╤П, AI, ╨┐╨╡╤А╤Б╨╛╨╜╨░╨╗. ╨Т╨╕╨┤╨╕╤В ╨╖╨░╤А╨┐╨╗╨░╤В╤Л ╨╕ ╤А╨░╤Б╤Е╨╛╨┤╤Л.',
+  admin: '╨Ф╨╛╤Б╤В╤Г╨┐: ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╨╡, ╨┐╨░╤Ж╨╕╨╡╨╜╤В╤Л, ╨║╨░╤Б╤Б╨░, ╨╗╨░╨▒╨╛╤А╨░╤В╨╛╤А╨╕╤П. ╨Э╨╡ ╨▓╨╕╨┤╨╕╤В ╨╖╨░╤А╨┐╨╗╨░╤В╤Л ╨╕ ╨┐╨╛╨┤╤А╨╛╨▒╨╜╤Г╤О ╨░╨╜╨░╨╗╨╕╤В╨╕╨║╤Г.',
+  doctor: '╨Ф╨╛╤Б╤В╤Г╨┐: ╤Б╨▓╨╛╤С ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╨╡, ╨┐╨░╤Ж╨╕╨╡╨╜╤В╤Л, ╨╗╨░╨▒╨╛╤А╨░╤В╨╛╤А╨╕╤П, AI. ╨Т╨╕╨┤╨╕╤В ╤В╨╛╨╗╤М╨║╨╛ ╤Б╨▓╨╛╨╕ ╨╖╨░╨┐╨╕╤Б╨╕.',
+  assistant: '╨Ю╨│╤А╨░╨╜╨╕╤З╨╡╨╜╨╜╤Л╨╣ ╨┤╨╛╤Б╤В╤Г╨┐: ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╨╡ (╤В╨╛╨╗╤М╨║╨╛ ╨┐╤А╨╛╤Б╨╝╨╛╤В╤А), ╨▒╨░╨╖╨╛╨▓╨░╤П ╨╕╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╤П ╨╛ ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨░╤Е. ╨Э╨╡ ╨╝╨╛╨╢╨╡╤В ╤А╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М ╨┤╨░╨╜╨╜╤Л╨╡.',
 }
 
 interface OutletContext {
@@ -125,11 +125,11 @@ export default function Staff() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.name || !form.login || !form.password) {
-      showToast('Заполните все обязательные поля', 'warning')
+      showToast('╨Ч╨░╨┐╨╛╨╗╨╜╨╕╤В╨╡ ╨▓╤Б╨╡ ╨╛╨▒╤П╨╖╨░╤В╨╡╨╗╤М╨╜╤Л╨╡ ╨┐╨╛╨╗╤П', 'warning')
       return
     }
     if (form.password.length < 6) {
-      showToast('Пароль должен быть не менее 6 символов', 'warning')
+      showToast('╨Я╨░╤А╨╛╨╗╤М ╨┤╨╛╨╗╨╢╨╡╨╜ ╨▒╤Л╤В╤М ╨╜╨╡ ╨╝╨╡╨╜╨╡╨╡ 6 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓', 'warning')
       return
     }
     const result = addStaffMember({
@@ -139,10 +139,10 @@ export default function Staff() {
       experienceYears: Number(form.experienceYears) || 0,
     } as any)
     if (result === false) {
-      showToast('Такой логин уже занят', 'error')
+      showToast('╨в╨░╨║╨╛╨╣ ╨╗╨╛╨│╨╕╨╜ ╤Г╨╢╨╡ ╨╖╨░╨╜╤П╤В', 'error')
       return
     }
-    showToast(`${ROLE_LABELS[form.role] || 'Сотрудник'} добавлен`, 'success')
+    showToast(`${ROLE_LABELS[form.role] || '╨б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║'} ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜`, 'success')
     setModalOpen(false)
     setForm(EMPTY_FORM)
     setEditingStaff(null)
@@ -162,7 +162,7 @@ export default function Staff() {
       photoUrl: member.photoUrl || '',
       visibility: member.visibility || 'public',
       experienceYears: member.experienceYears || 0,
-      workSchedule: (member as any).workSchedule || { start: '09:00', end: '18:00', workDays: ['пн', 'вт', 'ср', 'чт', 'пт'] },
+      workSchedule: (member as any).workSchedule || { start: '09:00', end: '18:00', workDays: ['╨┐╨╜', '╨▓╤В', '╤Б╤А', '╤З╤В', '╨┐╤В'] },
     })
     setModalOpen(true)
   }
@@ -173,21 +173,21 @@ export default function Staff() {
     <Modal
       open={modalOpen}
       onClose={() => setModalOpen(false)}
-      title={editingStaff ? 'Редактировать сотрудника' : 'Добавить сотрудника'}
+      title={editingStaff ? '╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░' : '╨Ф╨╛╨▒╨░╨▓╨╕╤В╤М ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░'}
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="ФИО *"
+          label="╨д╨Ш╨Ю *"
           value={form.name}
           onChange={e => setForm({ ...form, name: e.target.value })}
-          placeholder="Иванова Мария Сергеевна"
+          placeholder="╨Ш╨▓╨░╨╜╨╛╨▓╨░ ╨Ь╨░╤А╨╕╤П ╨б╨╡╤А╨│╨╡╨╡╨▓╨╜╨░"
           required
           icon={<Users size={16} />}
         />
 
         <Select
-          label="Роль *"
+          label="╨а╨╛╨╗╤М *"
           value={form.role}
           onChange={e => setForm({ ...form, role: e.target.value })}
           options={ROLE_OPTIONS}
@@ -202,7 +202,7 @@ export default function Staff() {
 
         {(form.role === 'doctor' || form.role === 'assistant') && (
           <Select
-            label="Специализация"
+            label="╨б╨┐╨╡╤Ж╨╕╨░╨╗╨╕╨╖╨░╤Ж╨╕╤П"
             value={form.spec}
             onChange={e => setForm({ ...form, spec: e.target.value })}
             options={SPECS}
@@ -211,7 +211,7 @@ export default function Staff() {
 
         <div className="grid grid-cols-2 gap-3">
           <Input
-            label="Телефон"
+            label="╨в╨╡╨╗╨╡╤Д╨╛╨╜"
             value={form.phone}
             onChange={e => setForm({ ...form, phone: e.target.value })}
             placeholder="+7 777 000 00 00"
@@ -229,7 +229,7 @@ export default function Staff() {
 
         {form.role === 'doctor' && (
           <Input
-            label="Стаж (лет)"
+            label="╨б╤В╨░╨╢ (╨╗╨╡╤В)"
             type="number"
             min="0"
             max="60"
@@ -241,17 +241,17 @@ export default function Staff() {
 
         {form.role === 'doctor' && (
           <Textarea
-            label="О себе (био)"
+            label="╨Ю ╤Б╨╡╨▒╨╡ (╨▒╨╕╨╛)"
             value={form.bio}
             onChange={e => setForm({ ...form, bio: e.target.value })}
-            placeholder="Расскажите о себе, образовании, опыте работы..."
+            placeholder="╨а╨░╤Б╤Б╨║╨░╨╢╨╕╤В╨╡ ╨╛ ╤Б╨╡╨▒╨╡, ╨╛╨▒╤А╨░╨╖╨╛╨▓╨░╨╜╨╕╨╕, ╨╛╨┐╤Л╤В╨╡ ╤А╨░╨▒╨╛╤В╤Л..."
             rows={3}
           />
         )}
 
         {form.role === 'doctor' && (
           <Select
-            label="Видимость профиля"
+            label="╨Т╨╕╨┤╨╕╨╝╨╛╤Б╤В╤М ╨┐╤А╨╛╤Д╨╕╨╗╤П"
             value={form.visibility}
             onChange={e => setForm({ ...form, visibility: e.target.value })}
             options={VISIBILITY_OPTIONS}
@@ -260,7 +260,7 @@ export default function Staff() {
 
         {form.role === 'doctor' && (
           <Input
-            label="Фото URL"
+            label="╨д╨╛╤В╨╛ URL"
             value={form.photoUrl}
             onChange={e => setForm({ ...form, photoUrl: e.target.value })}
             placeholder="https://example.com/photo.jpg"
@@ -270,32 +270,32 @@ export default function Staff() {
         {form.role === 'doctor' && (
           <div className="p-3 rounded-lg border border-bdr-subtle bg-white/[0.02]">
             <p className="text-xs font-semibold text-txt-secondary mb-3 flex items-center gap-1.5">
-              <Calendar size={14} /> График работы врача
+              <Calendar size={14} /> ╨У╤А╨░╤Д╨╕╨║ ╤А╨░╨▒╨╛╤В╤Л ╨▓╤А╨░╤З╨░
             </p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <Input
-                label="Начало рабочего дня"
+                label="╨Э╨░╤З╨░╨╗╨╛ ╤А╨░╨▒╨╛╤З╨╡╨│╨╛ ╨┤╨╜╤П"
                 type="time"
                 value={form.workSchedule?.start || '09:00'}
                 onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule!, start: e.target.value } })}
               />
               <Input
-                label="Конец рабочего дня"
+                label="╨Ъ╨╛╨╜╨╡╤Ж ╤А╨░╨▒╨╛╤З╨╡╨│╨╛ ╨┤╨╜╤П"
                 type="time"
                 value={form.workSchedule?.end || '18:00'}
                 onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule!, end: e.target.value } })}
               />
             </div>
-            <p className="text-xs text-txt-muted mb-2">Рабочие дни:</p>
+            <p className="text-xs text-txt-muted mb-2">╨а╨░╨▒╨╛╤З╨╕╨╡ ╨┤╨╜╨╕:</p>
             <div className="flex gap-1.5 flex-wrap">
-              {['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map(day => {
-                const isSelected = (form.workSchedule?.workDays || ['пн', 'вт', 'ср', 'чт', 'пт']).includes(day)
+              {['╨┐╨╜', '╨▓╤В', '╤Б╤А', '╤З╤В', '╨┐╤В', '╤Б╨▒', '╨▓╤Б'].map(day => {
+                const isSelected = (form.workSchedule?.workDays || ['╨┐╨╜', '╨▓╤В', '╤Б╤А', '╤З╤В', '╨┐╤В']).includes(day)
                 return (
                   <button
                     key={day}
                     type="button"
                     onClick={() => {
-                      const current = form.workSchedule?.workDays || ['пн', 'вт', 'ср', 'чт', 'пт']
+                      const current = form.workSchedule?.workDays || ['╨┐╨╜', '╨▓╤В', '╤Б╤А', '╤З╤В', '╨┐╤В']
                       const updated = isSelected ? current.filter(d => d !== day) : [...current, day]
                       setForm({ ...form, workSchedule: { ...form.workSchedule!, workDays: updated } })
                     }}
@@ -316,10 +316,10 @@ export default function Staff() {
 
         <div className="border-t border-bdr-subtle pt-4">
           <p className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Settings size={14} /> Данные для входа
+            <Settings size={14} /> ╨Ф╨░╨╜╨╜╤Л╨╡ ╨┤╨╗╤П ╨▓╤Е╨╛╨┤╨░
           </p>
           <Input
-            label="Логин *"
+            label="╨Ы╨╛╨│╨╕╨╜ *"
             value={form.login}
             onChange={e => setForm({ ...form, login: e.target.value.toLowerCase().replace(/\s/g, '_') })}
             placeholder="doctor_name"
@@ -328,11 +328,11 @@ export default function Staff() {
           />
           {!editingStaff && (
             <Input
-              label="Пароль *"
+              label="╨Я╨░╤А╨╛╨╗╤М *"
               type="password"
               value={form.password}
               onChange={e => setForm({ ...form, password: e.target.value })}
-              placeholder="Минимум 6 символов"
+              placeholder="╨Ь╨╕╨╜╨╕╨╝╤Г╨╝ 6 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓"
               required
               icon={<Lock size={16} />}
             />
@@ -340,8 +340,8 @@ export default function Staff() {
         </div>
 
         <div className="flex gap-2 pt-2">
-          <Button type="submit" className="flex-1">{editingStaff ? 'Сохранить' : 'Добавить сотрудника'}</Button>
-          <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+          <Button type="submit" className="flex-1">{editingStaff ? '╨б╨╛╤Е╤А╨░╨╜╨╕╤В╤М' : '╨Ф╨╛╨▒╨░╨▓╨╕╤В╤М ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░'}</Button>
+          <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>╨Ю╤В╨╝╨╡╨╜╨░</Button>
         </div>
       </form>
     </Modal>
@@ -351,7 +351,7 @@ export default function Staff() {
     <Modal
       open={!!profileModal}
       onClose={() => setProfileModal(null)}
-      title="Профиль сотрудника"
+      title="╨Я╤А╨╛╤Д╨╕╨╗╤М ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░"
       size="md"
     >
       {profileModal && (
@@ -387,7 +387,7 @@ export default function Staff() {
             {profileModal.experienceYears! > 0 && (
               <div className="flex items-center gap-2.5">
                 <Award size={14} className="text-txt-muted shrink-0" />
-                <span>Стаж: {profileModal.experienceYears} лет</span>
+                <span>╨б╤В╨░╨╢: {profileModal.experienceYears} ╨╗╨╡╤В</span>
               </div>
             )}
             {(profileModal as any).bio && (
@@ -400,10 +400,10 @@ export default function Staff() {
           <div className="flex gap-2 mt-5">
             {canManage && (
               <Button className="flex-1" icon={<Edit size={16} />} onClick={() => { setProfileModal(null); openEditStaff(profileModal) }}>
-                Редактировать
+                ╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М
               </Button>
             )}
-            <Button variant="ghost" onClick={() => setProfileModal(null)}>Закрыть</Button>
+            <Button variant="ghost" onClick={() => setProfileModal(null)}>╨Ч╨░╨║╤А╤Л╤В╤М</Button>
           </div>
         </>
       )}
@@ -413,13 +413,13 @@ export default function Staff() {
   return (
     <div className="p-6">
       <PageHeader
-        title="Сотрудники"
-        subtitle={`${clinic?.name} · ${staff.length} чел.`}
+        title="╨б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨╕"
+        subtitle={`${clinic?.name} ┬╖ ${staff.length} ╤З╨╡╨╗.`}
         icon={<Users size={20} />}
         actions={
           canManage ? (
             <Button icon={<UserPlus size={16} />} onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
-              Добавить сотрудника
+              ╨Ф╨╛╨▒╨░╨▓╨╕╤В╤М ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░
             </Button>
           ) : undefined
         }
@@ -463,12 +463,12 @@ export default function Staff() {
       {filtered.length === 0 ? (
         <EmptyState
           icon={<Users size={32} />}
-          title="Нет сотрудников"
-          description={canManage ? 'Добавьте первого сотрудника' : 'Нет данных'}
+          title="╨Э╨╡╤В ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨╛╨▓"
+          description={canManage ? '╨Ф╨╛╨▒╨░╨▓╤М╤В╨╡ ╨┐╨╡╤А╨▓╨╛╨│╨╛ ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░' : '╨Э╨╡╤В ╨┤╨░╨╜╨╜╤Л╤Е'}
           action={
             canManage ? (
               <Button icon={<UserPlus size={16} />} onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
-                Добавить
+                ╨Ф╨╛╨▒╨░╨▓╨╕╤В╤М
               </Button>
             ) : undefined
           }
@@ -510,14 +510,14 @@ export default function Staff() {
                             </Badge>
                             {member.visibility === 'private' && (
                               <Badge variant="warning" size="sm">
-                                <Lock size={10} /> Приватный
+                                <Lock size={10} /> ╨Я╤А╨╕╨▓╨░╤В╨╜╤Л╨╣
                               </Badge>
                             )}
                           </div>
                         </div>
                       </div>
                       {isCurrentUser && (
-                        <Badge variant="gold" size="xs">Вы</Badge>
+                        <Badge variant="gold" size="xs">╨Т╤Л</Badge>
                       )}
                     </div>
 
@@ -538,7 +538,7 @@ export default function Staff() {
                       {member.experienceYears! > 0 && (
                         <div className="flex items-center gap-2">
                           <Award size={12} className="text-txt-muted shrink-0" />
-                          <span>Стаж: {member.experienceYears} {member.experienceYears === 1 ? 'год' : member.experienceYears! < 5 ? 'года' : 'лет'}</span>
+                          <span>╨б╤В╨░╨╢: {member.experienceYears} {member.experienceYears === 1 ? '╨│╨╛╨┤' : member.experienceYears! < 5 ? '╨│╨╛╨┤╨░' : '╨╗╨╡╤В'}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2">
@@ -562,7 +562,7 @@ export default function Staff() {
 
                     {/* Access summary */}
                     <div className="mt-3 p-2.5 rounded-lg bg-white/[0.02] border border-bdr-subtle">
-                      <p className="text-2xs font-bold text-txt-muted uppercase tracking-wider mb-2">Доступ</p>
+                      <p className="text-2xs font-bold text-txt-muted uppercase tracking-wider mb-2">╨Ф╨╛╤Б╤В╤Г╨┐</p>
                       <div className="flex gap-1 flex-wrap">
                         {(ROLES[member.role]?.pages || []).slice(0, 8).map(p => (
                           <Badge key={p} variant="default" size="xs">{PAGE_ICONS[p] || p}</Badge>
@@ -582,7 +582,7 @@ export default function Staff() {
                         icon={<Edit size={14} />}
                         onClick={(e) => { e.stopPropagation(); openEditStaff(member) }}
                       >
-                        Редактировать
+                        ╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М
                       </Button>
                     )}
                   </div>

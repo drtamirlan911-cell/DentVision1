@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle } from 'lucide-react';
-import { Button, Badge, EmptyState, Card } from '../components/ui/ds';
-import * as api from '../utils/api';
+import { Button, Badge, EmptyState, Card } from '../../components/ui/ds';
+import * as api from '../../utils/api';
 
 interface Lesson {
   id: string;
@@ -34,9 +34,9 @@ interface CourseDetail {
 }
 
 const DIFF_COLORS: Record<string, string> = { beginner: '#27AE60', intermediate: '#C9A96E', advanced: '#E74C3C' };
-const DIFF_LABELS: Record<string, string> = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
+const DIFF_LABELS: Record<string, string> = { beginner: '╨Э╨░╤З╨╕╨╜╨░╤О╤Й╨╕╨╣', intermediate: '╨Я╤А╨╛╨┤╨▓╨╕╨╜╤Г╤В╤Л╨╣', advanced: '╨н╨║╤Б╨┐╨╡╤А╤В' };
 const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = { video: Video, text: FileText, test: HelpCircle };
-const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест' };
+const TYPE_LABELS: Record<string, string> = { video: '╨Т╨╕╨┤╨╡╨╛', text: '╨б╤В╨░╤В╤М╤П', test: '╨в╨╡╤Б╤В' };
 
 export default function SchoolCourse() {
   const { id } = useParams();
@@ -69,7 +69,7 @@ export default function SchoolCourse() {
     </div>
   );
 
-  if (!course) return <div className="py-10 text-center text-[var(--slate)]">Курс не найден</div>;
+  if (!course) return <div className="py-10 text-center text-[var(--slate)]">╨Ъ╤Г╤А╤Б ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜</div>;
 
   return (
     <div className="min-h-screen">
@@ -106,8 +106,8 @@ export default function SchoolCourse() {
             <h2 className="text-base font-bold text-white m-0 mb-1.5">{course.title}</h2>
             <p className="text-xs text-[var(--slate)] m-0 mb-2.5">{course.subtitle}</p>
             <div className="flex gap-3 text-[11px] text-[var(--slate)] mb-3 flex-wrap">
-              <span className="flex items-center gap-1"><Clock size={12} /> {course.duration_hours}ч</span>
-              <span className="flex items-center gap-1"><BookOpen size={12} /> {course.lesson_count} уроков</span>
+              <span className="flex items-center gap-1"><Clock size={12} /> {course.duration_hours}╤З</span>
+              <span className="flex items-center gap-1"><BookOpen size={12} /> {course.lesson_count} ╤Г╤А╨╛╨║╨╛╨▓</span>
               <span className="flex items-center gap-1"><Users size={12} /> {course.enrolled_count}</span>
               <span className="flex items-center gap-1"><Star size={12} className="text-[#C9A96E] fill-[#C9A96E]" /> {course.rating}</span>
             </div>
@@ -118,11 +118,11 @@ export default function SchoolCourse() {
                 onClick={handleEnroll}
                 className="w-full py-2.5 px-4 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit"
               >
-                Записаться бесплатно
+                ╨Ч╨░╨┐╨╕╤Б╨░╤В╤М╤Б╤П ╨▒╨╡╤Б╨┐╨╗╨░╤В╨╜╨╛
               </motion.button>
             ) : (
               <div className="flex items-center gap-1.5 text-[#27AE60] text-[13px] font-semibold">
-                <Check size={16} /> Вы записаны
+                <Check size={16} /> ╨Т╤Л ╨╖╨░╨┐╨╕╤Б╨░╨╜╤Л
               </div>
             )}
           </div>
@@ -168,7 +168,7 @@ export default function SchoolCourse() {
                               <LIcon size={13} />
                               <span className="flex-1">{lesson.title}</span>
                               <span className="text-[10px] text-[var(--slate)] flex items-center gap-0.5">
-                                <Clock size={10} /> {lesson.duration_minutes}м
+                                <Clock size={10} /> {lesson.duration_minutes}╨╝
                               </span>
                               {lesson.is_free && <span className="text-[9px] text-[#27AE60] font-bold">FREE</span>}
                             </button>
@@ -200,24 +200,24 @@ export default function SchoolCourse() {
                   >
                     <Play size={30} className="text-[#0D1B2E] fill-[#0D1B2E] ml-1" />
                   </motion.div>
-                  <p className="text-xs text-[var(--slate)] mt-3">{activeLesson.duration_minutes} мин</p>
+                  <p className="text-xs text-[var(--slate)] mt-3">{activeLesson.duration_minutes} ╨╝╨╕╨╜</p>
                 </div>
               ) : activeLesson.type === 'test' ? (
                 <div className="text-center">
                   <HelpCircle size={48} className="text-[#C9A96E]/60" />
-                  <p className="text-sm text-[var(--slate-light)] mt-2">Тест: {activeLesson.title}</p>
+                  <p className="text-sm text-[var(--slate-light)] mt-2">╨в╨╡╤Б╤В: {activeLesson.title}</p>
                   <motion.button
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.97 }}
                     className="mt-3 py-2.5 px-6 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit"
                   >
-                    Начать тест
+                    ╨Э╨░╤З╨░╤В╤М ╤В╨╡╤Б╤В
                   </motion.button>
                 </div>
               ) : (
                 <div className="text-center">
                   <FileText size={48} className="text-[#C9A96E]/60" />
-                  <p className="text-sm text-[var(--slate-light)] mt-2">Статья: {activeLesson.title}</p>
+                  <p className="text-sm text-[var(--slate-light)] mt-2">╨б╤В╨░╤В╤М╤П: {activeLesson.title}</p>
                 </div>
               )}
             </div>
@@ -230,13 +230,13 @@ export default function SchoolCourse() {
                     {TYPE_LABELS[activeLesson.type] || activeLesson.type}
                   </span>
                 </span>
-                <span className="flex items-center gap-1"><Clock size={12} /> {activeLesson.duration_minutes} мин</span>
+                <span className="flex items-center gap-1"><Clock size={12} /> {activeLesson.duration_minutes} ╨╝╨╕╨╜</span>
               </div>
             </div>
 
             <div className="bg-white/[0.02] border border-[var(--border-subtle)] rounded-xl p-6 min-h-[200px]">
               <p className="text-sm text-[var(--slate-light)] leading-relaxed">
-                {activeLesson.content || `Содержание урока «${activeLesson.title}» будет доступно после начала курса. Видеоматериалы, иллюстрации и интерактивные элементы помогут вам освоить материал.`}
+                {activeLesson.content || `╨б╨╛╨┤╨╡╤А╨╢╨░╨╜╨╕╨╡ ╤Г╤А╨╛╨║╨░ ┬л${activeLesson.title}┬╗ ╨▒╤Г╨┤╨╡╤В ╨┤╨╛╤Б╤В╤Г╨┐╨╜╨╛ ╨┐╨╛╤Б╨╗╨╡ ╨╜╨░╤З╨░╨╗╨░ ╨║╤Г╤А╤Б╨░. ╨Т╨╕╨┤╨╡╨╛╨╝╨░╤В╨╡╤А╨╕╨░╨╗╤Л, ╨╕╨╗╨╗╤О╤Б╤В╤А╨░╤Ж╨╕╨╕ ╨╕ ╨╕╨╜╤В╨╡╤А╨░╨║╤В╨╕╨▓╨╜╤Л╨╡ ╤Н╨╗╨╡╨╝╨╡╨╜╤В╤Л ╨┐╨╛╨╝╨╛╨│╤Г╤В ╨▓╨░╨╝ ╨╛╤Б╨▓╨╛╨╕╤В╤М ╨╝╨░╤В╨╡╤А╨╕╨░╨╗.`}
               </p>
             </div>
 
@@ -249,7 +249,7 @@ export default function SchoolCourse() {
                 }}
                 className="py-2 px-4 rounded-lg border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] text-xs font-semibold cursor-pointer font-inherit"
               >
-                ← Предыдущий
+                тЖР ╨Я╤А╨╡╨┤╤Л╨┤╤Г╤Й╨╕╨╣
               </button>
               <Button
                 variant="primary"
@@ -260,7 +260,7 @@ export default function SchoolCourse() {
                   if (idx < allLessons.length - 1) setActiveLesson(allLessons[idx + 1]);
                 }}
               >
-                Следующий →
+                ╨б╨╗╨╡╨┤╤Г╤О╤Й╨╕╨╣ тЖТ
               </Button>
             </div>
           </motion.div>
@@ -268,7 +268,7 @@ export default function SchoolCourse() {
           <div className="flex items-center justify-center text-[var(--slate)]">
             <EmptyState
               icon={<Play size={48} className="text-[var(--slate)]/40" />}
-              title="Выберите урок для начала обучения"
+              title="╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡ ╤Г╤А╨╛╨║ ╨┤╨╗╤П ╨╜╨░╤З╨░╨╗╨░ ╨╛╨▒╤Г╤З╨╡╨╜╨╕╤П"
             />
           </div>
         )}

@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo, type ChangeEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, BookOpen, Tag, Filter } from 'lucide-react';
-import * as api from '../utils/api';
-import { Card } from '../components/ui/ds/Card';
-import { Badge } from '../components/ui/ds/Badge';
-import { EmptyState } from '../components/ui/ds/EmptyState';
-import { PageHeader } from '../components/ui/ds/StatCard';
-import type { Clinic, User, RoleInfo, ICD10Code } from '../types';
+import * as api from '../../utils/api';
+import { Card } from '../../components/ui/ds/Card';
+import { Badge } from '../../components/ui/ds/Badge';
+import { EmptyState } from '../../components/ui/ds/EmptyState';
+import { PageHeader } from '../../components/ui/ds/StatCard';
+import type { Clinic, User, RoleInfo, ICD10Code } from '../../types';
 
 export default function ICD10() {
   const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
@@ -36,8 +36,8 @@ export default function ICD10() {
   return (
     <div className="fade-in space-y-6">
       <PageHeader
-        title="Справочник МКБ-10"
-        subtitle="Международная классификация болезней (стоматология)"
+        title="╨б╨┐╤А╨░╨▓╨╛╤З╨╜╨╕╨║ ╨Ь╨Ъ╨С-10"
+        subtitle="╨Ь╨╡╨╢╨┤╤Г╨╜╨░╤А╨╛╨┤╨╜╨░╤П ╨║╨╗╨░╤Б╤Б╨╕╤Д╨╕╨║╨░╤Ж╨╕╤П ╨▒╨╛╨╗╨╡╨╖╨╜╨╡╨╣ (╤Б╤В╨╛╨╝╨░╤В╨╛╨╗╨╛╨│╨╕╤П)"
         icon={<BookOpen size={24} className="text-dv-gold" />}
       />
 
@@ -45,7 +45,7 @@ export default function ICD10() {
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input
-            placeholder="Поиск по коду или названию..."
+            placeholder="╨Я╨╛╨╕╤Б╨║ ╨┐╨╛ ╨║╨╛╨┤╤Г ╨╕╨╗╨╕ ╨╜╨░╨╖╨▓╨░╨╜╨╕╤О..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-9"
@@ -57,7 +57,7 @@ export default function ICD10() {
           className="w-full md:w-64"
         >
           {categories.map(c => (
-            <option key={c} value={c}>{c === 'all' ? 'Все категории' : c}</option>
+            <option key={c} value={c}>{c === 'all' ? '╨Т╤Б╨╡ ╨║╨░╤В╨╡╨│╨╛╤А╨╕╨╕' : c}</option>
           ))}
         </select>
       </div>
@@ -70,8 +70,8 @@ export default function ICD10() {
         ) : filteredCodes.length === 0 ? (
           <EmptyState
             icon={<BookOpen size={48} />}
-            title="Ничего не найдено"
-            description="Попробуйте изменить запрос"
+            title="╨Э╨╕╤З╨╡╨│╨╛ ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╨╛"
+            description="╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨╕╨╖╨╝╨╡╨╜╨╕╤В╤М ╨╖╨░╨┐╤А╨╛╤Б"
           />
         ) : (
           filteredCodes.map((code, i) => (
@@ -101,7 +101,7 @@ export default function ICD10() {
       </div>
 
       <div className="text-center text-xs text-txt-ghost">
-        Показано {filteredCodes.length} из {codes.length} записей
+        ╨Я╨╛╨║╨░╨╖╨░╨╜╨╛ {filteredCodes.length} ╨╕╨╖ {codes.length} ╨╖╨░╨┐╨╕╤Б╨╡╨╣
       </div>
     </div>
   );
