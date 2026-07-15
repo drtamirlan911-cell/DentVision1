@@ -211,13 +211,15 @@ export default function Schedule() {
       )}
 
       {/* Header */}
-      <motion.div variants={fadeUp} className="flex items-center justify-between flex-wrap gap-3">
+      <motion.div variants={fadeUp} className="flex items-center justify-between gap-3">
         <PageHeader title="Расписание" subtitle="Управление записями и лист ожидания" icon={<Calendar size={20} />} />
-        <div className="flex gap-2">
-          <Button onClick={openNew} icon={<Plus size={14} />}>Новая запись</Button>
+        <div className="flex gap-2 flex-shrink-0">
+          <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
+          <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
           {roleInfo?.canSeeSuperAdmin !== false && (
             <Button variant="secondary" onClick={() => { setWaitForm(EMPTY_WAIT); setEditWaitId(null); setWaitModalOpen(true) }} icon={<ListOrdered size={14} />}>
-              Лист ожидания
+              <span className="hidden sm:inline">Лист ожидания</span>
+              <span className="sm:hidden">Ожидание</span>
               {dayWaitList.length > 0 && <Badge variant="error" size="xs">{dayWaitList.length}</Badge>}
             </Button>
           )}
@@ -239,7 +241,7 @@ export default function Schedule() {
       {activeTab === 'schedule' ? (
         <>
           {/* Controls bar */}
-          <motion.div variants={fadeUp} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle flex-wrap">
+          <motion.div variants={fadeUp} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle overflow-x-auto">
             <Button variant="ghost" size="icon-sm" onClick={() => shiftDate(-1)}><ChevronLeft size={16} /></Button>
             <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
               className="h-8 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none" />
@@ -285,7 +287,8 @@ export default function Schedule() {
 
           {/* Doctor columns */}
           {doctorColumns.length > 0 ? (
-            <motion.div variants={fadeUp} className="grid gap-3" style={{ gridTemplateColumns: viewMode === 'doctors' ? `repeat(${Math.min(doctorColumns.length, 4)}, 1fr)` : '1fr' }}>
+            <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+              <div className="grid gap-3" style={{ gridTemplateColumns: viewMode === 'doctors' ? `repeat(${Math.min(doctorColumns.length, 4)}, minmax(260px, 1fr))` : '1fr' }}>
               {doctorColumns.map(doc => {
                 const docAppts = dayAppts.filter(a => a.doctorId === doc.id)
                 return (
@@ -327,6 +330,7 @@ export default function Schedule() {
                   </Card>
                 )
               })}
+              </div>
             </motion.div>
           ) : (
             <EmptyState icon={<Calendar size={32} />} title="Нет врачей" description="Добавьте сотрудников для отображения расписания" />
@@ -382,7 +386,7 @@ export default function Schedule() {
       )}
 
       {/* Appointment Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editAppt ? 'Редактировать запись' : 'Новая запись'} size="lg">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editAppt ? 'Редактировать запись' : 'Новая запись'} size="lg" className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2">
         <form onSubmit={handleSubmit} className="space-y-3">
           {!showNewPatient ? (
             <>
@@ -444,7 +448,7 @@ export default function Schedule() {
       </Modal>
 
       {/* Waiting List Modal */}
-      <Modal open={waitModalOpen} onClose={() => setWaitModalOpen(false)} title={editWaitId ? 'Редактировать запись' : 'Добавить в лист ожидания'}>
+      <Modal open={waitModalOpen} onClose={() => setWaitModalOpen(false)} title={editWaitId ? 'Редактировать запись' : 'Добавить в лист ожидания'} className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2">
         <div className="space-y-3">
           <Select label="Пациент (из базы)" value={waitForm.patientId}
             onChange={e => { const p = patients.find(pt => pt.id === e.target.value); setWaitForm({ ...waitForm, patientId: e.target.value, patientName: p?.name || waitForm.patientName, patientPhone: p?.phone || waitForm.patientPhone }) }}
