@@ -35,6 +35,7 @@ const School = lazy(() => import('./pages/School'));
 const SchoolCourse = lazy(() => import('./pages/SchoolCourse'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
+const Profile = lazy(() => import('./pages/Profile'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,6 +79,7 @@ if (container) {
                   <Route path="admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
                   <Route path="audit" element={<Suspense fallback={<PageLoader />}><AuditLog /></Suspense>} />
                   <Route path="backup" element={<Suspense fallback={<PageLoader />}><Backup /></Suspense>} />
+                  <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
                   {/* CRM sub-app */}
                   <Route path="crm">
                     <Route path="schedule" element={<Suspense fallback={<PageLoader />}><Schedule /></Suspense>} />

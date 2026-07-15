@@ -23,11 +23,11 @@ interface NavItem {
 }
 
 const PRIMARY_NAV: NavItem[] = [
-  { id: 'home', label: 'Главная', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
   { id: 'crm', label: 'CRM', icon: <Stethoscope size={20} />, path: '/crm' },
   { id: 'shop', label: 'Shop', icon: <ShoppingCart size={20} />, path: '/shop' },
   { id: 'school', label: 'School', icon: <GraduationCap size={20} />, path: '/school' },
   { id: 'ai', label: 'AI', icon: <Bot size={20} />, path: '/ai' },
+  { id: 'profile', label: 'Профиль', icon: <User size={20} />, path: '/profile' },
 ]
 
 export function BottomNav() {
@@ -35,7 +35,7 @@ export function BottomNav() {
   const location = useLocation()
 
   const isActive = (path: string) => {
-    if (path === '/dashboard') return location.pathname === '/dashboard'
+    if (path === '/profile') return location.pathname === '/profile'
     return location.pathname.startsWith(path)
   }
 
