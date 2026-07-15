@@ -32,6 +32,8 @@ const Shop = lazy(() => import('./pages/Shop'));
 const ShopProduct = lazy(() => import('./pages/ShopProduct'));
 const School = lazy(() => import('./pages/School'));
 const SchoolCourse = lazy(() => import('./pages/SchoolCourse'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const SettingsPage = lazy(() => import('./pages/Settings'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +89,8 @@ if (container) {
                   <Route path="shop/:id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
                   <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
                   <Route path="school/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
+                  <Route path="analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
+                  <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
                 </Route>
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>

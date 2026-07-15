@@ -1,46 +1,43 @@
-import React from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
-import { Sidebar } from './Sidebar';
-import { Topbar } from './Topbar';
-import { useAuth } from '../context/AuthContext';
-import { useData } from '../hooks/useData';
+import React from 'react'
+import { Outlet, Navigate } from 'react-router-dom'
+import { Sidebar } from './Sidebar'
+import { Topbar } from './Topbar'
+import { BottomNav } from '@/components/ui/ds/BottomNav'
+import { useAuth } from '@/context/AuthContext'
 
 export function AppLayout() {
-  const { user, clinic, loading, logout, roleInfo } = useAuth();
-  const clinicData = useData(clinic?.id);
+  const { user, isAuthenticated, roleInfo, logout } = useAuth()
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(201,169,110,0.14),_transparent_40%),_#060D18]">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-[#C9A96E]/30 border-t-[#C9A96E]" />
-          <p className="text-sm text-[#7A8899]">Загрузка DentVision…</p>
-        </div>
-      </div>
-    );
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  const allowedPages = roleInfo?.pages || ['schedule', 'patients'];
+  const allowedPages = roleInfo?.pages || []
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(201,169,110,0.08),_transparent_35%),_#060D18] text-slate-100">
-      <Sidebar
-        user={user}
-        clinic={clinic}
-        roleInfo={roleInfo}
-        allowedPages={allowedPages}
-        onLogout={logout}
-      />
-      <div className="lg:pl-72">
-        <Topbar user={user} clinic={clinic} data={clinicData} onLogout={logout} />
-        <main className="mx-auto max-w-7xl p-4 lg:p-6">
-          <Outlet context={{ user, clinic, roleInfo }} />
+    <div className="flex h-screen overflow-hidden bg-surface-0">
+      {/* Desktop sidebar */}
+      <div className="hidden md:block">
+        <Sidebar allowedPages={allowedPages} onLogout={logout} />
+      </div>
+
+      {/* Mobile sidebar */}
+      <div className="md:hidden">
+        <Sidebar allowedPages={allowedPages} onLogout={logout} />
+      </div>
+
+      {/* Main content */}
+      <div className="flex flex-1 flex-col min-w-0 md:ml-[var(--dv-sidebar-width)]">
+        <Topbar />
+        <main className="flex-1 overflow-y-auto">
+          <div className="page-enter p-4 md:p-6 pb-20 md:pb-6">
+            <Outlet />
+          </div>
         </main>
       </div>
+
+      {/* Mobile bottom navigation */}
+      <BottomNav />
     </div>
-  );
+  )
 }

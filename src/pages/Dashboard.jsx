@@ -1,325 +1,407 @@
-import React, { useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
-import { T, PLANS, tg, today } from '../utils/constants';
-import { Card, StatCard, Badge } from '../components/ui/BaseComponents';
-import { useSubscription, useData } from '../hooks/useData';
-import QrCode from '../components/ui/QrCode';
+import React, { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import {
+  Calendar,
+  Users,
+  DollarSign,
+  TrendingUp,
+  Stethoscope,
+  ShoppingCart,
+  GraduationCap,
+  Bot,
+  BarChart3,
+  FlaskConical,
+  Package,
+  Settings,
+  ArrowRight,
+  Clock,
+  Activity,
+  Sparkles,
+  CreditCard,
+  FileText,
+} from 'lucide-react'
+import { cn, getGreeting, formatMoney } from '@/lib/utils'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
+import { StatCard } from '@/components/ui/ds/StatCard'
+import { Badge } from '@/components/ui/ds/Badge'
+import { Avatar } from '@/components/ui/ds/Avatar'
+import { useAuth } from '@/context/AuthContext'
+import { useData } from '@/hooks/useData'
 
-export default function Dashboard() {
-  const { user, clinic } = useOutletContext();
-  const navigate = useNavigate();
-  const { subscription } = useSubscription(clinic?.id);
-  const { patients, appointments, receipts, doctors } = useData(clinic?.id);
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06 },
+  },
+}
 
-  const todayKey = today();
-  const currentClinicId = clinic?.id;
-  const clinicPatients = patients.filter((p) => !currentClinicId || p.clinicId === currentClinicId);
-  const clinicAppointments = appointments.filter((a) => !currentClinicId || a.clinicId === currentClinicId);
-  const clinicReceipts = receipts.filter((r) => !currentClinicId || r.clinicId === currentClinicId);
-  const clinicDoctors = doctors.filter((d) => !currentClinicId || d.clinicId === currentClinicId);
-  const todayReceipts = clinicReceipts.filter((r) => (r.date || todayKey) === todayKey && (r.status === 'paid' || r.status === 'completed'));
-  const todayRevenue = todayReceipts.reduce((sum, r) => sum + Number(r.total || 0), 0);
-  const todayAppointments = clinicAppointments.filter((a) => (a.date || todayKey) === todayKey);
-  const avgCheck = todayReceipts.length ? Math.round(todayRevenue / todayReceipts.length) : 0;
-  const conversion = clinicPatients.length && clinicAppointments.length ? Math.round((clinicPatients.length / clinicAppointments.length) * 100) : 0;
+const item = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
+}
 
-  const stats = [
-    { title: 'Доход за сегодня', value: tg(todayRevenue, clinic), icon: '💰', trend: '+12%', color: T.gold },
-    { title: 'Пациентов в клинике', value: clinicPatients.length, icon: '👥', trend: '+5%', color: T.emerald },
-    { title: 'Средний чек', value: tg(avgCheck, clinic), icon: '🧾', trend: '+3%', color: T.sapphire },
-    { title: 'Конверсия', value: `${conversion}%`, icon: '📈', trend: '+2%', color: T.purple },
-  ];
+interface ServiceTile {
+  id: string
+  title: string
+  subtitle: string
+  icon: React.ReactNode
+  path: string
+  color: string
+  gradient: string
+}
 
-  const doctorLoad = clinicDoctors.slice(0, 3).map((doctor) => {
-    const doctorAppointments = todayAppointments.filter((a) => a.doctorId === doctor.id);
-    const uniquePatients = new Set(doctorAppointments.map((a) => a.patientId).filter(Boolean));
-    const busyMinutes = doctorAppointments.reduce((sum, a) => sum + Number(a.duration || 60), 0);
-    return {
-      name: doctor.name || 'Врач',
-      load: Math.min(100, Math.round((busyMinutes / 480) * 100)),
-      patients: uniquePatients.size,
-      spec: doctor.spec || 'Стоматолог',
-    };
-  });
+const SERVICE_TILES: ServiceTile[] = [
+  {
+    id: 'crm',
+    title: 'CRM',
+    subtitle: 'Пациенты и расписание',
+    icon: <Stethoscope size={22} />,
+    path: '/schedule',
+    color: '#C9A96E',
+    gradient: 'from-[#C9A96E]/15 to-[#C9A96E]/5',
+  },
+  {
+    id: 'shop',
+    title: 'Shop',
+    subtitle: 'Маркетплейс товаров',
+    icon: <ShoppingCart size={22} />,
+    path: '/shop',
+    color: '#27AE60',
+    gradient: 'from-[#27AE60]/15 to-[#27AE60]/5',
+  },
+  {
+    id: 'school',
+    title: 'School',
+    subtitle: 'Образовательная платформа',
+    icon: <GraduationCap size={22} />,
+    path: '/school',
+    color: '#2980B9',
+    gradient: 'from-[#2980B9]/15 to-[#2980B9]/5',
+  },
+  {
+    id: 'ai',
+    title: 'AI Assistant',
+    subtitle: 'ИИ-помощник врача',
+    icon: <Bot size={22} />,
+    path: '/ai',
+    color: '#8E44AD',
+    gradient: 'from-[#8E44AD]/15 to-[#8E44AD]/5',
+  },
+  {
+    id: 'analytics',
+    title: 'Аналитика',
+    subtitle: 'Отчёты и метрики',
+    icon: <BarChart3 size={22} />,
+    path: '/analytics',
+    color: '#F39C12',
+    gradient: 'from-[#F39C12]/15 to-[#F39C12]/5',
+  },
+  {
+    id: 'lab',
+    title: 'Лаборатория',
+    subtitle: 'Лабораторные заказы',
+    icon: <FlaskConical size={22} />,
+    path: '/lab',
+    color: '#00BCD4',
+    gradient: 'from-[#00BCD4]/15 to-[#00BCD4]/5',
+  },
+  {
+    id: 'cashier',
+    title: 'Финансы',
+    subtitle: 'Доходы и расходы',
+    icon: <CreditCard size={22} />,
+    path: '/cashier',
+    color: '#27AE60',
+    gradient: 'from-[#27AE60]/15 to-[#27AE60]/5',
+  },
+  {
+    id: 'settings',
+    title: 'Настройки',
+    subtitle: 'Конфигурация системы',
+    icon: <Settings size={22} />,
+    path: '/settings',
+    color: '#64748B',
+    gradient: 'from-[#64748B]/15 to-[#64748B]/5',
+  },
+]
 
-  const serviceMap = new Map();
-  todayReceipts.forEach((receipt) => {
-    (receipt.items?.length ? receipt.items : [{ name: receipt.service || 'Услуга', price: receipt.total || receipt.amount || 0, qty: 1 }]).forEach((item) => {
-      const key = item.serviceId || item.name || 'service';
-      const current = serviceMap.get(key) || { name: item.name || 'Услуга', count: 0, revenue: 0 };
-      const qty = Number(item.qty || 1);
-      current.count += qty;
-      current.revenue += Number(item.price || 0) * qty;
-      serviceMap.set(key, current);
-    });
-  });
-  const topServices = Array.from(serviceMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 3);
-
-  const sourceColors = [T.gold, T.pink, T.sapphire, T.emerald];
-  const sourceMap = new Map();
-  clinicPatients.forEach((patient) => {
-    const source = patient.source || patient.referralSource || patient.channel;
-    if (source) sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
-  });
-  const adSources = Array.from(sourceMap.entries()).map(([source, count], index) => ({
-    source, patients: count, color: sourceColors[index % sourceColors.length],
-  }));
-
-  const [copiedUrl, setCopiedUrl] = useState(false);
-  const [showQr, setShowQr] = useState(false);
-
-  const bookingUrl = `${window.location.origin}/book/${clinic?.id || 'your-clinic-id'}`;
-
-  const copyBookingUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(bookingUrl);
-      setCopiedUrl(true);
-      setTimeout(() => setCopiedUrl(false), 2000);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = bookingUrl;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopiedUrl(true);
-      setTimeout(() => setCopiedUrl(false), 2000);
-    }
-  };
-
-  const quickActions = [
-    { label: 'Новый пациент', icon: '👤', color: T.gold, path: '/patients' },
-    { label: 'Новая запись', icon: '📅', color: T.sapphire, path: '/schedule' },
-    { label: 'Прайс-лист', icon: '📋', color: T.emerald, path: '/pricelist' },
-    { label: 'AI помощник', icon: '🤖', color: T.teal, path: '/ai' },
-  ];
+function QuickStats({ data }: { data: any }) {
+  const stats = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const todayAppts = (data.appointments || []).filter((a: any) => a.date === today)
+    const totalRevenue = (data.receipts || []).reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0)
+    const activePatients = (data.patients || []).length
+    const todayCount = todayAppts.length
+    return { todayCount, totalRevenue, activePatients }
+  }, [data])
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-[#C9A96E]">DentVision CRM</p>
-          <h1 className="mt-1 font-serif text-2xl font-bold text-white">
-            Добро пожаловать{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
-          </h1>
-          <p className="mt-1 text-sm text-[#7A8899]">
-            {clinic?.name || 'DentVision'} · {new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {subscription && (
-            <Badge type={subscription.plan === 'pro' ? 'warning' : 'info'} size="md">
-              ✦ {PLANS[subscription.plan]?.name || 'Pro'}
-            </Badge>
-          )}
-          <button
-            onClick={() => navigate('/schedule')}
-            className="rounded-lg border border-[#C9A96E]/25 bg-[#C9A96E]/10 px-3 py-2 text-sm font-semibold text-[#C9A96E] transition-colors hover:bg-[#C9A96E]/20"
-          >
-            Открыть расписание
-          </button>
-        </div>
-      </div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <StatCard
+        label="Записей сегодня"
+        value={stats.todayCount}
+        icon={<Calendar size={18} />}
+      />
+      <StatCard
+        label="Пациентов"
+        value={stats.activePatients}
+        icon={<Users size={18} />}
+      />
+      <StatCard
+        label="Доход"
+        value={formatMoney(stats.totalRevenue)}
+        icon={<DollarSign size={18} />}
+      />
+      <StatCard
+        label="Загрузка кресел"
+        value={`${Math.min(100, Math.round((stats.todayCount / 8) * 100))}%`}
+        icon={<Activity size={18} />}
+      />
+    </div>
+  )
+}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {stats.map((s, i) => (
-          <StatCard key={i} title={s.title} value={s.value} icon={s.icon} trend={s.trend} color={s.color} />
-        ))}
-      </div>
+function ServiceGrid() {
+  const navigate = useNavigate()
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          { title: 'Пациентов сегодня', value: clinicPatients.length, icon: '👥' },
-          { title: 'Записей сегодня', value: todayAppointments.length, icon: '📅' },
-          { title: 'Врачей', value: clinicDoctors.length, icon: '🧑‍⚕️' },
-          { title: 'Чеков', value: todayReceipts.length, icon: '🧾' },
-          { title: 'Клиника', value: clinic?.name || 'DentVision', icon: '🏥' },
-        ].map((s, i) => (
-          <div key={i} className="rounded-xl border border-[rgba(201,169,110,0.15)] bg-[#0E1A2B]/80 p-4 text-center">
-            <div className="mb-2 text-2xl">{s.icon}</div>
-            <div className="font-serif text-2xl font-bold text-white">{s.value}</div>
-            <div className="mt-1 text-[11px] uppercase tracking-[0.08em] text-[#7A8899]">{s.title}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <Card>
-          <div className="mb-4 flex items-center justify-between">
-            <div className="text-sm font-semibold text-white">🌐 Онлайн-запись</div>
-            <span className="text-xs text-[#7A8899]">Доступна для пациентов</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <p className="mb-2 text-xs text-[#7A8899]">Ссылка для записи:</p>
-              <div className="mb-3 flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-2">
-                <span className="flex-1 truncate font-mono text-xs text-[#DDE4EA]">{bookingUrl}</span>
-                <button onClick={copyBookingUrl} className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors" style={{ background: copiedUrl ? T.emerald : T.gold, color: T.bg }}>
-                  {copiedUrl ? '✓ Скопировано' : 'Копировать'}
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => window.open(bookingUrl, '_blank')} className="flex-1 rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-2 text-xs font-semibold text-[#DDE4EA] transition-colors hover:bg-white/10">
-                  Открыть страницу
-                </button>
-                <button onClick={() => setShowQr(!showQr)} className="flex-1 rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-2 text-xs font-semibold text-[#DDE4EA] transition-colors hover:bg-white/10">
-                  {showQr ? 'Скрыть QR' : 'QR-код'}
-                </button>
-              </div>
-            </div>
-            {showQr && (
-              <div className="shrink-0">
-                <QrCode value={bookingUrl} size={120} label="Сканируйте для записи" />
-              </div>
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-txt-secondary mb-3 px-1">Сервисы</h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {SERVICE_TILES.map((tile) => (
+          <motion.button
+            key={tile.id}
+            variants={item}
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate(tile.path)}
+            className={cn(
+              'relative overflow-hidden rounded-xl border border-bdr-subtle p-4 text-left',
+              'bg-gradient-to-br',
+              tile.gradient,
+              'hover:border-bdr/50 transition-all duration-200 group'
             )}
-          </div>
-        </Card>
+          >
+            {/* Icon */}
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-xl mb-3 transition-transform duration-200 group-hover:scale-110"
+              style={{ background: `${tile.color}20`, color: tile.color }}
+            >
+              {tile.icon}
+            </div>
 
-        <Card>
-          <div className="mb-4 text-sm font-semibold text-white">🎯 Сегодняшняя активность</div>
-          <div className="space-y-3">
-            {[
-              { label: 'Записи на сегодня', value: todayAppointments.length, icon: '📅', hint: 'Проверьте очередь' },
-              { label: 'Новых пациентов', value: clinicPatients.length, icon: '👥', hint: 'Обработайте обращения' },
-              { label: 'Выручка', value: tg(todayRevenue, clinic), icon: '💰', hint: 'Сравните с прошлым днём' },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">{item.icon}</span>
-                  <div>
-                    <p className="text-sm font-semibold text-white">{item.label}</p>
-                    <p className="text-xs text-[#7A8899]">{item.hint}</p>
-                  </div>
-                </div>
-                <span className="text-sm font-semibold text-[#C9A96E]">{item.value}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+            {/* Text */}
+            <h4 className="text-sm font-semibold text-txt-primary mb-0.5">{tile.title}</h4>
+            <p className="text-2xs text-txt-muted line-clamp-2">{tile.subtitle}</p>
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card>
-          <div className="mb-4 flex items-center justify-between">
-            <div className="text-sm font-semibold text-white">⚡ Что важно сегодня</div>
-            <span className="text-xs text-[#7A8899]">{todayAppointments.length} записей</span>
-          </div>
-          <div className="space-y-3">
-            {[
-              { label: 'Записи на сегодня', value: todayAppointments.length, hint: 'Проверьте очередь', action: () => navigate('/schedule') },
-              { label: 'Новых пациентов', value: clinicPatients.length, hint: 'Обработайте обращения', action: () => navigate('/patients') },
-              { label: 'Выручка', value: tg(todayRevenue, clinic), hint: 'Сравните с прошлым днём', action: () => navigate('/cashier') },
-            ].map((item) => (
-              <button key={item.label} onClick={item.action} className="flex w-full items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-3 text-left transition-colors hover:bg-white/10">
-                <div>
-                  <p className="text-sm font-semibold text-white">{item.label}</p>
-                  <p className="text-xs text-[#7A8899]">{item.hint}</p>
-                </div>
-                <span className="text-sm font-semibold text-[#C9A96E]">{item.value}</span>
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="mb-4 text-sm font-semibold text-white">🚀 Быстрые действия</div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {quickActions.map((action) => (
-              <button
-                key={action.label}
-                onClick={() => navigate(action.path)}
-                className="flex flex-col items-center gap-2 rounded-xl border border-[rgba(255,255,255,0.06)] bg-white/5 px-3 py-4 text-center transition-colors hover:bg-white/10"
-                style={{ color: action.color }}
-              >
-                <span className="text-2xl">{action.icon}</span>
-                <span className="text-sm font-semibold">{action.label}</span>
-              </button>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <div className="mb-4 text-sm font-semibold text-white">⚡ Загрузка врачей</div>
-          <div className="space-y-4">
-            {doctorLoad.length === 0 && <div className="text-sm text-[#7A8899]">Нет врачей в текущей клинике.</div>}
-            {doctorLoad.map((d, i) => (
-              <div key={i}>
-                <div className="mb-2 flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-semibold text-white">{d.name}</span>
-                    <span className="ml-2 text-xs text-[#7A8899]">{d.spec}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-[#7A8899]">
-                    <span>{d.patients} пац.</span>
-                    <span className="font-semibold" style={{ color: d.load > 85 ? T.ruby : d.load > 70 ? T.amber : T.emerald }}>
-                      {d.load}%
-                    </span>
-                  </div>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${d.load}%`, background: d.load > 85 ? T.ruby : d.load > 70 ? T.amber : T.emerald }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="mb-4 text-sm font-semibold text-white">🏆 Топ услуг</div>
-          <div className="space-y-3">
-            {topServices.length === 0 && <div className="text-sm text-[#7A8899]">Нет оплаченных услуг за сегодня.</div>}
-            {topServices.map((s, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A96E]/20 text-[11px] font-bold text-[#C9A96E]">
-                    {i + 1}
-                  </div>
-                  <span className="text-sm text-[#DDE4EA]">{s.name}</span>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-white">{s.count} шт</div>
-                  <div className="text-xs text-[#C9A96E]">{tg(s.revenue, clinic)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <div className="mb-4 text-sm font-semibold text-white">📣 Источники пациентов</div>
-          <div className="space-y-3">
-            {adSources.length === 0 && <div className="text-sm text-[#7A8899]">Источники не указаны у пациентов этой клиники.</div>}
-            {adSources.map((a, i) => {
-              const total = adSources.reduce((s, x) => s + x.patients, 0);
-              const pct = Math.round((a.patients / total) * 100);
-              return (
-                <div key={i}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span className="text-[#DDE4EA]">{a.source}</span>
-                    <span className="font-semibold" style={{ color: a.color }}>+{a.patients}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: a.color }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="mb-4 text-sm font-semibold text-white">📌 Краткая подсказка</div>
-          <div className="space-y-2 text-sm text-[#DDE4EA]">
-            <p>• Следите за сегодняшними записями и не пропускайте активные обращения.</p>
-            <p>• Используйте AI-помощник для быстрых ответов по ценам, расписанию и маркетингу.</p>
-            <p>• Основные данные на этой странице обновляются по текущей клинике автоматически.</p>
-          </div>
-        </Card>
+            {/* Arrow */}
+            <ArrowRight
+              size={14}
+              className="absolute right-3 top-3 text-txt-ghost opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-0.5"
+              style={{ color: tile.color }}
+            />
+          </motion.button>
+        ))}
       </div>
     </div>
-  );
+  )
+}
+
+function UpcomingAppointments({ data }: { data: any }) {
+  const today = new Date().toISOString().split('T')[0]
+  const appointments = (data.appointments || [])
+    .filter((a: any) => a.date >= today)
+    .sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''))
+    .slice(0, 5)
+
+  const patients = data.patients || []
+
+  if (appointments.length === 0) return null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Clock size={16} className="text-dv-gold" />
+          Ближайшие записи
+        </CardTitle>
+        <button
+          onClick={() => {}}
+          className="text-xs text-dv-gold hover:text-dv-gold-light transition-colors"
+        >
+          Все записи
+        </button>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {appointments.map((appt: any) => {
+            const patient = patients.find((p: any) => p.id === appt.patientId)
+            return (
+              <div
+                key={appt.id}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 bg-surface-2/50 hover:bg-surface-2 transition-colors"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-dv-gold/10 text-dv-gold text-xs font-bold shrink-0">
+                  {appt.time?.slice(0, 5) || '--:--'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-txt-primary truncate">
+                    {patient?.name || appt.patientName || 'Пациент'}
+                  </p>
+                  <p className="text-2xs text-txt-muted truncate">
+                    {appt.service || 'Приём'}
+                  </p>
+                </div>
+                <Badge
+                  variant={
+                    appt.status === 'confirmed' ? 'success'
+                      : appt.status === 'cancelled' ? 'error'
+                      : 'warning'
+                  }
+                  size="xs"
+                >
+                  {appt.status === 'confirmed' ? 'Подтверждена'
+                    : appt.status === 'cancelled' ? 'Отменена'
+                    : 'Ожидание'}
+                </Badge>
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function QuickActions() {
+  const navigate = useNavigate()
+
+  const actions = [
+    { label: 'Новый пациент', icon: <Users size={16} />, path: '/patients' },
+    { label: 'Запись', icon: <Calendar size={16} />, path: '/schedule' },
+    { label: 'Документ', icon: <FileText size={16} />, path: '/documents' },
+    { label: 'Аналитика', icon: <BarChart3 size={16} />, path: '/analytics' },
+  ]
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-txt-secondary mb-3 px-1">Быстрые действия</h3>
+      <div className="flex gap-2">
+        {actions.map((action) => (
+          <motion.button
+            key={action.label}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => navigate(action.path)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised border border-bdr-subtle text-txt-secondary text-sm hover:bg-surface-raised-hover hover:border-bdr/50 hover:text-txt-primary transition-all duration-200"
+          >
+            <span className="text-txt-muted">{action.icon}</span>
+            {action.label}
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function Dashboard() {
+  const { user } = useAuth()
+  const data = useData(user?.clinicId)
+
+  return (
+    <motion.div
+      variants={container}
+      initial="hidden"
+      animate="show"
+      className="max-w-6xl mx-auto space-y-6"
+    >
+      {/* Greeting */}
+      <motion.div variants={item} className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-txt-primary">
+            {getGreeting()}, {user?.name || user?.login}
+          </h1>
+          <p className="text-sm text-txt-secondary mt-1">
+            {new Date().toLocaleDateString('ru-RU', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
+          </p>
+        </div>
+        <div className="hidden md:flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dv-gold/10 border border-dv-gold/20">
+            <Sparkles size={14} className="text-dv-gold" />
+            <span className="text-xs font-medium text-dv-gold">AI включён</span>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Quick Stats */}
+      <motion.div variants={item}>
+        <QuickStats data={data} />
+      </motion.div>
+
+      {/* Service Grid */}
+      <motion.div variants={item}>
+        <ServiceGrid />
+      </motion.div>
+
+      {/* Bottom row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <motion.div variants={item}>
+          <UpcomingAppointments data={data} />
+        </motion.div>
+        <motion.div variants={item}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp size={16} className="text-dv-gold" />
+                Активность
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-txt-secondary">Записей на этой неделе</span>
+                  <span className="font-semibold text-txt-primary">
+                    {(data.appointments || []).filter((a: any) => {
+                      const d = new Date(a.date)
+                      const now = new Date()
+                      const weekAgo = new Date(now.getTime() - 7 * 86400000)
+                      return d >= weekAgo && d <= now
+                    }).length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-txt-secondary">Новых пациентов</span>
+                  <span className="font-semibold text-txt-primary">
+                    {(data.patients || []).filter((p: any) => {
+                      const created = new Date(p.createdAt || p.created_at || Date.now())
+                      const weekAgo = new Date(Date.now() - 7 * 86400000)
+                      return created >= weekAgo
+                    }).length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-txt-secondary">Документов подписано</span>
+                  <span className="font-semibold text-txt-primary">
+                    {(data.documents || []).filter((d: any) => d.status === 'signed').length}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* Quick Actions */}
+      <motion.div variants={item}>
+        <QuickActions />
+      </motion.div>
+    </motion.div>
+  )
 }

@@ -1,218 +1,230 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { Bell, Search, ChevronDown, Menu, UserCircle2, Settings, LogOut, Sparkles, AlertTriangle, Package, Calendar } from 'lucide-react';
-import { useUIStore } from '../stores/useUIStore';
-import { T, tg, today } from '../utils/constants';
+import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Search,
+  Bell,
+  Settings,
+  LogOut,
+  ChevronDown,
+  User,
+  Menu,
+  X,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Avatar } from '@/components/ui/ds/Avatar'
+import { Badge } from '@/components/ui/ds/Badge'
+import { Separator } from '@/components/ui/ds/Misc'
+import { useUIStore } from '@/stores/useUIStore'
+import { useAuth } from '@/context/AuthContext'
 
-interface TopbarProps {
-  user: any;
-  clinic: any;
-  data?: any;
-  onSearch?: (query: string) => void;
-  onLogout?: () => void;
+const PAGE_TITLES: Record<string, string> = {
+  '/dashboard': 'Главная',
+  '/schedule': 'Расписание',
+  '/patients': 'Пациенты',
+  '/medical-card': 'Мед. карты',
+  '/visits': 'Журнал посещений',
+  '/icd10': 'МКБ-10',
+  '/documents': 'Документы',
+  '/cashier': 'Финансы',
+  '/pricelist': 'Прайс-лист',
+  '/lab': 'Лаборатория',
+  '/ai': 'AI Помощник',
+  '/promotions': 'Акции',
+  '/inventory': 'Склад',
+  '/staff': 'Сотрудники',
+  '/admin': 'Super Admin',
+  '/audit': 'Аудит-журнал',
+  '/backup': 'Резерв. копии',
+  '/shop': 'DentVision Shop',
+  '/school': 'DentVision School',
+  '/analytics': 'Аналитика',
+  '/settings': 'Настройки',
 }
 
-function generateNotifications(data: any) {
-  if (!data) return [];
-  const notes: Array<{ title: string; text: string; type: string; icon: React.ReactNode }> = [];
-  const todayStr = today();
+export function Topbar() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { user, clinic, logout } = useAuth()
+  const { toggleSidebar } = useUIStore()
+  const [showProfile, setShowProfile] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const profileRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Today's appointments
-  const todayAppts = (data.appointments || []).filter((a: any) => a.date === todayStr && a.status !== 'cancelled');
-  if (todayAppts.length > 0) {
-    const nextAppt = todayAppts[0];
-    const patient = (data.patients || []).find((p: any) => p.id === nextAppt.patientId);
-    notes.push({
-      title: 'Записи на сегодня',
-      text: `${todayAppts.length} записей${patient ? `, ближайшая: ${patient.name} на ${nextAppt.time}` : ''}`,
-      type: 'info',
-      icon: <Calendar size={14} className="text-[#C9A96E]" />,
-    });
-  }
+  const pageTitle = PAGE_TITLES[location.pathname] || 'DentVision'
 
-  // Debts
-  const debts = (data.debts || []).filter((d: any) => d.status === 'pending' && d.amount > (d.paidAmount || 0));
-  if (debts.length > 0) {
-    const totalDebt = debts.reduce((sum: number, d: any) => sum + (d.amount - (d.paidAmount || 0)), 0);
-    notes.push({
-      title: 'Долги по оплате',
-      text: `${debts.length} должников — ${tg(totalDebt)}`,
-      type: 'warning',
-      icon: <AlertTriangle size={14} className="text-[#F39C12]" />,
-    });
-  }
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfile(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
-  // Low stock inventory
-  const lowStock = (data.inventory || []).filter((i: any) => {
-    const min = i.minQuantity || i.min || 0;
-    return min > 0 && i.quantity <= min;
-  });
-  if (lowStock.length > 0) {
-    notes.push({
-      title: 'Склад',
-      text: `${lowStock.length} позиций заканчивается: ${lowStock.map((i: any) => i.name).slice(0, 2).join(', ')}`,
-      type: 'warning',
-      icon: <Package size={14} className="text-[#E74C3C]" />,
-    });
-  }
-
-  // Active promotions
-  const activePromos = (data.promotions || []).filter((p: any) => p.active);
-  if (activePromos.length > 0) {
-    notes.push({
-      title: 'Акции',
-      text: `${activePromos.length} активных промоций`,
-      type: 'success',
-      icon: <Sparkles size={14} className="text-[#27AE60]" />,
-    });
-  }
-
-  // Pending bookings
-  const pendingBookings = (data.bookings || []).filter((b: any) => b.status === 'pending');
-  if (pendingBookings.length > 0) {
-    notes.push({
-      title: 'Онлайн-записи',
-      text: `${pendingBookings.length} заявок ожидают подтверждения`,
-      type: 'info',
-      icon: <Calendar size={14} className="text-[#2980B9]" />,
-    });
-  }
-
-  return notes.length > 0 ? notes : [{ title: 'Всё в порядке', text: 'Нет активных уведомлений', type: 'info', icon: <Sparkles size={14} className="text-[#7A8899]" /> }];
-}
-
-export function Topbar({ user, clinic, data, onSearch, onLogout }: TopbarProps) {
-  const { toggleSidebar } = useUIStore();
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const notificationsRef = useRef<HTMLDivElement | null>(null);
-  const profileRef = useRef<HTMLDivElement | null>(null);
-
-  const todayLabel = new Date().toLocaleDateString('ru-RU', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
-
-  const notifications = useMemo(() => generateNotifications(data), [data]);
-  const unreadCount = notifications.filter(n => n.type !== 'info' || n.title !== 'Всё в порядке').length;
+  // Keyboard shortcut for search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowSearch(true)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
-      }
-      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
-        setShowProfile(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    if (showSearch && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [showSearch])
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[rgba(201,169,110,0.15)] bg-[#0D1B2E]/80 backdrop-blur-md">
-      <div className="flex h-16 items-center justify-between gap-4 px-4 lg:px-6">
+    <>
+      <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-1/80 backdrop-blur-xl border-b border-bdr-subtle">
+        {/* Left */}
         <div className="flex items-center gap-3">
-          <button onClick={toggleSidebar} className="rounded-lg p-2 transition-colors hover:bg-white/5 lg:hidden">
-            <Menu size={18} className="text-[#C9A96E]" />
+          <button
+            onClick={toggleSidebar}
+            className="md:hidden flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+          >
+            <Menu size={18} />
           </button>
-          <div className="hidden sm:block">
-            <p className="text-sm font-semibold text-white">Оперативная панель</p>
-            <p className="text-xs text-[#7A8899]">{todayLabel}</p>
+          <div className="hidden md:block">
+            <h2 className="text-base font-semibold text-txt-primary">{pageTitle}</h2>
           </div>
         </div>
 
-        <div className="flex-1 max-w-xl">
-          <div className="relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A8899]" />
-            <input
-              type="text"
-              placeholder="Поиск по пациентам и задачам"
-              onChange={(e) => onSearch?.(e.target.value)}
-              className="w-full rounded-lg border border-[rgba(201,169,110,0.15)] bg-white/5 py-2 pl-10 pr-4 text-sm text-white transition-colors placeholder:text-[#7A8899] focus:border-[#C9A96E] focus:outline-none"
-            />
-          </div>
-        </div>
+        {/* Center — Search */}
+        <button
+          onClick={() => setShowSearch(true)}
+          className="hidden md:flex items-center gap-2 h-8 px-3 rounded-lg bg-surface-2 border border-bdr-subtle text-txt-muted text-sm hover:border-bdr/50 transition-colors max-w-xs w-64"
+        >
+          <Search size={14} />
+          <span className="flex-1 text-left truncate">Поиск...</span>
+          <kbd className="text-2xs bg-surface-3 px-1.5 py-0.5 rounded text-txt-ghost font-mono">Ctrl+K</kbd>
+        </button>
 
-        <div className="flex items-center gap-3">
-          <div className="relative" ref={notificationsRef}>
+        {/* Right */}
+        <div className="flex items-center gap-1">
+          {/* Notifications */}
+          <button className="relative flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors">
+            <Bell size={18} />
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-error" />
+          </button>
+
+          {/* Profile dropdown */}
+          <div className="relative" ref={profileRef}>
             <button
-              onClick={() => { setShowNotifications((v) => !v); setShowProfile(false); }}
-              className="relative rounded-lg p-2 transition-colors hover:bg-white/5"
+              onClick={() => setShowProfile(!showProfile)}
+              className="flex items-center gap-2 h-8 pl-1 pr-2 rounded-lg hover:bg-white/5 transition-colors"
             >
-              <Bell size={20} className="text-[#7A8899]" />
-              {unreadCount > 0 && (
-                <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#E74C3C] text-[9px] font-bold text-white">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
+              <Avatar name={user?.name || user?.login || '?'} size="xs" />
+              <span className="hidden md:block text-sm text-txt-secondary max-w-[100px] truncate">
+                {user?.name || user?.login}
+              </span>
+              <ChevronDown size={14} className="text-txt-muted" />
             </button>
-            {showNotifications && (
-              <div className="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-[rgba(201,169,110,0.2)] bg-[#0F1A2D] p-3 shadow-xl">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-white">Уведомления</p>
-                  <span className="text-xs text-[#7A8899]">{notifications.length} новых</span>
-                </div>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {notifications.map((item, index) => (
-                    <div key={index} className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                      <div className="flex items-center gap-2">
-                        {item.icon}
-                        <p className="text-sm font-semibold text-white">{item.title}</p>
-                      </div>
-                      <p className="mt-1 text-xs text-[#B0BEC5]">{item.text}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
 
-          <div className="hidden h-6 w-px bg-[rgba(201,169,110,0.15)] md:block" />
-
-          <div className="relative flex items-center gap-3 pl-2" ref={profileRef}>
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold text-white">{user?.name || user?.login}</p>
-              <p className="text-xs text-[#7A8899]">{clinic?.name || ''}</p>
-            </div>
-            <button
-              onClick={() => { setShowProfile((v) => !v); setShowNotifications(false); }}
-              className="flex items-center gap-2 rounded-lg p-1.5 transition-colors hover:bg-white/5"
-            >
-              <div
-                className="flex h-8 w-8 items-center justify-center rounded-full text-sm"
-                style={{ background: `${T.gold}18`, border: `2px solid ${T.gold}40` }}
-              >
-                {user?.name?.charAt(0) || '👤'}
-              </div>
-              <ChevronDown size={16} className="text-[#7A8899]" />
-            </button>
-            {showProfile && (
-              <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-[rgba(201,169,110,0.2)] bg-[#0F1A2D] p-3 shadow-xl">
-                <div className="mb-3 flex items-center gap-3 rounded-lg bg-white/5 p-2">
-                  <UserCircle2 size={18} className="text-[#C9A96E]" />
-                  <div>
-                    <p className="text-sm font-semibold text-white">{user?.name || user?.login}</p>
-                    <p className="text-xs text-[#7A8899]">{user?.role || 'Сотрудник'}</p>
-                  </div>
-                </div>
-                <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#DDE4EA] transition-colors hover:bg-white/10">
-                  <Settings size={16} className="text-[#7A8899]" />
-                  Настройки профиля
-                </button>
-                <button
-                  onClick={onLogout}
-                  className="mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#E74C3C] transition-colors hover:bg-[#E74C3C]/10"
+            <AnimatePresence>
+              {showProfile && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-bdr-subtle bg-surface-1 shadow-modal overflow-hidden"
                 >
-                  <LogOut size={16} />
-                  Выйти
-                </button>
-              </div>
-            )}
+                  {/* User info */}
+                  <div className="px-3 py-3 border-b border-bdr-subtle">
+                    <p className="text-sm font-medium text-txt-primary truncate">{user?.name || user?.login}</p>
+                    <p className="text-2xs text-txt-muted mt-0.5">{clinic?.name}</p>
+                  </div>
+
+                  {/* Menu items */}
+                  <div className="p-1.5">
+                    <button
+                      onClick={() => { navigate('/settings'); setShowProfile(false) }}
+                      className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-txt-secondary hover:bg-white/5 hover:text-txt-primary transition-colors"
+                    >
+                      <Settings size={15} />
+                      Настройки
+                    </button>
+                    <button
+                      onClick={() => { navigate('/schedule'); setShowProfile(false) }}
+                      className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-txt-secondary hover:bg-white/5 hover:text-txt-primary transition-colors"
+                    >
+                      <User size={15} />
+                      Мой профиль
+                    </button>
+                  </div>
+
+                  <Separator />
+
+                  <div className="p-1.5">
+                    <button
+                      onClick={() => { logout(); navigate('/login') }}
+                      className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-error hover:bg-error/10 transition-colors"
+                    >
+                      <LogOut size={15} />
+                      Выйти
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      </div>
-    </header>
-  );
+      </header>
+
+      {/* Search overlay */}
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh] px-4"
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSearch(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="relative w-full max-w-lg rounded-2xl border border-bdr-subtle bg-surface-1 shadow-modal overflow-hidden"
+            >
+              <div className="flex items-center gap-3 px-4 h-12">
+                <Search size={18} className="text-txt-muted shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Поиск пациентов, документов, товаров..."
+                  className="flex-1 bg-transparent text-sm text-txt-primary placeholder:text-txt-muted outline-none"
+                />
+                <button
+                  onClick={() => setShowSearch(false)}
+                  className="flex h-6 items-center rounded bg-surface-3 px-1.5 text-2xs text-txt-muted"
+                >
+                  Esc
+                </button>
+              </div>
+              <div className="border-t border-bdr-subtle p-3">
+                <p className="text-xs text-txt-muted text-center py-6">
+                  Начните вводить для поиска...
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  )
 }

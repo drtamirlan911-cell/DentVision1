@@ -12,19 +12,19 @@ export const ROLES = {
   superadmin: {
     label: 'Super Admin',
     icon: '⚙️',
-    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','admin','audit','backup','shop','school'],
+    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','admin','audit','backup','shop','school','analytics','settings'],
     canSeeSalary: true, canSeeSuperAdmin: true, canAddStaff: true, canSeeAudit: true, canBackup: true,
   },
   director: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','staff','audit','backup','shop','school'],
+    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','staff','audit','backup','shop','school','analytics','settings'],
     canSeeSalary: true, canSeeReports: true, canAddStaff: true, canSeeExpenses: true, canSeeAudit: true, canBackup: true,
   },
   admin: {
     label: 'Администратор',
     icon: '💼',
-    pages: ['schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','reminders','promotions','inventory','staff','documents','shop','school'],
+    pages: ['schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','reminders','promotions','inventory','staff','documents','shop','school','analytics','settings'],
     canSeeSalary: false, canSeeExpenses: false, canAddStaff: true,
   },
   doctor: {
