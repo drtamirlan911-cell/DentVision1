@@ -2,31 +2,35 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Shield, Search, RefreshCw, Filter, Clock, User, ArrowRight, Download } from 'lucide-react';
-import { T } from '../utils/constants';
 import * as api from '../utils/api';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/ds/Card';
+import { Button } from '../components/ui/ds/Button';
+import { Badge } from '../components/ui/ds/Badge';
+import { EmptyState } from '../components/ui/ds/EmptyState';
+import { PageHeader } from '../components/ui/ds/StatCard';
 
 const ACTION_LABELS = {
-  create_patient: { l: 'Создал пациента', c: T.emerald },
-  update_patient: { l: 'Обновил пациента', c: T.sapphire },
-  upsert_patient: { l: 'Изменил пациента', c: T.sapphire },
-  delete_patient: { l: 'Удалил пациента', c: T.ruby },
-  create_visit: { l: 'Добавил посещение', c: T.gold },
-  upsert_visit: { l: 'Обновил посещение', c: T.gold },
-  upsert_appointment: { l: 'Записал приём', c: T.cyan },
-  delete_appointment: { l: 'Отменил приём', c: T.ruby },
-  upsert_receipt: { l: 'Создал чек', c: T.emerald },
-  update_receipt: { l: 'Обновил чек', c: T.emerald },
-  upsert_document: { l: 'Создал документ', c: T.purple },
-  upsert_medical_card: { l: 'Обновил мед. карту', c: T.gold },
-  backup: { l: 'Резервное копирование', c: T.teal },
-  upsert_promotion: { l: 'Изменил акцию', c: T.pink },
-  upsert_booking: { l: 'Изменил бронирование', c: T.amber },
-  upsert_inventory: { l: 'Обновил склад', c: T.slate },
-  upsert_user: { l: 'Изменил сотрудника', c: T.sapphire },
+  create_patient: { l: 'Создал пациента', v: 'emerald' },
+  update_patient: { l: 'Обновил пациента', v: 'sky' },
+  upsert_patient: { l: 'Изменил пациента', v: 'sky' },
+  delete_patient: { l: 'Удалил пациента', v: 'error' },
+  create_visit: { l: 'Добавил посещение', v: 'gold' },
+  upsert_visit: { l: 'Обновил посещение', v: 'gold' },
+  upsert_appointment: { l: 'Записал приём', v: 'sky' },
+  delete_appointment: { l: 'Отменил приём', v: 'error' },
+  upsert_receipt: { l: 'Создал чек', v: 'emerald' },
+  update_receipt: { l: 'Обновил чек', v: 'emerald' },
+  upsert_document: { l: 'Создал документ', v: 'purple' },
+  upsert_medical_card: { l: 'Обновил мед. карту', v: 'gold' },
+  backup: { l: 'Резервное копирование', v: 'teal' },
+  upsert_promotion: { l: 'Изменил акцию', v: 'pink' },
+  upsert_booking: { l: 'Изменил бронирование', v: 'gold' },
+  upsert_inventory: { l: 'Обновил склад', v: 'slate' },
+  upsert_user: { l: 'Изменил сотрудника', v: 'sky' },
 };
 
 function getActionInfo(action) {
-  return ACTION_LABELS[action] || { l: action, c: T.slate };
+  return ACTION_LABELS[action] || { l: action, v: 'slate' };
 }
 
 export default function AuditLog() {
@@ -81,27 +85,25 @@ export default function AuditLog() {
 
   return (
     <div className="fade-in space-y-6">
-      <div className="page-header flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Shield size={24} style={{ color: T.gold }} />
-            Аудит-журнал
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">Кто что изменил и когда — полный аудит всех действий</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setRefreshKey(k => k + 1)} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-400 hover:text-white">
-            <RefreshCw size={14} /> Обновить
-          </button>
-          <button onClick={exportLogs} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-black" style={{ background: T.gold }}>
-            <Download size={14} /> Экспорт CSV
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Аудит-журнал"
+        subtitle="Кто что изменил и когда — полный аудит всех действий"
+        icon={<Shield size={24} className="text-dv-gold" />}
+        actions={
+          <>
+            <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={() => setRefreshKey(k => k + 1)}>
+              Обновить
+            </Button>
+            <Button variant="primary" icon={<Download size={14} />} onClick={exportLogs}>
+              Экспорт CSV
+            </Button>
+          </>
+        }
+      />
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input placeholder="Поиск по пользователю, типу..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
         <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="w-full md:w-56">
@@ -111,27 +113,27 @@ export default function AuditLog() {
         </select>
       </div>
 
-      <div className="rounded-xl border border-white/5 bg-white/[0.02]">
+      <Card>
         {loading ? (
           <div className="flex justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#C9A96E]/30 border-t-[#C9A96E]" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" />
           </div>
         ) : filteredLogs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Shield size={48} className="mb-3 text-slate-600" />
-            <p className="text-lg font-semibold text-slate-500">Журнал пуст</p>
-            <p className="text-sm text-slate-600">Действия будут записываться автоматически</p>
-          </div>
+          <EmptyState
+            icon={<Shield size={48} />}
+            title="Журнал пуст"
+            description="Действия будут записываться автоматически"
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-white/5">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Время</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Пользователь</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Действие</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Объект</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
+                <tr className="border-b border-bdr-subtle">
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Время</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Пользователь</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Действие</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Объект</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">ID</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,25 +141,23 @@ export default function AuditLog() {
                   const actionInfo = getActionInfo(log.action);
                   return (
                     <tr key={log.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
-                      <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
+                      <td className="px-4 py-3 text-xs text-txt-secondary whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <Clock size={12} className="text-slate-600" />
+                          <Clock size={12} className="text-txt-ghost" />
                           {log.created_at ? new Date(log.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <User size={12} className="text-slate-600" />
-                          <span className="text-xs text-white">{log.user_name || '—'}</span>
+                          <User size={12} className="text-txt-ghost" />
+                          <span className="text-xs text-txt-primary">{log.user_name || '—'}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${actionInfo.c}18`, color: actionInfo.c }}>
-                          {actionInfo.l}
-                        </span>
+                        <Badge variant={actionInfo.v} size="xs">{actionInfo.l}</Badge>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-400">{log.entity_type || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600 font-mono truncate max-w-[120px]">{log.entity_id || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-txt-secondary">{log.entity_type || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-txt-ghost font-mono truncate max-w-[120px]">{log.entity_id || '—'}</td>
                     </tr>
                   );
                 })}
@@ -165,9 +165,9 @@ export default function AuditLog() {
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
-      <div className="text-center text-xs text-slate-600">
+      <div className="text-center text-xs text-txt-ghost">
         Показано {filteredLogs.length} из {logs.length} записей аудита
       </div>
     </div>

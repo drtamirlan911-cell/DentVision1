@@ -3,15 +3,22 @@ import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FileText, Plus, Search, Edit3, Save, X, Trash2, Download, Eye, Copy, Stethoscope, Shield, ClipboardList, PenTool, Send, Link2 } from 'lucide-react';
 import SignaturePad from '../components/ui/SignaturePad';
-import { T, gid, today } from '../utils/constants';
+import { gid, today } from '../utils/constants';
 import { useData, useToast } from '../hooks/useData';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/ds/Card';
+import { Button } from '../components/ui/ds/Button';
+import { Badge } from '../components/ui/ds/Badge';
+import { Input, Textarea, Select } from '../components/ui/ds/Input';
+import { Modal } from '../components/ui/ds/Modal';
+import { EmptyState } from '../components/ui/ds/EmptyState';
+import { PageHeader } from '../components/ui/ds/StatCard';
 
 const DOC_STATUS = {
-  draft: { l: 'Черновик', c: T.slate },
-  active: { l: 'Действующий', c: T.emerald },
-  pending_signature: { l: 'Ожидает подписи', c: T.amber },
-  signed: { l: 'Подписан', c: T.gold },
-  archived: { l: 'Архив', c: T.sapphire },
+  draft: { l: 'Черновик', v: 'slate' },
+  active: { l: 'Действующий', v: 'emerald' },
+  pending_signature: { l: 'Ожидает подписи', v: 'gold' },
+  signed: { l: 'Подписан', v: 'gold' },
+  archived: { l: 'Архив', v: 'sapphire' },
 };
 
 const DOC_TEMPLATES = [
@@ -144,7 +151,7 @@ const DOC_TEMPLATES = [
 5. Стоимость: имплант _____________ тенге, коронка _____________ тенге
 6. Гарантия на имплант: _______ лет при регулярных осмотрах (1 раз в 6 мес)
 
-Стоимость 전체го лечения: _____________ тенге
+Стоимость всего лечения: _____________ тенге
 
 Дата: _________________                    Подпись пациента: _________________
 
@@ -399,10 +406,10 @@ function TemplateCard({ template, onSelect }) {
   return (
     <button
       onClick={() => onSelect(template)}
-      className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-left transition-all hover:border-[#C9A96E]/20 hover:bg-white/[0.04]"
+      className="rounded-xl border border-bdr-subtle bg-surface-raised p-3 text-left transition-all hover:border-dv-gold/30 hover:bg-surface-raised-hover"
     >
-      <p className="text-xs font-bold text-white truncate">{template.title}</p>
-      <p className="text-[10px] text-slate-500 mt-0.5">{template.type}</p>
+      <p className="text-xs font-bold text-txt-primary truncate">{template.title}</p>
+      <p className="text-[10px] text-txt-muted mt-0.5">{template.type}</p>
     </button>
   );
 }
@@ -580,15 +587,15 @@ export default function Documents() {
     }
   };
 
+  const [signInlineDoc, setSignInlineDoc] = useState(null);
+  const [signInlineName, setSignInlineName] = useState('');
+
   const handleSignInline = async (doc) => {
     if (!signInlineDoc || signInlineDoc.id !== doc.id) {
       setSignInlineDoc(doc);
       return;
     }
   };
-
-  const [signInlineDoc, setSignInlineDoc] = useState(null);
-  const [signInlineName, setSignInlineName] = useState('');
 
   const handleInlineSignSave = async (signatureData) => {
     if (!signInlineName.trim()) { toast.warning('Введите имя'); return; }
@@ -608,114 +615,124 @@ export default function Documents() {
 
   return (
     <div className="fade-in space-y-6">
-      <div className="page-header flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <FileText size={24} style={{ color: T.gold }} />
-            Электронные документы
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">Согласия, рецепты, направления, договоры, справки, заключения</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => { resetForm(); setShowTemplates(true); }}
-            className="flex items-center gap-2 rounded-lg border border-[#C9A96E]/20 bg-[#C9A96E]/8 px-4 py-2.5 text-sm font-semibold text-[#C9A96E]">
-            <Copy size={16} /> Из шаблона
-          </button>
-          <button onClick={() => { resetForm(); setShowForm(true); }}
-            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-black" style={{ background: T.gold }}>
-            <Plus size={16} /> Вручную
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Электронные документы"
+        subtitle="Согласия, рецепты, направления, договоры, справки, заключения"
+        icon={<FileText size={24} className="text-dv-gold" />}
+        actions={
+          <>
+            <Button variant="outline" icon={<Copy size={16} />} onClick={() => { resetForm(); setShowTemplates(true); }}>
+              Из шаблона
+            </Button>
+            <Button variant="primary" icon={<Plus size={16} />} onClick={() => { resetForm(); setShowForm(true); }}>
+              Вручную
+            </Button>
+          </>
+        }
+      />
 
       {showTemplates && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-[#C9A96E]/20 bg-white/[0.03] p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Copy size={16} style={{ color: T.gold }} /> Выберите шаблон документа
-            </h3>
-            <button onClick={() => setShowTemplates(false)} className="text-slate-500 hover:text-white"><X size={18} /></button>
-          </div>
-          {DOC_TEMPLATES.map(cat => (
-            <div key={cat.category}>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                {cat.category === 'Согласия' && <Shield size={12} />}
-                {cat.category === 'Медицинские документы' && <Stethoscope size={12} />}
-                {cat.category === 'Договоры' && <FileText size={12} />}
-                {cat.category === 'Справки' && <ClipboardList size={12} />}
-                {cat.category}
-              </h4>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {cat.items.map(t => (
-                  <TemplateCard key={t.type} template={t} onSelect={applyTemplate} />
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Copy size={16} className="text-dv-gold" /> Выберите шаблон документа
+                </span>
+                <Button variant="ghost" size="icon-sm" icon={<X size={18} />} onClick={() => setShowTemplates(false)} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {DOC_TEMPLATES.map(cat => (
+                  <div key={cat.category}>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-txt-muted mb-2 flex items-center gap-1.5">
+                      {cat.category === 'Согласия' && <Shield size={12} />}
+                      {cat.category === 'Медицинские документы' && <Stethoscope size={12} />}
+                      {cat.category === 'Договоры' && <FileText size={12} />}
+                      {cat.category === 'Справки' && <ClipboardList size={12} />}
+                      {cat.category}
+                    </h4>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {cat.items.map(t => (
+                        <TemplateCard key={t.type} template={t} onSelect={applyTemplate} />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
-            </div>
-          ))}
+            </CardContent>
+          </Card>
         </motion.div>
       )}
 
       {showForm && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-[#C9A96E]/20 bg-white/[0.03] p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white">{editingId ? 'Редактирование' : 'Новый документ'}</h3>
-            <button onClick={resetForm} className="text-slate-500 hover:text-white"><X size={18} /></button>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Тип документа *</label>
-              <select value={form.doc_type} onChange={e => setForm(f => ({ ...f, doc_type: e.target.value }))}>
-                <option value="">Выберите...</option>
-                {DOC_TEMPLATES.map(cat => (
-                  <optgroup key={cat.category} label={cat.category}>
-                    {cat.items.map(t => <option key={t.type} value={t.type}>{t.type}</option>)}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Пациент</label>
-              <select value={form.patient_id} onChange={e => handlePatientChange(e.target.value)}>
-                <option value="">Не выбран</option>
-                {(patients || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Врач</label>
-              <select value={form.doctor_id} onChange={e => handleDoctorChange(e.target.value)}>
-                <option value="">Не выбран</option>
-                {(doctors || []).map(d => <option key={d.id} value={d.id}>{d.name}{d.spec ? ` (${d.spec})` : ''}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Статус</label>
-              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Название *</label>
-            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Название документа..." />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Содержание</label>
-            <textarea rows={16} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="Текст документа..." className="font-mono text-xs leading-relaxed" />
-          </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={resetForm} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-400 hover:text-white">Отмена</button>
-            <button onClick={saveDocument} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-black" style={{ background: T.emerald }}>
-              <Save size={14} /> {editingId ? 'Обновить' : 'Создать'}
-            </button>
-          </div>
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>{editingId ? 'Редактирование' : 'Новый документ'}</span>
+                <Button variant="ghost" size="icon-sm" icon={<X size={18} />} onClick={resetForm} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Тип документа *</label>
+                    <select value={form.doc_type} onChange={e => setForm(f => ({ ...f, doc_type: e.target.value }))}>
+                      <option value="">Выберите...</option>
+                      {DOC_TEMPLATES.map(cat => (
+                        <optgroup key={cat.category} label={cat.category}>
+                          {cat.items.map(t => <option key={t.type} value={t.type}>{t.type}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Пациент</label>
+                    <select value={form.patient_id} onChange={e => handlePatientChange(e.target.value)}>
+                      <option value="">Не выбран</option>
+                      {(patients || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Врач</label>
+                    <select value={form.doctor_id} onChange={e => handleDoctorChange(e.target.value)}>
+                      <option value="">Не выбран</option>
+                      {(doctors || []).map(d => <option key={d.id} value={d.id}>{d.name}{d.spec ? ` (${d.spec})` : ''}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Статус</label>
+                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                      {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Название *</label>
+                  <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Название документа..." />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Содержание</label>
+                  <textarea rows={16} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="Текст документа..." className="font-mono text-xs leading-relaxed" />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="secondary" onClick={resetForm}>Отмена</Button>
+                  <Button variant="primary" icon={<Save size={14} />} onClick={saveDocument}>
+                    {editingId ? 'Обновить' : 'Создать'}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
       )}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input placeholder="Поиск по названию, пациенту, содержанию..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
         <select value={filterType} onChange={e => setFilterType(e.target.value)} className="w-full md:w-56">
@@ -726,49 +743,43 @@ export default function Documents() {
       </div>
 
       {previewDoc && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setPreviewDoc(null)}>
-          <div className="w-full max-w-3xl rounded-xl border border-white/10 bg-[#0D1B2E] p-6 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <Modal open={!!previewDoc} onClose={() => setPreviewDoc(null)}>
+          <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-bold text-white">{previewDoc.title}</h3>
-                <p className="text-xs text-slate-500">{previewDoc.doc_type} · {previewDoc.patient_name || 'Без пациента'}</p>
+                <h3 className="text-lg font-bold text-txt-primary">{previewDoc.title}</h3>
+                <p className="text-xs text-txt-muted">{previewDoc.doc_type} · {previewDoc.patient_name || 'Без пациента'}</p>
               </div>
-              <button onClick={() => setPreviewDoc(null)} className="text-slate-500 hover:text-white"><X size={20} /></button>
+              <Button variant="ghost" size="icon-sm" icon={<X size={20} />} onClick={() => setPreviewDoc(null)} />
             </div>
-            <div className="whitespace-pre-wrap rounded-lg bg-white/5 p-6 text-sm text-slate-300 font-mono leading-relaxed border border-white/5">
+            <div className="whitespace-pre-wrap rounded-lg bg-white/5 p-6 text-sm text-txt-secondary font-mono leading-relaxed border border-bdr-subtle">
               {previewDoc.content || 'Нет содержания'}
             </div>
             {previewDoc.signature_data && (
-              <div className="mt-4 rounded-lg border border-[#C9A96E]/20 bg-[#C9A96E]/5 p-4">
-                <p className="mb-2 text-xs font-semibold text-[#C9A96E]">Электронная подпись</p>
-                <img src={previewDoc.signature_data} alt="Подпись" style={{ maxHeight: 80, background: 'white', borderRadius: 6, padding: 4 }} />
-                <p className="mt-2 text-xs text-slate-500">
+              <div className="mt-4 rounded-lg border border-dv-gold/20 bg-dv-gold/5 p-4">
+                <p className="mb-2 text-xs font-semibold text-dv-gold">Электронная подпись</p>
+                <img src={previewDoc.signature_data} alt="Подпись" className="max-h-20 bg-white rounded-md p-1" />
+                <p className="mt-2 text-xs text-txt-muted">
                   {previewDoc.signed_by_name && `Подпись: ${previewDoc.signed_by_name}`}
                   {previewDoc.signed_at && ` · ${new Date(previewDoc.signed_at).toLocaleString('ru-RU')}`}
                 </p>
               </div>
             )}
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => copyDoc(previewDoc.content)} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400 hover:text-white">
-                <Copy size={12} /> Копировать
-              </button>
-              <button onClick={() => downloadDoc(previewDoc)} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400 hover:text-white">
-                <Download size={12} /> Скачать
-              </button>
+              <Button variant="secondary" size="sm" icon={<Copy size={12} />} onClick={() => copyDoc(previewDoc.content)}>Копировать</Button>
+              <Button variant="secondary" size="sm" icon={<Download size={12} />} onClick={() => downloadDoc(previewDoc)}>Скачать</Button>
             </div>
           </div>
-        </motion.div>
+        </Modal>
       )}
 
       <div className="space-y-2">
         {filteredDocs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-white/5 bg-white/[0.02] py-20 text-center">
-            <FileText size={48} className="mb-3 text-slate-600" />
-            <p className="text-lg font-semibold text-slate-500">Нет документов</p>
-            <p className="text-sm text-slate-600">Создайте из шаблона или вручную</p>
-          </div>
+          <EmptyState
+            icon={<FileText size={48} />}
+            title="Нет документов"
+            description="Создайте из шаблона или вручную"
+          />
         ) : (
           filteredDocs.map((doc, i) => {
             const statusInfo = DOC_STATUS[doc.status] || DOC_STATUS.draft;
@@ -778,83 +789,67 @@ export default function Documents() {
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.02 }}
-                className="rounded-xl border border-white/5 bg-white/[0.02] p-4 hover:border-[#C9A96E]/15 transition-all"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ background: `${T.gold}12` }}>
-                      <FileText size={18} style={{ color: T.gold }} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-sm font-bold text-white">{doc.title}</h4>
-                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: `${statusInfo.c}18`, color: statusInfo.c }}>
-                          {statusInfo.l}
-                        </span>
+                <Card hover className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-dv-gold/10">
+                        <FileText size={18} className="text-dv-gold" />
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {doc.doc_type} · {doc.patient_name || 'Без пациента'} · {doc.created_at ? new Date(doc.created_at).toLocaleDateString('ru-RU') : '—'}
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-bold text-txt-primary">{doc.title}</h4>
+                          <Badge variant={statusInfo.v} size="xs">{statusInfo.l}</Badge>
+                        </div>
+                        <p className="text-xs text-txt-muted mt-0.5">
+                          {doc.doc_type} · {doc.patient_name || 'Без пациента'} · {doc.created_at ? new Date(doc.created_at).toLocaleDateString('ru-RU') : '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon-xs" icon={<Eye size={14} />} onClick={() => setPreviewDoc(doc)} title="Просмотр" />
+                      <Button variant="ghost" size="icon-xs" icon={<Copy size={14} />} onClick={() => copyDoc(doc.content)} title="Копировать" />
+                      <Button variant="ghost" size="icon-xs" icon={<Download size={14} />} onClick={() => downloadDoc(doc)} title="Скачать" />
+                      <Button variant="ghost" size="icon-xs" icon={<Edit3 size={14} />} onClick={() => startEdit(doc)} title="Редактировать" />
+                      <Button variant="ghost" size="icon-xs" icon={<Trash2 size={14} />} onClick={() => handleDelete(doc.id)} title="Удалить" className="text-txt-muted hover:text-error" />
+                      {doc.status !== 'signed' && (
+                        <>
+                          <Button variant="ghost" size="icon-xs" icon={<Send size={14} />} onClick={() => handleSendForSignature(doc)} title="Отправить на подпись" />
+                          <Button variant="ghost" size="icon-xs" icon={<PenTool size={14} />} onClick={() => handleSignInline(doc)} title="Подписать на планшете" className="text-txt-muted hover:text-emerald-400" />
+                        </>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setPreviewDoc(doc)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-[#C9A96E]" title="Просмотр">
-                      <Eye size={14} />
-                    </button>
-                    <button onClick={() => copyDoc(doc.content)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-[#C9A96E]" title="Копировать">
-                      <Copy size={14} />
-                    </button>
-                    <button onClick={() => downloadDoc(doc)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-[#C9A96E]" title="Скачать">
-                      <Download size={14} />
-                    </button>
-                    <button onClick={() => startEdit(doc)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-[#C9A96E]" title="Редактировать">
-                      <Edit3 size={14} />
-                    </button>
-                    <button onClick={() => handleDelete(doc.id)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-[#E74C3C]" title="Удалить">
-                      <Trash2 size={14} />
-                    </button>
-                    {doc.status !== 'signed' && (
-                      <>
-                        <button onClick={() => handleSendForSignature(doc)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-amber-400" title="Отправить на подпись">
-                          <Send size={14} />
-                        </button>
-                        <button onClick={() => handleSignInline(doc)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-emerald-400" title="Подписать на планшете">
-                          <PenTool size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {signLink && signInlineDoc?.id !== doc.id && (
-                  <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-400">
-                      <Link2 size={12} /> Ссылка для подписи
+                  {signLink && signInlineDoc?.id !== doc.id && (
+                    <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-400">
+                        <Link2 size={12} /> Ссылка для подписи
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 truncate text-xs text-txt-secondary">{signLink}</code>
+                        <Button variant="primary" size="xs" onClick={() => { navigator.clipboard.writeText(signLink); toast.success('Скопировано'); }}>Копировать</Button>
+                        <Button variant="ghost" size="icon-xs" icon={<X size={12} />} onClick={() => setSignLink(null)} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 truncate text-xs text-[#DDE4EA]">{signLink}</code>
-                      <button onClick={() => { navigator.clipboard.writeText(signLink); toast.success('Скопировано'); }} className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold" style={{ background: T.gold, color: T.bg }}>Копировать</button>
-                      <button onClick={() => setSignLink(null)} className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-white">✕</button>
+                  )}
+                  {signInlineDoc?.id === doc.id && (
+                    <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+                      <p className="mb-2 text-xs font-semibold text-emerald-400">Подпись на планшете</p>
+                      <input type="text" value={signInlineName} onChange={e => setSignInlineName(e.target.value)} placeholder="ФИО пациента" className="mb-3 w-full" />
+                      <div className="flex justify-center">
+                        <SignaturePad onSave={handleInlineSignSave} width={Math.min(450, 380)} height={150} />
+                      </div>
+                      <button onClick={() => setSignInlineDoc(null)} className="mt-2 text-xs text-txt-muted hover:text-txt-primary">Отмена</button>
                     </div>
-                  </div>
-                )}
-                {signInlineDoc?.id === doc.id && (
-                  <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-                    <p className="mb-2 text-xs font-semibold text-emerald-400">Подпись на планшете</p>
-                    <input type="text" value={signInlineName} onChange={e => setSignInlineName(e.target.value)} placeholder="ФИО пациента"
-                      className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500" />
-                    <div className="flex justify-center">
-                      <SignaturePad onSave={handleInlineSignSave} width={Math.min(450, 380)} height={150} />
-                    </div>
-                    <button onClick={() => setSignInlineDoc(null)} className="mt-2 text-xs text-slate-500 hover:text-white">Отмена</button>
-                  </div>
-                )}
+                  )}
+                </Card>
               </motion.div>
             );
           })
         )}
       </div>
 
-      <div className="text-center text-xs text-slate-600">
+      <div className="text-center text-xs text-txt-ghost">
         {filteredDocs.length} документов · Шаблонов: {getAllTemplates().length}
       </div>
     </div>

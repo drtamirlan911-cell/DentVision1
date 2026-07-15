@@ -15,7 +15,7 @@ import { Modal } from '../components/ui/ds/Modal'
 import { EmptyState } from '../components/ui/ds/EmptyState'
 import { PageHeader } from '../components/ui/ds/StatCard'
 import { Avatar } from '../components/ui/ds/Avatar'
-import { T, VISIBILITY_OPTIONS } from '../utils/constants'
+import { VISIBILITY_OPTIONS } from '../utils/constants'
 import { cn } from '../lib/utils'
 
 const ROLE_OPTIONS = [

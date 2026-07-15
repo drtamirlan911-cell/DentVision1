@@ -15,7 +15,7 @@ import { EmptyState } from '../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard'
 import { Tabs } from '../components/ui/ds/Misc'
 import { Switch } from '../components/ui/ds/Misc'
-import { T, tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency } from '../utils/constants'
+import { tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency } from '../utils/constants'
 import { cn, formatMoney } from '../lib/utils'
 
 const TABS = [

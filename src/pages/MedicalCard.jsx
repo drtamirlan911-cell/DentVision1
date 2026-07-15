@@ -2,8 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun } from 'lucide-react';
-import { T, gid, today } from '../utils/constants';
+import { gid, today } from '../utils/constants';
 import { useData, useToast } from '../hooks/useData';
+import { Card, CardContent } from '../components/ui/ds/Card';
+import { Button } from '../components/ui/ds/Button';
+import { Badge } from '../components/ui/ds/Badge';
+import { EmptyState } from '../components/ui/ds/EmptyState';
+import { PageHeader } from '../components/ui/ds/StatCard';
+import { Tabs } from '../components/ui/ds/Misc';
 
 const CARD_SECTIONS = [
   { id: 'personal', label: 'Личные данные', icon: <User size={16} /> },
@@ -68,28 +74,24 @@ export default function MedicalCard() {
 
   const Field = ({ label, children }) => (
     <div>
-      <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</label>
+      <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-txt-muted">{label}</label>
       {children}
     </div>
   );
 
   return (
     <div className="fade-in space-y-6">
-      <div className="page-header flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Stethoscope size={24} style={{ color: T.gold }} />
-            Электронная медицинская карта
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">Полная медицинская информация пациента (МКБ-10, аллергии, история)</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Электронная медицинская карта"
+        subtitle="Полная медицинская информация пациента (МКБ-10, аллергии, история)"
+        icon={<Stethoscope size={24} className="text-dv-gold" />}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Patient List */}
-        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+        <Card className="p-4">
           <div className="relative mb-3">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
             <input
               placeholder="Поиск пациента..."
               value={searchQuery}
@@ -104,8 +106,8 @@ export default function MedicalCard() {
                 onClick={() => { setSelectedPatientId(p.id); setEditing(false); setActiveSection('personal'); }}
                 className={`w-full rounded-lg px-3 py-2.5 text-left transition-all ${
                   selectedPatientId === p.id
-                    ? 'border border-[#C9A96E]/30 bg-[#C9A96E]/10 text-[#C9A96E]'
-                    : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                    ? 'border border-dv-gold/30 bg-dv-gold/10 text-dv-gold'
+                    : 'text-txt-secondary hover:bg-white/5 hover:text-txt-primary'
                 }`}
               >
                 <p className="text-sm font-semibold truncate">{p.name}</p>
@@ -113,81 +115,71 @@ export default function MedicalCard() {
               </button>
             ))}
           </div>
-        </div>
+        </Card>
 
         {/* Card Content */}
         <div className="lg:col-span-2 space-y-4">
           {!selectedPatientId ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-white/5 bg-white/[0.02] py-20 text-center">
-              <Stethoscope size={48} className="mb-3 text-slate-600" />
-              <p className="text-lg font-semibold text-slate-500">Выберите пациента</p>
-              <p className="text-sm text-slate-600">для просмотра медицинской карты</p>
-            </div>
+            <EmptyState
+              icon={<Stethoscope size={48} />}
+              title="Выберите пациента"
+              description="для просмотра медицинской карты"
+            />
           ) : (
             <>
               {/* Patient Header */}
-              <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                <div>
-                  <h2 className="text-lg font-bold text-white">{selectedPatient?.name}</h2>
-                  <p className="text-sm text-slate-500">
-                    {selectedPatient?.dob ? `Дата рождения: ${selectedPatient.dob}` : ''}
-                    {selectedPatient?.gender ? ` · ${selectedPatient.gender === 'M' ? 'Мужской' : 'Женский'}` : ''}
-                  </p>
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-txt-primary">{selectedPatient?.name}</h2>
+                    <p className="text-sm text-txt-muted">
+                      {selectedPatient?.dob ? `Дата рождения: ${selectedPatient.dob}` : ''}
+                      {selectedPatient?.gender ? ` · ${selectedPatient.gender === 'M' ? 'Мужской' : 'Женский'}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {editing ? (
+                      <>
+                        <Button variant="primary" icon={<Save size={14} />} onClick={saveCard}>Сохранить</Button>
+                        <Button variant="secondary" icon={<X size={14} />} onClick={() => setEditing(false)}>Отмена</Button>
+                      </>
+                    ) : (
+                      <Button variant="primary" icon={<Edit3 size={14} />} onClick={startEdit}>
+                        {existingCard ? 'Редактировать' : 'Создать карту'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  {editing ? (
-                    <>
-                      <button onClick={saveCard} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-black" style={{ background: T.emerald }}>
-                        <Save size={14} /> Сохранить
-                      </button>
-                      <button onClick={() => setEditing(false)} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-400 hover:text-white">
-                        <X size={14} /> Отмена
-                      </button>
-                    </>
-                  ) : (
-                    <button onClick={startEdit} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-black" style={{ background: T.gold }}>
-                      <Edit3 size={14} /> {existingCard ? 'Редактировать' : 'Создать карту'}
-                    </button>
-                  )}
-                </div>
-              </div>
+              </Card>
 
               {/* Section Tabs */}
-              <div className="flex gap-1 rounded-lg border border-white/5 bg-white/[0.02] p-1">
-                {CARD_SECTIONS.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => setActiveSection(s.id)}
-                    className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition-all ${
-                      activeSection === s.id ? 'bg-[#C9A96E]/15 text-[#C9A96E]' : 'text-slate-500 hover:text-white'
-                    }`}
-                  >
-                    {s.icon} {s.label}
-                  </button>
-                ))}
-              </div>
+              <Tabs
+                tabs={CARD_SECTIONS.map(s => ({ id: s.id, label: s.label, icon: s.icon }))}
+                activeTab={activeSection}
+                onChange={setActiveSection}
+              />
 
               {/* Section Content */}
-              <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+              <Card className="p-5">
                 {activeSection === 'personal' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-white"><User size={16} style={{ color: T.gold }} /> Личная информация</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><User size={16} className="text-dv-gold" /> Личная информация</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs text-slate-500">ФИО</p>
-                        <p className="text-sm text-white font-semibold">{selectedPatient?.name || '—'}</p>
+                        <p className="text-xs text-txt-muted">ФИО</p>
+                        <p className="text-sm text-txt-primary font-semibold">{selectedPatient?.name || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-slate-500">Телефон</p>
-                        <p className="text-sm text-white">{selectedPatient?.phone || '—'}</p>
+                        <p className="text-xs text-txt-muted">Телефон</p>
+                        <p className="text-sm text-txt-primary">{selectedPatient?.phone || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-slate-500">Дата рождения</p>
-                        <p className="text-sm text-white">{selectedPatient?.dob || '—'}</p>
+                        <p className="text-xs text-txt-muted">Дата рождения</p>
+                        <p className="text-sm text-txt-primary">{selectedPatient?.dob || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-slate-500">Адрес</p>
-                        <p className="text-sm text-white">{selectedPatient?.address || '—'}</p>
+                        <p className="text-xs text-txt-muted">Адрес</p>
+                        <p className="text-sm text-txt-primary">{selectedPatient?.address || '—'}</p>
                       </div>
                     </div>
                   </div>
@@ -195,7 +187,7 @@ export default function MedicalCard() {
 
                 {activeSection === 'medical' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-white"><Activity size={16} style={{ color: T.gold }} /> Медицинские данные</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><Activity size={16} className="text-dv-gold" /> Медицинские данные</h3>
                     {editing ? (
                       <div className="grid grid-cols-2 gap-4">
                         <Field label="Группа крови">
@@ -214,16 +206,16 @@ export default function MedicalCard() {
                     ) : (
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="text-xs text-slate-500">Группа крови</p>
-                          <p className="text-sm text-white font-bold">{existingCard?.blood_type || existingCard?.bloodType || '—'}</p>
+                          <p className="text-xs text-txt-muted">Группа крови</p>
+                          <p className="text-sm text-txt-primary font-bold">{existingCard?.blood_type || existingCard?.bloodType || '—'}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-slate-500">Страховая</p>
-                          <p className="text-sm text-white">{existingCard?.insurance_provider || existingCard?.insuranceProvider || '—'}</p>
+                          <p className="text-xs text-txt-muted">Страховая</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.insurance_provider || existingCard?.insuranceProvider || '—'}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-slate-500">Полис</p>
-                          <p className="text-sm text-white">{existingCard?.insurance_number || existingCard?.insuranceNumber || '—'}</p>
+                          <p className="text-xs text-txt-muted">Полис</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.insurance_number || existingCard?.insuranceNumber || '—'}</p>
                         </div>
                       </div>
                     )}
@@ -232,7 +224,7 @@ export default function MedicalCard() {
 
                 {activeSection === 'allergies' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-white"><AlertTriangle size={16} style={{ color: T.ruby }} /> Аллергии и лекарства</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><AlertTriangle size={16} className="text-error" /> Аллергии и лекарства</h3>
                     {editing ? (
                       <div className="space-y-4">
                         <Field label="Аллергии">
@@ -244,13 +236,13 @@ export default function MedicalCard() {
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <div className="rounded-lg bg-[#E74C3C]/8 border border-[#E74C3C]/15 p-3">
-                          <p className="text-xs font-semibold text-[#E74C3C] mb-1">Аллергии</p>
-                          <p className="text-sm text-white">{existingCard?.allergies || 'Нет известных аллергий'}</p>
+                        <div className="rounded-lg bg-error/8 border border-error/15 p-3">
+                          <p className="text-xs font-semibold text-error mb-1">Аллергии</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.allergies || 'Нет известных аллергий'}</p>
                         </div>
-                        <div className="rounded-lg bg-[#2980B9]/8 border border-[#2980B9]/15 p-3">
-                          <p className="text-xs font-semibold text-[#2980B9] mb-1">Лекарства</p>
-                          <p className="text-sm text-white">{existingCard?.medications || 'Не принимает'}</p>
+                        <div className="rounded-lg bg-sky-500/8 border border-sky-500/15 p-3">
+                          <p className="text-xs font-semibold text-sky-400 mb-1">Лекарства</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.medications || 'Не принимает'}</p>
                         </div>
                       </div>
                     )}
@@ -259,7 +251,7 @@ export default function MedicalCard() {
 
                 {activeSection === 'history' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-white"><FileText size={16} style={{ color: T.sapphire }} /> История болезней</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><FileText size={16} className="text-sky-400" /> История болезней</h3>
                     {editing ? (
                       <div className="space-y-4">
                         <Field label="Хронические заболевания">
@@ -277,38 +269,38 @@ export default function MedicalCard() {
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <div className="rounded-lg bg-white/5 border border-white/5 p-3">
-                          <p className="text-xs font-semibold text-slate-500 mb-1">Хронические заболевания</p>
-                          <p className="text-sm text-white">{existingCard?.chronic_diseases || existingCard?.chronicDiseases || '—'}</p>
+                        <div className="rounded-lg bg-white/5 border border-bdr-subtle p-3">
+                          <p className="text-xs font-semibold text-txt-muted mb-1">Хронические заболевания</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.chronic_diseases || existingCard?.chronicDiseases || '—'}</p>
                         </div>
-                        <div className="rounded-lg bg-white/5 border border-white/5 p-3">
-                          <p className="text-xs font-semibold text-slate-500 mb-1">Операции</p>
-                          <p className="text-sm text-white">{existingCard?.past_surgeries || existingCard?.pastSurgeries || '—'}</p>
+                        <div className="rounded-lg bg-white/5 border border-bdr-subtle p-3">
+                          <p className="text-xs font-semibold text-txt-muted mb-1">Операции</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.past_surgeries || existingCard?.pastSurgeries || '—'}</p>
                         </div>
-                        <div className="rounded-lg bg-white/5 border border-white/5 p-3">
-                          <p className="text-xs font-semibold text-slate-500 mb-1">Семейный анамнез</p>
-                          <p className="text-sm text-white">{existingCard?.family_history || existingCard?.familyHistory || '—'}</p>
+                        <div className="rounded-lg bg-white/5 border border-bdr-subtle p-3">
+                          <p className="text-xs font-semibold text-txt-muted mb-1">Семейный анамнез</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.family_history || existingCard?.familyHistory || '—'}</p>
                         </div>
                       </div>
                     )}
 
                     {/* Visit History */}
                     <div className="mt-4">
-                      <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                      <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-txt-muted mb-2">
                         <ThermometerSun size={14} /> История посещений ({patientVisits.length})
                       </h4>
                       {patientVisits.length === 0 ? (
-                        <p className="text-sm text-slate-600">Посещений пока нет</p>
+                        <p className="text-sm text-txt-ghost">Посещений пока нет</p>
                       ) : (
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                           {patientVisits.map(v => (
-                            <div key={v.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                            <div key={v.id} className="rounded-lg border border-bdr-subtle bg-surface-raised p-3">
                               <div className="flex justify-between items-center">
-                                <span className="text-xs text-slate-500">{v.visit_date ? new Date(v.visit_date).toLocaleDateString('ru-RU') : '—'}</span>
-                                <span className="text-xs font-semibold text-[#C9A96E]">{v.doctor_name || '—'}</span>
+                                <span className="text-xs text-txt-muted">{v.visit_date ? new Date(v.visit_date).toLocaleDateString('ru-RU') : '—'}</span>
+                                <span className="text-xs font-semibold text-dv-gold">{v.doctor_name || '—'}</span>
                               </div>
-                              <p className="text-sm text-white mt-1">{v.diagnosis || 'Без диагноза'}</p>
-                              {v.icd10_codes && <p className="text-xs text-[#C9A96E] mt-0.5">МКБ-10: {v.icd10_codes}</p>}
+                              <p className="text-sm text-txt-primary mt-1">{v.diagnosis || 'Без диагноза'}</p>
+                              {v.icd10_codes && <p className="text-xs text-dv-gold mt-0.5">МКБ-10: {v.icd10_codes}</p>}
                             </div>
                           ))}
                         </div>
@@ -319,7 +311,7 @@ export default function MedicalCard() {
 
                 {activeSection === 'emergency' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-white"><Phone size={16} style={{ color: T.amber }} /> Экстренный контакт</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><Phone size={16} className="text-amber-400" /> Экстренный контакт</h3>
                     {editing ? (
                       <div className="grid grid-cols-2 gap-4">
                         <Field label="Контактное лицо">
@@ -331,19 +323,19 @@ export default function MedicalCard() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="rounded-lg bg-[#F39C12]/8 border border-[#F39C12]/15 p-3">
-                          <p className="text-xs font-semibold text-[#F39C12] mb-1">Контактное лицо</p>
-                          <p className="text-sm text-white">{existingCard?.emergency_contact || existingCard?.emergencyContact || '—'}</p>
+                        <div className="rounded-lg bg-amber-500/8 border border-amber-500/15 p-3">
+                          <p className="text-xs font-semibold text-amber-400 mb-1">Контактное лицо</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.emergency_contact || existingCard?.emergencyContact || '—'}</p>
                         </div>
-                        <div className="rounded-lg bg-[#F39C12]/8 border border-[#F39C12]/15 p-3">
-                          <p className="text-xs font-semibold text-[#F39C12] mb-1">Телефон</p>
-                          <p className="text-sm text-white">{existingCard?.emergency_phone || existingCard?.emergencyPhone || '—'}</p>
+                        <div className="rounded-lg bg-amber-500/8 border border-amber-500/15 p-3">
+                          <p className="text-xs font-semibold text-amber-400 mb-1">Телефон</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.emergency_phone || existingCard?.emergencyPhone || '—'}</p>
                         </div>
                       </div>
                     )}
                   </div>
                 )}
-              </div>
+              </Card>
             </>
           )}
         </div>

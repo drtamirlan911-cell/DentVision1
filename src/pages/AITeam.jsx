@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useToast, useData } from '../hooks/useData';
 import { Button } from '../components/ui/ds/Button';
-import { Card } from '../components/ui/ds/Card';
+import { Card, CardContent } from '../components/ui/ds/Card';
 import { buildAiReply } from '../utils/aiHelpers';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,59 +17,52 @@ import {
   Send,
   Loader2,
 } from 'lucide-react';
+import { PageHeader } from '../components/ui/ds/StatCard';
 
 const ASSISTANTS = [
   {
     id: 'consultant',
     name: 'Консультант',
     Icon: MessageSquare,
-    color: '#2980B9',
+    color: 'text-sky-400',
+    bg: 'bg-sky-500/15',
+    border: 'border-sky-500/50',
+    dot: 'bg-sky-400',
     role: 'Отвечает на вопросы пациентов',
     quickActions: ['Услуги и цены', 'О врачах', 'Текущие акции', 'Контакты клиники'],
-    replies: [
-      'Наши услуги включают: терапию, ортопедию, имплантацию, ортодонтию и гигиену. Какое направление вас интересует?',
-      'Стоимость лечения кариеса — от 15 000 ₸. Стоимость имплантации — от 200 000 ₸. Уточните, что именно вас интересует?',
-      'Мы работаем ежедневно с 9:00 до 20:00. Запись онлайн или по телефону.',
-    ],
   },
   {
     id: 'scheduler',
     name: 'Администратор',
     Icon: Calendar,
-    color: '#27AE60',
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/15',
+    border: 'border-emerald-500/50',
+    dot: 'bg-emerald-400',
     role: 'Управляет расписанием и записями',
     quickActions: ['Записаться на приём', 'Отменить запись', 'Перенести время', 'Свободные слоты'],
-    replies: [
-      'Свободные слоты на этой неделе: Вт 10:00, Чт 14:30, Пт 11:00. Какое время удобно?',
-      'Запись создана! Ждём вас. Напоминание придёт за 24 часа.',
-      'Запись перенесена. Новое время подтверждено в WhatsApp.',
-    ],
   },
   {
     id: 'analyst',
     name: 'Аналитик',
     Icon: BarChart3,
-    color: '#8E44AD',
+    color: 'text-purple-400',
+    bg: 'bg-purple-500/15',
+    border: 'border-purple-500/50',
+    dot: 'bg-purple-400',
     role: 'Анализирует показатели клиники',
     quickActions: ['Отчёт за сегодня', 'Отчёт за месяц', 'KPI врачей', 'Прогноз доходов'],
-    replies: [
-      'За сегодня: 14 пациентов, доход 125 000 ₸, конверсия 68%. Загрузка врачей: 85%.',
-      'За месяц доход вырос на +12%. Топ-услуга: имплантация (3 000 000 ₸). Рекомендую усилить маркетинг по ортопедии.',
-      'Прогноз на следующий месяц: +18% при текущей динамике записей. Рекомендую запустить акцию на профгигиену.',
-    ],
   },
   {
     id: 'marketing',
     name: 'Маркетолог',
     Icon: Megaphone,
-    color: '#E91E8C',
+    color: 'text-pink-400',
+    bg: 'bg-pink-500/15',
+    border: 'border-pink-500/50',
+    dot: 'bg-pink-400',
     role: 'Продвижение и работа с отзывами',
     quickActions: ['Статистика рекламы', 'Предложения по акциям', 'Работа с отзывами', 'Контент-план'],
-    replies: [
-      'Лучший канал: рекомендации (+32 пациента). Instagram приносит +24. Предлагаю увеличить бюджет на Instagram на 20%.',
-      'Рекомендую запустить акцию «Чистка + консультация = 15 000 ₸». Прогнозируем +15 пациентов.',
-      'Выявлено 3 негативных отзыва на Google. Рекомендую ответить в течение 24 часов — это повышает рейтинг.',
-    ],
   },
 ];
 
@@ -150,20 +143,19 @@ export default function AITeam() {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="p-6"
+      className="space-y-6"
     >
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold font-serif text-white">AI Команда</h1>
-        <p className="text-xs text-[var(--slate)] mt-1">
-          Виртуальные ассистенты для автоматизации клиники
-        </p>
-      </div>
+      <PageHeader
+        title="AI Команда"
+        subtitle="Виртуальные ассистенты для автоматизации клиники"
+        icon={<Bot size={24} className="text-dv-gold" />}
+      />
 
       <div className="grid grid-cols-[240px_1fr] gap-4 max-lg:grid-cols-1">
         {/* Assistants sidebar */}
         <div className="flex flex-col gap-3">
-          <Card padding="md">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--slate)] mb-3">
+          <Card className="p-4">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-txt-muted mb-3">
               Выберите ассистента
             </div>
             <div className="flex flex-col gap-1">
@@ -178,26 +170,17 @@ export default function AITeam() {
                         ? 'bg-white/5'
                         : 'border-l-transparent hover:bg-white/[0.03]'
                     }`}
-                    style={{
-                      color: isActive ? a.color : undefined,
-                      borderLeftColor: isActive ? a.color : 'transparent',
-                    }}
+                    style={{ borderLeftColor: isActive ? undefined : 'transparent' }}
                   >
-                    <a.Icon size={20} style={{ color: a.color }} />
+                    <a.Icon size={20} className={isActive ? a.color : 'text-txt-muted'} />
                     <div className="min-w-0 flex-1">
-                      <div
-                        className={`text-[13px] font-semibold ${isActive ? '' : 'text-[var(--slate-light)]'}`}
-                        style={isActive ? { color: a.color } : undefined}
-                      >
+                      <div className={`text-[13px] font-semibold ${isActive ? a.color : 'text-txt-secondary'}`}>
                         {a.name}
                       </div>
-                      <div className="text-[10px] text-[var(--slate)] truncate">{a.role}</div>
+                      <div className="text-[10px] text-txt-muted truncate">{a.role}</div>
                     </div>
                     {isActive && (
-                      <div
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ background: a.color }}
-                      />
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${a.dot}`} />
                     )}
                   </button>
                 );
@@ -205,14 +188,14 @@ export default function AITeam() {
             </div>
           </Card>
 
-          <Card padding="md">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--gold)] mb-2.5">
+          <Card className="p-4">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-dv-gold mb-2.5">
               Возможности AI
             </div>
             <div className="flex flex-col gap-1.5">
               {AI_FEATURES.map((f, i) => (
-                <div key={i} className="flex items-center gap-2 py-1 text-xs text-[var(--slate-light)]">
-                  <f.Icon size={14} className="text-[var(--gold)]" />
+                <div key={i} className="flex items-center gap-2 py-1 text-xs text-txt-secondary">
+                  <f.Icon size={14} className="text-dv-gold" />
                   {f.text}
                 </div>
               ))}
@@ -223,21 +206,15 @@ export default function AITeam() {
         {/* Chat panel */}
         <Card padding="none" className="flex flex-col overflow-hidden">
           {/* Chat header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-bdr-subtle">
             <div className="flex items-center gap-3">
-              <div
-                className="flex items-center justify-center w-11 h-11 rounded-full border-2"
-                style={{
-                  background: `${activeAssistant.color}20`,
-                  borderColor: `${activeAssistant.color}50`,
-                }}
-              >
-                <activeAssistant.Icon size={20} style={{ color: activeAssistant.color }} />
+              <div className={`flex items-center justify-center w-11 h-11 rounded-full border-2 ${activeAssistant.bg} ${activeAssistant.border}`}>
+                <activeAssistant.Icon size={20} className={activeAssistant.color} />
               </div>
               <div>
-                <div className="text-[15px] font-bold text-white">{activeAssistant.name}</div>
-                <div className="flex items-center gap-1.5 text-[11px] text-[var(--emerald)]">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--emerald)]" />
+                <div className="text-[15px] font-bold text-txt-primary">{activeAssistant.name}</div>
+                <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
+                  <div className={`w-1.5 h-1.5 rounded-full ${activeAssistant.dot}`} />
                   Онлайн · {activeAssistant.role}
                 </div>
               </div>
@@ -257,12 +234,12 @@ export default function AITeam() {
           </div>
 
           {/* Quick actions */}
-          <div className="flex gap-2 flex-wrap px-5 py-3 border-b border-[var(--border-subtle)]">
+          <div className="flex gap-2 flex-wrap px-5 py-3 border-b border-bdr-subtle">
             {activeAssistant.quickActions.map((action, i) => (
               <button
                 key={i}
                 onClick={() => sendMessage(action)}
-                className="quick-action-btn px-3 py-1.5 rounded-full text-xs border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] transition-all duration-150 whitespace-nowrap hover:border-[var(--gold)] hover:text-[var(--gold)]"
+                className="px-3 py-1.5 rounded-full text-xs border border-bdr-subtle bg-white/[0.04] text-txt-secondary transition-all duration-150 whitespace-nowrap hover:border-dv-gold hover:text-dv-gold"
               >
                 {action}
               </button>
@@ -281,18 +258,15 @@ export default function AITeam() {
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   {msg.role === 'assistant' && (
-                    <div
-                      className="flex items-center justify-center w-8 h-8 rounded-full shrink-0 mr-2 mt-0.5"
-                      style={{ background: `${activeAssistant.color}20` }}
-                    >
-                      <activeAssistant.Icon size={16} style={{ color: activeAssistant.color }} />
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 mr-2 mt-0.5 ${activeAssistant.bg}`}>
+                      <activeAssistant.Icon size={16} className={activeAssistant.color} />
                     </div>
                   )}
                   <div
                     className={`max-w-[78%] px-3.5 py-2.5 text-[13px] leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-gradient-to-br from-[var(--gold)] to-[var(--gold-dim)] text-[var(--bg)] rounded-[14px_14px_4px_14px] shadow-[0_4px_12px_rgba(201,169,110,0.3)]'
-                        : 'bg-white/[0.07] text-white border border-[var(--border-subtle)] rounded-[14px_14px_14px_4px]'
+                        ? 'bg-gradient-to-br from-dv-gold to-dv-gold-light text-surface-0 rounded-[14px_14px_4px_14px] shadow-[0_4px_12px_rgba(201,169,110,0.3)]'
+                        : 'bg-white/[0.07] text-txt-primary border border-bdr-subtle rounded-[14px_14px_14px_4px]'
                     }`}
                   >
                     {msg.content}
@@ -307,14 +281,11 @@ export default function AITeam() {
                 animate={{ opacity: 1 }}
                 className="flex items-center gap-2.5"
               >
-                <div
-                  className="flex items-center justify-center w-8 h-8 rounded-full"
-                  style={{ background: `${activeAssistant.color}20` }}
-                >
-                  <activeAssistant.Icon size={16} style={{ color: activeAssistant.color }} />
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full ${activeAssistant.bg}`}>
+                  <activeAssistant.Icon size={16} className={activeAssistant.color} />
                 </div>
-                <div className="flex items-center gap-1.5 px-4 py-3 rounded-[14px_14px_14px_4px] bg-white/[0.07] border border-[var(--border-subtle)]">
-                  <Loader2 size={16} className="animate-spin" style={{ color: activeAssistant.color }} />
+                <div className="flex items-center gap-1.5 px-4 py-3 rounded-[14px_14px_14px_4px] bg-white/[0.07] border border-bdr-subtle">
+                  <Loader2 size={16} className={`animate-spin ${activeAssistant.color}`} />
                 </div>
               </motion.div>
             )}
@@ -322,14 +293,14 @@ export default function AITeam() {
           </div>
 
           {/* Input */}
-          <div className="flex gap-2.5 items-end px-5 py-4 border-t border-[var(--border-subtle)]">
+          <div className="flex gap-2.5 items-end px-5 py-4 border-t border-bdr-subtle">
             <input
               value={userInput}
               onChange={e => setUserInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={`Написать ${activeAssistant.name.toLowerCase()}у\u2026 (Enter для отправки)`}
               disabled={processing}
-              className="flex-1 bg-white/[0.06] border border-[var(--border)] rounded-xl px-3.5 py-2.5 text-[13px] text-white placeholder:text-[var(--slate)] outline-none transition-all duration-200 disabled:opacity-50 focus:border-[var(--gold)]/50 focus:ring-1 focus:ring-[var(--gold)]/20"
+              className="flex-1"
             />
             <Button
               variant="primary"
@@ -347,16 +318,16 @@ export default function AITeam() {
       </div>
 
       {/* Feature cards */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5 mt-5">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5">
         {FEATURES.map((f, i) => (
-          <Card key={i} padding="md" className="text-center">
+          <Card key={i} className="p-4 text-center">
             <div className="flex justify-center mb-2.5">
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[var(--gold)]/10 text-[var(--gold)]">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-dv-gold/10 text-dv-gold">
                 <f.Icon size={24} />
               </div>
             </div>
-            <div className="text-sm font-bold text-white mb-1.5">{f.title}</div>
-            <div className="text-xs text-[var(--slate)] leading-relaxed">{f.desc}</div>
+            <div className="text-sm font-bold text-txt-primary mb-1.5">{f.title}</div>
+            <div className="text-xs text-txt-muted leading-relaxed">{f.desc}</div>
           </Card>
         ))}
       </div>

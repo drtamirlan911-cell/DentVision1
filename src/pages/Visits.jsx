@@ -2,8 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ClipboardList, Plus, Search, Edit3, Save, X, Stethoscope, User, Calendar, FileText, Pill } from 'lucide-react';
-import { T, gid, today } from '../utils/constants';
+import { gid, today } from '../utils/constants';
 import { useData, useToast } from '../hooks/useData';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/ds/Card';
+import { Button } from '../components/ui/ds/Button';
+import { Badge } from '../components/ui/ds/Badge';
+import { EmptyState } from '../components/ui/ds/EmptyState';
+import { PageHeader } from '../components/ui/ds/StatCard';
 
 export default function Visits() {
   const { clinic, user } = useOutletContext();
@@ -67,111 +72,111 @@ export default function Visits() {
 
   return (
     <div className="fade-in space-y-6">
-      <div className="page-header flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <ClipboardList size={24} style={{ color: T.gold }} />
-            Журнал посещений
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">Все визиты пациентов с диагнозами и МКБ-10</p>
-        </div>
-        <button
-          onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-black"
-          style={{ background: T.gold }}
-        >
-          <Plus size={16} /> Новое посещение
-        </button>
-      </div>
+      <PageHeader
+        title="Журнал посещений"
+        subtitle="Все визиты пациентов с диагнозами и МКБ-10"
+        icon={<ClipboardList size={24} className="text-dv-gold" />}
+        actions={
+          <Button variant="primary" icon={<Plus size={16} />} onClick={() => { resetForm(); setShowForm(true); }}>
+            Новое посещение
+          </Button>
+        }
+      />
 
       {showForm && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-[#C9A96E]/20 bg-white/[0.03] p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Stethoscope size={16} style={{ color: T.gold }} />
-              {editingId ? 'Редактирование посещения' : 'Новое посещение'}
-            </h3>
-            <button onClick={resetForm} className="text-slate-500 hover:text-white"><X size={18} /></button>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Пациент *</label>
-              <select value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))}>
-                <option value="">Выберите...</option>
-                {(patients || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Врач</label>
-              <select value={form.doctor_id} onChange={e => setForm(f => ({ ...f, doctor_id: e.target.value }))}>
-                <option value="">Выберите...</option>
-                {(doctors || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Код МКБ-10</label>
-              <input value={form.icd10_codes} onChange={e => setForm(f => ({ ...f, icd10_codes: e.target.value }))} placeholder="K02.1, K04.0..." />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Жалобы пациента</label>
-              <textarea rows={2} value={form.chief_complaint} onChange={e => setForm(f => ({ ...f, chief_complaint: e.target.value }))} placeholder="На что жалуется пациент..." />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Диагноз</label>
-              <textarea rows={2} value={form.diagnosis} onChange={e => setForm(f => ({ ...f, diagnosis: e.target.value }))} placeholder="Поставленный диагноз..." />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">План лечения</label>
-              <textarea rows={2} value={form.treatment_plan} onChange={e => setForm(f => ({ ...f, treatment_plan: e.target.value }))} placeholder="План лечения..." />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Выполненные процедуры</label>
-              <textarea rows={2} value={form.procedures_done} onChange={e => setForm(f => ({ ...f, procedures_done: e.target.value }))} placeholder="Что было сделано..." />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Назначения</label>
-              <textarea rows={2} value={form.prescriptions} onChange={e => setForm(f => ({ ...f, prescriptions: e.target.value }))} placeholder="Лекарства, рекомендации..." />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Следующий визит</label>
-                <input type="date" value={form.next_visit_date} onChange={e => setForm(f => ({ ...f, next_visit_date: e.target.value }))} />
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Stethoscope size={16} className="text-dv-gold" />
+                  {editingId ? 'Редактирование посещения' : 'Новое посещение'}
+                </span>
+                <Button variant="ghost" size="icon-sm" icon={<X size={18} />} onClick={resetForm} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Пациент *</label>
+                    <select value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))}>
+                      <option value="">Выберите...</option>
+                      {(patients || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Врач</label>
+                    <select value={form.doctor_id} onChange={e => setForm(f => ({ ...f, doctor_id: e.target.value }))}>
+                      <option value="">Выберите...</option>
+                      {(doctors || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Код МКБ-10</label>
+                    <input value={form.icd10_codes} onChange={e => setForm(f => ({ ...f, icd10_codes: e.target.value }))} placeholder="K02.1, K04.0..." />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Жалобы пациента</label>
+                    <textarea rows={2} value={form.chief_complaint} onChange={e => setForm(f => ({ ...f, chief_complaint: e.target.value }))} placeholder="На что жалуется пациент..." />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Диагноз</label>
+                    <textarea rows={2} value={form.diagnosis} onChange={e => setForm(f => ({ ...f, diagnosis: e.target.value }))} placeholder="Поставленный диагноз..." />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">План лечения</label>
+                    <textarea rows={2} value={form.treatment_plan} onChange={e => setForm(f => ({ ...f, treatment_plan: e.target.value }))} placeholder="План лечения..." />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Выполненные процедуры</label>
+                    <textarea rows={2} value={form.procedures_done} onChange={e => setForm(f => ({ ...f, procedures_done: e.target.value }))} placeholder="Что было сделано..." />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Назначения</label>
+                    <textarea rows={2} value={form.prescriptions} onChange={e => setForm(f => ({ ...f, prescriptions: e.target.value }))} placeholder="Лекарства, рекомендации..." />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Следующий визит</label>
+                      <input type="date" value={form.next_visit_date} onChange={e => setForm(f => ({ ...f, next_visit_date: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Примечания</label>
+                      <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="..." />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="secondary" onClick={resetForm}>Отмена</Button>
+                  <Button variant="primary" icon={<Save size={14} />} onClick={saveVisit}>
+                    {editingId ? 'Обновить' : 'Добавить'}
+                  </Button>
+                </div>
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Примечания</label>
-                <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="..." />
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={resetForm} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-400 hover:text-white">Отмена</button>
-            <button onClick={saveVisit} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-black" style={{ background: T.emerald }}>
-              <Save size={14} /> {editingId ? 'Обновить' : 'Добавить'}
-            </button>
-          </div>
+            </CardContent>
+          </Card>
         </motion.div>
       )}
 
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
         <input placeholder="Поиск по пациенту, диагнозу, МКБ-10..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
       </div>
 
       <div className="space-y-3">
         {filteredVisits.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-white/5 bg-white/[0.02] py-20 text-center">
-            <ClipboardList size={48} className="mb-3 text-slate-600" />
-            <p className="text-lg font-semibold text-slate-500">Нет записей</p>
-            <p className="text-sm text-slate-600">Добавьте первое посещение</p>
-          </div>
+          <EmptyState
+            icon={<ClipboardList size={48} />}
+            title="Нет записей"
+            description="Добавьте первое посещение"
+          />
         ) : (
           filteredVisits.map((visit, i) => (
             <motion.div
@@ -179,30 +184,27 @@ export default function Visits() {
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.02 }}
-              className="rounded-xl border border-white/5 bg-white/[0.02] p-4 hover:border-[#C9A96E]/15 transition-all"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-sm font-bold text-white">{visit.patient_name || '—'}</span>
-                    {visit.icd10_codes && (
-                      <span className="rounded-md px-2 py-0.5 text-[10px] font-bold text-black" style={{ background: T.gold }}>
-                        МКБ: {visit.icd10_codes}
+              <Card hover className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-sm font-bold text-txt-primary">{visit.patient_name || '—'}</span>
+                      {visit.icd10_codes && (
+                        <Badge variant="gold" size="xs">МКБ: {visit.icd10_codes}</Badge>
+                      )}
+                      <span className="text-xs text-txt-muted">{visit.doctor_name || '—'}</span>
+                      <span className="text-xs text-txt-ghost">
+                        {visit.visit_date ? new Date(visit.visit_date).toLocaleDateString('ru-RU') : '—'}
                       </span>
-                    )}
-                    <span className="text-xs text-slate-500">{visit.doctor_name || '—'}</span>
-                    <span className="text-xs text-slate-600">
-                      {visit.visit_date ? new Date(visit.visit_date).toLocaleDateString('ru-RU') : '—'}
-                    </span>
+                    </div>
+                    {visit.diagnosis && <p className="text-sm text-txt-secondary mb-1"><span className="text-txt-ghost">Диагноз:</span> {visit.diagnosis}</p>}
+                    {visit.chief_complaint && <p className="text-xs text-txt-muted mb-1"><span className="text-txt-ghost">Жалобы:</span> {visit.chief_complaint}</p>}
+                    {visit.procedures_done && <p className="text-xs text-txt-muted"><span className="text-txt-ghost">Процедуры:</span> {visit.procedures_done}</p>}
                   </div>
-                  {visit.diagnosis && <p className="text-sm text-slate-400 mb-1"><span className="text-slate-600">Диагноз:</span> {visit.diagnosis}</p>}
-                  {visit.chief_complaint && <p className="text-xs text-slate-500 mb-1"><span className="text-slate-600">Жалобы:</span> {visit.chief_complaint}</p>}
-                  {visit.procedures_done && <p className="text-xs text-slate-500"><span className="text-slate-600">Процедуры:</span> {visit.procedures_done}</p>}
+                  <Button variant="ghost" size="icon-xs" icon={<Edit3 size={14} />} onClick={() => startEdit(visit)} />
                 </div>
-                <button onClick={() => startEdit(visit)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-[#C9A96E]">
-                  <Edit3 size={14} />
-                </button>
-              </div>
+              </Card>
             </motion.div>
           ))
         )}

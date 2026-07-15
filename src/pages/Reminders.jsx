@@ -112,14 +112,14 @@ export default function Reminders({ clinic, user, roleInfo }) {
               onClick={() => setTab(t.id)}
               className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 ${
                 tab === t.id
-                  ? 'bg-[var(--gold)]/20 text-[var(--gold)]'
-                  : 'text-[var(--slate)] hover:bg-white/5'
+                  ? 'bg-dv-gold/20 text-dv-gold'
+                  : 'text-txt-muted hover:bg-white/5'
               }`}
             >
               {t.icon}
               {t.label}
               {t.count > 0 && (
-                <span className="ml-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#e74c6f] px-1.5 text-[10px] font-bold text-white">
+                <span className="ml-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
                   {t.count}
                 </span>
               )}
@@ -148,7 +148,7 @@ export default function Reminders({ clinic, user, roleInfo }) {
                           <span className="text-sm font-bold text-white">{r.patient.name}</span>
                           {r.sent && <Badge variant="success" size="sm">Отправлено</Badge>}
                         </div>
-                        <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-[var(--slate-light)]">
+                        <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-txt-secondary">
                           <span className="inline-flex items-center gap-1">
                             <Calendar size={12} /> {fd(r.appointment.date)} в {r.appointment.time}
                           </span>
@@ -160,7 +160,7 @@ export default function Reminders({ clinic, user, roleInfo }) {
                           </span>
                         </div>
                         {r.appointment.reason && (
-                          <div className="mt-1 flex items-center gap-1 text-xs text-[var(--slate)]">
+                          <div className="mt-1 flex items-center gap-1 text-xs text-txt-muted">
                             <FileText size={12} /> {r.appointment.reason}
                           </div>
                         )}
@@ -216,7 +216,7 @@ export default function Reminders({ clinic, user, roleInfo }) {
                             </Badge>
                           )}
                         </div>
-                        <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-[var(--slate-light)]">
+                        <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-txt-secondary">
                           <span className="inline-flex items-center gap-1">
                             <Phone size={12} /> {r.patient.phone}
                           </span>
@@ -252,7 +252,7 @@ export default function Reminders({ clinic, user, roleInfo }) {
       )}
 
       {/* Info footer */}
-      <motion.div variants={fadeUp} className="flex items-start gap-2 rounded-xl border border-[var(--border-subtle)] bg-white/[0.03] p-3.5 text-[11px] leading-relaxed text-[var(--slate)]">
+      <motion.div variants={fadeUp} className="flex items-start gap-2 rounded-xl border border-bdr-subtle bg-white/[0.03] p-3.5 text-[11px] leading-relaxed text-txt-secondary">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           Кнопка «Отправить WhatsApp» открывает чат с готовым текстом сообщения — просто нажмите «Отправить» в WhatsApp.

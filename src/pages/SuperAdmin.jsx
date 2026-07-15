@@ -13,6 +13,12 @@ import { StatCard, PageHeader } from '../components/ui/ds/StatCard';
 import { PLANS, tg, gid, fd } from '../utils/constants';
 
 const PLAN_COLORS = { starter: '#4e8cff', pro: '#c9a96e', enterprise: '#9b5de5' };
+const PLAN_BADGE_CLASSES = {
+  starter: 'bg-[#4e8cff]/10 text-[#4e8cff] border-[#4e8cff]/20',
+  pro: 'bg-dv-gold/10 text-dv-gold border-dv-gold/20',
+  enterprise: 'bg-[#9b5de5]/10 text-[#9b5de5] border-[#9b5de5]/20',
+  default: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
+};
 
 export default function SuperAdmin() {
   const { user } = useOutletContext();
@@ -183,11 +189,7 @@ export default function SuperAdmin() {
                       <td className="px-4 py-3">
                         <Badge
                           size="sm"
-                          style={{
-                            backgroundColor: (PLAN_COLORS[c.plan] || '#64748b') + '1a',
-                            color: PLAN_COLORS[c.plan] || '#64748b',
-                            borderColor: (PLAN_COLORS[c.plan] || '#64748b') + '33'
-                          }}
+                          className={PLAN_BADGE_CLASSES[c.plan] || PLAN_BADGE_CLASSES.default}
                         >
                           {PLANS[c.plan]?.name || c.plan}
                         </Badge>
