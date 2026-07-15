@@ -155,7 +155,7 @@ export default function School() {
           onClick={() => setSelectedCat('')}
           style={{
             padding: '7px 14px', borderRadius: 18, border: `1px solid ${!selectedCat ? T.gold + '60' : T.borderSub}`,
-            background: !selectedCat ? `${T.gold}18` : 'rgba(255,255,255,0.03)`, color: !selectedCat ? T.gold : T.slate,
+            background: !selectedCat ? `${T.gold}18` : 'rgba(255,255,255,0.03)', color: !selectedCat ? T.gold : T.slate,
             fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
           }}>
           Все

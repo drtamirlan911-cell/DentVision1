@@ -129,7 +129,7 @@ export default function SchoolCourse() {
                             <button key={lesson.id} onClick={() => setActiveLesson(lesson)}
                               style={{
                                 width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px 8px 42px',
-                                background: isActive ? `${T.gold}12` : 'transparent', borderLeft: isActive ? `3px solid ${T.gold}` : '3px solid transparent',
+                                background: isActive ? `${T.gold}12` : 'transparent',
                                 border: 'none', borderLeft: isActive ? `3px solid ${T.gold}` : '3px solid transparent',
                                 borderRadius: 4, color: isActive ? T.gold : T.slateL, fontSize: 12, cursor: 'pointer',
                                 fontFamily: 'inherit', textAlign: 'left', transition: 'all .15s',
