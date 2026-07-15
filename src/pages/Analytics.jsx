@@ -23,11 +23,11 @@ export default function Analytics() {
   const appointments = data.appointments || []
   const receipts = data.receipts || []
 
-  const totalRevenue = receipts.reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0)
+  const totalRevenue = receipts.reduce((s, r) => s + (Number(r.amount) || 0), 0)
   const thisMonth = new Date().toISOString().slice(0, 7)
   const monthRevenue = receipts
-    .filter((r: any) => (r.date || '').startsWith(thisMonth))
-    .reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0)
+    .filter((r) => (r.date || '').startsWith(thisMonth))
+    .reduce((s, r) => s + (Number(r.amount) || 0), 0)
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="max-w-6xl mx-auto space-y-6">

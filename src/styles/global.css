@@ -24,7 +24,7 @@
   }
 
   * {
-    @apply border-border;
+    border-color: rgba(201, 169, 110, 0.15);
   }
 
   html {

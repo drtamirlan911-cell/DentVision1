@@ -42,17 +42,7 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
 }
 
-interface ServiceTile {
-  id: string
-  title: string
-  subtitle: string
-  icon: React.ReactNode
-  path: string
-  color: string
-  gradient: string
-}
-
-const SERVICE_TILES: ServiceTile[] = [
+const SERVICE_TILES = [
   {
     id: 'crm',
     title: 'CRM',
@@ -127,11 +117,11 @@ const SERVICE_TILES: ServiceTile[] = [
   },
 ]
 
-function QuickStats({ data }: { data: any }) {
+function QuickStats({ data }) {
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0]
-    const todayAppts = (data.appointments || []).filter((a: any) => a.date === today)
-    const totalRevenue = (data.receipts || []).reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0)
+    const todayAppts = (data.appointments || []).filter((a) => a.date === today)
+    const totalRevenue = (data.receipts || []).reduce((s, r) => s + (Number(r.amount) || 0), 0)
     const activePatients = (data.patients || []).length
     const todayCount = todayAppts.length
     return { todayCount, totalRevenue, activePatients }
@@ -209,11 +199,11 @@ function ServiceGrid() {
   )
 }
 
-function UpcomingAppointments({ data }: { data: any }) {
+function UpcomingAppointments({ data }) {
   const today = new Date().toISOString().split('T')[0]
   const appointments = (data.appointments || [])
-    .filter((a: any) => a.date >= today)
-    .sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''))
+    .filter((a) => a.date >= today)
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
     .slice(0, 5)
 
   const patients = data.patients || []
@@ -236,8 +226,8 @@ function UpcomingAppointments({ data }: { data: any }) {
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
-          {appointments.map((appt: any) => {
-            const patient = patients.find((p: any) => p.id === appt.patientId)
+          {appointments.map((appt) => {
+            const patient = patients.find((p) => p.id === appt.patientId)
             return (
               <div
                 key={appt.id}
@@ -368,7 +358,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-txt-secondary">Записей на этой неделе</span>
                   <span className="font-semibold text-txt-primary">
-                    {(data.appointments || []).filter((a: any) => {
+                    {(data.appointments || []).filter((a) => {
                       const d = new Date(a.date)
                       const now = new Date()
                       const weekAgo = new Date(now.getTime() - 7 * 86400000)
@@ -379,7 +369,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-txt-secondary">Новых пациентов</span>
                   <span className="font-semibold text-txt-primary">
-                    {(data.patients || []).filter((p: any) => {
+                    {(data.patients || []).filter((p) => {
                       const created = new Date(p.createdAt || p.created_at || Date.now())
                       const weekAgo = new Date(Date.now() - 7 * 86400000)
                       return created >= weekAgo
@@ -389,7 +379,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-txt-secondary">Документов подписано</span>
                   <span className="font-semibold text-txt-primary">
-                    {(data.documents || []).filter((d: any) => d.status === 'signed').length}
+                    {(data.documents || []).filter((d) => d.status === 'signed').length}
                   </span>
                 </div>
               </div>
