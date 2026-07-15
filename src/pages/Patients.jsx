@@ -1,594 +1,686 @@
-import React, { useState, useCallback } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { useData, useToast } from '../hooks/useData';
-import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState, Textarea } from '../components/ui/BaseComponents';
-import { Odontogram3D, SurfaceEditor, AutoTreatmentPlan, ToothLegend } from '../components/Odontogram3D';
-import { T, TOOTH_STATUS, PATIENT_CATEGORY, calculateAge, formatPhone, fd, tg, gid, today } from '../utils/constants';
+import React, { useState, useCallback } from 'react'
+import { useOutletContext } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  UserPlus, Search, ArrowLeft, Phone, Mail, MapPin, Calendar, FileText, Camera,
+  AlertTriangle, CreditCard, History, Smile, Star, User, Send, Trash2, Receipt,
+} from 'lucide-react'
+import { useData, useToast } from '../hooks/useData'
+import { Button } from '../components/ui/ds/Button'
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/ds/Card'
+import { Input, Textarea, Select } from '../components/ui/ds/Input'
+import { Badge } from '../components/ui/ds/Badge'
+import { Modal, ConfirmModal } from '../components/ui/ds/Modal'
+import { EmptyState } from '../components/ui/ds/EmptyState'
+import { PageHeader } from '../components/ui/ds/StatCard'
+import { Tabs } from '../components/ui/ds/Misc'
+import { Avatar } from '../components/ui/ds/Avatar'
+import { Odontogram3D, SurfaceEditor, AutoTreatmentPlan, ToothLegend } from '../components/Odontogram3D'
+import { T, PATIENT_CATEGORY, calculateAge, formatPhone, fd, tg, gid, today } from '../utils/constants'
+import { cn, formatMoney } from '../lib/utils'
 
-// Используем PATIENT_CATEGORY из constants вместо дублирования
-const CAT_CFG = PATIENT_CATEGORY;
+const CAT_CFG = PATIENT_CATEGORY
+
+const CAT_BADGE = {
+  new: 'success',
+  regular: 'gold',
+  vip: 'info',
+  debt: 'error',
+}
+
+const STATUS_BADGE = {
+  scheduled: 'info',
+  confirmed: 'success',
+  done: 'success',
+  completed: 'success',
+  cancelled: 'error',
+  noShow: 'error',
+  reminderSent: 'warning',
+}
+
+const STATUS_LABEL = {
+  scheduled: 'Запланирован',
+  confirmed: 'Подтверждён',
+  done: 'Завершён',
+  completed: 'Завершён',
+  cancelled: 'Отменён',
+  noShow: 'Неявка',
+}
+
+const PHOTO_LABELS = {
+  smile: 'Улыбка',
+  face: 'Лицо',
+  intraoral: 'Интраоральные',
+  xray: 'Рентген',
+}
+
+const PHOTO_ICONS = {
+  smile: <Smile size={14} />,
+  face: <User size={14} />,
+  intraoral: <Smile size={14} />,
+  xray: <Camera size={14} />,
+}
 
 const EMPTY_FORM = {
   name: '', phone: '', email: '', dob: '', address: '',
   category: 'new', notes: '', teeth: {},
-};
+}
 
-const EMPTY_PAYMENT = { amount: '', payMethod: 'cash' };
+const EMPTY_PAYMENT = { amount: '', payMethod: 'cash' }
+
+const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
+const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Patients() {
-  const { clinic } = useOutletContext();
-  const { patients, appointments, upsertPatient, deletePatient } = useData(clinic?.id);
-  const { toast, showToast, clearToast } = useToast();
+  const { clinic } = useOutletContext()
+  const { patients, appointments, upsertPatient, deletePatient } = useData(clinic?.id)
+  const { toast, showToast, clearToast } = useToast()
 
-  const [selected, setSelected] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('info');
-  const [search, setSearch] = useState('');
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editPatient, setEditPatient] = useState(null);
-  const [teethState, setTeethState] = useState({});
-  const [selectedTooth, setSelectedTooth] = useState(null);
-  const [filterCat, setFilterCat] = useState('all');
-  const [photos, setPhotos] = useState([]);
-  const [photoCategory, setPhotoCategory] = useState('smile');
-  const [payment, setPayment] = useState(EMPTY_PAYMENT);
+  const [selected, setSelected] = useState(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('info')
+  const [search, setSearch] = useState('')
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [editPatient, setEditPatient] = useState(null)
+  const [teethState, setTeethState] = useState({})
+  const [selectedTooth, setSelectedTooth] = useState(null)
+  const [filterCat, setFilterCat] = useState('all')
+  const [photos, setPhotos] = useState([])
+  const [photoCategory, setPhotoCategory] = useState('smile')
+  const [payment, setPayment] = useState(EMPTY_PAYMENT)
 
   const filtered = patients.filter(p => {
     const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase())
       || p.phone?.includes(search)
-      || p.email?.toLowerCase().includes(search.toLowerCase());
-    const matchCat = filterCat === 'all' || p.category === filterCat;
-    return matchSearch && matchCat;
-  });
+      || p.email?.toLowerCase().includes(search.toLowerCase())
+    const matchCat = filterCat === 'all' || p.category === filterCat
+    return matchSearch && matchCat
+  })
 
   const openNew = () => {
-    setEditPatient(null);
-    setForm(EMPTY_FORM);
-    setModalOpen(true);
-  };
+    setEditPatient(null)
+    setForm(EMPTY_FORM)
+    setModalOpen(true)
+  }
 
   const openEdit = (p) => {
-    setEditPatient(p);
+    setEditPatient(p)
     setForm({
       name: p.name || '', phone: p.phone || '', email: p.email || '',
       dob: p.dob || '', address: p.address || '',
       category: p.category || 'regular', notes: p.notes || '', teeth: p.teeth || {},
-    });
-    setModalOpen(true);
-  };
+    })
+    setModalOpen(true)
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return; }
+    e.preventDefault()
+    if (!form.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
     try {
-      await upsertPatient({ ...form, id: editPatient?.id, clinicId: clinic?.id });
-      showToast(editPatient ? 'Данные обновлены' : 'Пациент добавлен', 'success');
-      setModalOpen(false);
+      await upsertPatient({ ...form, id: editPatient?.id, clinicId: clinic?.id })
+      showToast(editPatient ? 'Данные обновлены' : 'Пациент добавлен', 'success')
+      setModalOpen(false)
       if (selected && selected.id === editPatient?.id) {
-        setSelected(s => ({ ...s, ...form }));
+        setSelected(s => ({ ...s, ...form }))
       }
     } catch {
-      showToast('Ошибка сохранения', 'error');
+      showToast('Ошибка сохранения', 'error')
     }
-  };
+  }
 
   const handleDelete = async () => {
-    if (!editPatient) return;
-    if (!window.confirm(`Удалить пациента ${editPatient.name}?`)) return;
-    await deletePatient(editPatient.id);
-    showToast('Пациент удалён', 'success');
-    setModalOpen(false);
-    if (selected?.id === editPatient.id) setSelected(null);
-  };
+    if (!editPatient) return
+    await deletePatient(editPatient.id)
+    showToast('Пациент удалён', 'success')
+    setModalOpen(false)
+    if (selected?.id === editPatient.id) setSelected(null)
+  }
 
   const handleToothClick = useCallback((toothNum) => {
-    setSelectedTooth(t => t === toothNum ? null : toothNum);
-  }, []);
+    setSelectedTooth(t => t === toothNum ? null : toothNum)
+  }, [])
 
   const handleSaveToothSurfaces = (toothNum, surfaces) => {
-    const updated = { ...teethState, [toothNum]: { ...teethState[toothNum], surfaces } };
-    setTeethState(updated);
-    setSelectedTooth(null);
-  };
+    const updated = { ...teethState, [toothNum]: { ...teethState[toothNum], surfaces } }
+    setTeethState(updated)
+    setSelectedTooth(null)
+  }
 
   const handlePhotoUpload = (e) => {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files)
     const newPhotos = files.map(file => ({
       id: gid(),
       url: URL.createObjectURL(file),
       category: photoCategory,
       date: today(),
       name: file.name,
-    }));
-    setPhotos(prev => [...prev, ...newPhotos]);
-  };
+    }))
+    setPhotos(prev => [...prev, ...newPhotos])
+  }
 
   const patientAppts = selected
     ? appointments.filter(a => a.patientId === selected.id).sort((a, b) => b.date.localeCompare(a.date))
-    : [];
+    : []
 
+  const formModal = (
+    <Modal
+      open={modalOpen}
+      onClose={() => setModalOpen(false)}
+      title={editPatient ? 'Редактировать пациента' : 'Новый пациент'}
+      size="md"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="ФИО"
+          value={form.name}
+          onChange={e => setForm({ ...form, name: e.target.value })}
+          required
+          placeholder="Иванов Иван Иванович"
+          icon={<User size={16} />}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Телефон"
+            value={form.phone}
+            onChange={e => setForm({ ...form, phone: e.target.value })}
+            required
+            placeholder="+7 700 000 00 00"
+            icon={<Phone size={16} />}
+          />
+          <Input
+            label="Дата рождения"
+            type="date"
+            value={form.dob}
+            onChange={e => setForm({ ...form, dob: e.target.value })}
+          />
+        </div>
+        <Input
+          label="Email"
+          type="email"
+          value={form.email}
+          onChange={e => setForm({ ...form, email: e.target.value })}
+          placeholder="email@example.com"
+          icon={<Mail size={16} />}
+        />
+        <Input
+          label="Адрес"
+          value={form.address}
+          onChange={e => setForm({ ...form, address: e.target.value })}
+          placeholder="ул. Примерная, 1"
+          icon={<MapPin size={16} />}
+        />
+        <Select
+          label="Категория"
+          value={form.category}
+          onChange={e => setForm({ ...form, category: e.target.value })}
+          options={Object.entries(CAT_CFG).map(([k, v]) => ({ value: k, label: v.l }))}
+        />
+        <Textarea
+          label="Заметки / анамнез / аллергии"
+          value={form.notes}
+          onChange={e => setForm({ ...form, notes: e.target.value })}
+          rows={3}
+          placeholder="Аллергия на лидокаин, гипертония..."
+        />
+        <div className="flex gap-2 pt-2">
+          <Button type="submit" className="flex-1">
+            {editPatient ? 'Сохранить' : 'Добавить'}
+          </Button>
+          {editPatient && (
+            <Button
+              type="button"
+              variant="danger"
+              icon={<Trash2 size={16} />}
+              onClick={() => { setConfirmDeleteOpen(true); setModalOpen(false) }}
+            >
+              Удалить
+            </Button>
+          )}
+          <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
+            Отмена
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+
+  const confirmDeleteModal = (
+    <ConfirmModal
+      open={confirmDeleteOpen}
+      onClose={() => setConfirmDeleteOpen(false)}
+      onConfirm={handleDelete}
+      title="Удалить пациента?"
+      message={`Вы уверены, что хотите удалить пациента ${editPatient?.name}? Это действие необратимо.`}
+      confirmLabel="Удалить"
+    />
+  )
+
+  // ── List View ──────────────────────────────────────────────
   if (!selected) {
     return (
-      <div style={{ padding: 24 }}>
-        <Toast msg={toast?.msg} type={toast?.type} onClose={clearToast} />
+      <div className="p-6">
+        <PageHeader
+          title="Пациенты"
+          subtitle={`База пациентов клиники · ${patients.length} чел.`}
+          icon={<User size={20} />}
+          actions={
+            <Button icon={<UserPlus size={16} />} onClick={openNew}>
+              Новый пациент
+            </Button>
+          }
+        />
 
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 23, fontWeight: 700, color: T.white, margin: 0 }}>Пациенты</h1>
-            <p style={{ fontSize: 12, color: T.slate, marginTop: 3 }}>База пациентов клиники · {patients.length} чел.</p>
+        <div className="flex flex-wrap gap-2 mb-5 items-center">
+          <div className="relative flex-1 min-w-[200px]">
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Поиск по ФИО, телефону, email..."
+              icon={<Search size={16} />}
+            />
           </div>
-          <PBtn onClick={openNew}>+ Новый пациент</PBtn>
-        </div>
-
-        {/* Filters */}
-        <div style={{
-          display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center',
-          background: T.card, border: `1px solid ${T.borderSub}`, borderRadius: 11, padding: '12px 16px',
-        }}>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="🔍 Поиск по ФИО, телефону, email…"
-            style={{
-              flex: 1, minWidth: 200,
-              background: 'rgba(255,255,255,0.06)',
-              border: `1px solid ${T.border}`,
-              borderRadius: 8, padding: '9px 13px', fontSize: 13,
-              color: T.white, outline: 'none', fontFamily: 'inherit',
-            }}
-          />
           {Object.entries({ all: 'Все', ...Object.fromEntries(Object.entries(CAT_CFG).map(([k, v]) => [k, v.l])) }).map(([k, label]) => (
-            <button
+            <Button
               key={k}
+              variant={filterCat === k ? 'outline' : 'ghost'}
+              size="sm"
               onClick={() => setFilterCat(k)}
-              style={{
-                padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                background: filterCat === k ? `${T.gold}20` : 'rgba(255,255,255,0.05)',
-                border: `1px solid ${filterCat === k ? T.gold : T.borderSub}`,
-                color: filterCat === k ? T.gold : T.slate,
-              }}
+              className={filterCat === k ? 'border-dv-gold/50 text-dv-gold' : ''}
             >
               {label}
-            </button>
+            </Button>
           ))}
         </div>
 
-        {/* Patient grid */}
         {filtered.length === 0 ? (
-          <EmptyState icon="🔍" text="Пациенты не найдены" sub="Попробуйте изменить параметры поиска" />
+          <EmptyState
+            icon={<Search size={32} />}
+            title="Пациенты не найдены"
+            description="Попробуйте изменить параметры поиска"
+          />
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+          <motion.div
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+            variants={stagger}
+            initial="hidden"
+            animate="show"
+          >
             {filtered.map(p => {
-              const cat = CAT_CFG[p.category] || CAT_CFG.regular;
-              const age = calculateAge(p.dob);
-              const pAppts = appointments.filter(a => a.patientId === p.id);
-              const lastAppt = pAppts.sort((a, b) => b.date.localeCompare(a.date))[0];
+              const catKey = p.category || 'regular'
+              const cat = CAT_CFG[catKey] || CAT_CFG.regular
+              const age = calculateAge(p.dob)
+              const pAppts = appointments.filter(a => a.patientId === p.id)
+              const lastAppt = pAppts.sort((a, b) => b.date.localeCompare(a.date))[0]
+
               return (
-                <div
-                  key={p.id}
-                  onClick={() => { setSelected(p); setTeethState(p.teeth || {}); setActiveTab('info'); }}
-                  style={{
-                    background: T.card, border: `1px solid ${T.borderSub}`,
-                    borderRadius: 13, padding: 18, cursor: 'pointer', transition: 'all .15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = T.gold; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.borderSub; e.currentTarget.style.transform = 'none'; }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{
-                        width: 40, height: 40, borderRadius: '50%',
-                        background: `${cat.color}20`, border: `2px solid ${cat.color}40`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 18,
-                      }}>
-                        {p.category === 'vip' ? '⭐' : '👤'}
+                <motion.div key={p.id} variants={fadeUp}>
+                  <Card
+                    hover
+                    className="cursor-pointer group"
+                    onClick={() => { setSelected(p); setTeethState(p.teeth || {}); setActiveTab('info') }}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          name={p.name}
+                          size="md"
+                          status={catKey === 'vip' ? 'busy' : 'online'}
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-txt-primary group-hover:text-dv-gold transition-colors">
+                            {p.name}
+                          </p>
+                          {age && <p className="text-xs text-txt-muted">{age} лет</p>}
+                        </div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: T.white }}>{p.name}</div>
-                        {age && <div style={{ fontSize: 11, color: T.slate }}>{age} лет</div>}
-                      </div>
+                      <Badge variant={CAT_BADGE[catKey] || 'default'} size="sm">
+                        {cat.l}
+                      </Badge>
                     </div>
-                    <Badge color={cat.color} size="sm">{cat.label}</Badge>
-                  </div>
-                  <div style={{ fontSize: 12, color: T.slate, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <span>📞 {formatPhone(p.phone) || '—'}</span>
-                    {p.email && <span>✉️ {p.email}</span>}
-                    <span>🦷 Визитов: {pAppts.length}{lastAppt ? ` · последний ${fd(lastAppt.date)}` : ''}</span>
-                    {p.notes && <span style={{ color: T.amber + 'bb' }}>⚠ {p.notes}</span>}
-                  </div>
-                </div>
-              );
+
+                    <div className="space-y-1.5 text-xs text-txt-secondary">
+                      <div className="flex items-center gap-2">
+                        <Phone size={12} className="text-txt-muted shrink-0" />
+                        <span>{formatPhone(p.phone) || '---'}</span>
+                      </div>
+                      {p.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail size={12} className="text-txt-muted shrink-0" />
+                          <span className="truncate">{p.email}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Calendar size={12} className="text-txt-muted shrink-0" />
+                        <span>Визитов: {pAppts.length}{lastAppt ? ` · ${fd(lastAppt.date)}` : ''}</span>
+                      </div>
+                      {p.notes && (
+                        <div className="flex items-center gap-2 text-warning">
+                          <AlertTriangle size={12} className="shrink-0" />
+                          <span className="truncate">{p.notes}</span>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                </motion.div>
+              )
             })}
-          </div>
+          </motion.div>
         )}
 
-        {/* Modal */}
-        {modalOpen && (
-          <Modal title={editPatient ? 'Редактировать пациента' : 'Новый пациент'} onClose={() => setModalOpen(false)} size="md">
-            <form onSubmit={handleSubmit}>
-              <Input label="ФИО" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <Input label="Телефон" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} required placeholder="+7 700 000 00 00" />
-                <Input label="Дата рождения" type="date" value={form.dob} onChange={e => setForm({ ...form, dob: e.target.value })} />
-              </div>
-              <Input label="Email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-              <Input label="Адрес" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
-              <Select label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                options={Object.entries(CAT_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
-              <Textarea label="Заметки / анамнез / аллергии" value={form.notes}
-                onChange={e => setForm({ ...form, notes: e.target.value })} rows={3}
-                placeholder="Аллергия на лидокаин, гипертония…" />
-              <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-                <PBtn type="submit" style={{ flex: 1 }}>Сохранить</PBtn>
-                {editPatient && <PBtn type="button" variant="danger" onClick={handleDelete}>Удалить</PBtn>}
-                <GBtn type="button" onClick={() => setModalOpen(false)}>Отмена</GBtn>
-              </div>
-            </form>
-          </Modal>
-        )}
+        {formModal}
+        {confirmDeleteModal}
       </div>
-    );
+    )
   }
 
-  // ── Patient Detail ────────────────────────────────────────────────
-  const cat = CAT_CFG[selected.category] || CAT_CFG.regular;
-  const TABS = [
-    { id: 'info',        label: 'Карта' },
-    { id: 'odontogram', label: '🦷 Одонтограмма' },
-    { id: 'payment',    label: '💰 Оплата' },
-    { id: 'photos',     label: '📸 Фотопротокол' },
-    { id: 'history',    label: '📋 История' },
-  ];
+  // ── Detail View ──────────────────────────────────────────────
+  const catKey = selected.category || 'regular'
+  const cat = CAT_CFG[catKey] || CAT_CFG.regular
+
+  const PATIENT_TABS = [
+    { id: 'info', label: 'Карта', icon: <FileText size={14} /> },
+    { id: 'odontogram', label: 'Одонтограмма', icon: <Smile size={14} /> },
+    { id: 'payment', label: 'Оплата', icon: <CreditCard size={14} /> },
+    { id: 'photos', label: 'Фотопротокол', icon: <Camera size={14} /> },
+    { id: 'history', label: 'История', icon: <History size={14} /> },
+  ]
 
   return (
-    <div style={{ padding: 24 }}>
-      <Toast msg={toast?.msg} type={toast?.type} onClose={clearToast} />
-
-      {/* Back + actions */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
-        <GBtn onClick={() => setSelected(null)}>← К списку</GBtn>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <PBtn onClick={() => setActiveTab('info')}>📋 План лечения</PBtn>
-          <GBtn color={T.sapphire} onClick={() => openEdit(selected)}>✏ Редактировать</GBtn>
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => setSelected(null)}>
+          К списку
+        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" icon={<FileText size={16} />} onClick={() => setActiveTab('info')}>
+            План лечения
+          </Button>
+          <Button variant="secondary" icon={<FileText size={16} />} onClick={() => openEdit(selected)}>
+            Редактировать
+          </Button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 18 }} className="grid-2">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5">
         {/* Patient card */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Card>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: '50%',
-                background: `${cat.color}20`, border: `3px solid ${cat.color}50`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 30, margin: '0 auto 12px',
-              }}>
-                {selected.category === 'vip' ? '⭐' : '👤'}
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: T.white }}>{selected.name}</div>
-              <Badge color={cat.color} size="md" style={{ marginTop: 8 }}>{cat.label}</Badge>
+        <div className="space-y-4">
+          <Card padding="lg">
+            <div className="text-center mb-5">
+              <Avatar name={selected.name} size="xl" className="mx-auto mb-3" />
+              <p className="text-base font-bold text-txt-primary">{selected.name}</p>
+              <Badge variant={CAT_BADGE[catKey] || 'default'} size="md" className="mt-2">
+                {cat.l}
+              </Badge>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: T.slateL }}>
-              {selected.phone && <div>📞 {formatPhone(selected.phone)}</div>}
-              {selected.email && <div>✉️ {selected.email}</div>}
-              {selected.dob && <div>🎂 {fd(selected.dob)} ({calculateAge(selected.dob)} лет)</div>}
-              {selected.address && <div>📍 {selected.address}</div>}
+
+            <div className="space-y-2.5 text-sm text-txt-secondary">
+              {selected.phone && (
+                <div className="flex items-center gap-2.5">
+                  <Phone size={14} className="text-txt-muted shrink-0" />
+                  <span>{formatPhone(selected.phone)}</span>
+                </div>
+              )}
+              {selected.email && (
+                <div className="flex items-center gap-2.5">
+                  <Mail size={14} className="text-txt-muted shrink-0" />
+                  <span className="truncate">{selected.email}</span>
+                </div>
+              )}
+              {selected.dob && (
+                <div className="flex items-center gap-2.5">
+                  <Calendar size={14} className="text-txt-muted shrink-0" />
+                  <span>{fd(selected.dob)} ({calculateAge(selected.dob)} лет)</span>
+                </div>
+              )}
+              {selected.address && (
+                <div className="flex items-center gap-2.5">
+                  <MapPin size={14} className="text-txt-muted shrink-0" />
+                  <span>{selected.address}</span>
+                </div>
+              )}
               {selected.notes && (
-                <div style={{
-                  marginTop: 8, padding: '8px 10px',
-                  background: `${T.amber}10`, border: `1px solid ${T.amber}25`,
-                  borderRadius: 8, color: T.amber, fontSize: 12,
-                }}>
-                  ⚠ {selected.notes}
+                <div className="mt-3 p-2.5 rounded-lg bg-warning/10 border border-warning/20 text-warning text-xs flex items-start gap-2">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <span>{selected.notes}</span>
                 </div>
               )}
             </div>
           </Card>
 
-          <Card>
-            <div style={{ fontSize: 12, color: T.slate, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
-              Статистика
+          <Card padding="md">
+            <p className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3">Статистика</p>
+            <div className="space-y-2">
+              {[
+                { label: 'Визитов всего', value: patientAppts.length },
+                { label: 'Завершено', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').length },
+                { label: 'Отменено', value: patientAppts.filter(a => a.status === 'cancelled').length },
+              ].map((s, i) => (
+                <div key={i} className="flex justify-between items-center py-1.5 border-b border-bdr-subtle last:border-b-0">
+                  <span className="text-xs text-txt-secondary">{s.label}</span>
+                  <span className="text-sm font-semibold text-txt-primary">{s.value}</span>
+                </div>
+              ))}
             </div>
-            {[
-              { label: 'Визитов всего',  value: patientAppts.length },
-              { label: 'Завершено',      value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').length },
-              { label: 'Отменено',       value: patientAppts.filter(a => a.status === 'cancelled').length },
-            ].map((s, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: i < 2 ? `1px solid ${T.borderSub}` : 'none' }}>
-                <span style={{ fontSize: 12, color: T.slate }}>{s.label}</span>
-                <span style={{ fontSize: 13, color: T.white, fontWeight: 600 }}>{s.value}</span>
-              </div>
-            ))}
           </Card>
         </div>
 
         {/* Right panel */}
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          {/* Tabs */}
-          <div style={{ display: 'flex', borderBottom: `1px solid ${T.borderSub}`, padding: '0 20px' }}>
-            {TABS.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  padding: '14px 16px', background: 'none', border: 'none',
-                  borderBottom: `2px solid ${activeTab === tab.id ? T.gold : 'transparent'}`,
-                  color: activeTab === tab.id ? T.gold : T.slate,
-                  fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 500,
-                  cursor: 'pointer', transition: 'color .12s', whiteSpace: 'nowrap',
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <Card padding="none" className="overflow-hidden">
+          <div className="border-b border-bdr-subtle px-5">
+            <Tabs tabs={PATIENT_TABS} active={activeTab} onChange={setActiveTab} size="sm" />
           </div>
 
-          <div style={{ padding: 20 }}>
-            {/* Info tab */}
-            {activeTab === 'info' && (
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 14 }}>🗒 Планы и заметки</div>
-                <div style={{
-                  padding: 16, background: 'rgba(255,255,255,0.03)',
-                  border: `1px dashed ${T.borderSub}`, borderRadius: 10,
-                  color: T.slate, fontSize: 13, marginBottom: 16,
-                }}>
-                  {selected.notes || 'Нет особых заметок. Для добавления нажмите «Редактировать».'}
-                </div>
-                <AutoTreatmentPlan
-                  teeth={teethState}
-                  onAddToPlan={(recs) => showToast(`Добавлено ${recs.length} процедур в план`, 'success')}
-                />
-              </div>
-            )}
-
-            {/* Odontogram tab */}
-            {activeTab === 'odontogram' && (
-              <div>
-                <div style={{ marginBottom: 14 }}>
-                  <ToothLegend />
-                </div>
-                <Odontogram3D
-                  patientTeeth={teethState}
-                  onToothClick={handleToothClick}
-                  selectedTooth={selectedTooth}
-                />
-                {selectedTooth && (
-                  <SurfaceEditor
-                    toothNumber={selectedTooth}
-                    surfaces={teethState[selectedTooth]?.surfaces || {}}
-                    onSave={handleSaveToothSurfaces}
-                    onCancel={() => setSelectedTooth(null)}
+          <div className="p-5">
+            <AnimatePresence mode="wait">
+              {activeTab === 'info' && (
+                <motion.div key="info" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
+                  <p className="text-sm font-bold text-txt-primary mb-3">Планы и заметки</p>
+                  <div className="p-4 rounded-xl border border-dashed border-bdr-subtle text-sm text-txt-secondary mb-5">
+                    {selected.notes || 'Нет особых заметок. Для добавления нажмите «Редактировать».'}
+                  </div>
+                  <AutoTreatmentPlan
+                    teeth={teethState}
+                    onAddToPlan={(recs) => showToast(`Добавлено ${recs.length} процедур в план`, 'success')}
                   />
-                )}
-              </div>
-            )}
+                </motion.div>
+              )}
 
-            {/* Payment tab */}
-            {activeTab === 'payment' && (
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 14 }}>💰 Оплата и финансовые операции</div>
-                
-                {/* Payment summary */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-                  {[
-                    { label: 'Всего оплачено', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').reduce((sum, a) => sum + (a.price || 0), 0), color: T.emerald },
-                    { label: 'Ожидает оплаты', value: patientAppts.filter(a => a.status === 'confirmed' || a.status === 'scheduled').reduce((sum, a) => sum + (a.price || 0), 0), color: T.amber },
-                    { label: 'Скидки', value: selected.category === 'vip' ? '15%' : selected.category === 'regular' ? '5%' : '0%', color: T.sapphire },
-                  ].map((s, i) => (
-                    <div key={i} style={{
-                      padding: 16, background: 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${T.borderSub}`, borderRadius: 10,
-                      textAlign: 'center',
-                    }}>
-                      <div style={{ fontSize: 11, color: T.slate, marginBottom: 6 }}>{s.label}</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>
-                        {typeof s.value === 'number' ? `${s.value.toLocaleString()} ₸` : s.value}
+              {activeTab === 'odontogram' && (
+                <motion.div key="odonto" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
+                  <div className="mb-4">
+                    <ToothLegend />
+                  </div>
+                  <Odontogram3D
+                    patientTeeth={teethState}
+                    onToothClick={handleToothClick}
+                    selectedTooth={selectedTooth}
+                  />
+                  {selectedTooth && (
+                    <SurfaceEditor
+                      toothNumber={selectedTooth}
+                      surfaces={teethState[selectedTooth]?.surfaces || {}}
+                      onSave={handleSaveToothSurfaces}
+                      onCancel={() => setSelectedTooth(null)}
+                    />
+                  )}
+                </motion.div>
+              )}
+
+              {activeTab === 'payment' && (
+                <motion.div key="payment" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
+                  <p className="text-sm font-bold text-txt-primary mb-4">Оплата и финансовые операции</p>
+
+                  <div className="grid grid-cols-3 gap-3 mb-5">
+                    {[
+                      { label: 'Всего оплачено', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-success' },
+                      { label: 'Ожидает оплаты', value: patientAppts.filter(a => a.status === 'confirmed' || a.status === 'scheduled').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-warning' },
+                      { label: 'Скидки', value: catKey === 'vip' ? '15%' : catKey === 'regular' ? '5%' : '0%', color: 'text-info' },
+                    ].map((s, i) => (
+                      <div key={i} className="p-4 rounded-xl border border-bdr-subtle bg-white/[0.02] text-center">
+                        <p className="text-xs text-txt-muted mb-1.5">{s.label}</p>
+                        <p className={cn('text-xl font-bold', s.color)}>
+                          {typeof s.value === 'number' ? formatMoney(s.value) : s.value}
+                        </p>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
 
-                {/* Payment form */}
-                <div style={{
-                  padding: 16, background: 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${T.borderSub}`, borderRadius: 10, marginBottom: 20,
-                }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.white, marginBottom: 12 }}>✍️ Внести оплату</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
-                    <div>
-                      <label style={{ fontSize: 11, color: T.slate, marginBottom: 4, display: 'block' }}>Сумма (₸)</label>
-                      <input
+                  <div className="p-4 rounded-xl border border-bdr-subtle bg-white/[0.02] mb-5">
+                    <p className="text-sm font-semibold text-txt-primary mb-3">Внести оплату</p>
+                    <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                      <Input
+                        label="Сумма (₸)"
                         type="number"
                         placeholder="0"
                         value={payment.amount}
                         onChange={e => setPayment({ ...payment, amount: e.target.value })}
-                        style={{
-                          width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.06)',
-                          border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13,
-                          color: T.white, outline: 'none', fontFamily: 'inherit',
-                        }}
                       />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11, color: T.slate, marginBottom: 4, display: 'block' }}>Тип оплаты</label>
-                      <select
+                      <Select
+                        label="Тип оплаты"
                         value={payment.payMethod}
                         onChange={e => setPayment({ ...payment, payMethod: e.target.value })}
-                        style={{
-                          width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.06)',
-                          border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13,
-                          color: T.white, outline: 'none', fontFamily: 'inherit', cursor: 'pointer',
+                        options={[
+                          { value: 'cash', label: 'Наличные' },
+                          { value: 'card', label: 'Карта' },
+                          { value: 'transfer', label: 'Перевод' },
+                        ]}
+                      />
+                      <Button
+                        icon={<CreditCard size={16} />}
+                        onClick={() => {
+                          if (!payment.amount || Number(payment.amount) <= 0) { showToast('Укажите сумму', 'warning'); return }
+                          showToast(`Оплата ${tg(Number(payment.amount))} внесена успешно`, 'success')
+                          setPayment(EMPTY_PAYMENT)
                         }}
                       >
-                        <option value="cash">💵 Наличные</option>
-                        <option value="card">💳 Карта</option>
-                        <option value="transfer">🏦 Перевод</option>
-                      </select>
+                        Внести
+                      </Button>
                     </div>
-                    <PBtn onClick={() => {
-                      if (!payment.amount || Number(payment.amount) <= 0) { showToast('Укажите сумму', 'warning'); return; }
-                      showToast(`Оплата ${tg(Number(payment.amount))} внесена успешно`, 'success');
-                      setPayment(EMPTY_PAYMENT);
-                    }}>Внести</PBtn>
                   </div>
-                </div>
 
-                {/* Payment history */}
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.white, marginBottom: 12 }}>📜 История платежей</div>
-                {patientAppts.filter(a => a.price).length === 0 ? (
-                  <EmptyState icon="💰" text="Нет записей об оплате" sub="Платежи появятся после завершения приёмов" />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {patientAppts.filter(a => a.price).map(a => (
-                      <div key={a.id} style={{
-                        padding: '12px 14px',
-                        background: 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${T.borderSub}`,
-                        borderRadius: 9,
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      }}>
-                        <div>
-                          <div style={{ fontSize: 13, color: T.white, fontWeight: 600 }}>{a.reason || a.service || '—'}</div>
-                          <div style={{ fontSize: 11, color: T.slate, marginTop: 3 }}>{fd(a.date)} · {a.time}</div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <Badge color={T.emerald} size="sm">+{a.price.toLocaleString()} ₸</Badge>
-                          <button
-                            onClick={() => showToast('Чек отправлен пациенту', 'success')}
-                            style={{
-                              padding: '6px 10px', background: 'rgba(255,255,255,0.05)',
-                              border: `1px solid ${T.borderSub}`, borderRadius: 6,
-                              color: T.slate, fontSize: 11, cursor: 'pointer',
-                            }}
-                          >
-                            📤 Чек
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Photos tab */}
-            {activeTab === 'photos' && (
-              <div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                  {['smile', 'face', 'intraoral', 'xray'].map(cat => (
-                    <button
-                      key={cat}
-                      onClick={() => setPhotoCategory(cat)}
-                      style={{
-                        padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                        cursor: 'pointer', transition: 'all .12s',
-                        background: photoCategory === cat ? `${T.gold}20` : 'rgba(255,255,255,0.05)',
-                        border: `1px solid ${photoCategory === cat ? T.gold : T.borderSub}`,
-                        color: photoCategory === cat ? T.gold : T.slate,
-                      }}
-                    >
-                      {{ smile: '😊 Улыбка', face: '👤 Лицо', intraoral: '🦷 Интраоральные', xray: '☢️ Рентген' }[cat]}
-                    </button>
-                  ))}
-                </div>
-
-                <label style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  padding: '30px', border: `2px dashed ${T.border}`, borderRadius: 12,
-                  cursor: 'pointer', marginBottom: 16, color: T.slate, fontSize: 13,
-                  transition: 'all .15s',
-                }}>
-                  <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} style={{ display: 'none' }} />
-                  <span style={{ fontSize: 30, marginBottom: 8 }}>📷</span>
-                  Нажмите для загрузки фото
-                </label>
-
-                {photos.filter(p => p.category === photoCategory).length > 0 ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-                    {photos.filter(p => p.category === photoCategory).map(photo => (
-                      <div key={photo.id} style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${T.borderSub}` }}>
-                        <img src={photo.url} alt="Patient" style={{ width: '100%', height: 130, objectFit: 'cover', display: 'block' }} />
-                        <div style={{ padding: '8px 10px', fontSize: 11, color: T.slate }}>
-                          {fd(photo.date)}
-                          <button
-                            onClick={() => setPhotos(prev => prev.filter(p => p.id !== photo.id))}
-                            style={{ float: 'right', background: 'none', border: 'none', color: T.ruby, cursor: 'pointer', fontSize: 14 }}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState icon="📷" text="Нет фото в этой категории" />
-                )}
-              </div>
-            )}
-
-            {/* History tab */}
-            {activeTab === 'history' && (
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 14 }}>История посещений</div>
-                {patientAppts.length === 0 ? (
-                  <EmptyState icon="📋" text="Нет записей о посещениях" />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {patientAppts.map(a => {
-                      const sc = { scheduled: T.sapphire, confirmed: T.emerald, done: T.teal, cancelled: T.ruby, completed: T.teal }[a.status] || T.slate;
-                      return (
-                        <div key={a.id} style={{
-                          padding: '12px 14px',
-                          background: 'rgba(255,255,255,0.03)',
-                          border: `1px solid ${T.borderSub}`,
-                          borderLeft: `3px solid ${sc}`,
-                          borderRadius: 9,
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-                        }}>
+                  <p className="text-sm font-semibold text-txt-primary mb-3">История платежей</p>
+                  {patientAppts.filter(a => a.price).length === 0 ? (
+                    <EmptyState
+                      icon={<CreditCard size={32} />}
+                      title="Нет записей об оплате"
+                      description="Платежи появятся после завершения приёмов"
+                    />
+                  ) : (
+                    <div className="space-y-2">
+                      {patientAppts.filter(a => a.price).map(a => (
+                        <div key={a.id} className="flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
                           <div>
-                            <div style={{ fontSize: 13, color: T.white, fontWeight: 600 }}>{a.reason || a.service || '—'}</div>
-                            <div style={{ fontSize: 11, color: T.slate, marginTop: 3 }}>{fd(a.date)} · {a.time}</div>
+                            <p className="text-sm font-semibold text-txt-primary">{a.reason || a.service || '---'}</p>
+                            <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} · {a.time}</p>
                           </div>
-                          <Badge color={sc} size="sm">
-                            {{ scheduled: 'Запланирован', confirmed: 'Подтверждён', done: 'Завершён', cancelled: 'Отменён', completed: 'Завершён' }[a.status] || a.status}
+                          <div className="flex items-center gap-3">
+                            <Badge variant="success" size="sm">+{a.price.toLocaleString()} ₸</Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              icon={<Send size={14} />}
+                              onClick={() => showToast('Чек отправлен пациенту', 'success')}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {activeTab === 'photos' && (
+                <motion.div key="photos" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
+                  <div className="flex gap-2 mb-4 flex-wrap">
+                    {Object.entries(PHOTO_LABELS).map(([key, label]) => (
+                      <Button
+                        key={key}
+                        variant={photoCategory === key ? 'outline' : 'ghost'}
+                        size="sm"
+                        icon={PHOTO_ICONS[key]}
+                        onClick={() => setPhotoCategory(key)}
+                        className={photoCategory === key ? 'border-dv-gold/50 text-dv-gold' : ''}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-bdr rounded-xl cursor-pointer text-txt-secondary text-sm hover:border-dv-gold/40 hover:text-dv-gold transition-all mb-4">
+                    <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
+                    <Camera size={32} className="mb-2 text-txt-muted" />
+                    Нажмите для загрузки фото
+                  </label>
+
+                  {photos.filter(p => p.category === photoCategory).length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {photos.filter(p => p.category === photoCategory).map(photo => (
+                        <div key={photo.id} className="rounded-xl overflow-hidden border border-bdr-subtle group">
+                          <img src={photo.url} alt="Patient" className="w-full h-32 object-cover" />
+                          <div className="flex items-center justify-between p-2 text-xs text-txt-muted">
+                            <span>{fd(photo.date)}</span>
+                            <button
+                              onClick={() => setPhotos(prev => prev.filter(p => p.id !== photo.id))}
+                              className="text-error/60 hover:text-error transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState
+                      icon={<Camera size={32} />}
+                      title="Нет фото в этой категории"
+                    />
+                  )}
+                </motion.div>
+              )}
+
+              {activeTab === 'history' && (
+                <motion.div key="history" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
+                  <p className="text-sm font-bold text-txt-primary mb-4">История посещений</p>
+                  {patientAppts.length === 0 ? (
+                    <EmptyState
+                      icon={<History size={32} />}
+                      title="Нет записей о посещениях"
+                    />
+                  ) : (
+                    <div className="space-y-2">
+                      {patientAppts.map(a => (
+                        <div
+                          key={a.id}
+                          className={cn(
+                            'flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]',
+                            'border-l-3',
+                            (a.status === 'done' || a.status === 'completed') && 'border-l-success',
+                            a.status === 'scheduled' && 'border-l-info',
+                            a.status === 'confirmed' && 'border-l-success',
+                            a.status === 'cancelled' && 'border-l-error',
+                          )}
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-txt-primary">{a.reason || a.service || '---'}</p>
+                            <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} · {a.time}</p>
+                          </div>
+                          <Badge variant={STATUS_BADGE[a.status] || 'default'} size="sm" dot>
+                            {STATUS_LABEL[a.status] || a.status}
                           </Badge>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </Card>
       </div>
 
-      {/* Edit modal (from detail view) */}
-      {modalOpen && (
-        <Modal title="Редактировать пациента" onClose={() => setModalOpen(false)} size="md">
-          <form onSubmit={handleSubmit}>
-            <Input label="ФИО" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Телефон" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} required />
-              <Input label="Дата рождения" type="date" value={form.dob} onChange={e => setForm({ ...form, dob: e.target.value })} />
-            </div>
-            <Input label="Email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-            <Select label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-              options={Object.entries(CAT_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
-            <Textarea label="Заметки / аллергии" value={form.notes}
-              onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-              <PBtn type="submit" style={{ flex: 1 }}>Сохранить</PBtn>
-              <PBtn type="button" variant="danger" onClick={handleDelete}>Удалить</PBtn>
-              <GBtn type="button" onClick={() => setModalOpen(false)}>Отмена</GBtn>
-            </div>
-          </form>
-        </Modal>
-      )}
+      {formModal}
+      {confirmDeleteModal}
     </div>
-  );
+  )
 }

@@ -1,90 +1,129 @@
-import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { useAuth, ROLES } from '../context/AuthContext';
-import { useToast } from '../hooks/useData';
-import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState, Textarea } from '../components/ui/BaseComponents';
-import { T, VISIBILITY_OPTIONS } from '../utils/constants';
+import React, { useState } from 'react'
+import { useOutletContext } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import {
+  Users, UserPlus, Shield, Stethoscope, Briefcase, Crown, Phone, Mail,
+  Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings,
+} from 'lucide-react'
+import { useAuth, ROLES } from '../context/AuthContext'
+import { useToast } from '../hooks/useData'
+import { Button } from '../components/ui/ds/Button'
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/ds/Card'
+import { Input, Textarea, Select } from '../components/ui/ds/Input'
+import { Badge } from '../components/ui/ds/Badge'
+import { Modal } from '../components/ui/ds/Modal'
+import { EmptyState } from '../components/ui/ds/EmptyState'
+import { PageHeader } from '../components/ui/ds/StatCard'
+import { Avatar } from '../components/ui/ds/Avatar'
+import { T, VISIBILITY_OPTIONS } from '../utils/constants'
+import { cn } from '../lib/utils'
 
 const ROLE_OPTIONS = [
-  { value: 'doctor',    label: '👨‍⚕️ Врач' },
-  { value: 'assistant', label: '🤝 Ассистент' },
-  { value: 'admin',     label: '💼 Администратор' },
-  { value: 'director',  label: '👔 Руководитель' },
-];
+  { value: 'doctor', label: 'Врач' },
+  { value: 'assistant', label: 'Ассистент' },
+  { value: 'admin', label: 'Администратор' },
+  { value: 'director', label: 'Руководитель' },
+]
 
-const ROLE_COLORS = {
-  director:  T.gold,
-  admin:     T.sapphire,
-  doctor:    T.emerald,
-  assistant: T.teal,
-};
+const ROLE_ICON = {
+  director: <Crown size={18} />,
+  admin: <Briefcase size={18} />,
+  doctor: <Stethoscope size={18} />,
+  assistant: <Shield size={18} />,
+}
+
+const ROLE_BADGE = {
+  director: 'gold',
+  admin: 'info',
+  doctor: 'success',
+  assistant: 'default',
+}
 
 const ROLE_LABELS = {
-  director:  'Руководитель',
-  admin:     'Администратор',
-  doctor:    'Врач',
+  director: 'Руководитель',
+  admin: 'Администратор',
+  doctor: 'Врач',
   assistant: 'Ассистент',
-};
+}
 
 const SPECS = [
-  { value: '',              label: '— Без специализации —' },
-  { value: 'Терапевт',      label: 'Терапевт' },
-  { value: 'Ортопед',       label: 'Ортопед' },
-  { value: 'Хирург',        label: 'Хирург' },
-  { value: 'Ортодонт',      label: 'Ортодонт' },
-  { value: 'Пародонтолог',  label: 'Пародонтолог' },
+  { value: '', label: '--- Без специализации ---' },
+  { value: 'Терапевт', label: 'Терапевт' },
+  { value: 'Ортопед', label: 'Ортопед' },
+  { value: 'Хирург', label: 'Хирург' },
+  { value: 'Ортодонт', label: 'Ортодонт' },
+  { value: 'Пародонтолог', label: 'Пародонтолог' },
   { value: 'Детский стоматолог', label: 'Детский стоматолог' },
-  { value: 'Имплантолог',   label: 'Имплантолог' },
-  { value: 'Ассистент',     label: 'Ассистент' },
+  { value: 'Имплантолог', label: 'Имплантолог' },
+  { value: 'Ассистент', label: 'Ассистент' },
   { value: 'Администратор', label: 'Администратор' },
-];
+]
+
+const PAGE_ICONS = {
+  dashboard: 'Дашборд', schedule: 'Расписание', patients: 'Пациенты', 'medical-card': 'Карта',
+  visits: 'Визиты', icd10: 'МКБ-10', documents: 'Документы', cashier: 'Касса',
+  pricelist: 'Прайс', lab: 'Лаборатория', ai: 'AI', staff: 'Сотрудники',
+  promotions: 'Акции', inventory: 'Склад', shop: 'Магазин', school: 'Школа',
+  analytics: 'Аналитика', settings: 'Настройки', reminders: 'Напоминания',
+  admin: 'Админ', audit: 'Аудит', backup: 'Бэкап',
+}
+
+const ROLE_DESC = {
+  director: 'Полный доступ: Dashboard, расписание, пациенты, финансы, лаборатория, AI, персонал. Видит зарплаты и расходы.',
+  admin: 'Доступ: расписание, пациенты, касса, лаборатория. Не видит зарплаты и подробную аналитику.',
+  doctor: 'Доступ: своё расписание, пациенты, лаборатория, AI. Видит только свои записи.',
+  assistant: 'Ограниченный доступ: расписание (только просмотр), базовая информация о пациентах. Не может редактировать данные.',
+}
 
 const EMPTY_FORM = {
   name: '', login: '', password: '', role: 'doctor', spec: '', phone: '',
   email: '', bio: '', photoUrl: '', visibility: 'public', experienceYears: 0,
-};
+}
+
+const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
+const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Staff() {
-  const { clinic, user } = useOutletContext();
-  const { getClinicStaff, addStaffMember, roleInfo } = useAuth();
-  const { toast, showToast, clearToast } = useToast();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [profileModal, setProfileModal] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [filter, setFilter] = useState('all');
-  const [editingStaff, setEditingStaff] = useState(null);
+  const { clinic, user } = useOutletContext()
+  const { getClinicStaff, addStaffMember, roleInfo } = useAuth()
+  const { toast, showToast, clearToast } = useToast()
+  const [modalOpen, setModalOpen] = useState(false)
+  const [profileModal, setProfileModal] = useState(null)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [filter, setFilter] = useState('all')
+  const [editingStaff, setEditingStaff] = useState(null)
 
-  const staff = getClinicStaff(clinic?.id || user?.clinicId);
-  const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter);
+  const staff = getClinicStaff(clinic?.id || user?.clinicId)
+  const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter)
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    e.preventDefault()
     if (!form.name || !form.login || !form.password) {
-      showToast('Заполните все обязательные поля', 'warning');
-      return;
+      showToast('Заполните все обязательные поля', 'warning')
+      return
     }
     if (form.password.length < 6) {
-      showToast('Пароль должен быть не менее 6 символов', 'warning');
-      return;
+      showToast('Пароль должен быть не менее 6 символов', 'warning')
+      return
     }
     const result = addStaffMember({
       ...form,
       workSchedule: form.role === 'doctor' ? form.workSchedule : undefined,
       clinicId: clinic?.id || user?.clinicId,
       experienceYears: Number(form.experienceYears) || 0,
-    });
+    })
     if (result === false) {
-      showToast('Такой логин уже занят', 'error');
-      return;
+      showToast('Такой логин уже занят', 'error')
+      return
     }
-    showToast(`${ROLE_LABELS[form.role] || 'Сотрудник'} добавлен`, 'success');
-    setModalOpen(false);
-    setForm(EMPTY_FORM);
-    setEditingStaff(null);
-  };
+    showToast(`${ROLE_LABELS[form.role] || 'Сотрудник'} добавлен`, 'success')
+    setModalOpen(false)
+    setForm(EMPTY_FORM)
+    setEditingStaff(null)
+  }
 
   const openEditStaff = (member) => {
-    setEditingStaff(member);
+    setEditingStaff(member)
     setForm({
       name: member.name || '',
       login: member.login || '',
@@ -98,353 +137,438 @@ export default function Staff() {
       visibility: member.visibility || 'public',
       experienceYears: member.experienceYears || 0,
       workSchedule: member.workSchedule || { start: '09:00', end: '18:00', workDays: ['пн', 'вт', 'ср', 'чт', 'пт'] },
-    });
-    setModalOpen(true);
-  };
+    })
+    setModalOpen(true)
+  }
 
-  const canManage = roleInfo?.canAddStaff;
+  const canManage = roleInfo?.canAddStaff
 
-  return (
-    <div style={{ padding: 24 }}>
-      <Toast msg={toast?.msg} type={toast?.type} onClose={clearToast} />
+  const staffFormModal = (
+    <Modal
+      open={modalOpen}
+      onClose={() => setModalOpen(false)}
+      title={editingStaff ? 'Редактировать сотрудника' : 'Добавить сотрудника'}
+      size="lg"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="ФИО *"
+          value={form.name}
+          onChange={e => setForm({ ...form, name: e.target.value })}
+          placeholder="Иванова Мария Сергеевна"
+          required
+          icon={<Users size={16} />}
+        />
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 23, fontWeight: 700, color: T.white, margin: 0 }}>
-            Сотрудники
-          </h1>
-          <p style={{ fontSize: 12, color: T.slate, marginTop: 3 }}>
-            {clinic?.name} · {staff.length} чел.
-          </p>
+        <Select
+          label="Роль *"
+          value={form.role}
+          onChange={e => setForm({ ...form, role: e.target.value })}
+          options={ROLE_OPTIONS}
+        />
+
+        <div className={cn(
+          'p-3 rounded-lg border text-xs text-txt-secondary',
+          'bg-white/[0.02] border-bdr-subtle',
+        )}>
+          {ROLE_DESC[form.role]}
         </div>
-        {canManage && <PBtn onClick={() => { setForm(EMPTY_FORM); setModalOpen(true); }}>+ Добавить сотрудника</PBtn>}
-      </div>
 
-      {/* Role counts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 22 }}>
-        {Object.entries(ROLE_LABELS).map(([role, label]) => {
-          const count = staff.filter(s => s.role === role).length;
-          return (
-            <button key={role} onClick={() => setFilter(filter === role ? 'all' : role)} style={{
-              background: filter === role ? `${ROLE_COLORS[role]}18` : T.card,
-              border: `1px solid ${filter === role ? ROLE_COLORS[role] + '50' : T.borderSub}`,
-              borderRadius: 11, padding: '14px', textAlign: 'center', cursor: 'pointer',
-              transition: 'all .12s', fontFamily: 'inherit',
-            }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: ROLE_COLORS[role] }}>{count}</div>
-              <div style={{ fontSize: 11, color: T.slate, marginTop: 3 }}>{label}</div>
-            </button>
-          );
-        })}
-      </div>
+        {(form.role === 'doctor' || form.role === 'assistant') && (
+          <Select
+            label="Специализация"
+            value={form.spec}
+            onChange={e => setForm({ ...form, spec: e.target.value })}
+            options={SPECS}
+          />
+        )}
 
-      {/* Staff grid */}
-      {filtered.length === 0 ? (
-        <EmptyState icon="👥" text="Нет сотрудников" sub={canManage ? 'Добавьте первого сотрудника' : 'Нет данных'} />
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-          {filtered.map(member => {
-            const roleColor = ROLE_COLORS[member.role] || T.slate;
-            const isCurrentUser = member.id === user?.id;
-            return (
-              <Card key={member.id} style={{ position: 'relative' }} onClick={() => setProfileModal(member)}>
-                {isCurrentUser && (
-                  <div style={{
-                    position: 'absolute', top: 12, right: 12,
-                    fontSize: 10, color: T.gold, background: `${T.gold}15`,
-                    border: `1px solid ${T.gold}30`, borderRadius: 6, padding: '2px 7px', fontWeight: 700,
-                  }}>
-                    Вы
-                  </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                  {/* Photo or avatar */}
-                  <div style={{
-                    width: 52, height: 52, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
-                    background: `${roleColor}18`, border: `2px solid ${roleColor}40`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-                  }}>
-                    {member.photoUrl ? (
-                      <img src={member.photoUrl} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      ROLES[member.role]?.icon || '👤'
-                    )}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 3 }}>
-                      {member.name}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <Badge color={roleColor} size="sm">{ROLE_LABELS[member.role] || member.role}</Badge>
-                      {member.visibility === 'private' && (
-                        <Badge color={T.amber} size="sm">🔒 Приватный</Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: T.slateL }}>
-                  {member.spec && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: T.slate }}>🏥</span>
-                      {member.spec}
-                    </div>
-                  )}
-                  {member.email && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: T.slate }}>✉️</span>
-                      {member.email}
-                    </div>
-                  )}
-                  {member.experienceYears > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: T.slate }}>📅</span>
-                      Стаж: {member.experienceYears} {member.experienceYears === 1 ? 'год' : member.experienceYears < 5 ? 'года' : 'лет'}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: T.slate }}>🔑</span>
-                    <span style={{ fontFamily: 'monospace', color: T.slateL }}>{member.login}</span>
-                  </div>
-                  {member.phone && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: T.slate }}>📞</span>
-                      {member.phone}
-                    </div>
-                  )}
-                </div>
-
-                {member.bio && (
-                  <div style={{
-                    marginTop: 10, padding: '8px 10px', fontSize: 12, color: T.slateL, lineHeight: 1.5,
-                    background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: `1px solid ${T.borderSub}`,
-                  }}>
-                    {member.bio.length > 120 ? member.bio.slice(0, 120) + '...' : member.bio}
-                  </div>
-                )}
-
-                {/* Role access summary */}
-                <div style={{
-                  marginTop: 12, padding: '8px 10px',
-                  background: 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${T.borderSub}`, borderRadius: 8,
-                }}>
-                  <div style={{ fontSize: 10, color: T.slate, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Доступ
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {(ROLES[member.role]?.pages || []).map(p => {
-                      const nav = { dashboard: '📊', schedule: '📅', patients: '🦷', cashier: '💰', lab: '🔬', ai: '🤖', staff: '👥', admin: '⚙️', promotions: '🎯', inventory: '📦' };
-                      return (
-                        <span key={p} style={{ fontSize: 14 }} title={p}>{nav[p] || p}</span>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {canManage && (
-                  <button onClick={(e) => { e.stopPropagation(); openEditStaff(member); }} style={{
-                    marginTop: 10, width: '100%', padding: '7px 0', fontSize: 12, fontWeight: 600,
-                    background: 'rgba(255,255,255,0.04)', border: `1px solid ${T.borderSub}`, borderRadius: 7,
-                    color: T.slateL, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s',
-                  }}>
-                    ✏️ Редактировать
-                  </button>
-                )}
-              </Card>
-            );
-          })}
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Телефон"
+            value={form.phone}
+            onChange={e => setForm({ ...form, phone: e.target.value })}
+            placeholder="+7 777 000 00 00"
+            icon={<Phone size={16} />}
+          />
+          <Input
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={e => setForm({ ...form, email: e.target.value })}
+            placeholder="doctor@clinic.kz"
+            icon={<Mail size={16} />}
+          />
         </div>
-      )}
 
-      {/* Profile Detail Modal */}
-      {profileModal && (
-        <Modal title="Профиль сотрудника" onClose={() => setProfileModal(null)} size="md">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%', overflow: 'hidden',
-              background: `${ROLE_COLORS[profileModal.role] || T.slate}18`,
-              border: `3px solid ${ROLE_COLORS[profileModal.role] || T.slate}40`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
-            }}>
-              {profileModal.photoUrl ? (
-                <img src={profileModal.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                ROLES[profileModal.role]?.icon || '👤'
-              )}
+        {form.role === 'doctor' && (
+          <Input
+            label="Стаж (лет)"
+            type="number"
+            min="0"
+            max="60"
+            value={form.experienceYears}
+            onChange={e => setForm({ ...form, experienceYears: e.target.value })}
+            icon={<Award size={16} />}
+          />
+        )}
+
+        {form.role === 'doctor' && (
+          <Textarea
+            label="О себе (био)"
+            value={form.bio}
+            onChange={e => setForm({ ...form, bio: e.target.value })}
+            placeholder="Расскажите о себе, образовании, опыте работы..."
+            rows={3}
+          />
+        )}
+
+        {form.role === 'doctor' && (
+          <Select
+            label="Видимость профиля"
+            value={form.visibility}
+            onChange={e => setForm({ ...form, visibility: e.target.value })}
+            options={VISIBILITY_OPTIONS}
+          />
+        )}
+
+        {form.role === 'doctor' && (
+          <Input
+            label="Фото URL"
+            value={form.photoUrl}
+            onChange={e => setForm({ ...form, photoUrl: e.target.value })}
+            placeholder="https://example.com/photo.jpg"
+          />
+        )}
+
+        {form.role === 'doctor' && (
+          <div className="p-3 rounded-lg border border-bdr-subtle bg-white/[0.02]">
+            <p className="text-xs font-semibold text-txt-secondary mb-3 flex items-center gap-1.5">
+              <Calendar size={14} /> График работы врача
+            </p>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Input
+                label="Начало рабочего дня"
+                type="time"
+                value={form.workSchedule?.start || '09:00'}
+                onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule, start: e.target.value } })}
+              />
+              <Input
+                label="Конец рабочего дня"
+                type="time"
+                value={form.workSchedule?.end || '18:00'}
+                onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule, end: e.target.value } })}
+              />
             </div>
+            <p className="text-xs text-txt-muted mb-2">Рабочие дни:</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map(day => {
+                const isSelected = (form.workSchedule?.workDays || ['пн', 'вт', 'ср', 'чт', 'пт']).includes(day)
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => {
+                      const current = form.workSchedule?.workDays || ['пн', 'вт', 'ср', 'чт', 'пт']
+                      const updated = isSelected ? current.filter(d => d !== day) : [...current, day]
+                      setForm({ ...form, workSchedule: { ...form.workSchedule, workDays: updated } })
+                    }}
+                    className={cn(
+                      'px-2.5 py-1 text-xs font-medium rounded-md border transition-colors',
+                      isSelected
+                        ? 'border-dv-gold/50 bg-dv-gold/10 text-dv-gold'
+                        : 'border-bdr-subtle bg-transparent text-txt-muted hover:text-txt-secondary'
+                    )}
+                  >
+                    {day.toUpperCase()}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="border-t border-bdr-subtle pt-4">
+          <p className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Settings size={14} /> Данные для входа
+          </p>
+          <Input
+            label="Логин *"
+            value={form.login}
+            onChange={e => setForm({ ...form, login: e.target.value.toLowerCase().replace(/\s/g, '_') })}
+            placeholder="doctor_name"
+            required
+            icon={<Lock size={16} />}
+          />
+          {!editingStaff && (
+            <Input
+              label="Пароль *"
+              type="password"
+              value={form.password}
+              onChange={e => setForm({ ...form, password: e.target.value })}
+              placeholder="Минимум 6 символов"
+              required
+              icon={<Lock size={16} />}
+            />
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <Button type="submit" className="flex-1">{editingStaff ? 'Сохранить' : 'Добавить сотрудника'}</Button>
+          <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+
+  const profileDetailModal = (
+    <Modal
+      open={!!profileModal}
+      onClose={() => setProfileModal(null)}
+      title="Профиль сотрудника"
+      size="md"
+    >
+      {profileModal && (
+        <>
+          <div className="flex items-center gap-4 mb-5">
+            <Avatar
+              name={profileModal.name}
+              src={profileModal.photoUrl}
+              size="xl"
+            />
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: T.white }}>{profileModal.name}</div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-                <Badge color={ROLE_COLORS[profileModal.role]}>{ROLE_LABELS[profileModal.role]}</Badge>
-                {profileModal.spec && <Badge color={T.sapphire}>{profileModal.spec}</Badge>}
+              <p className="text-lg font-bold text-txt-primary">{profileModal.name}</p>
+              <div className="flex gap-2 mt-1">
+                <Badge variant={ROLE_BADGE[profileModal.role] || 'default'}>{ROLE_LABELS[profileModal.role]}</Badge>
+                {profileModal.spec && <Badge variant="info">{profileModal.spec}</Badge>}
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13, color: T.slateL }}>
-            {profileModal.phone && <div><span style={{ color: T.slate }}>📞</span> {profileModal.phone}</div>}
-            {profileModal.email && <div><span style={{ color: T.slate }}>✉️</span> {profileModal.email}</div>}
+          <div className="space-y-2.5 text-sm text-txt-secondary">
+            {profileModal.phone && (
+              <div className="flex items-center gap-2.5">
+                <Phone size={14} className="text-txt-muted shrink-0" />
+                <span>{profileModal.phone}</span>
+              </div>
+            )}
+            {profileModal.email && (
+              <div className="flex items-center gap-2.5">
+                <Mail size={14} className="text-txt-muted shrink-0" />
+                <span>{profileModal.email}</span>
+              </div>
+            )}
             {profileModal.experienceYears > 0 && (
-              <div><span style={{ color: T.slate }}>📅</span> Стаж: {profileModal.experienceYears} лет</div>
+              <div className="flex items-center gap-2.5">
+                <Award size={14} className="text-txt-muted shrink-0" />
+                <span>Стаж: {profileModal.experienceYears} лет</span>
+              </div>
             )}
             {profileModal.bio && (
-              <div style={{ marginTop: 8, padding: 12, background: 'rgba(255,255,255,0.03)', borderRadius: 8, lineHeight: 1.6 }}>
+              <div className="mt-3 p-3 rounded-lg bg-white/[0.02] border border-bdr-subtle text-sm leading-relaxed">
                 {profileModal.bio}
               </div>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+          <div className="flex gap-2 mt-5">
             {canManage && (
-              <PBtn onClick={() => { setProfileModal(null); openEditStaff(profileModal); }} style={{ flex: 1 }}>
-                ✏️ Редактировать
-              </PBtn>
+              <Button className="flex-1" icon={<Edit size={16} />} onClick={() => { setProfileModal(null); openEditStaff(profileModal) }}>
+                Редактировать
+              </Button>
             )}
-            <GBtn onClick={() => setProfileModal(null)}>Закрыть</GBtn>
+            <Button variant="ghost" onClick={() => setProfileModal(null)}>Закрыть</Button>
           </div>
-        </Modal>
+        </>
       )}
+    </Modal>
+  )
 
-      {/* Add/Edit Staff Modal */}
-      {modalOpen && (
-        <Modal title={editingStaff ? 'Редактировать сотрудника' : 'Добавить сотрудника'} onClose={() => setModalOpen(false)} size="lg">
-          <form onSubmit={handleSubmit}>
-            <Input label="ФИО *" value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })}
-              placeholder="Иванова Мария Сергеевна" required />
+  return (
+    <div className="p-6">
+      <PageHeader
+        title="Сотрудники"
+        subtitle={`${clinic?.name} · ${staff.length} чел.`}
+        icon={<Users size={20} />}
+        actions={
+          canManage ? (
+            <Button icon={<UserPlus size={16} />} onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
+              Добавить сотрудника
+            </Button>
+          ) : undefined
+        }
+      />
 
-            <Select label="Роль *" value={form.role}
-              onChange={e => setForm({ ...form, role: e.target.value })}
-              options={ROLE_OPTIONS} />
-
-            <div style={{
-              padding: '10px 12px', marginBottom: 12,
-              background: `${ROLE_COLORS[form.role] || T.slate}10`,
-              border: `1px solid ${ROLE_COLORS[form.role] || T.slate}25`,
-              borderRadius: 8, fontSize: 12, color: T.slateL,
-            }}>
-              {form.role === 'director' && '👔 Полный доступ: Dashboard, расписание, пациенты, финансы, лаборатория, AI, персонал. Видит зарплаты и расходы.'}
-              {form.role === 'admin' && '💼 Доступ: расписание, пациенты, касса, лаборатория. Не видит зарплаты и подробную аналитику.'}
-              {form.role === 'doctor' && '👨‍⚕️ Доступ: своё расписание, пациенты, лаборатория, AI. Видит только свои записи.'}
-              {form.role === 'assistant' && '🤝 Ограниченный доступ: расписание (только просмотр), базовая информация о пациентах. Не может редактировать данные.'}
-            </div>
-
-            {(form.role === 'doctor' || form.role === 'assistant') && (
-              <Select label="Специализация" value={form.spec}
-                onChange={e => setForm({ ...form, spec: e.target.value })}
-                options={SPECS} />
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Телефон" value={form.phone}
-                onChange={e => setForm({ ...form, phone: e.target.value })}
-                placeholder="+7 777 000 00 00" />
-              <Input label="Email" type="email" value={form.email}
-                onChange={e => setForm({ ...form, email: e.target.value })}
-                placeholder="doctor@clinic.kz" />
-            </div>
-
-            {form.role === 'doctor' && (
-              <Input label="Стаж (лет)" type="number" min="0" max="60" value={form.experienceYears}
-                onChange={e => setForm({ ...form, experienceYears: e.target.value })} />
-            )}
-
-            {form.role === 'doctor' && (
-              <Textarea label="О себе (био)" value={form.bio}
-                onChange={e => setForm({ ...form, bio: e.target.value })}
-                placeholder="Расскажите о себе, образовании, опыте работы..." rows={3} />
-            )}
-
-            {form.role === 'doctor' && (
-              <Select label="Видимость профиля" value={form.visibility}
-                onChange={e => setForm({ ...form, visibility: e.target.value })}
-                options={VISIBILITY_OPTIONS} />
-            )}
-
-            {form.role === 'doctor' && (
-              <Input label="Фото URL" value={form.photoUrl}
-                onChange={e => setForm({ ...form, photoUrl: e.target.value })}
-                placeholder="https://example.com/photo.jpg" />
-            )}
-
-            {/* График работы для врачей */}
-            {form.role === 'doctor' && (
-              <div style={{
-                padding: '12px',
-                background: 'rgba(255,255,255,0.03)',
-                border: `1px solid ${T.borderSub}`,
-                borderRadius: 8,
-                marginBottom: 12,
-              }}>
-                <div style={{ fontSize: 12, color: T.slate, marginBottom: 8, fontWeight: 600 }}>📅 График работы врача</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <Input
-                    label="Начало рабочего дня"
-                    type="time"
-                    value={form.workSchedule?.start || '09:00'}
-                    onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule, start: e.target.value } })}
-                  />
-                  <Input
-                    label="Конец рабочего дня"
-                    type="time"
-                    value={form.workSchedule?.end || '18:00'}
-                    onChange={e => setForm({ ...form, workSchedule: { ...form.workSchedule, end: e.target.value } })}
-                  />
+      {/* Role count cards */}
+      <motion.div
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6"
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+      >
+        {Object.entries(ROLE_LABELS).map(([role, label]) => {
+          const count = staff.filter(s => s.role === role).length
+          return (
+            <motion.div key={role} variants={fadeUp}>
+              <button
+                onClick={() => setFilter(filter === role ? 'all' : role)}
+                className={cn(
+                  'w-full p-4 rounded-xl border text-center transition-all duration-200',
+                  filter === role
+                    ? 'border-dv-gold/50 bg-dv-gold/5'
+                    : 'border-bdr-subtle bg-surface-raised hover:bg-surface-raised-hover hover:border-bdr/50'
+                )}
+              >
+                <div className={cn(
+                  'flex items-center justify-center w-10 h-10 rounded-xl mx-auto mb-2',
+                  'bg-white/[0.05]',
+                )}>
+                  {ROLE_ICON[role]}
                 </div>
-                <div style={{ marginTop: 8, fontSize: 11, color: T.slate }}>
-                  Рабочие дни:
-                  <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                    {['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map(day => {
-                      const isSelected = (form.workSchedule?.workDays || ['пн', 'вт', 'ср', 'чт', 'пт']).includes(day);
-                      return (
-                        <button
-                          key={day}
-                          type="button"
-                          onClick={() => {
-                            const current = form.workSchedule?.workDays || ['пн', 'вт', 'ср', 'чт', 'пт'];
-                            const updated = isSelected ? current.filter(d => d !== day) : [...current, day];
-                            setForm({ ...form, workSchedule: { ...form.workSchedule, workDays: updated } });
-                          }}
-                          style={{
-                            padding: '4px 8px', fontSize: 11, borderRadius: 4, fontFamily: 'inherit',
-                            border: `1px solid ${isSelected ? T.gold : T.borderSub}`,
-                            background: isSelected ? `${T.gold}20` : 'transparent',
-                            color: isSelected ? T.gold : T.slate,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {day.toUpperCase()}
-                        </button>
-                      );
-                    })}
+                <p className="text-2xl font-bold text-txt-primary">{count}</p>
+                <p className="text-xs text-txt-muted mt-0.5">{label}</p>
+              </button>
+            </motion.div>
+          )
+        })}
+      </motion.div>
+
+      {/* Staff grid */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={<Users size={32} />}
+          title="Нет сотрудников"
+          description={canManage ? 'Добавьте первого сотрудника' : 'Нет данных'}
+          action={
+            canManage ? (
+              <Button icon={<UserPlus size={16} />} onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
+                Добавить
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          variants={stagger}
+          initial="hidden"
+          animate="show"
+        >
+          {filtered.map(member => {
+            const isCurrentUser = member.id === user?.id
+            return (
+              <motion.div key={member.id} variants={fadeUp}>
+                <Card
+                  hover
+                  padding="none"
+                  className="overflow-hidden cursor-pointer group"
+                  onClick={() => setProfileModal(member)}
+                >
+                  <div className="p-4">
+                    {/* Top row */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          name={member.name}
+                          src={member.photoUrl}
+                          size="lg"
+                          status="online"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-txt-primary group-hover:text-dv-gold transition-colors truncate">
+                            {member.name}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Badge variant={ROLE_BADGE[member.role] || 'default'} size="sm">
+                              {ROLE_LABELS[member.role] || member.role}
+                            </Badge>
+                            {member.visibility === 'private' && (
+                              <Badge variant="warning" size="sm">
+                                <Lock size={10} /> Приватный
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {isCurrentUser && (
+                        <Badge variant="gold" size="xs">Вы</Badge>
+                      )}
+                    </div>
+
+                    {/* Details */}
+                    <div className="space-y-1.5 text-xs text-txt-secondary">
+                      {member.spec && (
+                        <div className="flex items-center gap-2">
+                          <Stethoscope size={12} className="text-txt-muted shrink-0" />
+                          <span>{member.spec}</span>
+                        </div>
+                      )}
+                      {member.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail size={12} className="text-txt-muted shrink-0" />
+                          <span className="truncate">{member.email}</span>
+                        </div>
+                      )}
+                      {member.experienceYears > 0 && (
+                        <div className="flex items-center gap-2">
+                          <Award size={12} className="text-txt-muted shrink-0" />
+                          <span>Стаж: {member.experienceYears} {member.experienceYears === 1 ? 'год' : member.experienceYears < 5 ? 'года' : 'лет'}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Lock size={12} className="text-txt-muted shrink-0" />
+                        <span className="font-mono text-txt-secondary">{member.login}</span>
+                      </div>
+                      {member.phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone size={12} className="text-txt-muted shrink-0" />
+                          <span>{member.phone}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bio preview */}
+                    {member.bio && (
+                      <div className="mt-3 p-2.5 text-xs text-txt-secondary leading-relaxed rounded-lg bg-white/[0.02] border border-bdr-subtle line-clamp-2">
+                        {member.bio.length > 120 ? member.bio.slice(0, 120) + '...' : member.bio}
+                      </div>
+                    )}
+
+                    {/* Access summary */}
+                    <div className="mt-3 p-2.5 rounded-lg bg-white/[0.02] border border-bdr-subtle">
+                      <p className="text-2xs font-bold text-txt-muted uppercase tracking-wider mb-2">Доступ</p>
+                      <div className="flex gap-1 flex-wrap">
+                        {(ROLES[member.role]?.pages || []).slice(0, 8).map(p => (
+                          <Badge key={p} variant="default" size="xs">{PAGE_ICONS[p] || p}</Badge>
+                        ))}
+                        {(ROLES[member.role]?.pages || []).length > 8 && (
+                          <Badge variant="default" size="xs">+{ROLES[member.role].pages.length - 8}</Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Edit button */}
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full mt-3"
+                        icon={<Edit size={14} />}
+                        onClick={(e) => { e.stopPropagation(); openEditStaff(member) }}
+                      >
+                        Редактировать
+                      </Button>
+                    )}
                   </div>
-                </div>
-              </div>
-            )}
-
-            <div style={{ borderTop: `1px solid ${T.borderSub}`, paddingTop: 14, marginTop: 4 }}>
-              <div style={{ fontSize: 11, color: T.slate, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Данные для входа
-              </div>
-              <Input label="Логин *" value={form.login}
-                onChange={e => setForm({ ...form, login: e.target.value.toLowerCase().replace(/\s/g, '_') })}
-                placeholder="doctor_name" hint="Только латиница, цифры, _ (мин. 4 символа)" required />
-              {!editingStaff && (
-                <Input label="Пароль *" type="password" value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder="Минимум 6 символов" required />
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-              <PBtn type="submit" style={{ flex: 1 }}>{editingStaff ? 'Сохранить' : 'Добавить сотрудника'}</PBtn>
-              <GBtn type="button" onClick={() => setModalOpen(false)}>Отмена</GBtn>
-            </div>
-          </form>
-        </Modal>
+                </Card>
+              </motion.div>
+            )
+          })}
+        </motion.div>
       )}
+
+      {staffFormModal}
+      {profileDetailModal}
     </div>
-  );
+  )
 }
