@@ -21,6 +21,10 @@ const ALLOWED_TABLES = [
   'receipts', 'subscriptions', 'lab_orders', 'photos', 'expenses',
   'inventory', 'debts', 'referrals', 'promotions', 'bookings',
   'medical_cards', 'visits', 'documents', 'waiting_list',
+  'shop_products', 'shop_categories', 'shop_orders', 'shop_order_items',
+  'shop_reviews', 'shop_favorites', 'shop_suppliers',
+  'school_courses', 'school_modules', 'school_lessons', 'school_enrollments',
+  'school_certificates', 'school_clinical_cases', 'school_library',
 ];
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
@@ -495,6 +499,242 @@ async function initDatabase() {
       )
     `);
 
+    // ═══ SHOP TABLES ═══
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shop_categories (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100) UNIQUE NOT NULL,
+        icon VARCHAR(50),
+        description TEXT,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shop_suppliers (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        country VARCHAR(100),
+        city VARCHAR(100),
+        phone VARCHAR(50),
+        email VARCHAR(255),
+        website VARCHAR(255),
+        rating DECIMAL(2,1) DEFAULT 4.0,
+        delivery_days INTEGER DEFAULT 7,
+        delivery_cost DECIMAL(10,2) DEFAULT 0,
+        free_delivery_from DECIMAL(10,2) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shop_products (
+        id VARCHAR(50) PRIMARY KEY,
+        category_id VARCHAR(50) REFERENCES shop_categories(id),
+        supplier_id VARCHAR(50) REFERENCES shop_suppliers(id),
+        name VARCHAR(255) NOT NULL,
+        brand VARCHAR(255),
+        model VARCHAR(255),
+        description TEXT,
+        instructions TEXT,
+        specifications JSONB,
+        price DECIMAL(10,2) NOT NULL,
+        old_price DECIMAL(10,2),
+        currency VARCHAR(10) DEFAULT '₸',
+        stock INTEGER DEFAULT 0,
+        min_stock INTEGER DEFAULT 5,
+        unit VARCHAR(50) DEFAULT 'шт',
+        sku VARCHAR(100),
+        rating DECIMAL(2,1) DEFAULT 0,
+        review_count INTEGER DEFAULT 0,
+        image_url TEXT,
+        images JSONB,
+        video_url TEXT,
+        model_3d_url TEXT,
+        tags JSONB,
+        compatibility JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shop_orders (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50) REFERENCES clinics(id),
+        user_id VARCHAR(50),
+        user_name VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'pending',
+        total DECIMAL(10,2) NOT NULL,
+        delivery_address TEXT,
+        delivery_method VARCHAR(100),
+        delivery_cost DECIMAL(10,2) DEFAULT 0,
+        payment_method VARCHAR(50),
+        payment_status VARCHAR(50) DEFAULT 'unpaid',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shop_order_items (
+        id VARCHAR(50) PRIMARY KEY,
+        order_id VARCHAR(50) REFERENCES shop_orders(id),
+        product_id VARCHAR(50) REFERENCES shop_products(id),
+        product_name VARCHAR(255),
+        quantity INTEGER DEFAULT 1,
+        price DECIMAL(10,2) NOT NULL,
+        total DECIMAL(10,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shop_reviews (
+        id VARCHAR(50) PRIMARY KEY,
+        product_id VARCHAR(50) REFERENCES shop_products(id),
+        clinic_id VARCHAR(50),
+        user_id VARCHAR(50),
+        user_name VARCHAR(255),
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        pros TEXT,
+        cons TEXT,
+        comment TEXT,
+        helpful_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shop_favorites (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50),
+        user_id VARCHAR(50),
+        product_id VARCHAR(50) REFERENCES shop_products(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(clinic_id, product_id)
+      )
+    `);
+
+    // ═══ SCHOOL TABLES ═══
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS school_courses (
+        id VARCHAR(50) PRIMARY KEY,
+        category VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        subtitle VARCHAR(255),
+        description TEXT,
+        instructor VARCHAR(255),
+        instructor_avatar TEXT,
+        instructor_title VARCHAR(255),
+        difficulty VARCHAR(50) DEFAULT 'beginner',
+        duration_hours INTEGER DEFAULT 10,
+        lesson_count INTEGER DEFAULT 20,
+        price DECIMAL(10,2) DEFAULT 0,
+        rating DECIMAL(2,1) DEFAULT 0,
+        enrolled_count INTEGER DEFAULT 0,
+        image_url TEXT,
+        tags JSONB,
+        certificate_enabled BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS school_modules (
+        id VARCHAR(50) PRIMARY KEY,
+        course_id VARCHAR(50) REFERENCES school_courses(id),
+        title VARCHAR(255) NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS school_lessons (
+        id VARCHAR(50) PRIMARY KEY,
+        module_id VARCHAR(50) REFERENCES school_modules(id),
+        course_id VARCHAR(50) REFERENCES school_courses(id),
+        title VARCHAR(255) NOT NULL,
+        type VARCHAR(50) DEFAULT 'video',
+        content TEXT,
+        video_url TEXT,
+        duration_minutes INTEGER DEFAULT 30,
+        sort_order INTEGER DEFAULT 0,
+        is_free BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS school_enrollments (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50),
+        user_id VARCHAR(50),
+        user_name VARCHAR(255),
+        course_id VARCHAR(50) REFERENCES school_courses(id),
+        progress INTEGER DEFAULT 0,
+        completed BOOLEAN DEFAULT false,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP,
+        UNIQUE(user_id, course_id)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS school_certificates (
+        id VARCHAR(50) PRIMARY KEY,
+        clinic_id VARCHAR(50),
+        user_id VARCHAR(50),
+        user_name VARCHAR(255),
+        course_id VARCHAR(50) REFERENCES school_courses(id),
+        course_title VARCHAR(255),
+        issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        certificate_number VARCHAR(100) UNIQUE
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS school_clinical_cases (
+        id VARCHAR(50) PRIMARY KEY,
+        category VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        diagnosis TEXT,
+        treatment_plan TEXT,
+        before_images JSONB,
+        after_images JSONB,
+        cbct_url TEXT,
+        video_url TEXT,
+        errors TEXT,
+        discussion TEXT,
+        author VARCHAR(255),
+        difficulty VARCHAR(50) DEFAULT 'medium',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS school_library (
+        id VARCHAR(50) PRIMARY KEY,
+        category VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        type VARCHAR(50) DEFAULT 'article',
+        content TEXT,
+        file_url TEXT,
+        author VARCHAR(255),
+        tags JSONB,
+        download_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Indexes
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_clinic ON users(clinic_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_patients_clinic ON patients(clinic_id)`);
@@ -509,6 +749,19 @@ async function initDatabase() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_clinic ON audit_log(clinic_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_icd10_name ON icd10 USING gin(to_tsvector('russian', name))`);
+
+    // Shop indexes
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_shop_products_category ON shop_products(category_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_shop_products_supplier ON shop_products(supplier_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_shop_orders_clinic ON shop_orders(clinic_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_shop_reviews_product ON shop_reviews(product_id)`);
+    // School indexes
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_school_courses_category ON school_courses(category)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_school_modules_course ON school_modules(course_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_school_lessons_module ON school_lessons(module_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_school_enrollments_user ON school_enrollments(user_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_school_clinical_cases_category ON school_clinical_cases(category)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_school_library_category ON school_library(category)`);
 
     // MIGRATION: add missing columns to existing tables
     await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)');
@@ -630,6 +883,190 @@ async function initDatabase() {
     `, [saPass, adminPass, docPass, docPass, dirPass, assistPass]);
 
     await client.query('COMMIT');
+
+    // ═══════════════════════════════════════════════════════════
+    // SEED: SHOP + SCHOOL (after COMMIT, in separate transaction)
+    // ═══════════════════════════════════════════════════════════
+    try {
+      const catCount = await pool.query('SELECT COUNT(*) FROM shop_categories');
+      if (parseInt(catCount.rows[0].count) === 0) {
+        // --- SHOP CATEGORIES ---
+        const cats = [
+          { id: 'sc1', name: 'Материалы', slug: 'materials', icon: '🧪', description: 'Пломбировочные материалы, композиты, цементы', sort_order: 1 },
+          { id: 'sc2', name: 'Импланты', slug: 'implants', icon: '🦷', description: 'Дентальные импланты и компоненты', sort_order: 2 },
+          { id: 'sc3', name: 'Инструменты', slug: 'instruments', icon: '🔧', description: 'Стоматологические инструменты', sort_order: 3 },
+          { id: 'sc4', name: 'CAD/CAM', slug: 'cadcam', icon: '💻', description: 'Системы компьютерного проектирования', sort_order: 4 },
+          { id: 'sc5', name: 'Микроскопы', slug: 'microscopes', icon: '🔬', description: 'Стоматологические микроскопы', sort_order: 5 },
+          { id: 'sc6', name: 'Компрессоры', slug: 'compressors', icon: '🌬️', description: 'Стоматологические компрессоры', sort_order: 6 },
+          { id: 'sc7', name: 'Автоклавы', slug: 'autoclaves', icon: '♨️', description: 'Стерилизационное оборудование', sort_order: 7 },
+          { id: 'sc8', name: 'Сканеры', slug: 'scanners', icon: '📡', description: 'Внутриротовые и лабораторные сканеры', sort_order: 8 },
+          { id: 'sc9', name: 'Кресла', slug: 'chairs', icon: '💺', description: 'Стоматологические кресла и установки', sort_order: 9 },
+          { id: 'sc10', name: 'Лазеры', slug: 'lasers', icon: '✨', description: 'Стоматологические лазеры', sort_order: 10 },
+          { id: 'sc11', name: 'Расходники', slug: 'consumables', icon: '🧤', description: 'Одноразовые расходные материалы', sort_order: 11 },
+          { id: 'sc12', name: 'Литература', slug: 'literature', icon: '📚', description: 'Учебники и пособия', sort_order: 12 },
+        ];
+        for (const c of cats) {
+          await pool.query('INSERT INTO shop_categories (id, name, slug, icon, description, sort_order) VALUES ($1,$2,$3,$4,$5,$6)', [c.id, c.name, c.slug, c.icon, c.description, c.sort_order]);
+        }
+
+        // --- SHOP SUPPLIERS ---
+        const suppliers = [
+          { id: 'sup1', name: 'Dental World', country: 'Китай', city: 'Шэньчжэнь', phone: '+86-755-1234567', email: 'info@dentalworld.cn', website: 'dentalworld.cn', rating: 4.2, delivery_days: 14, delivery_cost: 5000, free_delivery_from: 100000 },
+          { id: 'sup2', name: 'EuroDent Supply', country: 'Германия', city: 'Мюнхен', phone: '+49-89-7654321', email: 'order@eurodent.de', website: 'eurodent.de', rating: 4.8, delivery_days: 10, delivery_cost: 8000, free_delivery_from: 150000 },
+          { id: 'sup3', name: 'MedTrade Plus', country: 'Россия', city: 'Москва', phone: '+7-495-1112233', email: 'sales@medtrade.ru', website: 'medtrade.ru', rating: 4.5, delivery_days: 5, delivery_cost: 2500, free_delivery_from: 50000 },
+          { id: 'sup4', name: 'KazDent', country: 'Казахстан', city: 'Алматы', phone: '+7-727-3334455', email: 'info@kazdent.kz', website: 'kazdent.kz', rating: 4.6, delivery_days: 2, delivery_cost: 0, free_delivery_from: 20000 },
+          { id: 'sup5', name: 'Global Dental', country: 'США', city: 'Нью-Йорк', phone: '+1-212-9876543', email: 'global@dentalsupply.com', website: 'dentalsupply.com', rating: 4.7, delivery_days: 21, delivery_cost: 12000, free_delivery_from: 200000 },
+        ];
+        for (const s of suppliers) {
+          await pool.query('INSERT INTO shop_suppliers (id, name, country, city, phone, email, website, rating, delivery_days, delivery_cost, free_delivery_from) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [s.id, s.name, s.country, s.city, s.phone, s.email, s.website, s.rating, s.delivery_days, s.delivery_cost, s.free_delivery_from]);
+        }
+
+        // --- SHOP PRODUCTS (20 items) ---
+        const products = [
+          { id: 'sp1', category_id: 'sc1', supplier_id: 'sup2', name: 'Filtek Supreme XTE', brand: '3M', model: 'Universal Restorative', description: 'Универсальный нанокомпозит для реставраций передних и боковых зубов. Отличная полируемость и естественная эстетика. Доступен в 32 оттенках.', price: 68000, old_price: 75000, stock: 45, min_stock: 10, rating: 4.8, review_count: 124, tags: '["композит","реставрация","передние зубы"]' },
+          { id: 'sp2', category_id: 'sc1', supplier_id: 'sup2', name: 'Estelite Sigma Quick', brand: 'Tokuyama', model: 'Nano Composite', description: 'Наногибридный композит с превосходными эстетическими свойствами. Уникальная технология AST поставки наполнителя обеспечивает естественный блеск.', price: 55000, old_price: null, stock: 32, min_stock: 10, rating: 4.7, review_count: 89, tags: '["композит","наногибрид","эстетика"]' },
+          { id: 'sp3', category_id: 'sc1', supplier_id: 'sup2', name: 'GC Essentia', brand: 'GC', model: 'Universal', description: 'Универсальный композит нового поколения. Оптимальный баланс между прочностью и эстетикой. Идеален для повседневных реставраций.', price: 45000, old_price: 52000, stock: 28, min_stock: 10, rating: 4.5, review_count: 67, tags: '["композит","универсальный","GC"]' },
+          { id: 'sp4', category_id: 'sc1', supplier_id: 'sup3', name: 'Ketac CEM Maxicap', brand: '3M', model: 'Glass Ionomer', description: 'Стеклоиономерный цемент для фиксации коронок, мостов и вкладок. Химическая адгезия к эмали и дентину.', price: 28000, old_price: null, stock: 50, min_stock: 15, rating: 4.4, review_count: 56, tags: '["цемент","стеклоиономер","фиксация"]' },
+          { id: 'sp5', category_id: 'sc2', supplier_id: 'sup2', name: 'Bone Level Implant SLA', brand: 'Straumann', model: 'RB/LB', description: 'Имплантат Straumann Bone Level с поверхностью SLA. Золотой стандарт дентальной имплантологии. Подходит для всех клинических ситуаций.', price: 285000, old_price: 320000, stock: 18, min_stock: 5, rating: 4.9, review_count: 203, tags: '["имплант","Straumann","SLA"]' },
+          { id: 'sp6', category_id: 'sc2', supplier_id: 'sup5', name: 'Replace Select Tapered', brand: 'Nobel Biocare', model: 'Groovy', description: 'Конусный имплантат Nobel Biocare Replace с агрессивной резьбой для первичной стабильности. Идеален для немедленной нагрузки.', price: 265000, old_price: null, stock: 12, min_stock: 5, rating: 4.8, review_count: 178, tags: '["имплант","Nobel","конусный"]' },
+          { id: 'sp7', category_id: 'sc2', supplier_id: 'sup4', name: 'TS III SA Surface', brand: 'Osstem', model: 'Standard', description: 'Имплантат Osstem TS III с шероховатой SA-поверхностью. Лучшее соотношение цена/качество. Востребован в более чем 70 странах мира.', price: 95000, old_price: 110000, stock: 35, min_stock: 10, rating: 4.6, review_count: 312, tags: '["имплант","Osstem","бюджетный"]' },
+          { id: 'sp8', category_id: 'sc3', supplier_id: 'sup3', name: 'Экскаватор双侧 23/24', brand: 'Hu-Friedy', model: 'College Pliers', description: 'Стоматологические плоскогубцы College Pliers для формирования и адаптации пломбировочных материалов. Эргономичная ручка.', price: 38000, old_price: null, stock: 22, min_stock: 8, rating: 4.7, review_count: 45, tags: '["плоскогубцы","инструмент","формирование"]' },
+          { id: 'sp9', category_id: 'sc3', supplier_id: 'sup3', name: 'Скалер金刚石 PM137', brand: 'Kerr', model: 'Sonic Scaler', description: 'Ультразвуковой скалер Kerr для профгигиены. Рабочая насадка с алмазным покрытием. 5 уровней мощности.', price: 72000, old_price: 80000, stock: 15, min_stock: 5, rating: 4.5, review_count: 38, tags: '["скалер","профгигиена","ультразвук"]' },
+          { id: 'sp10', category_id: 'sc4', supplier_id: 'sup2', name: 'CEREC PrimeScan', brand: 'Dentsply Sirona', model: 'Intraoral Scanner', description: 'Внутриротовой сканер нового поколения. Скорость сканирования до 50 000 изображений в секунду. ИИ-алгоритм автоматического распознавания.', price: 18500000, old_price: null, stock: 3, min_stock: 1, rating: 4.9, review_count: 87, tags: '["сканер","CEREC","CAD/CAM"]' },
+          { id: 'sp11', category_id: 'sc4', supplier_id: 'sup2', name: 'e.max CAD Blocks', brand: 'Ivoclar', model: 'CAD Block', description: 'Блоки из дисиликата лития для фрезерования коронок, вкладок и виниров. Высокая прочность (400 МПа) и превосходная эстетика.', price: 15000, old_price: 18000, stock: 80, min_stock: 20, rating: 4.8, review_count: 156, tags: '["блок","CAD","e.max","Ivoclar"]' },
+          { id: 'sp12', category_id: 'sc5', supplier_id: 'sup2', name: 'OPMI pico', brand: 'Carl Zeiss', model: 'Surgical Microscope', description: 'Хирургический микросkop Carl Zeiss для эндодонтии и микрохирургии. Оптическое увеличение до 16x, LED-подсветка 120 000 люкс.', price: 8500000, old_price: null, stock: 2, min_stock: 1, rating: 4.9, review_count: 34, tags: '["микроскоп","Zeiss","хирургия"]' },
+          { id: 'sp13', category_id: 'sc6', supplier_id: 'sup2', name: 'Varios 980', brand: 'Durr Dental', model: 'Oil-Free', description: 'Безмасляный компрессор Durr Dental. Производительность 300 л/мин, давление 10 бар. Тихая работа 62 дБ. Идеален для 2-3 кресел.', price: 1850000, old_price: 2100000, stock: 4, min_stock: 2, rating: 4.7, review_count: 28, tags: '["компрессор","Durr","безмасляный"]' },
+          { id: 'sp14', category_id: 'sc7', supplier_id: 'sup3', name: 'Vacuklav 41 B1', brand: 'Melag', model: 'Class B', description: 'Автоклав класса B Melag Vacuklav 41. Объём камеры 22 л. 18 программ стерилизации. Автоматическая загрузка воды. Документирование каждого цикла.', price: 3200000, old_price: null, stock: 5, min_stock: 2, rating: 4.8, review_count: 41, tags: '["автоклав","Melag","класс B"]' },
+          { id: 'sp15', category_id: 'sc8', supplier_id: 'sup5', name: 'TRIOS 4', brand: '3Shape', model: 'Intraoral Scanner', description: 'Внутриротовой сканер 3Shape с технологией True Color. Поддержка модели прикуса и автоматическое сканирование. Интеграция с Invisalign.', price: 6800000, old_price: 7500000, stock: 3, min_stock: 1, rating: 4.7, review_count: 62, tags: '["сканер","3Shape","TRIOS"]' },
+          { id: 'sp16', category_id: 'sc9', supplier_id: 'sup2', name: 'A-dec 500', brand: 'A-dec', model: 'Dental Chair', description: 'Премиальное стоматологическое кресло A-dec 500. Эргономичный дизайн, 12-positions подголовник, интегрированная подсветка. 5 лет гарантии.', price: 5200000, old_price: null, stock: 2, min_stock: 1, rating: 4.9, review_count: 53, tags: '["кресло","A-dec","премиум"]' },
+          { id: 'sp17', category_id: 'sc10', supplier_id: 'sup5', name: 'LightWalker AT', brand: 'Fotona', model: 'Dual Wavelength', description: 'Лазерная система Fotona с двумя длинами волн: Er:YAG (2940 нм) и Nd:YAG (1064 нм). Лечение кариеса, хирургия, отбеливание, лазерная эндодонтия.', price: 4500000, old_price: null, stock: 2, min_stock: 1, rating: 4.8, review_count: 29, tags: '["лазер","Fotona","двухволновой"]' },
+          { id: 'sp18', category_id: 'sc11', supplier_id: 'sup4', name: 'Перчатки нитриловые S', brand: 'ZARYA', model: 'Powder Free', description: 'Нитриловые перчатки без талька. Размер S (Small). Повышенная тактильная чувствительность. 100 шт в упаковке. Порошко-нет.', price: 4500, old_price: null, stock: 200, min_stock: 50, rating: 4.3, review_count: 89, tags: '["перчатки","нитрил","расходник"]' },
+          { id: 'sp19', category_id: 'sc11', supplier_id: 'sup4', name: 'Маски медицинские 3-слойные', brand: 'Биотехмед', model: '50 шт', description: 'Одноразовые медицинские маски 3-слойные. Бактериальная фильтрация 98%. Эластичные ушные петли. Упаковка 50 шт.', price: 2800, old_price: 3500, stock: 150, min_stock: 50, rating: 4.2, review_count: 67, tags: '["маски","расходник","защита"]' },
+          { id: 'sp20', category_id: 'sc12', supplier_id: 'sup3', name: 'Терапия зубов: полный курс', brand: 'Де-Медо', model: 'Учебник', description: 'Современный учебник по терапевтической стоматологии. 680 страниц, цветные иллюстрации, QR-коды на видео. Переработанное издание 2024 года.', price: 18000, old_price: null, stock: 30, min_stock: 5, rating: 4.6, review_count: 44, tags: '["учебник","терапия","книга"]' },
+        ];
+        for (const p of products) {
+          await pool.query(
+            `INSERT INTO shop_products (id, category_id, supplier_id, name, brand, model, description, price, old_price, stock, min_stock, rating, review_count, tags)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+            [p.id, p.category_id, p.supplier_id, p.name, p.brand, p.model, p.description, p.price, p.old_price, p.stock, p.min_stock, p.rating, p.review_count, p.tags]
+          );
+        }
+
+        // --- SHOP REVIEWS ---
+        const reviews = [
+          { product_id: 'sp1', user_name: 'Иванова М.С.', rating: 5, pros: 'Отличная полируемость, натуральный блеск', cons: 'Высокая цена', comment: 'Использую более 5 лет. Лучший композит на рынке.' },
+          { product_id: 'sp5', user_name: 'Петров А.И.', rating: 5, pros: 'Предсказуемый результат, высокая приживляемость', cons: 'Дороговато', comment: 'Straumann — золотой стандарт. Ни одной отторжения за 3 года.' },
+          { product_id: 'sp7', user_name: 'Сидорова Е.Ю.', rating: 4, pros: 'Хорошее соотношение цена/качество', cons: 'Нужно больше компонентов', comment: 'Osstem — отличный выбор для начинающих имплантологов.' },
+          { product_id: 'sp10', user_name: 'Бекжан Н.', rating: 5, pros: 'Невероятная скорость сканирования', cons: 'Дорогой, тяжёлый', comment: 'CEREC PrimeScan изменил наш подход к протезированию.' },
+          { product_id: 'sp20', user_name: 'Королёва А.', rating: 4, pros: 'Понятно написано, много иллюстраций', cons: 'Нет онлайн-версии', comment: 'Лучший учебник по терапии на русском языке.' },
+        ];
+        for (const r of reviews) {
+          await pool.query(
+            `INSERT INTO shop_reviews (id, product_id, user_name, rating, pros, cons, comment) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            ['rv' + Math.random().toString(36).slice(2, 8), r.product_id, r.user_name, r.rating, r.pros, r.cons, r.comment]
+          );
+        }
+
+        console.log('Shop seed data inserted');
+      }
+
+      // --- SCHOOL COURSES ---
+      const schoolCatCount = await pool.query('SELECT COUNT(*) FROM school_courses');
+      if (parseInt(schoolCatCount.rows[0].count) === 0) {
+        const courses = [
+          { id: 'crs1', category: 'Терапия', title: 'Современная терапия кариеса', subtitle: 'От диагностики до реставрации', description: 'Полный курс по терапевтической стоматологии. Изучите современные методы диагностики, препарирования и реставрации кариозных поражений.', instructor: 'Иванова Мария Сергеевна', instructor_title: 'К.м.н., Терапевт', difficulty: 'beginner', duration_hours: 40, lesson_count: 24, price: 0, rating: 4.8, enrolled_count: 1247, tags: '["кариес","реставрация","композит"]', certificate_enabled: true },
+          { id: 'crs2', category: 'Имплантация', title: 'Имплантология: от А до Я', subtitle: 'Полный курс дентальной имплантации', description: 'Всё о дентальной имплантации: от планирования до протезирования на имплантах. Клинические протоколы, хирургические техники, осложнения.', instructor: 'Петров Алексей Иванович', instructor_title: 'Хирург-имплантолог, 15 лет опыта', difficulty: 'intermediate', duration_hours: 60, lesson_count: 32, price: 0, rating: 4.9, enrolled_count: 892, tags: '["имплантация","хирургия","протезирование"]', certificate_enabled: true },
+          { id: 'crs3', category: 'Ортодонтия', title: 'Ортодонтия с нуля', subtitle: 'Основы ортодонтического лечения', description: 'Курс для начинающих ортодонтов. Диагностика, планирование, фиксация брекетов, элайнеры, ретенция.', instructor: 'Каримова Айгуль Т.', instructor_title: 'Ортодонт, MASTER Invisalign', difficulty: 'beginner', duration_hours: 30, lesson_count: 20, price: 0, rating: 4.7, enrolled_count: 634, tags: '["ортодонтия","брекеты","элайнеры"]', certificate_enabled: true },
+          { id: 'crs4', category: 'Хирургия', title: 'Хирургическая стоматология', subtitle: 'Аугментация, синус-лифтинг, удаление', description: 'Продвинутый курс хирургической стоматологии. Костная аугментация, синус-лифтинг, удаление зубов мудрости, управление осложнениями.', instructor: 'Бекжан Нурлан', instructor_title: 'Д.м.н., Хирург', difficulty: 'advanced', duration_hours: 50, lesson_count: 28, price: 0, rating: 4.8, enrolled_count: 456, tags: '["хирургия","аугментация","синус-лифтинг"]', certificate_enabled: true },
+          { id: 'crs5', category: 'Ортопедия', title: 'CAD/CAM в стоматологии', subtitle: 'Цифровые технологии протезирования', description: 'Курс по цифровым технологиям: внутриротовые сканеры, CAD-проектирование, фрезерование, 3D-печать в стоматологии.', instructor: 'Смирнов Дмитрий', instructor_title: 'Инженер-технолог, CAD/CAM эксперт', difficulty: 'intermediate', duration_hours: 35, lesson_count: 18, price: 0, rating: 4.6, enrolled_count: 523, tags: '["CAD","CAM","сканер","фрезерование"]', certificate_enabled: true },
+          { id: 'crs6', category: 'Маркетинг', title: 'Маркетинг стоматологической клиники', subtitle: 'Привлечение и удержание пациентов', description: 'Как привлекать пациентов через digital-маркетинг, соцсети, SEO и контент. Стратегия роста, сквозная аналитика, управление репутацией.', instructor: 'Ольга Маркетингова', instructor_title: 'CEO Dental Marketing Agency', difficulty: 'beginner', duration_hours: 20, lesson_count: 12, price: 0, rating: 4.5, enrolled_count: 789, tags: '["маркетинг","SMM","SEO","репутация"]', certificate_enabled: true },
+          { id: 'crs7', category: 'Фотография', title: 'Клиническая фотография', subtitle: 'Профессиональная съёмка в стоматологии', description: 'Научитесь делать профессиональные фото полости рта, зубов, улыбки. Освещение, ракурсы, макросъёмка, обработка.', instructor: 'Алексей Фотографов', instructor_title: 'Фотограф, преподаватель', difficulty: 'beginner', duration_hours: 15, lesson_count: 10, price: 0, rating: 4.4, enrolled_count: 345, tags: '["фотография","макро","портфолио"]', certificate_enabled: true },
+          { id: 'crs8', category: 'Эндодонтия', title: 'Эндодонтия: мастер-класс', subtitle: 'Лечение каналов нового поколения', description: 'Современная эндодонтия: NiTi-инструменты, ирригация, микроскоп, биокерамика. Навигация, мультикорневые зубы, перелечивание.', instructor: 'Иванова Мария Сергеевна', instructor_title: 'К.м.н., Эндодонтист', difficulty: 'advanced', duration_hours: 40, lesson_count: 22, price: 0, rating: 4.9, enrolled_count: 567, tags: '["эндодонтия","каналы","микроскоп"]', certificate_enabled: true },
+          { id: 'crs9', category: 'AI', title: 'AI в стоматологии', subtitle: 'Искусственный интеллект в клинической практике', description: 'Как AI меняет стоматологию: компьютерная диагностика, автоматическое планирование, AI-помощник в документации и общении с пациентами.', instructor: 'Дмитрий Технологов', instructor_title: 'AI Research Lead', difficulty: 'intermediate', duration_hours: 25, lesson_count: 15, price: 0, rating: 4.7, enrolled_count: 432, tags: '["AI","диагностика","автоматизация"]', certificate_enabled: true },
+        ];
+        for (const c of courses) {
+          await pool.query(
+            `INSERT INTO school_courses (id, category, title, subtitle, description, instructor, instructor_title, difficulty, duration_hours, lesson_count, price, rating, enrolled_count, tags, certificate_enabled)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+            [c.id, c.category, c.title, c.subtitle, c.description, c.instructor, c.instructor_title, c.difficulty, c.duration_hours, c.lesson_count, c.price, c.rating, c.enrolled_count, c.tags, c.certificate_enabled]
+          );
+        }
+
+        // --- SCHOOL MODULES + LESSONS (sample for first 3 courses) ---
+        const modules = [
+          { id: 'mod1', course_id: 'crs1', title: 'Введение в терапевтическую стоматологию', sort_order: 1 },
+          { id: 'mod2', course_id: 'crs1', title: 'Диагностика кариеса', sort_order: 2 },
+          { id: 'mod3', course_id: 'crs1', title: 'Препарирование и пломбирование', sort_order: 3 },
+          { id: 'mod4', course_id: 'crs2', title: 'Основы имплантологии', sort_order: 1 },
+          { id: 'mod5', course_id: 'crs2', title: 'Хирургический протокол', sort_order: 2 },
+          { id: 'mod6', course_id: 'crs2', title: 'Протезирование на имплантах', sort_order: 3 },
+          { id: 'mod7', course_id: 'crs8', title: 'Анатомия корневых каналов', sort_order: 1 },
+          { id: 'mod8', course_id: 'crs8', title: 'Инструменты и техники', sort_order: 2 },
+        ];
+        for (const m of modules) {
+          await pool.query('INSERT INTO school_modules (id, course_id, title, sort_order) VALUES ($1,$2,$3,$4)', [m.id, m.course_id, m.title, m.sort_order]);
+        }
+
+        const lessons = [
+          { id: 'l1', module_id: 'mod1', course_id: 'crs1', title: 'Обзор дисциплины', type: 'video', duration_minutes: 15, sort_order: 1, is_free: true },
+          { id: 'l2', module_id: 'mod1', course_id: 'crs1', title: 'Инструментарий терапевта', type: 'video', duration_minutes: 25, sort_order: 2, is_free: true },
+          { id: 'l3', module_id: 'mod1', course_id: 'crs1', title: 'Материалы для пломбирования', type: 'text', duration_minutes: 20, sort_order: 3 },
+          { id: 'l4', module_id: 'mod2', course_id: 'crs1', title: 'Визуальный осмотр и зондирование', type: 'video', duration_minutes: 30, sort_order: 1 },
+          { id: 'l5', module_id: 'mod2', course_id: 'crs1', title: 'Рентгенодиагностика', type: 'video', duration_minutes: 35, sort_order: 2 },
+          { id: 'l6', module_id: 'mod2', course_id: 'crs1', title: 'Тест: диагностика кариеса', type: 'test', duration_minutes: 15, sort_order: 3 },
+          { id: 'l7', module_id: 'mod3', course_id: 'crs1', title: 'Препарирование кариозной полости', type: 'video', duration_minutes: 40, sort_order: 1 },
+          { id: 'l8', module_id: 'mod3', course_id: 'crs1', title: 'Наложение коффердама', type: 'video', duration_minutes: 20, sort_order: 2 },
+          { id: 'l9', module_id: 'mod4', course_id: 'crs2', title: 'История дентальной имплантации', type: 'video', duration_minutes: 20, sort_order: 1, is_free: true },
+          { id: 'l10', module_id: 'mod4', course_id: 'crs2', title: 'Биомеханика остеоинтеграции', type: 'text', duration_minutes: 25, sort_order: 2 },
+          { id: 'l11', module_id: 'mod5', course_id: 'crs2', title: 'Планирование по КЛКТ', type: 'video', duration_minutes: 45, sort_order: 1 },
+          { id: 'l12', module_id: 'mod5', course_id: 'crs2', title: 'Хирургический набор и протокол', type: 'video', duration_minutes: 50, sort_order: 2 },
+        ];
+        for (const l of lessons) {
+          await pool.query(
+            'INSERT INTO school_lessons (id, module_id, course_id, title, type, duration_minutes, sort_order, is_free) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+            [l.id, l.module_id, l.course_id, l.title, l.type, l.duration_minutes, l.sort_order, l.is_free || false]
+          );
+        }
+
+        // --- SCHOOL CLINICAL CASES ---
+        const cases = [
+          { id: 'cc1', category: 'Терапия', title: 'Восстановление переднего зуба после травмы', description: 'Пациент 25 лет,复合性 перелом зуба 11. Этапы восстановления: эндодонтия → штифт → коронка.', diagnosis: 'Перелом коронки зуба 11, пульпит', treatment_plan: 'Эндодонтическое лечение → углепластиковый штифт → керамическая коронка', author: 'Иванова М.С.', difficulty: 'medium' },
+          { id: 'cc2', category: 'Имплантация', title: 'Полная адентия нижней челюсти', description: 'Пациент 62 года, адентия нижней челюсти. All-on-4 на 4 имплантах Osstem TS III.', diagnosis: 'Полная адентия нижней челюсти, атрофия альвеолярного отростка', treatment_plan: 'All-on-4: 2 ангулярных + 2 базальных импланта → мостовидный протез', author: 'Бекжан Н.', difficulty: 'hard' },
+          { id: 'cc3', category: 'Ортодонтия', title: 'Дисталь прикус у подростка', description: 'Пациент 14 лет, дистальный прикус, скученность зубов нижней челюсти. Лечение брекет-системой.', diagnosis: 'Дистальный прикус II класс, скученность', treatment_plan: 'Лечение на самолигирующих брекетах Damon Q, 18 месяцев', author: 'Каримова А.Т.', difficulty: 'medium' },
+          { id: 'cc4', category: 'Хирургия', title: 'Удаление ретинированного зуба мудрости', description: 'Пациент 28 лет, ретинированный зуб 48, горизонтальное положение. Синус-лифтинг латеральный.', diagnosis: 'Ретенция зуба 48, дистопия', treatment_plan: 'Удаление под местной анестезией → контроль через 7 дней', author: 'Петров А.И.', difficulty: 'hard' },
+          { id: 'cc5', category: 'Эндодонтия', title: 'Перелечивание канала зуба 46', description: 'Пациент 45 лет, боли в зубе 46 после прежнего лечения. Перелечивание под микроскопом.', diagnosis: 'Периапикальный периодонтит зуба 46, перфорация дна полости', treatment_plan: 'Перелечивание каналов:拆除旧充填物 → постановка MTA → пломбирование', author: 'Иванова М.С.', difficulty: 'hard' },
+          { id: 'cc6', category: 'Ортопедия', title: 'CAD/CAM реставрация: коронка на зуб 45', description: 'Пациент 38 лет, кариозная полость IV класса по Блеку. Восстановление керамической коронкой по протоколу CEREC.', diagnosis: 'Кариес зуба 45, дефект более 2/3 коронки', treatment_plan: 'Препарирование → внутриротовое сканирование → фрезерование коронки e.max → цементировка', author: 'Смирнов Д.', difficulty: 'medium' },
+        ];
+        for (const c of cases) {
+          await pool.query(
+            `INSERT INTO school_clinical_cases (id, category, title, description, diagnosis, treatment_plan, author, difficulty) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+            [c.id, c.category, c.title, c.description, c.diagnosis, c.treatment_plan, c.author, c.difficulty]
+          );
+        }
+
+        // --- SCHOOL LIBRARY ---
+        const libItems = [
+          { id: 'lib1', category: 'Протоколы', title: 'Протокол лечения кариеса I класса', type: 'protocol', author: 'Иванова М.С.', tags: '["кариес","протокол","терапия"]' },
+          { id: 'lib2', category: 'Исследования', title: 'Сравнение эффективности NiTi-инструментов', type: 'research', author: 'Петров А.И.', tags: '["эндодонтия","NiTi","исследование"]' },
+          { id: 'lib3', category: 'Статьи', title: 'Цифровые оттиски: обзор технологий 2024', type: 'article', author: 'Смирнов Д.', tags: '["сканер","CAD/CAM","обзор"]' },
+          { id: 'lib4', category: 'Шаблоны', title: 'Шаблон информированного согласия', type: 'template', author: 'ДентВижн', tags: '["документ","согласие","шаблон"]' },
+          { id: 'lib5', category: 'Протоколы', title: 'Протокол отбеливания зубов', type: 'protocol', author: 'Каримова А.Т.', tags: '["отбеливание","протокол","эстетика"]' },
+          { id: 'lib6', category: 'Исследования', title: 'Остеоинтеграция: факторы успеха', type: 'research', author: 'Бекжан Н.', tags: '["имплантация","остеоинтеграция","исследование"]' },
+          { id: 'lib7', category: 'Статьи', title: 'AI в диагностике кариеса: систематический обзор', type: 'article', author: 'Технологов Д.', tags: '["AI","диагностика","обзор"]' },
+          { id: 'lib8', category: 'Шаблоны', title: 'Шаблон плана лечения', type: 'template', author: 'ДентВижн', tags: '["документ","план","шаблон"]' },
+        ];
+        for (const l of libItems) {
+          await pool.query(
+            `INSERT INTO school_library (id, category, title, type, author, tags) VALUES ($1,$2,$3,$4,$5,$6)`,
+            [l.id, l.category, l.title, l.type, l.author, l.tags]
+          );
+        }
+
+        console.log('School seed data inserted');
+      }
+    } catch (seedErr) {
+      console.error('Shop/School seed error:', seedErr.message);
+    }
 
     console.log('Database initialized successfully');
   } catch (err) {
@@ -1249,6 +1686,204 @@ app.post('/api/backup', async (req, res) => {
   } catch {
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SHOP ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/shop/categories', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM shop_categories ORDER BY sort_order');
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/shop/products', async (req, res) => {
+  try {
+    const { category, search, sort, min_price, max_price, brand } = req.query;
+    let query = `SELECT p.*, c.name as category_name, s.name as supplier_name, s.country as supplier_country
+                 FROM shop_products p LEFT JOIN shop_categories c ON p.category_id = c.id
+                 LEFT JOIN shop_suppliers s ON p.supplier_id = s.id WHERE 1=1`;
+    const params = []; let idx = 1;
+    if (category) { query += ` AND p.category_id = $${idx++}`; params.push(category); }
+    if (search) { query += ` AND (LOWER(p.name) LIKE $${idx} OR LOWER(p.brand) LIKE $${idx} OR LOWER(p.description) LIKE $${idx})`; params.push(`%${search.toLowerCase()}%`); idx++; }
+    if (min_price) { query += ` AND p.price >= $${idx++}`; params.push(Number(min_price)); }
+    if (max_price) { query += ` AND p.price <= $${idx++}`; params.push(Number(max_price)); }
+    if (brand) { query += ` AND LOWER(p.brand) = $${idx++}`; params.push(brand.toLowerCase()); }
+    if (sort === 'price_asc') query += ' ORDER BY p.price ASC';
+    else if (sort === 'price_desc') query += ' ORDER BY p.price DESC';
+    else if (sort === 'rating') query += ' ORDER BY p.rating DESC';
+    else if (sort === 'newest') query += ' ORDER BY p.created_at DESC';
+    else query += ' ORDER BY p.rating DESC, p.review_count DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/shop/products/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.*, c.name as category_name, s.name as supplier_name, s.country as supplier_country, s.delivery_days, s.delivery_cost, s.free_delivery_from
+       FROM shop_products p LEFT JOIN shop_categories c ON p.category_id = c.id
+       LEFT JOIN shop_suppliers s ON p.supplier_id = s.id WHERE p.id = $1`, [req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
+    const reviews = await pool.query('SELECT * FROM shop_reviews WHERE product_id = $1 ORDER BY created_at DESC', [req.params.id]);
+    const related = await pool.query('SELECT * FROM shop_products WHERE category_id = $1 AND id != $2 LIMIT 6', [result.rows[0].category_id, req.params.id]);
+    res.json({ ...result.rows[0], reviews: reviews.rows, related: related.rows });
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/shop/suppliers', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM shop_suppliers ORDER BY name');
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.post('/api/shop/orders', async (req, res) => {
+  try {
+    const { clinic_id, user_id, user_name, items, delivery_address, delivery_method, payment_method, notes } = req.body;
+    if (!items || items.length === 0) return res.status(400).json({ error: 'No items' });
+    const orderId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    let total = 0; const orderItems = [];
+    for (const item of items) {
+      const prod = await pool.query('SELECT * FROM shop_products WHERE id = $1', [item.product_id]);
+      if (!prod.rows[0]) continue;
+      const itemTotal = prod.rows[0].price * item.quantity; total += itemTotal;
+      const itemId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+      orderItems.push({ id: itemId, product_id: item.product_id, product_name: prod.rows[0].name, quantity: item.quantity, price: prod.rows[0].price, total: itemTotal });
+    }
+    const deliveryCost = total >= 50000 ? 0 : 2500;
+    await pool.query('INSERT INTO shop_orders (id, clinic_id, user_id, user_name, status, total, delivery_address, delivery_method, delivery_cost, payment_method, notes) VALUES ($1,$2,$3,$4,\'pending\',$5,$6,$7,$8,$9,$10)', [orderId, clinic_id, user_id, user_name, total + deliveryCost, delivery_address, delivery_method, deliveryCost, payment_method, notes]);
+    for (const item of orderItems) {
+      await pool.query('INSERT INTO shop_order_items (id, order_id, product_id, product_name, quantity, price, total) VALUES ($1,$2,$3,$4,$5,$6,$7)', [item.id, orderId, item.product_id, item.product_name, item.quantity, item.price, item.total]);
+      await pool.query('UPDATE shop_products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.product_id]);
+    }
+    res.json({ id: orderId, total: total + deliveryCost, items: orderItems });
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/shop/orders', async (req, res) => {
+  try {
+    const { clinic_id } = req.query;
+    let query = 'SELECT * FROM shop_orders'; const params = [];
+    if (clinic_id) { query += ' WHERE clinic_id = $1'; params.push(clinic_id); }
+    query += ' ORDER BY created_at DESC';
+    const result = await pool.query(query, params);
+    for (const order of result.rows) { const items = await pool.query('SELECT * FROM shop_order_items WHERE order_id = $1', [order.id]); order.items = items.rows; }
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.post('/api/shop/reviews', async (req, res) => {
+  try {
+    const { product_id, clinic_id, user_id, user_name, rating, pros, cons, comment } = req.body;
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    await pool.query('INSERT INTO shop_reviews (id, product_id, clinic_id, user_id, user_name, rating, pros, cons, comment) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [id, product_id, clinic_id, user_id, user_name, rating, pros, cons, comment]);
+    await pool.query('UPDATE shop_products SET rating = (SELECT AVG(rating)::DECIMAL(2,1) FROM shop_reviews WHERE product_id = $1), review_count = (SELECT COUNT(*) FROM shop_reviews WHERE product_id = $1) WHERE id = $1', [product_id]);
+    res.json({ id, success: true });
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.post('/api/shop/favorites', async (req, res) => {
+  try {
+    const { clinic_id, user_id, product_id } = req.body;
+    const existing = await pool.query('SELECT id FROM shop_favorites WHERE clinic_id = $1 AND product_id = $2', [clinic_id, product_id]);
+    if (existing.rows[0]) { await pool.query('DELETE FROM shop_favorites WHERE id = $1', [existing.rows[0].id]); return res.json({ added: false }); }
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    await pool.query('INSERT INTO shop_favorites (id, clinic_id, user_id, product_id) VALUES ($1,$2,$3,$4)', [id, clinic_id, user_id, product_id]);
+    res.json({ added: true, id });
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/shop/favorites', async (req, res) => {
+  try {
+    const { clinic_id } = req.query;
+    const result = await pool.query('SELECT f.*, p.name, p.brand, p.price, p.image_url, p.rating, p.review_count, p.stock FROM shop_favorites f JOIN shop_products p ON f.product_id = p.id WHERE f.clinic_id = $1 ORDER BY f.created_at DESC', [clinic_id]);
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SCHOOL ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/school/courses', async (req, res) => {
+  try {
+    const { category, search, difficulty } = req.query;
+    let query = 'SELECT * FROM school_courses WHERE 1=1'; const params = []; let idx = 1;
+    if (category) { query += ` AND category = $${idx++}`; params.push(category); }
+    if (search) { query += ` AND (LOWER(title) LIKE $${idx} OR LOWER(description) LIKE $${idx})`; params.push(`%${search.toLowerCase()}%`); idx++; }
+    if (difficulty) { query += ` AND difficulty = $${idx++}`; params.push(difficulty); }
+    query += ' ORDER BY enrolled_count DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/school/courses/:id', async (req, res) => {
+  try {
+    const course = await pool.query('SELECT * FROM school_courses WHERE id = $1', [req.params.id]);
+    if (!course.rows[0]) return res.status(404).json({ error: 'Not found' });
+    const modules = await pool.query('SELECT * FROM school_modules WHERE course_id = $1 ORDER BY sort_order', [req.params.id]);
+    for (const mod of modules.rows) {
+      const lessons = await pool.query('SELECT * FROM school_lessons WHERE module_id = $1 ORDER BY sort_order', [mod.id]);
+      mod.lessons = lessons.rows;
+    }
+    res.json({ ...course.rows[0], modules: modules.rows });
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.post('/api/school/enrollments', async (req, res) => {
+  try {
+    const { clinic_id, user_id, user_name, course_id } = req.body;
+    const existing = await pool.query('SELECT * FROM school_enrollments WHERE user_id = $1 AND course_id = $2', [user_id, course_id]);
+    if (existing.rows[0]) return res.json(existing.rows[0]);
+    const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    await pool.query('INSERT INTO school_enrollments (id, clinic_id, user_id, user_name, course_id) VALUES ($1,$2,$3,$4,$5)', [id, clinic_id, user_id, user_name, course_id]);
+    await pool.query('UPDATE school_courses SET enrolled_count = enrolled_count + 1 WHERE id = $1', [course_id]);
+    res.json({ id, success: true });
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/school/enrollments', async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    const result = await pool.query('SELECT e.*, c.title, c.category, c.difficulty, c.image_url, c.instructor FROM school_enrollments e JOIN school_courses c ON e.course_id = c.id WHERE e.user_id = $1 ORDER BY e.started_at DESC', [user_id]);
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/school/clinical-cases', async (req, res) => {
+  try {
+    const { category } = req.query;
+    let query = 'SELECT * FROM school_clinical_cases'; const params = [];
+    if (category) { query += ' WHERE category = $1'; params.push(category); }
+    query += ' ORDER BY created_at DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/school/library', async (req, res) => {
+  try {
+    const { category, type } = req.query;
+    let query = 'SELECT * FROM school_library WHERE 1=1'; const params = []; let idx = 1;
+    if (category) { query += ` AND category = $${idx++}`; params.push(category); }
+    if (type) { query += ` AND type = $${idx++}`; params.push(type); }
+    query += ' ORDER BY created_at DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
+
+app.get('/api/school/certificates', async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    const result = await pool.query('SELECT * FROM school_certificates WHERE user_id = $1 ORDER BY issued_at DESC', [user_id]);
+    res.json(result.rows);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Graceful shutdown

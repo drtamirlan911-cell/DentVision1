@@ -12,31 +12,31 @@ export const ROLES = {
   superadmin: {
     label: 'Super Admin',
     icon: '⚙️',
-    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','admin','audit','backup'],
+    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','admin','audit','backup','shop','school'],
     canSeeSalary: true, canSeeSuperAdmin: true, canAddStaff: true, canSeeAudit: true, canBackup: true,
   },
   director: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','staff','audit','backup'],
+    pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','staff','audit','backup','shop','school'],
     canSeeSalary: true, canSeeReports: true, canAddStaff: true, canSeeExpenses: true, canSeeAudit: true, canBackup: true,
   },
   admin: {
     label: 'Администратор',
     icon: '💼',
-    pages: ['schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','reminders','promotions','inventory','staff','documents'],
+    pages: ['schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','reminders','promotions','inventory','staff','documents','shop','school'],
     canSeeSalary: false, canSeeExpenses: false, canAddStaff: true,
   },
   doctor: {
     label: 'Врач',
     icon: '👨‍⚕️',
-    pages: ['schedule','patients','medical-card','visits','icd10','documents','lab','ai','reminders'],
+    pages: ['schedule','patients','medical-card','visits','icd10','documents','lab','ai','reminders','school'],
     canSeeSalary: false, ownDataOnly: true,
   },
   assistant: {
     label: 'Ассистент',
     icon: '🤝',
-    pages: ['schedule','patients','visits','documents','reminders'],
+    pages: ['schedule','patients','visits','documents','reminders','shop','school'],
     canSeeSalary: false, ownDataOnly: true, readOnly: true,
   },
 };

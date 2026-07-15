@@ -23,6 +23,8 @@ import {
   ClipboardList,
   Shield,
   Database,
+  ShoppingBag,
+  GraduationCap,
 } from 'lucide-react';
 import { useUIStore } from '../stores/useUIStore';
 import { T } from '../utils/constants';
@@ -59,6 +61,8 @@ const ALL_NAV: NavItem[] = [
   { id: 'audit', label: 'Аудит-журнал', icon: <Shield size={18} />, path: '/audit' },
   { id: 'backup', label: 'Резерв. копии', icon: <Database size={18} />, path: '/backup' },
   { id: 'admin', label: 'Super Admin', icon: <Settings size={18} />, path: '/admin' },
+  { id: 'shop', label: 'DentVision Shop', icon: <ShoppingBag size={18} />, path: '/shop' },
+  { id: 'school', label: 'DentVision School', icon: <GraduationCap size={18} />, path: '/school' },
 ];
 
 const ROLE_LABELS: Record<string, string> = {

@@ -248,3 +248,35 @@ export async function getTreatments(clinicId) {
 export async function getWaitingList(clinicId) {
   return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.waitingList || d.waiting_list || []);
 }
+
+// ─── Shop ───
+export async function getShopCategories() { return apiRequest('/api/shop/categories'); }
+export async function getShopProducts(params = {}) {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
+  return apiRequest(`/api/shop/products?${q}`);
+}
+export async function getShopProduct(id) { return apiRequest(`/api/shop/products/${id}`); }
+export async function getShopSuppliers() { return apiRequest('/api/shop/suppliers'); }
+export async function createShopOrder(data) { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getShopOrders(clinicId) { return apiRequest(`/api/shop/orders?clinic_id=${clinicId}`); }
+export async function createShopReview(data) { return apiRequest('/api/shop/reviews', { method: 'POST', body: JSON.stringify(data) }); }
+export async function toggleShopFavorite(data) { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getShopFavorites(clinicId) { return apiRequest(`/api/shop/favorites?clinic_id=${clinicId}`); }
+
+// ─── School ───
+export async function getSchoolCourses(params = {}) {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
+  return apiRequest(`/api/school/courses?${q}`);
+}
+export async function getSchoolCourse(id) { return apiRequest(`/api/school/courses/${id}`); }
+export async function enrollCourse(data) { return apiRequest('/api/school/enrollments', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getEnrollments(userId) { return apiRequest(`/api/school/enrollments?user_id=${userId}`); }
+export async function getSchoolClinicalCases(category) { return apiRequest(`/api/school/clinical-cases${category ? `?category=${category}` : ''}`); }
+export async function getSchoolLibrary(params = {}) {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
+  return apiRequest(`/api/school/library?${q}`);
+}
+export async function getSchoolCertificates(userId) { return apiRequest(`/api/school/certificates?user_id=${userId}`); }
