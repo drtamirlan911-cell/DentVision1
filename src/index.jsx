@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { AppLayout } from './layouts/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastProvider } from './components/ui/ds';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import PublicBooking from './pages/PublicBooking';
@@ -58,8 +59,9 @@ if (container) {
   root.render(
     <React.StrictMode>
       <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
+        <ToastProvider>
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter>
             <AuthProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -97,6 +99,7 @@ if (container) {
             </AuthProvider>
           </BrowserRouter>
         </QueryClientProvider>
+        </ToastProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );
