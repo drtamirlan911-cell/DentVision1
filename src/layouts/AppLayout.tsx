@@ -6,7 +6,7 @@ import { BottomNav } from '@/components/ui/ds/BottomNav'
 import { useAuth } from '@/context/AuthContext'
 
 export function AppLayout() {
-  const { user, isAuthenticated, roleInfo, logout } = useAuth()
+  const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth()
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />
@@ -31,7 +31,7 @@ export function AppLayout() {
         <Topbar />
         <main className="flex-1 overflow-y-auto">
           <div className="page-enter p-4 md:p-6 pb-20 md:pb-6">
-            <Outlet />
+            <Outlet context={{ user, clinic, roleInfo }} />
           </div>
         </main>
       </div>
