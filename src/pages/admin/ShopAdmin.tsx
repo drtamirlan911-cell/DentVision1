@@ -38,13 +38,13 @@ export default function ShopAdmin() {
       <PageHeader
         title="Кабинет продавца"
         subtitle="Управляйте товарами, категориями и поставщиками Магазина"
-        icon={ShoppingCart}
+        icon={<ShoppingCart size={16} />}
       />
       <Tabs
         tabs={[
-          { id: 'products', label: 'Товары', icon: Package },
-          { id: 'categories', label: 'Категории', icon: Tag },
-          { id: 'suppliers', label: 'Поставщики', icon: Truck },
+          { id: 'products', label: 'Товары', icon: <Package size={16} /> },
+          { id: 'categories', label: 'Категории', icon: <Tag size={16} /> },
+          { id: 'suppliers', label: 'Поставщики', icon: <Truck size={16} /> },
         ]}
         active={tab}
         onChange={setTab}
@@ -128,13 +128,13 @@ function ProductsManager() {
       <CardHeader>
         <CardTitle>Товары ({items.length})</CardTitle>
         <div className="flex gap-2">
-          <Input placeholder="Поиск..." value={query} onChange={e => setQuery(e.target.value)} icon={Search} className="w-48" />
-          <Button onClick={openCreate} icon={Plus}>Добавить</Button>
+          <Input placeholder="Поиск..." value={query} onChange={e => setQuery(e.target.value)} icon={<Search size={16} />} className="w-48" />
+          <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
         </div>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
-          : filtered.length === 0 ? <EmptyState icon={Package} title="Нет товаров" description="Добавьте первый товар в Магазин" />
+          : filtered.length === 0 ? <EmptyState icon={<Package size={16} />} title="Нет товаров" description="Добавьте первый товар в Магазин" />
             : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -210,7 +210,7 @@ function CategoriesManager() {
   useEffect(() => { load() }, [load])
 
   function openCreate() { setEditing(null); setForm({ name: '', slug: '', icon: '', description: '', sortOrder: '' }); setOpen(true) }
-  function openEdit(c: Category) { setEditing(c); setForm({ name: c.name, slug: c.slug, icon: c.icon || '', description: c.description || '', sortOrder: String(c.sortOrder ?? 0) }); setOpen(true) }
+  function openEdit(c: Category) { setEditing(c); setForm({ name: c.name, slug: c.slug, icon: <c size={16} />.icon || '', description: c.description || '', sortOrder: String(c.sortOrder ?? 0) }); setOpen(true) }
 
   async function save() {
     if (!form.name?.trim() || !form.slug?.trim()) { toast.error('Введите название и slug'); return }
@@ -229,11 +229,11 @@ function CategoriesManager() {
     <Card>
       <CardHeader>
         <CardTitle>Категории ({items.length})</CardTitle>
-        <Button onClick={openCreate} icon={Plus}>Добавить</Button>
+        <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
-          : items.length === 0 ? <EmptyState icon={Tag} title="Нет категорий" description="Сгруппируйте товары по категориям" />
+          : items.length === 0 ? <EmptyState icon={<Tag size={16} />} title="Нет категорий" description="Сгруппируйте товары по категориям" />
             : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {items.map(c => (
@@ -255,7 +255,7 @@ function CategoriesManager() {
         <div className="grid grid-cols-2 gap-3">
           <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           <Input label="Slug *" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="naprimer-instrument" />
-          <Input label="Иконка (emoji/символ)" value={form.icon} onChange={e => setForm({ ...form, icon: e.target.value })} />
+          <Input label="Иконка (emoji/символ)" value={form.icon} onChange={e => setForm({ ...form, icon: <e size={16} />.target.value })} />
           <Input label="Порядок" type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} />
           <Textarea label="Описание" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="col-span-2" />
         </div>
@@ -319,11 +319,11 @@ function SuppliersManager() {
     <Card>
       <CardHeader>
         <CardTitle>Поставщики ({items.length})</CardTitle>
-        <Button onClick={openCreate} icon={Plus}>Добавить</Button>
+        <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
-          : items.length === 0 ? <EmptyState icon={Truck} title="Нет поставщиков" description="Добавьте поставщиков оборудования" />
+          : items.length === 0 ? <EmptyState icon={<Truck size={16} />} title="Нет поставщиков" description="Добавьте поставщиков оборудования" />
             : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -375,3 +375,4 @@ function SuppliersManager() {
     </Card>
   )
 }
+

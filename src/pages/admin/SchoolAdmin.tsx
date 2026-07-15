@@ -35,13 +35,13 @@ export default function SchoolAdmin() {
       <PageHeader
         title="Кабинет методиста"
         subtitle="Управляйте курсами, клиническими кейсами и библиотекой Академии"
-        icon={GraduationCap}
+        icon={<GraduationCap size={16} />}
       />
       <Tabs
         tabs={[
-          { id: 'courses', label: 'Курсы', icon: BookOpen },
-          { id: 'cases', label: 'Кейсы', icon: Lightbulb },
-          { id: 'library', label: 'Библиотека', icon: Library },
+          { id: 'courses', label: 'Курсы', icon: <BookOpen size={16} /> },
+          { id: 'cases', label: 'Кейсы', icon: <Lightbulb size={16} /> },
+          { id: 'library', label: 'Библиотека', icon: <Library size={16} /> },
         ]}
         active={tab}
         onChange={setTab}
@@ -119,7 +119,7 @@ function CoursesManager() {
         durationHours: Number(form.durationHours) || 0, lessonCount: Number(form.lessonCount) || 0,
         price: Number(form.price) || 0, rating: Number(form.rating) || 0,
         tags: (form.tags || '').split(',').map((t: string) => t.trim()).filter(Boolean),
-        modules: form.modules.map((m: any) => ({
+        modules: (form.modules || []).map((m: any) => ({
           id: m.id, title: m.title,
           lessons: (m.lessons || []).map((l: any) => ({ id: l.id, title: l.title, duration: Number(l.duration) || 0, type: l.type, contentUrl: l.contentUrl || null })),
         })),
@@ -143,13 +143,13 @@ function CoursesManager() {
       <CardHeader>
         <CardTitle>Курсы ({items.length})</CardTitle>
         <div className="flex gap-2">
-          <Input placeholder="Поиск..." value={query} onChange={e => setQuery(e.target.value)} icon={Search} className="w-48" />
-          <Button onClick={openCreate} icon={Plus}>Добавить</Button>
+          <Input placeholder="Поиск..." value={query} onChange={e => setQuery(e.target.value)} icon={<Search size={16} />} className="w-48" />
+          <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
         </div>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
-          : filtered.length === 0 ? <EmptyState icon={BookOpen} title="Нет курсов" description="Создайте первый курс Академии" />
+          : filtered.length === 0 ? <EmptyState icon={<BookOpen size={16} />} title="Нет курсов" description="Создайте первый курс Академии" />
             : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filtered.map(c => (
@@ -201,10 +201,10 @@ function CoursesManager() {
         <div className="mt-4 border-t pt-3">
           <div className="flex items-center justify-between mb-2">
             <p className="font-medium">Модули и уроки</p>
-            <Button variant="outline" size="sm" onClick={addModule} icon={Plus}>Модуль</Button>
+            <Button variant="outline" size="sm" onClick={addModule} icon={<Plus size={16} />}>Модуль</Button>
           </div>
           <div className="space-y-2">
-            {form.modules.map((m: any, mi: number) => (
+              {(form.modules || []).map((m: any, mi: number) => (
               <div key={mi} className="border rounded-lg p-3 bg-muted/30">
                 <div className="flex items-center gap-2">
                   <GripVertical size={16} className="text-muted-foreground" />
@@ -221,11 +221,11 @@ function CoursesManager() {
                       <Button variant="ghost" size="icon" onClick={() => removeLesson(mi, li)}><X size={16} /></Button>
                     </div>
                   ))}
-                  <Button variant="ghost" size="sm" onClick={() => addLesson(mi)} icon={Plus}>Урок</Button>
+                  <Button variant="ghost" size="sm" onClick={() => addLesson(mi)} icon={<Plus size={16} />}>Урок</Button>
                 </div>
               </div>
             ))}
-            {form.modules.length === 0 && <p className="text-xs text-muted-foreground">Модули не добавлены — курс без уроков</p>}
+            {(form.modules || []).length === 0 && <p className="text-xs text-muted-foreground">Модули не добавлены — курс без уроков</p>}
           </div>
         </div>
 
@@ -272,11 +272,11 @@ function CasesManager() {
     <Card>
       <CardHeader>
         <CardTitle>Клинические кейсы ({items.length})</CardTitle>
-        <Button onClick={openCreate} icon={Plus}>Добавить</Button>
+        <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
-          : items.length === 0 ? <EmptyState icon={Lightbulb} title="Нет кейсов" description="Добавьте разбор клинического случая" />
+          : items.length === 0 ? <EmptyState icon={<Lightbulb size={16} />} title="Нет кейсов" description="Добавьте разбор клинического случая" />
             : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {items.map(c => (
@@ -348,11 +348,11 @@ function LibraryManager() {
     <Card>
       <CardHeader>
         <CardTitle>Библиотека ({items.length})</CardTitle>
-        <Button onClick={openCreate} icon={Plus}>Добавить</Button>
+        <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
-          : items.length === 0 ? <EmptyState icon={Library} title="Пусто" description="Добавьте статьи, видео и файлы" />
+          : items.length === 0 ? <EmptyState icon={<Library size={16} />} title="Пусто" description="Добавьте статьи, видео и файлы" />
             : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -399,3 +399,4 @@ function LibraryManager() {
     </Card>
   )
 }
+
