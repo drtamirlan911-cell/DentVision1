@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, Award, BookOpen, Check, Lock, FileText, Video, HelpCircle, Target } from 'lucide-react';
-import { T } from '../utils/constants';
+import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle } from 'lucide-react';
+import { Button, Badge, EmptyState, Card } from '../components/ui/ds';
 import * as api from '../utils/api';
 
-const DIFF_COLORS = { beginner: T.emerald, intermediate: T.gold, advanced: T.ruby };
+const DIFF_COLORS = { beginner: '#27AE60', intermediate: '#C9A96E', advanced: '#E74C3C' };
 const DIFF_LABELS = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
 const TYPE_ICONS = { video: Video, text: FileText, test: HelpCircle };
 const TYPE_LABELS = { video: 'Видео', text: 'Статья', test: 'Тест' };
@@ -36,110 +36,117 @@ export default function SchoolCourse() {
   };
 
   if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
-      <div style={{ width: 36, height: 36, borderRadius: '50%', border: `3px solid ${T.gold}30`, borderTopColor: T.gold, animation: 'spin 0.8s linear infinite' }} />
+    <div className="flex justify-center py-20">
+      <div className="w-9 h-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" />
     </div>
   );
 
-  if (!course) return <div style={{ padding: 40, textAlign: 'center', color: T.slate }}>Курс не найден</div>;
+  if (!course) return <div className="py-10 text-center text-[var(--slate)]">Курс не найден</div>;
 
   return (
-    <div style={{ minHeight: '100vh' }}>
+    <div className="min-h-screen">
       {/* Breadcrumb */}
-      <div style={{ padding: '12px 24px', borderBottom: `1px solid ${T.borderSub}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.slate }}>
-          <button onClick={() => navigate('/school')} style={{ background: 'none', border: 'none', color: T.gold, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit', fontSize: 12 }}>
+      <div className="px-6 py-3 border-b border-[var(--border-subtle)]">
+        <div className="flex items-center gap-2 text-xs text-[var(--slate)]">
+          <button
+            onClick={() => navigate('/school')}
+            className="flex items-center gap-1 bg-transparent border-none text-[#C9A96E] cursor-pointer font-inherit text-xs"
+          >
             <ArrowLeft size={14} /> School
           </button>
           <ChevronRight size={12} />
           <span>{course.category}</span>
           <ChevronRight size={12} />
-          <span style={{ color: T.white }}>{course.title}</span>
+          <span className="text-white">{course.title}</span>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: activeLesson ? '350px 1fr' : '1fr', gap: 0, minHeight: 'calc(100vh - 60px)' }}>
+      <div
+        className="grid gap-0 min-h-[calc(100vh-60px)]"
+        style={{ gridTemplateColumns: activeLesson ? '350px 1fr' : '1fr' }}
+      >
         {/* Course sidebar / modules */}
-        <div style={{ borderRight: `1px solid ${T.borderSub}`, overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' }}>
+        <div className="border-r border-[var(--border-subtle)] overflow-y-auto max-h-[calc(100vh-60px)]">
           {/* Course info header */}
-          <div style={{ padding: 20, borderBottom: `1px solid ${T.borderSub}` }}>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: DIFF_COLORS[course.difficulty] + '15', color: DIFF_COLORS[course.difficulty] }}>
+          <div className="p-5 border-b border-[var(--border-subtle)]">
+            <div className="flex gap-1.5 mb-2">
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+                style={{ background: DIFF_COLORS[course.difficulty] + '15', color: DIFF_COLORS[course.difficulty] }}
+              >
                 {DIFF_LABELS[course.difficulty]}
               </span>
-              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: `${T.gold}15`, color: T.gold }}>
-                {course.category}
-              </span>
+              <Badge variant="gold" size="xs">{course.category}</Badge>
             </div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: T.white, margin: '0 0 6px' }}>{course.title}</h2>
-            <p style={{ fontSize: 12, color: T.slate, margin: '0 0 10px' }}>{course.subtitle}</p>
-            <div style={{ display: 'flex', gap: 12, fontSize: 11, color: T.slate, marginBottom: 12, flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {course.duration_hours}ч</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><BookOpen size={12} /> {course.lesson_count} уроков</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {course.enrolled_count}</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Star size={12} color={T.gold} fill={T.gold} /> {course.rating}</span>
+            <h2 className="text-base font-bold text-white m-0 mb-1.5">{course.title}</h2>
+            <p className="text-xs text-[var(--slate)] m-0 mb-2.5">{course.subtitle}</p>
+            <div className="flex gap-3 text-[11px] text-[var(--slate)] mb-3 flex-wrap">
+              <span className="flex items-center gap-1"><Clock size={12} /> {course.duration_hours}ч</span>
+              <span className="flex items-center gap-1"><BookOpen size={12} /> {course.lesson_count} уроков</span>
+              <span className="flex items-center gap-1"><Users size={12} /> {course.enrolled_count}</span>
+              <span className="flex items-center gap-1"><Star size={12} className="text-[#C9A96E] fill-[#C9A96E]" /> {course.rating}</span>
             </div>
             {!enrolled ? (
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={handleEnroll}
-                style={{
-                  width: '100%', padding: '10px 16px', borderRadius: 10, border: 'none',
-                  background: `linear-gradient(135deg, ${T.gold}, ${T.gold}dd)`, color: '#0D1B2E',
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
+                className="w-full py-2.5 px-4 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit"
+              >
                 Записаться бесплатно
               </motion.button>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.emerald, fontSize: 13, fontWeight: 600 }}>
+              <div className="flex items-center gap-1.5 text-[#27AE60] text-[13px] font-semibold">
                 <Check size={16} /> Вы записаны
               </div>
             )}
           </div>
 
           {/* Modules */}
-          <div style={{ padding: 8 }}>
+          <div className="p-2">
             {course.modules?.map((mod, mi) => {
               const isExpanded = expandedModules[mod.id] !== false;
               return (
-                <div key={mod.id} style={{ marginBottom: 4 }}>
-                  <button onClick={() => toggleModule(mod.id)}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
-                      background: 'rgba(255,255,255,0.02)', border: 'none', borderRadius: 8,
-                      color: T.white, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                      textAlign: 'left',
-                    }}>
-                    <span style={{
-                      width: 22, height: 22, borderRadius: 6, background: `${T.gold}15`, display: 'flex',
-                      alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: T.gold, flexShrink: 0,
-                    }}>
+                <div key={mod.id} className="mb-1">
+                  <button
+                    onClick={() => toggleModule(mod.id)}
+                    className="w-full flex items-center gap-2 py-2.5 px-3 bg-white/[0.02] border-none rounded-lg text-white text-xs font-semibold cursor-pointer font-inherit text-left"
+                  >
+                    <span className="w-[22px] h-[22px] rounded-md bg-[#C9A96E]/15 flex items-center justify-center text-[10px] font-bold text-[#C9A96E] shrink-0">
                       {mi + 1}
                     </span>
-                    <span style={{ flex: 1 }}>{mod.title}</span>
-                    <motion.span animate={{ rotate: isExpanded ? 90 : 0 }}><ChevronRight size={14} color={T.slate} /></motion.span>
+                    <span className="flex-1">{mod.title}</span>
+                    <motion.span animate={{ rotate: isExpanded ? 90 : 0 }}>
+                      <ChevronRight size={14} className="text-[var(--slate)]" />
+                    </motion.span>
                   </button>
                   <AnimatePresence>
                     {isExpanded && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                        style={{ overflow: 'hidden' }}>
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
                         {mod.lessons?.map((lesson) => {
                           const LIcon = TYPE_ICONS[lesson.type] || FileText;
                           const isActive = activeLesson?.id === lesson.id;
                           return (
-                            <button key={lesson.id} onClick={() => setActiveLesson(lesson)}
-                              style={{
-                                width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px 8px 42px',
-                                background: isActive ? `${T.gold}12` : 'transparent',
-                                border: 'none', borderLeft: isActive ? `3px solid ${T.gold}` : '3px solid transparent',
-                                borderRadius: 4, color: isActive ? T.gold : T.slateL, fontSize: 12, cursor: 'pointer',
-                                fontFamily: 'inherit', textAlign: 'left', transition: 'all .15s',
-                              }}>
+                            <button
+                              key={lesson.id}
+                              onClick={() => setActiveLesson(lesson)}
+                              className={`w-full flex items-center gap-2.5 py-2 px-3 pl-[42px] bg-transparent border-none rounded text-xs cursor-pointer font-inherit text-left transition-all duration-150 ${
+                                isActive
+                                  ? 'border-l-[3px] border-l-[#C9A96E] text-[#C9A96E] bg-[#C9A96E]/[0.12]'
+                                  : 'border-l-[3px] border-l-transparent text-[var(--slate-light)]'
+                              }`}
+                            >
                               <LIcon size={13} />
-                              <span style={{ flex: 1 }}>{lesson.title}</span>
-                              <span style={{ fontSize: 10, color: T.slate, display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <span className="flex-1">{lesson.title}</span>
+                              <span className="text-[10px] text-[var(--slate)] flex items-center gap-0.5">
                                 <Clock size={10} /> {lesson.duration_minutes}м
                               </span>
-                              {lesson.is_free && <span style={{ fontSize: 9, color: T.emerald, fontWeight: 700 }}>FREE</span>}
+                              {lesson.is_free && <span className="text-[9px] text-[#27AE60] font-bold">FREE</span>}
                             </button>
                           );
                         })}
@@ -154,103 +161,96 @@ export default function SchoolCourse() {
 
         {/* Lesson content area */}
         {activeLesson ? (
-          <motion.div key={activeLesson.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-            style={{ padding: 32, overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' }}>
+          <motion.div
+            key={activeLesson.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="p-8 overflow-y-auto max-h-[calc(100vh-60px)]"
+          >
             {/* Video / content area */}
-            <div style={{
-              background: `linear-gradient(135deg, ${T.sapphire}20, ${T.gold}10)`, borderRadius: 16,
-              height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24,
-              border: `1px solid ${T.borderSub}`, position: 'relative',
-            }}>
+            <div className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center mb-6 border border-[var(--border-subtle)] relative">
               {activeLesson.type === 'video' ? (
-                <div style={{ textAlign: 'center' }}>
-                  <motion.div whileHover={{ scale: 1.1 }} style={{
-                    width: 72, height: 72, borderRadius: '50%', background: `linear-gradient(135deg, ${T.gold}, ${T.gold}cc)`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                    boxShadow: `0 0 30px ${T.gold}30`,
-                  }}>
-                    <Play size={30} color="#0D1B2E" fill="#0D1B2E" style={{ marginLeft: 4 }} />
+                <div className="text-center">
+                  <motion.div
+                    whileHover={{ scale: 1.1 }}
+                    className="w-[72px] h-[72px] rounded-full bg-gradient-to-br from-[#C9A96E] to-[#C9A96E]/cc flex items-center justify-center cursor-pointer shadow-[0_0_30px_rgba(201,169,110,0.3)]"
+                  >
+                    <Play size={30} className="text-[#0D1B2E] fill-[#0D1B2E] ml-1" />
                   </motion.div>
-                  <p style={{ fontSize: 12, color: T.slate, marginTop: 12 }}>{activeLesson.duration_minutes} мин</p>
+                  <p className="text-xs text-[var(--slate)] mt-3">{activeLesson.duration_minutes} мин</p>
                 </div>
               ) : activeLesson.type === 'test' ? (
-                <div style={{ textAlign: 'center' }}>
-                  <HelpCircle size={48} color={T.gold + '60'} />
-                  <p style={{ fontSize: 14, color: T.slateL, marginTop: 8 }}>Тест: {activeLesson.title}</p>
-                  <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-                    style={{
-                      marginTop: 12, padding: '10px 24px', borderRadius: 10, border: 'none',
-                      background: `linear-gradient(135deg, ${T.gold}, ${T.gold}dd)`, color: '#0D1B2E',
-                      fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
+                <div className="text-center">
+                  <HelpCircle size={48} className="text-[#C9A96E]/60" />
+                  <p className="text-sm text-[var(--slate-light)] mt-2">Тест: {activeLesson.title}</p>
+                  <motion.button
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="mt-3 py-2.5 px-6 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit"
+                  >
                     Начать тест
                   </motion.button>
                 </div>
               ) : (
-                <div style={{ textAlign: 'center' }}>
-                  <FileText size={48} color={T.gold + '60'} />
-                  <p style={{ fontSize: 14, color: T.slateL, marginTop: 8 }}>Статья: {activeLesson.title}</p>
+                <div className="text-center">
+                  <FileText size={48} className="text-[#C9A96E]/60" />
+                  <p className="text-sm text-[var(--slate-light)] mt-2">Статья: {activeLesson.title}</p>
                 </div>
               )}
             </div>
 
             {/* Lesson info */}
-            <div style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: T.white, margin: '0 0 6px' }}>{activeLesson.title}</h2>
-              <div style={{ display: 'flex', gap: 12, fontSize: 12, color: T.slate, flexWrap: 'wrap' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ padding: '2px 8px', borderRadius: 6, background: `${T.sapphire}15`, color: T.sapphire, fontSize: 10, fontWeight: 600 }}>
+            <div className="mb-5">
+              <h2 className="text-xl font-bold text-white m-0 mb-1.5">{activeLesson.title}</h2>
+              <div className="flex gap-3 text-xs text-[var(--slate)] flex-wrap">
+                <span className="flex items-center gap-1">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#2980B9]/15 text-[#2980B9]">
                     {TYPE_LABELS[activeLesson.type] || activeLesson.type}
                   </span>
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {activeLesson.duration_minutes} мин</span>
+                <span className="flex items-center gap-1"><Clock size={12} /> {activeLesson.duration_minutes} мин</span>
               </div>
             </div>
 
             {/* Content placeholder */}
-            <div style={{
-              background: 'rgba(255,255,255,0.02)', border: `1px solid ${T.borderSub}`, borderRadius: 12,
-              padding: 24, minHeight: 200,
-            }}>
-              <p style={{ fontSize: 14, color: T.slateL, lineHeight: 1.8 }}>
+            <div className="bg-white/[0.02] border border-[var(--border-subtle)] rounded-xl p-6 min-h-[200px]">
+              <p className="text-sm text-[var(--slate-light)] leading-relaxed">
                 {activeLesson.content || `Содержание урока «${activeLesson.title}» будет доступно после начала курса. Видеоматериалы, иллюстрации и интерактивные элементы помогут вам освоить материал.`}
               </p>
             </div>
 
             {/* Navigation */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
-              <button onClick={() => {
-                const allLessons = course.modules?.flatMap(m => m.lessons || []) || [];
-                const idx = allLessons.findIndex(l => l.id === activeLesson.id);
-                if (idx > 0) setActiveLesson(allLessons[idx - 1]);
-              }}
-                style={{
-                  padding: '8px 16px', borderRadius: 8, border: `1px solid ${T.borderSub}`,
-                  background: 'rgba(255,255,255,0.04)', color: T.slateL, fontSize: 12, fontWeight: 600,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}>
+            <div className="flex justify-between mt-5">
+              <button
+                onClick={() => {
+                  const allLessons = course.modules?.flatMap(m => m.lessons || []) || [];
+                  const idx = allLessons.findIndex(l => l.id === activeLesson.id);
+                  if (idx > 0) setActiveLesson(allLessons[idx - 1]);
+                }}
+                className="py-2 px-4 rounded-lg border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] text-xs font-semibold cursor-pointer font-inherit"
+              >
                 ← Предыдущий
               </button>
-              <button onClick={() => {
-                const allLessons = course.modules?.flatMap(m => m.lessons || []) || [];
-                const idx = allLessons.findIndex(l => l.id === activeLesson.id);
-                if (idx < allLessons.length - 1) setActiveLesson(allLessons[idx + 1]);
-              }}
-                style={{
-                  padding: '8px 16px', borderRadius: 8, border: 'none',
-                  background: `linear-gradient(135deg, ${T.gold}, ${T.gold}dd)`, color: '#0D1B2E',
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  const allLessons = course.modules?.flatMap(m => m.lessons || []) || [];
+                  const idx = allLessons.findIndex(l => l.id === activeLesson.id);
+                  if (idx < allLessons.length - 1) setActiveLesson(allLessons[idx + 1]);
+                }}
+              >
                 Следующий →
-              </button>
+              </Button>
             </div>
           </motion.div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.slate }}>
-            <div style={{ textAlign: 'center' }}>
-              <Play size={48} color={T.slate + '40'} style={{ margin: '0 auto 12px' }} />
-              <p>Выберите урок для начала обучения</p>
-            </div>
+          <div className="flex items-center justify-center text-[var(--slate)]">
+            <EmptyState
+              icon={<Play size={48} className="text-[var(--slate)]/40" />}
+              title="Выберите урок для начала обучения"
+            />
           </div>
         )}
       </div>

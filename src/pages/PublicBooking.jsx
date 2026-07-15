@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { T, HOURS, ALL_SERVICES } from '../utils/constants';
-import { rateLimit, validatePhone, validateEmail, escapeHtml, sanitizeInput } from '../utils/security';
-import { Loader2 } from 'lucide-react';
+import { HOURS, ALL_SERVICES } from '../utils/constants';
+import { rateLimit, validatePhone, validateEmail, sanitizeInput } from '../utils/security';
+import { Loader2, Stethoscope, MapPin, Phone, CheckCircle2, X } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
@@ -99,25 +99,25 @@ export default function PublicBooking() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Loader2 size={40} className="animate-spin text-[var(--gold)]" />
+      <div className="min-h-screen bg-[#080F1A] flex items-center justify-center">
+        <Loader2 size={40} className="animate-spin text-[#C9A96E]" />
       </div>
     );
   }
 
   if (success) {
     return (
-      <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
-          <div style={{ fontSize: 64, marginBottom: 20 }}>✅</div>
-          <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 26, color: T.white, marginBottom: 12 }}>Заявка отправлена!</h1>
-          <p style={{ fontSize: 14, color: T.slateL, marginBottom: 24 }}>
+      <div className="min-h-screen bg-[#080F1A] flex items-center justify-center p-5">
+        <div className="max-w-[440px] w-full text-center">
+          <div className="mb-5 flex justify-center text-[#27AE60]">
+            <CheckCircle2 size={64} />
+          </div>
+          <h1 className="font-['Georgia',serif] text-[26px] text-white mb-3">Заявка отправлена!</h1>
+          <p className="text-sm text-[#B0BEC5] mb-6">
             Мы свяжемся с вами для подтверждения записи в ближайшее время.
           </p>
-          <button onClick={() => { setSuccess(false); setForm({ patientName: '', phone: '', email: '', doctorId: '', serviceName: '', date: '', time: '', notes: '' }); }} style={{
-            padding: '12px 28px', background: `linear-gradient(135deg,${T.gold},${T.goldDim})`, border: 'none',
-            borderRadius: 10, color: T.bg, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-          }}>
+          <button onClick={() => { setSuccess(false); setForm({ patientName: '', phone: '', email: '', doctorId: '', serviceName: '', date: '', time: '', notes: '' }); }}
+            className="px-7 py-3 bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] border-none rounded-[10px] text-[#080F1A] text-sm font-bold cursor-pointer">
             Записаться ещё раз
           </button>
         </div>
@@ -126,119 +126,122 @@ export default function PublicBooking() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, padding: '40px 20px' }}>
-      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      <div style={{ maxWidth: 520, margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontSize: 44, marginBottom: 12 }}>🦷</div>
-          <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 28, fontWeight: 700, color: T.white, margin: 0 }}>
+    <div className="min-h-screen bg-[#080F1A] py-10 px-5">
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold shadow-lg ${toast.type === 'success' ? 'bg-[#27AE60] text-white' : toast.type === 'error' ? 'bg-[#E74C3C] text-white' : toast.type === 'warning' ? 'bg-[#F39C12] text-[#080F1A]' : 'bg-[#2980B9] text-white'}`}>
+          {toast.msg}
+          <button onClick={() => setToast(null)} className="ml-2 opacity-70 hover:opacity-100"><X size={14} /></button>
+        </div>
+      )}
+      <div className="max-w-[520px] mx-auto">
+        <div className="text-center mb-9">
+          <div className="mb-3 flex justify-center text-[#C9A96E]">
+            <Stethoscope size={44} />
+          </div>
+          <h1 className="font-['Georgia',serif] text-[28px] font-bold text-white m-0">
             {clinic?.name || 'Онлайн-запись'}
           </h1>
           {clinic?.address && (
-            <p style={{ fontSize: 13, color: T.slate, marginTop: 6 }}>
-              📍 {clinic.address}{clinic.city ? `, ${clinic.city}` : ''}
+            <p className="text-[13px] text-[#7A8899] mt-1.5 flex items-center justify-center gap-1">
+              <MapPin size={14} /> {clinic.address}{clinic.city ? `, ${clinic.city}` : ''}
             </p>
           )}
           {clinic?.phone && (
-            <p style={{ fontSize: 13, color: T.slateL, marginTop: 4 }}>📞 {clinic.phone}</p>
+            <p className="text-[13px] text-[#B0BEC5] mt-1 flex items-center justify-center gap-1">
+              <Phone size={14} /> {clinic.phone}
+            </p>
           )}
         </div>
 
-        {/* Form */}
-        <div style={{
-          background: T.navy, border: `1px solid ${T.border}`, borderRadius: 18,
-          padding: '32px 28px', boxShadow: '0 20px 60px rgba(0,0,0,.4)',
-        }}>
-          <h2 style={{ fontFamily: 'Georgia,serif', fontSize: 18, color: T.white, margin: '0 0 20px 0' }}>
+        <div className="bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-[18px] px-7 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+          <h2 className="font-['Georgia',serif] text-lg text-white m-0 mb-5">
             Записаться на приём
           </h2>
 
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Ваше имя *</label>
+            <div className="mb-3.5">
+              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Ваше имя *</label>
               <input type="text" value={form.patientName} onChange={e => setForm({ ...form, patientName: e.target.value })}
                 placeholder="Иванов Иван Иванович" required
-                style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className="grid grid-cols-2 gap-3 mb-3.5">
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Телефон *</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Телефон *</label>
                 <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
                   placeholder="+7 777 000 00 00" required
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Email</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Email</label>
                 <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
                   placeholder="email@example.com"
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
             </div>
 
             {doctors.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Врач</label>
+              <div className="mb-3.5">
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Врач</label>
                 <select value={form.doctorId} onChange={e => setForm({ ...form, doctorId: e.target.value })}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-                  <option value="">Любой доступный</option>
+                  className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors">
+                  <option value="" className="bg-[#0D1B2E]">Любой доступный</option>
                   {doctors.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}{d.spec ? ` — ${d.spec}` : ''}</option>
+                    <option key={d.id} value={d.id} className="bg-[#0D1B2E]">{d.name}{d.spec ? ` — ${d.spec}` : ''}</option>
                   ))}
                 </select>
               </div>
             )}
 
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Услуга</label>
+            <div className="mb-3.5">
+              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Услуга</label>
               <select value={form.serviceName} onChange={e => setForm({ ...form, serviceName: e.target.value })}
-                style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-                <option value="">Выберите услугу</option>
+                className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors">
+                <option value="" className="bg-[#0D1B2E]">Выберите услугу</option>
                 {Object.entries(ALL_SERVICES.reduce((acc, s) => { (acc[s.cat] = acc[s.cat] || []).push(s); return acc; }, {})).map(([cat, services]) => (
                   <optgroup key={cat} label={cat}>
-                    {services.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    {services.map(s => <option key={s.id} value={s.name} className="bg-[#0D1B2E]">{s.name}</option>)}
                   </optgroup>
                 ))}
               </select>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className="grid grid-cols-2 gap-3 mb-3.5">
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Дата *</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Дата *</label>
                 <input type="date" value={form.date} min={minDate} onChange={e => setForm({ ...form, date: e.target.value })}
-                  required style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  required className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Время *</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Время *</label>
                 <select value={form.time} onChange={e => setForm({ ...form, time: e.target.value })}
-                  required style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-                  <option value="">Выберите</option>
-                  {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                  required className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors">
+                  <option value="" className="bg-[#0D1B2E]">Выберите</option>
+                  {HOURS.map(h => <option key={h} value={h} className="bg-[#0D1B2E]">{h}</option>)}
                 </select>
               </div>
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Комментарий</label>
+            <div className="mb-5">
+              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Комментарий</label>
               <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
                 rows={3} placeholder="Опишите жалобы или пожелания..."
-                style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+                className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors resize-y" />
             </div>
 
-            <button type="submit" disabled={submitting} style={{
-              width: '100%', padding: '14px',
-              background: submitting ? T.goldDim : `linear-gradient(135deg, ${T.gold}, ${T.goldDim})`,
-              border: 'none', borderRadius: 10, color: T.bg, fontSize: 15, fontWeight: 700,
-              cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-              boxShadow: submitting ? 'none' : `0 6px 20px ${T.gold}35`,
-            }}>
+            <button type="submit" disabled={submitting}
+              className={`w-full py-3.5 border-none rounded-[10px] text-[#080F1A] text-[15px] font-bold ${
+                submitting
+                  ? 'bg-[#8B6F3E] cursor-not-allowed'
+                  : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer shadow-[0_6px_20px_#C9A96E35]'
+              }`}>
               {submitting ? 'Отправка...' : 'Записаться на приём'}
             </button>
           </form>
         </div>
 
-        <p style={{ textAlign: 'center', fontSize: 11, color: T.slate, marginTop: 20 }}>
+        <p className="text-center text-[11px] text-[#7A8899] mt-5">
           Powered by DentVision
         </p>
       </div>

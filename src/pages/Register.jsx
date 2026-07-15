@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { T, GLOBAL_CSS } from '../utils/constants';
-import { Loader2 } from 'lucide-react';
+import { GLOBAL_CSS } from '../utils/constants';
+import { Loader2, Stethoscope, AlertTriangle, Check, Calendar, DollarSign, Bot, CheckCircle2 } from 'lucide-react';
 
 const STEPS = ['Клиника', 'Руководитель', 'Готово'];
 
@@ -41,76 +41,56 @@ export default function Register({ onBack }) {
   return (
     <>
       <style>{GLOBAL_CSS}</style>
-      <div style={{
-        minHeight: '100vh', background: T.bg,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 20, position: 'relative', overflow: 'hidden',
-      }}>
-        {/* Decorations */}
-        <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${T.gold}06 0%, transparent 70%)`, top: -100, right: -100, pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', width: 400, height: 400, borderRadius: '50%', background: `radial-gradient(circle, ${T.emerald}05 0%, transparent 70%)`, bottom: -80, left: -80, pointerEvents: 'none' }} />
+      <div className="min-h-screen bg-[#080F1A] flex items-center justify-center p-5 relative overflow-hidden">
+        <div className="absolute w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,#C9A96E06_0%,transparent_70%)] -top-24 -right-24 pointer-events-none" />
+        <div className="absolute w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,#27AE6005_0%,transparent_70%)] -bottom-20 -left-20 pointer-events-none" />
 
-        <div style={{
-          width: '100%', maxWidth: 480,
-          background: T.navy, border: `1px solid ${T.border}`,
-          borderRadius: 18, padding: '36px 32px',
-          boxShadow: '0 40px 80px rgba(0,0,0,.5)',
-          position: 'relative', zIndex: 1,
-        }}>
-          {/* Header */}
-          <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <div style={{ fontSize: 40, marginBottom: 10 }}>🦷</div>
-            <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 22, fontWeight: 700, color: T.white, margin: 0 }}>
+        <div className="w-full max-w-[480px] bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-[18px] py-9 px-8 shadow-[0_40px_80px_rgba(0,0,0,0.5)] relative z-10">
+          <div className="text-center mb-7">
+            <div className="mb-2.5 flex justify-center text-[#C9A96E]">
+              <Stethoscope size={40} />
+            </div>
+            <h1 className="font-['Georgia',serif] text-[22px] font-bold text-white m-0">
               Регистрация клиники
             </h1>
-            <p style={{ fontSize: 12, color: T.slate, marginTop: 6 }}>
+            <p className="text-xs text-[#7A8899] mt-1.5">
               Создайте аккаунт DentVision — бесплатно на 14 дней
             </p>
           </div>
 
-          {/* Step indicators */}
           {step < 2 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 28 }}>
+            <div className="flex items-center justify-center gap-2 mb-7">
               {STEPS.slice(0, 2).map((s, i) => (
                 <React.Fragment key={i}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: '50%',
-                      background: i <= step ? T.gold : 'rgba(255,255,255,0.08)',
-                      border: `2px solid ${i <= step ? T.gold : T.borderSub}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 700,
-                      color: i <= step ? T.bg : T.slate,
-                    }}>
-                      {i < step ? '✓' : i + 1}
+                  <div className="flex items-center gap-1.5">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
+                      i <= step
+                        ? 'bg-[#C9A96E] border-[#C9A96E] text-[#080F1A]'
+                        : 'bg-white/[0.08] border-[rgba(255,255,255,0.06)] text-[#7A8899]'
+                    }`}>
+                      {i < step ? <Check size={14} /> : i + 1}
                     </div>
-                    <span style={{ fontSize: 12, color: i === step ? T.gold : T.slate, fontWeight: i === step ? 600 : 400 }}>
+                    <span className={`text-xs ${i === step ? 'text-[#C9A96E] font-semibold' : 'text-[#7A8899]'}`}>
                       {s}
                     </span>
                   </div>
-                  {i < 1 && <div style={{ width: 30, height: 1, background: i < step ? T.gold : T.borderSub }} />}
+                  {i < 1 && <div className={`w-[30px] h-px ${i < step ? 'bg-[#C9A96E]' : 'bg-[rgba(255,255,255,0.06)]'}`} />}
                 </React.Fragment>
               ))}
             </div>
           )}
 
-          {/* Error */}
           {displayError && (
-            <div style={{
-              background: `${T.ruby}15`, border: `1px solid ${T.ruby}30`,
-              borderRadius: 9, padding: '10px 14px', marginBottom: 18,
-              fontSize: 13, color: T.ruby, display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <span>⚠</span>{displayError}
+            <div className="bg-[#E74C3C]/15 border border-[#E74C3C]/30 rounded-lg px-3.5 py-2.5 mb-4 text-[13px] text-[#E74C3C] flex items-center gap-2">
+              <AlertTriangle size={16} />{displayError}
             </div>
           )}
 
-          {/* Step 0: Clinic info */}
           {step === 0 && (
             <div>
               <Field label="Название клиники *" value={form.clinicName}
                 onChange={v => set('clinicName', v)} placeholder="Стоматология «Улыбка»" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Город *" value={form.city}
                   onChange={v => set('city', v)} placeholder="Алматы" />
                 <Field label="Телефон" value={form.phone} type="tel"
@@ -119,16 +99,11 @@ export default function Register({ onBack }) {
               <Field label="Email" value={form.email} type="email"
                 onChange={v => set('email', v)} placeholder="clinic@example.com" />
 
-              {/* Plans preview */}
-              <div style={{
-                marginTop: 16, padding: '12px 14px',
-                background: `${T.emerald}08`, border: `1px solid ${T.emerald}20`,
-                borderRadius: 10,
-              }}>
-                <div style={{ fontSize: 12, color: T.emerald, fontWeight: 700, marginBottom: 6 }}>
-                  🎁 Пробный период — 14 дней бесплатно
+              <div className="mt-4 p-3.5 bg-[#27AE60]/[0.08] border border-[#27AE60]/20 rounded-[10px]">
+                <div className="text-xs text-[#27AE60] font-bold mb-1.5">
+                  Пробный период — 14 дней бесплатно
                 </div>
-                <div style={{ fontSize: 11, color: T.slateL, lineHeight: 1.6 }}>
+                <div className="text-[11px] text-[#B0BEC5] leading-relaxed">
                   Тариф Starter: до 2 врачей, расписание, пациенты, касса.
                   Затем от 15 000 ₸/мес.
                 </div>
@@ -136,22 +111,17 @@ export default function Register({ onBack }) {
             </div>
           )}
 
-          {/* Step 1: Director account */}
           {step === 1 && (
             <div>
-              <div style={{
-                padding: '12px 14px', background: `${T.gold}08`,
-                border: `1px solid ${T.gold}20`, borderRadius: 10, marginBottom: 18,
-                fontSize: 12, color: T.slateL,
-              }}>
-                👔 Данные <span style={{ color: T.gold }}>руководителя</span> — человека, который будет управлять клиникой
+              <div className="p-3.5 bg-[#C9A96E]/[0.08] border border-[#C9A96E]/20 rounded-[10px] mb-4 text-xs text-[#B0BEC5]">
+                Данные <span className="text-[#C9A96E]">руководителя</span> — человека, который будет управлять клиникой
               </div>
               <Field label="ФИО руководителя *" value={form.directorName}
                 onChange={v => set('directorName', v)} placeholder="Иванов Иван Иванович" />
               <Field label="Логин для входа *" value={form.login}
                 onChange={v => set('login', v.toLowerCase().replace(/\s/g, '_'))}
                 placeholder="director_clinic" hint="Только латиница, цифры, _ (мин. 4 символа)" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Пароль *" value={form.password} type="password"
                   onChange={v => set('password', v)} placeholder="Минимум 6 символов" />
                 <Field label="Повторите пароль *" value={form.confirmPassword} type="password"
@@ -160,23 +130,20 @@ export default function Register({ onBack }) {
             </div>
           )}
 
-          {/* Step 2: Success */}
           {step === 2 && (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <div style={{ fontSize: 60, marginBottom: 16 }}>🎉</div>
-              <h2 style={{ fontFamily: 'Georgia,serif', fontSize: 20, color: T.white, marginBottom: 10 }}>
+            <div className="text-center py-5">
+              <div className="mb-4 flex justify-center text-[#27AE60]">
+                <CheckCircle2 size={60} />
+              </div>
+              <h2 className="font-['Georgia',serif] text-xl text-white mb-2.5">
                 Клиника зарегистрирована!
               </h2>
-              <p style={{ fontSize: 13, color: T.slateL, marginBottom: 20, lineHeight: 1.6 }}>
-                Добро пожаловать в <span style={{ color: T.gold }}>DentVision</span>.
+              <p className="text-[13px] text-[#B0BEC5] mb-5 leading-relaxed">
+                Добро пожаловать в <span className="text-[#C9A96E]">DentVision</span>.
                 Ваша 14-дневная пробная версия активирована.
               </p>
-              <div style={{
-                padding: '14px 18px', background: 'rgba(255,255,255,0.04)',
-                border: `1px solid ${T.borderSub}`, borderRadius: 10,
-                textAlign: 'left', marginBottom: 24,
-              }}>
-                <div style={{ fontSize: 11, color: T.slate, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+              <div className="px-4 py-3.5 bg-white/[0.04] border border-[rgba(255,255,255,0.06)] rounded-[10px] text-left mb-6">
+                <div className="text-[11px] text-[#7A8899] uppercase tracking-[0.06em] mb-2.5">
                   Данные вашего аккаунта
                 </div>
                 {[
@@ -184,68 +151,52 @@ export default function Register({ onBack }) {
                   { label: 'Логин',   value: form.login },
                   { label: 'Роль',    value: 'Руководитель' },
                 ].map((r, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: i < 2 ? `1px solid ${T.borderSub}` : 'none' }}>
-                    <span style={{ fontSize: 12, color: T.slate }}>{r.label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: T.white }}>{r.value}</span>
+                  <div key={i} className={`flex justify-between py-[5px] ${i < 2 ? 'border-b border-[rgba(255,255,255,0.06)]' : ''}`}>
+                    <span className="text-xs text-[#7A8899]">{r.label}</span>
+                    <span className="text-xs font-semibold text-white">{r.value}</span>
                   </div>
                 ))}
               </div>
-              {/* Auto-login happens via AuthContext, so the app will render */}
-              <div style={{ fontSize: 12, color: T.emerald }}>
-                ✓ Вы уже вошли в систему — переход в панель управления...
+              <div className="text-xs text-[#27AE60]">
+                Вы уже вошли в систему — переход в панель управления...
               </div>
             </div>
           )}
 
-          {/* Actions */}
           {step < 2 && (
-            <div style={{ marginTop: 24, display: 'flex', gap: 10 }}>
+            <div className="mt-6 flex gap-2.5">
               <button
                 onClick={onBack}
-                style={{
-                  padding: '11px 18px', background: 'rgba(255,255,255,0.06)',
-                  border: `1px solid ${T.borderSub}`, borderRadius: 9,
-                  color: T.slate, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
-                }}
+                className="px-[18px] py-[11px] bg-white/[0.06] border border-[rgba(255,255,255,0.06)] rounded-lg text-[#7A8899] text-[13px] cursor-pointer"
               >
                 ← Назад
               </button>
               <button
                 onClick={nextStep}
                 disabled={loading}
-                style={{
-                  flex: 1, padding: '11px',
-                  background: loading ? T.goldDim : `linear-gradient(135deg, ${T.gold}, ${T.goldDim})`,
-                  border: 'none', borderRadius: 9,
-                  color: T.bg, fontSize: 14, fontWeight: 700,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  fontFamily: 'inherit',
-                  boxShadow: `0 4px 16px ${T.gold}30`,
-                }}
+                className={`flex-1 py-[11px] border-none rounded-lg text-[#080F1A] text-sm font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_#C9A96E30] ${
+                  loading
+                    ? 'bg-[#8B6F3E] cursor-not-allowed'
+                    : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer'
+                }`}
               >
-                {loading ? <><Loader2 size={16} className="animate-spin" style={{ color: T.bg }} /> Создаём аккаунт…</> :
-                  step === 0 ? 'Далее →' : '🚀 Создать аккаунт'}
+                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Создаём аккаунт…</> :
+                  step === 0 ? 'Далее →' : 'Создать аккаунт'}
               </button>
             </div>
           )}
 
-          {/* Benefits */}
           {step === 0 && (
-            <div style={{ marginTop: 20 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div className="mt-5">
+              <div className="grid grid-cols-2 gap-2">
                 {[
-                  { icon: '🦷', text: '3D Одонтограмма' },
-                  { icon: '📅', text: 'Умное расписание' },
-                  { icon: '💰', text: 'Финансовый учёт' },
-                  { icon: '🤖', text: 'AI-ассистент' },
+                  { icon: Stethoscope, text: '3D Одонтограмма' },
+                  { icon: Calendar, text: 'Умное расписание' },
+                  { icon: DollarSign, text: 'Финансовый учёт' },
+                  { icon: Bot, text: 'AI-ассистент' },
                 ].map((f, i) => (
-                  <div key={i} style={{
-                    padding: '8px 10px', background: 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${T.borderSub}`, borderRadius: 8,
-                    display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.slateL,
-                  }}>
-                    <span>{f.icon}</span>{f.text}
+                  <div key={i} className="px-2.5 py-2 bg-white/[0.03] border border-[rgba(255,255,255,0.06)] rounded-lg flex items-center gap-2 text-xs text-[#B0BEC5]">
+                    <f.icon size={14} />{f.text}
                   </div>
                 ))}
               </div>
@@ -259,8 +210,8 @@ export default function Register({ onBack }) {
 
 function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>
+    <div className="mb-3.5">
+      <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">
         {label}
       </label>
       <input
@@ -268,16 +219,9 @@ function Field({ label, value, onChange, placeholder, type = 'text', hint }) {
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        style={{
-          width: '100%', background: 'rgba(255,255,255,0.06)',
-          border: `1px solid ${T.border}`, borderRadius: 9,
-          padding: '10px 13px', fontSize: 13, color: T.white,
-          outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-        }}
-        onFocus={e => e.target.style.borderColor = T.gold}
-        onBlur={e => e.target.style.borderColor = T.border}
+        className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#C9A96E] transition-colors"
       />
-      {hint && <div style={{ fontSize: 11, color: T.slate, marginTop: 4 }}>{hint}</div>}
+      {hint && <div className="text-[11px] text-[#7A8899] mt-1">{hint}</div>}
     </div>
   );
 }

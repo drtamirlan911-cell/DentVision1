@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Star, ShoppingCart, Heart, Package, Truck, Clock, Shield, ChevronRight, MessageSquare, ThumbsUp } from 'lucide-react';
-import { T, tg } from '../utils/constants';
+import { tg } from '../utils/constants';
 import * as api from '../utils/api';
+import { Button } from '../components/ui/ds/Button';
+import { Card, CardContent } from '../components/ui/ds/Card';
+import { Badge } from '../components/ui/ds/Badge';
+import { EmptyState } from '../components/ui/ds/EmptyState';
 
 export default function ShopProduct() {
   const { id } = useParams();
@@ -18,12 +22,14 @@ export default function ShopProduct() {
   }, [id]);
 
   if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
-      <div style={{ width: 36, height: 36, borderRadius: '50%', border: `3px solid ${T.gold}30`, borderTopColor: T.gold, animation: 'spin 0.8s linear infinite' }} />
+    <div className="flex justify-center py-20">
+      <div className="w-9 h-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" />
     </div>
   );
 
-  if (!product) return <div style={{ padding: 40, textAlign: 'center', color: T.slate }}>Товар не найден</div>;
+  if (!product) return (
+    <div className="p-10 text-center text-[#7A8899]">Товар не найден</div>
+  );
 
   const tabs = [
     { key: 'description', label: 'Описание' },
@@ -33,112 +39,120 @@ export default function ShopProduct() {
   ];
 
   return (
-    <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
+    <div className="px-6 max-w-[1000px] mx-auto">
       {/* Breadcrumb */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, fontSize: 12, color: T.slate }}>
-        <button onClick={() => navigate('/shop')} style={{ background: 'none', border: 'none', color: T.gold, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit', fontSize: 12 }}>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center gap-2 mb-5 text-xs text-[#7A8899]"
+      >
+        <button
+          onClick={() => navigate('/shop')}
+          className="bg-transparent border-none text-[#C9A96E] cursor-pointer flex items-center gap-1 font-inherit text-xs"
+        >
           <ArrowLeft size={14} /> Shop
         </button>
         <ChevronRight size={12} />
         <span>{product.category_name}</span>
         <ChevronRight size={12} />
-        <span style={{ color: T.white }}>{product.name}</span>
+        <span className="text-white">{product.name}</span>
       </motion.div>
 
       {/* Product Header */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, marginBottom: 32 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
         {/* Image */}
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-          style={{
-            background: `linear-gradient(135deg, ${T.sapphire}20, ${T.gold}10)`, borderRadius: 16,
-            height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-          }}>
-          <Package size={80} color={T.gold + '30'} />
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center relative"
+        >
+          <Package size={80} color="#C9A96E30" />
           {product.old_price && (
-            <div style={{ position: 'absolute', top: 16, left: 16, background: T.ruby, color: '#fff', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 8 }}>
+            <Badge variant="error" size="sm" className="absolute top-4 left-4 font-bold">
               -{Math.round((1 - product.price / product.old_price) * 100)}%
-            </div>
+            </Badge>
           )}
         </motion.div>
 
         {/* Info */}
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
-          <div style={{ fontSize: 12, color: T.gold, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{product.brand}</div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: T.white, margin: '0 0 8px', lineHeight: 1.3 }}>{product.name}</h1>
-          <div style={{ fontSize: 13, color: T.slate, marginBottom: 12 }}>{product.model}</div>
+          <div className="text-xs text-[#C9A96E] font-semibold uppercase mb-1.5">{product.brand}</div>
+          <h1 className="text-2xl font-extrabold text-white m-0 mb-2 leading-relaxed">{product.name}</h1>
+          <div className="text-[13px] text-[#7A8899] mb-3">{product.model}</div>
 
           {/* Rating */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 2 }}>
-              {[...Array(5)].map((_, i) => <Star key={i} size={16} color={T.gold} fill={i < Math.round(product.rating) ? T.gold : 'transparent'} />)}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex gap-0.5">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} size={16} color="#C9A96E" fill={i < Math.round(product.rating) ? '#C9A96E' : 'transparent'} />
+              ))}
             </div>
-            <span style={{ fontSize: 14, fontWeight: 700, color: T.gold }}>{product.rating}</span>
-            <span style={{ fontSize: 12, color: T.slate }}>({product.review_count} отзывов)</span>
+            <span className="text-sm font-bold text-[#C9A96E]">{product.rating}</span>
+            <span className="text-xs text-[#7A8899]">({product.review_count} отзывов)</span>
           </div>
 
           {/* Price */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
-            <span style={{ fontSize: 28, fontWeight: 800, color: T.white }}>{tg(product.price)}</span>
-            {product.old_price && <span style={{ fontSize: 16, color: T.slate, textDecoration: 'line-through' }}>{tg(product.old_price)}</span>}
+          <div className="flex items-baseline gap-3 mb-4">
+            <span className="text-[28px] font-extrabold text-white">{tg(product.price)}</span>
+            {product.old_price && (
+              <span className="text-base text-[#7A8899] line-through">{tg(product.old_price)}</span>
+            )}
           </div>
 
           {/* Stock */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: product.stock > 0 ? T.emerald : T.ruby }} />
-            <span style={{ fontSize: 13, color: product.stock > 0 ? T.emerald : T.ruby, fontWeight: 600 }}>
+          <div className="flex items-center gap-1.5 mb-4">
+            <div className={`w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-[#27AE60]' : 'bg-[#E74C3C]'}`} />
+            <span className={`text-[13px] font-semibold ${product.stock > 0 ? 'text-[#27AE60]' : 'text-[#E74C3C]'}`}>
               {product.stock > 0 ? `В наличии: ${product.stock} ${product.unit || 'шт'}` : 'Нет в наличии'}
             </span>
           </div>
 
           {/* Delivery info */}
           {product.supplier_name && (
-            <div style={{
-              background: `${T.sapphire}10`, border: `1px solid ${T.sapphire}20`, borderRadius: 10,
-              padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-              <Truck size={16} color={T.sapphire} />
+            <div className="bg-[#2980B9]/10 border border-[#2980B9]/20 rounded-[10px] px-3.5 py-2.5 mb-4 flex items-center gap-2.5">
+              <Truck size={16} color="#2980B9" />
               <div>
-                <span style={{ fontSize: 12, color: T.slateL }}>Поставщик: </span>
-                <span style={{ fontSize: 12, color: T.white, fontWeight: 600 }}>{product.supplier_name} ({product.supplier_country})</span>
-                <span style={{ fontSize: 12, color: T.slate }}> · доставка {product.delivery_days} дн.</span>
+                <span className="text-xs text-[var(--slate-light)]">Поставщик: </span>
+                <span className="text-xs text-white font-semibold">{product.supplier_name} ({product.supplier_country})</span>
+                <span className="text-xs text-[#7A8899]"> · доставка {product.delivery_days} дн.</span>
               </div>
             </div>
           )}
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-              style={{
-                flex: 1, padding: '12px 20px', borderRadius: 10, border: 'none',
-                background: product.stock > 0 ? `linear-gradient(135deg, ${T.gold}, ${T.gold}dd)` : `${T.slate}30`,
-                color: product.stock > 0 ? '#0D1B2E' : T.slate, fontSize: 14, fontWeight: 700,
-                cursor: product.stock > 0 ? 'pointer' : 'default', fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}>
-              <ShoppingCart size={16} /> {product.stock > 0 ? 'Добавить в корзину' : 'Нет в наличии'}
-            </motion.button>
-            <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
-              style={{
-                width: 44, height: 44, borderRadius: 10, border: `1px solid ${T.borderSub}`,
-                background: 'rgba(255,255,255,0.04)', color: T.slateL, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-              <Heart size={18} />
-            </motion.button>
+          <div className="flex gap-2.5">
+            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="flex-1">
+              <Button
+                variant="primary"
+                size="lg"
+                className="w-full"
+                disabled={product.stock <= 0}
+                icon={<ShoppingCart size={16} />}
+              >
+                {product.stock > 0 ? 'Добавить в корзину' : 'Нет в наличии'}
+              </Button>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+              <Button variant="outline" size="icon">
+                <Heart size={18} />
+              </Button>
+            </motion.div>
           </div>
         </motion.div>
       </div>
 
       {/* Tabs */}
-      <div style={{ borderBottom: `1px solid ${T.borderSub}`, display: 'flex', gap: 0, marginBottom: 24 }}>
+      <div className="border-b border-[var(--border-subtle)] flex gap-0 mb-6">
         {tabs.map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            style={{
-              padding: '12px 20px', background: 'none', border: 'none', borderBottom: `2px solid ${activeTab === tab.key ? T.gold : 'transparent'}`,
-              color: activeTab === tab.key ? T.gold : T.slate, fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s',
-            }}>
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-5 py-3 bg-transparent border-none text-[13px] font-semibold cursor-pointer font-inherit transition-all duration-200 ${
+              activeTab === tab.key
+                ? 'text-[#C9A96E] border-b-2 border-[#C9A96E]'
+                : 'text-[#7A8899] border-b-2 border-transparent'
+            }`}
+          >
             {tab.label}
           </button>
         ))}
@@ -148,12 +162,12 @@ export default function ShopProduct() {
       <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         {activeTab === 'description' && (
           <div>
-            <p style={{ fontSize: 14, color: T.slateL, lineHeight: 1.8 }}>{product.description}</p>
+            <p className="text-sm text-[var(--slate-light)] leading-[1.8]">{product.description}</p>
           </div>
         )}
 
         {activeTab === 'specs' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {[
               ['Бренд', product.brand],
               ['Модель', product.model],
@@ -164,9 +178,9 @@ export default function ShopProduct() {
               ['Доставка', `${product.delivery_days} дн.`],
               ['Стоимость доставки', product.delivery_cost === 0 ? 'Бесплатно' : tg(product.delivery_cost)],
             ].map(([label, value]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
-                <span style={{ fontSize: 12, color: T.slate }}>{label}</span>
-                <span style={{ fontSize: 12, color: T.white, fontWeight: 600 }}>{value}</span>
+              <div key={label} className="flex justify-between py-2 px-3 bg-white/[0.02] rounded-md">
+                <span className="text-xs text-[#7A8899]">{label}</span>
+                <span className="text-xs text-white font-semibold">{value}</span>
               </div>
             ))}
           </div>
@@ -175,48 +189,50 @@ export default function ShopProduct() {
         {activeTab === 'reviews' && (
           <div>
             {product.reviews?.length > 0 ? product.reviews.map((review, i) => (
-              <div key={i} style={{ padding: '16px 0', borderBottom: `1px solid ${T.borderSub}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: `${T.gold}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: T.gold }}>
+              <div key={i} className="py-4 border-b border-[var(--border-subtle)]">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-[#C9A96E]/15 flex items-center justify-center text-[13px] font-bold text-[#C9A96E]">
                       {review.user_name?.[0] || '?'}
                     </div>
                     <div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: T.white }}>{review.user_name}</span>
-                      <div style={{ display: 'flex', gap: 2, marginTop: 2 }}>
-                        {[...Array(5)].map((_, j) => <Star key={j} size={10} color={T.gold} fill={j < review.rating ? T.gold : 'transparent'} />)}
+                      <span className="text-[13px] font-semibold text-white">{review.user_name}</span>
+                      <div className="flex gap-0.5 mt-0.5">
+                        {[...Array(5)].map((_, j) => (
+                          <Star key={j} size={10} color="#C9A96E" fill={j < review.rating ? '#C9A96E' : 'transparent'} />
+                        ))}
                       </div>
                     </div>
                   </div>
-                  <ThumbsUp size={14} color={T.slate} />
+                  <ThumbsUp size={14} color="#7A8899" />
                 </div>
-                {review.pros && <p style={{ fontSize: 12, color: T.emerald, margin: '4px 0' }}>+ {review.pros}</p>}
-                {review.cons && <p style={{ fontSize: 12, color: T.ruby, margin: '4px 0' }}>- {review.cons}</p>}
-                {review.comment && <p style={{ fontSize: 13, color: T.slateL, margin: '8px 0 0' }}>{review.comment}</p>}
+                {review.pros && <p className="text-xs text-[#27AE60] my-1">+ {review.pros}</p>}
+                {review.cons && <p className="text-xs text-[#E74C3C] my-1">- {review.cons}</p>}
+                {review.comment && <p className="text-[13px] text-[var(--slate-light)] mt-2">{review.comment}</p>}
               </div>
             )) : (
-              <div style={{ textAlign: 'center', padding: 40, color: T.slate }}>
-                <MessageSquare size={36} color={T.slate + '40'} style={{ margin: '0 auto 12px' }} />
-                <p>Пока нет отзывов</p>
-              </div>
+              <EmptyState
+                icon={<MessageSquare size={36} className="text-[#7A8899]/40" />}
+                title="Пока нет отзывов"
+              />
             )}
           </div>
         )}
 
         {activeTab === 'delivery' && (
-          <div style={{ display: 'grid', gap: 12 }}>
+          <div className="flex flex-col gap-3">
             {[
               { icon: Truck, title: 'Доставка', desc: `${product.supplier_name} — ${product.delivery_days} рабочих дней` },
               { icon: Shield, title: 'Гарантия', desc: 'Оригинальная продукция с сертификатами качества' },
               { icon: Clock, title: 'Обработка заказа', desc: 'В течение 1 рабочего дня после оплаты' },
             ].map((item, i) => (
-              <div key={i} style={{ display: 'flex', gap: 14, padding: '14px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${T.gold}12`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <item.icon size={16} color={T.gold} />
+              <div key={i} className="flex gap-3.5 p-4 bg-white/[0.02] rounded-[10px]">
+                <div className="w-9 h-9 rounded-[10px] bg-[#C9A96E]/[0.12] flex items-center justify-center shrink-0">
+                  <item.icon size={16} color="#C9A96E" />
                 </div>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.white }}>{item.title}</h4>
-                  <p style={{ margin: '4px 0 0', fontSize: 12, color: T.slateL }}>{item.desc}</p>
+                  <h4 className="m-0 text-[13px] font-bold text-white">{item.title}</h4>
+                  <p className="mt-1 text-xs text-[var(--slate-light)]">{item.desc}</p>
                 </div>
               </div>
             ))}
@@ -226,19 +242,16 @@ export default function ShopProduct() {
 
       {/* Related Products */}
       {product.related?.length > 0 && (
-        <div style={{ marginTop: 40 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: T.white, marginBottom: 16 }}>Похожие товары</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+        <div className="mt-10">
+          <h3 className="text-base font-bold text-white mb-4">Похожие товары</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {product.related.map(rel => (
-              <motion.div key={rel.id} whileHover={{ y: -3 }}
-                onClick={() => navigate(`/shop/${rel.id}`)}
-                style={{
-                  background: T.card, border: `1px solid ${T.borderSub}`, borderRadius: 10, padding: 14,
-                  cursor: 'pointer', transition: 'all .2s',
-                }}>
-                <p style={{ fontSize: 11, color: T.gold, fontWeight: 600, margin: 0 }}>{rel.brand}</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: T.white, margin: '4px 0 6px' }}>{rel.name}</p>
-                <p style={{ fontSize: 14, fontWeight: 700, color: T.white, margin: 0 }}>{tg(rel.price)}</p>
+              <motion.div key={rel.id} whileHover={{ y: -3 }} onClick={() => navigate(`/shop/${rel.id}`)}>
+                <Card hover padding="sm" className="cursor-pointer">
+                  <p className="text-[11px] text-[#C9A96E] font-semibold m-0">{rel.brand}</p>
+                  <p className="text-[13px] font-bold text-white mt-1 mb-1.5">{rel.name}</p>
+                  <p className="text-sm font-bold text-white m-0">{tg(rel.price)}</p>
+                </Card>
               </motion.div>
             ))}
           </div>

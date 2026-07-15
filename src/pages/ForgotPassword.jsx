@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { T, GLOBAL_CSS } from '../utils/constants';
+import { GLOBAL_CSS } from '../utils/constants';
 import { rateLimit, validatePassword } from '../utils/security';
-import { Loader2 } from 'lucide-react';
+import { Loader2, KeyRound } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
@@ -86,105 +86,84 @@ export default function ForgotPassword() {
   return (
     <>
       <style>{GLOBAL_CSS}</style>
-      <div style={{
-        minHeight: '100vh', background: T.bg,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 20, position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${T.gold}08 0%, transparent 70%)`, top: -100, right: -100, pointerEvents: 'none' }} />
+      <div className="min-h-screen bg-[#080F1A] flex items-center justify-center p-5 relative overflow-hidden">
+        <div className="absolute w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,#C9A96E08_0%,transparent_70%)] -top-24 -right-24 pointer-events-none" />
 
-        <div style={{
-          width: '100%', maxWidth: 400,
-          background: T.navy, border: `1px solid ${T.border}`,
-          borderRadius: 18, padding: '36px 32px',
-          boxShadow: '0 40px 80px rgba(0,0,0,.5)',
-          position: 'relative', zIndex: 1,
-        }}>
-          <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <div style={{ fontSize: 40, marginBottom: 10 }}>🔑</div>
-            <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 22, fontWeight: 700, color: T.white, margin: 0 }}>
+        <div className="w-full max-w-[400px] bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-[18px] py-9 px-8 shadow-[0_40px_80px_rgba(0,0,0,0.5)] relative z-10">
+          <div className="text-center mb-7">
+            <div className="mb-2.5 flex justify-center text-[#C9A96E]">
+              <KeyRound size={40} />
+            </div>
+            <h1 className="font-['Georgia',serif] text-[22px] font-bold text-white m-0">
               {step === 'request' ? 'Сброс пароля' : 'Новый пароль'}
             </h1>
-            <p style={{ fontSize: 12, color: T.slate, marginTop: 6 }}>
+            <p className="text-xs text-[#7A8899] mt-1.5">
               {step === 'request' ? 'Введите ваш логин для получения токена' : 'Введите токен и новый пароль'}
             </p>
           </div>
 
           {error && (
-            <div style={{
-              background: `${T.ruby}15`, border: `1px solid ${T.ruby}30`,
-              borderRadius: 9, padding: '10px 14px', marginBottom: 16,
-              fontSize: 13, color: T.ruby,
-            }}>
+            <div className="bg-[#E74C3C]/15 border border-[#E74C3C]/30 rounded-lg px-3.5 py-2.5 mb-4 text-[13px] text-[#E74C3C]">
               {error}
             </div>
           )}
 
           {success && (
-            <div style={{
-              background: `${T.emerald}15`, border: `1px solid ${T.emerald}30`,
-              borderRadius: 9, padding: '10px 14px', marginBottom: 16,
-              fontSize: 13, color: T.emerald,
-            }}>
+            <div className="bg-[#27AE60]/15 border border-[#27AE60]/30 rounded-lg px-3.5 py-2.5 mb-4 text-[13px] text-[#27AE60]">
               {success}
             </div>
           )}
 
           {step === 'request' ? (
             <form onSubmit={handleRequest}>
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Логин</label>
+              <div className="mb-5">
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Логин</label>
                 <input type="text" value={login} onChange={e => setLogin(e.target.value)}
                   placeholder="admin_c1" required autoFocus
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
-              <button type="submit" disabled={loading} style={{
-                width: '100%', padding: '13px',
-                background: loading ? T.goldDim : `linear-gradient(135deg, ${T.gold}, ${T.goldDim})`,
-                border: 'none', borderRadius: 9, color: T.bg, fontSize: 14, fontWeight: 700,
-                cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}>
-                {loading ? <><Loader2 size={16} className="animate-spin" style={{ color: T.bg }} /> Отправка...</> : 'Получить токен'}
+              <button type="submit" disabled={loading}
+                className={`w-full py-3 border-none rounded-lg text-[#080F1A] text-sm font-bold flex items-center justify-center gap-2 ${
+                  loading
+                    ? 'bg-[#8B6F3E] cursor-not-allowed'
+                    : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer'
+                }`}>
+                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Отправка...</> : 'Получить токен'}
               </button>
             </form>
           ) : (
             <form onSubmit={handleReset}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Токен сброса</label>
+              <div className="mb-3.5">
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Токен сброса</label>
                 <input type="text" value={token} onChange={e => setToken(e.target.value)}
                   placeholder="Вставьте токен из письма" required autoFocus
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                  className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors font-mono" />
               </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Новый пароль</label>
+              <div className="mb-3.5">
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Новый пароль</label>
                 <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
                   placeholder="Минимум 6 символов" required
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Подтвердите пароль</label>
+              <div className="mb-5">
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Подтвердите пароль</label>
                 <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
                   placeholder="Повторите пароль" required
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 9, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
-              <button type="submit" disabled={loading} style={{
-                width: '100%', padding: '13px',
-                background: loading ? T.goldDim : `linear-gradient(135deg, ${T.gold}, ${T.goldDim})`,
-                border: 'none', borderRadius: 9, color: T.bg, fontSize: 14, fontWeight: 700,
-                cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}>
-                {loading ? <><Loader2 size={16} className="animate-spin" style={{ color: T.bg }} /> Сохранение...</> : 'Изменить пароль'}
+              <button type="submit" disabled={loading}
+                className={`w-full py-3 border-none rounded-lg text-[#080F1A] text-sm font-bold flex items-center justify-center gap-2 ${
+                  loading
+                    ? 'bg-[#8B6F3E] cursor-not-allowed'
+                    : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer'
+                }`}>
+                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Сохранение...</> : 'Изменить пароль'}
               </button>
             </form>
           )}
 
-          <div style={{ textAlign: 'center', marginTop: 16 }}>
-            <button onClick={() => navigate('/login')} style={{
-              background: 'none', border: 'none', color: T.gold, fontSize: 13,
-              cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline',
-            }}>
+          <div className="text-center mt-4">
+            <button onClick={() => navigate('/login')} className="bg-transparent border-none text-[#C9A96E] text-[13px] cursor-pointer underline">
               ← Вернуться к входу
             </button>
           </div>

@@ -5,7 +5,8 @@
 
 import React, { useState, useCallback } from 'react';
 import { T, TOOTH_STATUS, TOOTH_SURFACES, UPPER, LOWER } from '../utils/constants';
-import { Card, Badge } from './ui/BaseComponents';
+import { Card } from './ui/ds/Card';
+import { Badge } from './ui/ds/Badge';
 
 /**
  * Single tooth component with surface-level detail
@@ -147,7 +148,7 @@ export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth })
   );
 
   return (
-    <Card style={{ padding: 20 }}>
+    <Card className="p-5">
       {/* Upper arch */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ 
@@ -213,7 +214,7 @@ export function SurfaceEditor({ toothNumber, surfaces, onSave, onCancel }) {
   };
 
   return (
-    <Card style={{ padding: 16, marginTop: 12 }}>
+    <Card className="p-4 mt-3">
       <div style={{ 
         fontSize: 13, 
         fontWeight: 700, 
@@ -224,7 +225,7 @@ export function SurfaceEditor({ toothNumber, surfaces, onSave, onCancel }) {
         gap: 8
       }}>
         <span>Зуб {toothNumber}</span>
-        <Badge color={T.sapphire}>Редактирование поверхностей</Badge>
+        <Badge variant="info">Редактирование поверхностей</Badge>
       </div>
       
       {/* Surface grid */}
@@ -411,7 +412,7 @@ export function AutoTreatmentPlan({ teeth, onAddToPlan }) {
 
   if (recommendations.length === 0) {
     return (
-      <Card style={{ padding: 16, marginTop: 12 }}>
+      <Card className="p-4 mt-3">
         <div style={{ textAlign: 'center', color: T.emerald, fontSize: 13 }}>
           ✓ Все зубы здоровы! Рекомендуется профилактический осмотр каждые 6 месяцев.
         </div>
@@ -420,7 +421,7 @@ export function AutoTreatmentPlan({ teeth, onAddToPlan }) {
   }
 
   return (
-    <Card style={{ padding: 16, marginTop: 12 }}>
+    <Card className="p-4 mt-3">
       <div style={{ 
         fontSize: 13, 
         fontWeight: 700, 
@@ -431,7 +432,7 @@ export function AutoTreatmentPlan({ teeth, onAddToPlan }) {
         gap: 8
       }}>
         <span>📋 Автоматический план лечения</span>
-        <Badge color={T.amber}>{recommendations.length} процедур</Badge>
+        <Badge variant="warning">{recommendations.length} процедур</Badge>
       </div>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -457,7 +458,7 @@ export function AutoTreatmentPlan({ teeth, onAddToPlan }) {
               </div>
             </div>
             <Badge 
-              color={rec.urgency === 'high' ? T.ruby : rec.urgency === 'medium' ? T.amber : T.slate}
+              variant={rec.urgency === 'high' ? 'danger' : rec.urgency === 'medium' ? 'warning' : 'default'}
               size="sm"
             >
               {rec.urgency === 'high' ? 'Срочно' : rec.urgency === 'medium' ? 'Рекомендуется' : 'Планово'}

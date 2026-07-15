@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { T } from '../utils/constants';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Stethoscope, MapPin, FileText, CheckCircle2, X } from 'lucide-react';
 import SignaturePad from '../components/ui/SignaturePad';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
@@ -56,19 +55,21 @@ export default function DocumentSign() {
   };
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Loader2 size={40} className="animate-spin text-[var(--gold)]" />
+    <div className="min-h-screen bg-[#080F1A] flex items-center justify-center">
+      <Loader2 size={40} className="animate-spin text-[#C9A96E]" />
     </div>
   );
 
   if (signed) return (
-    <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
-        <div style={{ fontSize: 64, marginBottom: 20 }}>✅</div>
-        <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 26, color: T.white, marginBottom: 12 }}>Документ подписан</h1>
-        <p style={{ fontSize: 14, color: T.slateL, marginBottom: 8 }}>{doc?.title}</p>
-        <p style={{ fontSize: 12, color: T.slate }}>Подпись: {doc?.signed_by_name || name}</p>
-        <p style={{ fontSize: 12, color: T.slate, marginTop: 4 }}>
+    <div className="min-h-screen bg-[#080F1A] flex items-center justify-center p-5">
+      <div className="max-w-[480px] w-full text-center">
+        <div className="mb-5 flex justify-center text-[#27AE60]">
+          <CheckCircle2 size={64} />
+        </div>
+        <h1 className="font-['Georgia',serif] text-[26px] text-white mb-3">Документ подписан</h1>
+        <p className="text-sm text-[#B0BEC5] mb-2">{doc?.title}</p>
+        <p className="text-xs text-[#7A8899]">Подпись: {doc?.signed_by_name || name}</p>
+        <p className="text-xs text-[#7A8899] mt-1">
           {doc?.clinic_name && `${doc.clinic_name}`}
           {doc?.clinic_phone && ` · ${doc.clinic_phone}`}
         </p>
@@ -77,69 +78,69 @@ export default function DocumentSign() {
   );
 
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, padding: '40px 20px' }}>
-      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      <div style={{ maxWidth: 600, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>🦷</div>
-          <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 24, color: T.white }}>
+    <div className="min-h-screen bg-[#080F1A] py-10 px-5">
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold shadow-lg ${toast.type === 'success' ? 'bg-[#27AE60] text-white' : toast.type === 'error' ? 'bg-[#E74C3C] text-white' : toast.type === 'warning' ? 'bg-[#F39C12] text-[#080F1A]' : 'bg-[#2980B9] text-white'}`}>
+          {toast.msg}
+          <button onClick={() => setToast(null)} className="ml-2 opacity-70 hover:opacity-100"><X size={14} /></button>
+        </div>
+      )}
+      <div className="max-w-[600px] mx-auto">
+        <div className="text-center mb-8">
+          <div className="mb-2 flex justify-center text-[#C9A96E]">
+            <Stethoscope size={40} />
+          </div>
+          <h1 className="font-['Georgia',serif] text-2xl text-white">
             {doc?.clinic_name || 'DentVision'}
           </h1>
-          {doc?.clinic_address && <p style={{ fontSize: 12, color: T.slate, marginTop: 4 }}>📍 {doc.clinic_address}</p>}
+          {doc?.clinic_address && (
+            <p className="text-xs text-[#7A8899] mt-1 flex items-center justify-center gap-1">
+              <MapPin size={12} /> {doc.clinic_address}
+            </p>
+          )}
         </div>
 
-        <div style={{
-          background: T.navy, border: `1px solid ${T.border}`, borderRadius: 16,
-          padding: '28px 24px', marginBottom: 24,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <span style={{ fontSize: 20 }}>📄</span>
-            <h2 style={{ fontFamily: 'Georgia,serif', fontSize: 18, color: T.white, margin: 0 }}>{doc?.title}</h2>
+        <div className="bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-2xl px-6 py-7 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText size={20} className="text-[#C9A96E]" />
+            <h2 className="font-['Georgia',serif] text-lg text-white m-0">{doc?.title}</h2>
           </div>
-          <p style={{ fontSize: 11, color: T.slate, marginBottom: 4 }}>Тип: {doc?.doc_type}</p>
-          <div style={{
-            background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 16,
-            border: `1px solid ${T.border}`, fontSize: 13, color: T.slateL,
-            lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif',
-            maxHeight: 400, overflow: 'auto',
-          }}>
+          <p className="text-[11px] text-[#7A8899] mb-1">Тип: {doc?.doc_type}</p>
+          <div className="bg-white/[0.03] rounded-[10px] p-4 border border-[rgba(201,169,110,0.15)] text-[13px] text-[#B0BEC5] leading-[1.7] whitespace-pre-wrap font-['Georgia',serif] max-h-[400px] overflow-auto">
             {doc?.content || 'Содержимое документа отсутствует.'}
           </div>
         </div>
 
-        <div style={{
-          background: T.navy, border: `1px solid ${T.border}`, borderRadius: 16,
-          padding: '28px 24px',
-        }}>
-          <h2 style={{ fontFamily: 'Georgia,serif', fontSize: 18, color: T.white, margin: '0 0 16px 0' }}>
+        <div className="bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-2xl px-6 py-7">
+          <h2 className="font-['Georgia',serif] text-lg text-white m-0 mb-4">
             Электронная подпись
           </h2>
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.slateL, marginBottom: 6 }}>Ваше ФИО *</label>
+          <div className="mb-3.5">
+            <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Ваше ФИО *</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder="Иванов Иван Иванович"
-              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 8, padding: '11px 14px', fontSize: 14, color: T.white, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
           </div>
 
-          <p style={{ fontSize: 12, color: T.slateL, marginBottom: 8 }}>
+          <p className="text-xs text-[#B0BEC5] mb-2">
             Подпишите ниже, используя мышь или палец на экране:
           </p>
 
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div className="flex justify-center">
             <SignaturePad onSave={handleSign} width={Math.min(500, 400)} height={180} />
           </div>
 
           {signing && (
-            <p style={{ fontSize: 12, color: T.gold, textAlign: 'center', marginTop: 12 }}>Отправка подписи...</p>
+            <p className="text-xs text-[#C9A96E] text-center mt-3">Отправка подписи...</p>
           )}
 
-          <p style={{ fontSize: 10, color: T.slate, marginTop: 16, textAlign: 'center' }}>
+          <p className="text-[10px] text-[#7A8899] mt-4 text-center">
             Нажимая «Применить подпись», вы подтверждаете согласие с содержимым документа.
           </p>
         </div>
 
-        <p style={{ textAlign: 'center', fontSize: 11, color: T.slate, marginTop: 20 }}>
+        <p className="text-center text-[11px] text-[#7A8899] mt-5">
           Powered by DentVision
         </p>
       </div>
