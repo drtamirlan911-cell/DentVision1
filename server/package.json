@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "postinstall": "prisma generate --schema ../prisma/schema.prisma"
+    "postinstall": "prisma generate --schema ../prisma/schema.prisma && prisma db push --accept-data-loss --schema ../prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
