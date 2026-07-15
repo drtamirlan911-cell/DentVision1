@@ -1,186 +1,134 @@
-import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { useData, useToast } from '../hooks/useData';
-import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState } from '../components/ui/BaseComponents';
-import { T, tg, ALL_SERVICES } from '../utils/constants';
+import React, { useState } from 'react'
+import { useOutletContext } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { DollarSign, Download, Edit, RotateCcw } from 'lucide-react'
+import { useData, useToast } from '../hooks/useData'
+import { Button } from '../components/ui/ds/Button'
+import { Card } from '../components/ui/ds/Card'
+import { Input } from '../components/ui/ds/Input'
+import { Badge } from '../components/ui/ds/Badge'
+import { Modal } from '../components/ui/ds/Modal'
+import { StatCard, PageHeader } from '../components/ui/ds/StatCard'
+import { T, tg, ALL_SERVICES } from '../utils/constants'
+import { cn } from '../lib/utils'
 
-const CATEGORIES = [...new Set(ALL_SERVICES.map(s => s.cat))];
+const CATEGORIES = [...new Set(ALL_SERVICES.map(s => s.cat))]
+
+const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
+const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function PriceList() {
-  const { clinic } = useOutletContext();
-  const { toast, showToast, clearToast } = useToast();
-  const [clinicPrices, setClinicPrices] = useState({});
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingService, setEditingService] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const { clinic } = useOutletContext()
+  const { toast, showToast, clearToast } = useToast()
+  const [clinicPrices, setClinicPrices] = useState({})
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingService, setEditingService] = useState(null)
+  const [selectedCategory, setSelectedCategory] = useState('all')
 
-  // Загружаем цены клиники или используем стандартные
   const getServicePrice = (serviceId) => {
-    const custom = clinicPrices[serviceId];
-    const base = ALL_SERVICES.find(s => s.id === serviceId);
-    return custom !== undefined ? custom : base?.price || 0;
-  };
+    const custom = clinicPrices[serviceId]
+    const base = ALL_SERVICES.find(s => s.id === serviceId)
+    return custom !== undefined ? custom : base?.price || 0
+  }
 
   const handleSavePrice = (serviceId, newPrice) => {
-    setClinicPrices(prev => ({ ...prev, [serviceId]: Number(newPrice) }));
-  };
+    setClinicPrices(prev => ({ ...prev, [serviceId]: Number(newPrice) }))
+  }
 
-  const filteredServices = selectedCategory === 'all' 
-    ? ALL_SERVICES 
-    : ALL_SERVICES.filter(s => s.cat === selectedCategory);
+  const filteredServices = selectedCategory === 'all'
+    ? ALL_SERVICES
+    : ALL_SERVICES.filter(s => s.cat === selectedCategory)
 
   const openEdit = (service) => {
-    setEditingService({
-      ...service,
-      price: getServicePrice(service.id),
-    });
-    setModalOpen(true);
-  };
+    setEditingService({ ...service, price: getServicePrice(service.id) })
+    setModalOpen(true)
+  }
 
   const handleSave = () => {
     if (!editingService || editingService.price <= 0) {
-      showToast('Введите корректную цену', 'warning');
-      return;
+      showToast('Введите корректную цену', 'warning')
+      return
     }
-    handleSavePrice(editingService.id, editingService.price);
-    showToast(`Цена на "${editingService.name}" обновлена`, 'success');
-    setModalOpen(false);
-    setEditingService(null);
-  };
+    handleSavePrice(editingService.id, editingService.price)
+    showToast(`Цена на "${editingService.name}" обновлена`, 'success')
+    setModalOpen(false)
+    setEditingService(null)
+  }
 
   const handleReset = (serviceId) => {
-    setClinicPrices(prev => {
-      const next = { ...prev };
-      delete next[serviceId];
-      return next;
-    });
-    showToast('Цена сброшена к стандартной', 'success');
-  };
+    setClinicPrices(prev => { const next = { ...prev }; delete next[serviceId]; return next })
+    showToast('Цена сброшена к стандартной', 'success')
+  }
 
   return (
-    <div style={{ padding: 24 }}>
-      <Toast msg={toast?.msg} type={toast?.type} onClose={clearToast} />
-
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 23, fontWeight: 700, color: T.white, margin: 0 }}>
-            💰 Прайс-лист
-          </h1>
-          <p style={{ fontSize: 12, color: T.slate, marginTop: 3 }}>
-            {clinic?.name} · Индивидуальные цены для клиники
-          </p>
-        </div>
-        <GBtn onClick={() => {
-          // Экспорт прайса
-          showToast('Прайс экспортирован в Excel', 'success');
-        }}>📥 Экспорт</GBtn>
-      </div>
+    <div className="p-6">
+      <PageHeader
+        title="Прайс-лист"
+        subtitle={`${clinic?.name} · Индивидуальные цены для клиники`}
+        icon={<DollarSign size={20} />}
+        actions={
+          <Button variant="secondary" icon={<Download size={16} />}
+            onClick={() => showToast('Прайс экспортирован в Excel', 'success')}>
+            Экспорт
+          </Button>
+        }
+      />
 
       {/* Category filter */}
-      <div style={{
-        display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', paddingBottom: 4,
-      }}>
-        <button
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
+        <Button variant={selectedCategory === 'all' ? 'outline' : 'ghost'} size="sm"
           onClick={() => setSelectedCategory('all')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: `1px solid ${selectedCategory === 'all' ? T.gold : T.borderSub}`,
-            background: selectedCategory === 'all' ? `${T.gold}20` : 'transparent',
-            color: selectedCategory === 'all' ? T.gold : T.slate,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
+          className={selectedCategory === 'all' ? 'border-dv-gold/50 text-dv-gold' : ''}>
           Все услуги
-        </button>
+        </Button>
         {CATEGORIES.map(cat => (
-          <button
-            key={cat}
+          <Button key={cat} variant={selectedCategory === cat ? 'outline' : 'ghost'} size="sm"
             onClick={() => setSelectedCategory(cat)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: `1px solid ${selectedCategory === cat ? T.gold : T.borderSub}`,
-              background: selectedCategory === cat ? `${T.gold}20` : 'transparent',
-              color: selectedCategory === cat ? T.gold : T.slate,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
+            className={selectedCategory === cat ? 'border-dv-gold/50 text-dv-gold' : ''}>
             {cat}
-          </button>
+          </Button>
         ))}
       </div>
 
-      {/* Services grid */}
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      {/* Services table */}
+      <Card padding="none" className="overflow-hidden mb-5">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
             <thead>
-              <tr style={{ borderBottom: `1px solid ${T.borderSub}` }}>
-                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, color: T.slate, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Услуга</th>
-                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, color: T.slate, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Категория</th>
-                <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 11, color: T.slate, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Базовая цена</th>
-                <th style={{ textAlign: 'right', padding: '12px 16px', fontSize: 11, color: T.slate, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Цена клиники</th>
-                <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: 11, color: T.slate, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Действия</th>
+              <tr className="border-b border-bdr-subtle">
+                {['Услуга', 'Категория', 'Базовая цена', 'Цена клиники', 'Действия'].map(h => (
+                  <th key={h} className={cn(
+                    'py-3 px-4 text-2xs font-bold text-txt-muted uppercase tracking-wider',
+                    h === 'Базовая цена' || h === 'Цена клиники' || h === 'Действия' ? 'text-right' : 'text-left'
+                  )}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {filteredServices.map((service, idx) => {
-                const basePrice = service.price;
-                const clinicPrice = getServicePrice(service.id);
-                const isCustom = clinicPrice !== basePrice;
-                
+                const basePrice = service.price
+                const clinicPrice = getServicePrice(service.id)
+                const isCustom = clinicPrice !== basePrice
                 return (
-                  <tr 
-                    key={service.id} 
-                    style={{ 
-                      borderBottom: `1px solid ${T.borderSub}`,
-                      background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
-                    }}
-                  >
-                    <td style={{ padding: '12px 16px', fontSize: 13, color: T.white, fontWeight: 600 }}>
-                      {service.name}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: T.slate }}>
-                      <Badge color={T.sapphire} size="sm">{service.cat}</Badge>
-                    </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, color: T.slateL }}>
-                      {tg(basePrice)}
-                    </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: isCustom ? T.gold : T.emerald }}>
+                  <tr key={service.id} className={cn('border-b border-bdr-subtle last:border-b-0', idx % 2 !== 0 && 'bg-white/[0.01]')}>
+                    <td className="py-3 px-4 text-sm font-semibold text-txt-primary">{service.name}</td>
+                    <td className="py-3 px-4"><Badge variant="info" size="sm">{service.cat}</Badge></td>
+                    <td className="py-3 px-4 text-right text-sm text-txt-secondary">{tg(basePrice)}</td>
+                    <td className={cn('py-3 px-4 text-right text-sm font-bold', isCustom ? 'text-dv-gold' : 'text-success')}>
                       {tg(clinicPrice)}
-                      {isCustom && <span style={{ marginLeft: 4, fontSize: 10, color: T.amber }}>●</span>}
+                      {isCustom && <span className="ml-1 text-warning">*</span>}
                     </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                        <GBtn 
-                          size="sm" 
-                          onClick={() => openEdit(service)}
-                          style={{ padding: '4px 10px', fontSize: 11 }}
-                        >
-                          ✏️
-                        </GBtn>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex gap-1 justify-end">
+                        <Button variant="ghost" size="icon-sm" icon={<Edit size={14} />} onClick={() => openEdit(service)} />
                         {isCustom && (
-                          <GBtn 
-                            size="sm" 
-                            variant="danger"
-                            onClick={() => handleReset(service.id)}
-                            style={{ padding: '4px 10px', fontSize: 11 }}
-                          >
-                            🔄
-                          </GBtn>
+                          <Button variant="ghost" size="icon-sm" icon={<RotateCcw size={14} />}
+                            onClick={() => handleReset(service.id)} className="text-error/60 hover:text-error" />
                         )}
                       </div>
                     </td>
                   </tr>
-                );
+                )
               })}
             </tbody>
           </table>
@@ -188,63 +136,38 @@ export default function PriceList() {
       </Card>
 
       {/* Summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 16 }}>
-        <div style={{
-          background: T.card,
-          border: `1px solid ${T.borderSub}`,
-          borderRadius: 10,
-          padding: '16px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: T.gold }}>
-            {Object.keys(clinicPrices).length}
-          </div>
-          <div style={{ fontSize: 11, color: T.slate, marginTop: 4 }}>
-            Изменённых цен
-          </div>
-        </div>
-        <div style={{
-          background: T.card,
-          border: `1px solid ${T.borderSub}`,
-          borderRadius: 10,
-          padding: '16px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: T.slateL }}>
-            {ALL_SERVICES.length}
-          </div>
-          <div style={{ fontSize: 11, color: T.slate, marginTop: 4 }}>
-            Всего услуг
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Изменённых цен" value={Object.keys(clinicPrices).length} icon={<DollarSign size={18} />} />
+        <StatCard label="Всего услуг" value={ALL_SERVICES.length} icon={<DollarSign size={18} />} />
       </div>
 
       {/* Edit modal */}
-      {modalOpen && editingService && (
-        <Modal 
-          title={`Редактировать цену: ${editingService.name}`} 
-          onClose={() => setModalOpen(false)} 
-          size="md"
-        >
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: T.slate, marginBottom: 4 }}>Базовая цена:</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: T.slateL }}>{tg(editingService.price)}</div>
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingService ? `Редактировать цену: ${editingService.name}` : 'Редактировать цену'}
+        size="md"
+      >
+        {editingService && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs text-txt-secondary mb-1">Базовая цена:</p>
+              <p className="text-lg font-bold text-txt-secondary">{tg(editingService.price)}</p>
+            </div>
+            <Input
+              label="Цена для клиники (₸)"
+              type="number"
+              value={editingService.price}
+              onChange={e => setEditingService({ ...editingService, price: Number(e.target.value) })}
+              autoFocus
+            />
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleSave} className="flex-1">Сохранить</Button>
+              <Button variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+            </div>
           </div>
-          
-          <Input 
-            label="Цена для клиники (₸)" 
-            type="number"
-            value={editingService.price}
-            onChange={e => setEditingService({ ...editingService, price: Number(e.target.value) })}
-            autoFocus
-          />
-          
-          <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-            <PBtn type="button" onClick={handleSave} style={{ flex: 1 }}>Сохранить</PBtn>
-            <GBtn type="button" onClick={() => setModalOpen(false)}>Отмена</GBtn>
-          </div>
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
-  );
+  )
 }

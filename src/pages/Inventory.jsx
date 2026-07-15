@@ -1,69 +1,72 @@
-import React, { useState, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { useToast, useData } from '../hooks/useData';
-import { PBtn, GBtn, Card, Input, Select, Badge, Modal, Toast, EmptyState } from '../components/ui/BaseComponents';
-import { T, gid, today, INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../utils/constants';
+import React, { useState, useMemo } from 'react'
+import { useOutletContext } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign } from 'lucide-react'
+import { useToast, useData } from '../hooks/useData'
+import { Button } from '../components/ui/ds/Button'
+import { Card } from '../components/ui/ds/Card'
+import { Input, Select } from '../components/ui/ds/Input'
+import { Badge } from '../components/ui/ds/Badge'
+import { Modal } from '../components/ui/ds/Modal'
+import { EmptyState } from '../components/ui/ds/EmptyState'
+import { StatCard, PageHeader } from '../components/ui/ds/StatCard'
+import { gid, today, INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../utils/constants'
+import { cn, formatMoney } from '../lib/utils'
 
 const EMPTY_FORM = {
-  name: '',
-  quantity: 0,
-  unit: 'шт',
-  minQuantity: 0,
-  category: '',
-  supplier: '',
-  cost: 0,
-  expiryDate: '',
-};
+  name: '', quantity: 0, unit: 'шт', minQuantity: 0,
+  category: '', supplier: '', cost: 0, expiryDate: '',
+}
+
+const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
+const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Inventory() {
-  const { clinic } = useOutletContext();
-  const { showToast, toast, clearToast } = useToast();
-  const { inventory, upsertInventoryItem } = useData(clinic?.id);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editing, setEditing] = useState(null);
-  const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('name');
+  const { clinic } = useOutletContext()
+  const { showToast, toast, clearToast } = useToast()
+  const { inventory, upsertInventoryItem } = useData(clinic?.id)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [editing, setEditing] = useState(null)
+  const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('name')
 
   const stats = useMemo(() => ({
     total: inventory.length,
     lowStock: inventory.filter(i => i.quantity <= (i.minQuantity || i.min || 0) && (i.minQuantity || i.min || 0) > 0).length,
     totalValue: inventory.reduce((sum, i) => sum + ((i.cost || 0) * (i.quantity || 0)), 0),
-  }), [inventory]);
+  }), [inventory])
 
   const filtered = useMemo(() => {
-    let items = [...inventory];
+    let items = [...inventory]
     if (search) {
-      const q = search.toLowerCase();
+      const q = search.toLowerCase()
       items = items.filter(i =>
         i.name?.toLowerCase().includes(q) ||
         i.category?.toLowerCase().includes(q) ||
         i.supplier?.toLowerCase().includes(q)
-      );
+      )
     }
     if (filter === 'lowStock') {
-      items = items.filter(i => i.quantity <= (i.minQuantity || i.min || 0) && (i.minQuantity || i.min || 0) > 0);
+      items = items.filter(i => i.quantity <= (i.minQuantity || i.min || 0) && (i.minQuantity || i.min || 0) > 0)
     }
     if (filter === 'expiring') {
-      const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-      items = items.filter(i => i.expiryDate && i.expiryDate <= weekFromNow);
+      const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+      items = items.filter(i => i.expiryDate && i.expiryDate <= weekFromNow)
     }
     items.sort((a, b) => {
-      if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
-      if (sortBy === 'quantity') return (a.quantity || 0) - (b.quantity || 0);
-      if (sortBy === 'cost') return ((b.cost || 0) * (b.quantity || 0)) - ((a.cost || 0) * (a.quantity || 0));
-      return 0;
-    });
-    return items;
-  }, [inventory, search, filter, sortBy]);
+      if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '')
+      if (sortBy === 'quantity') return (a.quantity || 0) - (b.quantity || 0)
+      if (sortBy === 'cost') return ((b.cost || 0) * (b.quantity || 0)) - ((a.cost || 0) * (a.quantity || 0))
+      return 0
+    })
+    return items
+  }, [inventory, search, filter, sortBy])
 
   const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!form.name.trim()) {
-      showToast('Введите название', 'warning');
-      return;
-    }
+    e.preventDefault()
+    if (!form.name.trim()) { showToast('Введите название', 'warning'); return }
     upsertInventoryItem({
       ...form,
       id: editing?.id || gid(),
@@ -71,230 +74,190 @@ export default function Inventory() {
       quantity: Number(form.quantity) || 0,
       minQuantity: Number(form.minQuantity) || 0,
       cost: Number(form.cost) || 0,
-    });
-    showToast(editing ? 'Товар обновлён' : 'Товар добавлен', 'success');
-    setModalOpen(false);
-    setForm(EMPTY_FORM);
-    setEditing(null);
-  };
+    })
+    showToast(editing ? 'Товар обновлён' : 'Товар добавлен', 'success')
+    setModalOpen(false)
+    setForm(EMPTY_FORM)
+    setEditing(null)
+  }
 
   const openEdit = (item) => {
-    setEditing(item);
+    setEditing(item)
     setForm({
-      name: item.name || '',
-      quantity: item.quantity || 0,
-      unit: item.unit || 'шт',
-      minQuantity: item.minQuantity || item.min || 0,
-      category: item.category || '',
-      supplier: item.supplier || '',
-      cost: item.cost || 0,
-      expiryDate: item.expiryDate || '',
-    });
-    setModalOpen(true);
-  };
+      name: item.name || '', quantity: item.quantity || 0, unit: item.unit || 'шт',
+      minQuantity: item.minQuantity || item.min || 0, category: item.category || '',
+      supplier: item.supplier || '', cost: item.cost || 0, expiryDate: item.expiryDate || '',
+    })
+    setModalOpen(true)
+  }
 
   const quickAdjust = (item, delta) => {
-    const newQty = Math.max(0, (item.quantity || 0) + delta);
-    upsertInventoryItem({ ...item, quantity: newQty, clinicId: clinic?.id });
-  };
+    const newQty = Math.max(0, (item.quantity || 0) + delta)
+    upsertInventoryItem({ ...item, quantity: newQty, clinicId: clinic?.id })
+  }
 
-  const getStockColor = (item) => {
-    const min = item.minQuantity || item.min || 0;
-    if (min > 0 && item.quantity <= min) return T.ruby;
-    if (min > 0 && item.quantity <= min * 1.5) return T.amber;
-    return T.emerald;
-  };
+  const getStockVariant = (item) => {
+    const min = item.minQuantity || item.min || 0
+    if (min > 0 && item.quantity <= min) return 'error'
+    if (min > 0 && item.quantity <= min * 1.5) return 'warning'
+    return 'success'
+  }
 
   return (
-    <div style={{ padding: 24 }}>
-      <Toast msg={toast?.msg} type={toast?.type} onClose={clearToast} />
+    <div className="p-6">
+      <PageHeader
+        title="Склад"
+        subtitle={`${clinic?.name} · ${stats.total} позиций`}
+        icon={<Package size={20} />}
+        actions={
+          <Button icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
+            Добавить товар
+          </Button>
+        }
+      />
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 23, fontWeight: 700, color: T.white, margin: 0 }}>
-            Склад
-          </h1>
-          <p style={{ fontSize: 12, color: T.slate, marginTop: 3 }}>
-            {clinic?.name} · {stats.total} позиций
-          </p>
-        </div>
-        <PBtn onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true); }}>+ Добавить товар</PBtn>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
-        {[
-          { label: 'Всего позиций', value: stats.total, color: T.slateL },
-          { label: 'Мало на складе', value: stats.lowStock, color: T.ruby },
-          { label: 'Общая стоимость', value: `${(stats.totalValue / 1000).toFixed(0)}K ₸`, color: T.gold },
-        ].map(s => (
-          <div key={s.label} style={{ background: T.card, border: `1px solid ${T.borderSub}`, borderRadius: 11, padding: 14, textAlign: 'center' }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: T.slate, marginTop: 3 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
+      <motion.div
+        className="grid grid-cols-3 gap-3 mb-5"
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+      >
+        <motion.div variants={fadeUp}>
+          <StatCard label="Всего позиций" value={stats.total} icon={<Package size={18} />} />
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <StatCard label="Мало на складе" value={stats.lowStock} icon={<AlertTriangle size={18} />} />
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <StatCard label="Общая стоимость" value={`${(stats.totalValue / 1000).toFixed(0)}K ₸`} icon={<DollarSign size={18} />} />
+        </motion.div>
+      </motion.div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Поиск..."
-          style={{
-            flex: '1 1 200px', maxWidth: 300,
-            background: 'rgba(255,255,255,0.05)', border: `1px solid ${T.border}`,
-            borderRadius: 8, padding: '8px 12px', fontSize: 13, color: T.white, outline: 'none', fontFamily: 'inherit',
-          }}
-        />
+      <div className="flex gap-2 mb-5 flex-wrap items-center">
+        <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." icon={<Search size={16} />} />
+        </div>
         {[
           { key: 'all', label: 'Все' },
           { key: 'lowStock', label: 'Мало' },
           { key: 'expiring', label: 'Истекает' },
         ].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)} style={{
-            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-            background: filter === f.key ? `${T.gold}20` : T.card,
-            color: filter === f.key ? T.gold : T.slate,
-            border: `1px solid ${filter === f.key ? T.gold + '40' : T.borderSub}`,
-            cursor: 'pointer',
-          }}>
+          <Button key={f.key} variant={filter === f.key ? 'outline' : 'ghost'} size="sm"
+            onClick={() => setFilter(f.key)}
+            className={filter === f.key ? 'border-dv-gold/50 text-dv-gold' : ''}>
             {f.label}
-          </button>
+          </Button>
         ))}
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{
-          padding: '6px 10px', borderRadius: 8, fontSize: 12, background: T.card,
-          border: `1px solid ${T.borderSub}`, color: T.slateL, fontFamily: 'inherit', cursor: 'pointer',
-        }}>
-          <option value="name">По названию</option>
-          <option value="quantity">По количеству</option>
-          <option value="cost">По стоимости</option>
-        </select>
+        <Select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value)}
+          options={[
+            { value: 'name', label: 'По названию' },
+            { value: 'quantity', label: 'По количеству' },
+            { value: 'cost', label: 'По стоимости' },
+          ]}
+          className="w-auto"
+        />
       </div>
 
-      {/* Inventory list */}
       {filtered.length === 0 ? (
-        <EmptyState icon="📦" text="Склад пуст" sub="Добавьте первый товар" />
+        <EmptyState icon={<Package size={32} />} title="Склад пуст" description="Добавьте первый товар" />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          variants={stagger}
+          initial="hidden"
+          animate="show"
+        >
           {filtered.map(item => {
-            const stockColor = getStockColor(item);
-            const min = item.minQuantity || item.min || 0;
-            const isLow = min > 0 && item.quantity <= min;
+            const min = item.minQuantity || item.min || 0
+            const isLow = min > 0 && item.quantity <= min
+            const stockVariant = getStockVariant(item)
             return (
-              <Card key={item.id} style={{ position: 'relative' }} onClick={() => openEdit(item)}>
-                {isLow && (
-                  <div style={{
-                    position: 'absolute', top: 10, right: 10,
-                    fontSize: 10, color: T.ruby, background: `${T.ruby}15`,
-                    border: `1px solid ${T.ruby}30`, borderRadius: 6, padding: '2px 7px', fontWeight: 700,
-                  }}>
-                    МАЛО
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 4 }}>{item.name}</div>
-                    {item.category && (
-                      <Badge color={T.sapphire} size="sm">{item.category}</Badge>
+              <motion.div key={item.id} variants={fadeUp}>
+                <Card hover padding="none" className="overflow-hidden cursor-pointer group" onClick={() => openEdit(item)}>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-txt-primary group-hover:text-dv-gold transition-colors truncate">{item.name}</p>
+                        {item.category && <Badge variant="info" size="sm" className="mt-1">{item.category}</Badge>}
+                      </div>
+                      {isLow && <Badge variant="error" size="xs">МАЛО</Badge>}
+                    </div>
+
+                    <div className="mb-2.5">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-txt-muted">Остаток</span>
+                        <span className={cn('font-bold', stockVariant === 'error' ? 'text-error' : stockVariant === 'warning' ? 'text-warning' : 'text-success')}>
+                          {item.quantity} {item.unit || 'шт'}
+                        </span>
+                      </div>
+                      <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
+                        <div className={cn('h-full rounded-full transition-all',
+                          stockVariant === 'error' ? 'bg-error' : stockVariant === 'warning' ? 'bg-warning' : 'bg-success'
+                        )} style={{ width: `${min > 0 ? Math.min(100, (item.quantity / (min * 2)) * 100) : 50}%` }} />
+                      </div>
+                      {min > 0 && <p className="text-2xs text-txt-muted mt-0.5">Мин: {min} {item.unit || 'шт'}</p>}
+                    </div>
+
+                    <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                      <Button variant="danger" size="icon-xs" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} />
+                      <Button variant="primary" size="icon-xs" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} />
+                      <Button variant="primary" size="icon-xs" onClick={() => quickAdjust(item, 10)}>+10</Button>
+                    </div>
+
+                    {item.supplier && <p className="text-xs text-txt-muted mt-2">Поставщик: {item.supplier}</p>}
+                    {item.expiryDate && (
+                      <p className={cn('text-xs mt-0.5', new Date(item.expiryDate) < new Date() ? 'text-error' : 'text-txt-muted')}>
+                        Годен до: {item.expiryDate}
+                      </p>
                     )}
                   </div>
-                </div>
-
-                {/* Stock bar */}
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
-                    <span style={{ color: T.slate }}>Остаток</span>
-                    <span style={{ color: stockColor, fontWeight: 700 }}>
-                      {item.quantity} {item.unit || 'шт'}
-                    </span>
-                  </div>
-                  <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%', borderRadius: 2, background: stockColor,
-                      width: `${min > 0 ? Math.min(100, (item.quantity / (min * 2)) * 100) : 50}%`,
-                      transition: 'width .3s',
-                    }} />
-                  </div>
-                  {min > 0 && (
-                    <div style={{ fontSize: 10, color: T.slate, marginTop: 2 }}>Мин: {min} {item.unit || 'шт'}</div>
-                  )}
-                </div>
-
-                {/* Quick adjust buttons */}
-                <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                  <button onClick={() => quickAdjust(item, -1)} style={{
-                    flex: 1, padding: '5px 0', fontSize: 11, borderRadius: 6, border: `1px solid ${T.ruby}30`,
-                    background: `${T.ruby}10`, color: T.ruby, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                  }}>-1</button>
-                  <button onClick={() => quickAdjust(item, 1)} style={{
-                    flex: 1, padding: '5px 0', fontSize: 11, borderRadius: 6, border: `1px solid ${T.emerald}30`,
-                    background: `${T.emerald}10`, color: T.emerald, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                  }}>+1</button>
-                  <button onClick={() => quickAdjust(item, 10)} style={{
-                    flex: 1, padding: '5px 0', fontSize: 11, borderRadius: 6, border: `1px solid ${T.emerald}30`,
-                    background: `${T.emerald}10`, color: T.emerald, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                  }}>+10</button>
-                </div>
-
-                {item.supplier && (
-                  <div style={{ fontSize: 11, color: T.slate, marginTop: 8 }}>
-                    Поставщик: {item.supplier}
-                  </div>
-                )}
-                {item.expiryDate && (
-                  <div style={{ fontSize: 11, color: new Date(item.expiryDate) < new Date() ? T.ruby : T.slate, marginTop: 4 }}>
-                    Годен до: {item.expiryDate}
-                  </div>
-                )}
-              </Card>
-            );
+                </Card>
+              </motion.div>
+            )
           })}
-        </div>
+        </motion.div>
       )}
 
-      {/* Modal */}
-      {modalOpen && (
-        <Modal title={editing ? 'Редактировать товар' : 'Добавить товар'} onClose={() => setModalOpen(false)} size="md">
-          <form onSubmit={handleSubmit}>
-            <Input label="Название *" value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })}
-              placeholder="Пломбировочный материал" required />
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              <Input label="Кол-во" type="number" min="0" value={form.quantity}
-                onChange={e => setForm({ ...form, quantity: e.target.value })} />
-              <Select label="Ед. изм." value={form.unit}
-                onChange={e => setForm({ ...form, unit: e.target.value })}
-                options={INVENTORY_UNITS} />
-              <Input label="Мин. кол-во" type="number" min="0" value={form.minQuantity}
-                onChange={e => setForm({ ...form, minQuantity: e.target.value })} />
-            </div>
-
-            <Select label="Категория" value={form.category}
-              onChange={e => setForm({ ...form, category: e.target.value })}
-              options={[{ value: '', label: '— Без категории —' }, ...INVENTORY_CATEGORIES.map(c => ({ value: c, label: c }))]} />
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Цена за ед. (₸)" type="number" min="0" value={form.cost}
-                onChange={e => setForm({ ...form, cost: e.target.value })} />
-              <Input label="Годен до" type="date" value={form.expiryDate}
-                onChange={e => setForm({ ...form, expiryDate: e.target.value })} />
-            </div>
-
-            <Input label="Поставщик" value={form.supplier}
-              onChange={e => setForm({ ...form, supplier: e.target.value })}
-              placeholder="Название компании" />
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-              <PBtn type="submit" style={{ flex: 1 }}>{editing ? 'Сохранить' : 'Добавить'}</PBtn>
-              <GBtn onClick={() => setModalOpen(false)}>Отмена</GBtn>
-            </div>
-          </form>
-        </Modal>
-      )}
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? 'Редактировать товар' : 'Добавить товар'}
+        size="md"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input label="Название *" value={form.name}
+            onChange={e => setForm({ ...form, name: e.target.value })}
+            placeholder="Пломбировочный материал" required icon={<Package size={16} />} />
+          <div className="grid grid-cols-3 gap-3">
+            <Input label="Кол-во" type="number" min="0" value={form.quantity}
+              onChange={e => setForm({ ...form, quantity: e.target.value })} />
+            <Select label="Ед. изм." value={form.unit}
+              onChange={e => setForm({ ...form, unit: e.target.value })}
+              options={INVENTORY_UNITS} />
+            <Input label="Мин. кол-во" type="number" min="0" value={form.minQuantity}
+              onChange={e => setForm({ ...form, minQuantity: e.target.value })} />
+          </div>
+          <Select label="Категория" value={form.category}
+            onChange={e => setForm({ ...form, category: e.target.value })}
+            options={[{ value: '', label: '--- Без категории ---' }, ...INVENTORY_CATEGORIES.map(c => ({ value: c, label: c }))]} />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Цена за ед. (₸)" type="number" min="0" value={form.cost}
+              onChange={e => setForm({ ...form, cost: e.target.value })} />
+            <Input label="Годен до" type="date" value={form.expiryDate}
+              onChange={e => setForm({ ...form, expiryDate: e.target.value })} />
+          </div>
+          <Input label="Поставщик" value={form.supplier}
+            onChange={e => setForm({ ...form, supplier: e.target.value })}
+            placeholder="Название компании" />
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" className="flex-1">{editing ? 'Сохранить' : 'Добавить'}</Button>
+            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
-  );
+  )
 }
