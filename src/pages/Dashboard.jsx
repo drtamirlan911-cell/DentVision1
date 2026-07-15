@@ -5,7 +5,6 @@ import {
   Calendar,
   Users,
   DollarSign,
-  TrendingUp,
   Stethoscope,
   ShoppingCart,
   GraduationCap,
@@ -341,50 +340,9 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <motion.div variants={item}>
           <UpcomingAppointments data={data} />
-        </motion.div>
-        <motion.div variants={item}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp size={16} className="text-dv-gold" />
-                Активность
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-txt-secondary">Записей на этой неделе</span>
-                  <span className="font-semibold text-txt-primary">
-                    {(data.appointments || []).filter((a) => {
-                      const d = new Date(a.date)
-                      const now = new Date()
-                      const weekAgo = new Date(now.getTime() - 7 * 86400000)
-                      return d >= weekAgo && d <= now
-                    }).length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-txt-secondary">Новых пациентов</span>
-                  <span className="font-semibold text-txt-primary">
-                    {(data.patients || []).filter((p) => {
-                      const created = new Date(p.createdAt || p.created_at || Date.now())
-                      const weekAgo = new Date(Date.now() - 7 * 86400000)
-                      return created >= weekAgo
-                    }).length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-txt-secondary">Документов подписано</span>
-                  <span className="font-semibold text-txt-primary">
-                    {(data.documents || []).filter((d) => d.status === 'signed').length}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </motion.div>
       </div>
 
