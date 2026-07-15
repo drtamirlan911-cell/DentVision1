@@ -389,3 +389,26 @@ export async function getSchoolLibrary(params: Record<string, string> = {}): Pro
   return apiRequest(`/api/school/library?${q}`);
 }
 export async function getSchoolCertificates(userId: string): Promise<any> { return apiRequest(`/api/school/certificates?user_id=${userId}`); }
+
+// ─── Service Access ───
+export async function getServiceAccess(clinicId: string): Promise<Record<string, boolean>> {
+  return apiRequest(`/api/service-access/${clinicId}`);
+}
+
+export async function setServiceAccess(clinicId: string, service: string, enabled: boolean): Promise<any> {
+  return apiRequest('/api/service-access', {
+    method: 'POST',
+    body: JSON.stringify({ clinic_id: clinicId, service, enabled }),
+  });
+}
+
+export async function setServiceAccessBulk(clinicId: string, services: Record<string, boolean>): Promise<any> {
+  return apiRequest('/api/service-access/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ clinic_id: clinicId, services }),
+  });
+}
+
+export async function getPublicServiceAccess(clinicId: string): Promise<Record<string, boolean>> {
+  return apiRequest(`/api/service-access/public/${clinicId}`);
+}

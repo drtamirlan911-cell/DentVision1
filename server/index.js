@@ -69,7 +69,9 @@ import shopRoutes from './routes/shop.js';
 import schoolRoutes from './routes/school.js';
 import publicRoutes from './routes/public.js';
 import auditRoutes from './routes/audit.js';
+import serviceAccessRoutes from './routes/serviceAccess.js';
 import { authenticate } from './middleware/auth.js';
+import { requireServiceAccess, invalidateServiceCache } from './middleware/serviceAccess.js';
 
 // ═══════════════════════════════════════════════════════════════
 // DATABASE INITIALIZATION (seed data via raw SQL)
@@ -187,6 +189,21 @@ async function initDatabase() {
       }
     }
 
+    // Seed service access for all clinics (enable all services by default)
+    const saCount = await prisma.serviceAccess.count();
+    if (saCount === 0) {
+      const clinics = await prisma.clinic.findMany({ select: { id: true } });
+      const ALL_SERVICES = ['crm', 'shop', 'school', 'ai', 'analytics', 'settings'];
+      const data = [];
+      for (const clinic of clinics) {
+        for (const service of ALL_SERVICES) {
+          data.push({ id: `sa_${clinic.id}_${service}`, clinicId: clinic.id, service, enabled: true });
+        }
+      }
+      await prisma.serviceAccess.createMany({ data });
+      console.log('Service access seed data inserted');
+    }
+
     console.log('Database initialized successfully');
   } catch (err) {
     console.error('Database initialization error:', err.message);
@@ -231,7 +248,23 @@ app.use('/api/crm', crmRoutes(writeAuditLog));
 app.use('/api', medicalRoutes(writeAuditLog));
 app.use('/api/shop', shopRoutes());
 app.use('/api/school', schoolRoutes());
+app.use('/api/service-access', serviceAccessRoutes());
 app.use('/api', auditRoutes(writeAuditLog));
+
+// Public endpoint: service access for a clinic (used by ServiceHub)
+app.get('/api/service-access/public/:clinicId', async (req, res) => {
+  try {
+    const { clinicId } = req.params;
+    const access = await prisma.serviceAccess.findMany({ where: { clinicId } });
+    const ALL_SERVICES = ['crm', 'shop', 'school', 'ai', 'analytics', 'settings'];
+    const map = {};
+    for (const svc of ALL_SERVICES) {
+      const found = access.find(a => a.service === svc);
+      map[svc] = found ? found.enabled : true;
+    }
+    res.json(map);
+  } catch { res.status(500).json({ error: 'Internal server error' }); }
+});
 
 // ═══════════════════════════════════════════════════════════════
 // CSP Policy endpoint (public)

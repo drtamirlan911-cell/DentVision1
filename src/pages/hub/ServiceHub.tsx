@@ -16,10 +16,12 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/ds/Avatar'
+import * as api from '@/utils/api'
 
 interface ServiceCard {
   id: string
   name: string
+  enName: string
   description: string
   icon: React.ReactNode
   route: string
@@ -33,6 +35,7 @@ const SERVICES: ServiceCard[] = [
   {
     id: 'crm',
     name: 'CRM',
+    enName: 'CRM',
     description: 'Расписание, пациенты, лечение, документы',
     icon: <Stethoscope size={24} />,
     route: '/crm/schedule',
@@ -42,7 +45,8 @@ const SERVICES: ServiceCard[] = [
   },
   {
     id: 'shop',
-    name: 'DentVision Shop',
+    name: 'Магазин',
+    enName: 'DentVision Shop',
     description: 'Маркетплейс стоматологических товаров',
     icon: <ShoppingCart size={24} />,
     route: '/shop',
@@ -53,7 +57,8 @@ const SERVICES: ServiceCard[] = [
   },
   {
     id: 'school',
-    name: 'DentVision School',
+    name: 'Школа',
+    enName: 'DentVision School',
     description: 'Образовательная платформа для врачей',
     icon: <GraduationCap size={24} />,
     route: '/school',
@@ -65,6 +70,7 @@ const SERVICES: ServiceCard[] = [
   {
     id: 'ai',
     name: 'AI Помощник',
+    enName: 'AI Assistant',
     description: 'Искусственный интеллект для диагностики',
     icon: <Bot size={24} />,
     route: '/ai',
@@ -75,6 +81,7 @@ const SERVICES: ServiceCard[] = [
   {
     id: 'analytics',
     name: 'Аналитика',
+    enName: 'Analytics',
     description: 'Отчёты и метрики клиники',
     icon: <BarChart3 size={24} />,
     route: '/analytics',
@@ -85,6 +92,7 @@ const SERVICES: ServiceCard[] = [
   {
     id: 'settings',
     name: 'Настройки',
+    enName: 'Settings',
     description: 'Управление клиникой и системой',
     icon: <Settings size={24} />,
     route: '/settings',
@@ -126,15 +134,34 @@ const item = {
 export default function ServiceHub() {
   const navigate = useNavigate()
   const { user, clinic, roleInfo, isAuthenticated, logout } = useAuth()
+  const [serviceAccess, setServiceAccess] = React.useState<Record<string, boolean> | null>(null)
 
   const allowedPages = roleInfo?.pages || []
 
-  // Public services: always shown (Shop, School)
-  const publicServices = SERVICES.filter((s) => s.isPublic)
+  // Fetch service access for the clinic (controls which services are visible)
+  React.useEffect(() => {
+    let cancelled = false
+    if (clinic?.id) {
+      api.getServiceAccess(clinic.id)
+        .then((data) => { if (!cancelled) setServiceAccess(data) })
+        .catch(() => { if (!cancelled) setServiceAccess(null) })
+    } else {
+      setServiceAccess(null)
+    }
+    return () => { cancelled = true }
+  }, [clinic?.id])
 
-  // Auth-gated services: only shown if authenticated + has matching pages
+  const isServiceEnabled = (id: string): boolean => {
+    if (!serviceAccess) return true // default: show all
+    return serviceAccess[id] !== false
+  }
+
+  // Public services: always shown (Shop, School) — but respect clinic service toggle
+  const publicServices = SERVICES.filter((s) => s.isPublic && isServiceEnabled(s.id))
+
+  // Auth-gated services: only shown if authenticated + has matching pages + enabled
   const authServices = SERVICES.filter((s) =>
-    !s.isPublic && s.requiredPages.some((page) => allowedPages.includes(page))
+    !s.isPublic && isServiceEnabled(s.id) && s.requiredPages.some((page) => allowedPages.includes(page))
   )
 
   return (
@@ -241,6 +268,7 @@ export default function ServiceHub() {
                       </div>
                       <h3 className="text-base font-semibold text-txt-primary mb-1 group-hover:text-dv-gold transition-colors">
                         {service.name}
+                        <span className="ml-2 text-xs font-normal text-txt-ghost">{service.enName}</span>
                       </h3>
                       <p className="text-sm text-txt-muted line-clamp-2">
                         {service.description}
@@ -295,6 +323,7 @@ export default function ServiceHub() {
                       </div>
                       <h3 className="text-base font-semibold text-txt-primary mb-1 group-hover:text-dv-gold transition-colors">
                         {service.name}
+                        <span className="ml-2 text-xs font-normal text-txt-ghost">{service.enName}</span>
                       </h3>
                       <p className="text-sm text-txt-muted line-clamp-2">
                         {service.description}
