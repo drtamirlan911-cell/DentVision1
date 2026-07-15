@@ -22,6 +22,7 @@ export function ShopLayout() {
       serviceName="DentVision Shop"
       serviceColor="#3498DB"
       serviceIcon={<ShoppingCart size={16} />}
+      isPublic
     />
   )
 }

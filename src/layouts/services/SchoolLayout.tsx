@@ -22,6 +22,7 @@ export function SchoolLayout() {
       serviceName="DentVision School"
       serviceColor="#27AE60"
       serviceIcon={<GraduationCap size={16} />}
+      isPublic
     />
   )
 }

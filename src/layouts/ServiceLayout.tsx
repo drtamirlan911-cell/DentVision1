@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   X,
   LogOut,
+  LogIn,
   LayoutGrid,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -27,16 +28,17 @@ interface ServiceLayoutProps {
   serviceName: string
   serviceColor: string
   serviceIcon: React.ReactNode
+  isPublic?: boolean
 }
 
-export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon }: ServiceLayoutProps) {
+export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon, isPublic }: ServiceLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth()
   const { sidebarOpen, toggleSidebar } = useUIStore()
   const [collapsed, setCollapsed] = useState(false)
 
-  if (!isAuthenticated || !user) {
+  if (!isPublic && (!isAuthenticated || !user)) {
     return <Navigate to="/login" replace />
   }
 
@@ -119,8 +121,8 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
           </button>
         )}
 
-        {/* User info */}
-        {!collapsed && (
+        {/* User info (auth only) */}
+        {!collapsed && !isPublic && user && (
           <div className="px-3 py-3 border-b border-bdr-subtle">
             <div className="flex items-center gap-2.5">
               <Avatar name={user?.name || user?.login || '?'} size="sm" />
@@ -129,6 +131,20 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
                 <p className="text-2xs text-txt-muted">{roleInfo?.label || 'Сотрудник'}</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Guest prompt (public mode) */}
+        {!collapsed && isPublic && (
+          <div className="px-3 py-3 border-b border-bdr-subtle">
+            <button
+              onClick={() => navigate('/login')}
+              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/[0.04]"
+              style={{ color: serviceColor }}
+            >
+              <LogIn size={16} />
+              Войти в CRM
+            </button>
           </div>
         )}
 
@@ -191,17 +207,31 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
 
         {/* Footer */}
         <div className="px-3 py-3 border-t border-bdr-subtle">
-          <button
-            onClick={() => { logout(); navigate('/login') }}
-            className={cn(
-              'flex w-full items-center gap-2 rounded-lg border border-error/15 text-error transition-colors hover:bg-error/10',
-              collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
-            )}
-            title="Выйти из системы"
-          >
-            <LogOut size={16} />
-            {!collapsed && <span className="text-sm font-medium">Выйти</span>}
-          </button>
+          {isPublic ? (
+            <button
+              onClick={() => navigate('/login')}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg border transition-colors',
+                collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
+              )}
+              style={{ borderColor: `${serviceColor}30`, color: serviceColor }}
+            >
+              <LogIn size={16} />
+              {!collapsed && <span className="text-sm font-medium">Войти</span>}
+            </button>
+          ) : (
+            <button
+              onClick={() => { logout(); navigate('/login') }}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg border border-error/15 text-error transition-colors hover:bg-error/10',
+                collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
+              )}
+              title="Выйти из системы"
+            >
+              <LogOut size={16} />
+              {!collapsed && <span className="text-sm font-medium">Выйти</span>}
+            </button>
+          )}
         </div>
       </motion.aside>
 
@@ -231,9 +261,20 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
               <LayoutGrid size={14} />
               Платформа
             </button>
-            <div className="relative">
-              <Avatar name={user?.name || user?.login || '?'} size="xs" />
-            </div>
+            {isPublic ? (
+              <button
+                onClick={() => navigate('/login')}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium transition-colors"
+                style={{ color: serviceColor }}
+              >
+                <LogIn size={14} />
+                Войти
+              </button>
+            ) : user ? (
+              <div className="relative">
+                <Avatar name={user?.name || user?.login || '?'} size="xs" />
+              </div>
+            ) : null}
           </div>
         </header>
 

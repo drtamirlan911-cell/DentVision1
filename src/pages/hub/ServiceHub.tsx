@@ -26,6 +26,7 @@ interface ServiceCard {
   color: string
   gradient: string
   requiredPages: string[]
+  isPublic?: boolean
 }
 
 const SERVICES: ServiceCard[] = [
@@ -48,6 +49,7 @@ const SERVICES: ServiceCard[] = [
     color: '#3498DB',
     gradient: 'from-[#3498DB]/20 to-[#3498DB]/5',
     requiredPages: ['shop'],
+    isPublic: true,
   },
   {
     id: 'school',
@@ -58,6 +60,7 @@ const SERVICES: ServiceCard[] = [
     color: '#27AE60',
     gradient: 'from-[#27AE60]/20 to-[#27AE60]/5',
     requiredPages: ['school'],
+    isPublic: true,
   },
   {
     id: 'ai',
@@ -122,12 +125,16 @@ const item = {
 
 export default function ServiceHub() {
   const navigate = useNavigate()
-  const { user, clinic, roleInfo, logout } = useAuth()
+  const { user, clinic, roleInfo, isAuthenticated, logout } = useAuth()
 
   const allowedPages = roleInfo?.pages || []
 
-  const visibleServices = SERVICES.filter((service) =>
-    service.requiredPages.some((page) => allowedPages.includes(page))
+  // Public services: always shown (Shop, School)
+  const publicServices = SERVICES.filter((s) => s.isPublic)
+
+  // Auth-gated services: only shown if authenticated + has matching pages
+  const authServices = SERVICES.filter((s) =>
+    !s.isPublic && s.requiredPages.some((page) => allowedPages.includes(page))
   )
 
   return (
@@ -146,24 +153,30 @@ export default function ServiceHub() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* User info */}
-            <div className="flex items-center gap-2.5">
-              <div className="hidden md:block text-right">
-                <p className="text-sm font-medium text-txt-primary">{user?.name || user?.login}</p>
-                <p className="text-xs font-medium" style={{ color: ROLE_COLORS[user?.role || ''] }}>
-                  {ROLE_LABELS[user?.role || '']}
-                </p>
-              </div>
-              <Avatar name={user?.name || user?.login || '?'} size="sm" />
-            </div>
-
-            {/* Logout */}
-            <button
-              onClick={() => { logout(); navigate('/login') }}
-              className="h-8 px-3 rounded-lg text-sm text-txt-muted hover:text-error hover:bg-error/10 transition-colors"
-            >
-              Выйти
-            </button>
+            {isAuthenticated && user ? (
+              <>
+                <div className="hidden md:block text-right">
+                  <p className="text-sm font-medium text-txt-primary">{user?.name || user?.login}</p>
+                  <p className="text-xs font-medium" style={{ color: ROLE_COLORS[user?.role || ''] }}>
+                    {ROLE_LABELS[user?.role || '']}
+                  </p>
+                </div>
+                <Avatar name={user?.name || user?.login || '?'} size="sm" />
+                <button
+                  onClick={() => { logout(); navigate('/') }}
+                  className="h-8 px-3 rounded-lg text-sm text-txt-muted hover:text-error hover:bg-error/10 transition-colors"
+                >
+                  Выйти
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => navigate('/login')}
+                className="h-8 px-4 rounded-lg text-sm font-medium bg-dv-gold text-white hover:bg-dv-gold/90 transition-colors"
+              >
+                Войти в CRM
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -177,65 +190,147 @@ export default function ServiceHub() {
           className="mb-8 md:mb-12"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-txt-primary mb-2">
-            Добро пожаловать, {user?.name?.split(' ')[0] || user?.login}
+            {isAuthenticated && user
+              ? `Добро пожаловать, ${user?.name?.split(' ')[0] || user?.login}`
+              : 'DentVision Platform'}
           </h2>
           <p className="text-txt-muted text-base md:text-lg">
-            Выберите сервис для работы
+            {isAuthenticated ? 'Выберите сервис для работы' : 'Образование и товары для стоматологов'}
           </p>
         </motion.div>
 
-        {/* Services grid */}
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5"
-        >
-          {visibleServices.map((service) => (
-            <motion.div key={service.id} variants={item}>
-              <button
-                onClick={() => navigate(service.route)}
-                className={cn(
-                  'group w-full text-left rounded-2xl border border-bdr-subtle',
-                  'bg-surface-1 hover:bg-surface-2 transition-all duration-200',
-                  'hover:border-bdr hover:shadow-lg hover:shadow-black/5',
-                  'hover:-translate-y-0.5',
-                  'focus:outline-none focus:ring-2 focus:ring-dv-gold/30'
-                )}
-              >
-                <div className="p-5 md:p-6">
-                  {/* Icon + Arrow */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div
-                      className={cn(
-                        'flex h-12 w-12 items-center justify-center rounded-xl transition-colors',
-                        `bg-gradient-to-br ${service.gradient}`
-                      )}
-                      style={{ color: service.color }}
-                    >
-                      {service.icon}
+        {/* Public services (always shown) */}
+        {publicServices.length > 0 && (
+          <>
+            <h3 className="text-sm font-semibold text-txt-ghost uppercase tracking-wider mb-4">
+              {isAuthenticated ? 'Доступно всем' : 'Добро пожаловать'}
+            </h3>
+            <motion.div
+              variants={container}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 mb-8 md:mb-12"
+            >
+              {publicServices.map((service) => (
+                <motion.div key={service.id} variants={item}>
+                  <button
+                    onClick={() => navigate(service.route)}
+                    className={cn(
+                      'group w-full text-left rounded-2xl border border-bdr-subtle',
+                      'bg-surface-1 hover:bg-surface-2 transition-all duration-200',
+                      'hover:border-bdr hover:shadow-lg hover:shadow-black/5',
+                      'hover:-translate-y-0.5',
+                      'focus:outline-none focus:ring-2 focus:ring-dv-gold/30'
+                    )}
+                  >
+                    <div className="p-5 md:p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div
+                          className={cn(
+                            'flex h-12 w-12 items-center justify-center rounded-xl transition-colors',
+                            `bg-gradient-to-br ${service.gradient}`
+                          )}
+                          style={{ color: service.color }}
+                        >
+                          {service.icon}
+                        </div>
+                        <ArrowRight
+                          size={18}
+                          className="text-txt-ghost group-hover:text-txt-muted group-hover:translate-x-0.5 transition-all mt-1"
+                        />
+                      </div>
+                      <h3 className="text-base font-semibold text-txt-primary mb-1 group-hover:text-dv-gold transition-colors">
+                        {service.name}
+                      </h3>
+                      <p className="text-sm text-txt-muted line-clamp-2">
+                        {service.description}
+                      </p>
                     </div>
-                    <ArrowRight
-                      size={18}
-                      className="text-txt-ghost group-hover:text-txt-muted group-hover:translate-x-0.5 transition-all mt-1"
-                    />
-                  </div>
-
-                  {/* Title + Description */}
-                  <h3 className="text-base font-semibold text-txt-primary mb-1 group-hover:text-dv-gold transition-colors">
-                    {service.name}
-                  </h3>
-                  <p className="text-sm text-txt-muted line-clamp-2">
-                    {service.description}
-                  </p>
-                </div>
-              </button>
+                  </button>
+                </motion.div>
+              ))}
             </motion.div>
-          ))}
-        </motion.div>
+          </>
+        )}
+
+        {/* Auth-gated services (CRM, AI, Analytics, Settings) */}
+        {isAuthenticated && authServices.length > 0 && (
+          <>
+            <h3 className="text-sm font-semibold text-txt-ghost uppercase tracking-wider mb-4">
+              CRM и инструменты
+            </h3>
+            <motion.div
+              variants={container}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5"
+            >
+              {authServices.map((service) => (
+                <motion.div key={service.id} variants={item}>
+                  <button
+                    onClick={() => navigate(service.route)}
+                    className={cn(
+                      'group w-full text-left rounded-2xl border border-bdr-subtle',
+                      'bg-surface-1 hover:bg-surface-2 transition-all duration-200',
+                      'hover:border-bdr hover:shadow-lg hover:shadow-black/5',
+                      'hover:-translate-y-0.5',
+                      'focus:outline-none focus:ring-2 focus:ring-dv-gold/30'
+                    )}
+                  >
+                    <div className="p-5 md:p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div
+                          className={cn(
+                            'flex h-12 w-12 items-center justify-center rounded-xl transition-colors',
+                            `bg-gradient-to-br ${service.gradient}`
+                          )}
+                          style={{ color: service.color }}
+                        >
+                          {service.icon}
+                        </div>
+                        <ArrowRight
+                          size={18}
+                          className="text-txt-ghost group-hover:text-txt-muted group-hover:translate-x-0.5 transition-all mt-1"
+                        />
+                      </div>
+                      <h3 className="text-base font-semibold text-txt-primary mb-1 group-hover:text-dv-gold transition-colors">
+                        {service.name}
+                      </h3>
+                      <p className="text-sm text-txt-muted line-clamp-2">
+                        {service.description}
+                      </p>
+                    </div>
+                  </button>
+                </motion.div>
+              ))}
+            </motion.div>
+          </>
+        )}
+
+        {/* Guest CTA: login for CRM */}
+        {!isAuthenticated && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="mt-8 md:mt-12 text-center"
+          >
+            <div className="inline-flex flex-col items-center gap-3 p-6 rounded-2xl border border-bdr-subtle bg-surface-1">
+              <p className="text-sm text-txt-muted">
+                Есть клиника? Войдите в CRM для управления расписанием, пациентами и финансами.
+              </p>
+              <button
+                onClick={() => navigate('/login')}
+                className="h-10 px-6 rounded-xl text-sm font-semibold bg-dv-gold text-white hover:bg-dv-gold/90 transition-colors"
+              >
+                Войти в CRM
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {/* Platform admin links (superadmin/director only) */}
-        {(allowedPages.includes('admin') || allowedPages.includes('audit') || allowedPages.includes('backup')) && (
+        {isAuthenticated && (allowedPages.includes('admin') || allowedPages.includes('audit') || allowedPages.includes('backup')) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
