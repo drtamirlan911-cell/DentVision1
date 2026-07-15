@@ -755,7 +755,7 @@ export default function Schedule() {
 
           <Select label="Желаемый врач" value={waitForm.doctorId}
             onChange={e => setWaitForm({ ...waitForm, doctorId: e.target.value })}
-            options={[{ value: '', label: '— Любой врач —' }, ...doctors.map(d => ({ value: d.id, label: `${d.name} (${d.spec || 'Врач'})` }))]}} />
+            options={[{ value: '', label: '— Любой врач —' }, ...doctors.map(d => ({ value: d.id, label: `${d.name} (${d.spec || 'Врач'})` }))]} />
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Input label="Желаемая дата" type="date" value={waitForm.preferredDate}
