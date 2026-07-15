@@ -46,6 +46,7 @@ model Clinic {
   auditLogs     AuditLog[]
   shopOrders    ShopOrder[]
   serviceAccesses ServiceAccess[]
+  notifications Notification[]
 }
 
 // ─── Auth & Users ───────────────────────────────────────────
@@ -709,4 +710,25 @@ model ServiceAccess {
 
   @@unique([clinicId, service])
   @@index([clinicId])
+}
+
+// ─── Unified Notification Center ───────────────────────────
+
+model Notification {
+  id        String   @id @default("") @db.VarChar(50)
+  type      String   @db.VarChar(50)   // shop | school | clinic | system
+  category  String?  @db.VarChar(50)   // order | promo | course | appointment | payment | enrollment | system
+  clinicId  String?  @map("clinic_id") @db.VarChar(50)
+  userId    String?  @map("user_id") @db.VarChar(50)
+  title     String   @db.VarChar(255)
+  message   String?  @db.Text
+  actionUrl String?  @map("action_url") @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([userId])
+  @@index([createdAt])
 }

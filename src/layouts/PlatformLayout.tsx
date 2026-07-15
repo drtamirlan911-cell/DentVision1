@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { useUIStore } from '@/stores/useUIStore'
 import { Avatar } from '@/components/ui/ds/Avatar'
+import NotificationCenter from '@/components/NotificationCenter'
 
 interface NavItem {
   id: string
@@ -216,6 +217,7 @@ export function PlatformLayout() {
               <LayoutGrid size={14} />
               Платформа
             </button>
+            <NotificationCenter />
           </div>
         </header>
 

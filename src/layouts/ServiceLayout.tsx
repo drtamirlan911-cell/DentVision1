@@ -14,6 +14,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useUIStore } from '@/stores/useUIStore'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { Badge } from '@/components/ui/ds/Badge'
+import NotificationCenter from '@/components/NotificationCenter'
 
 interface NavItem {
   id: string
@@ -261,6 +262,7 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
               <LayoutGrid size={14} />
               Платформа
             </button>
+            {!isPublic && user && <NotificationCenter />}
             {isPublic ? (
               <button
                 onClick={() => navigate('/login')}

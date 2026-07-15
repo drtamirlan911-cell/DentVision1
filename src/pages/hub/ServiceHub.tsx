@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/ds/Avatar'
+import NotificationCenter from '@/components/NotificationCenter'
 import * as api from '@/utils/api'
 
 interface ServiceCard {
@@ -182,6 +183,7 @@ export default function ServiceHub() {
           <div className="flex items-center gap-3">
             {isAuthenticated && user ? (
               <>
+                <NotificationCenter />
                 <div className="hidden md:block text-right">
                   <p className="text-sm font-medium text-txt-primary">{user?.name || user?.login}</p>
                   <p className="text-xs font-medium" style={{ color: ROLE_COLORS[user?.role || ''] }}>

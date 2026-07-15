@@ -412,3 +412,40 @@ export async function setServiceAccessBulk(clinicId: string, services: Record<st
 export async function getPublicServiceAccess(clinicId: string): Promise<Record<string, boolean>> {
   return apiRequest(`/api/service-access/public/${clinicId}`);
 }
+
+// ─── Notifications (unified Notification Center) ───
+export interface NotificationInput {
+  type: string
+  category?: string
+  clinicId?: string | null
+  userId?: string | null
+  title: string
+  message?: string | null
+  actionUrl?: string | null
+}
+
+export async function getNotifications(opts: { unread?: boolean; type?: string; limit?: number } = {}): Promise<any[]> {
+  const q = new URLSearchParams()
+  if (opts.unread) q.set('unread', 'true')
+  if (opts.type) q.set('type', opts.type)
+  if (opts.limit) q.set('limit', String(opts.limit))
+  const qs = q.toString()
+  return apiRequest(`/api/notifications${qs ? `?${qs}` : ''}`)
+}
+
+export async function getUnreadCount(): Promise<number> {
+  const data = await apiRequest('/api/notifications/unread-count')
+  return data.count || 0
+}
+
+export async function createNotification(input: NotificationInput): Promise<any> {
+  return apiRequest('/api/notifications', { method: 'POST', body: JSON.stringify(input) })
+}
+
+export async function markNotificationRead(id: string): Promise<any> {
+  return apiRequest(`/api/notifications/${id}/read`, { method: 'POST' })
+}
+
+export async function markAllNotificationsRead(): Promise<any> {
+  return apiRequest('/api/notifications/read-all', { method: 'POST' })
+}

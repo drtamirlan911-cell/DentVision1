@@ -70,6 +70,7 @@ import schoolRoutes from './routes/school.js';
 import publicRoutes from './routes/public.js';
 import auditRoutes from './routes/audit.js';
 import serviceAccessRoutes from './routes/serviceAccess.js';
+import notificationRoutes from './routes/notifications.js';
 import { authenticate } from './middleware/auth.js';
 import { requireServiceAccess, invalidateServiceCache } from './middleware/serviceAccess.js';
 
@@ -204,6 +205,21 @@ async function initDatabase() {
       console.log('Service access seed data inserted');
     }
 
+    // Seed demo notifications for the Notification Center
+    const notifCount = await prisma.notification.count();
+    if (notifCount === 0) {
+      await prisma.notification.createMany({
+        data: [
+          { id: 'n1', type: 'shop', category: 'promo', clinicId: null, userId: null, title: 'Новая акция в Магазине', message: 'Скидка 15% на композиты 3M до конца месяца', actionUrl: '/shop', read: false },
+          { id: 'n2', type: 'school', category: 'course', clinicId: null, userId: null, title: 'Запущен новый курс', message: '«Имплантология: от А до Я» — уже доступен в Академии', actionUrl: '/school', read: false },
+          { id: 'n3', type: 'shop', category: 'order', clinicId: 'c1', userId: null, title: 'Заказ отгружен', message: 'Ваш заказ #SP-1024 передан в доставку', actionUrl: '/shop', read: false },
+          { id: 'n4', type: 'clinic', category: 'appointment', clinicId: 'c1', userId: 'u2', title: 'Новая запись на приём', message: 'Пациент Иванов А. записан на завтра в 10:00', actionUrl: '/crm/schedule', read: false },
+          { id: 'n5', type: 'system', category: 'system', clinicId: null, userId: null, title: 'Добро пожаловать в DentVision', message: 'Все уведомления теперь в одном центре — как в Каспи', actionUrl: '/', read: false },
+        ],
+      });
+      console.log('Demo notifications inserted');
+    }
+
     console.log('Database initialized successfully');
   } catch (err) {
     console.error('Database initialization error:', err.message);
@@ -249,6 +265,7 @@ app.use('/api', medicalRoutes(writeAuditLog));
 app.use('/api/shop', shopRoutes());
 app.use('/api/school', schoolRoutes());
 app.use('/api/service-access', serviceAccessRoutes());
+app.use('/api/notifications', notificationRoutes());
 app.use('/api', auditRoutes(writeAuditLog));
 
 // Public endpoint: service access for a clinic (used by ServiceHub)

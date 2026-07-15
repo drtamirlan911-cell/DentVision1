@@ -44,6 +44,19 @@ export function getGreeting(): string {
   return 'Добрый вечер'
 }
 
+export function timeAgo(date: string | Date): string {
+  const d = new Date(date).getTime()
+  const diff = Math.max(0, Date.now() - d)
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'только что'
+  if (min < 60) return `${min} мин назад`
+  const hours = Math.floor(min / 60)
+  if (hours < 24) return `${hours} ч назад`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days} дн назад`
+  return formatDate(date)
+}
+
 export function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }

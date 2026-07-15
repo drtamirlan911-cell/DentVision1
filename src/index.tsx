@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/ds';
 
@@ -78,6 +79,7 @@ if (container) {
           <QueryClientProvider client={queryClient}>
             <BrowserRouter>
             <AuthProvider>
+              <NotificationProvider>
               <Routes>
                 {/* Public / standalone routes */}
                 <Route path="/login" element={<Login />} />
@@ -130,6 +132,7 @@ if (container) {
 
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
+              </NotificationProvider>
             </AuthProvider>
           </BrowserRouter>
         </QueryClientProvider>

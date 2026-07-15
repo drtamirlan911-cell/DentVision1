@@ -335,6 +335,26 @@ export interface ICD10Code {
   category?: string
 }
 
+// ─── Notifications (unified Notification Center) ────────────────
+
+export type NotificationType = 'shop' | 'school' | 'clinic' | 'system'
+export type NotificationCategory =
+  | 'order' | 'promo' | 'course' | 'enrollment'
+  | 'appointment' | 'payment' | 'system' | string
+
+export interface AppNotification {
+  id: string
+  type: NotificationType
+  category?: NotificationCategory | null
+  clinicId?: string | null
+  userId?: string | null
+  title: string
+  message?: string | null
+  actionUrl?: string | null
+  read: boolean
+  createdAt: string
+}
+
 // ─── Services (Price List) ──────────────────────────────────────
 
 export interface Service {

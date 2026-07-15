@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { requireSameClinic } from '../middleware/rbac.js';
 import { requireServiceAccess } from '../middleware/serviceAccess.js';
+import { createNotification } from '../lib/notifications.js';
 import prisma from '../lib/prisma.js';
 
 export default function shopRoutes() {
@@ -107,6 +108,15 @@ export default function shopRoutes() {
       for (const item of orderItems) {
         await prisma.shopProduct.update({ where: { id: item.productId }, data: { stock: { decrement: item.quantity } } });
       }
+      // Push to the unified Notification Center (clinic-wide)
+      await createNotification({
+        type: 'shop',
+        category: 'order',
+        clinicId: clinic_id,
+        title: 'Новый заказ в Магазине',
+        message: `Заказ #${orderId.slice(0, 8)} на сумму ${(total + deliveryCost).toLocaleString('ru-RU')} ₸ сформирован`,
+        actionUrl: '/shop',
+      });
       res.json({ id: orderId, total: total + deliveryCost, items: orderItems });
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });

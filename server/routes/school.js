@@ -5,6 +5,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { requireServiceAccess } from '../middleware/serviceAccess.js';
+import { createNotification } from '../lib/notifications.js';
 import prisma from '../lib/prisma.js';
 
 export default function schoolRoutes() {
@@ -45,6 +46,17 @@ export default function schoolRoutes() {
         data: { id, clinicId: req.user.clinicId, userId: req.user.id, userName: req.user.name, courseId: course_id },
       });
       await prisma.schoolCourse.update({ where: { id: course_id }, data: { enrolledCount: { increment: 1 } } });
+      // Push to the unified Notification Center (personal)
+      const course = await prisma.schoolCourse.findUnique({ where: { id: course_id }, select: { title: true } });
+      await createNotification({
+        type: 'school',
+        category: 'enrollment',
+        clinicId: req.user.clinicId,
+        userId: req.user.id,
+        title: 'Вы записались на курс',
+        message: `«${course?.title || 'Курс'}» — обучение доступно в Академии`,
+        actionUrl: '/school',
+      });
       res.json({ id, success: true });
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
