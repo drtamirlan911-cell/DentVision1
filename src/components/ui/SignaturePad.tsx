@@ -1,8 +1,14 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { T } from '../../utils/constants';
 
-export default function SignaturePad({ onSave, width = 400, height = 200 }) {
-  const canvasRef = useRef(null);
+interface SignaturePadProps {
+  onSave?: (data: string) => void;
+  width?: number;
+  height?: number;
+}
+
+export default function SignaturePad({ onSave, width = 400, height = 200 }: SignaturePadProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [drawing, setDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
   const lastPos = useRef({ x: 0, y: 0 });
@@ -10,7 +16,7 @@ export default function SignaturePad({ onSave, width = 400, height = 200 }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d')!;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = width * dpr;
     canvas.height = height * dpr;
@@ -23,25 +29,25 @@ export default function SignaturePad({ onSave, width = 400, height = 200 }) {
     ctx.lineJoin = 'round';
   }, [width, height]);
 
-  const getPos = useCallback((e) => {
-    const canvas = canvasRef.current;
+  const getPos = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     return { x: clientX - rect.left, y: clientY - rect.top };
   }, []);
 
-  const startDraw = useCallback((e) => {
+  const startDraw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     setDrawing(true);
     lastPos.current = getPos(e);
   }, [getPos]);
 
-  const draw = useCallback((e) => {
+  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!drawing) return;
     e.preventDefault();
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext('2d')!;
     const pos = getPos(e);
     ctx.beginPath();
     ctx.moveTo(lastPos.current.x, lastPos.current.y);
@@ -54,8 +60,8 @@ export default function SignaturePad({ onSave, width = 400, height = 200 }) {
   const stopDraw = useCallback(() => setDrawing(false), []);
 
   const clear = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext('2d')!;
     const dpr = window.devicePixelRatio || 1;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'rgba(255,255,255,0.03)';
@@ -65,7 +71,7 @@ export default function SignaturePad({ onSave, width = 400, height = 200 }) {
 
   const save = () => {
     if (!hasSignature) return;
-    const canvas = canvasRef.current;
+    const canvas = canvasRef.current!;
     const data = canvas.toDataURL('image/png');
     onSave?.(data);
   };

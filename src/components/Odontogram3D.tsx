@@ -8,17 +8,41 @@ import { T, TOOTH_STATUS, TOOTH_SURFACES, UPPER, LOWER } from '../utils/constant
 import { Card } from './ui/ds/Card';
 import { Badge } from './ui/ds/Badge';
 
+type ToothStatusKey = keyof typeof TOOTH_STATUS;
+
+interface ToothSurfaces {
+  M?: string;
+  O?: string;
+  D?: string;
+  B?: string;
+  L?: string;
+}
+
+interface ToothData {
+  status?: ToothStatusKey;
+  surfaces?: ToothSurfaces;
+}
+
+type PatientTeeth = Record<number, string | ToothData>;
+
+interface Tooth3DProps {
+  toothNumber: number;
+  status?: ToothStatusKey;
+  surfaces?: ToothSurfaces | null;
+  onClick: (toothNumber: number) => void;
+  selected?: number;
+}
+
 /**
  * Single tooth component with surface-level detail
  */
-export function Tooth3D({ toothNumber, status, surfaces, onClick, selected }) {
+export function Tooth3D({ toothNumber, status, surfaces, onClick, selected }: Tooth3DProps) {
   const [hovered, setHovered] = useState(false);
   
   const baseColor = status ? TOOTH_STATUS[status]?.c : "rgba(255,255,255,0.07)";
   const isSelected = selected === toothNumber;
   
-  // Surface colors - default to base color if not specified
-  const surfaceColors = {
+  const surfaceColors: ToothSurfaces = {
     M: surfaces?.M || baseColor,
     O: surfaces?.O || baseColor,
     D: surfaces?.D || baseColor,
@@ -115,11 +139,17 @@ export function Tooth3D({ toothNumber, status, surfaces, onClick, selected }) {
   );
 }
 
+interface Odontogram3DProps {
+  patientTeeth?: PatientTeeth;
+  onToothClick: (toothNumber: number) => void;
+  selectedTooth?: number;
+}
+
 /**
  * Full odontogram with upper and lower arches
  */
-export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }) {
-  const renderRow = (teeth, isUpper) => (
+export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }: Odontogram3DProps) {
+  const renderRow = (teeth: readonly number[], isUpper: boolean) => (
     <div style={{
       display: 'flex',
       gap: 4,
@@ -130,7 +160,7 @@ export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth })
     }}>
       {teeth.map(toothNum => {
         const toothData = patientTeeth[toothNum];
-        const status = typeof toothData === 'string' ? toothData : toothData?.status;
+        const status = typeof toothData === 'string' ? (toothData as ToothStatusKey) : toothData?.status;
         const surfaces = typeof toothData === 'object' ? toothData?.surfaces : null;
         
         return (
@@ -189,15 +219,22 @@ export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth })
   );
 }
 
+interface SurfaceEditorProps {
+  toothNumber: number;
+  surfaces?: ToothSurfaces;
+  onSave: (toothNumber: number, surfaces: ToothSurfaces) => void;
+  onCancel: () => void;
+}
+
 /**
  * Surface editor for detailed tooth work
  */
-export function SurfaceEditor({ toothNumber, surfaces, onSave, onCancel }) {
-  const [editedSurfaces, setEditedSurfaces] = useState(surfaces || {});
-  const [selectedSurface, setSelectedSurface] = useState(null);
-  const [selectedStatus, setSelectedStatus] = useState('caries');
+export function SurfaceEditor({ toothNumber, surfaces, onSave, onCancel }: SurfaceEditorProps) {
+  const [editedSurfaces, setEditedSurfaces] = useState<ToothSurfaces>(surfaces || {});
+  const [selectedSurface, setSelectedSurface] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<ToothStatusKey>('caries');
 
-  const handleSurfaceClick = (surface) => {
+  const handleSurfaceClick = (surface: string) => {
     setSelectedSurface(surface);
   };
 
@@ -290,7 +327,7 @@ export function SurfaceEditor({ toothNumber, surfaces, onSave, onCancel }) {
           <span style={{ fontSize: 11, color: T.slate, alignSelf: 'center' }}>
             Статус для {selectedSurface}:
           </span>
-          {Object.entries(TOOTH_STATUS).map(([key, value]) => (
+          {(Object.entries(TOOTH_STATUS) as [ToothStatusKey, { l: string; c: string }][]).map(([key, value]) => (
             <button
               key={key}
               onClick={() => setSelectedStatus(key)}
@@ -371,11 +408,23 @@ export function SurfaceEditor({ toothNumber, surfaces, onSave, onCancel }) {
   );
 }
 
+interface TreatmentRecommendation {
+  tooth: string;
+  procedure: string;
+  urgency: 'high' | 'medium' | 'low';
+  estimatedPrice: number;
+}
+
+interface AutoTreatmentPlanProps {
+  teeth: PatientTeeth;
+  onAddToPlan: (recommendations: TreatmentRecommendation[]) => void;
+}
+
 /**
  * Treatment plan auto-generator based on tooth status
  */
-export function AutoTreatmentPlan({ teeth, onAddToPlan }) {
-  const recommendations = [];
+export function AutoTreatmentPlan({ teeth, onAddToPlan }: AutoTreatmentPlanProps) {
+  const recommendations: TreatmentRecommendation[] = [];
 
   Object.entries(teeth).forEach(([toothNum, data]) => {
     const status = typeof data === 'string' ? data : data?.status;
@@ -499,7 +548,7 @@ export function ToothLegend() {
       flexWrap: 'wrap',
       padding: '10px 0'
     }}>
-      {Object.entries(TOOTH_STATUS).map(([key, value]) => (
+      {(Object.entries(TOOTH_STATUS) as [ToothStatusKey, { l: string; c: string }][]).map(([key, value]) => (
         <div key={key} style={{
           display: 'flex',
           alignItems: 'center',
