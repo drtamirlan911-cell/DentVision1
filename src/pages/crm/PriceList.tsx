@@ -47,30 +47,30 @@ export default function PriceList() {
 
   const handleSave = () => {
     if (!editingService || editingService.price <= 0) {
-      showToast('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨║╨╛╤А╤А╨╡╨║╤В╨╜╤Г╤О ╤Ж╨╡╨╜╤Г', 'warning')
+      showToast('Введите корректную цену', 'warning')
       return
     }
     handleSavePrice(editingService.id, editingService.price)
-    showToast(`╨ж╨╡╨╜╨░ ╨╜╨░ "${editingService.name}" ╨╛╨▒╨╜╨╛╨▓╨╗╨╡╨╜╨░`, 'success')
+    showToast(`Цена на "${editingService.name}" обновлена`, 'success')
     setModalOpen(false)
     setEditingService(null)
   }
 
   const handleReset = (serviceId: string) => {
     setClinicPrices(prev => { const next = { ...prev }; delete next[serviceId]; return next })
-    showToast('╨ж╨╡╨╜╨░ ╤Б╨▒╤А╨╛╤И╨╡╨╜╨░ ╨║ ╤Б╤В╨░╨╜╨┤╨░╤А╤В╨╜╨╛╨╣', 'success')
+    showToast('Цена сброшена к стандартной', 'success')
   }
 
   return (
     <div className="p-6">
       <PageHeader
-        title="╨Я╤А╨░╨╣╤Б-╨╗╨╕╤Б╤В"
-        subtitle={`${clinic?.name} ┬╖ ╨Ш╨╜╨┤╨╕╨▓╨╕╨┤╤Г╨░╨╗╤М╨╜╤Л╨╡ ╤Ж╨╡╨╜╤Л ╨┤╨╗╤П ╨║╨╗╨╕╨╜╨╕╨║╨╕`}
+        title="Прайс-лист"
+        subtitle={`${clinic?.name} · Индивидуальные цены для клиники`}
         icon={<DollarSign size={20} />}
         actions={
           <Button variant="secondary" icon={<Download size={16} />}
-            onClick={() => showToast('╨Я╤А╨░╨╣╤Б ╤Н╨║╤Б╨┐╨╛╤А╤В╨╕╤А╨╛╨▓╨░╨╜ ╨▓ Excel', 'success')}>
-            ╨н╨║╤Б╨┐╨╛╤А╤В
+            onClick={() => showToast('Прайс экспортирован в Excel', 'success')}>
+            Экспорт
           </Button>
         }
       />
@@ -80,7 +80,7 @@ export default function PriceList() {
         <Button variant={selectedCategory === 'all' ? 'outline' : 'ghost'} size="sm"
           onClick={() => setSelectedCategory('all')}
           className={selectedCategory === 'all' ? 'border-dv-gold/50 text-dv-gold' : ''}>
-          ╨Т╤Б╨╡ ╤Г╤Б╨╗╤Г╨│╨╕
+          Все услуги
         </Button>
         {CATEGORIES.map(cat => (
           <Button key={cat} variant={selectedCategory === cat ? 'outline' : 'ghost'} size="sm"
@@ -97,10 +97,10 @@ export default function PriceList() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-bdr-subtle">
-                {['╨г╤Б╨╗╤Г╨│╨░', '╨Ъ╨░╤В╨╡╨│╨╛╤А╨╕╤П', '╨С╨░╨╖╨╛╨▓╨░╤П ╤Ж╨╡╨╜╨░', '╨ж╨╡╨╜╨░ ╨║╨╗╨╕╨╜╨╕╨║╨╕', '╨Ф╨╡╨╣╤Б╤В╨▓╨╕╤П'].map(h => (
+                {['Услуга', 'Категория', 'Базовая цена', 'Цена клиники', 'Действия'].map(h => (
                   <th key={h} className={cn(
                     'py-3 px-4 text-2xs font-bold text-txt-muted uppercase tracking-wider',
-                    h === '╨С╨░╨╖╨╛╨▓╨░╤П ╤Ж╨╡╨╜╨░' || h === '╨ж╨╡╨╜╨░ ╨║╨╗╨╕╨╜╨╕╨║╨╕' || h === '╨Ф╨╡╨╣╤Б╤В╨▓╨╕╤П' ? 'text-right' : 'text-left'
+                    h === 'Базовая цена' || h === 'Цена клиники' || h === 'Действия' ? 'text-right' : 'text-left'
                   )}>{h}</th>
                 ))}
               </tr>
@@ -138,33 +138,33 @@ export default function PriceList() {
 
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3">
-        <StatCard label="╨Ш╨╖╨╝╨╡╨╜╤С╨╜╨╜╤Л╤Е ╤Ж╨╡╨╜" value={Object.keys(clinicPrices).length} icon={<DollarSign size={18} />} />
-        <StatCard label="╨Т╤Б╨╡╨│╨╛ ╤Г╤Б╨╗╤Г╨│" value={ALL_SERVICES.length} icon={<DollarSign size={18} />} />
+        <StatCard label="Изменённых цен" value={Object.keys(clinicPrices).length} icon={<DollarSign size={18} />} />
+        <StatCard label="Всего услуг" value={ALL_SERVICES.length} icon={<DollarSign size={18} />} />
       </div>
 
       {/* Edit modal */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingService ? `╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М ╤Ж╨╡╨╜╤Г: ${editingService.name}` : '╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М ╤Ж╨╡╨╜╤Г'}
+        title={editingService ? `Редактировать цену: ${editingService.name}` : 'Редактировать цену'}
         size="md"
       >
         {editingService && (
           <div className="space-y-4">
             <div>
-              <p className="text-xs text-txt-secondary mb-1">╨С╨░╨╖╨╛╨▓╨░╤П ╤Ж╨╡╨╜╨░:</p>
+              <p className="text-xs text-txt-secondary mb-1">Базовая цена:</p>
               <p className="text-lg font-bold text-txt-secondary">{tg(editingService.price)}</p>
             </div>
             <Input
-              label="╨ж╨╡╨╜╨░ ╨┤╨╗╤П ╨║╨╗╨╕╨╜╨╕╨║╨╕ (тВ╕)"
+              label="Цена для клиники (₸)"
               type="number"
               value={editingService.price}
               onChange={e => setEditingService({ ...editingService, price: Number(e.target.value) })}
               autoFocus
             />
             <div className="flex gap-2 pt-2">
-              <Button onClick={handleSave} className="flex-1">╨б╨╛╤Е╤А╨░╨╜╨╕╤В╤М</Button>
-              <Button variant="ghost" onClick={() => setModalOpen(false)}>╨Ю╤В╨╝╨╡╨╜╨░</Button>
+              <Button onClick={handleSave} className="flex-1">Сохранить</Button>
+              <Button variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
             </div>
           </div>
         )}

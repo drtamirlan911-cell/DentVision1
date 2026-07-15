@@ -41,7 +41,7 @@ export default function DocumentSign() {
         if (data.status === 'signed') setSigned(true);
         if (data.patient_name) setName(data.patient_name);
       } catch {
-        setToast({ msg: '╨Ф╨╛╨║╤Г╨╝╨╡╨╜╤В ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜ ╨╕╨╗╨╕ ╤Г╨╢╨╡ ╨┐╨╛╨┤╨┐╨╕╤Б╨░╨╜', type: 'error' });
+        setToast({ msg: 'Документ не найден или уже подписан', type: 'error' });
       } finally {
         setLoading(false);
       }
@@ -51,7 +51,7 @@ export default function DocumentSign() {
 
   const handleSign = async (signatureData: string) => {
     if (!name.trim()) {
-      setToast({ msg: '╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨▓╨░╤И╨╡ ╨╕╨╝╤П', type: 'warning' });
+      setToast({ msg: 'Введите ваше имя', type: 'warning' });
       return;
     }
     setSigning(true);
@@ -63,9 +63,9 @@ export default function DocumentSign() {
       });
       if (!res.ok) throw new Error('Sign failed');
       setSigned(true);
-      setToast({ msg: '╨Ф╨╛╨║╤Г╨╝╨╡╨╜╤В ╤Г╤Б╨┐╨╡╤И╨╜╨╛ ╨┐╨╛╨┤╨┐╨╕╤Б╨░╨╜!', type: 'success' });
+      setToast({ msg: 'Документ успешно подписан!', type: 'success' });
     } catch {
-      setToast({ msg: '╨Ю╤И╨╕╨▒╨║╨░ ╨┐╤А╨╕ ╨┐╨╛╨┤╨┐╨╕╤Б╨░╨╜╨╕╨╕. ╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨╡╤Й╤С ╤А╨░╨╖.', type: 'error' });
+      setToast({ msg: 'Ошибка при подписании. Попробуйте ещё раз.', type: 'error' });
     } finally {
       setSigning(false);
     }
@@ -83,12 +83,12 @@ export default function DocumentSign() {
         <div className="mb-5 flex justify-center text-[#27AE60]">
           <CheckCircle2 size={64} />
         </div>
-        <h1 className="font-['Georgia',serif] text-[26px] text-white mb-3">╨Ф╨╛╨║╤Г╨╝╨╡╨╜╤В ╨┐╨╛╨┤╨┐╨╕╤Б╨░╨╜</h1>
+        <h1 className="font-['Georgia',serif] text-[26px] text-white mb-3">Документ подписан</h1>
         <p className="text-sm text-[#B0BEC5] mb-2">{doc?.title}</p>
-        <p className="text-xs text-[#7A8899]">╨Я╨╛╨┤╨┐╨╕╤Б╤М: {doc?.signed_by_name || name}</p>
+        <p className="text-xs text-[#7A8899]">Подпись: {doc?.signed_by_name || name}</p>
         <p className="text-xs text-[#7A8899] mt-1">
           {doc?.clinic_name && `${doc.clinic_name}`}
-          {doc?.clinic_phone && ` ┬╖ ${doc.clinic_phone}`}
+          {doc?.clinic_phone && ` · ${doc.clinic_phone}`}
         </p>
       </div>
     </div>
@@ -122,26 +122,26 @@ export default function DocumentSign() {
             <FileText size={20} className="text-[#C9A96E]" />
             <h2 className="font-['Georgia',serif] text-lg text-white m-0">{doc?.title}</h2>
           </div>
-          <p className="text-[11px] text-[#7A8899] mb-1">╨в╨╕╨┐: {doc?.doc_type}</p>
+          <p className="text-[11px] text-[#7A8899] mb-1">Тип: {doc?.doc_type}</p>
           <div className="bg-white/[0.03] rounded-[10px] p-4 border border-[rgba(201,169,110,0.15)] text-[13px] text-[#B0BEC5] leading-[1.7] whitespace-pre-wrap font-['Georgia',serif] max-h-[400px] overflow-auto">
-            {doc?.content || '╨б╨╛╨┤╨╡╤А╨╢╨╕╨╝╨╛╨╡ ╨┤╨╛╨║╤Г╨╝╨╡╨╜╤В╨░ ╨╛╤В╤Б╤Г╤В╤Б╤В╨▓╤Г╨╡╤В.'}
+            {doc?.content || 'Содержимое документа отсутствует.'}
           </div>
         </div>
 
         <div className="bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-2xl px-6 py-7">
           <h2 className="font-['Georgia',serif] text-lg text-white m-0 mb-4">
-            ╨н╨╗╨╡╨║╤В╤А╨╛╨╜╨╜╨░╤П ╨┐╨╛╨┤╨┐╨╕╤Б╤М
+            Электронная подпись
           </h2>
 
           <div className="mb-3.5">
-            <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Т╨░╤И╨╡ ╨д╨Ш╨Ю *</label>
+            <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Ваше ФИО *</label>
             <input type="text" value={name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-              placeholder="╨Ш╨▓╨░╨╜╨╛╨▓ ╨Ш╨▓╨░╨╜ ╨Ш╨▓╨░╨╜╨╛╨▓╨╕╤З"
+              placeholder="Иванов Иван Иванович"
               className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
           </div>
 
           <p className="text-xs text-[#B0BEC5] mb-2">
-            ╨Я╨╛╨┤╨┐╨╕╤И╨╕╤В╨╡ ╨╜╨╕╨╢╨╡, ╨╕╤Б╨┐╨╛╨╗╤М╨╖╤Г╤П ╨╝╤Л╤И╤М ╨╕╨╗╨╕ ╨┐╨░╨╗╨╡╤Ж ╨╜╨░ ╤Н╨║╤А╨░╨╜╨╡:
+            Подпишите ниже, используя мышь или палец на экране:
           </p>
 
           <div className="flex justify-center">
@@ -149,11 +149,11 @@ export default function DocumentSign() {
           </div>
 
           {signing && (
-            <p className="text-xs text-[#C9A96E] text-center mt-3">╨Ю╤В╨┐╤А╨░╨▓╨║╨░ ╨┐╨╛╨┤╨┐╨╕╤Б╨╕...</p>
+            <p className="text-xs text-[#C9A96E] text-center mt-3">Отправка подписи...</p>
           )}
 
           <p className="text-[10px] text-[#7A8899] mt-4 text-center">
-            ╨Э╨░╨╢╨╕╨╝╨░╤П ┬л╨Я╤А╨╕╨╝╨╡╨╜╨╕╤В╤М ╨┐╨╛╨┤╨┐╨╕╤Б╤М┬╗, ╨▓╤Л ╨┐╨╛╨┤╤В╨▓╨╡╤А╨╢╨┤╨░╨╡╤В╨╡ ╤Б╨╛╨│╨╗╨░╤Б╨╕╨╡ ╤Б ╤Б╨╛╨┤╨╡╤А╨╢╨╕╨╝╤Л╨╝ ╨┤╨╛╨║╤Г╨╝╨╡╨╜╤В╨░.
+            Нажимая «Применить подпись», вы подтверждаете согласие с содержимым документа.
           </p>
         </div>
 

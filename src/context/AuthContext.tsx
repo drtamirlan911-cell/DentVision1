@@ -138,13 +138,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     setError(null);
     try {
-      const result = await api.login(loginStr, password) as unknown as { accessToken?: string; refreshToken?: string; user: User; clinic?: Clinic };
+      const result = await api.login(loginStr, password) as unknown as { accessToken?: string; refreshToken?: string; user?: User; clinic?: Clinic };
       if (result && result.accessToken) {
         api.setTokens(result.accessToken, result.refreshToken ?? null);
-        setUser(result.user);
-        if (result.user.clinicId) {
+        // Server returns tokens only — fetch full user via /me
+        let userData = result.user;
+        if (!userData) {
+          userData = await api.getMe();
+        }
+        setUser(userData);
+        if (userData?.clinicId) {
           try {
-            const clinicData = await api.getClinic(result.user.clinicId);
+            const clinicData = await api.getClinic(userData.clinicId);
             setClinic(clinicData);
           } catch {}
         }

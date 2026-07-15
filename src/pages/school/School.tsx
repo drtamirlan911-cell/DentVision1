@@ -51,33 +51,33 @@ const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0, tra
 const scaleIn = { hidden: { opacity: 0, scale: 0.9 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 const CATEGORIES = [
-  { key: '╨в╨╡╤А╨░╨┐╨╕╤П', label: '╨в╨╡╤А╨░╨┐╨╕╤П', icon: Stethoscope },
-  { key: '╨Ю╤А╤В╨╛╨┐╨╡╨┤╨╕╤П', label: '╨Ю╤А╤В╨╛╨┐╨╡╨┤╨╕╤П', icon: Shield },
-  { key: '╨е╨╕╤А╤Г╤А╨│╨╕╤П', label: '╨е╨╕╤А╤Г╤А╨│╨╕╤П', icon: Scissors },
-  { key: '╨Ш╨╝╨┐╨╗╨░╨╜╤В╨░╤Ж╨╕╤П', label: '╨Ш╨╝╨┐╨╗╨░╨╜╤В╨░╤Ж╨╕╤П', icon: Zap },
-  { key: '╨Я╨░╤А╨╛╨┤╨╛╨╜╤В╨╛╨╗╨╛╨│╨╕╤П', label: '╨Я╨░╤А╨╛╨┤╨╛╨╜╤В╨╛╨╗╨╛╨│╨╕╤П', icon: Heart },
-  { key: '╨Ю╤А╤В╨╛╨┤╨╛╨╜╤В╨╕╤П', label: '╨Ю╤А╤В╨╛╨┤╨╛╨╜╤В╨╕╤П', icon: Building2 },
-  { key: '╨н╨╜╨┤╨╛╨┤╨╛╨╜╤В╨╕╤П', label: '╨н╨╜╨┤╨╛╨┤╨╛╨╜╤В╨╕╤П', icon: Microscope },
-  { key: '╨Ф╨╡╤В╤Б╨║╨░╤П ╤Б╤В╨╛╨╝╨░╤В╨╛╨╗╨╛╨│╨╕╤П', label: '╨Ф╨╡╤В╤Б╨║╨░╤П', icon: Heart },
-  { key: '╨Ь╨╡╨╜╨╡╨┤╨╢╨╝╨╡╨╜╤В', label: '╨Ь╨╡╨╜╨╡╨┤╨╢╨╝╨╡╨╜╤В', icon: TrendingUp },
-  { key: '╨Ь╨░╤А╨║╨╡╤В╨╕╨╜╨│', label: '╨Ь╨░╤А╨║╨╡╤В╨╕╨╜╨│', icon: Sparkles },
-  { key: '╨д╨╛╤В╨╛╨│╤А╨░╤Д╨╕╤П', label: '╨д╨╛╤В╨╛╨│╤А╨░╤Д╨╕╤П', icon: Camera },
+  { key: 'Терапия', label: 'Терапия', icon: Stethoscope },
+  { key: 'Ортопедия', label: 'Ортопедия', icon: Shield },
+  { key: 'Хирургия', label: 'Хирургия', icon: Scissors },
+  { key: 'Имплантация', label: 'Имплантация', icon: Zap },
+  { key: 'Пародонтология', label: 'Пародонтология', icon: Heart },
+  { key: 'Ортодонтия', label: 'Ортодонтия', icon: Building2 },
+  { key: 'Эндодонтия', label: 'Эндодонтия', icon: Microscope },
+  { key: 'Детская стоматология', label: 'Детская', icon: Heart },
+  { key: 'Менеджмент', label: 'Менеджмент', icon: TrendingUp },
+  { key: 'Маркетинг', label: 'Маркетинг', icon: Sparkles },
+  { key: 'Фотография', label: 'Фотография', icon: Camera },
   { key: 'AI', label: 'AI', icon: Brain },
-  { key: '╨о╤А╨╕╨┤╨╕╤З╨╡╤Б╨║╨╕╨╡ ╨▓╨╛╨┐╤А╨╛╤Б╤Л', label: '╨о╤А╨╕╤Б╨┐╤А╤Г╨┤╨╡╨╜╤Ж╨╕╤П', icon: Scale },
+  { key: 'Юридические вопросы', label: 'Юриспруденция', icon: Scale },
 ];
 
 const DIFF_BADGE: Record<string, string> = { beginner: 'success', intermediate: 'gold', advanced: 'error' };
-const DIFF_LABELS: Record<string, string> = { beginner: '╨Э╨░╤З╨╕╨╜╨░╤О╤Й╨╕╨╣', intermediate: '╨Я╤А╨╛╨┤╨▓╨╕╨╜╤Г╤В╤Л╨╣', advanced: '╨н╨║╤Б╨┐╨╡╤А╤В' };
+const DIFF_LABELS: Record<string, string> = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
 const CAT_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
-  '╨в╨╡╤А╨░╨┐╨╕╤П': Stethoscope, '╨е╨╕╤А╤Г╤А╨│╨╕╤П': Scissors, '╨Ш╨╝╨┐╨╗╨░╨╜╤В╨░╤Ж╨╕╤П': Zap,
-  '╨Ю╤А╤В╨╛╨┤╨╛╨╜╤В╨╕╤П': Building2, '╨н╨╜╨┤╨╛╨┤╨╛╨╜╤В╨╕╤П': Microscope, '╨Ь╨░╤А╨║╨╡╤В╨╕╨╜╨│': Sparkles,
-  '╨д╨╛╤В╨╛╨│╤А╨░╤Д╨╕╤П': Camera, 'AI': Brain, '╨Ю╤А╤В╨╛╨┐╨╡╨┤╨╕╤П': Shield,
+  'Терапия': Stethoscope, 'Хирургия': Scissors, 'Имплантация': Zap,
+  'Ортодонтия': Building2, 'Эндодонтия': Microscope, 'Маркетинг': Sparkles,
+  'Фотография': Camera, 'AI': Brain, 'Ортопедия': Shield,
 };
 
 const TABS = [
-  { id: 'courses', label: '╨Ъ╤Г╤А╤Б╤Л', icon: <BookOpen size={15} /> },
-  { id: 'cases', label: '╨Ъ╨╗╨╕╨╜╨╕╤З╨╡╤Б╨║╨╕╨╡ ╤Б╨╗╤Г╤З╨░╨╕', icon: <Stethoscope size={15} /> },
-  { id: 'library', label: '╨С╨╕╨▒╨╗╨╕╨╛╤В╨╡╨║╨░', icon: <GraduationCap size={15} /> },
+  { id: 'courses', label: 'Курсы', icon: <BookOpen size={15} /> },
+  { id: 'cases', label: 'Клинические случаи', icon: <Stethoscope size={15} /> },
+  { id: 'library', label: 'Библиотека', icon: <GraduationCap size={15} /> },
 ];
 
 export default function School() {
@@ -147,13 +147,13 @@ export default function School() {
           <PageHeader
             icon={<GraduationCap size={22} />}
             title="DentVision School"
-            subtitle="╨Ю╨▒╤А╨░╨╖╨╛╨▓╨░╤В╨╡╨╗╤М╨╜╨░╤П ╨┐╨╗╨░╤В╤Д╨╛╤А╨╝╨░ ╨┤╨╗╤П ╤Б╤В╨╛╨╝╨░╤В╨╛╨╗╨╛╨│╨╛╨▓. ╨Ъ╤Г╤А╤Б╤Л, ╨║╨╗╨╕╨╜╨╕╤З╨╡╤Б╨║╨╕╨╡ ╤Б╨╗╤Г╤З╨░╨╕, ╨▒╨╕╨▒╨╗╨╕╨╛╤В╨╡╨║╨░ ╨╕ AI-╤В╤М╤О╤В╨╛╤А."
+            subtitle="Образовательная платформа для стоматологов. Курсы, клинические случаи, библиотека и AI-тьютор."
           />
           <div className="flex gap-5 mt-4 flex-wrap">
-            <StatCard label="╨Ъ╤Г╤А╤Б╨╛╨▓" value={stats.courses} icon={<BookOpen size={18} />} />
-            <StatCard label="╨г╤А╨╛╨║╨╛╨▓" value={stats.totalLessons} icon={<Clock size={18} />} />
-            <StatCard label="╨з╨░╤Б╨╛╨▓ ╨║╨╛╨╜╤В╨╡╨╜╤В╨░" value={stats.totalHours} icon={<Play size={18} />} />
-            <StatCard label="╨б╤В╤Г╨┤╨╡╨╜╤В╨╛╨▓" value={`${Math.round(stats.enrolled / 100) / 10}k`} icon={<Users size={18} />} />
+            <StatCard label="Курсов" value={stats.courses} icon={<BookOpen size={18} />} />
+            <StatCard label="Уроков" value={stats.totalLessons} icon={<Clock size={18} />} />
+            <StatCard label="Часов контента" value={stats.totalHours} icon={<Play size={18} />} />
+            <StatCard label="Студентов" value={`${Math.round(stats.enrolled / 100) / 10}k`} icon={<Users size={18} />} />
           </div>
         </div>
       </motion.div>
@@ -165,7 +165,7 @@ export default function School() {
           icon={<Search size={16} />}
           value={search}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-          placeholder={activeTab === 'courses' ? '╨Я╨╛╨╕╤Б╨║ ╨║╤Г╤А╤Б╨╛╨▓, ╨┐╤А╨╡╨┐╨╛╨┤╨░╨▓╨░╤В╨╡╨╗╨╡╨╣...' : '╨Я╨╛╨╕╤Б╨║...'}
+          placeholder={activeTab === 'courses' ? 'Поиск курсов, преподавателей...' : 'Поиск...'}
           className="flex-1 min-w-[200px]"
         />
       </div>
@@ -180,7 +180,7 @@ export default function School() {
               : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)]'
             }`}
         >
-          ╨Т╤Б╨╡
+          Все
         </motion.button>
         {CATEGORIES.map(cat => {
           const CatIcon = cat.icon;
@@ -222,7 +222,7 @@ export default function School() {
                       </Badge>
                     </div>
                     <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-black/50 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-md">
-                      <Play size={10} fill="white" /> {course.lesson_count} ╤Г╤А╨╛╨║╨╛╨▓ ┬╖ {course.duration_hours}╤З
+                      <Play size={10} fill="white" /> {course.lesson_count} уроков · {course.duration_hours}ч
                     </div>
                   </div>
                   <div className="p-3.5">
@@ -245,11 +245,11 @@ export default function School() {
                         <span className="text-[11px] text-[var(--slate)]">{course.enrolled_count}</span>
                       </div>
                       <div className="ml-auto text-sm font-extrabold text-emerald-400">
-                        ╨С╨╡╤Б╨┐╨╗╨░╤В╨╜╨╛
+                        Бесплатно
                       </div>
                     </div>
                     <div className="text-[11px] text-[var(--slate)] mt-1.5">
-                      ╨Я╤А╨╡╨┐╨╛╨┤╨░╨▓╨░╤В╨╡╨╗╤М: {course.instructor}
+                      Преподаватель: {course.instructor}
                     </div>
                   </div>
                 </Card>
@@ -274,10 +274,10 @@ export default function School() {
                   {c.description}
                 </p>
                 <div className="text-[11px] text-[var(--slate)]">
-                  <strong className="text-[var(--slate-light)]">╨Ф╨╕╨░╨│╨╜╨╛╨╖:</strong> {c.diagnosis}
+                  <strong className="text-[var(--slate-light)]">Диагноз:</strong> {c.diagnosis}
                 </div>
                 <div className="text-[11px] text-[var(--slate)] mt-1">
-                  <strong className="text-[var(--slate-light)]">╨Р╨▓╤В╨╛╤А:</strong> {c.author}
+                  <strong className="text-[var(--slate-light)]">Автор:</strong> {c.author}
                 </div>
               </Card>
             </motion.div>
@@ -294,7 +294,7 @@ export default function School() {
                   <span className="text-[10px] text-[var(--slate)]">{item.category}</span>
                 </div>
                 <h3 className="text-sm font-bold text-white mb-1.5">{item.title}</h3>
-                <div className="text-[11px] text-[var(--slate)]">╨Р╨▓╤В╨╛╤А: {item.author}</div>
+                <div className="text-[11px] text-[var(--slate)]">Автор: {item.author}</div>
               </Card>
             </motion.div>
           ))}
@@ -302,13 +302,13 @@ export default function School() {
       )}
 
       {!loading && activeTab === 'courses' && filteredCourses.length === 0 && (
-        <EmptyState icon={<BookOpen size={32} />} title="╨Ъ╤Г╤А╤Б╤Л ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╤Л" description="╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨╕╨╖╨╝╨╡╨╜╨╕╤В╤М ╤Д╨╕╨╗╤М╤В╤А╤Л ╨╕╨╗╨╕ ╨┐╨╛╨╕╤Б╨║╨╛╨▓╤Л╨╣ ╨╖╨░╨┐╤А╨╛╤Б" />
+        <EmptyState icon={<BookOpen size={32} />} title="Курсы не найдены" description="Попробуйте изменить фильтры или поисковый запрос" />
       )}
       {!loading && activeTab === 'cases' && filteredCases.length === 0 && (
-        <EmptyState icon={<Stethoscope size={32} />} title="╨Ъ╨╗╨╕╨╜╨╕╤З╨╡╤Б╨║╨╕╨╡ ╤Б╨╗╤Г╤З╨░╨╕ ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╤Л" description="╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨╕╨╖╨╝╨╡╨╜╨╕╤В╤М ╤Д╨╕╨╗╤М╤В╤А╤Л" />
+        <EmptyState icon={<Stethoscope size={32} />} title="Клинические случаи не найдены" description="Попробуйте изменить фильтры" />
       )}
       {!loading && activeTab === 'library' && filteredLibrary.length === 0 && (
-        <EmptyState icon={<GraduationCap size={32} />} title="╨С╨╕╨▒╨╗╨╕╨╛╤В╨╡╨║╨░ ╨┐╤Г╤Б╤В╨░" description="╨Э╨╡╤В ╨╝╨░╤В╨╡╤А╨╕╨░╨╗╨╛╨▓ ╨┤╨╗╤П ╨╛╤В╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╤П" />
+        <EmptyState icon={<GraduationCap size={32} />} title="Библиотека пуста" description="Нет материалов для отображения" />
       )}
     </div>
   );

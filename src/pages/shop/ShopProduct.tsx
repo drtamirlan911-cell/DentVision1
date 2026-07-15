@@ -58,14 +58,14 @@ export default function ShopProduct() {
   );
 
   if (!product) return (
-    <div className="p-10 text-center text-[#7A8899]">╨в╨╛╨▓╨░╤А ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜</div>
+    <div className="p-10 text-center text-[#7A8899]">Товар не найден</div>
   );
 
   const tabs = [
-    { key: 'description', label: '╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡' },
-    { key: 'specs', label: '╨е╨░╤А╨░╨║╤В╨╡╤А╨╕╤Б╤В╨╕╨║╨╕' },
-    { key: 'reviews', label: `╨Ю╤В╨╖╤Л╨▓╤Л (${product.reviews?.length || 0})` },
-    { key: 'delivery', label: '╨Ф╨╛╤Б╤В╨░╨▓╨║╨░' },
+    { key: 'description', label: 'Описание' },
+    { key: 'specs', label: 'Характеристики' },
+    { key: 'reviews', label: `Отзывы (${product.reviews?.length || 0})` },
+    { key: 'delivery', label: 'Доставка' },
   ];
 
   return (
@@ -113,7 +113,7 @@ export default function ShopProduct() {
               ))}
             </div>
             <span className="text-sm font-bold text-[#C9A96E]">{product.rating}</span>
-            <span className="text-xs text-[#7A8899]">({product.review_count} ╨╛╤В╨╖╤Л╨▓╨╛╨▓)</span>
+            <span className="text-xs text-[#7A8899]">({product.review_count} отзывов)</span>
           </div>
 
           <div className="flex items-baseline gap-3 mb-4">
@@ -126,7 +126,7 @@ export default function ShopProduct() {
           <div className="flex items-center gap-1.5 mb-4">
             <div className={`w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-[#27AE60]' : 'bg-[#E74C3C]'}`} />
             <span className={`text-[13px] font-semibold ${product.stock > 0 ? 'text-[#27AE60]' : 'text-[#E74C3C]'}`}>
-              {product.stock > 0 ? `╨Т ╨╜╨░╨╗╨╕╤З╨╕╨╕: ${product.stock} ${product.unit || '╤И╤В'}` : '╨Э╨╡╤В ╨▓ ╨╜╨░╨╗╨╕╤З╨╕╨╕'}
+              {product.stock > 0 ? `В наличии: ${product.stock} ${product.unit || 'шт'}` : 'Нет в наличии'}
             </span>
           </div>
 
@@ -134,9 +134,9 @@ export default function ShopProduct() {
             <div className="bg-[#2980B9]/10 border border-[#2980B9]/20 rounded-[10px] px-3.5 py-2.5 mb-4 flex items-center gap-2.5">
               <Truck size={16} color="#2980B9" />
               <div>
-                <span className="text-xs text-[var(--slate-light)]">╨Я╨╛╤Б╤В╨░╨▓╤Й╨╕╨║: </span>
+                <span className="text-xs text-[var(--slate-light)]">Поставщик: </span>
                 <span className="text-xs text-white font-semibold">{product.supplier_name} ({product.supplier_country})</span>
-                <span className="text-xs text-[#7A8899]"> ┬╖ ╨┤╨╛╤Б╤В╨░╨▓╨║╨░ {product.delivery_days} ╨┤╨╜.</span>
+                <span className="text-xs text-[#7A8899]"> · доставка {product.delivery_days} дн.</span>
               </div>
             </div>
           )}
@@ -150,7 +150,7 @@ export default function ShopProduct() {
                 disabled={product.stock <= 0}
                 icon={<ShoppingCart size={16} />}
               >
-                {product.stock > 0 ? '╨Ф╨╛╨▒╨░╨▓╨╕╤В╤М ╨▓ ╨║╨╛╤А╨╖╨╕╨╜╤Г' : '╨Э╨╡╤В ╨▓ ╨╜╨░╨╗╨╕╤З╨╕╨╕'}
+                {product.stock > 0 ? 'Добавить в корзину' : 'Нет в наличии'}
               </Button>
             </motion.div>
             <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
@@ -188,14 +188,14 @@ export default function ShopProduct() {
         {activeTab === 'specs' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {[
-              ['╨С╤А╨╡╨╜╨┤', product.brand],
-              ['╨Ь╨╛╨┤╨╡╨╗╤М', product.model],
-              ['╨Р╤А╤В╨╕╨║╤Г╨╗', product.sku || 'тАФ'],
-              ['╨Ъ╨░╤В╨╡╨│╨╛╤А╨╕╤П', product.category_name],
-              ['╨Я╨╛╤Б╤В╨░╨▓╤Й╨╕╨║', product.supplier_name],
-              ['╨б╤В╤А╨░╨╜╨░', product.supplier_country],
-              ['╨Ф╨╛╤Б╤В╨░╨▓╨║╨░', `${product.delivery_days} ╨┤╨╜.`],
-              ['╨б╤В╨╛╨╕╨╝╨╛╤Б╤В╤М ╨┤╨╛╤Б╤В╨░╨▓╨║╨╕', product.delivery_cost === 0 ? '╨С╨╡╤Б╨┐╨╗╨░╤В╨╜╨╛' : tg(product.delivery_cost as number)],
+              ['Бренд', product.brand],
+              ['Модель', product.model],
+              ['Артикул', product.sku || '—'],
+              ['Категория', product.category_name],
+              ['Поставщик', product.supplier_name],
+              ['Страна', product.supplier_country],
+              ['Доставка', `${product.delivery_days} дн.`],
+              ['Стоимость доставки', product.delivery_cost === 0 ? 'Бесплатно' : tg(product.delivery_cost as number)],
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between py-2 px-3 bg-white/[0.02] rounded-md">
                 <span className="text-xs text-[#7A8899]">{label}</span>
@@ -232,7 +232,7 @@ export default function ShopProduct() {
             )) : (
               <EmptyState
                 icon={<MessageSquare size={36} className="text-[#7A8899]/40" />}
-                title="╨Я╨╛╨║╨░ ╨╜╨╡╤В ╨╛╤В╨╖╤Л╨▓╨╛╨▓"
+                title="Пока нет отзывов"
               />
             )}
           </div>
@@ -241,9 +241,9 @@ export default function ShopProduct() {
         {activeTab === 'delivery' && (
           <div className="flex flex-col gap-3">
             {[
-              { icon: Truck, title: '╨Ф╨╛╤Б╤В╨░╨▓╨║╨░', desc: `${product.supplier_name} тАФ ${product.delivery_days} ╤А╨░╨▒╨╛╤З╨╕╤Е ╨┤╨╜╨╡╨╣` },
-              { icon: Shield, title: '╨У╨░╤А╨░╨╜╤В╨╕╤П', desc: '╨Ю╤А╨╕╨│╨╕╨╜╨░╨╗╤М╨╜╨░╤П ╨┐╤А╨╛╨┤╤Г╨║╤Ж╨╕╤П ╤Б ╤Б╨╡╤А╤В╨╕╤Д╨╕╨║╨░╤В╨░╨╝╨╕ ╨║╨░╤З╨╡╤Б╤В╨▓╨░' },
-              { icon: Clock, title: '╨Ю╨▒╤А╨░╨▒╨╛╤В╨║╨░ ╨╖╨░╨║╨░╨╖╨░', desc: '╨Т ╤В╨╡╤З╨╡╨╜╨╕╨╡ 1 ╤А╨░╨▒╨╛╤З╨╡╨│╨╛ ╨┤╨╜╤П ╨┐╨╛╤Б╨╗╨╡ ╨╛╨┐╨╗╨░╤В╤Л' },
+              { icon: Truck, title: 'Доставка', desc: `${product.supplier_name} — ${product.delivery_days} рабочих дней` },
+              { icon: Shield, title: 'Гарантия', desc: 'Оригинальная продукция с сертификатами качества' },
+              { icon: Clock, title: 'Обработка заказа', desc: 'В течение 1 рабочего дня после оплаты' },
             ].map((item, i) => (
               <div key={i} className="flex gap-3.5 p-4 bg-white/[0.02] rounded-[10px]">
                 <div className="w-9 h-9 rounded-[10px] bg-[#C9A96E]/[0.12] flex items-center justify-center shrink-0">
@@ -261,7 +261,7 @@ export default function ShopProduct() {
 
       {product.related! && product.related!.length > 0 && (
         <div className="mt-10">
-          <h3 className="text-base font-bold text-white mb-4">╨Я╨╛╤Е╨╛╨╢╨╕╨╡ ╤В╨╛╨▓╨░╤А╤Л</h3>
+          <h3 className="text-base font-bold text-white mb-4">Похожие товары</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {product.related!.map(rel => (
               <motion.div key={rel.id} whileHover={{ y: -3 }} onClick={() => navigate(`/shop/${rel.id}`)}>

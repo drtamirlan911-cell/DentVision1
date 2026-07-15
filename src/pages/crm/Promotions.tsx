@@ -53,7 +53,7 @@ export default function Promotions() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.title.trim()) { showToast('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨╜╨░╨╖╨▓╨░╨╜╨╕╨╡ ╨░╨║╤Ж╨╕╨╕', 'warning'); return }
+    if (!form.title.trim()) { showToast('Введите название акции', 'warning'); return }
     upsertPromotion({
       ...form,
       id: editing?.id || gid(),
@@ -61,7 +61,7 @@ export default function Promotions() {
       discountPercent: Number(form.discountPercent) || 0,
       serviceIds: form.serviceIds || [],
     })
-    showToast(editing ? '╨Р╨║╤Ж╨╕╤П ╨╛╨▒╨╜╨╛╨▓╨╗╨╡╨╜╨░' : '╨Р╨║╤Ж╨╕╤П ╤Б╨╛╨╖╨┤╨░╨╜╨░', 'success')
+    showToast(editing ? 'Акция обновлена' : 'Акция создана', 'success')
     setModalOpen(false)
     setForm(EMPTY_FORM)
     setEditing(null)
@@ -96,12 +96,12 @@ export default function Promotions() {
   return (
     <div className="p-6">
       <PageHeader
-        title="╨Р╨║╤Ж╨╕╨╕ ╨╕ ╨┐╤А╨╛╨╝╨╛╤Ж╨╕╨╕"
-        subtitle={`${clinic?.name} ┬╖ ${stats.active} ╨░╨║╤В╨╕╨▓╨╜╤Л╤Е`}
+        title="Акции и промоции"
+        subtitle={`${clinic?.name} · ${stats.active} активных`}
         icon={<Target size={20} />}
         actions={
           <Button icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
-            ╨Э╨╛╨▓╨░╤П ╨░╨║╤Ж╨╕╤П
+            Новая акция
           </Button>
         }
       />
@@ -113,23 +113,23 @@ export default function Promotions() {
         animate="show"
       >
         <motion.div variants={fadeUp}>
-          <StatCard label="╨Т╤Б╨╡╨│╨╛" value={stats.total} icon={<Target size={18} />} />
+          <StatCard label="Всего" value={stats.total} icon={<Target size={18} />} />
         </motion.div>
         <motion.div variants={fadeUp}>
-          <StatCard label="╨Р╨║╤В╨╕╨▓╨╜╤Л╤Е" value={stats.active} icon={<Calendar size={18} />} />
+          <StatCard label="Активных" value={stats.active} icon={<Calendar size={18} />} />
         </motion.div>
         <motion.div variants={fadeUp}>
-          <StatCard label="╨Ш╤Б╤В╤С╨║╤И╨╕╤Е" value={stats.expired} icon={<Calendar size={18} />} />
+          <StatCard label="Истёкших" value={stats.expired} icon={<Calendar size={18} />} />
         </motion.div>
       </motion.div>
 
       {/* Filter */}
       <div className="flex gap-2 mb-5 flex-wrap">
         {[
-          { key: 'all', label: '╨Т╤Б╨╡' },
-          { key: 'active', label: '╨Р╨║╤В╨╕╨▓╨╜╤Л╨╡' },
-          { key: 'inactive', label: '╨Э╨╡╨░╨║╤В╨╕╨▓╨╜╤Л╨╡' },
-          { key: 'expired', label: '╨Ш╤Б╤В╤С╨║╤И╨╕╨╡' },
+          { key: 'all', label: 'Все' },
+          { key: 'active', label: 'Активные' },
+          { key: 'inactive', label: 'Неактивные' },
+          { key: 'expired', label: 'Истёкшие' },
         ].map(f => (
           <Button key={f.key} variant={filter === f.key ? 'outline' : 'ghost'} size="sm"
             onClick={() => setFilter(f.key)}
@@ -140,7 +140,7 @@ export default function Promotions() {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={<Target size={32} />} title="╨Э╨╡╤В ╨░╨║╤Ж╨╕╨╣" description="╨б╨╛╨╖╨┤╨░╨╣╤В╨╡ ╨┐╨╡╤А╨▓╤Г╤О ╨┐╤А╨╛╨╝╨╛╤Ж╨╕╤О" />
+        <EmptyState icon={<Target size={32} />} title="Нет акций" description="Создайте первую промоцию" />
       ) : (
         <motion.div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
@@ -168,16 +168,16 @@ export default function Promotions() {
                         )}
                       </div>
                       <Badge variant={statusVariant} size="sm">
-                        {isExpired ? '╨Ш╤Б╤В╨╡╨║╨╗╨░' : promo.active ? '╨Р╨║╤В╨╕╨▓╨╜╨░' : '╨Э╨╡╨░╨║╤В╨╕╨▓╨╜╨░'}
+                        {isExpired ? 'Истекла' : promo.active ? 'Активна' : 'Неактивна'}
                       </Badge>
                     </div>
                     {promo.description && (
                       <p className="text-xs text-txt-secondary mb-2 line-clamp-2 leading-relaxed">{promo.description}</p>
                     )}
                     <div className="flex gap-3 text-xs text-txt-muted">
-                      {promo.startDate && <span>╨б {promo.startDate}</span>}
-                      {promo.endDate && <span>╨Ф╨╛ {promo.endDate}</span>}
-                      {promo.serviceIds && promo.serviceIds.length > 0 && <span>{promo.serviceIds.length} ╤Г╤Б╨╗╤Г╨│</span>}
+                      {promo.startDate && <span>С {promo.startDate}</span>}
+                      {promo.endDate && <span>До {promo.endDate}</span>}
+                      {promo.serviceIds && promo.serviceIds.length > 0 && <span>{promo.serviceIds.length} услуг</span>}
                     </div>
                   </div>
                 </Card>
@@ -190,29 +190,29 @@ export default function Promotions() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? '╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М ╨░╨║╤Ж╨╕╤О' : '╨Э╨╛╨▓╨░╤П ╨░╨║╤Ж╨╕╤П'}
+        title={editing ? 'Редактировать акцию' : 'Новая акция'}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="╨Э╨░╨╖╨▓╨░╨╜╨╕╨╡ *" value={form.title}
+          <Input label="Название *" value={form.title}
             onChange={e => setForm({ ...form, title: e.target.value })}
-            placeholder="╨б╨║╨╕╨┤╨║╨░ ╨╜╨░ ╨╛╤В╨▒╨╡╨╗╨╕╨▓╨░╨╜╨╕╨╡" required icon={<Target size={16} />} />
-          <Textarea label="╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡" value={form.description}
+            placeholder="Скидка на отбеливание" required icon={<Target size={16} />} />
+          <Textarea label="Описание" value={form.description}
             onChange={e => setForm({ ...form, description: e.target.value })}
-            placeholder="╨Я╨╛╨┤╤А╨╛╨▒╨╜╨╛╨╡ ╨╛╨┐╨╕╤Б╨░╨╜╨╕╨╡ ╨░╨║╤Ж╨╕╨╕..." rows={3} />
+            placeholder="Подробное описание акции..." rows={3} />
           <div className="grid grid-cols-2 gap-3 items-end">
-            <Input label="╨б╨║╨╕╨┤╨║╨░ (%)" type="number" min="0" max="100" value={form.discountPercent}
+            <Input label="Скидка (%)" type="number" min="0" max="100" value={form.discountPercent}
               onChange={e => setForm({ ...form, discountPercent: Number(e.target.value) })} />
-            <Switch checked={form.active} onCheckedChange={(v: boolean) => setForm({ ...form, active: v })} label="╨Р╨║╤В╨╕╨▓╨╜╨░" />
+            <Switch checked={form.active} onCheckedChange={(v: boolean) => setForm({ ...form, active: v })} label="Активна" />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="╨Ф╨░╤В╨░ ╨╜╨░╤З╨░╨╗╨░" type="date" value={form.startDate}
+            <Input label="Дата начала" type="date" value={form.startDate}
               onChange={e => setForm({ ...form, startDate: e.target.value })} />
-            <Input label="╨Ф╨░╤В╨░ ╨╛╨║╨╛╨╜╤З╨░╨╜╨╕╤П" type="date" value={form.endDate}
+            <Input label="Дата окончания" type="date" value={form.endDate}
               onChange={e => setForm({ ...form, endDate: e.target.value })} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-txt-secondary mb-2">╨г╤Б╨╗╤Г╨│╨╕ (╨░╨║╤Ж╨╕╤П ╨╜╨░)</p>
+            <p className="text-xs font-semibold text-txt-secondary mb-2">Услуги (акция на)</p>
             <div className="flex flex-wrap gap-1.5">
               {ALL_SERVICES.slice(0, 14).map(s => {
                 const selected = form.serviceIds?.includes(s.id)
@@ -228,8 +228,8 @@ export default function Promotions() {
             </div>
           </div>
           <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">{editing ? '╨б╨╛╤Е╤А╨░╨╜╨╕╤В╤М' : '╨б╨╛╨╖╨┤╨░╤В╤М'}</Button>
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>╨Ю╤В╨╝╨╡╨╜╨░</Button>
+            <Button type="submit" className="flex-1">{editing ? 'Сохранить' : 'Создать'}</Button>
+            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
           </div>
         </form>
       </Modal>

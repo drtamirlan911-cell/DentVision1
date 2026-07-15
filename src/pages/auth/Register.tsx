@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { GLOBAL_CSS } from '../../utils/constants';
 import { Loader2, Stethoscope, AlertTriangle, Check, Calendar, DollarSign, Bot, CheckCircle2 } from 'lucide-react';
 
-const STEPS = ['╨Ъ╨╗╨╕╨╜╨╕╨║╨░', '╨а╤Г╨║╨╛╨▓╨╛╨┤╨╕╤В╨╡╨╗╤М', '╨У╨╛╤В╨╛╨▓╨╛'];
+const STEPS = ['Клиника', 'Руководитель', 'Готово'];
 
 interface RegisterProps {
   onBack: () => void;
@@ -34,13 +34,13 @@ export default function Register({ onBack }: RegisterProps) {
   const nextStep = () => {
     setLocalError('');
     if (step === 0) {
-      if (!form.clinicName.trim()) { setLocalError('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨╜╨░╨╖╨▓╨░╨╜╨╕╨╡ ╨║╨╗╨╕╨╜╨╕╨║╨╕'); return; }
+      if (!form.clinicName.trim()) { setLocalError('Введите название клиники'); return; }
       setStep(1);
     } else if (step === 1) {
-      if (!form.directorName.trim()) { setLocalError('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨д╨Ш╨Ю ╤А╤Г╨║╨╛╨▓╨╛╨┤╨╕╤В╨╡╨╗╤П'); return; }
-      if (!form.login.trim() || form.login.length < 4) { setLocalError('╨Ы╨╛╨│╨╕╨╜ ╨┤╨╛╨╗╨╢╨╡╨╜ ╨▒╤Л╤В╤М ╨╜╨╡ ╨╝╨╡╨╜╨╡╨╡ 4 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓'); return; }
-      if (form.password.length < 6) { setLocalError('╨Я╨░╤А╨╛╨╗╤М ╨┤╨╛╨╗╨╢╨╡╨╜ ╨▒╤Л╤В╤М ╨╜╨╡ ╨╝╨╡╨╜╨╡╨╡ 6 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓'); return; }
-      if (form.password !== form.confirmPassword) { setLocalError('╨Я╨░╤А╨╛╨╗╨╕ ╨╜╨╡ ╤Б╨╛╨▓╨┐╨░╨┤╨░╤О╤В'); return; }
+      if (!form.directorName.trim()) { setLocalError('Введите ФИО руководителя'); return; }
+      if (!form.login.trim() || form.login.length < 4) { setLocalError('Логин должен быть не менее 4 символов'); return; }
+      if (form.password.length < 6) { setLocalError('Пароль должен быть не менее 6 символов'); return; }
+      if (form.password !== form.confirmPassword) { setLocalError('Пароли не совпадают'); return; }
       handleSubmit();
     }
   };
@@ -66,10 +66,10 @@ export default function Register({ onBack }: RegisterProps) {
               <Stethoscope size={40} />
             </div>
             <h1 className="font-['Georgia',serif] text-[22px] font-bold text-white m-0">
-              ╨а╨╡╨│╨╕╤Б╤В╤А╨░╤Ж╨╕╤П ╨║╨╗╨╕╨╜╨╕╨║╨╕
+              Регистрация клиники
             </h1>
             <p className="text-xs text-[#7A8899] mt-1.5">
-              ╨б╨╛╨╖╨┤╨░╨╣╤В╨╡ ╨░╨║╨║╨░╤Г╨╜╤В DentVision тАФ ╨▒╨╡╤Б╨┐╨╗╨░╤В╨╜╨╛ ╨╜╨░ 14 ╨┤╨╜╨╡╨╣
+              Создайте аккаунт DentVision — бесплатно на 14 дней
             </p>
           </div>
 
@@ -103,12 +103,12 @@ export default function Register({ onBack }: RegisterProps) {
 
           {step === 0 && (
             <div>
-              <Field label="╨Э╨░╨╖╨▓╨░╨╜╨╕╨╡ ╨║╨╗╨╕╨╜╨╕╨║╨╕ *" value={form.clinicName}
-                onChange={(v: string) => set('clinicName', v)} placeholder="╨б╤В╨╛╨╝╨░╤В╨╛╨╗╨╛╨│╨╕╤П ┬л╨г╨╗╤Л╨▒╨║╨░┬╗" />
+              <Field label="Название клиники *" value={form.clinicName}
+                onChange={(v: string) => set('clinicName', v)} placeholder="Стоматология «Улыбка»" />
               <div className="grid grid-cols-2 gap-3">
-                <Field label="╨У╨╛╤А╨╛╨┤ *" value={form.city}
-                  onChange={(v: string) => set('city', v)} placeholder="╨Р╨╗╨╝╨░╤В╤Л" />
-                <Field label="╨в╨╡╨╗╨╡╤Д╨╛╨╜" value={form.phone} type="tel"
+                <Field label="Город *" value={form.city}
+                  onChange={(v: string) => set('city', v)} placeholder="Алматы" />
+                <Field label="Телефон" value={form.phone} type="tel"
                   onChange={(v: string) => set('phone', v)} placeholder="+7 777 000 00 00" />
               </div>
               <Field label="Email" value={form.email} type="email"
@@ -116,11 +116,11 @@ export default function Register({ onBack }: RegisterProps) {
 
               <div className="mt-4 p-3.5 bg-[#27AE60]/[0.08] border border-[#27AE60]/20 rounded-[10px]">
                 <div className="text-xs text-[#27AE60] font-bold mb-1.5">
-                  ╨Я╤А╨╛╨▒╨╜╤Л╨╣ ╨┐╨╡╤А╨╕╨╛╨┤ тАФ 14 ╨┤╨╜╨╡╨╣ ╨▒╨╡╤Б╨┐╨╗╨░╤В╨╜╨╛
+                  Пробный период — 14 дней бесплатно
                 </div>
                 <div className="text-[11px] text-[#B0BEC5] leading-relaxed">
-                  ╨в╨░╤А╨╕╤Д Starter: ╨┤╨╛ 2 ╨▓╤А╨░╤З╨╡╨╣, ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╨╡, ╨┐╨░╤Ж╨╕╨╡╨╜╤В╤Л, ╨║╨░╤Б╤Б╨░.
-                  ╨Ч╨░╤В╨╡╨╝ ╨╛╤В 15 000 тВ╕/╨╝╨╡╤Б.
+                  Тариф Starter: до 2 врачей, расписание, пациенты, касса.
+                  Затем от 15 000 ₸/мес.
                 </div>
               </div>
             </div>
@@ -129,18 +129,18 @@ export default function Register({ onBack }: RegisterProps) {
           {step === 1 && (
             <div>
               <div className="p-3.5 bg-[#C9A96E]/[0.08] border border-[#C9A96E]/20 rounded-[10px] mb-4 text-xs text-[#B0BEC5]">
-                ╨Ф╨░╨╜╨╜╤Л╨╡ <span className="text-[#C9A96E]">╤А╤Г╨║╨╛╨▓╨╛╨┤╨╕╤В╨╡╨╗╤П</span> тАФ ╤З╨╡╨╗╨╛╨▓╨╡╨║╨░, ╨║╨╛╤В╨╛╤А╤Л╨╣ ╨▒╤Г╨┤╨╡╤В ╤Г╨┐╤А╨░╨▓╨╗╤П╤В╤М ╨║╨╗╨╕╨╜╨╕╨║╨╛╨╣
+                Данные <span className="text-[#C9A96E]">руководителя</span> — человека, который будет управлять клиникой
               </div>
-              <Field label="╨д╨Ш╨Ю ╤А╤Г╨║╨╛╨▓╨╛╨┤╨╕╤В╨╡╨╗╤П *" value={form.directorName}
-                onChange={(v: string) => set('directorName', v)} placeholder="╨Ш╨▓╨░╨╜╨╛╨▓ ╨Ш╨▓╨░╨╜ ╨Ш╨▓╨░╨╜╨╛╨▓╨╕╤З" />
-              <Field label="╨Ы╨╛╨│╨╕╨╜ ╨┤╨╗╤П ╨▓╤Е╨╛╨┤╨░ *" value={form.login}
+              <Field label="ФИО руководителя *" value={form.directorName}
+                onChange={(v: string) => set('directorName', v)} placeholder="Иванов Иван Иванович" />
+              <Field label="Логин для входа *" value={form.login}
                 onChange={(v: string) => set('login', v.toLowerCase().replace(/\s/g, '_'))}
-                placeholder="director_clinic" hint="╨в╨╛╨╗╤М╨║╨╛ ╨╗╨░╤В╨╕╨╜╨╕╤Ж╨░, ╤Ж╨╕╤Д╤А╤Л, _ (╨╝╨╕╨╜. 4 ╤Б╨╕╨╝╨▓╨╛╨╗╨░)" />
+                placeholder="director_clinic" hint="Только латиница, цифры, _ (мин. 4 символа)" />
               <div className="grid grid-cols-2 gap-3">
-                <Field label="╨Я╨░╤А╨╛╨╗╤М *" value={form.password} type="password"
-                  onChange={(v: string) => set('password', v)} placeholder="╨Ь╨╕╨╜╨╕╨╝╤Г╨╝ 6 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓" />
-                <Field label="╨Я╨╛╨▓╤В╨╛╤А╨╕╤В╨╡ ╨┐╨░╤А╨╛╨╗╤М *" value={form.confirmPassword} type="password"
-                  onChange={(v: string) => set('confirmPassword', v)} placeholder="тАвтАвтАвтАвтАвтАв" />
+                <Field label="Пароль *" value={form.password} type="password"
+                  onChange={(v: string) => set('password', v)} placeholder="Минимум 6 символов" />
+                <Field label="Повторите пароль *" value={form.confirmPassword} type="password"
+                  onChange={(v: string) => set('confirmPassword', v)} placeholder="••••••" />
               </div>
             </div>
           )}
@@ -151,20 +151,20 @@ export default function Register({ onBack }: RegisterProps) {
                 <CheckCircle2 size={60} />
               </div>
               <h2 className="font-['Georgia',serif] text-xl text-white mb-2.5">
-                ╨Ъ╨╗╨╕╨╜╨╕╨║╨░ ╨╖╨░╤А╨╡╨│╨╕╤Б╤В╤А╨╕╤А╨╛╨▓╨░╨╜╨░!
+                Клиника зарегистрирована!
               </h2>
               <p className="text-[13px] text-[#B0BEC5] mb-5 leading-relaxed">
-                ╨Ф╨╛╨▒╤А╨╛ ╨┐╨╛╨╢╨░╨╗╨╛╨▓╨░╤В╤М ╨▓ <span className="text-[#C9A96E]">DentVision</span>.
-                ╨Т╨░╤И╨░ 14-╨┤╨╜╨╡╨▓╨╜╨░╤П ╨┐╤А╨╛╨▒╨╜╨░╤П ╨▓╨╡╤А╤Б╨╕╤П ╨░╨║╤В╨╕╨▓╨╕╤А╨╛╨▓╨░╨╜╨░.
+                Добро пожаловать в <span className="text-[#C9A96E]">DentVision</span>.
+                Ваша 14-дневная пробная версия активирована.
               </p>
               <div className="px-4 py-3.5 bg-white/[0.04] border border-[rgba(255,255,255,0.06)] rounded-[10px] text-left mb-6">
                 <div className="text-[11px] text-[#7A8899] uppercase tracking-[0.06em] mb-2.5">
-                  ╨Ф╨░╨╜╨╜╤Л╨╡ ╨▓╨░╤И╨╡╨│╨╛ ╨░╨║╨║╨░╤Г╨╜╤В╨░
+                  Данные вашего аккаунта
                 </div>
                 {[
-                  { label: '╨Ъ╨╗╨╕╨╜╨╕╨║╨░', value: form.clinicName },
-                  { label: '╨Ы╨╛╨│╨╕╨╜',   value: form.login },
-                  { label: '╨а╨╛╨╗╤М',    value: '╨а╤Г╨║╨╛╨▓╨╛╨┤╨╕╤В╨╡╨╗╤М' },
+                  { label: 'Клиника', value: form.clinicName },
+                  { label: 'Логин',   value: form.login },
+                  { label: 'Роль',    value: 'Руководитель' },
                 ].map((r, i) => (
                   <div key={i} className={`flex justify-between py-[5px] ${i < 2 ? 'border-b border-[rgba(255,255,255,0.06)]' : ''}`}>
                     <span className="text-xs text-[#7A8899]">{r.label}</span>
@@ -173,7 +173,7 @@ export default function Register({ onBack }: RegisterProps) {
                 ))}
               </div>
               <div className="text-xs text-[#27AE60]">
-                ╨Т╤Л ╤Г╨╢╨╡ ╨▓╨╛╤И╨╗╨╕ ╨▓ ╤Б╨╕╤Б╤В╨╡╨╝╤Г тАФ ╨┐╨╡╤А╨╡╤Е╨╛╨┤ ╨▓ ╨┐╨░╨╜╨╡╨╗╤М ╤Г╨┐╤А╨░╨▓╨╗╨╡╨╜╨╕╤П...
+                Вы уже вошли в систему — переход в панель управления...
               </div>
             </div>
           )}
@@ -184,7 +184,7 @@ export default function Register({ onBack }: RegisterProps) {
                 onClick={onBack}
                 className="px-[18px] py-[11px] bg-white/[0.06] border border-[rgba(255,255,255,0.06)] rounded-lg text-[#7A8899] text-[13px] cursor-pointer"
               >
-                тЖР ╨Э╨░╨╖╨░╨┤
+                ← Назад
               </button>
               <button
                 onClick={nextStep}
@@ -195,8 +195,8 @@ export default function Register({ onBack }: RegisterProps) {
                     : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer'
                 }`}
               >
-                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> ╨б╨╛╨╖╨┤╨░╤С╨╝ ╨░╨║╨║╨░╤Г╨╜╤ВтАж</> :
-                  step === 0 ? '╨Ф╨░╨╗╨╡╨╡ тЖТ' : '╨б╨╛╨╖╨┤╨░╤В╤М ╨░╨║╨║╨░╤Г╨╜╤В'}
+                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Создаём аккаунт…</> :
+                  step === 0 ? 'Далее →' : 'Создать аккаунт'}
               </button>
             </div>
           )}
@@ -205,10 +205,10 @@ export default function Register({ onBack }: RegisterProps) {
             <div className="mt-5">
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { icon: Stethoscope, text: '3D ╨Ю╨┤╨╛╨╜╤В╨╛╨│╤А╨░╨╝╨╝╨░' },
-                  { icon: Calendar, text: '╨г╨╝╨╜╨╛╨╡ ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╨╡' },
-                  { icon: DollarSign, text: '╨д╨╕╨╜╨░╨╜╤Б╨╛╨▓╤Л╨╣ ╤Г╤З╤С╤В' },
-                  { icon: Bot, text: 'AI-╨░╤Б╤Б╨╕╤Б╤В╨╡╨╜╤В' },
+                  { icon: Stethoscope, text: '3D Одонтограмма' },
+                  { icon: Calendar, text: 'Умное расписание' },
+                  { icon: DollarSign, text: 'Финансовый учёт' },
+                  { icon: Bot, text: 'AI-ассистент' },
                 ].map((f, i) => (
                   <div key={i} className="px-2.5 py-2 bg-white/[0.03] border border-[rgba(255,255,255,0.06)] rounded-lg flex items-center gap-2 text-xs text-[#B0BEC5]">
                     <f.icon size={14} />{f.text}

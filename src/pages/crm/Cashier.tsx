@@ -21,12 +21,12 @@ import { cn, formatMoney } from '../../lib/utils'
 import type { Receipt, Appointment, Patient, Expense, InventoryItem, Clinic, User as UserType, RoleInfo } from '../../types'
 
 const TABS = [
-  { id: 'unpaid', label: '╨Ъ ╨╛╨┐╨╗╨░╤В╨╡', icon: <Clock size={14} /> },
-  { id: 'transactions', label: '╨Ю╨┐╨╡╤А╨░╤Ж╨╕╨╕', icon: <CreditCard size={14} /> },
-  { id: 'receivables', label: '╨Ф╨╛╨╗╨│╨╕', icon: <AlertTriangle size={14} /> },
-  { id: 'payroll', label: '╨Ч╨░╤А╨┐╨╗╨░╤В╨░', icon: <Wallet size={14} /> },
-  { id: 'inventory', label: '╨б╨║╨╗╨░╨┤', icon: <Package size={14} /> },
-  { id: 'expenses', label: '╨а╨░╤Б╤Е╨╛╨┤╤Л', icon: <Receipt size={14} /> },
+  { id: 'unpaid', label: 'К оплате', icon: <Clock size={14} /> },
+  { id: 'transactions', label: 'Операции', icon: <CreditCard size={14} /> },
+  { id: 'receivables', label: 'Долги', icon: <AlertTriangle size={14} /> },
+  { id: 'payroll', label: 'Зарплата', icon: <Wallet size={14} /> },
+  { id: 'inventory', label: 'Склад', icon: <Package size={14} /> },
+  { id: 'expenses', label: 'Расходы', icon: <Receipt size={14} /> },
 ]
 
 const EMPTY_FORM = {
@@ -35,20 +35,20 @@ const EMPTY_FORM = {
 }
 
 const PAY_TYPES = [
-  { value: 'full', label: '╨Я╨╛╨╗╨╜╨░╤П ╨╛╨┐╨╗╨░╤В╨░' },
-  { value: 'prepayment', label: '╨Я╤А╨╡╨┤╨╛╨┐╨╗╨░╤В╨░' },
-  { value: 'installment', label: '╨а╨░╤Б╤Б╤А╨╛╤З╨║╨░' },
-  { value: 'kaspi_installment', label: 'Kaspi ╨а╨░╤Б╤Б╤А╨╛╤З╨║╨░' },
-  { value: 'credit', label: '╨Ф╨╛╨╗╨│' },
+  { value: 'full', label: 'Полная оплата' },
+  { value: 'prepayment', label: 'Предоплата' },
+  { value: 'installment', label: 'Рассрочка' },
+  { value: 'kaspi_installment', label: 'Kaspi Рассрочка' },
+  { value: 'credit', label: 'Долг' },
 ]
 
 const EXPENSE_CATEGORIES = [
-  { value: '╨Р╤А╨╡╨╜╨┤╨░', label: '╨Р╤А╨╡╨╜╨┤╨░' },
-  { value: '╨Ъ╨╛╨╝╨╝╤Г╨╜╨░╨╗╤М╨╜╤Л╨╡', label: '╨Ъ╨╛╨╝╨╝╤Г╨╜╨░╨╗╤М╨╜╤Л╨╡ ╤Г╤Б╨╗╤Г╨│╨╕' },
-  { value: '╨Ь╨░╤В╨╡╤А╨╕╨░╨╗╤Л', label: '╨Ч╨░╨║╤Г╨┐╨║╨░ ╨╝╨░╤В╨╡╤А╨╕╨░╨╗╨╛╨▓' },
-  { value: '╨Ь╨░╤А╨║╨╡╤В╨╕╨╜╨│', label: '╨Ь╨░╤А╨║╨╡╤В╨╕╨╜╨│' },
-  { value: '╨Ч╨░╤А╨┐╨╗╨░╤В╨░', label: '╨Ч╨░╤А╨┐╨╗╨░╤В╨░' },
-  { value: '╨Я╤А╨╛╤З╨╡╨╡', label: '╨Я╤А╨╛╤З╨╡╨╡' },
+  { value: 'Аренда', label: 'Аренда' },
+  { value: 'Коммунальные', label: 'Коммунальные услуги' },
+  { value: 'Материалы', label: 'Закупка материалов' },
+  { value: 'Маркетинг', label: 'Маркетинг' },
+  { value: 'Зарплата', label: 'Зарплата' },
+  { value: 'Прочее', label: 'Прочее' },
 ]
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } }
@@ -144,7 +144,7 @@ export default function Cashier() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.amount || isNaN(Number(form.amount))) {
-      showToast('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨║╨╛╤А╤А╨╡╨║╤В╨╜╤Г╤О ╤Б╤Г╨╝╨╝╤Г', 'warning')
+      showToast('Введите корректную сумму', 'warning')
       return
     }
     try {
@@ -176,38 +176,38 @@ export default function Cashier() {
         await upsertAppointment({ id: form.appointmentId, paymentStatus: 'paid' })
       }
 
-      showToast('╨Ю╨┐╨╗╨░╤В╨░ ╨┐╤А╨╕╨╜╤П╤В╨░', 'success')
+      showToast('Оплата принята', 'success')
       setModalOpen(false)
     } catch {
-      showToast('╨Ю╤И╨╕╨▒╨║╨░ ╤Б╨╛╤Е╤А╨░╨╜╨╡╨╜╨╕╤П', 'error')
+      showToast('Ошибка сохранения', 'error')
     }
   }
 
   const handleExpenseSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     await upsertExpense({ ...expenseForm, amount: Number(expenseForm.amount), date: today() } as any)
-    showToast('╨а╨░╤Б╤Е╨╛╨┤ ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜', 'success')
+    showToast('Расход добавлен', 'success')
     setExpModalOpen(false)
     setExpenseForm({ category: '', amount: '', notes: '' })
   }
 
   const quickPresets = [
-    { name: '╨Я╤А╨╛╤Д╨│╨╕╨│╨╕╨╡╨╜╨░', price: 45000 },
-    { name: '╨Ы╨╡╤З╨╡╨╜╨╕╨╡ ╨║╨░╤А╨╕╨╡╤Б╨░', price: 120000 },
-    { name: '╨Ш╨╝╨┐╨╗╨░╨╜╤В╨░╤Ж╨╕╤П', price: 650000 },
+    { name: 'Профгигиена', price: 45000 },
+    { name: 'Лечение кариеса', price: 120000 },
+    { name: 'Имплантация', price: 650000 },
   ]
 
   const payrollRows = doctors
     .filter((doctor) => Number(doctor.salary || 0) > 0 || Number(doctor.paid || 0) > 0)
     .map((doctor) => ({
       name: doctor.name,
-      role: doctor.spec || '╨Т╤А╨░╤З',
+      role: doctor.spec || 'Врач',
       salary: Number(doctor.salary || 0),
       paid: Number(doctor.paid || 0),
     }))
 
   const debtRows = debts.map((debt) => ({
-    patient: debt.patientName || patients.find((p) => p.id === debt.patientId)?.name || '╨Я╨░╤Ж╨╕╨╡╨╜╤В ╨╜╨╡ ╤Г╨║╨░╨╖╨░╨╜',
+    patient: debt.patientName || patients.find((p) => p.id === debt.patientId)?.name || 'Пациент не указан',
     amount: debt.total || Number(debt.amount) || 0,
     date: debt.date,
   }))
@@ -215,16 +215,16 @@ export default function Cashier() {
   return (
     <div className="p-6">
       <PageHeader
-        title="╨Ъ╨░╤Б╤Б╨░"
-        subtitle="╨Ю╨┐╨╗╨░╤В╨░ ╨╕╨╖ ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╤П, ╨╛╨┐╨╡╤А╨░╤Ж╨╕╨╕, ╤А╨░╤Б╤Е╨╛╨┤╤Л"
+        title="Касса"
+        subtitle="Оплата из расписания, операции, расходы"
         icon={<DollarSign size={20} />}
         actions={
           <>
             <Button variant="secondary" icon={<Plus size={16} />} onClick={() => setExpModalOpen(true)}>
-              ╨а╨░╤Б╤Е╨╛╨┤
+              Расход
             </Button>
             <Button icon={<Plus size={16} />} onClick={handleNewTransaction}>
-              ╨Ю╨┐╨╗╨░╤В╨░
+              Оплата
             </Button>
           </>
         }
@@ -232,7 +232,7 @@ export default function Cashier() {
 
       {/* Quick payment bar */}
       <Card padding="md" className="mb-5">
-        <p className="text-sm font-bold text-txt-primary mb-3">╨С╤Л╤Б╤В╤А╤Л╨╣ ╨┐╤А╨╕╤С╨╝ ╨╛╨┐╨╗╨░╤В╤Л</p>
+        <p className="text-sm font-bold text-txt-primary mb-3">Быстрый приём оплаты</p>
         <div className="flex flex-wrap gap-2">
           {quickPresets.map((preset) => (
             <Button
@@ -242,7 +242,7 @@ export default function Cashier() {
               icon={<CreditCard size={14} />}
               onClick={() => handleQuickPayment(preset)}
             >
-              {preset.name} ┬╖ {money(preset.price)}
+              {preset.name} · {money(preset.price)}
             </Button>
           ))}
         </div>
@@ -256,25 +256,25 @@ export default function Cashier() {
         animate="show"
       >
         <motion.div variants={fadeUp}>
-          <StatCard label="╨Ф╨╛╤Е╨╛╨┤ ╤Б╨╡╨│╨╛╨┤╨╜╤П" value={money(todayRevenue)} icon={<TrendingUp size={18} />} />
+          <StatCard label="Доход сегодня" value={money(todayRevenue)} icon={<TrendingUp size={18} />} />
         </motion.div>
         <motion.div variants={fadeUp}>
-          <StatCard label="╨а╨░╤Б╤Е╨╛╨┤ ╤Б╨╡╨│╨╛╨┤╨╜╤П" value={money(todayExpenseAmount)} icon={<TrendingDown size={18} />} />
+          <StatCard label="Расход сегодня" value={money(todayExpenseAmount)} icon={<TrendingDown size={18} />} />
         </motion.div>
         <motion.div variants={fadeUp}>
-          <StatCard label="╨Ф╨╛╤Е╨╛╨┤ ╨╖╨░ ╨╝╨╡╤Б╤П╤Ж" value={money(totalIncome)} icon={<DollarSign size={18} />} />
+          <StatCard label="Доход за месяц" value={money(totalIncome)} icon={<DollarSign size={18} />} />
         </motion.div>
         <motion.div variants={fadeUp}>
-          <StatCard label="╨Ъ ╨╛╨┐╨╗╨░╤В╨╡" value={String(unpaidCount)} icon={<Clock size={18} />} className={unpaidCount > 0 ? 'ring-1 ring-warning/30' : ''} />
+          <StatCard label="К оплате" value={String(unpaidCount)} icon={<Clock size={18} />} className={unpaidCount > 0 ? 'ring-1 ring-warning/30' : ''} />
         </motion.div>
       </motion.div>
 
       {/* Settings */}
       <Card padding="md" className="mb-5">
-        <p className="text-sm font-bold text-txt-primary mb-3">╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨╕ ╨║╨░╤Б╤Б╤Л</p>
+        <p className="text-sm font-bold text-txt-primary mb-3">Настройки кассы</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="p-3 rounded-lg border border-bdr-subtle bg-white/[0.02]">
-            <p className="text-xs text-txt-secondary mb-2">╨б╨┐╨╛╤Б╨╛╨▒ ╨╛╨┐╨╗╨░╤В╤Л ╨┐╨╛ ╤Г╨╝╨╛╨╗╤З╨░╨╜╨╕╤О</p>
+            <p className="text-xs text-txt-secondary mb-2">Способ оплаты по умолчанию</p>
             <Select
               value={cashSettings.defaultMethod}
               onChange={(e) => setCashSettings({ ...cashSettings, defaultMethod: e.target.value })}
@@ -285,12 +285,12 @@ export default function Cashier() {
             <Switch
               checked={cashSettings.autoReceipt}
               onCheckedChange={(v) => setCashSettings({ ...cashSettings, autoReceipt: v })}
-              label="╨Р╨▓╤В╨╛-╤З╨╡╨║╨╕"
+              label="Авто-чеки"
             />
             <Switch
               checked={cashSettings.reminders}
               onCheckedChange={(v) => setCashSettings({ ...cashSettings, reminders: v })}
-              label="╨Э╨░╨┐╨╛╨╝╨╕╨╜╨░╨╜╨╕╤П ╨┐╨╛ ╨┤╨╛╨╗╨│╨░╨╝"
+              label="Напоминания по долгам"
             />
           </div>
         </div>
@@ -306,13 +306,13 @@ export default function Cashier() {
             <div>
               <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
                 <p className="text-sm font-bold text-txt-primary">
-                  ╨Ч╨░╨┐╨╕╤Б╨╕ ╨╕╨╖ ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╤П ╨║ ╨╛╨┐╨╗╨░╤В╨╡
+                  Записи из расписания к оплате
                   {unpaidCount > 0 && <Badge variant="warning" size="sm" className="ml-2">{unpaidCount}</Badge>}
                 </p>
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
                   <input
-                    placeholder="╨Я╨╛╨╕╤Б╨║..."
+                    placeholder="Поиск..."
                     value={searchUnpaid}
                     onChange={e => setSearchUnpaid(e.target.value)}
                     className="pl-9 !h-8 !text-xs !w-48"
@@ -322,15 +322,15 @@ export default function Cashier() {
               {unpaidAppointments.length === 0 ? (
                 <EmptyState
                   icon={<CheckCircle size={32} />}
-                  title="╨Т╤Б╨╡ ╨╛╨┐╨╗╨░╤З╨╡╨╜╨╛"
-                  description="╨Э╨╡╤В ╨╜╨╡╨╛╨┐╨╗╨░╤З╨╡╨╜╨╜╤Л╤Е ╨╖╨░╨┐╨╕╤Б╨╡╨╣ ╨╕╨╖ ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╤П"
+                  title="Все оплачено"
+                  description="Нет неоплаченных записей из расписания"
                 />
               ) : (
                 <div className="space-y-2.5">
                   {unpaidAppointments.map((appt) => {
                     const patient = patients.find(p => p.id === appt.patientId)
                     const doctor = doctors.find(d => d.id === appt.doctorId)
-                    const toothLabel = appt.toothNumber ? `╨Ч╤Г╨▒ ${appt.toothNumber}` : ''
+                    const toothLabel = appt.toothNumber ? `Зуб ${appt.toothNumber}` : ''
                     return (
                       <motion.div
                         key={appt.id}
@@ -341,8 +341,8 @@ export default function Cashier() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <User size={14} className="text-txt-muted flex-shrink-0" />
-                            <span className="text-sm font-semibold text-txt-primary truncate">{patient?.name || '╨Я╨░╤Ж╨╕╨╡╨╜╤В'}</span>
-                            <Badge variant="warning" size="xs">╨Э╨╡ ╨╛╨┐╨╗╨░╤З╨╡╨╜╨╛</Badge>
+                            <span className="text-sm font-semibold text-txt-primary truncate">{patient?.name || 'Пациент'}</span>
+                            <Badge variant="warning" size="xs">Не оплачено</Badge>
                           </div>
                           <div className="flex items-center gap-3 text-xs text-txt-secondary">
                             {appt.serviceName && (
@@ -352,11 +352,11 @@ export default function Cashier() {
                               </span>
                             )}
                             {doctor && <span className="text-txt-muted">{doctor.name}</span>}
-                            <span className="text-txt-muted">{appt.date} ┬╖ {appt.time}</span>
+                            <span className="text-txt-muted">{appt.date} · {appt.time}</span>
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             {appt.diagnosis && (
-                              <span className="text-2xs text-dv-gold font-medium">{appt.diagnosis.split(' тАФ ')[0]}</span>
+                              <span className="text-2xs text-dv-gold font-medium">{appt.diagnosis.split(' — ')[0]}</span>
                             )}
                             {toothLabel && (
                               <span className="text-2xs text-emerald-400 font-medium">{toothLabel}</span>
@@ -370,7 +370,7 @@ export default function Cashier() {
                             icon={<CreditCard size={14} />}
                             onClick={() => openPaymentModal(appt)}
                           >
-                            ╨Ю╨┐╨╗╨░╤В╨░
+                            Оплата
                           </Button>
                         </div>
                       </motion.div>
@@ -383,19 +383,19 @@ export default function Cashier() {
 
           {activeTab === 'transactions' && (
             <div>
-              <p className="text-sm font-bold text-txt-primary mb-4">╨Я╨╛╤Б╨╗╨╡╨┤╨╜╨╕╨╡ ╨╛╨┐╨╡╤А╨░╤Ж╨╕╨╕</p>
+              <p className="text-sm font-bold text-txt-primary mb-4">Последние операции</p>
               {receipts.length === 0 ? (
                 <EmptyState
                   icon={<CreditCard size={32} />}
-                  title="╨Э╨╡╤В ╨╛╨┐╨╡╤А╨░╤Ж╨╕╨╣"
-                  description="╨Э╨░╨╢╨╝╨╕╤В╨╡ ┬л+ ╨Ю╨┐╨╗╨░╤В╨░┬╗ ╤З╤В╨╛╨▒╤Л ╨┤╨╛╨▒╨░╨▓╨╕╤В╤М"
+                  title="Нет операций"
+                  description="Нажмите «+ Оплата» чтобы добавить"
                 />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-bdr-subtle">
-                        {['╨Ф╨░╤В╨░', '╨Я╨░╤Ж╨╕╨╡╨╜╤В', '╨г╤Б╨╗╤Г╨│╨░', '╨Ч╤Г╨▒', '╨Ф╨╕╨░╨│╨╜╨╛╨╖', '╨б╨┐╨╛╤Б╨╛╨▒', '╨б╤В╨░╤В╤Г╤Б', '╨б╤Г╨╝╨╝╨░'].map(h => (
+                        {['Дата', 'Пациент', 'Услуга', 'Зуб', 'Диагноз', 'Способ', 'Статус', 'Сумма'].map(h => (
                           <th key={h} className="text-left py-2 px-3 text-2xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -403,9 +403,9 @@ export default function Cashier() {
                     <tbody>
                       {receipts.slice().reverse().map((r) => {
                         const statusVariant = r.status === 'debt' ? 'error' : r.status === 'partial' ? 'warning' : 'success'
-                        const statusLabel = r.status === 'debt' ? '╨Ф╨╛╨╗╨│' : r.status === 'partial' ? '╨з╨░╤Б╤В╨╕╤З╨╜╨╛' : '╨Ю╨┐╨╗╨░╤З╨╡╨╜╨╛'
-                        const toothLabel = r.toothNumber ? `╨Ч╤Г╨▒ ${r.toothNumber}` : 'тАФ'
-                        const diagShort = r.diagnosis ? r.diagnosis.split(' тАФ ')[0] : 'тАФ'
+                        const statusLabel = r.status === 'debt' ? 'Долг' : r.status === 'partial' ? 'Частично' : 'Оплачено'
+                        const toothLabel = r.toothNumber ? `Зуб ${r.toothNumber}` : '—'
+                        const diagShort = r.diagnosis ? r.diagnosis.split(' — ')[0] : '—'
                         return (
                           <tr key={r.id} className="border-b border-bdr-subtle last:border-b-0">
                             <td className="py-2.5 px-3 text-xs text-txt-secondary">{fd(r.date)}</td>
@@ -430,12 +430,12 @@ export default function Cashier() {
 
           {activeTab === 'receivables' && (
             <div>
-              <p className="text-sm font-bold text-txt-primary mb-4">╨Ф╨╛╨╗╨│╨╕ ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨╛╨▓</p>
+              <p className="text-sm font-bold text-txt-primary mb-4">Долги пациентов</p>
               {debtRows.length === 0 && (
                 <EmptyState
                   icon={<AlertTriangle size={32} />}
-                  title="╨Э╨╡╤В ╨┤╨╛╨╗╨│╨╛╨▓"
-                  description="╨Ф╨╛╨╗╨│╨╕ ╨┐╨╛╤П╨▓╤П╤В╤Б╤П ╤В╨╛╨╗╤М╨║╨╛ ╨╕╨╖ ╨╛╨┐╨╡╤А╨░╤Ж╨╕╨╣ ╤Н╤В╨╛╨╣ ╨║╨╗╨╕╨╜╨╕╨║╨╕"
+                  title="Нет долгов"
+                  description="Долги появятся только из операций этой клиники"
                 />
               )}
               <div className="space-y-2.5">
@@ -443,7 +443,7 @@ export default function Cashier() {
                   <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-error/20 bg-error/5">
                     <div>
                       <p className="text-sm font-semibold text-txt-primary">{d.patient}</p>
-                      <p className="text-xs text-txt-muted mt-0.5">╨╛╤В {fd(d.date)}</p>
+                      <p className="text-xs text-txt-muted mt-0.5">от {fd(d.date)}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-lg font-bold text-error">{money(d.amount)}</span>
@@ -451,9 +451,9 @@ export default function Cashier() {
                         variant="ghost"
                         size="sm"
                         icon={<Send size={14} />}
-                        onClick={() => showToast('╨Э╨░╨┐╨╛╨╝╨╕╨╜╨░╨╜╨╕╨╡ ╨╛╤В╨┐╤А╨░╨▓╨╗╨╡╨╜╨╛ ╤З╨╡╤А╨╡╨╖ WhatsApp', 'success')}
+                        onClick={() => showToast('Напоминание отправлено через WhatsApp', 'success')}
                       >
-                        ╨Э╨░╨┐╨╛╨╝╨╜╨╕╤В╤М
+                        Напомнить
                       </Button>
                     </div>
                   </div>
@@ -464,12 +464,12 @@ export default function Cashier() {
 
           {activeTab === 'payroll' && (
             <div>
-              <p className="text-sm font-bold text-txt-primary mb-4">╨Ч╨░╤А╨┐╨╗╨░╤В╨░ ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨╛╨▓</p>
+              <p className="text-sm font-bold text-txt-primary mb-4">Зарплата сотрудников</p>
               {payrollRows.length === 0 && (
                 <EmptyState
                   icon={<Wallet size={32} />}
-                  title="╨Э╨╡╤В ╨╜╨░╤З╨╕╤Б╨╗╨╡╨╜╨╕╨╣"
-                  description="╨Ч╨░╤А╨┐╨╗╨░╤В╨╜╤Л╨╡ ╨┤╨░╨╜╨╜╤Л╨╡ ╨┤╨╗╤П ╤Н╤В╨╛╨╣ ╨║╨╗╨╕╨╜╨╕╨║╨╕ ╨┐╨╛╨║╨░ ╨╜╨╡ ╨▓╨╜╨╡╤Б╨╡╨╜╤Л"
+                  title="Нет начислений"
+                  description="Зарплатные данные для этой клиники пока не внесены"
                 />
               )}
               <div className="space-y-3">
@@ -484,9 +484,9 @@ export default function Cashier() {
                           <p className="text-xs text-txt-muted">{emp.role}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-txt-secondary">╨Э╨░╤З╨╕╤Б╨╗╨╡╨╜╨╛: <span className="font-semibold text-txt-primary">{money(emp.salary)}</span></p>
-                          <p className="text-xs text-success">╨Т╤Л╨┐╨╗╨░╤З╨╡╨╜╨╛: {money(emp.paid)}</p>
-                          {remaining > 0 && <p className="text-xs text-error">╨Ю╤Б╤В╨░╤В╨╛╨║: {money(remaining)}</p>}
+                          <p className="text-xs text-txt-secondary">Начислено: <span className="font-semibold text-txt-primary">{money(emp.salary)}</span></p>
+                          <p className="text-xs text-success">Выплачено: {money(emp.paid)}</p>
+                          {remaining > 0 && <p className="text-xs text-error">Остаток: {money(remaining)}</p>}
                         </div>
                       </div>
                       <div className="h-1.5 bg-white/[0.07] rounded-full overflow-hidden">
@@ -495,7 +495,7 @@ export default function Cashier() {
                           style={{ width: `${Math.min(pct, 100)}%` }}
                         />
                       </div>
-                      <p className="text-xs text-txt-muted mt-1 text-right">{pct}% ╨▓╤Л╨┐╨╗╨░╤З╨╡╨╜╨╛</p>
+                      <p className="text-xs text-txt-muted mt-1 text-right">{pct}% выплачено</p>
                     </div>
                   )
                 })}
@@ -505,7 +505,7 @@ export default function Cashier() {
 
           {activeTab === 'inventory' && (
             <div>
-              <p className="text-sm font-bold text-txt-primary mb-4">╨б╨║╨╗╨░╨┤ ╨╝╨░╤В╨╡╤А╨╕╨░╨╗╨╛╨▓</p>
+              <p className="text-sm font-bold text-txt-primary mb-4">Склад материалов</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {inventory.map((item, i) => {
                   const isLow = item.quantity <= item.min
@@ -520,18 +520,18 @@ export default function Cashier() {
                           {item.quantity} {item.unit}
                         </span>
                         <Badge variant={isLow ? 'error' : 'success'} size="sm">
-                          {isLow ? '╨Ч╨░╨║╨░╨╜╤З╨╕╨▓╨░╨╡╤В╤Б╤П' : '╨Т ╨╜╨╛╤А╨╝╨╡'}
+                          {isLow ? 'Заканчивается' : 'В норме'}
                         </Badge>
                       </div>
-                      <p className="text-xs text-txt-muted mb-2">╨Ь╨╕╨╜╨╕╨╝╤Г╨╝: {item.min} {item.unit}</p>
+                      <p className="text-xs text-txt-muted mb-2">Минимум: {item.min} {item.unit}</p>
                       {isLow && (
                         <Button
                           variant="outline"
                           size="sm"
                           icon={<ShoppingCart size={14} />}
-                          onClick={() => showToast(`╨Ч╨░╤П╨▓╨║╨░ ╨╜╨░ ${item.name} ╨╛╤В╨┐╤А╨░╨▓╨╗╨╡╨╜╨░`, 'success')}
+                          onClick={() => showToast(`Заявка на ${item.name} отправлена`, 'success')}
                         >
-                          ╨Ч╨░╨║╨░╨╖╨░╤В╤М
+                          Заказать
                         </Button>
                       )}
                     </div>
@@ -544,16 +544,16 @@ export default function Cashier() {
           {activeTab === 'expenses' && (
             <div>
               <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-bold text-txt-primary">╨а╨░╤Б╤Е╨╛╨┤╤Л ╨║╨╗╨╕╨╜╨╕╨║╨╕</p>
+                <p className="text-sm font-bold text-txt-primary">Расходы клиники</p>
                 <Button variant="danger" size="sm" icon={<Plus size={14} />} onClick={() => setExpModalOpen(true)}>
-                  ╨а╨░╤Б╤Е╨╛╨┤
+                  Расход
                 </Button>
               </div>
               {expenses.length === 0 && (
                 <EmptyState
                   icon={<Receipt size={32} />}
-                  title="╨Э╨╡╤В ╤А╨░╤Б╤Е╨╛╨┤╨╛╨▓"
-                  description="╨Ф╨╛╨▒╨░╨▓╤М╤В╨╡ ╤А╨░╤Б╤Е╨╛╨┤ ╨┤╨╗╤П ╤В╨╡╨║╤Г╤Й╨╡╨╣ ╨║╨╗╨╕╨╜╨╕╨║╨╕"
+                  title="Нет расходов"
+                  description="Добавьте расход для текущей клиники"
                 />
               )}
               <div className="space-y-2">
@@ -576,34 +576,34 @@ export default function Cashier() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={form.appointmentId ? '╨Ю╨┐╨╗╨░╤В╨░ ╨╕╨╖ ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╤П' : '╨Э╨╛╨▓╨░╤П ╨╛╨┐╨╗╨░╤В╨░'}
+        title={form.appointmentId ? 'Оплата из расписания' : 'Новая оплата'}
         size="lg"
         className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {form.appointmentId && (
             <div className="p-3 rounded-xl bg-warning/5 border border-warning/20 space-y-2">
-              <p className="text-xs font-semibold text-warning">╨Ю╨┐╨╗╨░╤В╨░ ╨╕╨╖ ╤А╨░╤Б╨┐╨╕╤Б╨░╨╜╨╕╤П</p>
-              {form.diagnosis && <p className="text-xs text-txt-secondary">╨Ф╨╕╨░╨│╨╜╨╛╨╖: <span className="text-txt-primary font-medium">{form.diagnosis}</span></p>}
-              {form.toothNumber && <p className="text-xs text-txt-secondary">╨Ч╤Г╨▒: <span className="text-emerald-400 font-medium">{form.toothNumber} тАФ {TOOTH_NAMES[form.toothNumber as number]}</span></p>}
+              <p className="text-xs font-semibold text-warning">Оплата из расписания</p>
+              {form.diagnosis && <p className="text-xs text-txt-secondary">Диагноз: <span className="text-txt-primary font-medium">{form.diagnosis}</span></p>}
+              {form.toothNumber && <p className="text-xs text-txt-secondary">Зуб: <span className="text-emerald-400 font-medium">{form.toothNumber} — {TOOTH_NAMES[form.toothNumber as number]}</span></p>}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <Select
-              label="╨Я╨░╤Ж╨╕╨╡╨╜╤В"
+              label="Пациент"
               value={form.patientId}
               onChange={(e) => {
                 const selectedPatient = patients.find((p) => p.id === e.target.value)
                 setForm({ ...form, patientId: e.target.value, patientName: selectedPatient?.name || '' })
               }}
               options={[
-                { value: '', label: '--- ╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡ ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨░ ---' },
+                { value: '', label: '--- Выберите пациента ---' },
                 ...patients.map((p) => ({ value: p.id, label: p.name })),
               ]}
             />
             <Input
-              label={`╨б╤Г╨╝╨╝╨░ (${currency})`}
+              label={`Сумма (${currency})`}
               type="number"
               value={form.amount}
               onChange={e => setForm({ ...form, amount: e.target.value })}
@@ -611,41 +611,41 @@ export default function Cashier() {
             />
           </div>
           <Input
-            label="╨Я╨░╤Ж╨╕╨╡╨╜╤В (╨д╨Ш╨Ю)"
+            label="Пациент (ФИО)"
             value={form.patientName}
             onChange={e => setForm({ ...form, patientName: e.target.value })}
-            placeholder="╨Ш╨▓╨░╨╜╨╛╨▓ ╨Ш╨▓╨░╨╜ ╨Ш╨▓╨░╨╜╨╛╨▓╨╕╤З"
+            placeholder="Иванов Иван Иванович"
           />
           <Input
-            label="╨г╤Б╨╗╤Г╨│╨░"
+            label="Услуга"
             value={form.service}
             onChange={e => setForm({ ...form, service: e.target.value })}
-            placeholder="╨Э╨░╨╖╨▓╨░╨╜╨╕╨╡ ╤Г╤Б╨╗╤Г╨│╨╕"
+            placeholder="Название услуги"
           />
           <div className="grid grid-cols-2 gap-3">
             <Select
-              label="╨б╨┐╨╛╤Б╨╛╨▒ ╨╛╨┐╨╗╨░╤В╤Л"
+              label="Способ оплаты"
               value={form.paymentMethod}
               onChange={e => setForm({ ...form, paymentMethod: e.target.value })}
               options={PAY_METHODS.map(m => ({ value: m, label: m }))}
             />
             <Select
-              label="╨в╨╕╨┐ ╨┐╨╗╨░╤В╨╡╨╢╨░"
+              label="Тип платежа"
               value={form.paymentType}
               onChange={e => setForm({ ...form, paymentType: e.target.value })}
               options={PAY_TYPES}
             />
           </div>
           <Input
-            label="╨Ъ╨╛╨╝╨╝╨╡╨╜╤В╨░╤А╨╕╨╣"
+            label="Комментарий"
             value={form.notes}
             onChange={e => setForm({ ...form, notes: e.target.value })}
           />
           <div className="flex gap-2 pt-2">
             <Button type="submit" className="flex-1" icon={<CreditCard size={16} />}>
-              ╨Я╤А╨╕╨╜╤П╤В╤М ╨╛╨┐╨╗╨░╤В╤Г {form.amount ? money(Number(form.amount)) : ''}
+              Принять оплату {form.amount ? money(Number(form.amount)) : ''}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>╨Ю╤В╨╝╨╡╨╜╨░</Button>
+            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
           </div>
         </form>
       </Modal>
@@ -654,31 +654,31 @@ export default function Cashier() {
       <Modal
         open={expModalOpen}
         onClose={() => setExpModalOpen(false)}
-        title="╨Э╨╛╨▓╤Л╨╣ ╤А╨░╤Б╤Е╨╛╨┤"
+        title="Новый расход"
       >
         <form onSubmit={handleExpenseSubmit} className="space-y-4">
           <Select
-            label="╨Ъ╨░╤В╨╡╨│╨╛╤А╨╕╤П"
+            label="Категория"
             value={expenseForm.category}
             onChange={e => setExpenseForm({ ...expenseForm, category: e.target.value })}
             options={EXPENSE_CATEGORIES}
             required
           />
           <Input
-            label={`╨б╤Г╨╝╨╝╨░ (${currency})`}
+            label={`Сумма (${currency})`}
             type="number"
             value={expenseForm.amount}
             onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
             required
           />
           <Input
-            label="╨Ъ╨╛╨╝╨╝╨╡╨╜╤В╨░╤А╨╕╨╣"
+            label="Комментарий"
             value={expenseForm.notes}
             onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })}
           />
           <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">╨Ф╨╛╨▒╨░╨▓╨╕╤В╤М</Button>
-            <Button type="button" variant="ghost" onClick={() => setExpModalOpen(false)}>╨Ю╤В╨╝╨╡╨╜╨░</Button>
+            <Button type="submit" className="flex-1">Добавить</Button>
+            <Button type="button" variant="ghost" onClick={() => setExpModalOpen(false)}>Отмена</Button>
           </div>
         </form>
       </Modal>

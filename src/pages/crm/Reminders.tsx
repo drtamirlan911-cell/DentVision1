@@ -74,18 +74,18 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
     window.open(reminder.waLink, '_blank', 'noopener,noreferrer');
     markSent(reminder.id);
     setTick(t => t + 1);
-    showToast(`╨Э╨░╨┐╨╛╨╝╨╕╨╜╨░╨╜╨╕╨╡ ╨╛╤В╨┐╤А╨░╨▓╨╗╨╡╨╜╨╛: ${reminder.patient.name}`, 'success');
+    showToast(`Напоминание отправлено: ${reminder.patient.name}`, 'success');
   };
 
   const handleMark = (reminder: any) => {
     markSent(reminder.id);
     setTick(t => t + 1);
-    showToast('╨Ю╤В╨╝╨╡╤З╨╡╨╜╨╛ ╨║╨░╨║ ╨╛╤В╨┐╤А╨░╨▓╨╗╨╡╨╜╨╛', 'info');
+    showToast('Отмечено как отправлено', 'info');
   };
 
   const tabs = [
-    { id: 'appointments', label: '╨Я╤А╨╕╤С╨╝╤Л (24╤З)', icon: <Calendar size={15} />, count: pendingAppt },
-    { id: 'hygiene', label: '╨Я╤А╨╛╤Д. ╨│╨╕╨│╨╕╨╡╨╜╨░ (6+ ╨╝╨╡╤Б)', icon: <Smile size={15} />, count: pendingHyg },
+    { id: 'appointments', label: 'Приёмы (24ч)', icon: <Calendar size={15} />, count: pendingAppt },
+    { id: 'hygiene', label: 'Проф. гигиена (6+ мес)', icon: <Smile size={15} />, count: pendingHyg },
   ];
 
   return (
@@ -97,14 +97,14 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
     >
       {/* Header */}
       <PageHeader
-        title="╨Э╨░╨┐╨╛╨╝╨╕╨╜╨░╨╜╨╕╤П"
-        subtitle={`WhatsApp-╨╜╨░╨┐╨╛╨╝╨╕╨╜╨░╨╜╨╕╤П ╨╛ ╨┐╤А╨╕╤С╨╝╨░╤Е ╨╕ ╨┐╤А╨╛╤Д╨│╨╕╨│╨╕╨╡╨╜╨╡ ┬╖ ${clinic?.name}`}
+        title="Напоминания"
+        subtitle={`WhatsApp-напоминания о приёмах и профгигиене · ${clinic?.name}`}
         icon={<Bell size={20} />}
         actions={
           (pendingAppt + pendingHyg) > 0 ? (
             <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2 text-xs font-bold text-warning">
               <AlertTriangle size={14} />
-              {pendingAppt + pendingHyg} ╤В╤А╨╡╨▒╤Г╤О╤В ╨▓╨╜╨╕╨╝╨░╨╜╨╕╤П
+              {pendingAppt + pendingHyg} требуют внимания
             </div>
           ) : null
         }
@@ -141,8 +141,8 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
           {appointmentReminders.length === 0 ? (
             <EmptyState
               icon={<CheckCircle size={28} />}
-              title="╨Э╨╡╤В ╨▒╨╗╨╕╨╢╨░╨╣╤И╨╕╤Е ╨┐╤А╨╕╤С╨╝╨╛╨▓"
-              description="╨Т╤Б╨╡ ╨╖╨░╨┐╨╕╤Б╨╕ ╨╜╨░ ╨▒╨╗╨╕╨╢╨░╨╣╤И╨╕╨╡ 24 ╤З╨░╤Б╨░ ╤Г╨╢╨╡ ╨╛╨▒╤А╨░╨▒╨╛╤В╨░╨╜╤Л"
+              title="Нет ближайших приёмов"
+              description="Все записи на ближайшие 24 часа уже обработаны"
             />
           ) : (
             <div className="flex flex-col gap-2.5">
@@ -153,14 +153,14 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
                       <div className="flex-1 min-w-[220px]">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm font-bold text-white">{r.patient.name}</span>
-                          {r.sent && <Badge variant="success" size="sm">╨Ю╤В╨┐╤А╨░╨▓╨╗╨╡╨╜╨╛</Badge>}
+                          {r.sent && <Badge variant="success" size="sm">Отправлено</Badge>}
                         </div>
                         <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-txt-secondary">
                           <span className="inline-flex items-center gap-1">
-                            <Calendar size={12} /> {fd(r.appointment.date)} ╨▓ {r.appointment.time}
+                            <Calendar size={12} /> {fd(r.appointment.date)} в {r.appointment.time}
                           </span>
                           <span className="inline-flex items-center gap-1">
-                            <Stethoscope size={12} /> {r.doctor?.name || 'тАФ'}
+                            <Stethoscope size={12} /> {r.doctor?.name || '—'}
                           </span>
                           <span className="inline-flex items-center gap-1">
                             <Phone size={12} /> {r.patient.phone}
@@ -180,11 +180,11 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
                             icon={<MessageSquare size={14} />}
                             onClick={() => handleSend(r)}
                           >
-                            ╨Ю╤В╨┐╤А╨░╨▓╨╕╤В╤М WhatsApp
+                            Отправить WhatsApp
                           </Button>
                           {!r.sent && (
                             <Button variant="outline" size="sm" onClick={() => handleMark(r)}>
-                              ╨Ю╤В╨╝╨╡╤В╨╕╤В╤М
+                              Отметить
                             </Button>
                           )}
                         </div>
@@ -204,8 +204,8 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
           {hygieneReminders.length === 0 ? (
             <EmptyState
               icon={<Smile size={28} />}
-              title="╨Э╨╡╤В ╨┐╤А╨╛╤Б╤А╨╛╤З╨╡╨╜╨╜╤Л╤Е ╨╜╨░╨┐╨╛╨╝╨╕╨╜╨░╨╜╨╕╨╣"
-              description="╨г ╨▓╤Б╨╡╤Е ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨╛╨▓ ╨┐╤А╨╛╤Д╨│╨╕╨│╨╕╨╡╨╜╨░ ╨▓ ╨╜╨╛╤А╨╝╨╡ (╨╝╨╡╨╜╨╡╨╡ 6 ╨╝╨╡╤Б.)"
+              title="Нет просроченных напоминаний"
+              description="У всех пациентов профгигиена в норме (менее 6 мес.)"
             />
           ) : (
             <div className="flex flex-col gap-2.5">
@@ -216,10 +216,10 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
                       <div className="flex-1 min-w-[220px]">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm font-bold text-white">{r.patient.name}</span>
-                          {r.sent && <Badge variant="success" size="sm">╨Ю╤В╨┐╤А╨░╨▓╨╗╨╡╨╜╨╛</Badge>}
+                          {r.sent && <Badge variant="success" size="sm">Отправлено</Badge>}
                           {!r.sent && (
                             <Badge variant={r.monthsSince ? 'warning' : 'error'} size="sm">
-                              {r.monthsSince ? `${r.monthsSince} ╨╝╨╡╤Б. ╨╜╨░╨╖╨░╨┤` : '╨Э╨╕╨║╨╛╨│╨┤╨░ ╨╜╨╡ ╨▒╤Л╨╗╨╛'}
+                              {r.monthsSince ? `${r.monthsSince} мес. назад` : 'Никогда не было'}
                             </Badge>
                           )}
                         </div>
@@ -228,7 +228,7 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
                             <Phone size={12} /> {r.patient.phone}
                           </span>
                           <span className="inline-flex items-center gap-1">
-                            <Smile size={12} /> ╨Я╨╛╤Б╨╗╨╡╨┤╨╜╤П╤П ╨│╨╕╨│╨╕╨╡╨╜╨░: {r.lastDate ? fd(r.lastDate) : '╨╜╨╡╤В ╨┤╨░╨╜╨╜╤Л╤Е'}
+                            <Smile size={12} /> Последняя гигиена: {r.lastDate ? fd(r.lastDate) : 'нет данных'}
                           </span>
                         </div>
                       </div>
@@ -240,11 +240,11 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
                             icon={<MessageSquare size={14} />}
                             onClick={() => handleSend(r)}
                           >
-                            ╨Ю╤В╨┐╤А╨░╨▓╨╕╤В╤М WhatsApp
+                            Отправить WhatsApp
                           </Button>
                           {!r.sent && (
                             <Button variant="outline" size="sm" onClick={() => handleMark(r)}>
-                              ╨Ю╤В╨╝╨╡╤В╨╕╤В╤М
+                              Отметить
                             </Button>
                           )}
                         </div>
@@ -262,8 +262,8 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
       <motion.div variants={fadeUp} className="flex items-start gap-2 rounded-xl border border-bdr-subtle bg-white/[0.03] p-3.5 text-[11px] leading-relaxed text-txt-secondary">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          ╨Ъ╨╜╨╛╨┐╨║╨░ ┬л╨Ю╤В╨┐╤А╨░╨▓╨╕╤В╤М WhatsApp┬╗ ╨╛╤В╨║╤А╤Л╨▓╨░╨╡╤В ╤З╨░╤В ╤Б ╨│╨╛╤В╨╛╨▓╤Л╨╝ ╤В╨╡╨║╤Б╤В╨╛╨╝ ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╤П тАФ ╨┐╤А╨╛╤Б╤В╨╛ ╨╜╨░╨╢╨╝╨╕╤В╨╡ ┬л╨Ю╤В╨┐╤А╨░╨▓╨╕╤В╤М┬╗ ╨▓ WhatsApp.
-          ╨Я╤А╨╛╤Д╨│╨╕╨│╨╕╨╡╨╜╨░ ╨╛╨┐╤А╨╡╨┤╨╡╨╗╤П╨╡╤В╤Б╤П ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╨┐╨╛ ╨╖╨░╨▓╨╡╤А╤И╤С╨╜╨╜╤Л╨╝ ╨┐╤А╨╕╤С╨╝╨░╨╝ ╨╕ ╤З╨╡╨║╨░╨╝ ╤Б ╤Г╤Б╨╗╤Г╨│╨╛╨╣ ┬л╨У╨╕╨│╨╕╨╡╨╜╨░┬╗.
+          Кнопка «Отправить WhatsApp» открывает чат с готовым текстом сообщения — просто нажмите «Отправить» в WhatsApp.
+          Профгигиена определяется автоматически по завершённым приёмам и чекам с услугой «Гигиена».
         </span>
       </motion.div>
     </motion.div>

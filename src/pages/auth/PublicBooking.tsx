@@ -63,7 +63,7 @@ export default function PublicBooking() {
         setClinic(data.clinic);
         setDoctors(data.doctors || []);
       } catch {
-        setToast({ msg: '╨Ъ╨╗╨╕╨╜╨╕╨║╨░ ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╨░', type: 'error' });
+        setToast({ msg: 'Клиника не найдена', type: 'error' });
       } finally {
         setLoading(false);
       }
@@ -74,27 +74,27 @@ export default function PublicBooking() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rateLimit('booking', { maxAttempts: 5, windowMs: 60000 })) {
-      setToast({ msg: '╨б╨╗╨╕╤И╨║╨╛╨╝ ╨╝╨╜╨╛╨│╨╛ ╨╖╨░╤П╨▓╨╛╨║. ╨Я╨╛╨┤╨╛╨╢╨┤╨╕╤В╨╡ ╨╝╨╕╨╜╤Г╤В╤Г.', type: 'warning' });
+      setToast({ msg: 'Слишком много заявок. Подождите минуту.', type: 'warning' });
       return;
     }
     if (!form.patientName.trim()) {
-      setToast({ msg: '╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨▓╨░╤И╨╡ ╨╕╨╝╤П', type: 'warning' });
+      setToast({ msg: 'Введите ваше имя', type: 'warning' });
       return;
     }
     if (!validatePhone(form.phone)) {
-      setToast({ msg: '╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨║╨╛╤А╤А╨╡╨║╤В╨╜╤Л╨╣ ╨╜╨╛╨╝╨╡╤А ╤В╨╡╨╗╨╡╤Д╨╛╨╜╨░', type: 'warning' });
+      setToast({ msg: 'Введите корректный номер телефона', type: 'warning' });
       return;
     }
     if (!form.date) {
-      setToast({ msg: '╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡ ╨┤╨░╤В╤Г', type: 'warning' });
+      setToast({ msg: 'Выберите дату', type: 'warning' });
       return;
     }
     if (!form.time) {
-      setToast({ msg: '╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡ ╨▓╤А╨╡╨╝╤П', type: 'warning' });
+      setToast({ msg: 'Выберите время', type: 'warning' });
       return;
     }
     if (form.email && !validateEmail(form.email)) {
-      setToast({ msg: '╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨║╨╛╤А╤А╨╡╨║╤В╨╜╤Л╨╣ email', type: 'warning' });
+      setToast({ msg: 'Введите корректный email', type: 'warning' });
       return;
     }
 
@@ -115,10 +115,10 @@ export default function PublicBooking() {
           notes: sanitizeInput(form.notes),
         }),
       });
-      if (!res.ok) throw new Error('╨Ю╤И╨╕╨▒╨║╨░');
+      if (!res.ok) throw new Error('Ошибка');
       setSuccess(true);
     } catch {
-      setToast({ msg: '╨Ю╤И╨╕╨▒╨║╨░ ╨┐╤А╨╕ ╨╛╤В╨┐╤А╨░╨▓╨║╨╡. ╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨┐╨╛╨╖╨╢╨╡.', type: 'error' });
+      setToast({ msg: 'Ошибка при отправке. Попробуйте позже.', type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -141,13 +141,13 @@ export default function PublicBooking() {
           <div className="mb-5 flex justify-center text-[#27AE60]">
             <CheckCircle2 size={64} />
           </div>
-          <h1 className="font-['Georgia',serif] text-[26px] text-white mb-3">╨Ч╨░╤П╨▓╨║╨░ ╨╛╤В╨┐╤А╨░╨▓╨╗╨╡╨╜╨░!</h1>
+          <h1 className="font-['Georgia',serif] text-[26px] text-white mb-3">Заявка отправлена!</h1>
           <p className="text-sm text-[#B0BEC5] mb-6">
-            ╨Ь╤Л ╤Б╨▓╤П╨╢╨╡╨╝╤Б╤П ╤Б ╨▓╨░╨╝╨╕ ╨┤╨╗╤П ╨┐╨╛╨┤╤В╨▓╨╡╤А╨╢╨┤╨╡╨╜╨╕╤П ╨╖╨░╨┐╨╕╤Б╨╕ ╨▓ ╨▒╨╗╨╕╨╢╨░╨╣╤И╨╡╨╡ ╨▓╤А╨╡╨╝╤П.
+            Мы свяжемся с вами для подтверждения записи в ближайшее время.
           </p>
           <button onClick={() => { setSuccess(false); setForm({ patientName: '', phone: '', email: '', doctorId: '', serviceName: '', date: '', time: '', notes: '' }); }}
             className="px-7 py-3 bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] border-none rounded-[10px] text-[#080F1A] text-sm font-bold cursor-pointer">
-            ╨Ч╨░╨┐╨╕╤Б╨░╤В╤М╤Б╤П ╨╡╤Й╤С ╤А╨░╨╖
+            Записаться ещё раз
           </button>
         </div>
       </div>
@@ -168,7 +168,7 @@ export default function PublicBooking() {
             <Stethoscope size={44} />
           </div>
           <h1 className="font-['Georgia',serif] text-[28px] font-bold text-white m-0">
-            {clinic?.name || '╨Ю╨╜╨╗╨░╨╣╨╜-╨╖╨░╨┐╨╕╤Б╤М'}
+            {clinic?.name || 'Онлайн-запись'}
           </h1>
           {clinic?.address && (
             <p className="text-[13px] text-[#7A8899] mt-1.5 flex items-center justify-center gap-1">
@@ -184,20 +184,20 @@ export default function PublicBooking() {
 
         <div className="bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-[18px] px-7 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
           <h2 className="font-['Georgia',serif] text-lg text-white m-0 mb-5">
-            ╨Ч╨░╨┐╨╕╤Б╨░╤В╤М╤Б╤П ╨╜╨░ ╨┐╤А╨╕╤С╨╝
+            Записаться на приём
           </h2>
 
           <form onSubmit={handleSubmit}>
             <div className="mb-3.5">
-              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Т╨░╤И╨╡ ╨╕╨╝╤П *</label>
+              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Ваше имя *</label>
               <input type="text" value={form.patientName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, patientName: e.target.value })}
-                placeholder="╨Ш╨▓╨░╨╜╨╛╨▓ ╨Ш╨▓╨░╨╜ ╨Ш╨▓╨░╨╜╨╛╨▓╨╕╤З" required
+                placeholder="Иванов Иван Иванович" required
                 className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-3.5">
               <div>
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨в╨╡╨╗╨╡╤Д╨╛╨╜ *</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Телефон *</label>
                 <input type="tel" value={form.phone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, phone: e.target.value })}
                   placeholder="+7 777 000 00 00" required
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
@@ -212,22 +212,22 @@ export default function PublicBooking() {
 
             {doctors.length > 0 && (
               <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Т╤А╨░╤З</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Врач</label>
                 <select value={form.doctorId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, doctorId: e.target.value })}
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors">
-                  <option value="" className="bg-[#0D1B2E]">╨Ы╤О╨▒╨╛╨╣ ╨┤╨╛╤Б╤В╤Г╨┐╨╜╤Л╨╣</option>
+                  <option value="" className="bg-[#0D1B2E]">Любой доступный</option>
                   {doctors.map(d => (
-                    <option key={d.id} value={d.id} className="bg-[#0D1B2E]">{d.name}{d.spec ? ` тАФ ${d.spec}` : ''}</option>
+                    <option key={d.id} value={d.id} className="bg-[#0D1B2E]">{d.name}{d.spec ? ` — ${d.spec}` : ''}</option>
                   ))}
                 </select>
               </div>
             )}
 
             <div className="mb-3.5">
-              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨г╤Б╨╗╤Г╨│╨░</label>
+              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Услуга</label>
               <select value={form.serviceName} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, serviceName: e.target.value })}
                 className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors">
-                <option value="" className="bg-[#0D1B2E]">╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡ ╤Г╤Б╨╗╤Г╨│╤Г</option>
+                <option value="" className="bg-[#0D1B2E]">Выберите услугу</option>
                 {Object.entries(ALL_SERVICES.reduce<Record<string, typeof ALL_SERVICES>>((acc, s) => { (acc[s.cat] = acc[s.cat] || []).push(s); return acc; }, {})).map(([cat, services]) => (
                   <optgroup key={cat} label={cat}>
                     {services.map(s => <option key={s.id} value={s.name} className="bg-[#0D1B2E]">{s.name}</option>)}
@@ -238,24 +238,24 @@ export default function PublicBooking() {
 
             <div className="grid grid-cols-2 gap-3 mb-3.5">
               <div>
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Ф╨░╤В╨░ *</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Дата *</label>
                 <input type="date" value={form.date} min={minDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, date: e.target.value })}
                   required className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Т╤А╨╡╨╝╤П *</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Время *</label>
                 <select value={form.time} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, time: e.target.value })}
                   required className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors">
-                  <option value="" className="bg-[#0D1B2E]">╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡</option>
+                  <option value="" className="bg-[#0D1B2E]">Выберите</option>
                   {HOURS.map(h => <option key={h} value={h} className="bg-[#0D1B2E]">{h}</option>)}
                 </select>
               </div>
             </div>
 
             <div className="mb-5">
-              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Ъ╨╛╨╝╨╝╨╡╨╜╤В╨░╤А╨╕╨╣</label>
+              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Комментарий</label>
               <textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, notes: e.target.value })}
-                rows={3} placeholder="╨Ю╨┐╨╕╤И╨╕╤В╨╡ ╨╢╨░╨╗╨╛╨▒╤Л ╨╕╨╗╨╕ ╨┐╨╛╨╢╨╡╨╗╨░╨╜╨╕╤П..."
+                rows={3} placeholder="Опишите жалобы или пожелания..."
                 className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors resize-y" />
             </div>
 
@@ -265,7 +265,7 @@ export default function PublicBooking() {
                   ? 'bg-[#8B6F3E] cursor-not-allowed'
                   : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer shadow-[0_6px_20px_#C9A96E35]'
               }`}>
-              {submitting ? '╨Ю╤В╨┐╤А╨░╨▓╨║╨░...' : '╨Ч╨░╨┐╨╕╤Б╨░╤В╤М╤Б╤П ╨╜╨░ ╨┐╤А╨╕╤С╨╝'}
+              {submitting ? 'Отправка...' : 'Записаться на приём'}
             </button>
           </form>
         </div>

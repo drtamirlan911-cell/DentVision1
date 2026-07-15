@@ -21,11 +21,11 @@ export default function ForgotPassword() {
     e.preventDefault();
     setError('');
     if (!rateLimit('forgot-password', { maxAttempts: 3, windowMs: 60000 })) {
-      setError('╨б╨╗╨╕╤И╨║╨╛╨╝ ╨╝╨╜╨╛╨│╨╛ ╨╖╨░╨┐╤А╨╛╤Б╨╛╨▓. ╨Я╨╛╨┤╨╛╨╢╨┤╨╕╤В╨╡ ╨╝╨╕╨╜╤Г╤В╤Г.');
+      setError('Слишком много запросов. Подождите минуту.');
       return;
     }
     if (!login.trim()) {
-      setError('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨╗╨╛╨│╨╕╨╜');
+      setError('Введите логин');
       return;
     }
     setLoading(true);
@@ -38,13 +38,13 @@ export default function ForgotPassword() {
       const data = await res.json();
       if (data._devToken) {
         setToken(data._devToken);
-        setSuccess('╨в╨╛╨║╨╡╨╜ ╨┤╨╗╤П ╤Б╨▒╤А╨╛╤Б╨░ (dev): ' + data._devToken);
+        setSuccess('Токен для сброса (dev): ' + data._devToken);
       } else {
-        setSuccess(data.message || '╨Ш╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╤П ╨╛╤В╨┐╤А╨░╨▓╨╗╨╡╨╜╨░');
+        setSuccess(data.message || 'Инструкция отправлена');
       }
       setStep('reset');
     } catch {
-      setError('╨Ю╤И╨╕╨▒╨║╨░ ╤Б╨╛╨╡╨┤╨╕╨╜╨╡╨╜╨╕╤П ╤Б ╤Б╨╡╤А╨▓╨╡╤А╨╛╨╝');
+      setError('Ошибка соединения с сервером');
     } finally {
       setLoading(false);
     }
@@ -54,15 +54,15 @@ export default function ForgotPassword() {
     e.preventDefault();
     setError('');
     if (!token.trim()) {
-      setError('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╤В╨╛╨║╨╡╨╜');
+      setError('Введите токен');
       return;
     }
     if (!validatePassword(newPassword)) {
-      setError('╨Я╨░╤А╨╛╨╗╤М ╨┤╨╛╨╗╨╢╨╡╨╜ ╨▒╤Л╤В╤М ╨╜╨╡ ╨╝╨╡╨╜╨╡╨╡ 6 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓');
+      setError('Пароль должен быть не менее 6 символов');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('╨Я╨░╤А╨╛╨╗╨╕ ╨╜╨╡ ╤Б╨╛╨▓╨┐╨░╨┤╨░╤О╤В');
+      setError('Пароли не совпадают');
       return;
     }
     setLoading(true);
@@ -73,11 +73,11 @@ export default function ForgotPassword() {
         body: JSON.stringify({ token: token.trim(), newPassword }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '╨Ю╤И╨╕╨▒╨║╨░');
-      setSuccess('╨Я╨░╤А╨╛╨╗╤М ╤Г╤Б╨┐╨╡╤И╨╜╨╛ ╨╕╨╖╨╝╨╡╨╜╤С╨╜!');
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      setSuccess('Пароль успешно изменён!');
       setTimeout(() => navigate('/login'), 2000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '╨Ю╤И╨╕╨▒╨║╨░ ╨┐╤А╨╕ ╤Б╨╝╨╡╨╜╨╡ ╨┐╨░╤А╨╛╨╗╤П');
+      setError(err instanceof Error ? err.message : 'Ошибка при смене пароля');
     } finally {
       setLoading(false);
     }
@@ -95,10 +95,10 @@ export default function ForgotPassword() {
               <KeyRound size={40} />
             </div>
             <h1 className="font-['Georgia',serif] text-[22px] font-bold text-white m-0">
-              {step === 'request' ? '╨б╨▒╤А╨╛╤Б ╨┐╨░╤А╨╛╨╗╤П' : '╨Э╨╛╨▓╤Л╨╣ ╨┐╨░╤А╨╛╨╗╤М'}
+              {step === 'request' ? 'Сброс пароля' : 'Новый пароль'}
             </h1>
             <p className="text-xs text-[#7A8899] mt-1.5">
-              {step === 'request' ? '╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨▓╨░╤И ╨╗╨╛╨│╨╕╨╜ ╨┤╨╗╤П ╨┐╨╛╨╗╤Г╤З╨╡╨╜╨╕╤П ╤В╨╛╨║╨╡╨╜╨░' : '╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╤В╨╛╨║╨╡╨╜ ╨╕ ╨╜╨╛╨▓╤Л╨╣ ╨┐╨░╤А╨╛╨╗╤М'}
+              {step === 'request' ? 'Введите ваш логин для получения токена' : 'Введите токен и новый пароль'}
             </p>
           </div>
 
@@ -117,7 +117,7 @@ export default function ForgotPassword() {
           {step === 'request' ? (
             <form onSubmit={handleRequest}>
               <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Ы╨╛╨│╨╕╨╜</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Логин</label>
                 <input type="text" value={login} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLogin(e.target.value)}
                   placeholder="admin_c1" required autoFocus
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
@@ -128,27 +128,27 @@ export default function ForgotPassword() {
                     ? 'bg-[#8B6F3E] cursor-not-allowed'
                     : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer'
                 }`}>
-                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> ╨Ю╤В╨┐╤А╨░╨▓╨║╨░...</> : '╨Я╨╛╨╗╤Г╤З╨╕╤В╤М ╤В╨╛╨║╨╡╨╜'}
+                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Отправка...</> : 'Получить токен'}
               </button>
             </form>
           ) : (
             <form onSubmit={handleReset}>
               <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨в╨╛╨║╨╡╨╜ ╤Б╨▒╤А╨╛╤Б╨░</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Токен сброса</label>
                 <input type="text" value={token} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setToken(e.target.value)}
-                  placeholder="╨Т╤Б╤В╨░╨▓╤М╤В╨╡ ╤В╨╛╨║╨╡╨╜ ╨╕╨╖ ╨┐╨╕╤Б╤М╨╝╨░" required autoFocus
+                  placeholder="Вставьте токен из письма" required autoFocus
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors font-mono" />
               </div>
               <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Э╨╛╨▓╤Л╨╣ ╨┐╨░╤А╨╛╨╗╤М</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Новый пароль</label>
                 <input type="password" value={newPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
-                  placeholder="╨Ь╨╕╨╜╨╕╨╝╤Г╨╝ 6 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓" required
+                  placeholder="Минимум 6 символов" required
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">╨Я╨╛╨┤╤В╨▓╨╡╤А╨┤╨╕╤В╨╡ ╨┐╨░╤А╨╛╨╗╤М</label>
+                <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Подтвердите пароль</label>
                 <input type="password" value={confirmPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
-                  placeholder="╨Я╨╛╨▓╤В╨╛╤А╨╕╤В╨╡ ╨┐╨░╤А╨╛╨╗╤М" required
+                  placeholder="Повторите пароль" required
                   className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
               </div>
               <button type="submit" disabled={loading}
@@ -157,14 +157,14 @@ export default function ForgotPassword() {
                     ? 'bg-[#8B6F3E] cursor-not-allowed'
                     : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer'
                 }`}>
-                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> ╨б╨╛╤Е╤А╨░╨╜╨╡╨╜╨╕╨╡...</> : '╨Ш╨╖╨╝╨╡╨╜╨╕╤В╤М ╨┐╨░╤А╨╛╨╗╤М'}
+                {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Сохранение...</> : 'Изменить пароль'}
               </button>
             </form>
           )}
 
           <div className="text-center mt-4">
             <button onClick={() => navigate('/login')} className="bg-transparent border-none text-[#C9A96E] text-[13px] cursor-pointer underline">
-              тЖР ╨Т╨╡╤А╨╜╤Г╤В╤М╤Б╤П ╨║ ╨▓╤Е╨╛╨┤╤Г
+              ← Вернуться к входу
             </button>
           </div>
         </div>

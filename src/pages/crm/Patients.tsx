@@ -40,19 +40,19 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  scheduled: '╨Ч╨░╨┐╨╗╨░╨╜╨╕╤А╨╛╨▓╨░╨╜',
-  confirmed: '╨Я╨╛╨┤╤В╨▓╨╡╤А╨╢╨┤╤С╨╜',
-  done: '╨Ч╨░╨▓╨╡╤А╤И╤С╨╜',
-  completed: '╨Ч╨░╨▓╨╡╤А╤И╤С╨╜',
-  cancelled: '╨Ю╤В╨╝╨╡╨╜╤С╨╜',
-  noShow: '╨Э╨╡╤П╨▓╨║╨░',
+  scheduled: 'Запланирован',
+  confirmed: 'Подтверждён',
+  done: 'Завершён',
+  completed: 'Завершён',
+  cancelled: 'Отменён',
+  noShow: 'Неявка',
 }
 
 const PHOTO_LABELS: Record<string, string> = {
-  smile: '╨г╨╗╤Л╨▒╨║╨░',
-  face: '╨Ы╨╕╤Ж╨╛',
-  intraoral: '╨Ш╨╜╤В╤А╨░╨╛╤А╨░╨╗╤М╨╜╤Л╨╡',
-  xray: '╨а╨╡╨╜╤В╨│╨╡╨╜',
+  smile: 'Улыбка',
+  face: 'Лицо',
+  intraoral: 'Интраоральные',
+  xray: 'Рентген',
 }
 
 const PHOTO_ICONS: Record<string, React.ReactNode> = {
@@ -123,23 +123,23 @@ export default function Patients() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!form.name.trim()) { showToast('╨Т╨▓╨╡╨┤╨╕╤В╨╡ ╨д╨Ш╨Ю ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨░', 'warning'); return }
+    if (!form.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
     try {
       await upsertPatient({ ...form, id: editPatient?.id, clinicId: clinic?.id })
-      showToast(editPatient ? '╨Ф╨░╨╜╨╜╤Л╨╡ ╨╛╨▒╨╜╨╛╨▓╨╗╨╡╨╜╤Л' : '╨Я╨░╤Ж╨╕╨╡╨╜╤В ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜', 'success')
+      showToast(editPatient ? 'Данные обновлены' : 'Пациент добавлен', 'success')
       setModalOpen(false)
       if (selected && selected.id === editPatient?.id) {
         setSelected(s => s ? { ...s, ...form } as Patient : null)
       }
     } catch {
-      showToast('╨Ю╤И╨╕╨▒╨║╨░ ╤Б╨╛╤Е╤А╨░╨╜╨╡╨╜╨╕╤П', 'error')
+      showToast('Ошибка сохранения', 'error')
     }
   }
 
   const handleDelete = async () => {
     if (!editPatient) return
     await deletePatient(editPatient.id)
-    showToast('╨Я╨░╤Ж╨╕╨╡╨╜╤В ╤Г╨┤╨░╨╗╤С╨╜', 'success')
+    showToast('Пациент удалён', 'success')
     setModalOpen(false)
     if (selected?.id === editPatient.id) setSelected(null)
   }
@@ -174,21 +174,21 @@ export default function Patients() {
     <Modal
       open={modalOpen}
       onClose={() => setModalOpen(false)}
-      title={editPatient ? '╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨░' : '╨Э╨╛╨▓╤Л╨╣ ╨┐╨░╤Ж╨╕╨╡╨╜╤В'}
+      title={editPatient ? 'Редактировать пациента' : 'Новый пациент'}
       size="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="╨д╨Ш╨Ю"
+          label="ФИО"
           value={form.name}
           onChange={e => setForm({ ...form, name: e.target.value })}
           required
-          placeholder="╨Ш╨▓╨░╨╜╨╛╨▓ ╨Ш╨▓╨░╨╜ ╨Ш╨▓╨░╨╜╨╛╨▓╨╕╤З"
+          placeholder="Иванов Иван Иванович"
           icon={<User size={16} />}
         />
         <div className="grid grid-cols-2 gap-3">
           <Input
-            label="╨в╨╡╨╗╨╡╤Д╨╛╨╜"
+            label="Телефон"
             value={form.phone}
             onChange={e => setForm({ ...form, phone: e.target.value })}
             required
@@ -196,7 +196,7 @@ export default function Patients() {
             icon={<Phone size={16} />}
           />
           <Input
-            label="╨Ф╨░╤В╨░ ╤А╨╛╨╢╨┤╨╡╨╜╨╕╤П"
+            label="Дата рождения"
             type="date"
             value={form.dob}
             onChange={e => setForm({ ...form, dob: e.target.value })}
@@ -211,28 +211,28 @@ export default function Patients() {
           icon={<Mail size={16} />}
         />
         <Input
-          label="╨Р╨┤╤А╨╡╤Б"
+          label="Адрес"
           value={form.address}
           onChange={e => setForm({ ...form, address: e.target.value })}
-          placeholder="╤Г╨╗. ╨Я╤А╨╕╨╝╨╡╤А╨╜╨░╤П, 1"
+          placeholder="ул. Примерная, 1"
           icon={<MapPin size={16} />}
         />
         <Select
-          label="╨Ъ╨░╤В╨╡╨│╨╛╤А╨╕╤П"
+          label="Категория"
           value={form.category}
           onChange={e => setForm({ ...form, category: e.target.value })}
           options={Object.entries(CAT_CFG).map(([k, v]) => ({ value: k, label: v.l }))}
         />
         <Textarea
-          label="╨Ч╨░╨╝╨╡╤В╨║╨╕ / ╨░╨╜╨░╨╝╨╜╨╡╨╖ / ╨░╨╗╨╗╨╡╤А╨│╨╕╨╕"
+          label="Заметки / анамнез / аллергии"
           value={form.notes}
           onChange={e => setForm({ ...form, notes: e.target.value })}
           rows={3}
-          placeholder="╨Р╨╗╨╗╨╡╤А╨│╨╕╤П ╨╜╨░ ╨╗╨╕╨┤╨╛╨║╨░╨╕╨╜, ╨│╨╕╨┐╨╡╤А╤В╨╛╨╜╨╕╤П..."
+          placeholder="Аллергия на лидокаин, гипертония..."
         />
         <div className="flex gap-2 pt-2">
           <Button type="submit" className="flex-1">
-            {editPatient ? '╨б╨╛╤Е╤А╨░╨╜╨╕╤В╤М' : '╨Ф╨╛╨▒╨░╨▓╨╕╤В╤М'}
+            {editPatient ? 'Сохранить' : 'Добавить'}
           </Button>
           {editPatient && (
             <Button
@@ -241,11 +241,11 @@ export default function Patients() {
               icon={<Trash2 size={16} />}
               onClick={() => { setConfirmDeleteOpen(true); setModalOpen(false) }}
             >
-              ╨г╨┤╨░╨╗╨╕╤В╤М
+              Удалить
             </Button>
           )}
           <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
-            ╨Ю╤В╨╝╨╡╨╜╨░
+            Отмена
           </Button>
         </div>
       </form>
@@ -257,23 +257,23 @@ export default function Patients() {
       open={confirmDeleteOpen}
       onClose={() => setConfirmDeleteOpen(false)}
       onConfirm={handleDelete}
-      title="╨г╨┤╨░╨╗╨╕╤В╤М ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨░?"
-      message={`╨Т╤Л ╤Г╨▓╨╡╤А╨╡╨╜╤Л, ╤З╤В╨╛ ╤Е╨╛╤В╨╕╤В╨╡ ╤Г╨┤╨░╨╗╨╕╤В╤М ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨░ ${editPatient?.name}? ╨н╤В╨╛ ╨┤╨╡╨╣╤Б╤В╨▓╨╕╨╡ ╨╜╨╡╨╛╨▒╤А╨░╤В╨╕╨╝╨╛.`}
-      confirmLabel="╨г╨┤╨░╨╗╨╕╤В╤М"
+      title="Удалить пациента?"
+      message={`Вы уверены, что хотите удалить пациента ${editPatient?.name}? Это действие необратимо.`}
+      confirmLabel="Удалить"
     />
   )
 
-  // тФАтФА List View тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
+  // ── List View ──────────────────────────────────────────────
   if (!selected) {
     return (
       <div className="p-6">
         <PageHeader
-          title="╨Я╨░╤Ж╨╕╨╡╨╜╤В╤Л"
-          subtitle={`╨С╨░╨╖╨░ ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨╛╨▓ ╨║╨╗╨╕╨╜╨╕╨║╨╕ ┬╖ ${patients.length} ╤З╨╡╨╗.`}
+          title="Пациенты"
+          subtitle={`База пациентов клиники · ${patients.length} чел.`}
           icon={<User size={20} />}
           actions={
             <Button icon={<UserPlus size={16} />} onClick={openNew}>
-              ╨Э╨╛╨▓╤Л╨╣ ╨┐╨░╤Ж╨╕╨╡╨╜╤В
+              Новый пациент
             </Button>
           }
         />
@@ -283,11 +283,11 @@ export default function Patients() {
             <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="╨Я╨╛╨╕╤Б╨║ ╨┐╨╛ ╨д╨Ш╨Ю, ╤В╨╡╨╗╨╡╤Д╨╛╨╜╤Г, email..."
+              placeholder="Поиск по ФИО, телефону, email..."
               icon={<Search size={16} />}
             />
           </div>
-          {Object.entries({ all: '╨Т╤Б╨╡', ...Object.fromEntries(Object.entries(CAT_CFG).map(([k, v]) => [k, v.l])) }).map(([k, label]) => (
+          {Object.entries({ all: 'Все', ...Object.fromEntries(Object.entries(CAT_CFG).map(([k, v]) => [k, v.l])) }).map(([k, label]) => (
             <Button
               key={k}
               variant={filterCat === k ? 'outline' : 'ghost'}
@@ -303,8 +303,8 @@ export default function Patients() {
         {filtered.length === 0 ? (
           <EmptyState
             icon={<Search size={32} />}
-            title="╨Я╨░╤Ж╨╕╨╡╨╜╤В╤Л ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╤Л"
-            description="╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨╕╨╖╨╝╨╡╨╜╨╕╤В╤М ╨┐╨░╤А╨░╨╝╨╡╤В╤А╤Л ╨┐╨╛╨╕╤Б╨║╨░"
+            title="Пациенты не найдены"
+            description="Попробуйте изменить параметры поиска"
           />
         ) : (
           <motion.div
@@ -338,7 +338,7 @@ export default function Patients() {
                           <p className="text-sm font-semibold text-txt-primary group-hover:text-dv-gold transition-colors">
                             {p.name}
                           </p>
-                          {age && <p className="text-xs text-txt-muted">{age} ╨╗╨╡╤В</p>}
+                          {age && <p className="text-xs text-txt-muted">{age} лет</p>}
                         </div>
                       </div>
                       <Badge variant={CAT_BADGE[catKey] || 'default'} size="sm">
@@ -359,7 +359,7 @@ export default function Patients() {
                       )}
                       <div className="flex items-center gap-2">
                         <Calendar size={12} className="text-txt-muted shrink-0" />
-                        <span>╨Т╨╕╨╖╨╕╤В╨╛╨▓: {pAppts.length}{lastAppt ? ` ┬╖ ${fd(lastAppt.date)}` : ''}</span>
+                        <span>Визитов: {pAppts.length}{lastAppt ? ` · ${fd(lastAppt.date)}` : ''}</span>
                       </div>
                       {p.notes && (
                         <div className="flex items-center gap-2 text-warning">
@@ -381,30 +381,30 @@ export default function Patients() {
     )
   }
 
-  // тФАтФА Detail View тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
+  // ── Detail View ──────────────────────────────────────────────
   const catKey = selected.category || 'regular'
   const cat = CAT_CFG[catKey] || CAT_CFG.regular
 
   const PATIENT_TABS = [
-    { id: 'info', label: '╨Ъ╨░╤А╤В╨░', icon: <FileText size={14} /> },
-    { id: 'odontogram', label: '╨Ю╨┤╨╛╨╜╤В╨╛╨│╤А╨░╨╝╨╝╨░', icon: <Smile size={14} /> },
-    { id: 'payment', label: '╨Ю╨┐╨╗╨░╤В╨░', icon: <CreditCard size={14} /> },
-    { id: 'photos', label: '╨д╨╛╤В╨╛╨┐╤А╨╛╤В╨╛╨║╨╛╨╗', icon: <Camera size={14} /> },
-    { id: 'history', label: '╨Ш╤Б╤В╨╛╤А╨╕╤П', icon: <History size={14} /> },
+    { id: 'info', label: 'Карта', icon: <FileText size={14} /> },
+    { id: 'odontogram', label: 'Одонтограмма', icon: <Smile size={14} /> },
+    { id: 'payment', label: 'Оплата', icon: <CreditCard size={14} /> },
+    { id: 'photos', label: 'Фотопротокол', icon: <Camera size={14} /> },
+    { id: 'history', label: 'История', icon: <History size={14} /> },
   ]
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => setSelected(null)}>
-          ╨Ъ ╤Б╨┐╨╕╤Б╨║╤Г
+          К списку
         </Button>
         <div className="flex gap-2">
           <Button variant="outline" icon={<FileText size={16} />} onClick={() => setActiveTab('info')}>
-            ╨Я╨╗╨░╨╜ ╨╗╨╡╤З╨╡╨╜╨╕╤П
+            План лечения
           </Button>
           <Button variant="secondary" icon={<FileText size={16} />} onClick={() => openEdit(selected)}>
-            ╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М
+            Редактировать
           </Button>
         </div>
       </div>
@@ -437,7 +437,7 @@ export default function Patients() {
               {selected.dob && (
                 <div className="flex items-center gap-2.5">
                   <Calendar size={14} className="text-txt-muted shrink-0" />
-                  <span>{fd(selected.dob)} ({calculateAge(selected.dob)} ╨╗╨╡╤В)</span>
+                  <span>{fd(selected.dob)} ({calculateAge(selected.dob)} лет)</span>
                 </div>
               )}
               {selected.address && (
@@ -456,12 +456,12 @@ export default function Patients() {
           </Card>
 
           <Card padding="md">
-            <p className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3">╨б╤В╨░╤В╨╕╤Б╤В╨╕╨║╨░</p>
+            <p className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3">Статистика</p>
             <div className="space-y-2">
               {[
-                { label: '╨Т╨╕╨╖╨╕╤В╨╛╨▓ ╨▓╤Б╨╡╨│╨╛', value: patientAppts.length },
-                { label: '╨Ч╨░╨▓╨╡╤А╤И╨╡╨╜╨╛', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').length },
-                { label: '╨Ю╤В╨╝╨╡╨╜╨╡╨╜╨╛', value: patientAppts.filter(a => a.status === 'cancelled').length },
+                { label: 'Визитов всего', value: patientAppts.length },
+                { label: 'Завершено', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').length },
+                { label: 'Отменено', value: patientAppts.filter(a => a.status === 'cancelled').length },
               ].map((s, i) => (
                 <div key={i} className="flex justify-between items-center py-1.5 border-b border-bdr-subtle last:border-b-0">
                   <span className="text-xs text-txt-secondary">{s.label}</span>
@@ -482,13 +482,13 @@ export default function Patients() {
             <AnimatePresence mode="wait">
               {activeTab === 'info' && (
                 <motion.div key="info" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
-                  <p className="text-sm font-bold text-txt-primary mb-3">╨Я╨╗╨░╨╜╤Л ╨╕ ╨╖╨░╨╝╨╡╤В╨║╨╕</p>
+                  <p className="text-sm font-bold text-txt-primary mb-3">Планы и заметки</p>
                   <div className="p-4 rounded-xl border border-dashed border-bdr-subtle text-sm text-txt-secondary mb-5">
-                    {selected.notes || '╨Э╨╡╤В ╨╛╤Б╨╛╨▒╤Л╤Е ╨╖╨░╨╝╨╡╤В╨╛╨║. ╨Ф╨╗╤П ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜╨╕╤П ╨╜╨░╨╢╨╝╨╕╤В╨╡ ┬л╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М┬╗.'}
+                    {selected.notes || 'Нет особых заметок. Для добавления нажмите «Редактировать».'}
                   </div>
                   <AutoTreatmentPlan
                     teeth={teethState}
-                    onAddToPlan={(recs: any[]) => showToast(`╨Ф╨╛╨▒╨░╨▓╨╗╨╡╨╜╨╛ ${recs.length} ╨┐╤А╨╛╤Ж╨╡╨┤╤Г╤А ╨▓ ╨┐╨╗╨░╨╜`, 'success')}
+                    onAddToPlan={(recs: any[]) => showToast(`Добавлено ${recs.length} процедур в план`, 'success')}
                   />
                 </motion.div>
               )}
@@ -516,13 +516,13 @@ export default function Patients() {
 
               {activeTab === 'payment' && (
                 <motion.div key="payment" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
-                  <p className="text-sm font-bold text-txt-primary mb-4">╨Ю╨┐╨╗╨░╤В╨░ ╨╕ ╤Д╨╕╨╜╨░╨╜╤Б╨╛╨▓╤Л╨╡ ╨╛╨┐╨╡╤А╨░╤Ж╨╕╨╕</p>
+                  <p className="text-sm font-bold text-txt-primary mb-4">Оплата и финансовые операции</p>
 
                   <div className="grid grid-cols-3 gap-3 mb-5">
                     {[
-                      { label: '╨Т╤Б╨╡╨│╨╛ ╨╛╨┐╨╗╨░╤З╨╡╨╜╨╛', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-success' },
-                      { label: '╨Ю╨╢╨╕╨┤╨░╨╡╤В ╨╛╨┐╨╗╨░╤В╤Л', value: patientAppts.filter(a => a.status === 'confirmed' || a.status === 'scheduled').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-warning' },
-                      { label: '╨б╨║╨╕╨┤╨║╨╕', value: catKey === 'vip' ? '15%' : catKey === 'regular' ? '5%' : '0%', color: 'text-info' },
+                      { label: 'Всего оплачено', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-success' },
+                      { label: 'Ожидает оплаты', value: patientAppts.filter(a => a.status === 'confirmed' || a.status === 'scheduled').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-warning' },
+                      { label: 'Скидки', value: catKey === 'vip' ? '15%' : catKey === 'regular' ? '5%' : '0%', color: 'text-info' },
                     ].map((s, i) => (
                       <div key={i} className="p-4 rounded-xl border border-bdr-subtle bg-white/[0.02] text-center">
                         <p className="text-xs text-txt-muted mb-1.5">{s.label}</p>
@@ -534,44 +534,44 @@ export default function Patients() {
                   </div>
 
                   <div className="p-4 rounded-xl border border-bdr-subtle bg-white/[0.02] mb-5">
-                    <p className="text-sm font-semibold text-txt-primary mb-3">╨Т╨╜╨╡╤Б╤В╨╕ ╨╛╨┐╨╗╨░╤В╤Г</p>
+                    <p className="text-sm font-semibold text-txt-primary mb-3">Внести оплату</p>
                     <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
                       <Input
-                        label="╨б╤Г╨╝╨╝╨░ (тВ╕)"
+                        label="Сумма (₸)"
                         type="number"
                         placeholder="0"
                         value={payment.amount}
                         onChange={e => setPayment({ ...payment, amount: e.target.value })}
                       />
                       <Select
-                        label="╨в╨╕╨┐ ╨╛╨┐╨╗╨░╤В╤Л"
+                        label="Тип оплаты"
                         value={payment.payMethod}
                         onChange={e => setPayment({ ...payment, payMethod: e.target.value })}
                         options={[
-                          { value: 'cash', label: '╨Э╨░╨╗╨╕╤З╨╜╤Л╨╡' },
-                          { value: 'card', label: '╨Ъ╨░╤А╤В╨░' },
-                          { value: 'transfer', label: '╨Я╨╡╤А╨╡╨▓╨╛╨┤' },
+                          { value: 'cash', label: 'Наличные' },
+                          { value: 'card', label: 'Карта' },
+                          { value: 'transfer', label: 'Перевод' },
                         ]}
                       />
                       <Button
                         icon={<CreditCard size={16} />}
                         onClick={() => {
-                          if (!payment.amount || Number(payment.amount) <= 0) { showToast('╨г╨║╨░╨╢╨╕╤В╨╡ ╤Б╤Г╨╝╨╝╤Г', 'warning'); return }
-                          showToast(`╨Ю╨┐╨╗╨░╤В╨░ ${tg(Number(payment.amount))} ╨▓╨╜╨╡╤Б╨╡╨╜╨░ ╤Г╤Б╨┐╨╡╤И╨╜╨╛`, 'success')
+                          if (!payment.amount || Number(payment.amount) <= 0) { showToast('Укажите сумму', 'warning'); return }
+                          showToast(`Оплата ${tg(Number(payment.amount))} внесена успешно`, 'success')
                           setPayment(EMPTY_PAYMENT)
                         }}
                       >
-                        ╨Т╨╜╨╡╤Б╤В╨╕
+                        Внести
                       </Button>
                     </div>
                   </div>
 
-                  <p className="text-sm font-semibold text-txt-primary mb-3">╨Ш╤Б╤В╨╛╤А╨╕╤П ╨┐╨╗╨░╤В╨╡╨╢╨╡╨╣</p>
+                  <p className="text-sm font-semibold text-txt-primary mb-3">История платежей</p>
                   {patientAppts.filter(a => a.price).length === 0 ? (
                     <EmptyState
                       icon={<CreditCard size={32} />}
-                      title="╨Э╨╡╤В ╨╖╨░╨┐╨╕╤Б╨╡╨╣ ╨╛╨▒ ╨╛╨┐╨╗╨░╤В╨╡"
-                      description="╨Я╨╗╨░╤В╨╡╨╢╨╕ ╨┐╨╛╤П╨▓╤П╤В╤Б╤П ╨┐╨╛╤Б╨╗╨╡ ╨╖╨░╨▓╨╡╤А╤И╨╡╨╜╨╕╤П ╨┐╤А╨╕╤С╨╝╨╛╨▓"
+                      title="Нет записей об оплате"
+                      description="Платежи появятся после завершения приёмов"
                     />
                   ) : (
                     <div className="space-y-2">
@@ -579,15 +579,15 @@ export default function Patients() {
                         <div key={a.id} className="flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
                           <div>
                             <p className="text-sm font-semibold text-txt-primary">{a.reason || a.service || '---'}</p>
-                            <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} ┬╖ {a.time}</p>
+                            <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} · {a.time}</p>
                           </div>
                           <div className="flex items-center gap-3">
-                            <Badge variant="success" size="sm">+{a.price.toLocaleString()} тВ╕</Badge>
+                            <Badge variant="success" size="sm">+{a.price.toLocaleString()} ₸</Badge>
                             <Button
                               variant="ghost"
                               size="icon-sm"
                               icon={<Send size={14} />}
-                              onClick={() => showToast('╨з╨╡╨║ ╨╛╤В╨┐╤А╨░╨▓╨╗╨╡╨╜ ╨┐╨░╤Ж╨╕╨╡╨╜╤В╤Г', 'success')}
+                              onClick={() => showToast('Чек отправлен пациенту', 'success')}
                             />
                           </div>
                         </div>
@@ -617,7 +617,7 @@ export default function Patients() {
                   <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-bdr rounded-xl cursor-pointer text-txt-secondary text-sm hover:border-dv-gold/40 hover:text-dv-gold transition-all mb-4">
                     <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
                     <Camera size={32} className="mb-2 text-txt-muted" />
-                    ╨Э╨░╨╢╨╝╨╕╤В╨╡ ╨┤╨╗╤П ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╤Д╨╛╤В╨╛
+                    Нажмите для загрузки фото
                   </label>
 
                   {photos.filter(p => p.category === photoCategory).length > 0 ? (
@@ -640,7 +640,7 @@ export default function Patients() {
                   ) : (
                     <EmptyState
                       icon={<Camera size={32} />}
-                      title="╨Э╨╡╤В ╤Д╨╛╤В╨╛ ╨▓ ╤Н╤В╨╛╨╣ ╨║╨░╤В╨╡╨│╨╛╤А╨╕╨╕"
+                      title="Нет фото в этой категории"
                     />
                   )}
                 </motion.div>
@@ -648,11 +648,11 @@ export default function Patients() {
 
               {activeTab === 'history' && (
                 <motion.div key="history" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
-                  <p className="text-sm font-bold text-txt-primary mb-4">╨Ш╤Б╤В╨╛╤А╨╕╤П ╨┐╨╛╤Б╨╡╤Й╨╡╨╜╨╕╨╣</p>
+                  <p className="text-sm font-bold text-txt-primary mb-4">История посещений</p>
                   {patientAppts.length === 0 ? (
                     <EmptyState
                       icon={<History size={32} />}
-                      title="╨Э╨╡╤В ╨╖╨░╨┐╨╕╤Б╨╡╨╣ ╨╛ ╨┐╨╛╤Б╨╡╤Й╨╡╨╜╨╕╤П╤Е"
+                      title="Нет записей о посещениях"
                     />
                   ) : (
                     <div className="space-y-2">
@@ -670,7 +670,7 @@ export default function Patients() {
                         >
                           <div>
                             <p className="text-sm font-semibold text-txt-primary">{a.reason || a.service || '---'}</p>
-                            <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} ┬╖ {a.time}</p>
+                            <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} · {a.time}</p>
                           </div>
                           <Badge variant={STATUS_BADGE[a.status] || 'default'} size="sm" dot>
                             {STATUS_LABEL[a.status] || a.status}

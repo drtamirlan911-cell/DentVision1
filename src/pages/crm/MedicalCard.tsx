@@ -13,11 +13,11 @@ import { Tabs } from '../../components/ui/ds/Misc';
 import type { Patient, MedicalCard as MedicalCardType, Visit, Clinic, User as UserType, RoleInfo } from '../../types';
 
 const CARD_SECTIONS = [
-  { id: 'personal', label: '╨Ы╨╕╤З╨╜╤Л╨╡ ╨┤╨░╨╜╨╜╤Л╨╡', icon: <User size={16} /> },
-  { id: 'medical', label: '╨Ь╨╡╨┤╨╕╤Ж╨╕╨╜╤Б╨║╨░╤П ╨║╨░╤А╤В╨░', icon: <Stethoscope size={16} /> },
-  { id: 'allergies', label: '╨Р╨╗╨╗╨╡╤А╨│╨╕╨╕ ╨╕ ╨╗╨╡╨║╨░╤А╤Б╤В╨▓╨░', icon: <AlertTriangle size={16} /> },
-  { id: 'history', label: '╨Ш╤Б╤В╨╛╤А╨╕╤П ╨▒╨╛╨╗╨╡╨╖╨╜╨╡╨╣', icon: <FileText size={16} /> },
-  { id: 'emergency', label: '╨н╨║╤Б╤В╤А╨╡╨╜╨╜╤Л╨╣ ╨║╨╛╨╜╤В╨░╨║╤В', icon: <Phone size={16} /> },
+  { id: 'personal', label: 'Личные данные', icon: <User size={16} /> },
+  { id: 'medical', label: 'Медицинская карта', icon: <Stethoscope size={16} /> },
+  { id: 'allergies', label: 'Аллергии и лекарства', icon: <AlertTriangle size={16} /> },
+  { id: 'history', label: 'История болезней', icon: <FileText size={16} /> },
+  { id: 'emergency', label: 'Экстренный контакт', icon: <Phone size={16} /> },
 ];
 
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -93,7 +93,7 @@ export default function MedicalCard() {
       user_name: user?.name,
     };
     await upsertMedicalCard(data as any);
-    toast.success('╨Ь╨╡╨┤╨╕╤Ж╨╕╨╜╤Б╨║╨░╤П ╨║╨░╤А╤В╨░ ╤Б╨╛╤Е╤А╨░╨╜╨╡╨╜╨░');
+    toast.success('Медицинская карта сохранена');
     setEditing(false);
   };
 
@@ -107,8 +107,8 @@ export default function MedicalCard() {
   return (
     <div className="fade-in space-y-6">
       <PageHeader
-        title="╨н╨╗╨╡╨║╤В╤А╨╛╨╜╨╜╨░╤П ╨╝╨╡╨┤╨╕╤Ж╨╕╨╜╤Б╨║╨░╤П ╨║╨░╤А╤В╨░"
-        subtitle="╨Я╨╛╨╗╨╜╨░╤П ╨╝╨╡╨┤╨╕╤Ж╨╕╨╜╤Б╨║╨░╤П ╨╕╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╤П ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨░ (╨Ь╨Ъ╨С-10, ╨░╨╗╨╗╨╡╤А╨│╨╕╨╕, ╨╕╤Б╤В╨╛╤А╨╕╤П)"
+        title="Электронная медицинская карта"
+        subtitle="Полная медицинская информация пациента (МКБ-10, аллергии, история)"
         icon={<Stethoscope size={24} className="text-dv-gold" />}
       />
 
@@ -118,7 +118,7 @@ export default function MedicalCard() {
           <div className="relative mb-3">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
             <input
-              placeholder="╨Я╨╛╨╕╤Б╨║ ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨░..."
+              placeholder="Поиск пациента..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -136,7 +136,7 @@ export default function MedicalCard() {
                 }`}
               >
                 <p className="text-sm font-semibold truncate">{p.name}</p>
-                <p className="text-xs opacity-60">{p.phone || 'тАФ'}</p>
+                <p className="text-xs opacity-60">{p.phone || '—'}</p>
               </button>
             ))}
           </div>
@@ -147,8 +147,8 @@ export default function MedicalCard() {
           {!selectedPatientId ? (
             <EmptyState
               icon={<Stethoscope size={48} />}
-              title="╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡ ╨┐╨░╤Ж╨╕╨╡╨╜╤В╨░"
-              description="╨┤╨╗╤П ╨┐╤А╨╛╤Б╨╝╨╛╤В╤А╨░ ╨╝╨╡╨┤╨╕╤Ж╨╕╨╜╤Б╨║╨╛╨╣ ╨║╨░╤А╤В╤Л"
+              title="Выберите пациента"
+              description="для просмотра медицинской карты"
             />
           ) : (
             <>
@@ -158,19 +158,19 @@ export default function MedicalCard() {
                   <div>
                     <h2 className="text-lg font-bold text-txt-primary">{selectedPatient?.name}</h2>
                     <p className="text-sm text-txt-muted">
-                      {selectedPatient?.dob ? `╨Ф╨░╤В╨░ ╤А╨╛╨╢╨┤╨╡╨╜╨╕╤П: ${selectedPatient.dob}` : ''}
-                      {selectedPatient?.gender ? ` ┬╖ ${selectedPatient.gender === 'M' ? '╨Ь╤Г╨╢╤Б╨║╨╛╨╣' : '╨Ц╨╡╨╜╤Б╨║╨╕╨╣'}` : ''}
+                      {selectedPatient?.dob ? `Дата рождения: ${selectedPatient.dob}` : ''}
+                      {selectedPatient?.gender ? ` · ${selectedPatient.gender === 'M' ? 'Мужской' : 'Женский'}` : ''}
                     </p>
                   </div>
                   <div className="flex gap-2">
                     {editing ? (
                       <>
-                        <Button variant="primary" icon={<Save size={14} />} onClick={saveCard}>╨б╨╛╤Е╤А╨░╨╜╨╕╤В╤М</Button>
-                        <Button variant="secondary" icon={<X size={14} />} onClick={() => setEditing(false)}>╨Ю╤В╨╝╨╡╨╜╨░</Button>
+                        <Button variant="primary" icon={<Save size={14} />} onClick={saveCard}>Сохранить</Button>
+                        <Button variant="secondary" icon={<X size={14} />} onClick={() => setEditing(false)}>Отмена</Button>
                       </>
                     ) : (
                       <Button variant="primary" icon={<Edit3 size={14} />} onClick={startEdit}>
-                        {existingCard ? '╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М' : '╨б╨╛╨╖╨┤╨░╤В╤М ╨║╨░╤А╤В╤Г'}
+                        {existingCard ? 'Редактировать' : 'Создать карту'}
                       </Button>
                     )}
                   </div>
@@ -188,23 +188,23 @@ export default function MedicalCard() {
               <Card className="p-5">
                 {activeSection === 'personal' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><User size={16} className="text-dv-gold" /> ╨Ы╨╕╤З╨╜╨░╤П ╨╕╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╤П</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><User size={16} className="text-dv-gold" /> Личная информация</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs text-txt-muted">╨д╨Ш╨Ю</p>
-                        <p className="text-sm text-txt-primary font-semibold">{selectedPatient?.name || 'тАФ'}</p>
+                        <p className="text-xs text-txt-muted">ФИО</p>
+                        <p className="text-sm text-txt-primary font-semibold">{selectedPatient?.name || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-txt-muted">╨в╨╡╨╗╨╡╤Д╨╛╨╜</p>
-                        <p className="text-sm text-txt-primary">{selectedPatient?.phone || 'тАФ'}</p>
+                        <p className="text-xs text-txt-muted">Телефон</p>
+                        <p className="text-sm text-txt-primary">{selectedPatient?.phone || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-txt-muted">╨Ф╨░╤В╨░ ╤А╨╛╨╢╨┤╨╡╨╜╨╕╤П</p>
-                        <p className="text-sm text-txt-primary">{selectedPatient?.dob || 'тАФ'}</p>
+                        <p className="text-xs text-txt-muted">Дата рождения</p>
+                        <p className="text-sm text-txt-primary">{selectedPatient?.dob || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-txt-muted">╨Р╨┤╤А╨╡╤Б</p>
-                        <p className="text-sm text-txt-primary">{selectedPatient?.address || 'тАФ'}</p>
+                        <p className="text-xs text-txt-muted">Адрес</p>
+                        <p className="text-sm text-txt-primary">{selectedPatient?.address || '—'}</p>
                       </div>
                     </div>
                   </div>
@@ -212,35 +212,35 @@ export default function MedicalCard() {
 
                 {activeSection === 'medical' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><Activity size={16} className="text-dv-gold" /> ╨Ь╨╡╨┤╨╕╤Ж╨╕╨╜╤Б╨║╨╕╨╡ ╨┤╨░╨╜╨╜╤Л╨╡</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><Activity size={16} className="text-dv-gold" /> Медицинские данные</h3>
                     {editing ? (
                       <div className="grid grid-cols-2 gap-4">
-                        <Field label="╨У╤А╤Г╨┐╨┐╨░ ╨║╤А╨╛╨▓╨╕">
+                        <Field label="Группа крови">
                           <select value={form.blood_type} onChange={e => setForm(f => ({ ...f, blood_type: e.target.value }))}>
-                            <option value="">тАФ</option>
+                            <option value="">—</option>
                             {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
                           </select>
                         </Field>
-                        <Field label="╨б╤В╤А╨░╤Е╨╛╨▓╨░╤П ╨║╨╛╨╝╨┐╨░╨╜╨╕╤П">
-                          <input value={form.insurance_provider} onChange={e => setForm(f => ({ ...f, insurance_provider: e.target.value }))} placeholder="╨Э╨░╨╖╨▓╨░╨╜╨╕╨╡ ╤Б╤В╤А╨░╤Е╨╛╨▓╤Й╨╕╨║╨░" />
+                        <Field label="Страховая компания">
+                          <input value={form.insurance_provider} onChange={e => setForm(f => ({ ...f, insurance_provider: e.target.value }))} placeholder="Название страховщика" />
                         </Field>
-                        <Field label="╨Э╨╛╨╝╨╡╤А ╨┐╨╛╨╗╨╕╤Б╨░">
-                          <input value={form.insurance_number} onChange={e => setForm(f => ({ ...f, insurance_number: e.target.value }))} placeholder="╨Э╨╛╨╝╨╡╤А ╨┐╨╛╨╗╨╕╤Б╨░" />
+                        <Field label="Номер полиса">
+                          <input value={form.insurance_number} onChange={e => setForm(f => ({ ...f, insurance_number: e.target.value }))} placeholder="Номер полиса" />
                         </Field>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="text-xs text-txt-muted">╨У╤А╤Г╨┐╨┐╨░ ╨║╤А╨╛╨▓╨╕</p>
-                          <p className="text-sm text-txt-primary font-bold">{existingCard?.blood_type || existingCard?.bloodType || 'тАФ'}</p>
+                          <p className="text-xs text-txt-muted">Группа крови</p>
+                          <p className="text-sm text-txt-primary font-bold">{existingCard?.blood_type || existingCard?.bloodType || '—'}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-txt-muted">╨б╤В╤А╨░╤Е╨╛╨▓╨░╤П</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.insurance_provider || existingCard?.insuranceProvider || 'тАФ'}</p>
+                          <p className="text-xs text-txt-muted">Страховая</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.insurance_provider || existingCard?.insuranceProvider || '—'}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-txt-muted">╨Я╨╛╨╗╨╕╤Б</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.insurance_number || existingCard?.insuranceNumber || 'тАФ'}</p>
+                          <p className="text-xs text-txt-muted">Полис</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.insurance_number || existingCard?.insuranceNumber || '—'}</p>
                         </div>
                       </div>
                     )}
@@ -249,25 +249,25 @@ export default function MedicalCard() {
 
                 {activeSection === 'allergies' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><AlertTriangle size={16} className="text-error" /> ╨Р╨╗╨╗╨╡╤А╨│╨╕╨╕ ╨╕ ╨╗╨╡╨║╨░╤А╤Б╤В╨▓╨░</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><AlertTriangle size={16} className="text-error" /> Аллергии и лекарства</h3>
                     {editing ? (
                       <div className="space-y-4">
-                        <Field label="╨Р╨╗╨╗╨╡╤А╨│╨╕╨╕">
-                          <textarea rows={3} value={form.allergies} onChange={e => setForm(f => ({ ...f, allergies: e.target.value }))} placeholder="╨Я╨╡╤А╨╡╤З╨╕╤Б╨╗╨╕╤В╨╡ ╨╕╨╖╨▓╨╡╤Б╤В╨╜╤Л╨╡ ╨░╨╗╨╗╨╡╤А╨│╨╕╨╕..." />
+                        <Field label="Аллергии">
+                          <textarea rows={3} value={form.allergies} onChange={e => setForm(f => ({ ...f, allergies: e.target.value }))} placeholder="Перечислите известные аллергии..." />
                         </Field>
-                        <Field label="╨в╨╡╨║╤Г╤Й╨╕╨╡ ╨╗╨╡╨║╨░╤А╤Б╤В╨▓╨░">
-                          <textarea rows={3} value={form.medications} onChange={e => setForm(f => ({ ...f, medications: e.target.value }))} placeholder="╨Я╤А╨╕╨╜╨╕╨╝╨░╨╡╨╝╤Л╨╡ ╨╗╨╡╨║╨░╤А╤Б╤В╨▓╨░..." />
+                        <Field label="Текущие лекарства">
+                          <textarea rows={3} value={form.medications} onChange={e => setForm(f => ({ ...f, medications: e.target.value }))} placeholder="Принимаемые лекарства..." />
                         </Field>
                       </div>
                     ) : (
                       <div className="space-y-3">
                         <div className="rounded-lg bg-error/8 border border-error/15 p-3">
-                          <p className="text-xs font-semibold text-error mb-1">╨Р╨╗╨╗╨╡╤А╨│╨╕╨╕</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.allergies || '╨Э╨╡╤В ╨╕╨╖╨▓╨╡╤Б╤В╨╜╤Л╤Е ╨░╨╗╨╗╨╡╤А╨│╨╕╨╣'}</p>
+                          <p className="text-xs font-semibold text-error mb-1">Аллергии</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.allergies || 'Нет известных аллергий'}</p>
                         </div>
                         <div className="rounded-lg bg-sky-500/8 border border-sky-500/15 p-3">
-                          <p className="text-xs font-semibold text-sky-400 mb-1">╨Ы╨╡╨║╨░╤А╤Б╤В╨▓╨░</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.medications || '╨Э╨╡ ╨┐╤А╨╕╨╜╨╕╨╝╨░╨╡╤В'}</p>
+                          <p className="text-xs font-semibold text-sky-400 mb-1">Лекарства</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.medications || 'Не принимает'}</p>
                         </div>
                       </div>
                     )}
@@ -276,35 +276,35 @@ export default function MedicalCard() {
 
                 {activeSection === 'history' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><FileText size={16} className="text-sky-400" /> ╨Ш╤Б╤В╨╛╤А╨╕╤П ╨▒╨╛╨╗╨╡╨╖╨╜╨╡╨╣</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><FileText size={16} className="text-sky-400" /> История болезней</h3>
                     {editing ? (
                       <div className="space-y-4">
-                        <Field label="╨е╤А╨╛╨╜╨╕╤З╨╡╤Б╨║╨╕╨╡ ╨╖╨░╨▒╨╛╨╗╨╡╨▓╨░╨╜╨╕╤П">
-                          <textarea rows={3} value={form.chronic_diseases} onChange={e => setForm(f => ({ ...f, chronic_diseases: e.target.value }))} placeholder="╨е╤А╨╛╨╜╨╕╤З╨╡╤Б╨║╨╕╨╡ ╨╖╨░╨▒╨╛╨╗╨╡╨▓╨░╨╜╨╕╤П..." />
+                        <Field label="Хронические заболевания">
+                          <textarea rows={3} value={form.chronic_diseases} onChange={e => setForm(f => ({ ...f, chronic_diseases: e.target.value }))} placeholder="Хронические заболевания..." />
                         </Field>
-                        <Field label="╨Я╨╡╤А╨╡╨╜╨╡╤Б╤С╨╜╨╜╤Л╨╡ ╨╛╨┐╨╡╤А╨░╤Ж╨╕╨╕">
-                          <textarea rows={3} value={form.past_surgeries} onChange={e => setForm(f => ({ ...f, past_surgeries: e.target.value }))} placeholder="╨Ю╨┐╨╡╤А╨░╤Ж╨╕╨╕ ╨╕ ╨▓╨╝╨╡╤И╨░╤В╨╡╨╗╤М╤Б╤В╨▓╨░..." />
+                        <Field label="Перенесённые операции">
+                          <textarea rows={3} value={form.past_surgeries} onChange={e => setForm(f => ({ ...f, past_surgeries: e.target.value }))} placeholder="Операции и вмешательства..." />
                         </Field>
-                        <Field label="╨б╨╡╨╝╨╡╨╣╨╜╤Л╨╣ ╨░╨╜╨░╨╝╨╜╨╡╨╖">
-                          <textarea rows={2} value={form.family_history} onChange={e => setForm(f => ({ ...f, family_history: e.target.value }))} placeholder="╨Э╨░╤Б╨╗╨╡╨┤╤Б╤В╨▓╨╡╨╜╨╜╤Л╨╡ ╨╖╨░╨▒╨╛╨╗╨╡╨▓╨░╨╜╨╕╤П..." />
+                        <Field label="Семейный анамнез">
+                          <textarea rows={2} value={form.family_history} onChange={e => setForm(f => ({ ...f, family_history: e.target.value }))} placeholder="Наследственные заболевания..." />
                         </Field>
-                        <Field label="╨Я╤А╨╕╨╝╨╡╤З╨░╨╜╨╕╤П">
-                          <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="╨Ф╨╛╨┐. ╨╕╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╤П..." />
+                        <Field label="Примечания">
+                          <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Доп. информация..." />
                         </Field>
                       </div>
                     ) : (
                       <div className="space-y-3">
                         <div className="rounded-lg bg-white/5 border border-bdr-subtle p-3">
-                          <p className="text-xs font-semibold text-txt-muted mb-1">╨е╤А╨╛╨╜╨╕╤З╨╡╤Б╨║╨╕╨╡ ╨╖╨░╨▒╨╛╨╗╨╡╨▓╨░╨╜╨╕╤П</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.chronic_diseases || existingCard?.chronicDiseases || 'тАФ'}</p>
+                          <p className="text-xs font-semibold text-txt-muted mb-1">Хронические заболевания</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.chronic_diseases || existingCard?.chronicDiseases || '—'}</p>
                         </div>
                         <div className="rounded-lg bg-white/5 border border-bdr-subtle p-3">
-                          <p className="text-xs font-semibold text-txt-muted mb-1">╨Ю╨┐╨╡╤А╨░╤Ж╨╕╨╕</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.past_surgeries || existingCard?.pastSurgeries || 'тАФ'}</p>
+                          <p className="text-xs font-semibold text-txt-muted mb-1">Операции</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.past_surgeries || existingCard?.pastSurgeries || '—'}</p>
                         </div>
                         <div className="rounded-lg bg-white/5 border border-bdr-subtle p-3">
-                          <p className="text-xs font-semibold text-txt-muted mb-1">╨б╨╡╨╝╨╡╨╣╨╜╤Л╨╣ ╨░╨╜╨░╨╝╨╜╨╡╨╖</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.family_history || existingCard?.familyHistory || 'тАФ'}</p>
+                          <p className="text-xs font-semibold text-txt-muted mb-1">Семейный анамнез</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.family_history || existingCard?.familyHistory || '—'}</p>
                         </div>
                       </div>
                     )}
@@ -312,20 +312,20 @@ export default function MedicalCard() {
                     {/* Visit History */}
                     <div className="mt-4">
                       <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-txt-muted mb-2">
-                        <ThermometerSun size={14} /> ╨Ш╤Б╤В╨╛╤А╨╕╤П ╨┐╨╛╤Б╨╡╤Й╨╡╨╜╨╕╨╣ ({patientVisits.length})
+                        <ThermometerSun size={14} /> История посещений ({patientVisits.length})
                       </h4>
                       {patientVisits.length === 0 ? (
-                        <p className="text-sm text-txt-ghost">╨Я╨╛╤Б╨╡╤Й╨╡╨╜╨╕╨╣ ╨┐╨╛╨║╨░ ╨╜╨╡╤В</p>
+                        <p className="text-sm text-txt-ghost">Посещений пока нет</p>
                       ) : (
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                           {patientVisits.map(v => (
                             <div key={v.id} className="rounded-lg border border-bdr-subtle bg-surface-raised p-3">
                               <div className="flex justify-between items-center">
-                                <span className="text-xs text-txt-muted">{v.visit_date ? new Date(v.visit_date).toLocaleDateString('ru-RU') : 'тАФ'}</span>
-                                <span className="text-xs font-semibold text-dv-gold">{v.doctor_name || 'тАФ'}</span>
+                                <span className="text-xs text-txt-muted">{v.visit_date ? new Date(v.visit_date).toLocaleDateString('ru-RU') : '—'}</span>
+                                <span className="text-xs font-semibold text-dv-gold">{v.doctor_name || '—'}</span>
                               </div>
-                              <p className="text-sm text-txt-primary mt-1">{v.diagnosis || '╨С╨╡╨╖ ╨┤╨╕╨░╨│╨╜╨╛╨╖╨░'}</p>
-                              {v.icd10_codes && <p className="text-xs text-dv-gold mt-0.5">╨Ь╨Ъ╨С-10: {v.icd10_codes}</p>}
+                              <p className="text-sm text-txt-primary mt-1">{v.diagnosis || 'Без диагноза'}</p>
+                              {v.icd10_codes && <p className="text-xs text-dv-gold mt-0.5">МКБ-10: {v.icd10_codes}</p>}
                             </div>
                           ))}
                         </div>
@@ -336,25 +336,25 @@ export default function MedicalCard() {
 
                 {activeSection === 'emergency' && (
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><Phone size={16} className="text-amber-400" /> ╨н╨║╤Б╤В╤А╨╡╨╜╨╜╤Л╨╣ ╨║╨╛╨╜╤В╨░╨║╤В</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><Phone size={16} className="text-amber-400" /> Экстренный контакт</h3>
                     {editing ? (
                       <div className="grid grid-cols-2 gap-4">
-                        <Field label="╨Ъ╨╛╨╜╤В╨░╨║╤В╨╜╨╛╨╡ ╨╗╨╕╤Ж╨╛">
-                          <input value={form.emergency_contact} onChange={e => setForm(f => ({ ...f, emergency_contact: e.target.value }))} placeholder="╨д╨Ш╨Ю ╨║╨╛╨╜╤В╨░╨║╤В╨╜╨╛╨│╨╛ ╨╗╨╕╤Ж╨░" />
+                        <Field label="Контактное лицо">
+                          <input value={form.emergency_contact} onChange={e => setForm(f => ({ ...f, emergency_contact: e.target.value }))} placeholder="ФИО контактного лица" />
                         </Field>
-                        <Field label="╨в╨╡╨╗╨╡╤Д╨╛╨╜">
+                        <Field label="Телефон">
                           <input value={form.emergency_phone} onChange={e => setForm(f => ({ ...f, emergency_phone: e.target.value }))} placeholder="+7..." />
                         </Field>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-4">
                         <div className="rounded-lg bg-amber-500/8 border border-amber-500/15 p-3">
-                          <p className="text-xs font-semibold text-amber-400 mb-1">╨Ъ╨╛╨╜╤В╨░╨║╤В╨╜╨╛╨╡ ╨╗╨╕╤Ж╨╛</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.emergency_contact || existingCard?.emergencyContact || 'тАФ'}</p>
+                          <p className="text-xs font-semibold text-amber-400 mb-1">Контактное лицо</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.emergency_contact || existingCard?.emergencyContact || '—'}</p>
                         </div>
                         <div className="rounded-lg bg-amber-500/8 border border-amber-500/15 p-3">
-                          <p className="text-xs font-semibold text-amber-400 mb-1">╨в╨╡╨╗╨╡╤Д╨╛╨╜</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.emergency_phone || existingCard?.emergencyPhone || 'тАФ'}</p>
+                          <p className="text-xs font-semibold text-amber-400 mb-1">Телефон</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.emergency_phone || existingCard?.emergencyPhone || '—'}</p>
                         </div>
                       </div>
                     )}
