@@ -62,6 +62,19 @@ export function requirePermission(action) {
   };
 }
 
+// Allows only the platform superadmin (manages Shop / School content)
+export function requireSuperadmin() {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Только администратор платформы' });
+    }
+    next();
+  };
+}
+
 // Ensures user can only access their own clinic's data
 export function requireSameClinic(req, res, next) {
   if (!req.user) {

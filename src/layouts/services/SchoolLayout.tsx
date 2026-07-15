@@ -23,6 +23,7 @@ export function SchoolLayout() {
       serviceColor="#27AE60"
       serviceIcon={<GraduationCap size={16} />}
       isPublic
+      managePath="/school/admin"
     />
   )
 }

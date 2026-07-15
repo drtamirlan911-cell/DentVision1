@@ -46,6 +46,10 @@ const ShopProduct = lazy(() => import('./pages/shop/ShopProduct'));
 const School = lazy(() => import('./pages/school/School'));
 const SchoolCourse = lazy(() => import('./pages/school/SchoolCourse'));
 
+// Platform content-management (superadmin) pages
+const ShopAdmin = lazy(() => import('./pages/admin/ShopAdmin'));
+const SchoolAdmin = lazy(() => import('./pages/admin/SchoolAdmin'));
+
 // Layouts
 import { CrmLayout } from './layouts/services/CrmLayout';
 import { ShopLayout } from './layouts/services/ShopLayout';
@@ -100,6 +104,8 @@ if (container) {
                   <Route path="audit" element={<Suspense fallback={<PageLoader />}><AuditLog /></Suspense>} />
                   <Route path="backup" element={<Suspense fallback={<PageLoader />}><Backup /></Suspense>} />
                   <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
+                  <Route path="shop/admin" element={<Suspense fallback={<PageLoader />}><ShopAdmin /></Suspense>} />
+                  <Route path="school/admin" element={<Suspense fallback={<PageLoader />}><SchoolAdmin /></Suspense>} />
                 </Route>
 
                 {/* CRM sub-app */}

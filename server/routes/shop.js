@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { requireSameClinic } from '../middleware/rbac.js';
 import { requireServiceAccess } from '../middleware/serviceAccess.js';
+import { requireSuperadmin } from '../middleware/rbac.js';
 import { createNotification } from '../lib/notifications.js';
 import prisma from '../lib/prisma.js';
 
@@ -178,6 +179,95 @@ export default function shopRoutes() {
         orderBy: { createdAt: 'desc' },
       });
       res.json(result.map(f => ({ ...f, ...f.product })));
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // CONTENT MANAGEMENT (superadmin — "seller cabinet")
+  // ═══════════════════════════════════════════════════════════════
+
+  // Categories
+  router.post('/categories', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      const { name, slug, icon, description, sortOrder } = req.body;
+      const id = req.body.id || crypto.randomUUID();
+      const result = await prisma.shopCategory.upsert({
+        where: { id },
+        update: { name, slug, icon, description, sortOrder: Number(sortOrder) || 0 },
+        create: { id, name, slug, icon, description, sortOrder: Number(sortOrder) || 0 },
+      });
+      res.json(result);
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.delete('/categories/:id', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      await prisma.shopCategory.delete({ where: { id: req.params.id } });
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  // Suppliers
+  router.post('/suppliers', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      const b = req.body;
+      const id = b.id || crypto.randomUUID();
+      const result = await prisma.shopSupplier.upsert({
+        where: { id },
+        update: {
+          name: b.name, country: b.country, city: b.city, phone: b.phone, email: b.email,
+          website: b.website, rating: Number(b.rating) || 0, deliveryDays: Number(b.deliveryDays) || 0,
+          deliveryCost: Number(b.deliveryCost) || 0, freeDeliveryFrom: Number(b.freeDeliveryFrom) || 0,
+        },
+        create: {
+          id, name: b.name, country: b.country, city: b.city, phone: b.phone, email: b.email,
+          website: b.website, rating: Number(b.rating) || 0, deliveryDays: Number(b.deliveryDays) || 0,
+          deliveryCost: Number(b.deliveryCost) || 0, freeDeliveryFrom: Number(b.freeDeliveryFrom) || 0,
+        },
+      });
+      res.json(result);
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.delete('/suppliers/:id', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      await prisma.shopSupplier.delete({ where: { id: req.params.id } });
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  // Products
+  router.post('/products', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      const b = req.body;
+      const id = b.id || crypto.randomUUID();
+      const result = await prisma.shopProduct.upsert({
+        where: { id },
+        update: {
+          name: b.name, brand: b.brand, model: b.model, description: b.description,
+          price: Number(b.price) || 0, oldPrice: b.oldPrice ? Number(b.oldPrice) : null,
+          categoryId: b.categoryId, supplierId: b.supplierId,
+          stock: Number(b.stock) || 0, minStock: Number(b.minStock) || 0,
+          rating: Number(b.rating) || 0, reviewCount: Number(b.reviewCount) || 0,
+          tags: b.tags || [], imageUrl: b.imageUrl || null,
+        },
+        create: {
+          id, name: b.name, brand: b.brand, model: b.model, description: b.description,
+          price: Number(b.price) || 0, oldPrice: b.oldPrice ? Number(b.oldPrice) : null,
+          categoryId: b.categoryId, supplierId: b.supplierId,
+          stock: Number(b.stock) || 0, minStock: Number(b.minStock) || 0,
+          rating: Number(b.rating) || 0, reviewCount: Number(b.reviewCount) || 0,
+          tags: b.tags || [], imageUrl: b.imageUrl || null,
+        },
+      });
+      res.json(result);
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.delete('/products/:id', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      await prisma.shopProduct.delete({ where: { id: req.params.id } });
+      res.json({ deleted: true });
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
 

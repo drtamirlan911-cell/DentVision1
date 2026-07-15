@@ -449,3 +449,21 @@ export async function markNotificationRead(id: string): Promise<any> {
 export async function markAllNotificationsRead(): Promise<any> {
   return apiRequest('/api/notifications/read-all', { method: 'POST' })
 }
+
+// ─── Shop content management (superadmin) ───
+export async function createShopCategory(data: any): Promise<any> { return apiRequest('/api/shop/categories', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteShopCategory(id: string): Promise<any> { return apiRequest(`/api/shop/categories/${id}`, { method: 'DELETE' }); }
+export async function createShopSupplier(data: any): Promise<any> { return apiRequest('/api/shop/suppliers', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteShopSupplier(id: string): Promise<any> { return apiRequest(`/api/shop/suppliers/${id}`, { method: 'DELETE' }); }
+export async function createShopProduct(data: any): Promise<any> { return apiRequest('/api/shop/products', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateShopProduct(id: string, data: any): Promise<any> { return apiRequest(`/api/shop/products`, { method: 'POST', body: JSON.stringify({ ...data, id }) }); }
+export async function deleteShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`, { method: 'DELETE' }); }
+
+// ─── School content management (superadmin) ───
+export async function createSchoolCourse(data: any): Promise<any> { return apiRequest('/api/school/courses', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateSchoolCourse(id: string, data: any): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function deleteSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'DELETE' }); }
+export async function createSchoolClinicalCase(data: any): Promise<any> { return apiRequest('/api/school/clinical-cases', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteSchoolClinicalCase(id: string): Promise<any> { return apiRequest(`/api/school/clinical-cases/${id}`, { method: 'DELETE' }); }
+export async function createSchoolLibraryItem(data: any): Promise<any> { return apiRequest('/api/school/library', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteSchoolLibraryItem(id: string): Promise<any> { return apiRequest(`/api/school/library/${id}`, { method: 'DELETE' }); }

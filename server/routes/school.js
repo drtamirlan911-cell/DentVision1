@@ -5,6 +5,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { requireServiceAccess } from '../middleware/serviceAccess.js';
+import { requireSuperadmin } from '../middleware/rbac.js';
 import { createNotification } from '../lib/notifications.js';
 import prisma from '../lib/prisma.js';
 
@@ -102,6 +103,125 @@ export default function schoolRoutes() {
         orderBy: { issuedAt: 'desc' },
       });
       res.json(result);
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // CONTENT MANAGEMENT (superadmin — "methodist cabinet")
+  // ═══════════════════════════════════════════════════════════════
+
+  // Helper: build nested modules/lessons for a course
+  function buildModules(modules) {
+    if (!Array.isArray(modules)) return undefined;
+    return {
+      create: modules.map((m) => ({
+        id: m.id || crypto.randomUUID(),
+        title: m.title,
+        sortOrder: Number(m.sortOrder) || 0,
+        lessons: {
+          create: (m.lessons || []).map((l) => ({
+            id: l.id || crypto.randomUUID(),
+            title: l.title,
+            duration: Number(l.duration) || 0,
+            type: l.type || 'video',
+            contentUrl: l.contentUrl || null,
+            sortOrder: Number(l.sortOrder) || 0,
+          })),
+        },
+      })),
+    };
+  }
+
+  // Courses (with nested modules + lessons)
+  router.post('/courses', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      const b = req.body;
+      const id = b.id || crypto.randomUUID();
+      const result = await prisma.schoolCourse.create({
+        data: {
+          id,
+          category: b.category, title: b.title, subtitle: b.subtitle, description: b.description,
+          instructor: b.instructor, instructorTitle: b.instructorTitle,
+          difficulty: b.difficulty || 'beginner', durationHours: Number(b.durationHours) || 0,
+          lessonCount: Number(b.lessonCount) || 0, price: Number(b.price) || 0,
+          rating: Number(b.rating) || 0, enrolledCount: 0,
+          tags: b.tags || [], imageUrl: b.imageUrl || null,
+          certificateEnabled: b.certificateEnabled !== false,
+          modules: buildModules(b.modules) || undefined,
+        },
+      });
+      res.json(result);
+    } catch (e) { console.error('Course create error:', e.message); res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.put('/courses/:id', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      const b = req.body;
+      // Replace modules + lessons wholesale for simplicity
+      await prisma.schoolModule.deleteMany({ where: { courseId: req.params.id } });
+      const result = await prisma.schoolCourse.update({
+        where: { id: req.params.id },
+        data: {
+          category: b.category, title: b.title, subtitle: b.subtitle, description: b.description,
+          instructor: b.instructor, instructorTitle: b.instructorTitle,
+          difficulty: b.difficulty || 'beginner', durationHours: Number(b.durationHours) || 0,
+          lessonCount: Number(b.lessonCount) || 0, price: Number(b.price) || 0,
+          rating: Number(b.rating) || 0,
+          tags: b.tags || [], imageUrl: b.imageUrl || null,
+          certificateEnabled: b.certificateEnabled !== false,
+          modules: buildModules(b.modules) || undefined,
+        },
+      });
+      res.json(result);
+    } catch (e) { console.error('Course update error:', e.message); res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.delete('/courses/:id', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      await prisma.schoolCourse.delete({ where: { id: req.params.id } });
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  // Clinical cases
+  router.post('/clinical-cases', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      const b = req.body;
+      const id = b.id || crypto.randomUUID();
+      const result = await prisma.schoolClinicalCase.upsert({
+        where: { id },
+        update: { category: b.category, title: b.title, description: b.description, difficulty: b.difficulty, author: b.author, imageUrl: b.imageUrl || null },
+        create: { id, category: b.category, title: b.title, description: b.description, difficulty: b.difficulty, author: b.author, imageUrl: b.imageUrl || null },
+      });
+      res.json(result);
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.delete('/clinical-cases/:id', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      await prisma.schoolClinicalCase.delete({ where: { id: req.params.id } });
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  // Library
+  router.post('/library', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      const b = req.body;
+      const id = b.id || crypto.randomUUID();
+      const result = await prisma.schoolLibrary.upsert({
+        where: { id },
+        update: { category: b.category, title: b.title, type: b.type || 'article', content: b.content, fileUrl: b.fileUrl || null, author: b.author, tags: b.tags || [] },
+        create: { id, category: b.category, title: b.title, type: b.type || 'article', content: b.content, fileUrl: b.fileUrl || null, author: b.author, tags: b.tags || [] },
+      });
+      res.json(result);
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  router.delete('/library/:id', authenticate, requireSuperadmin(), async (req, res) => {
+    try {
+      await prisma.schoolLibrary.delete({ where: { id: req.params.id } });
+      res.json({ deleted: true });
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
 

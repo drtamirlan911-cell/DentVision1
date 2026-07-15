@@ -8,6 +8,7 @@ import {
   LogOut,
   LogIn,
   LayoutGrid,
+  Settings2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -30,9 +31,10 @@ interface ServiceLayoutProps {
   serviceColor: string
   serviceIcon: React.ReactNode
   isPublic?: boolean
+  managePath?: string
 }
 
-export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon, isPublic }: ServiceLayoutProps) {
+export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon, isPublic, managePath }: ServiceLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth()
@@ -255,6 +257,16 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
           </div>
 
           <div className="flex items-center gap-2">
+            {managePath && user?.role === 'superadmin' && (
+              <button
+                onClick={() => navigate(managePath)}
+                className="hidden md:flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium transition-colors"
+                style={{ color: serviceColor, backgroundColor: `${serviceColor}15` }}
+              >
+                <Settings2 size={14} />
+                Управление
+              </button>
+            )}
             <button
               onClick={() => navigate('/')}
               className="hidden md:flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
