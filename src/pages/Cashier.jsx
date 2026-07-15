@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   CreditCard, TrendingUp, TrendingDown, Wallet, AlertTriangle, Plus,
-  DollarSign, Package, Receipt, Send, ShoppingCart,
+  DollarSign, Package, Receipt, Send, ShoppingCart, CheckCircle, Clock,
+  User, Stethoscope, Search,
 } from 'lucide-react'
 import { useData, useToast } from '../hooks/useData'
 import { Button } from '../components/ui/ds/Button'
@@ -15,10 +16,11 @@ import { EmptyState } from '../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard'
 import { Tabs } from '../components/ui/ds/Misc'
 import { Switch } from '../components/ui/ds/Misc'
-import { tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency } from '../utils/constants'
+import { tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency, TOOTH_NAMES } from '../utils/constants'
 import { cn, formatMoney } from '../lib/utils'
 
 const TABS = [
+  { id: 'unpaid', label: 'К оплате', icon: <Clock size={14} /> },
   { id: 'transactions', label: 'Операции', icon: <CreditCard size={14} /> },
   { id: 'receivables', label: 'Долги', icon: <AlertTriangle size={14} /> },
   { id: 'payroll', label: 'Зарплата', icon: <Wallet size={14} /> },
@@ -53,14 +55,15 @@ const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function Cashier() {
   const { clinic } = useOutletContext()
-  const { receipts, patients, doctors, upsertReceipt, expenses, upsertExpense, inventory } = useData(clinic?.id)
+  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useData(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
-  const [activeTab, setActiveTab] = useState('transactions')
+  const [activeTab, setActiveTab] = useState('unpaid')
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [expenseForm, setExpenseForm] = useState({ category: '', amount: '', notes: '' })
   const [expModalOpen, setExpModalOpen] = useState(false)
   const [cashSettings, setCashSettings] = useState({ defaultMethod: 'Kaspi QR', autoReceipt: true, reminders: true })
+  const [searchUnpaid, setSearchUnpaid] = useState('')
   const money = (value) => tg(value, clinic)
   const { currency } = getClinicCurrency(clinic)
 
@@ -73,6 +76,36 @@ export default function Cashier() {
   const debtBalance = debts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0)
   const todayRevenue = todayReceipts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0)
   const todayExpenseAmount = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+
+  const unpaidAppointments = useMemo(() => {
+    let list = appointments.filter(a => a.paymentStatus !== 'paid' && a.status !== 'cancelled')
+    if (searchUnpaid) {
+      const q = searchUnpaid.toLowerCase()
+      list = list.filter(a => {
+        const p = patients.find(pt => pt.id === a.patientId)
+        return p?.name?.toLowerCase().includes(q) || a.serviceName?.toLowerCase().includes(q) || a.diagnosis?.toLowerCase().includes(q)
+      })
+    }
+    return list
+  }, [appointments, patients, searchUnpaid])
+
+  const unpaidCount = unpaidAppointments.length
+
+  const openPaymentModal = (appt) => {
+    const patient = patients.find(p => p.id === appt.patientId)
+    setForm({
+      ...EMPTY_FORM,
+      patientId: appt.patientId || '',
+      patientName: patient?.name || '',
+      service: appt.serviceName || '',
+      amount: appt.servicePrice || '',
+      paymentMethod: cashSettings.defaultMethod,
+      appointmentId: appt.id,
+      diagnosis: appt.diagnosis || '',
+      toothNumber: appt.toothNumber || '',
+    })
+    setModalOpen(true)
+  }
 
   const handleNewTransaction = () => { setForm({ ...EMPTY_FORM, paymentMethod: cashSettings.defaultMethod }); setModalOpen(true) }
 
@@ -106,9 +139,17 @@ export default function Cashier() {
         patientId: form.patientId || undefined,
         patientName: form.patientName || patients.find((p) => p.id === form.patientId)?.name || '',
         service: form.service,
+        appointmentId: form.appointmentId || undefined,
+        diagnosis: form.diagnosis || '',
+        toothNumber: form.toothNumber || '',
         items: form.service ? [{ name: form.service, price: Number(form.amount), qty: 1 }] : [],
       })
-      showToast('Операция сохранена', 'success')
+
+      if (form.appointmentId && status === 'paid') {
+        await upsertAppointment({ id: form.appointmentId, paymentStatus: 'paid' })
+      }
+
+      showToast('Оплата принята', 'success')
       setModalOpen(false)
     } catch {
       showToast('Ошибка сохранения', 'error')
@@ -147,8 +188,8 @@ export default function Cashier() {
   return (
     <div className="p-6">
       <PageHeader
-        title="Финансы"
-        subtitle="Доходы, расходы, зарплата, склад"
+        title="Касса"
+        subtitle="Оплата из расписания, операции, расходы"
         icon={<DollarSign size={20} />}
         actions={
           <>
@@ -197,7 +238,7 @@ export default function Cashier() {
           <StatCard label="Доход за месяц" value={money(totalIncome)} icon={<DollarSign size={18} />} />
         </motion.div>
         <motion.div variants={fadeUp}>
-          <StatCard label="Дебиторская задолж." value={money(debtBalance)} icon={<AlertTriangle size={18} />} />
+          <StatCard label="К оплате" value={String(unpaidCount)} icon={<Clock size={18} />} className={unpaidCount > 0 ? 'ring-1 ring-warning/30' : ''} />
         </motion.div>
       </motion.div>
 
@@ -234,6 +275,85 @@ export default function Cashier() {
       {/* Content */}
       <Card padding="none">
         <div className="p-5">
+          {activeTab === 'unpaid' && (
+            <div>
+              <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                <p className="text-sm font-bold text-txt-primary">
+                  Записи из расписания к оплате
+                  {unpaidCount > 0 && <Badge variant="warning" size="sm" className="ml-2">{unpaidCount}</Badge>}
+                </p>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
+                  <input
+                    placeholder="Поиск..."
+                    value={searchUnpaid}
+                    onChange={e => setSearchUnpaid(e.target.value)}
+                    className="pl-9 !h-8 !text-xs !w-48"
+                  />
+                </div>
+              </div>
+              {unpaidAppointments.length === 0 ? (
+                <EmptyState
+                  icon={<CheckCircle size={32} />}
+                  title="Все оплачено"
+                  description="Нет неоплаченных записей из расписания"
+                />
+              ) : (
+                <div className="space-y-2.5">
+                  {unpaidAppointments.map((appt) => {
+                    const patient = patients.find(p => p.id === appt.patientId)
+                    const doctor = doctors.find(d => d.id === appt.doctorId)
+                    const toothLabel = appt.toothNumber ? `Зуб ${appt.toothNumber}` : ''
+                    return (
+                      <motion.div
+                        key={appt.id}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center justify-between p-4 rounded-xl border border-warning/20 bg-warning/5 hover:bg-warning/8 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <User size={14} className="text-txt-muted flex-shrink-0" />
+                            <span className="text-sm font-semibold text-txt-primary truncate">{patient?.name || 'Пациент'}</span>
+                            <Badge variant="warning" size="xs">Не оплачено</Badge>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-txt-secondary">
+                            {appt.serviceName && (
+                              <span className="flex items-center gap-1">
+                                <Stethoscope size={12} className="text-txt-muted" />
+                                {appt.serviceName}
+                              </span>
+                            )}
+                            {doctor && <span className="text-txt-muted">{doctor.name}</span>}
+                            <span className="text-txt-muted">{appt.date} · {appt.time}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            {appt.diagnosis && (
+                              <span className="text-2xs text-dv-gold font-medium">{appt.diagnosis.split(' — ')[0]}</span>
+                            )}
+                            {toothLabel && (
+                              <span className="text-2xs text-emerald-400 font-medium">{toothLabel}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                          <span className="text-lg font-bold text-warning">{money(appt.servicePrice || 0)}</span>
+                          <Button
+                            size="sm"
+                            icon={<CreditCard size={14} />}
+                            onClick={() => openPaymentModal(appt)}
+                          >
+                            Оплата
+                          </Button>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'transactions' && (
             <div>
               <p className="text-sm font-bold text-txt-primary mb-4">Последние операции</p>
@@ -248,7 +368,7 @@ export default function Cashier() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-bdr-subtle">
-                        {['Дата', 'Пациент', 'Услуга', 'Способ оплаты', 'Тип', 'Сумма'].map(h => (
+                        {['Дата', 'Пациент', 'Услуга', 'Зуб', 'Диагноз', 'Способ', 'Статус', 'Сумма'].map(h => (
                           <th key={h} className="text-left py-2 px-3 text-2xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
@@ -257,11 +377,15 @@ export default function Cashier() {
                       {receipts.slice().reverse().map((r) => {
                         const statusVariant = r.status === 'debt' ? 'error' : r.status === 'partial' ? 'warning' : 'success'
                         const statusLabel = r.status === 'debt' ? 'Долг' : r.status === 'partial' ? 'Частично' : 'Оплачено'
+                        const toothLabel = r.toothNumber ? `Зуб ${r.toothNumber}` : '—'
+                        const diagShort = r.diagnosis ? r.diagnosis.split(' — ')[0] : '—'
                         return (
                           <tr key={r.id} className="border-b border-bdr-subtle last:border-b-0">
                             <td className="py-2.5 px-3 text-xs text-txt-secondary">{fd(r.date)}</td>
                             <td className="py-2.5 px-3 text-sm font-semibold text-txt-primary">{r.patientName || patients.find(p => p.id === r.patientId)?.name || '---'}</td>
                             <td className="py-2.5 px-3 text-xs text-txt-secondary">{r.service || (r.items?.[0]?.name) || '---'}</td>
+                            <td className="py-2.5 px-3 text-xs text-emerald-400">{toothLabel}</td>
+                            <td className="py-2.5 px-3 text-xs text-dv-gold">{diagShort}</td>
                             <td className="py-2.5 px-3"><Badge variant="info" size="sm">{r.payMethod || '---'}</Badge></td>
                             <td className="py-2.5 px-3"><Badge variant={statusVariant} size="sm">{statusLabel}</Badge></td>
                             <td className={cn('py-2.5 px-3 text-right text-sm font-bold', statusVariant === 'success' ? 'text-success' : statusVariant === 'error' ? 'text-error' : 'text-warning')}>
@@ -421,14 +545,23 @@ export default function Cashier() {
         </div>
       </Card>
 
-      {/* New transaction modal */}
+      {/* Payment modal (from schedule or manual) */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Новая оплата"
+        title={form.appointmentId ? 'Оплата из расписания' : 'Новая оплата'}
         size="lg"
+        className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
+          {form.appointmentId && (
+            <div className="p-3 rounded-xl bg-warning/5 border border-warning/20 space-y-2">
+              <p className="text-xs font-semibold text-warning">Оплата из расписания</p>
+              {form.diagnosis && <p className="text-xs text-txt-secondary">Диагноз: <span className="text-txt-primary font-medium">{form.diagnosis}</span></p>}
+              {form.toothNumber && <p className="text-xs text-txt-secondary">Зуб: <span className="text-emerald-400 font-medium">{form.toothNumber} — {TOOTH_NAMES[form.toothNumber]}</span></p>}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <Select
               label="Пациент"
@@ -456,21 +589,11 @@ export default function Cashier() {
             onChange={e => setForm({ ...form, patientName: e.target.value })}
             placeholder="Иванов Иван Иванович"
           />
-          <Select
-            label="Услуга из прайса"
+          <Input
+            label="Услуга"
             value={form.service}
-            onChange={e => {
-              const selectedService = ALL_SERVICES.find(s => s.id === e.target.value)
-              if (selectedService) {
-                setForm({ ...form, service: selectedService.name, amount: selectedService.price })
-              } else {
-                setForm({ ...form, service: '' })
-              }
-            }}
-            options={[
-              { value: '', label: '--- Выберите услугу ---' },
-              ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${money(s.price)}` })),
-            ]}
+            onChange={e => setForm({ ...form, service: e.target.value })}
+            placeholder="Название услуги"
           />
           <div className="grid grid-cols-2 gap-3">
             <Select
@@ -492,7 +615,9 @@ export default function Cashier() {
             onChange={e => setForm({ ...form, notes: e.target.value })}
           />
           <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">Сохранить</Button>
+            <Button type="submit" className="flex-1" icon={<CreditCard size={16} />}>
+              Принять оплату {form.amount ? money(Number(form.amount)) : ''}
+            </Button>
             <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
           </div>
         </form>

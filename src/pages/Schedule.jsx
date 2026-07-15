@@ -17,7 +17,7 @@ import { Tabs } from '@/components/ui/ds/Misc'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Avatar } from '@/components/ui/ds/Avatar'
-import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid } from '@/utils/constants'
+import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
 
 const STATUS_CFG = APPOINTMENT_STATUS
@@ -28,9 +28,9 @@ const MIN_PER_SLOT = 30
 
 const EMPTY_FORM = {
   patientId: '', doctorId: '', service: '', time: '09:00', status: 'scheduled', notes: '', duration: 60,
+  diagnosis: '', toothNumber: '',
 }
 const EMPTY_PATIENT = { name: '', phone: '', email: '', dob: '', gender: '', notes: '' }
-const EMPTY_PAYMENT = { payMethod: 'Наличные', amount: 0, paid: false }
 const EMPTY_WAIT = { patientId: '', patientName: '', patientPhone: '', doctorId: '', preferredDate: '', preferredTime: '', preferredService: '', notes: '' }
 
 function timeToMinutes(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m }
@@ -63,8 +63,6 @@ export default function Schedule() {
   const [editWaitId, setEditWaitId] = useState(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
   const [newPatient, setNewPatient] = useState(EMPTY_PATIENT)
-  const [showPayment, setShowPayment] = useState(false)
-  const [payment, setPayment] = useState(EMPTY_PAYMENT)
   const [searchAppts, setSearchAppts] = useState('')
   const [toast, setToast] = useState(null)
 
@@ -102,9 +100,9 @@ export default function Schedule() {
   const serviceOptions = [{ value: '', label: '— Выберите услугу —' }, ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${tg(s.price)}` }))]
   const selectedService = ALL_SERVICES.find(s => s.id === form.service)
 
-  const openNew = () => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setShowPayment(false); setPayment(EMPTY_PAYMENT); setModalOpen(true) }
-  const openSlotBooking = (time, doctorId) => { setEditAppt(null); setForm({ ...EMPTY_FORM, time, doctorId: doctorId || '' }); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setShowPayment(false); setPayment(EMPTY_PAYMENT); setModalOpen(true) }
-  const openEdit = (a) => { setEditAppt(a); setForm({ patientId: a.patientId || '', doctorId: a.doctorId || '', service: a.service || a.reason || '', time: a.time, status: a.status, notes: a.notes || '', duration: a.duration || 60 }); setShowNewPatient(false); setShowPayment(false); setModalOpen(true) }
+  const openNew = () => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
+  const openSlotBooking = (time, doctorId) => { setEditAppt(null); setForm({ ...EMPTY_FORM, time, doctorId: doctorId || '' }); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
+  const openEdit = (a) => { setEditAppt(a); setForm({ patientId: a.patientId || '', doctorId: a.doctorId || '', service: a.service || a.reason || '', time: a.time, status: a.status, notes: a.notes || '', duration: a.duration || 60, diagnosis: a.diagnosis || '', toothNumber: a.toothNumber || '' }); setShowNewPatient(false); setModalOpen(true) }
 
   const handleCreatePatient = async () => {
     if (!newPatient.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return null }
@@ -120,12 +118,8 @@ export default function Schedule() {
     if (showNewPatient && !patientId) { const created = await handleCreatePatient(); if (!created) return; patientId = created.id }
     if (!patientId || !form.time) { showToast('Выберите пациента и время', 'warning'); return }
     try {
-      await upsertAppointment({ ...form, id: editAppt?.id, clinicId: clinic?.id, date: selDate, patientId, serviceId: form.service, serviceName: selectedService?.name || form.service, servicePrice: selectedService?.price || 0, reason: selectedService?.name || form.service })
+      await upsertAppointment({ ...form, id: editAppt?.id, clinicId: clinic?.id, date: selDate, patientId, serviceId: form.service, serviceName: selectedService?.name || form.service, servicePrice: selectedService?.price || 0, reason: selectedService?.name || form.service, diagnosis: form.diagnosis, toothNumber: form.toothNumber, paymentStatus: 'unpaid' })
       showToast(editAppt ? 'Запись обновлена' : 'Запись создана', 'success')
-      if (showPayment && payment.paid && selectedService) {
-        await upsertReceipt({ id: gid(), clinicId: clinic?.id, patientId, doctorId: form.doctorId || null, amount: selectedService.price, payMethod: payment.payMethod, status: 'paid', notes: `Оплата: ${selectedService.name}`, date: selDate })
-        showToast('Оплата принята', 'success')
-      }
       setModalOpen(false)
     } catch { showToast('Ошибка сохранения', 'error') }
   }
@@ -166,6 +160,8 @@ export default function Schedule() {
     const sc = STATUS_CFG[appt.status] || STATUS_CFG.scheduled
     const dur = appt.duration || 60
     const heightPx = (dur / MIN_PER_SLOT) * (HOUR_HEIGHT / 2) - 4
+    const toothLabel = appt.toothNumber ? `Зуб ${appt.toothNumber}` : ''
+    const diagShort = appt.diagnosis ? appt.diagnosis.split(' — ')[0] : ''
     return (
       <motion.div
         key={appt.id}
@@ -182,10 +178,23 @@ export default function Schedule() {
           <span className="text-2xs font-bold whitespace-nowrap" style={{ color: sc.dot }}>{appt.time}</span>
         </div>
         <div className="text-2xs text-txt-muted mt-0.5 truncate">{appt.service || appt.reason || '—'}</div>
+        {(diagShort || toothLabel) && (
+          <div className="flex items-center gap-1 mt-0.5">
+            {diagShort && <span className="text-2xs text-dv-gold/70 font-medium">{diagShort}</span>}
+            {toothLabel && <span className="text-2xs text-emerald-400/70 font-medium">· {toothLabel}</span>}
+          </div>
+        )}
         {!compact && (
           <div className="flex justify-between items-center mt-1">
             <span className="text-2xs text-dv-gold/70">{formatDuration(dur)}</span>
-            <Badge variant="default" size="xs">{sc.label}</Badge>
+            <div className="flex items-center gap-1">
+              {appt.paymentStatus === 'paid' ? (
+                <Badge variant="success" size="xs">Оплачено</Badge>
+              ) : (
+                <Badge variant="warning" size="xs">Не оплачено</Badge>
+              )}
+              <Badge variant="default" size="xs">{sc.label}</Badge>
+            </div>
           </div>
         )}
       </motion.div>
@@ -420,24 +429,61 @@ export default function Schedule() {
             <Select label="Статус" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
           </div>
 
-          <Input label="Заметки" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Дополнительная информация" />
-
-          {!editAppt && selectedService && (
-            <div className={cn('p-3 rounded-xl border transition-colors', showPayment ? 'bg-success/5 border-success/20' : 'bg-white/[0.02] border-bdr-subtle')}>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-txt-secondary">Оплата: {tg(selectedService.price)}</span>
-                <Button type="button" size="sm" variant={showPayment ? 'primary' : 'secondary'} onClick={() => setShowPayment(!showPayment)}>
-                  {showPayment ? 'Принято' : 'Принять оплату'}
-                </Button>
-              </div>
-              {showPayment && (
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Select label="Способ оплаты" value={payment.payMethod} onChange={e => setPayment({ ...payment, payMethod: e.target.value })} options={PAY_METHODS.map(m => ({ value: m, label: m }))} />
-                  <Input label="Сумма" type="number" min="0" value={payment.amount} onChange={e => setPayment({ ...payment, amount: Number(e.target.value) })} />
-                </div>
-              )}
+          {/* Diagnosis ICD-10 */}
+          <div className="space-y-1">
+            <label className="text-2xs font-semibold text-txt-muted uppercase">Диагноз (МКБ-10)</label>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
+              <input
+                placeholder="Введите код или название диагноза..."
+                value={form.diagnosis}
+                onChange={e => setForm({ ...form, diagnosis: e.target.value })}
+                className="pl-9"
+                list="icd10-suggestions"
+              />
+              <datalist id="icd10-suggestions">
+                {DENTAL_ICD10.filter(d =>
+                  d.code.toLowerCase().includes(form.diagnosis.toLowerCase()) ||
+                  d.name.toLowerCase().includes(form.diagnosis.toLowerCase())
+                ).map(d => (
+                  <option key={d.code} value={`${d.code} — ${d.name}`} />
+                ))}
+              </datalist>
             </div>
-          )}
+          </div>
+
+          {/* Tooth Number */}
+          <div className="space-y-1">
+            <label className="text-2xs font-semibold text-txt-muted uppercase">Зуб (номер по FDI)</label>
+            <select
+              value={form.toothNumber}
+              onChange={e => setForm({ ...form, toothNumber: e.target.value })}
+            >
+              <option value="">— Выберите зуб —</option>
+              <optgroup label="Верхняя челюсть (правая)">
+                {[18,17,16,15,14,13,12,11].map(n => (
+                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Верхняя челюсть (левая)">
+                {[21,22,23,24,25,26,27,28].map(n => (
+                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Нижняя челюсть (левая)">
+                {[31,32,33,34,35,36,37,38].map(n => (
+                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Нижняя челюсть (правая)">
+                {[41,42,43,44,45,46,47,48].map(n => (
+                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+
+          <Input label="Заметки" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Дополнительная информация" />
 
           <div className="flex gap-2 pt-2">
             <Button type="submit" className="flex-1">{editAppt ? 'Сохранить' : 'Сохранить'}</Button>
