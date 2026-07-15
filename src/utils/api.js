@@ -1,32 +1,108 @@
 // ═══════════════════════════════════════════════════════════════════
-// DENTVISION API CLIENT — Real backend calls
+// DENTVISION API CLIENT — JWT authenticated
 // ═══════════════════════════════════════════════════════════════════
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
+// ─── Token Management ───
+let _accessToken = null;
+let _refreshToken = null;
+let _refreshPromise = null;
+
+export function setTokens(access, refresh) {
+  _accessToken = access;
+  _refreshToken = refresh;
+  if (access && refresh) {
+    try { localStorage.setItem('dv_tokens', JSON.stringify({ access, refresh })); } catch {}
+  } else {
+    try { localStorage.removeItem('dv_tokens'); } catch {}
+  }
+}
+
+export function loadTokens() {
+  try {
+    const stored = localStorage.getItem('dv_tokens');
+    if (stored) {
+      const { access, refresh } = JSON.parse(stored);
+      _accessToken = access;
+      _refreshToken = refresh;
+      return { accessToken: access, refreshToken: refresh };
+    }
+  } catch {}
+  return null;
+}
+
+export function clearTokens() {
+  _accessToken = null;
+  _refreshToken = null;
+  try { localStorage.removeItem('dv_tokens'); } catch {}
+}
+
+export function getAccessToken() { return _accessToken; }
+
+// ─── Token Refresh ───
+async function refreshAccessToken() {
+  if (!_refreshToken) throw new Error('No refresh token');
+  // Deduplicate concurrent refresh calls
+  if (_refreshPromise) return _refreshPromise;
+  _refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: _refreshToken }),
+      });
+      if (!res.ok) throw new Error('Refresh failed');
+      const data = await res.json();
+      setTokens(data.accessToken, data.refreshToken);
+      return data.accessToken;
+    } catch (err) {
+      clearTokens();
+      // Redirect to login on auth failure
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+      throw err;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+  return _refreshPromise;
+}
+
+// ─── Core API Request ───
 async function apiRequest(path, options = {}) {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
-  });
-  const data = await res.json();
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+
+  // Attach access token
+  if (_accessToken) {
+    headers['Authorization'] = `Bearer ${_accessToken}`;
+  }
+
+  let res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let data = await res.json();
+
+  // If token expired, try refresh once
+  if (res.status === 401 && data.code === 'TOKEN_EXPIRED' && _refreshToken) {
+    try {
+      const newToken = await refreshAccessToken();
+      headers['Authorization'] = `Bearer ${newToken}`;
+      res = await fetch(`${API_URL}${path}`, { ...options, headers });
+      data = await res.json();
+    } catch {
+      throw new Error('Session expired. Please log in again.');
+    }
+  }
+
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
 
 // ─── Auth ───
 export async function login(loginStr, password) {
-  const user = await apiRequest('/api/auth/login', {
+  return apiRequest('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ login: loginStr, password }),
-  });
-  return user ? { user } : null;
-}
-
-export async function forgotPassword(login) {
-  return apiRequest('/api/auth/forgot-password', {
-    method: 'POST',
-    body: JSON.stringify({ login }),
   });
 }
 
@@ -34,6 +110,17 @@ export async function register(data) {
   return apiRequest('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+export async function getMe() {
+  return apiRequest('/api/auth/me');
+}
+
+export async function forgotPassword(login) {
+  return apiRequest('/api/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ login }),
   });
 }
 
@@ -113,7 +200,7 @@ export async function upsertInventoryItem(data) {
 }
 
 export async function upsertUser(data) {
-  return apiRequest('/api/users/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/clinic/users/create', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertSubscription(data) {
@@ -182,7 +269,7 @@ export async function submitBooking(data) {
   return apiRequest('/api/public/booking', { method: 'POST', body: JSON.stringify(data) });
 }
 
-// ─── Medical Cards (Stage 2) ───
+// ─── Medical Cards ───
 export async function getMedicalCard(patientId) {
   return apiRequest(`/api/medical-cards/${patientId}`);
 }
