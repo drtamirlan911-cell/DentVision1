@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
+import { requireServiceAccess } from '../middleware/serviceAccess.js';
 import prisma from '../lib/prisma.js';
 
 export default function schoolRoutes() {
@@ -34,7 +35,7 @@ export default function schoolRoutes() {
   });
 
   // ─── Enrollments (authenticated) ───
-  router.post('/enrollments', authenticate, async (req, res) => {
+  router.post('/enrollments', authenticate, requireServiceAccess('school'), async (req, res) => {
     try {
       const { course_id } = req.body;
       const existing = await prisma.schoolEnrollment.findFirst({ where: { userId: req.user.id, courseId: course_id } });
@@ -48,7 +49,7 @@ export default function schoolRoutes() {
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
 
-  router.get('/enrollments', authenticate, async (req, res) => {
+  router.get('/enrollments', authenticate, requireServiceAccess('school'), async (req, res) => {
     try {
       const result = await prisma.schoolEnrollment.findMany({
         where: { userId: req.user.id },
@@ -82,7 +83,7 @@ export default function schoolRoutes() {
   });
 
   // ─── Certificates (authenticated) ───
-  router.get('/certificates', authenticate, async (req, res) => {
+  router.get('/certificates', authenticate, requireServiceAccess('school'), async (req, res) => {
     try {
       const result = await prisma.schoolCertificate.findMany({
         where: { userId: req.user.id },

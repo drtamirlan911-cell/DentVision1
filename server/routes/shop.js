@@ -5,6 +5,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { requireSameClinic } from '../middleware/rbac.js';
+import { requireServiceAccess } from '../middleware/serviceAccess.js';
 import prisma from '../lib/prisma.js';
 
 export default function shopRoutes() {
@@ -80,7 +81,7 @@ export default function shopRoutes() {
   });
 
   // ─── Orders (authenticated) ───
-  router.post('/orders', authenticate, requireSameClinic, async (req, res) => {
+  router.post('/orders', authenticate, requireSameClinic, requireServiceAccess('shop'), async (req, res) => {
     try {
       const { clinic_id, items, delivery_address, delivery_method, payment_method, notes } = req.body;
       if (!items || items.length === 0) return res.status(400).json({ error: 'No items' });
@@ -110,7 +111,7 @@ export default function shopRoutes() {
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
 
-  router.get('/orders', authenticate, requireSameClinic, async (req, res) => {
+  router.get('/orders', authenticate, requireSameClinic, requireServiceAccess('shop'), async (req, res) => {
     try {
       const { clinic_id } = req.query;
       const where = clinic_id ? { clinicId: clinic_id } : {};
@@ -124,7 +125,7 @@ export default function shopRoutes() {
   });
 
   // ─── Reviews (authenticated) ───
-  router.post('/reviews', authenticate, async (req, res) => {
+  router.post('/reviews', authenticate, requireServiceAccess('shop'), async (req, res) => {
     try {
       const { product_id, pros, cons, comment, rating } = req.body;
       const id = crypto.randomUUID();
@@ -141,7 +142,7 @@ export default function shopRoutes() {
   });
 
   // ─── Favorites (authenticated) ───
-  router.post('/favorites', authenticate, async (req, res) => {
+  router.post('/favorites', authenticate, requireServiceAccess('shop'), async (req, res) => {
     try {
       const { product_id } = req.body;
       const clinicId = req.user.clinicId;
@@ -158,7 +159,7 @@ export default function shopRoutes() {
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
 
-  router.get('/favorites', authenticate, async (req, res) => {
+  router.get('/favorites', authenticate, requireServiceAccess('shop'), async (req, res) => {
     try {
       const clinicId = req.user.clinicId;
       const result = await prisma.shopFavorite.findMany({

@@ -5,6 +5,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission, requireSameClinic } from '../middleware/rbac.js';
+import { invalidateServiceCache } from '../middleware/serviceAccess.js';
 import prisma from '../lib/prisma.js';
 
 // All available services in the platform
@@ -55,6 +56,7 @@ export default function serviceAccessRoutes() {
         update: { enabled: !!enabled },
         create: { id, clinicId: clinic_id, service, enabled: enabled !== false },
       });
+      invalidateServiceCache(clinic_id);
       res.json(result);
     } catch (e) {
       console.error('Service access upsert error:', e.message);
@@ -82,6 +84,7 @@ export default function serviceAccessRoutes() {
         });
         results.push(result);
       }
+      invalidateServiceCache(clinic_id);
       res.json({ updated: results.length, services });
     } catch (e) {
       console.error('Service access bulk error:', e.message);
