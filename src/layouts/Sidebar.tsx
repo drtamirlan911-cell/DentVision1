@@ -55,24 +55,24 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Сервисы',
     items: [
       { id: 'dashboard', label: 'Главная', icon: <LayoutDashboard size={18} />, path: '/dashboard' },
-      { id: 'schedule', label: 'Расписание', icon: <Calendar size={18} />, path: '/schedule' },
-      { id: 'patients', label: 'Пациенты', icon: <Users size={18} />, path: '/patients' },
-      { id: 'medical-card', label: 'Мед. карты', icon: <Stethoscope size={18} />, path: '/medical-card' },
-      { id: 'visits', label: 'Журнал посещений', icon: <ClipboardList size={18} />, path: '/visits' },
-      { id: 'icd10', label: 'МКБ-10', icon: <BookOpen size={18} />, path: '/icd10' },
-      { id: 'documents', label: 'Документы', icon: <FileText size={18} />, path: '/documents' },
+      { id: 'schedule', label: 'Расписание', icon: <Calendar size={18} />, path: '/crm/schedule' },
+      { id: 'patients', label: 'Пациенты', icon: <Users size={18} />, path: '/crm/patients' },
+      { id: 'medical-card', label: 'Мед. карты', icon: <Stethoscope size={18} />, path: '/crm/medical-card' },
+      { id: 'visits', label: 'Журнал посещений', icon: <ClipboardList size={18} />, path: '/crm/visits' },
+      { id: 'icd10', label: 'МКБ-10', icon: <BookOpen size={18} />, path: '/crm/icd10' },
+      { id: 'documents', label: 'Документы', icon: <FileText size={18} />, path: '/crm/documents' },
     ],
   },
   {
     id: 'business',
     label: 'Бизнес',
     items: [
-      { id: 'cashier', label: 'Финансы', icon: <DollarSign size={18} />, path: '/cashier' },
-      { id: 'pricelist', label: 'Прайс-лист', icon: <FileText size={18} />, path: '/pricelist' },
-      { id: 'lab', label: 'Лаборатория', icon: <FlaskConical size={18} />, path: '/lab' },
-      { id: 'inventory', label: 'Склад', icon: <Package size={18} />, path: '/inventory' },
-      { id: 'promotions', label: 'Акции', icon: <Megaphone size={18} />, path: '/promotions' },
-      { id: 'staff', label: 'Сотрудники', icon: <UserCog size={18} />, path: '/staff' },
+      { id: 'cashier', label: 'Финансы', icon: <DollarSign size={18} />, path: '/crm/cashier' },
+      { id: 'pricelist', label: 'Прайс-лист', icon: <FileText size={18} />, path: '/crm/pricelist' },
+      { id: 'lab', label: 'Лаборатория', icon: <FlaskConical size={18} />, path: '/crm/lab' },
+      { id: 'inventory', label: 'Склад', icon: <Package size={18} />, path: '/crm/inventory' },
+      { id: 'promotions', label: 'Акции', icon: <Megaphone size={18} />, path: '/crm/promotions' },
+      { id: 'staff', label: 'Сотрудники', icon: <UserCog size={18} />, path: '/crm/staff' },
     ],
   },
   {
@@ -224,8 +224,8 @@ export function Sidebar({ allowedPages, onLogout }: SidebarProps) {
               )}
               {group.items.map((item) => {
                 const isActive =
-                  item.path === '/app/dashboard'
-                    ? location.pathname === '/app/dashboard'
+                  item.path === '/dashboard'
+                    ? location.pathname === '/dashboard'
                     : location.pathname.startsWith(item.path)
 
                 return (

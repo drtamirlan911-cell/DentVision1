@@ -70,29 +70,39 @@ if (container) {
                 <Route path="/sign/:token" element={<DocumentSign />} />
                 <Route path="/" element={<AppLayout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
+                  {/* Core */}
                   <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-                  <Route path="schedule" element={<Suspense fallback={<PageLoader />}><Schedule /></Suspense>} />
-                  <Route path="patients" element={<Suspense fallback={<PageLoader />}><Patients /></Suspense>} />
-                  <Route path="cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
-                  <Route path="pricelist" element={<Suspense fallback={<PageLoader />}><PriceList /></Suspense>} />
-                  <Route path="lab" element={<Suspense fallback={<PageLoader />}><Lab /></Suspense>} />
                   <Route path="ai" element={<Suspense fallback={<PageLoader />}><AITeam /></Suspense>} />
-                  <Route path="promotions" element={<Suspense fallback={<PageLoader />}><Promotions /></Suspense>} />
-                  <Route path="inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
-                  <Route path="medical-card" element={<Suspense fallback={<PageLoader />}><MedicalCard /></Suspense>} />
-                  <Route path="icd10" element={<Suspense fallback={<PageLoader />}><ICD10 /></Suspense>} />
-                  <Route path="visits" element={<Suspense fallback={<PageLoader />}><Visits /></Suspense>} />
-                  <Route path="documents" element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
-                  <Route path="audit" element={<Suspense fallback={<PageLoader />}><AuditLog /></Suspense>} />
-                  <Route path="backup" element={<Suspense fallback={<PageLoader />}><Backup /></Suspense>} />
-                  <Route path="staff" element={<Suspense fallback={<PageLoader />}><Staff /></Suspense>} />
-                  <Route path="admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
-                  <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
-                  <Route path="shop/:id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
-                  <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
-                  <Route path="school/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
                   <Route path="analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
+                  <Route path="admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
+                  <Route path="audit" element={<Suspense fallback={<PageLoader />}><AuditLog /></Suspense>} />
+                  <Route path="backup" element={<Suspense fallback={<PageLoader />}><Backup /></Suspense>} />
+                  {/* CRM sub-app */}
+                  <Route path="crm">
+                    <Route path="schedule" element={<Suspense fallback={<PageLoader />}><Schedule /></Suspense>} />
+                    <Route path="patients" element={<Suspense fallback={<PageLoader />}><Patients /></Suspense>} />
+                    <Route path="cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
+                    <Route path="pricelist" element={<Suspense fallback={<PageLoader />}><PriceList /></Suspense>} />
+                    <Route path="lab" element={<Suspense fallback={<PageLoader />}><Lab /></Suspense>} />
+                    <Route path="inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
+                    <Route path="promotions" element={<Suspense fallback={<PageLoader />}><Promotions /></Suspense>} />
+                    <Route path="staff" element={<Suspense fallback={<PageLoader />}><Staff /></Suspense>} />
+                    <Route path="medical-card" element={<Suspense fallback={<PageLoader />}><MedicalCard /></Suspense>} />
+                    <Route path="icd10" element={<Suspense fallback={<PageLoader />}><ICD10 /></Suspense>} />
+                    <Route path="visits" element={<Suspense fallback={<PageLoader />}><Visits /></Suspense>} />
+                    <Route path="documents" element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
+                  </Route>
+                  {/* Shop sub-app */}
+                  <Route path="shop">
+                    <Route index element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
+                    <Route path=":id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
+                  </Route>
+                  {/* School sub-app */}
+                  <Route path="school">
+                    <Route index element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
+                    <Route path=":id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
+                  </Route>
                 </Route>
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>

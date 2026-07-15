@@ -48,7 +48,7 @@ const SERVICE_TILES = [
     title: 'CRM',
     subtitle: 'Пациенты и расписание',
     icon: <Stethoscope size={22} />,
-    path: '/schedule',
+    path: '/crm/schedule',
     color: '#C9A96E',
     gradient: 'from-[#C9A96E]/15 to-[#C9A96E]/5',
   },
@@ -93,7 +93,7 @@ const SERVICE_TILES = [
     title: 'Лаборатория',
     subtitle: 'Лабораторные заказы',
     icon: <FlaskConical size={22} />,
-    path: '/lab',
+    path: '/crm/lab',
     color: '#00BCD4',
     gradient: 'from-[#00BCD4]/15 to-[#00BCD4]/5',
   },
@@ -102,7 +102,7 @@ const SERVICE_TILES = [
     title: 'Финансы',
     subtitle: 'Доходы и расходы',
     icon: <CreditCard size={22} />,
-    path: '/cashier',
+    path: '/crm/cashier',
     color: '#27AE60',
     gradient: 'from-[#27AE60]/15 to-[#27AE60]/5',
   },
@@ -269,9 +269,9 @@ function QuickActions() {
   const navigate = useNavigate()
 
   const actions = [
-    { label: 'Новый пациент', icon: <Users size={16} />, path: '/patients' },
-    { label: 'Запись', icon: <Calendar size={16} />, path: '/schedule' },
-    { label: 'Документ', icon: <FileText size={16} />, path: '/documents' },
+    { label: 'Новый пациент', icon: <Users size={16} />, path: '/crm/patients' },
+    { label: 'Запись', icon: <Calendar size={16} />, path: '/crm/schedule' },
+    { label: 'Документ', icon: <FileText size={16} />, path: '/crm/documents' },
     { label: 'Аналитика', icon: <BarChart3 size={16} />, path: '/analytics' },
   ]
 

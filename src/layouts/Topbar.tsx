@@ -20,19 +20,19 @@ import { useAuth } from '@/context/AuthContext'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Главная',
-  '/schedule': 'Расписание',
-  '/patients': 'Пациенты',
-  '/medical-card': 'Мед. карты',
-  '/visits': 'Журнал посещений',
-  '/icd10': 'МКБ-10',
-  '/documents': 'Документы',
-  '/cashier': 'Финансы',
-  '/pricelist': 'Прайс-лист',
-  '/lab': 'Лаборатория',
+  '/crm/schedule': 'Расписание',
+  '/crm/patients': 'Пациенты',
+  '/crm/medical-card': 'Мед. карты',
+  '/crm/visits': 'Журнал посещений',
+  '/crm/icd10': 'МКБ-10',
+  '/crm/documents': 'Документы',
+  '/crm/cashier': 'Финансы',
+  '/crm/pricelist': 'Прайс-лист',
+  '/crm/lab': 'Лаборатория',
   '/ai': 'AI Помощник',
-  '/promotions': 'Акции',
-  '/inventory': 'Склад',
-  '/staff': 'Сотрудники',
+  '/crm/promotions': 'Акции',
+  '/crm/inventory': 'Склад',
+  '/crm/staff': 'Сотрудники',
   '/admin': 'Super Admin',
   '/audit': 'Аудит-журнал',
   '/backup': 'Резерв. копии',
@@ -53,7 +53,14 @@ export function Topbar() {
   const profileRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  const pageTitle = PAGE_TITLES[location.pathname] || 'DentVision'
+  const pageTitle = PAGE_TITLES[location.pathname] || (() => {
+    const parts = location.pathname.split('/').filter(Boolean)
+    if (parts.length >= 2) {
+      const subPath = '/' + parts[0] + '/' + parts[1]
+      if (PAGE_TITLES[subPath]) return PAGE_TITLES[subPath]
+    }
+    return 'DentVision'
+  })()
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -156,7 +163,7 @@ export function Topbar() {
                       Настройки
                     </button>
                     <button
-                      onClick={() => { navigate('/schedule'); setShowProfile(false) }}
+                      onClick={() => { navigate('/crm/schedule'); setShowProfile(false) }}
                       className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-txt-secondary hover:bg-white/5 hover:text-txt-primary transition-colors"
                     >
                       <User size={15} />

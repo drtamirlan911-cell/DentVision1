@@ -3,35 +3,40 @@ export const ROUTES = {
   LOGIN: '/login',
   REGISTER: '/register',
   FORGOT_PASSWORD: '/forgot-password',
-  BOOKING: '/booking',
+  BOOKING: '/book',
   SIGN: '/sign',
 
-  // SuperApp
-  APP: '/app',
-  DASHBOARD: '/app/dashboard',
-  CRM: '/app/crm',
-  SCHEDULE: '/app/schedule',
-  PATIENTS: '/app/patients',
-  MEDICAL_CARD: '/app/medical-card',
-  VISITS: '/app/visits',
-  ICD10: '/app/icd10',
-  DOCUMENTS: '/app/documents',
-  CASHIER: '/app/cashier',
-  PRICELIST: '/app/pricelist',
-  LAB: '/app/lab',
-  INVENTORY: '/app/inventory',
-  PROMOTIONS: '/app/promotions',
-  STAFF: '/app/staff',
-  AUDIT: '/app/audit',
-  BACKUP: '/app/backup',
-  ADMIN: '/app/admin',
-  AI: '/app/ai',
-  SHOP: '/app/shop',
-  SHOP_PRODUCT: '/app/shop',
-  SCHOOL: '/app/school',
-  SCHOOL_COURSE: '/app/school',
-  ANALYTICS: '/app/analytics',
-  SETTINGS: '/app/settings',
+  // Core
+  DASHBOARD: '/dashboard',
+  AI: '/ai',
+  ANALYTICS: '/analytics',
+  SETTINGS: '/settings',
+  ADMIN: '/admin',
+  AUDIT: '/audit',
+  BACKUP: '/backup',
+
+  // CRM sub-app
+  CRM: '/crm',
+  SCHEDULE: '/crm/schedule',
+  PATIENTS: '/crm/patients',
+  MEDICAL_CARD: '/crm/medical-card',
+  VISITS: '/crm/visits',
+  ICD10: '/crm/icd10',
+  DOCUMENTS: '/crm/documents',
+  CASHIER: '/crm/cashier',
+  PRICELIST: '/crm/pricelist',
+  LAB: '/crm/lab',
+  INVENTORY: '/crm/inventory',
+  PROMOTIONS: '/crm/promotions',
+  STAFF: '/crm/staff',
+
+  // Shop sub-app
+  SHOP: '/shop',
+  SHOP_PRODUCT: '/shop',
+
+  // School sub-app
+  SCHOOL: '/school',
+  SCHOOL_COURSE: '/school',
 } as const
 
 export type RouteKey = keyof typeof ROUTES
