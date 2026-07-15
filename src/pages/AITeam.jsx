@@ -1,16 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useToast, useData } from '../hooks/useData';
-import { PBtn, GBtn, Card, Badge, Toast, Input } from '../components/ui/BaseComponents';
-import { T } from '../utils/constants';
+import { Button } from '../components/ui/ds/Button';
+import { Card } from '../components/ui/ds/Card';
 import { buildAiReply } from '../utils/aiHelpers';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  MessageSquare,
+  Calendar,
+  BarChart3,
+  Megaphone,
+  Bot,
+  TrendingUp,
+  Target,
+  Trash2,
+  Send,
+  Loader2,
+} from 'lucide-react';
 
 const ASSISTANTS = [
   {
     id: 'consultant',
     name: 'Консультант',
-    icon: '💬',
-    color: T.sapphire,
+    Icon: MessageSquare,
+    color: '#2980B9',
     role: 'Отвечает на вопросы пациентов',
     quickActions: ['Услуги и цены', 'О врачах', 'Текущие акции', 'Контакты клиники'],
     replies: [
@@ -22,8 +35,8 @@ const ASSISTANTS = [
   {
     id: 'scheduler',
     name: 'Администратор',
-    icon: '📅',
-    color: T.emerald,
+    Icon: Calendar,
+    color: '#27AE60',
     role: 'Управляет расписанием и записями',
     quickActions: ['Записаться на приём', 'Отменить запись', 'Перенести время', 'Свободные слоты'],
     replies: [
@@ -35,8 +48,8 @@ const ASSISTANTS = [
   {
     id: 'analyst',
     name: 'Аналитик',
-    icon: '📊',
-    color: T.purple,
+    Icon: BarChart3,
+    color: '#8E44AD',
     role: 'Анализирует показатели клиники',
     quickActions: ['Отчёт за сегодня', 'Отчёт за месяц', 'KPI врачей', 'Прогноз доходов'],
     replies: [
@@ -48,8 +61,8 @@ const ASSISTANTS = [
   {
     id: 'marketing',
     name: 'Маркетолог',
-    icon: '📣',
-    color: T.pink,
+    Icon: Megaphone,
+    color: '#E91E8C',
     role: 'Продвижение и работа с отзывами',
     quickActions: ['Статистика рекламы', 'Предложения по акциям', 'Работа с отзывами', 'Контент-план'],
     replies: [
@@ -60,13 +73,28 @@ const ASSISTANTS = [
   },
 ];
 
+const FEATURES = [
+  { Icon: Bot, title: 'Автоответы', desc: 'Мгновенные ответы на вопросы пациентов 24/7' },
+  { Icon: Calendar, title: 'Умное расписание', desc: 'Автозаполнение окон в расписании' },
+  { Icon: TrendingUp, title: 'Прогнозы', desc: 'Предсказание загрузки и доходов клиники' },
+  { Icon: Target, title: 'Персонализация', desc: 'Индивидуальные предложения для каждого пациента' },
+];
+
+const AI_FEATURES = [
+  { Icon: Bot, text: 'Автоответы 24/7' },
+  { Icon: Calendar, text: 'Умное расписание' },
+  { Icon: TrendingUp, text: 'Прогнозы доходов' },
+  { Icon: MessageSquare, text: 'WhatsApp-рассылки' },
+  { Icon: Target, text: 'Персонализация' },
+];
+
 export default function AITeam() {
   const { clinic } = useOutletContext();
-  const { toast, showToast, clearToast } = useToast();
+  const { showToast } = useToast();
   const { patients, appointments, receipts, doctors } = useData(clinic?.id);
   const [activeId, setActiveId] = useState('consultant');
   const [chatHistory, setChatHistory] = useState([
-    { role: 'assistant', content: 'Здравствуйте! Я AI-ассистент DentVision. Готов помочь автоматизировать вашу клинику. Чем могу помочь?' }
+    { role: 'assistant', content: 'Здравствуйте! Я AI-ассистент DentVision. Готов помочь автоматизировать вашу клинику. Чем могу помочь?' },
   ]);
   const [userInput, setUserInput] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -118,105 +146,123 @@ export default function AITeam() {
   };
 
   return (
-    <div style={{ padding: 24 }}>
-      <Toast msg={toast?.msg} type={toast?.type} onClose={clearToast} />
-
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 23, fontWeight: 700, color: T.white, margin: 0 }}>AI Команда</h1>
-        <p style={{ fontSize: 12, color: T.slate, marginTop: 3 }}>Виртуальные ассистенты для автоматизации клиники</p>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="p-6"
+    >
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold font-serif text-white">AI Команда</h1>
+        <p className="text-xs text-[var(--slate)] mt-1">
+          Виртуальные ассистенты для автоматизации клиники
+        </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 18 }} className="grid-2">
-        {/* Assistants panel */}
-        <div>
-          <Card style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: T.slate, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+      <div className="grid grid-cols-[240px_1fr] gap-4 max-lg:grid-cols-1">
+        {/* Assistants sidebar */}
+        <div className="flex flex-col gap-3">
+          <Card padding="md">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--slate)] mb-3">
               Выберите ассистента
             </div>
-            {ASSISTANTS.map(a => (
-              <button
-                key={a.id}
-                onClick={() => switchAssistant(a.id)}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '11px 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
-                  marginBottom: 4, transition: 'all .12s', textAlign: 'left',
-                  background: activeId === a.id ? `${a.color}18` : 'transparent',
-                  borderLeft: `3px solid ${activeId === a.id ? a.color : 'transparent'}`,
-                }}
-              >
-                <span style={{ fontSize: 22 }}>{a.icon}</span>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: activeId === a.id ? a.color : T.slateL }}>{a.name}</div>
-                  <div style={{ fontSize: 10, color: T.slate }}>{a.role}</div>
-                </div>
-                {activeId === a.id && (
-                  <div style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: '50%', background: a.color }} />
-                )}
-              </button>
-            ))}
+            <div className="flex flex-col gap-1">
+              {ASSISTANTS.map(a => {
+                const isActive = activeId === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => switchAssistant(a.id)}
+                    className={`flex items-center gap-3 w-full p-3 rounded-lg text-left transition-all duration-150 border-l-[3px] ${
+                      isActive
+                        ? 'bg-white/5'
+                        : 'border-l-transparent hover:bg-white/[0.03]'
+                    }`}
+                    style={{
+                      color: isActive ? a.color : undefined,
+                      borderLeftColor: isActive ? a.color : 'transparent',
+                    }}
+                  >
+                    <a.Icon size={20} style={{ color: a.color }} />
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`text-[13px] font-semibold ${isActive ? '' : 'text-[var(--slate-light)]'}`}
+                        style={isActive ? { color: a.color } : undefined}
+                      >
+                        {a.name}
+                      </div>
+                      <div className="text-[10px] text-[var(--slate)] truncate">{a.role}</div>
+                    </div>
+                    {isActive && (
+                      <div
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ background: a.color }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </Card>
 
-          <Card>
-            <div style={{ fontSize: 11, color: T.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+          <Card padding="md">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--gold)] mb-2.5">
               Возможности AI
             </div>
-            {[
-              { icon: '🤖', text: 'Автоответы 24/7' },
-              { icon: '📅', text: 'Умное расписание' },
-              { icon: '📈', text: 'Прогнозы доходов' },
-              { icon: '💬', text: 'WhatsApp-рассылки' },
-              { icon: '🎯', text: 'Персонализация' },
-            ].map((f, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 12, color: T.slateL }}>
-                <span>{f.icon}</span>{f.text}
-              </div>
-            ))}
+            <div className="flex flex-col gap-1.5">
+              {AI_FEATURES.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 py-1 text-xs text-[var(--slate-light)]">
+                  <f.Icon size={14} className="text-[var(--gold)]" />
+                  {f.text}
+                </div>
+              ))}
+            </div>
           </Card>
         </div>
 
         {/* Chat panel */}
-        <Card style={{ display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+        <Card padding="none" className="flex flex-col overflow-hidden">
           {/* Chat header */}
-          <div style={{
-            padding: '16px 20px', borderBottom: `1px solid ${T.borderSub}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: '50%',
-                background: `${activeAssistant.color}20`, border: `2px solid ${activeAssistant.color}50`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-              }}>
-                {activeAssistant.icon}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
+            <div className="flex items-center gap-3">
+              <div
+                className="flex items-center justify-center w-11 h-11 rounded-full border-2"
+                style={{
+                  background: `${activeAssistant.color}20`,
+                  borderColor: `${activeAssistant.color}50`,
+                }}
+              >
+                <activeAssistant.Icon size={20} style={{ color: activeAssistant.color }} />
               </div>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: T.white }}>{activeAssistant.name}</div>
-                <div style={{ fontSize: 11, color: T.emerald, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: T.emerald }} />
+                <div className="text-[15px] font-bold text-white">{activeAssistant.name}</div>
+                <div className="flex items-center gap-1.5 text-[11px] text-[var(--emerald)]">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--emerald)]" />
                   Онлайн · {activeAssistant.role}
                 </div>
               </div>
             </div>
-            <GBtn size="sm" onClick={() => setChatHistory([{ role: 'assistant', content: `Привет! Я ${activeAssistant.name}. Чем могу помочь?` }])}>
-              🗑 Очистить
-            </GBtn>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Trash2 size={14} />}
+              onClick={() =>
+                setChatHistory([
+                  { role: 'assistant', content: `Привет! Я ${activeAssistant.name}. Чем могу помочь?` },
+                ])
+              }
+            >
+              Очистить
+            </Button>
           </div>
 
           {/* Quick actions */}
-          <div style={{ padding: '12px 20px', borderBottom: `1px solid ${T.borderSub}`, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="flex gap-2 flex-wrap px-5 py-3 border-b border-[var(--border-subtle)]">
             {activeAssistant.quickActions.map((action, i) => (
               <button
                 key={i}
                 onClick={() => sendMessage(action)}
-                style={{
-                  padding: '5px 12px', borderRadius: 20, border: `1px solid ${T.borderSub}`,
-                  background: 'rgba(255,255,255,0.04)', color: T.slateL, fontSize: 12,
-                  cursor: 'pointer', transition: 'all .12s', whiteSpace: 'nowrap',
-                }}
-                onMouseEnter={e => { e.target.style.borderColor = activeAssistant.color; e.target.style.color = activeAssistant.color; }}
-                onMouseLeave={e => { e.target.style.borderColor = T.borderSub; e.target.style.color = T.slateL; }}
+                className="quick-action-btn px-3 py-1.5 rounded-full text-xs border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] transition-all duration-150 whitespace-nowrap hover:border-[var(--gold)] hover:text-[var(--gold)]"
               >
                 {action}
               </button>
@@ -224,115 +270,96 @@ export default function AITeam() {
           </div>
 
           {/* Messages */}
-          <div style={{
-            flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px',
-            display: 'flex', flexDirection: 'column', gap: 16,
-            maxHeight: 420,
-          }}>
-            {chatHistory.map((msg, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                {msg.role === 'assistant' && (
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%', minWidth: 32,
-                    background: `${activeAssistant.color}20`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 16, marginRight: 8, marginTop: 2,
-                  }}>
-                    {activeAssistant.icon}
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 flex flex-col gap-4 max-h-[420px]">
+            <AnimatePresence initial={false}>
+              {chatHistory.map((msg, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  {msg.role === 'assistant' && (
+                    <div
+                      className="flex items-center justify-center w-8 h-8 rounded-full shrink-0 mr-2 mt-0.5"
+                      style={{ background: `${activeAssistant.color}20` }}
+                    >
+                      <activeAssistant.Icon size={16} style={{ color: activeAssistant.color }} />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[78%] px-3.5 py-2.5 text-[13px] leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-gradient-to-br from-[var(--gold)] to-[var(--gold-dim)] text-[var(--bg)] rounded-[14px_14px_4px_14px] shadow-[0_4px_12px_rgba(201,169,110,0.3)]'
+                        : 'bg-white/[0.07] text-white border border-[var(--border-subtle)] rounded-[14px_14px_14px_4px]'
+                    }`}
+                  >
+                    {msg.content}
                   </div>
-                )}
-                <div style={{
-                  maxWidth: '78%',
-                  padding: '10px 14px',
-                  borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  background: msg.role === 'user'
-                    ? `linear-gradient(135deg, ${T.gold}, ${T.goldDim})`
-                    : 'rgba(255,255,255,0.07)',
-                  color: msg.role === 'user' ? T.bg : T.white,
-                  boxShadow: msg.role === 'user' ? `0 4px 12px ${T.gold}30` : 'none',
-                  border: msg.role === 'assistant' ? `1px solid ${T.borderSub}` : 'none',
-                }}>
-                  {msg.content}
-                </div>
-              </div>
-            ))}
+                </motion.div>
+              ))}
+            </AnimatePresence>
 
             {processing && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  background: `${activeAssistant.color}20`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                }}>
-                  {activeAssistant.icon}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-center gap-2.5"
+              >
+                <div
+                  className="flex items-center justify-center w-8 h-8 rounded-full"
+                  style={{ background: `${activeAssistant.color}20` }}
+                >
+                  <activeAssistant.Icon size={16} style={{ color: activeAssistant.color }} />
                 </div>
-                <div style={{
-                  padding: '12px 16px', borderRadius: '14px 14px 14px 4px',
-                  background: 'rgba(255,255,255,0.07)', border: `1px solid ${T.borderSub}`,
-                  display: 'flex', gap: 5, alignItems: 'center',
-                }}>
-                  {[0, 0.2, 0.4].map((delay, i) => (
-                    <div key={i} style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: activeAssistant.color,
-                      animation: `pulse 1.2s ${delay}s infinite`,
-                    }} />
-                  ))}
+                <div className="flex items-center gap-1.5 px-4 py-3 rounded-[14px_14px_14px_4px] bg-white/[0.07] border border-[var(--border-subtle)]">
+                  <Loader2 size={16} className="animate-spin" style={{ color: activeAssistant.color }} />
                 </div>
-              </div>
+              </motion.div>
             )}
             <div ref={chatEndRef} />
           </div>
 
           {/* Input */}
-          <div style={{
-            padding: '16px 20px', borderTop: `1px solid ${T.borderSub}`,
-            display: 'flex', gap: 10, alignItems: 'flex-end',
-          }}>
-            <div style={{ flex: 1 }}>
-              <input
-                value={userInput}
-                onChange={e => setUserInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={`Написать ${activeAssistant.name.toLowerCase()}у… (Enter для отправки)`}
-                disabled={processing}
-                style={{
-                  width: '100%', background: 'rgba(255,255,255,0.06)',
-                  border: `1px solid ${T.border}`, borderRadius: 10,
-                  padding: '11px 14px', fontSize: 13, color: T.white,
-                  outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-                  opacity: processing ? 0.5 : 1,
-                }}
-              />
-            </div>
-            <PBtn
+          <div className="flex gap-2.5 items-end px-5 py-4 border-t border-[var(--border-subtle)]">
+            <input
+              value={userInput}
+              onChange={e => setUserInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={`Написать ${activeAssistant.name.toLowerCase()}у\u2026 (Enter для отправки)`}
+              disabled={processing}
+              className="flex-1 bg-white/[0.06] border border-[var(--border)] rounded-xl px-3.5 py-2.5 text-[13px] text-white placeholder:text-[var(--slate)] outline-none transition-all duration-200 disabled:opacity-50 focus:border-[var(--gold)]/50 focus:ring-1 focus:ring-[var(--gold)]/20"
+            />
+            <Button
+              variant="primary"
+              size="md"
               onClick={() => sendMessage()}
               disabled={processing || !userInput.trim()}
-              style={{ flexShrink: 0 }}
+              loading={processing}
+              icon={!processing ? <Send size={14} /> : undefined}
+              className="shrink-0"
             >
-              {processing ? '⏳' : '▶ Отправить'}
-            </PBtn>
+              Отправить
+            </Button>
           </div>
         </Card>
       </div>
 
       {/* Feature cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginTop: 20 }}>
-        {[
-          { icon: '🤖', title: 'Автоответы',     desc: 'Мгновенные ответы на вопросы пациентов 24/7' },
-          { icon: '📅', title: 'Умное расписание', desc: 'Автозаполнение окон в расписании' },
-          { icon: '📈', title: 'Прогнозы',        desc: 'Предсказание загрузки и доходов клиники' },
-          { icon: '🎯', title: 'Персонализация',  desc: 'Индивидуальные предложения для каждого пациента' },
-        ].map((f, i) => (
-          <Card key={i} style={{ textAlign: 'center', padding: '20px 16px' }}>
-            <div style={{ fontSize: 36, marginBottom: 10 }}>{f.icon}</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 6 }}>{f.title}</div>
-            <div style={{ fontSize: 12, color: T.slate, lineHeight: 1.5 }}>{f.desc}</div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5 mt-5">
+        {FEATURES.map((f, i) => (
+          <Card key={i} padding="md" className="text-center">
+            <div className="flex justify-center mb-2.5">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[var(--gold)]/10 text-[var(--gold)]">
+                <f.Icon size={24} />
+              </div>
+            </div>
+            <div className="text-sm font-bold text-white mb-1.5">{f.title}</div>
+            <div className="text-xs text-[var(--slate)] leading-relaxed">{f.desc}</div>
           </Card>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }

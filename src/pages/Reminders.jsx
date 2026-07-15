@@ -1,28 +1,49 @@
 import React, { useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Bell,
+  Calendar,
+  Stethoscope,
+  Phone,
+  FileText,
+  MessageSquare,
+  Smile,
+  CheckCircle,
+  AlertTriangle,
+  Send,
+  Info,
+} from 'lucide-react';
 import { useData, useToast } from '../hooks/useData';
 import { getAppointmentReminders, getHygieneReminders, markSent } from '../utils/reminders';
-import { Card, Badge, PBtn, GBtn, EmptyState, Toast } from '../components/ui/BaseComponents';
-import { T, fd } from '../utils/constants';
+import { Card, CardContent } from '../components/ui/ds/Card';
+import { Badge } from '../components/ui/ds/Badge';
+import { Button } from '../components/ui/ds/Button';
+import { EmptyState } from '../components/ui/ds/EmptyState';
+import { PageHeader } from '../components/ui/ds/StatCard';
+import { fd } from '../utils/constants';
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+};
 
 export default function Reminders({ clinic, user, roleInfo }) {
   const { patients, appointments, receipts, doctors } = useData(clinic?.id);
-  const { toast, showToast, clearToast } = useToast();
+  const { showToast } = useToast();
   const [tick, setTick] = useState(0);
   const [tab, setTab] = useState('appointments');
 
   const readOnly = !!roleInfo?.readOnly;
   const ownDataOnly = !!roleInfo?.ownDataOnly && user?.role === 'doctor';
 
-  // Фильтруем данные по текущему врачу, если это врач
-  const scopedAppointments = ownDataOnly 
-    ? appointments.filter(a => a.doctorId === user.id) 
+  const scopedAppointments = ownDataOnly
+    ? appointments.filter(a => a.doctorId === user.id)
     : appointments;
-    
+
   const scopedPatients = ownDataOnly
     ? patients.filter(p => scopedAppointments.some(a => a.patientId === p.id))
     : patients;
-    
-  // Для врачей также фильтруем список докторов для отображения
+
   const scopedDoctors = ownDataOnly
     ? doctors.filter(d => d.id === user.id)
     : doctors;
@@ -55,143 +76,189 @@ export default function Reminders({ clinic, user, roleInfo }) {
     showToast('Отмечено как отправлено', 'info');
   };
 
-  return (
-    <div style={{ padding: 24 }}>
-      <Toast msg={toast?.msg} type={toast?.type} onClose={clearToast} />
+  const tabs = [
+    { id: 'appointments', label: 'Приёмы (24ч)', icon: <Calendar size={15} />, count: pendingAppt },
+    { id: 'hygiene', label: 'Проф. гигиена (6+ мес)', icon: <Smile size={15} />, count: pendingHyg },
+  ];
 
+  return (
+    <motion.div
+      initial="hidden"
+      animate="show"
+      variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }}
+      className="p-6 space-y-6"
+    >
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 23, fontWeight: 700, color: T.white, margin: 0 }}>
-            🔔 Напоминания
-          </h1>
-          <p style={{ fontSize: 12, color: T.slate, marginTop: 3 }}>
-            WhatsApp-напоминания о приёмах и профгигиене · {clinic?.name}
-          </p>
-        </div>
-        {(pendingAppt + pendingHyg) > 0 && (
-          <div style={{
-            padding: '8px 14px', background: `${T.amber}15`, border: `1px solid ${T.amber}35`,
-            borderRadius: 10, fontSize: 12, color: T.amber, fontWeight: 700,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            ⚠ {pendingAppt + pendingHyg} требуют внимания
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Напоминания"
+        subtitle={`WhatsApp-напоминания о приёмах и профгигиене · ${clinic?.name}`}
+        icon={<Bell size={20} />}
+        actions={
+          (pendingAppt + pendingHyg) > 0 ? (
+            <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2 text-xs font-bold text-warning">
+              <AlertTriangle size={14} />
+              {pendingAppt + pendingHyg} требуют внимания
+            </div>
+          ) : null
+        }
+      />
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 2, marginBottom: 18, background: T.card, border: `1px solid ${T.borderSub}`, borderRadius: 11, padding: 6 }}>
-        {[
-          { id: 'appointments', label: `📅 Приёмы (24ч)`, count: pendingAppt },
-          { id: 'hygiene', label: `🦷 Проф. гигиена (6+ мес)`, count: pendingHyg },
-        ].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            flex: 1, padding: '9px 8px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600,
-            cursor: 'pointer', transition: 'all .12s', fontFamily: 'inherit',
-            background: tab === t.id ? `${T.gold}20` : 'transparent',
-            color: tab === t.id ? T.gold : T.slate,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}>
-            {t.label}
-            {t.count > 0 && (
-              <span style={{
-                background: T.ruby, color: T.white, borderRadius: 20,
-                fontSize: 10, fontWeight: 700, padding: '1px 6px', minWidth: 16, textAlign: 'center',
-              }}>
-                {t.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <motion.div variants={fadeUp}>
+        <div className="flex gap-1 rounded-xl bg-white/5 p-1">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 ${
+                tab === t.id
+                  ? 'bg-[var(--gold)]/20 text-[var(--gold)]'
+                  : 'text-[var(--slate)] hover:bg-white/5'
+              }`}
+            >
+              {t.icon}
+              {t.label}
+              {t.count > 0 && (
+                <span className="ml-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#e74c6f] px-1.5 text-[10px] font-bold text-white">
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </motion.div>
 
       {/* Appointments tab */}
       {tab === 'appointments' && (
-        appointmentReminders.length === 0 ? (
-          <EmptyState icon="✅" text="Нет ближайших приёмов" sub="Все записи на ближайшие 24 часа уже обработаны" />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {appointmentReminders.map(r => (
-              <Card key={r.id} style={{ opacity: r.sent ? 0.55 : 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 220 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: T.white }}>{r.patient.name}</span>
-                      {r.sent && <Badge color={T.emerald} size="sm">✓ Отправлено</Badge>}
+        <motion.div variants={fadeUp}>
+          {appointmentReminders.length === 0 ? (
+            <EmptyState
+              icon={<CheckCircle size={28} />}
+              title="Нет ближайших приёмов"
+              description="Все записи на ближайшие 24 часа уже обработаны"
+            />
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {appointmentReminders.map(r => (
+                <Card key={r.id} className={r.sent ? 'opacity-55' : ''}>
+                  <CardContent>
+                    <div className="flex items-center justify-between gap-3.5 flex-wrap">
+                      <div className="flex-1 min-w-[220px]">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-sm font-bold text-white">{r.patient.name}</span>
+                          {r.sent && <Badge variant="success" size="sm">Отправлено</Badge>}
+                        </div>
+                        <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-[var(--slate-light)]">
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar size={12} /> {fd(r.appointment.date)} в {r.appointment.time}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Stethoscope size={12} /> {r.doctor?.name || '—'}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Phone size={12} /> {r.patient.phone}
+                          </span>
+                        </div>
+                        {r.appointment.reason && (
+                          <div className="mt-1 flex items-center gap-1 text-xs text-[var(--slate)]">
+                            <FileText size={12} /> {r.appointment.reason}
+                          </div>
+                        )}
+                      </div>
+                      {!readOnly && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<MessageSquare size={14} />}
+                            onClick={() => handleSend(r)}
+                          >
+                            Отправить WhatsApp
+                          </Button>
+                          {!r.sent && (
+                            <Button variant="outline" size="sm" onClick={() => handleMark(r)}>
+                              Отметить
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: 12, color: T.slateL, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                      <span>📅 {fd(r.appointment.date)} в {r.appointment.time}</span>
-                      <span>👨‍⚕️ {r.doctor?.name || '—'}</span>
-                      <span>📞 {r.patient.phone}</span>
-                    </div>
-                    {r.appointment.reason && (
-                      <div style={{ fontSize: 12, color: T.slate, marginTop: 4 }}>📝 {r.appointment.reason}</div>
-                    )}
-                  </div>
-                  {!readOnly && (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <PBtn onClick={() => handleSend(r)} size="sm">
-                        💬 Отправить WhatsApp
-                      </PBtn>
-                      {!r.sent && <GBtn size="sm" onClick={() => handleMark(r)}>Отметить</GBtn>}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-        )
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </motion.div>
       )}
 
       {/* Hygiene tab */}
       {tab === 'hygiene' && (
-        hygieneReminders.length === 0 ? (
-          <EmptyState icon="🦷" text="Нет просроченных напоминаний" sub="У всех пациентов профгигиена в норме (менее 6 мес.)" />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {hygieneReminders.map(r => (
-              <Card key={r.id} style={{ opacity: r.sent ? 0.55 : 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 220 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: T.white }}>{r.patient.name}</span>
-                      {r.sent && <Badge color={T.emerald} size="sm">✓ Отправлено</Badge>}
-                      {!r.sent && (
-                        <Badge color={r.monthsSince ? T.amber : T.ruby} size="sm">
-                          {r.monthsSince ? `${r.monthsSince} мес. назад` : 'Никогда не было'}
-                        </Badge>
+        <motion.div variants={fadeUp}>
+          {hygieneReminders.length === 0 ? (
+            <EmptyState
+              icon={<Smile size={28} />}
+              title="Нет просроченных напоминаний"
+              description="У всех пациентов профгигиена в норме (менее 6 мес.)"
+            />
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {hygieneReminders.map(r => (
+                <Card key={r.id} className={r.sent ? 'opacity-55' : ''}>
+                  <CardContent>
+                    <div className="flex items-center justify-between gap-3.5 flex-wrap">
+                      <div className="flex-1 min-w-[220px]">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-sm font-bold text-white">{r.patient.name}</span>
+                          {r.sent && <Badge variant="success" size="sm">Отправлено</Badge>}
+                          {!r.sent && (
+                            <Badge variant={r.monthsSince ? 'warning' : 'error'} size="sm">
+                              {r.monthsSince ? `${r.monthsSince} мес. назад` : 'Никогда не было'}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-[var(--slate-light)]">
+                          <span className="inline-flex items-center gap-1">
+                            <Phone size={12} /> {r.patient.phone}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Smile size={12} /> Последняя гигиена: {r.lastDate ? fd(r.lastDate) : 'нет данных'}
+                          </span>
+                        </div>
+                      </div>
+                      {!readOnly && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<MessageSquare size={14} />}
+                            onClick={() => handleSend(r)}
+                          >
+                            Отправить WhatsApp
+                          </Button>
+                          {!r.sent && (
+                            <Button variant="outline" size="sm" onClick={() => handleMark(r)}>
+                              Отметить
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
-                    <div style={{ fontSize: 12, color: T.slateL, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                      <span>📞 {r.patient.phone}</span>
-                      <span>🦷 Последняя гигиена: {r.lastDate ? fd(r.lastDate) : 'нет данных'}</span>
-                    </div>
-                  </div>
-                  {!readOnly && (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <PBtn onClick={() => handleSend(r)} size="sm">
-                        💬 Отправить WhatsApp
-                      </PBtn>
-                      {!r.sent && <GBtn size="sm" onClick={() => handleMark(r)}>Отметить</GBtn>}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-        )
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </motion.div>
       )}
 
       {/* Info footer */}
-      <div style={{
-        marginTop: 20, padding: '12px 16px',
-        background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.borderSub}`, borderRadius: 10,
-        fontSize: 11, color: T.slate, lineHeight: 1.6,
-      }}>
-        💡 Кнопка «Отправить WhatsApp» открывает чат с готовым текстом сообщения — просто нажмите «Отправить» в WhatsApp.
-        Профгигиена определяется автоматически по завершённым приёмам и чекам с услугой «Гигиена».
-      </div>
-    </div>
+      <motion.div variants={fadeUp} className="flex items-start gap-2 rounded-xl border border-[var(--border-subtle)] bg-white/[0.03] p-3.5 text-[11px] leading-relaxed text-[var(--slate)]">
+        <Info size={14} className="mt-0.5 shrink-0" />
+        <span>
+          Кнопка «Отправить WhatsApp» открывает чат с готовым текстом сообщения — просто нажмите «Отправить» в WhatsApp.
+          Профгигиена определяется автоматически по завершённым приёмам и чекам с услугой «Гигиена».
+        </span>
+      </motion.div>
+    </motion.div>
   );
 }

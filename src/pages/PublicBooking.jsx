@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { T, HOURS, ALL_SERVICES } from '../utils/constants';
 import { rateLimit, validatePhone, validateEmail, escapeHtml, sanitizeInput } from '../utils/security';
-import { Spinner, Toast } from '../components/ui/BaseComponents';
+import { Loader2 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
@@ -100,7 +100,7 @@ export default function PublicBooking() {
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Spinner size={40} />
+        <Loader2 size={40} className="animate-spin text-[var(--gold)]" />
       </div>
     );
   }

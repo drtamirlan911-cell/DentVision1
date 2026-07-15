@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { T, GLOBAL_CSS } from '../utils/constants';
-import { Spinner } from '../components/ui/BaseComponents';
+import { Loader2 } from 'lucide-react';
 
 const STEPS = ['Клиника', 'Руководитель', 'Готово'];
 
@@ -224,7 +224,7 @@ export default function Register({ onBack }) {
                   boxShadow: `0 4px 16px ${T.gold}30`,
                 }}
               >
-                {loading ? <><Spinner size={16} color={T.bg} /> Создаём аккаунт…</> :
+                {loading ? <><Loader2 size={16} className="animate-spin" style={{ color: T.bg }} /> Создаём аккаунт…</> :
                   step === 0 ? 'Далее →' : '🚀 Создать аккаунт'}
               </button>
             </div>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Register from './Register';
 import { T, GLOBAL_CSS } from '../utils/constants';
-import { Spinner } from '../components/ui/BaseComponents';
+import { Loader2 } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -112,7 +112,7 @@ export default function Login() {
                 fontFamily: 'inherit',
               }}
             >
-              {loading ? <><Spinner size={16} color={T.bg} /> Вход…</> : 'Войти в систему'}
+              {loading ? <><Loader2 size={16} className="animate-spin" style={{ color: T.bg }} /> Вход…</> : 'Войти в систему'}
             </button>
           </form>
 

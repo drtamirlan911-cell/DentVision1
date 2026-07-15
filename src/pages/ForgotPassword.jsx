@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { T, GLOBAL_CSS } from '../utils/constants';
 import { rateLimit, validatePassword } from '../utils/security';
-import { Spinner } from '../components/ui/BaseComponents';
+import { Loader2 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
@@ -145,7 +145,7 @@ export default function ForgotPassword() {
                 cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}>
-                {loading ? <><Spinner size={16} color={T.bg} /> Отправка...</> : 'Получить токен'}
+                {loading ? <><Loader2 size={16} className="animate-spin" style={{ color: T.bg }} /> Отправка...</> : 'Получить токен'}
               </button>
             </form>
           ) : (
@@ -175,7 +175,7 @@ export default function ForgotPassword() {
                 cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}>
-                {loading ? <><Spinner size={16} color={T.bg} /> Сохранение...</> : 'Изменить пароль'}
+                {loading ? <><Loader2 size={16} className="animate-spin" style={{ color: T.bg }} /> Сохранение...</> : 'Изменить пароль'}
               </button>
             </form>
           )}
