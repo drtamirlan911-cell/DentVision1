@@ -159,127 +159,127 @@ export async function getClinics(): Promise<Clinic[]> {
 }
 
 export async function getClinic(clinicId: string): Promise<Clinic> {
-  const data = await apiRequest(`/api/clinic/${clinicId}/data`);
-  return { id: clinicId, name: 'Clinic', active: true, ...data };
+  const clinics = await apiRequest('/api/clinics');
+  return clinics.find((c: any) => c.id === clinicId) || { id: clinicId, name: 'Clinic', active: true };
 }
 
-// ─── Clinic Data ───
+// ─── Clinic Data (granular endpoints) ───
 export async function getPatients(clinicId: string): Promise<Patient[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.patients || []);
+  return apiRequest(`/api/crm/${clinicId}/patients`);
 }
 
 export async function getAppointments(clinicId: string): Promise<Appointment[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.appointments || []);
+  return apiRequest(`/api/crm/${clinicId}/appointments`);
 }
 
 export async function getReceipts(clinicId: string): Promise<Receipt[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.receipts || []);
+  return apiRequest(`/api/crm/${clinicId}/receipts`);
 }
 
 export async function getLabOrders(clinicId: string): Promise<LabOrder[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.labOrders || []);
+  return apiRequest(`/api/crm/${clinicId}/lab_orders`);
 }
 
 export async function getExpenses(clinicId: string): Promise<Expense[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.expenses || []);
+  return apiRequest(`/api/crm/${clinicId}/expenses`);
 }
 
 export async function getInventory(clinicId: string): Promise<InventoryItem[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.inventory || []);
+  return apiRequest(`/api/crm/${clinicId}/inventory`);
 }
 
 export async function getPromotions(clinicId: string): Promise<Promotion[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.promotions || []);
+  return apiRequest(`/api/crm/${clinicId}/promotions`);
 }
 
 export async function getBookings(clinicId: string): Promise<Booking[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.bookings || []);
+  return apiRequest(`/api/crm/${clinicId}/bookings`);
 }
 
-// ─── Upserts ───
+// ─── Upserts (granular CRM endpoints) ───
 export async function upsertPatient(data: Partial<Patient>): Promise<any> {
-  return apiRequest('/api/patients/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/patients', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertAppointment(data: Partial<Appointment>): Promise<any> {
-  return apiRequest('/api/appointments/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/appointments', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertReceipt(data: Partial<Receipt>): Promise<any> {
-  return apiRequest('/api/receipts/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/receipts', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertLabOrder(data: Partial<LabOrder>): Promise<any> {
-  return apiRequest('/api/lab_orders/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/lab_orders', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertExpense(data: Partial<Expense>): Promise<any> {
-  return apiRequest('/api/expenses/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/expenses', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertInventoryItem(data: Partial<InventoryItem>): Promise<any> {
-  return apiRequest('/api/inventory/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/inventory', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertUser(data: Partial<User>): Promise<any> {
-  return apiRequest('/api/clinic/users/create', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/users/create', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertSubscription(data: Partial<Subscription>): Promise<any> {
-  return apiRequest('/api/subscriptions/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/subscriptions', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function uploadPhoto(data: Partial<Photo>): Promise<any> {
-  return apiRequest('/api/photos/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/photos', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertPromotion(data: Partial<Promotion>): Promise<any> {
-  return apiRequest('/api/promotions/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/promotions', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertBooking(data: Partial<Booking>): Promise<any> {
-  return apiRequest('/api/bookings/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/bookings', { method: 'POST', body: JSON.stringify(data) });
 }
 
-// ─── Deletes ───
+// ─── Deletes (granular CRM endpoints) ───
 export async function deletePatient(id: string): Promise<any> {
-  return apiRequest(`/api/patients/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/patients/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteAppointment(id: string): Promise<any> {
-  return apiRequest(`/api/appointments/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/appointments/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteReceipt(id: string): Promise<any> {
-  return apiRequest(`/api/receipts/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/receipts/${id}`, { method: 'DELETE' });
 }
 
 export async function deletePhoto(id: string): Promise<any> {
-  return apiRequest(`/api/photos/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/photos/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteInventoryItem(id: string): Promise<any> {
-  return apiRequest(`/api/inventory/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/inventory/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteLabOrder(id: string): Promise<any> {
-  return apiRequest(`/api/lab_orders/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/lab_orders/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteExpense(id: string): Promise<any> {
-  return apiRequest(`/api/expenses/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/expenses/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteSubscription(id: string): Promise<any> {
-  return apiRequest(`/api/subscriptions/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/subscriptions/${id}`, { method: 'DELETE' });
 }
 
 export async function deletePromotion(id: string): Promise<any> {
-  return apiRequest(`/api/promotions/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/promotions/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteBooking(id: string): Promise<any> {
-  return apiRequest(`/api/bookings/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/crm/bookings/${id}`, { method: 'DELETE' });
 }
 
 // ─── Public Booking ───
@@ -346,16 +346,16 @@ export async function createBackup(clinicId: string): Promise<any> {
 
 // ─── Treatments ───
 export async function upsertTreatment(data: any): Promise<any> {
-  return apiRequest('/api/treatments/upsert', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/crm/treatments', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function getTreatments(clinicId: string): Promise<any[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.treatments || []);
+  return apiRequest(`/api/crm/${clinicId}/treatments`);
 }
 
 // ─── Waiting List ───
 export async function getWaitingList(clinicId: string): Promise<WaitingListItem[]> {
-  return apiRequest(`/api/clinic/${clinicId}/data`).then(d => d.waitingList || d.waiting_list || []);
+  return apiRequest(`/api/crm/${clinicId}/waiting_list`);
 }
 
 // ─── Shop ───

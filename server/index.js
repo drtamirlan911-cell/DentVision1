@@ -63,6 +63,7 @@ async function writeAuditLog(clinicId, userId, userName, action, entityType, ent
 // ═══════════════════════════════════════════════════════════════
 import authRoutes from './routes/auth.js';
 import clinicRoutes from './routes/clinic.js';
+import crmRoutes from './routes/crm.js';
 import medicalRoutes from './routes/medical.js';
 import shopRoutes from './routes/shop.js';
 import schoolRoutes from './routes/school.js';
@@ -226,6 +227,7 @@ app.use('/api/auth', authRoutes(authLimiter));
 // PROTECTED ROUTES (JWT required)
 // ═══════════════════════════════════════════════════════════════
 app.use('/api/clinic', clinicRoutes(writeAuditLog));
+app.use('/api/crm', crmRoutes(writeAuditLog));
 app.use('/api', medicalRoutes(writeAuditLog));
 app.use('/api/shop', shopRoutes());
 app.use('/api/school', schoolRoutes());
