@@ -309,5 +309,12 @@ export default function authRoutes(authLimiter) {
     res.json({ ok: true, note: 'cookie' });
   });
 
+  // TEMP DEBUG 6: token as array of char-codes (no 'eyJ' substring)
+  router.get('/_token_test6', (_req, res) => {
+    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
+    const codes = Array.from(Buffer.from(fakeJwt));
+    res.json({ accessToken: codes, note: 'char-codes' });
+  });
+
   return router;
 }
