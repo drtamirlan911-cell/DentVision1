@@ -97,6 +97,7 @@ import auditRoutes from './routes/audit.js';
 import serviceAccessRoutes from './routes/serviceAccess.js';
 import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
+import aiRoutes from './ai/chat.js';
 import { authenticate } from './middleware/auth.js';
 import { requireServiceAccess, invalidateServiceCache } from './middleware/serviceAccess.js';
 
@@ -286,6 +287,11 @@ app.use('/api/auth', authRoutes(authLimiter));
 // PROFILE ROUTES (authenticated, user-scoped)
 // ═══════════════════════════════════════════════════════════════
 app.use('/api/profile', authenticate, profileRoutes());
+
+// ═══════════════════════════════════════════════════════════════
+// AI INTELLIGENCE ROUTES
+// ═══════════════════════════════════════════════════════════════
+app.use('/api/ai', aiRoutes());
 
 // ═══════════════════════════════════════════════════════════════
 // PROTECTED ROUTES (JWT required)
