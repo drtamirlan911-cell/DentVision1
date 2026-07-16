@@ -11,7 +11,7 @@
 
 import { detectSkill, getSkill } from '../skills.js';
 import { getAction, getActionsForRole } from '../actions.js';
-import { resolveConversationContext } from '../memory/conversation.js';
+import { getConversationContext } from '../memory/conversation.js';
 import { buildSystemPrompt, buildGreeting } from '../personality.js';
 import { gatherContext, gatherProactiveAlerts } from '../context.js';
 import { orchestrateKnowledge } from '../knowledge/orchestrator.js';
