@@ -109,7 +109,7 @@ export async function processMessage(userMessage, ctx) {
 
   const response = formulateResponse({
     message: resolvedMessage,
-    intent, skill, skillId, knowledge, clinicContext,
+    intent, skillId, knowledge, clinicContext,
     proactiveAlerts, digitalTwin, permittedActions,
     conversationContext, historySnippet, user, clinic,
   });
@@ -122,7 +122,7 @@ export async function processMessage(userMessage, ctx) {
 }
 
 function formulateResponse({
-  message, intent, skill, skillId, knowledge, clinicContext,
+  message, intent, skillId, knowledge, clinicContext,
   proactiveAlerts, digitalTwin, permittedActions, conversationContext,
   historySnippet, user, clinic,
 }) {
