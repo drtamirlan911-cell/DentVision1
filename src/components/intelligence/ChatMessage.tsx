@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Bot, User, Sparkles, Zap, Stethoscope, Calendar, BarChart3, ShoppingCart, GraduationCap, BookOpen, Users } from 'lucide-react';
+import { Bot, User, Sparkles, Zap, Stethoscope, Calendar, BarChart3, ShoppingCart, GraduationCap, BookOpen, Users, Globe, Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface ChatMsg {
@@ -10,6 +10,8 @@ export interface ChatMsg {
   timestamp: Date;
   skill?: string;
   actions?: Array<{ action: string; label: string; confidence: number; params?: Record<string, unknown> }>;
+  proactive?: Array<{ type: string; text: string; priority: number }>;
+  source?: 'crm' | 'shop' | 'school' | 'knowledge' | 'external' | 'market';
   onAction?: (action: string, params?: Record<string, unknown>) => void;
 }
 
@@ -24,7 +26,16 @@ const SKILL_ICONS: Record<string, React.ReactNode> = {
   patient: <Users size={10} />,
 };
 
-export function ChatMessage({ msg }: { msg: ChatMsg }) {
+const SOURCE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
+  crm: { label: 'CRM', icon: <Database size={10} /> },
+  shop: { label: 'Shop', icon: <ShoppingCart size={10} /> },
+  school: { label: 'School', icon: <GraduationCap size={10} /> },
+  knowledge: { label: 'База знаний', icon: <BookOpen size={10} /> },
+  external: { label: 'Внешний источник', icon: <Globe size={10} /> },
+  market: { label: 'Рынок', icon: <BarChart3 size={10} /> },
+};
+
+export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query: string) => void }) {
   const isUser = msg.role === 'user';
 
   return (
@@ -41,10 +52,21 @@ export function ChatMessage({ msg }: { msg: ChatMsg }) {
       )}
 
       <div className={cn('flex flex-col gap-2 max-w-[85%]', isUser ? 'items-end' : 'items-start')}>
-        {!isUser && msg.skill && (
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-dv-gold/10 text-dv-gold text-[10px] font-medium">
-            {SKILL_ICONS[msg.skill] || <Sparkles size={10} />}
-            <span className="capitalize">{msg.skill}</span>
+        {/* Skill + Source badges */}
+        {!isUser && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {msg.skill && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 text-dv-gold text-[10px] font-medium">
+                {SKILL_ICONS[msg.skill] || <Sparkles size={10} />}
+                <span className="capitalize">{msg.skill}</span>
+              </div>
+            )}
+            {msg.source && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 text-txt-muted text-[10px] font-medium">
+                {SOURCE_LABELS[msg.source]?.icon || <Globe size={10} />}
+                <span>{SOURCE_LABELS[msg.source]?.label || msg.source}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -59,6 +81,7 @@ export function ChatMessage({ msg }: { msg: ChatMsg }) {
           {msg.content}
         </div>
 
+        {/* Action buttons */}
         {msg.actions && msg.actions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {msg.actions.map((a, i) => (
@@ -67,7 +90,7 @@ export function ChatMessage({ msg }: { msg: ChatMsg }) {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.05 }}
-                onClick={() => msg.onAction?.(a.action, a.params)}
+                onClick={() => onAction?.(a.label)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-dv-gold/10 text-dv-gold border border-dv-gold/20 hover:bg-dv-gold/20 hover:border-dv-gold/40 transition-all"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -81,6 +104,32 @@ export function ChatMessage({ msg }: { msg: ChatMsg }) {
             ))}
           </div>
         )}
+
+        {/* Quick reply actions */}
+        {!isUser && onAction && !msg.actions?.length && msg.role === 'assistant' && (
+          <div className="flex gap-1">
+            <button
+              onClick={() => onAction('Спасибо')}
+              className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+            >
+              <ThumbsUp size={12} />
+            </button>
+            <button
+              onClick={() => onAction('Расскажи подробнее')}
+              className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+            >
+              <ThumbsDown size={12} />
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText(msg.content);
+              }}
+              className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+            >
+              <Copy size={12} />
+            </button>
+          </div>
+        )}
       </div>
 
       {isUser && (
@@ -91,3 +140,32 @@ export function ChatMessage({ msg }: { msg: ChatMsg }) {
     </motion.div>
   );
 }
+
+function ThumbsUp({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 10v12" />
+      <path d="M15 5.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
+    </svg>
+  );
+}
+
+function ThumbsDown({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 14V2" />
+      <path d="M9 18.12L10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z" />
+    </svg>
+  );
+}
+
+function Copy({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+export default ChatMessage;

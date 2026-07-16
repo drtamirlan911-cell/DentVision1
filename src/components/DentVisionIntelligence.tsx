@@ -26,6 +26,10 @@ import {
   Copy,
   ThumbsUp,
   ThumbsDown,
+  BookOpen,
+  Target,
+  Search,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { aiChat, aiAction, aiProactive, aiSetContext } from '@/utils/api';
@@ -37,23 +41,7 @@ import { ProactiveAlerts } from './intelligence/ProactiveAlerts';
 import { ActionCard } from './intelligence/ActionCard';
 import { ActionConfirm } from './intelligence/ActionConfirm';
 import { cn } from '@/lib/utils';
-import { Card } from '@/components/ui/ds/Card';
-import { AI_SERVICES } from '@/components/intelligence/AIServiceCards';
-
-interface ServiceCardDef {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  path: string;
-  color: string;
-  gradient: string;
-}
-
-interface DentVisionIntelligenceProps {
-  onNavigate: (path: string) => void;
-  proactiveAlerts?: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;
-}
+import { AI_SERVICES, type ServiceCardDef } from '@/components/intelligence/AIServiceCards';
 
 interface AIAction {
   type: string;
@@ -68,7 +56,30 @@ interface PendingAction {
   confirmMessage: string;
 }
 
-export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialProactiveAlerts }: DentVisionIntelligenceProps) {
+interface DentVisionIntelligenceProps {
+  onNavigate: (path: string) => void;
+  proactiveAlerts?: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;
+  minimized?: boolean;
+  onToggleMinimize?: () => void;
+}
+
+const AI_SKILLS = [
+  { id: 'clinical', label: 'Clinical AI', icon: <Stethoscope size={12} />, color: '#E74C3C' },
+  { id: 'practice', label: 'Practice AI', icon: <Calendar size={12} />, color: '#27AE60' },
+  { id: 'research', label: 'Research AI', icon: <BookOpen size={12} />, color: '#8E44AD' },
+  { id: 'shopping', label: 'Shopping AI', icon: <ShoppingCart size={12} />, color: '#2980B9' },
+  { id: 'learning', label: 'Learning AI', icon: <GraduationCap size={12} />, color: '#16A085' },
+  { id: 'analytics', label: 'Analytics AI', icon: <BarChart3 size={12} />, color: '#F39C12' },
+  { id: 'patient', label: 'Patient AI', icon: <Users size={12} />, color: '#C9A96E' },
+  { id: 'automation', label: 'Automation AI', icon: <Zap size={12} />, color: '#00BCD4' },
+];
+
+export function DentVisionIntelligence({
+  onNavigate,
+  proactiveAlerts: initialProactiveAlerts,
+  minimized = false,
+  onToggleMinimize,
+}: DentVisionIntelligenceProps) {
   const { user, clinic, roleInfo } = useAuth();
   const userRole = roleInfo?.role || user?.role || 'doctor';
 
@@ -78,14 +89,15 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [proactive, setProactive] = useState<Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>>([]);
   const [initialized, setInitialized] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [conversationContext, setConversationContext] = useState<Record<string, unknown>>({});
   const [activeSkill, setActiveSkill] = useState<string>('practice');
   const [showActionConfirm, setShowActionConfirm] = useState(false);
+  const [showSkillsPanel, setShowSkillsPanel] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<Array<{ role: string; content: string }>>([]);
+  const contextRef = useRef<Record<string, unknown>>({});
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -103,7 +115,7 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
         ]);
 
         const initialGreeting = greeting?.reply || buildGreeting(user, clinic);
-        
+
         setMessages([{
           id: 'greeting',
           role: 'assistant',
@@ -138,14 +150,14 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
     const h = new Date().getHours();
     const timeGreeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
     const name = user?.name?.split(' ')[0] || user?.login || '';
-    const clinicInfo = clinic ? `\nКлиника: ${clinic.name}` : '';
-    
+    const clinicInfo = clinic ? `\nРабочее пространство: ${clinic.name}` : '';
+
     let contextInfo = '';
     if (clinic) {
       contextInfo = '\n\nСегодня: 18 пациентов, первая запись через 30 мин; 2 лабор. работы готовы; 1 пациент ждёт подтверждения.';
     }
-    
-    return `${timeGreeting}, доктор ${name}.${clinicInfo}${contextInfo}\n\nЧем могу помочь?`;
+
+    return `${timeGreeting}, ${user?.spec || 'доктор'} ${name}.${clinicInfo}${contextInfo}\n\nЧем могу помочь?`;
   };
 
   const getDefaultSuggestions = (role: string, clinic: any) => {
@@ -158,6 +170,9 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
     }
     if (role === 'assistant' || role === 'reception') {
       return [...base, 'Новая запись', 'Подтвердить запись', 'Создать счёт'];
+    }
+    if (role === 'laboratory') {
+      return [...base, 'Активные заказы', 'Изменить статус'];
     }
     return base;
   };
@@ -184,13 +199,24 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
     try {
       const res = await aiChat(msg, historyRef.current.slice(-20));
 
+      // Update context memory
+      if (res.conversationContext?.entities) {
+        contextRef.current = { ...contextRef.current, ...res.conversationContext.entities };
+        setConversationContext(prev => ({ ...prev, ...res.conversationContext.entities }));
+      }
+
       const aiMsg: ChatMsg = {
         id: `a-${Date.now()}`,
         role: 'assistant',
         content: res.reply,
         timestamp: new Date(),
         skill: res.skill,
-        actions: res.actions,
+        actions: res.actions?.map(a => ({
+          action: a.action || a.type,
+          label: a.label,
+          confidence: a.confidence || 1,
+          params: a.params || {},
+        })),
         proactive: res.proactive,
       };
 
@@ -203,10 +229,15 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
       if (res.actions?.length) {
         const action = res.actions[0];
         if (action.confidence > 0.85 && !action.requiresConfirmation) {
-          await executeAction(action.type, action.params);
+          await executeAction(action.type || action.action, action.params);
         } else if (action.confidence > 0.6) {
           setPendingAction({
-            action,
+            action: {
+              type: action.action || action.type,
+              label: action.label,
+              confidence: action.confidence,
+              params: action.params,
+            },
             params: action.params || {},
             confirmMessage: `Выполнить: ${action.label}?`,
           });
@@ -236,15 +267,15 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
   const executeAction = async (actionType: string, params: Record<string, unknown> = {}) => {
     setIsProcessing(true);
     try {
-      const result = await aiAction(actionType, params);
+      const result = await aiAction(actionType, { ...params, ...contextRef.current });
       setMessages(prev => [...prev, {
         id: `action-${Date.now()}`,
         role: 'assistant',
         content: result?.message || `Действие "${actionType}" выполнено.`,
         timestamp: new Date(),
       }]);
-      
-      // Handle navigation actions
+
+      // Handle navigation actions via Action Registry
       const navMap: Record<string, string> = {
         OpenSchedule: '/crm/schedule',
         OpenPatients: '/crm/patients',
@@ -260,8 +291,9 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
         OpenVisits: '/crm/visits',
         OpenInventory: '/crm/inventory',
         OpenStaff: '/crm/staff',
+        OpenPatient: '/crm/patients',
       };
-      
+
       if (navMap[actionType]) {
         onNavigate(navMap[actionType]);
       }
@@ -294,16 +326,17 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
 
   const handleServiceClick = (path: string) => {
     onNavigate(path);
-    setIsMinimized(true);
   };
 
   const handleContextSelect = async (contextType: string, contextId: string) => {
     await aiSetContext({ [contextType]: contextId });
+    contextRef.current = { ...contextRef.current, [contextType]: contextId };
     setConversationContext(prev => ({ ...prev, [contextType]: contextId }));
-    handleSend(`Контекст установлен: ${contextType} ${contextId}`);
   };
 
-  if (isMinimized) {
+  const activeSkillMeta = AI_SKILLS.find(s => s.id === activeSkill);
+
+  if (minimized) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -313,7 +346,7 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
         <motion.div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => setIsMinimized(false)}
+          onClick={onToggleMinimize}
           className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-surface-1 border border-bdr-subtle shadow-2xl cursor-pointer"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-dv-gold/10">
@@ -328,9 +361,9 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <Card className="flex-1 flex flex-col overflow-hidden shadow-xl shadow-black/5">
-        <div className="flex items-center justify-between border-b border-bdr-subtle px-4 py-3 bg-gradient-to-r from-dv-gold/5 to-transparent">
+      <div className="flex-1 flex flex-col overflow-hidden shadow-xl shadow-black/5 bg-surface-1/50 backdrop-blur-sm rounded-2xl border border-bdr-subtle m-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-dv-gold/5 to-transparent border-b border-bdr-subtle flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-dv-gold/10">
               <Bot size={18} className="text-dv-gold" />
@@ -339,13 +372,15 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
               <h2 className="text-sm font-semibold text-txt-primary">DentVision Intelligence</h2>
               <p className="text-xs text-txt-muted">Ваш цифровой ассистент</p>
             </div>
+            {/* Active skill badge */}
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20"
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20 cursor-pointer"
+              onClick={() => setShowSkillsPanel(!showSkillsPanel)}
             >
-              <Zap size={10} className="text-dv-gold" />
-              <span className="text-2xs font-medium text-dv-gold">{activeSkill}</span>
+              {activeSkillMeta?.icon || <Zap size={10} className="text-dv-gold" />}
+              <span className="text-2xs font-medium text-dv-gold">{activeSkillMeta?.label || activeSkill}</span>
             </motion.div>
           </div>
           <div className="flex items-center gap-2">
@@ -357,50 +392,88 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-amber-400 bg-amber-400/10"
               >
                 <Bell size={12} />
-                {proactive.length} оповещений
+                {proactive.length}
               </motion.button>
             )}
             <button
-              onClick={() => setIsMinimized(!isMinimized)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+              onClick={() => setShowSkillsPanel(!showSkillsPanel)}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
             >
-              {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
+              <Brain size={14} />
+            </button>
+            <button
+              onClick={onToggleMinimize}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+            >
+              <Minimize2 size={14} />
             </button>
           </div>
         </div>
 
-        {/* Chat Area */}
-        {!isMinimized && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            className="border-b border-bdr-subtle flex-1 flex flex-col min-h-0"
-          >
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
-              <AnimatePresence>
-                {messages.map((msg) => (
-                  <ChatMessage key={msg.id} msg={msg} onAction={handleQuickAction} />
-                ))}
-              </AnimatePresence>
-              
-              <AnimatePresence>
-                {isProcessing && <TypingIndicator />}
-              </AnimatePresence>
-              
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Suggestions */}
-            {suggestions.length > 0 && !isProcessing && (
-              <div className="px-4 pb-2">
-                <SuggestionChips suggestions={suggestions} onSelect={handleSend} disabled={isProcessing} />
+        {/* Skills Panel */}
+        <AnimatePresence>
+          {showSkillsPanel && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="border-b border-bdr-subtle overflow-hidden"
+            >
+              <div className="p-3">
+                <p className="text-2xs font-semibold text-txt-ghost uppercase tracking-wider mb-2">AI Навыки</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {AI_SKILLS.map((skill) => (
+                    <motion.button
+                      key={skill.id}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setActiveSkill(skill.id);
+                        setShowSkillsPanel(false);
+                      }}
+                      className={cn(
+                        'flex flex-col items-center gap-1 p-2 rounded-lg border transition-all',
+                        activeSkill === skill.id
+                          ? 'bg-dv-gold/10 border-dv-gold/30'
+                          : 'bg-surface-2 border-bdr-subtle hover:border-white/20'
+                      )}
+                    >
+                      <span style={{ color: skill.color }}>{skill.icon}</span>
+                      <span className="text-[9px] font-medium text-txt-secondary text-center leading-tight">{skill.label}</span>
+                    </motion.button>
+                  ))}
+                </div>
               </div>
-            )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-            {/* Chat Input */}
-            <ChatInput value={input} onChange={setInput} onSend={() => handleSend()} disabled={isProcessing} />
-          </motion.div>
-        )}
+        {/* Chat Area */}
+        <div className="border-b border-bdr-subtle flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+            <AnimatePresence>
+              {messages.map((msg) => (
+                <ChatMessage key={msg.id} msg={msg} onAction={handleQuickAction} />
+              ))}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {isProcessing && <TypingIndicator />}
+            </AnimatePresence>
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Suggestions */}
+          {suggestions.length > 0 && !isProcessing && (
+            <div className="px-4 pb-2">
+              <SuggestionChips suggestions={suggestions} onSelect={handleSend} disabled={isProcessing} />
+            </div>
+          )}
+
+          {/* Chat Input */}
+          <ChatInput value={input} onChange={setInput} onSend={() => handleSend()} disabled={isProcessing} />
+        </div>
 
         {/* Action Confirmation Modal */}
         {showActionConfirm && pendingAction && (
@@ -416,56 +489,52 @@ export function DentVisionIntelligence({ onNavigate, proactiveAlerts: initialPro
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="border-t border-bdr-subtle p-3 max-h-[200px] overflow-y-auto"
+            className="border-t border-bdr-subtle p-3 max-h-[200px] overflow-y-auto flex-shrink-0"
           >
             <div className="flex items-center gap-2 mb-2">
               <Bell size={14} className="text-amber-400" />
               <span className="text-xs font-semibold text-txt-secondary">Проактивные оповещения</span>
             </div>
-            <ProactiveAlerts 
-              alerts={proactive} 
+            <ProactiveAlerts
+              alerts={proactive}
               onDismiss={(text) => setProactive(prev => prev.filter(a => a.text !== text))}
               compact
             />
           </motion.div>
         )}
 
-        {/* Service Cards Grid - Quick Access */}
+        {/* Service Cards - Quick Access */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-2.5 p-4"
+          transition={{ delay: 0.2 }}
+          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-4 flex-shrink-0"
         >
-          {AI_SERVICES.map((s) => (
+          {AI_SERVICES.slice(0, 8).map((s) => (
             <motion.button
               key={s.id}
-              whileHover={{ scale: 1.03, y: -3 }}
+              whileHover={{ scale: 1.03, y: -2 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => handleServiceClick(s.path)}
               className={cn(
-                'group relative overflow-hidden rounded-xl border border-bdr-subtle p-3 text-left',
+                'group relative overflow-hidden rounded-xl border border-bdr-subtle p-2.5 text-left',
                 'bg-gradient-to-br transition-all duration-200',
                 s.gradient,
                 'hover:border-bdr/50 hover:shadow-lg'
               )}
             >
               <div
-                className="flex h-10 w-10 items-center justify-center rounded-xl mb-2 transition-transform duration-200 group-hover:scale-110"
+                className="flex h-8 w-8 items-center justify-center rounded-lg mb-1.5 transition-transform duration-200 group-hover:scale-110"
                 style={{ background: `${s.color}15`, color: s.color }}
               >
                 {s.icon}
               </div>
-              <h3 className="text-sm font-semibold text-txt-primary">{s.name}</h3>
-              <p className="text-xs text-txt-muted">{s.description}</p>
-              <ChevronRight
-                size={14}
-                className="absolute right-3 top-3 text-txt-muted opacity-0 group-hover:opacity-100 transition-opacity"
-              />
+              <h3 className="text-xs font-semibold text-txt-primary">{s.name}</h3>
+              <p className="text-2xs text-txt-muted truncate">{s.description}</p>
             </motion.button>
           ))}
         </motion.div>
-      </Card>
+      </div>
     </div>
   );
 }

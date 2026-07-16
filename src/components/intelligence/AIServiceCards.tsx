@@ -14,83 +14,36 @@ export interface ServiceCardDef {
 }
 
 export const AI_SERVICES: ServiceCardDef[] = [
-  { id: 'crm', name: 'CRM', description: 'Пациенты, расписание, лечение', icon: <StethoscopeIcon size={20} />, path: '/crm/schedule', color: '#C9A96E', gradient: 'from-[#C9A96E]/20 to-[#C9A96E]/5', category: 'crm' },
-  { id: 'patients', name: 'Пациенты', description: 'База и поиск пациентов', icon: <UsersIcon size={20} />, path: '/crm/patients', color: '#E74C3C', gradient: 'from-[#E74C3C]/20 to-[#E74C3C]/5', category: 'crm' },
-  { id: 'schedule', name: 'Расписание', description: 'Календарь и записи', icon: <CalendarIcon size={20} />, path: '/crm/schedule', color: '#27AE60', gradient: 'from-[#27AE60]/20 to-[#27AE60]/5', category: 'crm' },
-  { id: 'cashier', name: 'Касса', description: 'Финансы и оплаты', icon: <DollarSignIcon size={20} />, path: '/crm/cashier', color: '#2980B9', gradient: 'from-[#2980B9]/20 to-[#2980B9]/5', category: 'crm' },
-  { id: 'lab', name: 'Лаборатория', description: 'Лабораторные заказы', icon: <FlaskConicalIcon size={20} />, path: '/crm/lab', color: '#00BCD4', gradient: 'from-[#00BCD4]/20 to-[#00BCD4]/5', category: 'crm' },
-  { id: 'documents', name: 'Документы', description: 'Документооборот', icon: <FileTextIcon size={20} />, path: '/crm/documents', color: '#8E44AD', gradient: 'from-[#8E44AD]/20 to-[#8E44AD]/5', category: 'crm' },
+  { id: 'crm', name: 'CRM', description: 'Пациенты и расписание', icon: <StethoscopeIcon size={20} />, path: '/crm/schedule', color: '#C9A96E', gradient: 'from-[#C9A96E]/20 to-[#C9A96E]/5', category: 'crm' },
   { id: 'shop', name: 'Shop', description: 'Маркетплейс товаров', icon: <ShoppingCartIcon size={20} />, path: '/shop', color: '#8E44AD', gradient: 'from-[#8E44AD]/20 to-[#8E44AD]/5', category: 'shop' },
-  { id: 'school', name: 'School', description: 'Образовательная платформа', icon: <GraduationCapIcon size={20} />, path: '/school', color: '#16A085', gradient: 'from-[#16A085]/20 to-[#16A085]/5', category: 'school' },
-  { id: 'analytics', name: 'Аналитика', description: 'Отчёты и метрики', icon: <BarChart3Icon size={20} />, path: '/analytics', color: '#F39C12', gradient: 'from-[#F39C12]/20 to-[#F39C12]/5', category: 'platform' },
+  { id: 'school', name: 'School', description: 'Обучение и вебинары', icon: <GraduationCapIcon size={20} />, path: '/school', color: '#16A085', gradient: 'from-[#16A085]/20 to-[#16A085]/5', category: 'school' },
+  { id: 'jobs', name: 'Вакансии', description: 'Поиск сотрудников', icon: <JobsIcon size={20} />, path: '/crm/staff', color: '#E67E22', gradient: 'from-[#E67E22]/20 to-[#E67E22]/5', category: 'platform' },
+  { id: 'analytics', name: 'Analytics', description: 'Отчёты и метрики', icon: <AnalyticsIcon size={20} />, path: '/analytics', color: '#F39C12', gradient: 'from-[#F39C12]/20 to-[#F39C12]/5', category: 'platform' },
+  { id: 'finance', name: 'Finance', description: 'Финансы и отчёты', icon: <FinanceIcon size={20} />, path: '/crm/cashier', color: '#27AE60', gradient: 'from-[#27AE60]/20 to-[#27AE60]/5', category: 'platform' },
+  { id: 'laboratory', name: 'Laboratory', description: 'Лабораторные заказы', icon: <LaboratoryIcon size={20} />, path: '/crm/lab', color: '#00BCD4', gradient: 'from-[#00BCD4]/20 to-[#00BCD4]/5', category: 'crm' },
+  { id: 'marketplace', name: 'Marketplace', description: 'B2B площадка', icon: <MarketplaceIcon size={20} />, path: '/shop/suppliers', color: '#E74C3C', gradient: 'from-[#E74C3C]/20 to-[#E74C3C]/5', category: 'platform' },
+  { id: 'settings', name: 'Settings', description: 'Настройки системы', icon: <SettingsIcon size={20} />, path: '/settings', color: '#5DADE2', gradient: 'from-[#5DADE2]/20 to-[#5DADE2]/5', category: 'platform' },
 ];
 
 export const AI_PLATFORM_SERVICES: ServiceCardDef[] = [
-  { id: 'dashboard', name: 'Главная', description: 'Обзор и быстрые действия', icon: <LayoutDashboardIcon size={20} />, path: '/dashboard', color: '#C9A96E', gradient: 'from-[#C9A96E]/20 to-[#C9A96E]/5', category: 'platform' },
-  { id: 'ai', name: 'AI Команда', description: 'Интеллектуальные агенты', icon: <BotIcon size={20} />, path: '/ai', color: '#8E44AD', gradient: 'from-[#8E44AD]/20 to-[#8E44AD]/5', category: 'platform' },
-  { id: 'profile', name: 'Профиль', description: 'Профессиональный профиль', icon: <UserIcon size={20} />, path: '/profile', color: '#2980B9', gradient: 'from-[#2980B9]/20 to-[#2980B9]/5', category: 'platform' },
-  { id: 'admin', name: 'Super Admin', description: 'Управление платформой', icon: <ShieldIcon size={20} />, path: '/admin', color: '#E74C3C', gradient: 'from-[#E74C3C]/20 to-[#E74C3C]/5', category: 'platform' },
-  { id: 'audit', name: 'Аудит', description: 'Журнал действий', icon: <FileTextIcon size={20} />, path: '/audit', color: '#F39C12', gradient: 'from-[#F39C12]/20 to-[#F39C12]/5', category: 'platform' },
-  { id: 'backup', name: 'Бэкапы', description: 'Резервное копирование', icon: <DatabaseIcon size={20} />, path: '/backup', color: '#00BCD4', gradient: 'from-[#00BCD4]/20 to-[#00BCD4]/5', category: 'platform' },
+  { id: 'profile', name: 'Профиль', description: 'Профессиональный профиль', icon: <ProfileIcon size={20} />, path: '/profile', color: '#2980B9', gradient: 'from-[#2980B9]/20 to-[#2980B9]/5', category: 'platform' },
+  { id: 'ai', name: 'AI Команда', description: 'Интеллектуальные агенты', icon: <AITeamIcon size={20} />, path: '/ai', color: '#8E44AD', gradient: 'from-[#8E44AD]/20 to-[#8E44AD]/5', category: 'platform' },
+  { id: 'admin', name: 'Super Admin', description: 'Управление платформой', icon: <AdminIcon size={20} />, path: '/admin', color: '#E74C3C', gradient: 'from-[#E74C3C]/20 to-[#E74C3C]/5', category: 'platform' },
+  { id: 'audit', name: 'Аудит', description: 'Журнал действий', icon: <AuditIcon size={20} />, path: '/audit', color: '#F39C12', gradient: 'from-[#F39C12]/20 to-[#F39C12]/5', category: 'platform' },
+  { id: 'backup', name: 'Бэкапы', description: 'Резервное копирование', icon: <BackupIcon size={20} />, path: '/backup', color: '#00BCD4', gradient: 'from-[#00BCD4]/20 to-[#00BCD4]/5', category: 'platform' },
 ];
 
-// Icon components
+// ─── SVG Icons ───
+
 function StethoscopeIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 8v8M8 12h8" />
-    </svg>
-  );
-}
-
-function UsersIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-
-function CalendarIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  );
-}
-
-function DollarSignIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="1" x2="12" y2="23" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  );
-}
-
-function FlaskConicalIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 2v7.31M14 2v7.31M6 14a6.5 6.5 0 1 1 12 0h0a6.5 6.5 0 0 1-12 0z" />
-    </svg>
-  );
-}
-
-function FileTextIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <line x1="10" y1="9" x2="8" y2="9" />
+      <path d="M4 8V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v2" />
+      <path d="M12 11v7" />
+      <path d="M8 15h8" />
+      <path d="M18 13a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
+      <circle cx="18" cy="13" r="3" />
+      <path d="M18 16v3" />
     </svg>
   );
 }
@@ -108,50 +61,117 @@ function ShoppingCartIcon({ size = 20 }: { size?: number }) {
 function GraduationCapIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.92 1.22a1 1 0 0 0-1.837 0L2.58 9.084a1 1 0 0 0 0 1.838l8.41 7.86a1 1 0 0 0 1.823 0l8.41-7.86z" />
-      <path d="M22 10.92v6.16a1 1 0 0 1-.48.866l-8.41 7.86a1 1 0 0 1-1.82 0l-8.41-7.86A1 1 0 0 1 2 17.08V10.92" />
-      <path d="M12 4.5v15" />
+      <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+      <path d="M6 12v5c0 1.1 2.2 2 6 2s6-.9 6-2v-5" />
+      <path d="M4 12v3" />
     </svg>
   );
 }
 
-function BarChart3Icon({ size = 20 }: { size?: number }) {
+function JobsIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+      <path d="M8 12h8" />
+      <path d="M8 16h6" />
+    </svg>
+  );
+}
+
+function AnalyticsIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="20" x2="18" y2="10" />
       <line x1="12" y1="20" x2="12" y2="4" />
-      <line x1="6" y1="20" x2="6" y2="16" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+      <path d="M2 20h20" />
     </svg>
   );
 }
 
-function BotIcon({ size = 20 }: { size?: number }) {
+function FinanceIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="3" width="20" height="14" rx="2" />
-      <path d="M8 17h8M6 17h2v4H6v-4" />
+      <path d="M12 1v22" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+      <circle cx="12" cy="2" r="1" fill="currentColor" />
     </svg>
   );
 }
 
-function UserIcon({ size = 20 }: { size?: number }) {
+function LaboratoryIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.07-10.127A2 2 0 0 1 14 9.527V2" />
+      <path d="M8.5 2h7" />
+      <path d="M7 15h10" />
+    </svg>
+  );
+}
+
+function MarketplaceIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="18" rx="2" />
+      <path d="M2 9h20" />
+      <path d="M12 9v12" />
+      <path d="M6 9V6a6 6 0 0 1 12 0v3" />
+    </svg>
+  );
+}
+
+function SettingsIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function ProfileIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
     </svg>
   );
 }
 
-function ShieldIcon({ size = 20 }: { size?: number }) {
+function AITeamIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <rect x="3" y="11" width="18" height="10" rx="2" />
+      <circle cx="12" cy="5" r="2" />
+      <path d="M12 7v4" />
+      <path d="M8 16h8" />
     </svg>
   );
 }
 
-function DatabaseIcon({ size = 20 }: { size?: number }) {
+function AdminIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
+function AuditIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <line x1="10" y1="9" x2="8" y2="9" />
+    </svg>
+  );
+}
+
+function BackupIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <ellipse cx="12" cy="5" rx="9" ry="3" />
@@ -161,16 +181,7 @@ function DatabaseIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-function LayoutDashboardIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
-  );
-}
+// ─── Components ───
 
 interface AIServiceCardsProps {
   services: ServiceCardDef[];
@@ -231,11 +242,11 @@ export function AIServiceCards({
         initial="hidden"
         animate="show"
         className={cn('relative', className)}
-        style={{ width: 400, height: 400 }}
+        style={{ width: 420, height: 420 }}
       >
         {services.map((service, i) => {
           const angle = (i / services.length) * 2 * Math.PI - Math.PI / 2;
-          const radius = 160;
+          const radius = 170;
           const x = Math.cos(angle) * radius;
           const y = Math.sin(angle) * radius;
 
@@ -252,10 +263,10 @@ export function AIServiceCards({
                 whileTap={{ scale: 0.9 }}
                 onClick={() => onSelect(service)}
                 className={cn(
-                  'relative flex flex-col items-center gap-2 w-28 p-3 rounded-2xl border border-bdr-subtle',
+                  'relative flex flex-col items-center gap-2 w-28 p-3 rounded-2xl border border-white/10',
                   'bg-gradient-to-br transition-all duration-300',
                   service.gradient,
-                  'hover:border-bdr/50 hover:shadow-xl hover:shadow-black/10'
+                  'hover:border-white/30 hover:shadow-xl hover:shadow-black/20'
                 )}
               >
                 <div
@@ -264,8 +275,8 @@ export function AIServiceCards({
                 >
                   {service.icon}
                 </div>
-                <span className="text-xs font-semibold text-txt-primary text-center leading-tight">{service.name}</span>
-                <span className="text-[10px] text-txt-muted text-center">{service.description}</span>
+                <span className="text-xs font-semibold text-white text-center leading-tight">{service.name}</span>
+                <span className="text-[10px] text-white/50 text-center">{service.description}</span>
               </motion.button>
             </motion.div>
           );
@@ -295,7 +306,7 @@ export function AIServiceCards({
             <span className={cn('shrink-0 transition-colors', 'text-txt-muted group-hover:text-txt-secondary')}>
               {item.icon}
             </span>
-            <span className="text-sm truncate">{item.label}</span>
+            <span className="text-sm truncate">{item.name}</span>
           </motion.button>
         ))}
       </nav>
@@ -307,7 +318,7 @@ export function AIServiceCards({
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className={cn('grid grid-cols-2 md:grid-cols-4 gap-2.5', className)}
+      className={cn('grid grid-cols-2 md:grid-cols-3 gap-2.5', className)}
     >
       {services.map((service) => (
         <motion.button
@@ -317,15 +328,15 @@ export function AIServiceCards({
           whileTap={{ scale: 0.97 }}
           onClick={() => onSelect(service)}
           className={cn(
-            'group relative overflow-hidden rounded-xl border border-bdr-subtle p-3 text-left',
+            'group relative overflow-hidden rounded-xl border border-white/10 p-3 text-left',
             'bg-gradient-to-br transition-all duration-200',
             service.gradient,
-            'hover:border-bdr/50 hover:shadow-lg hover:shadow-black/5'
+            'hover:border-white/30 hover:shadow-lg hover:shadow-black/10'
           )}
         >
           <div
             className="flex h-10 w-10 items-center justify-center rounded-xl mb-2 transition-transform duration-200 group-hover:scale-110"
-            style={{ background: `${service.color}15`, color: service.color }}
+            style={{ background: `${service.color}20`, color: service.color }}
           >
             {service.icon}
           </div>
@@ -344,10 +355,10 @@ export function AIServiceCard({ service, onClick, className }: { service: Servic
       whileTap={{ scale: 0.97 }}
       onClick={onClick}
       className={cn(
-        'group relative overflow-hidden rounded-xl border border-bdr-subtle p-4 text-left',
+        'group relative overflow-hidden rounded-xl border border-white/10 p-4 text-left',
         'bg-gradient-to-br transition-all duration-200',
         service.gradient,
-        'hover:border-bdr/50 hover:shadow-lg hover:shadow-black/5',
+        'hover:border-white/30 hover:shadow-lg hover:shadow-black/10',
         className
       )}
     >
