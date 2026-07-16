@@ -1,484 +1,308 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import {
-  Brain,
-  BarChart3,
-  Users,
-  Calendar,
-  TrendingUp,
-  ShoppingCart,
-  GraduationCap,
-  X,
-  RefreshCw,
-  Zap,
-  Stethoscope,
-  BookOpen,
-  Target,
-  Clock,
-  Bell,
-  FileText,
-  FlaskConical,
-  DollarSign,
-  Sparkles,
-} from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import { aiDigitalTwin, aiProactive, aiChat } from '@/utils/api';
-import { ProactiveAlerts } from './ProactiveAlerts';
-import { cn } from '@/lib/utils';
+import React, { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { X, BarChart3, Brain, Zap, Users, Calendar, FlaskConical, DollarSign, BookOpen, Settings2, Stethoscope } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { GlassCard } from '@/components/ui/ds/GlassCard'
+import { Badge } from '@/components/ui/ds/Badge'
+import { Avatar } from '@/components/ui/ds/Avatar'
+import { aiProactive, aiDigitalTwin } from '@/utils/api'
+import { StaggerContainer, StaggerItem } from '@/components/ui/motion'
 
 interface ContextPanelProps {
-  onClose?: () => void;
-  clinic?: any;
-  user?: any;
-  role?: any;
+  onClose: () => void
+  clinic: any
+  user: any
+  role: any
 }
-
-interface DigitalTwin {
-  specialization?: string;
-  expertiseLevel?: string;
-  recommendedEquipment?: string[];
-  learningPath?: { topic: string; reason: string }[];
-  activityLevel?: string;
-  completedCourses?: number;
-  clinicalFocus?: string[];
-}
-
-interface ClinicContext {
-  todayAppointments?: number;
-  pendingAppointments?: number;
-  totalPatients?: number;
-  revenue?: number;
-  unpaidReceipts?: number;
-  activeLabOrders?: number;
-  lowStockItems?: Array<{ name: string; quantity: number; minStock: number }>;
-}
-
-const AI_SKILLS_LIST = [
-  { id: 'clinical', label: 'Clinical AI', icon: <Stethoscope size={14} />, color: '#E74C3C', desc: 'Клинические протоколы и диагностика' },
-  { id: 'practice', label: 'Practice AI', icon: <Calendar size={14} />, color: '#27AE60', desc: 'Управление приёмом и расписанием' },
-  { id: 'research', label: 'Research AI', icon: <BookOpen size={14} />, color: '#8E44AD', desc: 'Исследования и анализ' },
-  { id: 'shopping', label: 'Shopping AI', icon: <ShoppingCart size={14} />, color: '#2980B9', desc: 'Подбор товаров и оборудования' },
-  { id: 'learning', label: 'Learning AI', icon: <GraduationCap size={14} />, color: '#16A085', desc: 'Обучение и развитие' },
-  { id: 'analytics', label: 'Analytics AI', icon: <BarChart3 size={14} />, color: '#F39C12', desc: 'Аналитика и отчёты' },
-  { id: 'patient', label: 'Patient AI', icon: <Users size={14} />, color: '#C9A96E', desc: 'Работа с пациентами' },
-  { id: 'automation', label: 'Auto AI', icon: <Zap size={14} />, color: '#00BCD4', desc: 'Автоматизация процессов' },
-];
 
 export function ContextPanel({ onClose, clinic, user, role }: ContextPanelProps) {
-  const [twin, setTwin] = useState<DigitalTwin | null>(null);
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [context, setContext] = useState<ClinicContext | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'context' | 'alerts' | 'digital-twin'>('context');
-  const [activeSkill, setActiveSkill] = useState('practice');
+  const [activeTab, setActiveTab] = useState<'context' | 'twin' | 'alerts'>('context')
+  const [proactiveAlerts, setProactiveAlerts] = useState<Array<{ type: string; text: string; priority: number }>>([])
+  const [digitalTwin, setDigitalTwin] = useState<any>(null)
+  const [loadingTwin, setLoadingTwin] = useState(true)
 
   useEffect(() => {
-    load();
-  }, []);
+    aiProactive()
+      .then(d => {
+        if (d?.alerts?.length) setProactiveAlerts(d.alerts)
+      })
+      .catch(() => {})
+  }, [])
 
-  async function load() {
-    setLoading(true);
-    try {
-      const [twinData, alertData] = await Promise.allSettled([
-        aiDigitalTwin(),
-        aiProactive(),
-      ]);
-      if (twinData.status === 'fulfilled') setTwin(twinData.value?.twin || null);
-      if (alertData.status === 'fulfilled') setAlerts(alertData.value?.alerts || []);
-    } catch {} finally {
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    setLoadingTwin(true)
+    aiDigitalTwin()
+      .then(d => {
+        if (d?.twin) setDigitalTwin(d.twin)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingTwin(false))
+  }, [])
+
+  const tabs = [
+    { id: 'context', label: 'Контекст', icon: Brain },
+    { id: 'twin', label: 'Цифровой двойник', icon: Zap },
+    { id: 'alerts', label: 'Оповещения', icon: Zap, count: proactiveAlerts.length },
+  ]
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Tabs header */}
-      <div className="h-12 border-b border-bdr-subtle flex items-center justify-between px-3 shrink-0">
-        <div className="flex gap-1">
-          {[
-            { id: 'context', label: 'Контекст', icon: <Brain size={12} /> },
-            { id: 'digital-twin', label: 'Двойник', icon: <Target size={12} /> },
-            { id: 'alerts', label: 'Оповещения', icon: <Bell size={12} /> },
-          ].map((tab) => (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 20 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+      className="flex flex-col h-full bg-surface-1 overflow-hidden"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between h-12 px-4 border-b border-bdr-subtle flex-shrink-0">
+        <div className="flex items-center gap-1" role="tablist">
+          {tabs.map(tab => (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
                 activeTab === tab.id
                   ? 'bg-dv-gold/10 text-dv-gold'
-                  : 'text-txt-muted hover:text-txt-primary hover:bg-white/5'
+                  : 'text-txt-secondary hover:bg-white/5 hover:text-txt-primary'
               )}
             >
-              {tab.icon}
+              <tab.icon size={14} />
               {tab.label}
-              {tab.id === 'alerts' && alerts.length > 0 && (
-                <span className="w-3.5 h-3.5 rounded-full bg-amber-500 text-[9px] text-white flex items-center justify-center font-bold">
-                  {alerts.length > 9 ? '9+' : alerts.length}
-                </span>
+              {tab.count && (
+                <Badge variant="gold" size="xs">{tab.count}</Badge>
               )}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={load}
-            className="h-6 w-6 flex items-center justify-center rounded-md text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
-            disabled={loading}
-          >
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          </button>
-          {onClose && (
-            <button onClick={onClose} className="h-6 w-6 flex items-center justify-center rounded-md text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors">
-              <X size={14} />
-            </button>
-          )}
-        </div>
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+        >
+          <X size={16} />
+        </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {activeTab === 'context' && (
-          <ContextTab context={context} twin={twin} clinic={clinic} user={user} loading={loading} activeSkill={activeSkill} />
-        )}
-        {activeTab === 'digital-twin' && (
-          <DigitalTwinTab twin={twin} loading={loading} />
-        )}
-        {activeTab === 'alerts' && (
-          <AlertsTab alerts={alerts} loading={loading} />
-        )}
+      <div className="flex-1 overflow-y-auto">
+        <AnimatePresence mode="wait">
+          {activeTab === 'context' && (
+            <motion.div
+              key="context"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="p-4 space-y-4"
+            >
+              <ContextTabContext clinic={clinic} user={user} role={role} />
+            </motion.div>
+          )}
+          {activeTab === 'twin' && (
+            <motion.div
+              key="twin"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="p-4 space-y-4"
+            >
+              <ContextTabTwin twin={digitalTwin} loading={loadingTwin} />
+            </motion.div>
+          )}
+          {activeTab === 'alerts' && (
+            <motion.div
+              key="alerts"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="p-4 space-y-3"
+            >
+              <ContextTabAlerts alerts={proactiveAlerts} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </div>
-  );
+    </motion.div>
+  )
 }
 
-function ContextTab({ context, twin, clinic, user, loading, activeSkill }: {
-  context: ClinicContext | null;
-  twin: DigitalTwin | null;
-  clinic: any;
-  user: any;
-  loading: boolean;
-  activeSkill: string;
-}) {
-  if (loading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-16 rounded-lg bg-surface-2 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
+function ContextTabContext({ clinic, user, role }: { clinic: any; user: any; role: any }) {
   return (
-    <div className="space-y-3">
-      {/* Clinic Info */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-bdr-subtle bg-surface-2/50 p-3"
-      >
-        <div className="flex items-center gap-2 mb-2">
-          <Stethoscope size={14} className="text-dv-gold" />
-          <h4 className="text-xs font-semibold text-txt-primary">Рабочее пространство</h4>
+    <>
+      {/* Workspace */}
+      <GlassCard padding="md">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-white/90">Рабочее пространство</h3>
+          <Badge variant="gold" size="xs">{role?.label || 'Сотрудник'}</Badge>
         </div>
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-xs">
-            <span className="text-txt-muted">Клиника</span>
-            <span className="text-txt-primary font-medium truncate pl-2">{clinic?.name || '—'}</span>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between text-white/60">
+            <span>Клиника</span>
+            <span className="font-medium text-white/90">{clinic?.name || '—'}</span>
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-txt-muted">Пользователь</span>
-            <span className="text-txt-primary font-medium truncate pl-2">{user?.name || user?.login || '—'}</span>
+          <div className="flex justify-between text-white/60">
+            <span>Пользователь</span>
+            <span className="font-medium text-white/90">{user?.name || user?.login}</span>
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-txt-muted">Роль</span>
-            <span className="text-txt-primary font-medium">{user?.role || 'doctor'}</span>
+          <div className="flex justify-between text-white/60">
+            <span>Роль</span>
+            <span className="font-medium text-white/90">{role?.label || '—'}</span>
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-txt-muted">Специализация</span>
-            <span className="text-txt-primary font-medium">{twin?.specialization || user?.spec || '—'}</span>
+          <div className="flex justify-between text-white/60">
+            <span>План</span>
+            <span className="font-medium text-white/90 text-dv-gold">{clinic?.plan || 'demo'}</span>
           </div>
         </div>
-      </motion.div>
+      </GlassCard>
 
-      {/* Today's Stats */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="rounded-xl border border-bdr-subtle bg-surface-2/50 p-3"
-      >
-        <div className="flex items-center gap-2 mb-2">
-          <BarChart3 size={14} className="text-amber-400" />
-          <h4 className="text-xs font-semibold text-txt-primary">Сегодня</h4>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="p-2 rounded-lg bg-surface-1">
-            <p className="text-txt-muted">Записей</p>
-            <p className="font-semibold text-txt-primary">{context?.todayAppointments || '—'}</p>
-          </div>
-          <div className="p-2 rounded-lg bg-surface-1">
-            <p className="text-txt-muted">Ожидают</p>
-            <p className="font-semibold text-amber-400">{context?.pendingAppointments || '—'}</p>
-          </div>
-          <div className="p-2 rounded-lg bg-surface-1">
-            <p className="text-txt-muted">Пациентов</p>
-            <p className="font-semibold text-txt-primary">{context?.totalPatients || '—'}</p>
-          </div>
-          <div className="p-2 rounded-lg bg-surface-1">
-            <p className="text-txt-muted">Выручка</p>
-            <p className="font-semibold text-green-400">{(context?.revenue || 0).toLocaleString('ru-RU')} ₸</p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Lab & Inventory */}
-      {(context?.activeLabOrders || context?.lowStockItems?.length) && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="rounded-xl border border-bdr-subtle bg-surface-2/50 p-3"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <FlaskConical size={14} className="text-cyan-400" />
-            <h4 className="text-xs font-semibold text-txt-primary">Лаборатория и склад</h4>
-          </div>
-          <div className="space-y-1.5">
-            {context?.activeLabOrders && (
-              <div className="flex justify-between text-xs">
-                <span className="text-txt-muted">Активных заказов</span>
-                <span className="font-semibold text-txt-primary">{context.activeLabOrders}</span>
-              </div>
-            )}
-            {context?.lowStockItems?.length && (
-              <div className="flex justify-between text-xs">
-                <span className="text-txt-muted">Мало на складе</span>
-                <span className="font-semibold text-amber-400">{context.lowStockItems.length} позиций</span>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      )}
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-2">
+        <StatItem icon={<Calendar size={14} />} label="Записей сегодня" value="18" />
+        <StatItem icon={<Users size={14} />} label="Пациентов" value="342" />
+        <StatItem icon={<FlaskConical size={14} />} label="Лаб. заказов" value="5" />
+        <StatItem icon={<DollarSign size={14} />} label="Выручка" value="485 000 ₸" />
+      </div>
 
       {/* AI Skills */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="rounded-xl border border-bdr-subtle bg-surface-2/50 p-3"
-      >
-        <div className="flex items-center gap-2 mb-2">
-          <Brain size={14} className="text-dv-gold" />
-          <h4 className="text-xs font-semibold text-txt-primary">AI Навыки</h4>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          {AI_SKILLS_LIST.map((skill) => (
-            <div
-              key={skill.id}
-              className={cn(
-                'flex items-center gap-2 p-1.5 rounded-lg text-xs transition-colors',
-                activeSkill === skill.id
-                  ? 'bg-dv-gold/10'
-                  : 'bg-surface-1'
-              )}
-            >
-              <span style={{ color: skill.color }}>{skill.icon}</span>
-              <div className="min-w-0">
-                <p className="font-medium text-txt-primary truncate">{skill.label}</p>
-                <p className="text-2xs text-txt-muted truncate">{skill.desc}</p>
-              </div>
-            </div>
+      <GlassCard padding="md">
+        <h3 className="text-sm font-semibold text-white/90 mb-3">AI Навыки</h3>
+        <div className="flex flex-wrap gap-2">
+          {['Clinical', 'Practice', 'Shopping', 'Learning', 'Analytics', 'Research', 'Automation'].map(skill => (
+            <Badge key={skill} variant="outline" size="xs">{skill}</Badge>
           ))}
         </div>
-      </motion.div>
+      </GlassCard>
 
       {/* Quick Actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="rounded-xl border border-bdr-subtle bg-surface-2/50 p-3"
-      >
-        <div className="flex items-center gap-2 mb-2">
-          <Zap size={14} className="text-dv-gold" />
-          <h4 className="text-xs font-semibold text-txt-primary">Быстрые действия</h4>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
+      <GlassCard padding="md">
+        <h3 className="text-sm font-semibold text-white/90 mb-3">Быстрые действия</h3>
+        <div className="grid grid-cols-2 gap-2">
           {[
-            { label: 'Расписание', icon: <Calendar size={12} />, action: 'OpenSchedule' },
-            { label: 'Пациенты', icon: <Users size={12} />, action: 'OpenPatients' },
-            { label: 'Новая запись', icon: <Calendar size={12} />, action: 'CreateAppointment' },
-            { label: 'Аналитика', icon: <BarChart3 size={12} />, action: 'OpenAnalytics' },
-          ].map((action) => (
-            <button
-              key={action.label}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-surface-1 border border-bdr-subtle text-txt-secondary hover:bg-surface-2 hover:border-dv-gold/30 hover:text-txt-primary transition-all"
-            >
-              {action.icon}
-              {action.label}
+            { label: 'Новая запись', icon: <Calendar size={12} /> },
+            { label: 'Найти пациента', icon: <Users size={12} /> },
+            { label: 'Создать счёт', icon: <DollarSign size={12} /> },
+            { label: 'Лаб. заказ', icon: <FlaskConical size={12} /> },
+          ].map((action, i) => (
+            <button key={i} className="flex items-center justify-center gap-2 p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:bg-white/5 transition-colors text-left group">
+              <span className="text-txt-muted group-hover:text-dv-gold transition-colors">{action.icon}</span>
+              <span className="text-sm font-medium text-white/80">{action.label}</span>
             </button>
           ))}
         </div>
-      </motion.div>
-    </div>
-  );
+      </GlassCard>
+    </>
+  )
 }
 
-function DigitalTwinTab({ twin, loading }: { twin: DigitalTwin | null; loading: boolean }) {
-  if (loading || !twin) {
+function ContextTabTwin({ twin, loading }: { twin: any; loading: boolean }) {
+  if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {[1, 2, 3].map(i => (
-          <div key={i} className="h-16 rounded-lg bg-surface-2 animate-pulse" />
+          <div key={i} className="skeleton h-24 rounded-xl" />
         ))}
       </div>
-    );
+    )
+  }
+
+  if (!twin) {
+    return (
+      <GlassCard padding="md" className="text-center py-8">
+        <p className="text-white/40">Цифровой двойник недоступен</p>
+      </GlassCard>
+    )
   }
 
   return (
-    <div className="space-y-3">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-bdr-subtle bg-surface-2/50 p-3"
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <Target size={14} className="text-dv-gold" />
-          <h4 className="text-xs font-semibold text-txt-primary">Цифровой двойник</h4>
+    <>
+      <GlassCard padding="md">
+        <h3 className="text-sm font-semibold text-white/90 mb-3">Специализация</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between text-white/60">
+            <span>Специальность</span>
+            <span className="font-medium text-white/90 text-dv-gold">{twin.specialty || '—'}</span>
+          </div>
+          <div className="flex justify-between text-white/60">
+            <span>Уровень экспертизы</span>
+            <span className="font-medium text-white/90">{twin.expertiseLevel || '—'}</span>
+          </div>
+          <div className="flex justify-between text-white/60">
+            <span>Активность</span>
+            <span className="font-medium text-white/90">{twin.activityLevel || '—'}</span>
+          </div>
         </div>
-        <div className="space-y-2">
-          {twin.specialization && (
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-surface-1">
-              <BookOpen size={14} className="text-blue-400" />
-              <div>
-                <p className="text-2xs text-txt-muted">Специализация</p>
-                <p className="text-sm font-medium text-txt-primary">{twin.specialization}</p>
-              </div>
-            </div>
-          )}
-          {twin.expertiseLevel && (
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-surface-1">
-              <Target size={14} className="text-amber-400" />
-              <div>
-                <p className="text-2xs text-txt-muted">Уровень экспертизы</p>
-                <p className="text-sm font-medium text-txt-primary">{twin.expertiseLevel}</p>
-              </div>
-            </div>
-          )}
-          {twin.activityLevel && (
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-surface-1">
-              <Zap size={14} className="text-green-400" />
-              <div>
-                <p className="text-2xs text-txt-muted">Активность</p>
-                <p className="text-sm font-medium text-txt-primary">{twin.activityLevel}</p>
-              </div>
-            </div>
-          )}
-          {twin.completedCourses && twin.completedCourses > 0 && (
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-surface-1">
-              <GraduationCap size={14} className="text-purple-400" />
-              <div>
-                <p className="text-2xs text-txt-muted">Пройдено курсов</p>
-                <p className="text-sm font-medium text-txt-primary">{twin.completedCourses}</p>
-              </div>
-            </div>
-          )}
+      </GlassCard>
+
+      <GlassCard padding="md">
+        <h3 className="text-sm font-semibold text-white/90 mb-3">Оборудование</h3>
+        <div className="flex flex-wrap gap-2">
+          {(twin.equipment || []).slice(0, 5).map((item: any, i: number) => (
+            <Badge key={i} variant="gold" size="xs">{item}</Badge>
+          ))}
         </div>
-      </motion.div>
+      </GlassCard>
 
-      {twin.clinicalFocus?.length && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="rounded-xl border border-bdr-subtle bg-surface-2/50 p-3"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Stethoscope size={14} className="text-red-400" />
-            <h4 className="text-xs font-semibold text-txt-primary">Клинический фокус</h4>
+      <GlassCard padding="md">
+        <h3 className="text-sm font-semibold text-white/90 mb-3">Обучение</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between text-white/60">
+            <span>Пройдено курсов</span>
+            <span className="font-medium text-white/90">{twin.completedCourses || 0}</span>
           </div>
-          <div className="flex flex-wrap gap-1">
-            {twin.clinicalFocus.slice(0, 6).map((focus, i) => (
-              <span key={i} className="px-2 py-1 rounded-md text-[10px] bg-red-400/10 text-red-400 border border-red-400/20">
-                {focus}
-              </span>
-            ))}
+          <div className="flex justify-between text-white/60">
+            <span>В процессе</span>
+            <span className="font-medium text-white/90">{twin.inProgressCourses || 0}</span>
           </div>
-        </motion.div>
-      )}
-
-      {twin.recommendedEquipment?.length && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="rounded-xl border border-bdr-subtle bg-surface-2/50 p-3"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <ShoppingCart size={14} className="text-green-400" />
-            <h4 className="text-xs font-semibold text-txt-primary">Рекомендуемое оборудование</h4>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {twin.recommendedEquipment.slice(0, 6).map((eq, i) => (
-              <span key={i} className="px-2 py-1 rounded-md text-[10px] bg-green-400/10 text-green-400 border border-green-400/20">
-                {eq}
-              </span>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {twin.learningPath?.length && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="rounded-xl border border-bdr-subtle bg-surface-2/50 p-3"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <GraduationCap size={14} className="text-blue-400" />
-            <h4 className="text-xs font-semibold text-txt-primary">Рекомендации по обучению</h4>
-          </div>
-          <div className="space-y-1.5">
-            {twin.learningPath.slice(0, 4).map((item, i) => (
-              <div key={i} className="text-xs text-txt-secondary p-2 rounded-lg bg-surface-1">
-                <p className="font-medium">{item.topic}</p>
-                {item.reason && <p className="text-txt-muted mt-0.5">{item.reason}</p>}
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-    </div>
-  );
+        </div>
+      </GlassCard>
+    </>
+  )
 }
 
-function AlertsTab({ alerts, loading }: { alerts: any[]; loading: boolean }) {
-  if (loading) {
-    return (
-      <div className="space-y-2">
-        {[1, 2].map(i => (
-          <div key={i} className="h-10 rounded-lg bg-surface-2 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
+function ContextTabAlerts({ alerts }: { alerts: Array<{ type: string; text: string; priority: number }> }) {
   if (!alerts.length) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-center">
-        <div className="w-10 h-10 rounded-xl bg-surface-2 flex items-center justify-center mb-3">
-          <Bell size={18} className="text-txt-muted" />
-        </div>
-        <p className="text-xs text-txt-muted">Нет оповещений</p>
-        <p className="text-[10px] text-txt-ghost mt-1">AI уведомит о важных событиях</p>
-      </div>
-    );
+      <GlassCard padding="md" className="text-center py-8">
+        <p className="text-white/40">Нет активных оповещений</p>
+      </GlassCard>
+    )
   }
 
-  return <ProactiveAlerts alerts={alerts} />;
+  return (
+    <div className="space-y-2">
+      {alerts.map((alert, i) => (
+        <GlassCard key={i} padding="sm" className="group">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-400/10">
+              <Zap size={14} className="text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white/90">{alert.text}</p>
+              <p className="text-[10px] text-white/40">Приоритет: {alert.priority}</p>
+            </div>
+          </div>
+        </GlassCard>
+      ))}
+    </div>
+  )
 }
 
-export default ContextPanel;
+function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <GlassCard padding="md">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-white/50">{icon}</span>
+        <span className="text-[10px] text-white/40">{label}</span>
+      </div>
+      <p className="text-lg font-bold text-white/90">{value}</p>
+    </GlassCard>
+  )
+}
+
+function AnimatePresence({ children, mode }: { children: React.ReactNode; mode?: 'wait' | 'sync' | 'popLayout' }) {
+  return <>{children}</>
+}

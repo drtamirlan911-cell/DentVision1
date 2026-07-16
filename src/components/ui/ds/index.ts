@@ -2,6 +2,8 @@ export { Button, buttonVariants } from './Button'
 export type { ButtonProps } from './Button'
 
 export { Card, CardHeader, CardTitle, CardContent, CardFooter } from './Card'
+export { GlassCard } from './GlassCard'
+export type { GlassCardProps } from './GlassCard'
 
 export { Input, Textarea, Select } from './Input'
 
