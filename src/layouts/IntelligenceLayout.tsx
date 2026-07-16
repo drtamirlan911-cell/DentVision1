@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -27,6 +27,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useUIStore } from '@/stores/useUIStore';
 import { Avatar } from '@/components/ui/ds/Avatar';
 import { DentVisionIntelligence } from '@/components/DentVisionIntelligence';
+import { WelcomeAnimation } from '@/components/intelligence/WelcomeAnimation';
 
 interface NavItem {
   id: string;
@@ -64,19 +65,18 @@ export default function IntelligenceLayout() {
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth();
   const { sidebarOpen, toggleSidebar, setSidebarOpen } = useUIStore();
   const [collapsed, setCollapsed] = useState(false);
-  const [showIntelligence, setShowIntelligence] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const shown = sessionStorage.getItem('dv_welcomed');
+    if (shown) return false;
+    return true;
+  });
   const [activeService, setActiveService] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isAuthenticated || !user) {
-      return;
-    }
-    // После анимации приветствия скрываем полный экран Intelligence
-    const timer = setTimeout(() => {
-      setShowIntelligence(false);
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, user]);
+  const handleWelcomeComplete = useCallback(() => {
+    sessionStorage.setItem('dv_welcomed', '1');
+    setShowWelcome(false);
+  }, []);
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
@@ -108,72 +108,8 @@ export default function IntelligenceLayout() {
   };
 
   // Welcome Screen Animation
-  if (showIntelligence) {
-    return (
-      <div className="fixed inset-0 z-50 bg-surface-0">
-        <AnimatePresence>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <div className="flex flex-col items-center gap-6">
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
-                className="flex h-24 w-24 items-center justify-center rounded-2xl bg-dv-gold/15 shadow-2xl shadow-dv-gold/20"
-              >
-                <Stethoscope size={48} className="text-dv-gold" />
-              </motion.div>
-              <motion.h1
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.5 }}
-                className="text-3xl font-bold text-txt-primary tracking-tight"
-              >
-                DentVision
-              </motion.h1>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5, duration: 0.5 }}
-                className="text-sm text-txt-muted"
-              >
-                Intelligence Platform
-              </motion.p>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-        
-        {/* Service Cards appearing */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1, duration: 0.8 }}
-          className="absolute inset-0 flex items-center justify-center"
-        >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-5xl px-8">
-            {filteredServiceItems.slice(0, 8).map((service, index) => (
-              <motion.button
-                key={service.id}
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ delay: 1.2 + index * 0.1, duration: 0.4 }}
-                onClick={() => handleNavClick(service.path, service.id)}
-                className="group relative overflow-hidden rounded-xl border border-bdr-subtle p-5 text-left bg-surface-1 hover:bg-surface-2 transition-all hover:scale-105"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold mb-3">
-                  {service.icon}
-                </div>
-                <h3 className="text-sm font-semibold text-txt-primary">{service.label}</h3>
-              </motion.button>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-    );
+  if (showWelcome) {
+    return <WelcomeAnimation onComplete={handleWelcomeComplete} />;
   }
 
   return (
