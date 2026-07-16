@@ -1,14 +1,3 @@
-// ═══════════════════════════════════════════════════════════════
-// INTENT ENGINE — Central pipeline for all user interactions
-//
-// User Message → Intent → Context → Role → Skill → Sources →
-// → Permissions → Command Bus → API → Response → Suggestions
-//
-// This is the OS of DentVision Intelligence.
-// All channels (chat, voice, Telegram, WhatsApp, mobile, watch)
-// feed into this engine. Business logic never changes.
-// ═══════════════════════════════════════════════════════════════
-
 import { detectSkill, getSkill } from '../skills.js';
 import { getAction, getActionsForRole } from '../actions.js';
 import { getConversationContext } from '../memory/conversation.js';
@@ -16,8 +5,6 @@ import { buildSystemPrompt, buildGreeting } from '../personality.js';
 import { gatherContext, gatherProactiveAlerts } from '../context.js';
 import { orchestrateKnowledge } from '../knowledge/orchestrator.js';
 import { buildDigitalTwin } from '../memory/digitalTwin.js';
-
-// ─── INTENT TYPES ────────────────────────────────────────────
 
 export const INTENT_TYPES = {
   QUERY: 'query',
@@ -28,8 +15,6 @@ export const INTENT_TYPES = {
   CONVERSATION: 'conversation',
   UNKNOWN: 'unknown',
 };
-
-// ─── INTENT CLASSIFICATION ───────────────────────────────────
 
 const INTENT_PATTERNS = [
   {
@@ -44,7 +29,7 @@ const INTENT_PATTERNS = [
     type: INTENT_TYPES.SEARCH,
     patterns: [
       /^найди/i, /^ищи/i, /^поиск/i, /^где/i, /^какой/i, /^какие/i,
-      /^какая/i, /^какое/i, /^есть ли/i,
+      /^есть ли/i,
     ],
   },
   {
@@ -56,17 +41,10 @@ const INTENT_PATTERNS = [
     ],
   },
   {
-    type: INTENT_TYPES.QUERY,
-    patterns: [
-      /^сколько/i, /^какой/i, /^какая/i, /^какие/i, /^какое/i,
-      /^когда/i, /^что/i, /^почему/i, /^зачем/i, /^чем/i,
-      /^расскажи/i, /^объясни/i, /^опис/i, /^что такое/i,
-    ],
-  },
-  {
     type: INTENT_TYPES.NAVIGATION,
     patterns: [
       /^перейти/i, /^вернуться/i, /^назад/i, /^в главное/i,
+      /^открой раздел/i, /^перейди/i,
     ],
   },
 ];
@@ -82,242 +60,255 @@ function classifyIntent(message) {
   return INTENT_TYPES.QUERY;
 }
 
-// ─── REFERENCE RESOLUTION ────────────────────────────────────
-
 function resolveReferences(message, conversationContext) {
   let resolved = message;
-
   if (!conversationContext?.entities) return resolved;
 
-  const refs = [
-    { pattern: /он|она|его|её|ему|ей|его|ими|ими/gi, entity: 'lastPatient' },
-    { pattern: /то же|так же|аналогично/gi, entity: 'lastAction' },
-    { pattern: /этот|эта|это|эти/gi, entity: 'lastEntity' },
-  ];
+  const patientEntity = conversationContext.entities.lastPatient;
+  if (patientEntity?.name) {
+    resolved = resolved.replace(/\b(он|она|его|её|ему|ей|пациент|пациента|пациенту)\b/gi, patientEntity.name);
+    resolved = resolved.replace(/\b(его|её)\s+(медкарт|карт|снимок|зуб|план)/gi, `${patientEntity.name} $2`);
+  }
 
-  for (const ref of refs) {
-    if (ref.pattern.test(resolved) && conversationContext.entities[ref.entity]) {
-      resolved = resolved.replace(ref.pattern, conversationContext.entities[ref.entity].name || '');
-    }
+  const entity = conversationContext.entities.lastEntity;
+  if (entity?.name) {
+    resolved = resolved.replace(/\b(этот|эта|это|эти|тот|та|те)\b/gi, entity.name);
   }
 
   return resolved;
 }
 
-// ─── MAIN PIPELINE ───────────────────────────────────────────
-
 export async function processMessage(userMessage, ctx) {
-  const {
-    user,
-    clinic,
-    conversationHistory = [],
-    conversationContext = {},
-    channel = 'chat',
-  } = ctx;
+  const { user, clinic, conversationHistory = [], conversationContext = {}, channel = 'chat' } = ctx;
 
-  // 1. CONVERSATION MEMORY — resolve references
   const resolvedMessage = resolveReferences(userMessage, conversationContext);
-
-  // 2. INTENT CLASSIFICATION
   const intent = classifyIntent(resolvedMessage);
-
-  // 3. SKILL DETECTION
   const skillId = detectSkill(resolvedMessage);
   const skill = getSkill(skillId);
 
-  // 4. CONTEXT GATHERING
   const [clinicContext, proactiveAlerts, digitalTwin] = await Promise.all([
     gatherContext(clinic?.id),
     gatherProactiveAlerts(clinic?.id),
     buildDigitalTwin(user.id),
   ]);
 
-  // 5. COMMAND RESOLUTION — find actionable commands
   const resolvedSkill = detectSkill(resolvedMessage);
   const skillActions = getSkill(resolvedSkill).actions || [];
   const roleActions = getActionsForRole(user.role || user.platformRole || '*');
   const availableActions = roleActions.filter(a => skillActions.includes(a.name));
-
-  // 6. PERMISSION CHECK — filter by clinic scope
   const permittedActions = availableActions.filter(a => {
     if (a.clinicScoped && !clinic?.id) return false;
     return true;
   });
 
-  // 7. KNOWLEDGE ORCHESTRATION — gather knowledge from all sources
   const knowledge = await orchestrateKnowledge(resolvedMessage, {
-    user,
-    clinic,
-    clinicContext,
-    skillId,
-    digitalTwin,
+    user, clinic, clinicContext, skillId, digitalTwin,
   });
 
-  // 8. BUILD SYSTEM PROMPT
   const systemPrompt = buildSystemPrompt(user, clinic, clinicContext);
-
-  // 9. GATHER CONVERSATION HISTORY for context
   const historySnippet = conversationHistory.slice(-10).map(m =>
     `${m.role === 'user' ? 'Пользователь' : 'AI'}: ${m.content}`
   ).join('\n');
 
-  // 10. FORMULATE RESPONSE
   const response = formulateResponse({
     message: resolvedMessage,
-    intent,
-    skill,
-    skillId,
-    knowledge,
-    clinicContext,
-    proactiveAlerts,
-    digitalTwin,
-    permittedActions,
-    conversationContext,
-    historySnippet,
-    user,
-    clinic,
+    intent, skill, skillId, knowledge, clinicContext,
+    proactiveAlerts, digitalTwin, permittedActions,
+    conversationContext, historySnippet, user, clinic,
   });
 
-  // 11. UPDATE CONVERSATION CONTEXT
   const updatedContext = updateConversationContext(conversationContext, {
-    message: userMessage,
-    response,
-    intent,
-    skillId,
+    message: userMessage, response, intent, skillId,
   });
 
-  return {
-    ...response,
-    conversationContext: updatedContext,
-    channel,
-  };
+  return { ...response, conversationContext: updatedContext, channel };
 }
 
-// ─── RESPONSE FORMULATION ────────────────────────────────────
-
-function formulateResponse({ message, intent, skill, skillId, knowledge, clinicContext, proactiveAlerts, digitalTwin, permittedActions, conversationContext, historySnippet, user, clinic }) {
-  const greeting = buildGreeting(user, clinic, clinicContext);
-
-  // Try to match a direct knowledge answer first
+function formulateResponse({
+  message, intent, skill, skillId, knowledge, clinicContext,
+  proactiveAlerts, digitalTwin, permittedActions, conversationContext,
+  historySnippet, user, clinic,
+}) {
   if (knowledge?.directAnswer) {
     return {
       reply: knowledge.directAnswer,
       skill: skillId,
-      actions: permittedActions.slice(0, 3).map(a => ({ type: a.name, description: a.description })),
+      source: knowledge.source || 'knowledge_base',
+      actions: permittedActions.slice(0, 3).map(a => ({
+        type: a.name, label: a.description || a.name, confidence: 0.9,
+      })),
       suggestions: generateSuggestions(skillId, intent, clinicContext, permittedActions),
       proactive: proactiveAlerts,
+      conversationContext: { entities: conversationContext.entities || {}, turnCount: (conversationContext.turnCount || 0) + 1 },
     };
   }
 
-  // Try contextual knowledge
   if (knowledge?.contextual) {
+    const sourceActions = [];
+    if (knowledge.recommendations?.length > 0 && knowledge.source === 'shop') {
+      sourceActions.push({ type: 'SearchShop', label: 'Посмотреть в Shop', confidence: 0.85 });
+    }
+    if (knowledge.recommendations?.length > 0 && knowledge.source === 'school') {
+      sourceActions.push({ type: 'SearchCourses', label: 'Подробнее в Academy', confidence: 0.85 });
+    }
+
     return {
       reply: knowledge.contextual,
       skill: skillId,
+      source: knowledge.source || 'internal',
       data: knowledge.data,
-      actions: permittedActions.slice(0, 3).map(a => ({ type: a.name, description: a.description })),
+      actions: [...sourceActions, ...permittedActions.slice(0, 2).map(a => ({
+        type: a.name, label: a.description || a.name, confidence: 0.8,
+      }))],
       suggestions: generateSuggestions(skillId, intent, clinicContext, permittedActions),
       proactive: proactiveAlerts,
+      conversationContext: { entities: conversationContext.entities || {}, turnCount: (conversationContext.turnCount || 0) + 1 },
     };
   }
 
-  // Generate contextual response based on intent and skill
-  const reply = generateContextualReply(intent, skillId, message, clinicContext, digitalTwin, knowledge);
+  const reply = generateContextualReply(intent, skillId, message, clinicContext, digitalTwin, knowledge, user);
 
   return {
     reply,
     skill: skillId,
-    actions: permittedActions.slice(0, 3).map(a => ({ type: a.name, description: a.description })),
+    actions: permittedActions.slice(0, 3).map(a => ({
+      type: a.name, label: a.description || a.name, confidence: 0.8,
+    })),
     suggestions: generateSuggestions(skillId, intent, clinicContext, permittedActions),
     proactive: proactiveAlerts,
+    conversationContext: { entities: conversationContext.entities || {}, turnCount: (conversationContext.turnCount || 0) + 1 },
   };
 }
 
-// ─── CONTEXTUAL REPLY GENERATOR ──────────────────────────────
-
-function generateContextualReply(intent, skillId, message, clinicContext, digitalTwin, knowledge) {
+function generateContextualReply(intent, skillId, message, clinicContext, digitalTwin, knowledge, user) {
   const msg = message.toLowerCase();
 
   switch (skillId) {
     case 'clinical': {
       if (/пациент/i.test(msg)) {
-        if (clinicContext?.totalPatients) {
-          return `В базе ${clinicContext.totalPatients} ${clinicContext.totalPatients === 1 ? 'пациент' : 'пациентов'}. Уточните имя или телефон для поиска.`;
+        const nameMatch = msg.match(/пациент[а-я]*\s+([а-яё]+)/i);
+        if (nameMatch) {
+          return `Ищу пациента "${nameMatch[1]}". Открываю карточку для просмотра.`;
         }
-        return 'Открываю список пациентов.';
+        if (clinicContext?.totalPatients) {
+          return `В базе ${clinicContext.totalPatients} пациентов. Чтобы найти конкретного, укажите имя или телефон.`;
+        }
+        return 'Открываю список пациентов. Кого ищем?';
       }
-      if (/лечен/i.test(msg)) return 'Для формирования плана лечения укажите пациента и жалобы.';
-      return 'Помогу с клиническими вопросами. Уточните, что именно вас интересует.';
+      if (/лечен/i.test(msg) || /план/i.test(msg)) {
+        return 'Для составления плана лечения нужны: жалобы пациента, диагноз и необходимые процедуры. Опишите клиническую ситуацию.';
+      }
+      if (/снимок|кт|рентген/i.test(msg)) {
+        const patientName = conversationContext.entities?.lastPatient?.name;
+        if (patientName) {
+          return `Открываю снимки пациента ${patientName}. Для сравнения укажите даты предыдущих исследований.`;
+        }
+        return 'Укажите пациента, чтобы я открыл его снимки.';
+      }
+      return 'Помогу с клиническими вопросами. Что именно вас интересует?';
     }
 
     case 'practice': {
       if (/расписан/i.test(msg) || /сегодня/i.test(msg)) {
         if (clinicContext?.todayAppointments !== undefined) {
-          return `Сегодня ${clinicContext.todayAppointments} ${clinicContext.todayAppointments === 1 ? 'запись' : 'записей'}.${clinicContext.pendingAppointments ? ` Ожидают подтверждения: ${clinicContext.pendingAppointments}.` : ''}`;
+          const parts = [`Сегодня ${clinicContext.todayAppointments} записей.`];
+          if (clinicContext.pendingAppointments > 0) {
+            parts.push(`${clinicContext.pendingAppointments} ожидают подтверждения.`);
+          }
+          if (clinicContext.firstAppointmentTime) {
+            parts.push(`Первая запись через ${clinicContext.firstAppointmentTime}.`);
+          }
+          return parts.join(' ');
         }
         return 'Открываю расписание на сегодня.';
       }
-      if (/запис/i.test(msg)) return 'Для создания записи укажите пациента, услугу и дату.';
-      return 'Помогу с управлением практикой.';
+      if (/запис/i.test(msg) && /создай|нова/i.test(msg)) {
+        return 'Для новой записи укажите: имя пациента, услугу, дату и время.';
+      }
+      if (/подтверд/i.test(msg)) {
+        return 'Показываю записи, ожидающие подтверждения.';
+      }
+      return 'Помогу с расписанием и записями.';
     }
 
     case 'analytics': {
-      if (clinicContext?.revenue !== undefined) {
-        return `Выручка сегодня: ${clinicContext.revenue.toLocaleString('ru-RU')} ₸.\nПациентов в базе: ${clinicContext.totalPatients || 0}.`;
+      const role = user?.role || user?.platformRole;
+      if (role === 'owner' || role === 'director' || role === 'superadmin') {
+        const parts = [];
+        if (clinicContext?.revenue !== undefined) {
+          parts.push(`Выручка сегодня: ${clinicContext.revenue.toLocaleString('ru-RU')} ₸.`);
+        }
+        if (clinicContext?.todayAppointments !== undefined) {
+          parts.push(`Записей: ${clinicContext.todayAppointments}.`);
+        }
+        if (clinicContext?.totalPatients !== undefined) {
+          parts.push(`Всего пациентов: ${clinicContext.totalPatients}.`);
+        }
+        if (clinicContext?.unpaidReceipts !== undefined && clinicContext.unpaidReceipts > 0) {
+          parts.push(`Неоплаченных счетов: ${clinicContext.unpaidReceipts}.`);
+        }
+        return parts.length > 0 ? parts.join(' ') : 'Открываю аналитику клиники.';
       }
-      return 'Открываю аналитику клиники.';
+      return 'Открываю панель аналитики.';
     }
 
     case 'shopping': {
-      if (/цен/i.test(msg) || /стоим/i.test(msg)) {
-        return 'Для получения информации о ценах укажите интересующий товар или категорию.';
-      }
       if (knowledge?.recommendations?.length > 0) {
         const items = knowledge.recommendations.slice(0, 3);
-        const list = items.map(i => `- ${i.name} (${i.brand || ''}) — ${i.price?.toLocaleString('ru-RU')} ₸, рейтинг ${i.rating || '—'}`).join('\n');
-        return `Вот подходящие варианты:\n${list}\n\nНапомню: я рекомендую, а не продаю. Выбор за вами.`;
+        const list = items.map(i =>
+          `• ${i.brand ? i.brand + ' ' : ''}${i.name} — ${i.price?.toLocaleString('ru-RU') || 'цена по запросу'} ₸, рейтинг ${i.rating || '—'}`
+        ).join('\n');
+        return `На основе анализа рынка рекомендую:\n${list}\n\nВыберите для детального сравнения или уточните критерии.`;
       }
-      return 'Помогу подобрать оборудование или материалы. Уточните, что именно вам нужно.';
+      if (/сканер/i.test(msg)) {
+        return 'Основные варианты: Primescan (CEREC), TRIOS (3Shape), i700 (Medit), CS 3800 (Carestream). Ключевые отличия: точность, скорость, совместимость с лабораторией, бюджет. Какой аспект интересует подробнее?';
+      }
+      if (/композит/i.test(msg)) {
+        return 'Лидеры рынка: Filtek Supreme XTE (3M) — универсальный, Estelite Sigma Quick (Tokuyama) — отличная полируемость, Filtek One (3M) — малая усадка. Выбор зависит от зоны реставрации.';
+      }
+      return 'Подберу оборудование или материалы. Опишите, что ищете.';
     }
 
     case 'learning': {
+      if (digitalTwin?.specialty) {
+        return `Учитывая вашу специализацию (${digitalTwin.specialty}), рекомендую обратить внимание на профильные курсы в Academy. У вас пройдено ${digitalTwin.completedCourses || 0} курсов. Что именно хотите изучить?`;
+      }
       if (knowledge?.recommendations?.length > 0) {
         const items = knowledge.recommendations.slice(0, 3);
-        const list = items.map(i => `- ${i.title} (${i.category}) — ${i.durationHours}ч, рейтинг ${i.rating || '—'}`).join('\n');
-        return `Рекомендую обратить внимание:\n${list}`;
+        const list = items.map(i => `• ${i.title} (${i.category || i.instructor || ''})`).join('\n');
+        return `Рекомендую курсы:\n${list}\n\nДля подбора по специализации уточните направление.`;
       }
-      if (digitalTwin?.completedCourses > 0) {
-        return `У вас ${digitalTwin.completedCourses} пройденных курсов. Рекомендую продолжить обучение по вашей специализации.`;
-      }
-      return 'Помогу подобрать обучение. Расскажите о ваших интересах или специализации.';
+      return 'Помогу с обучением. Расскажите о ваших интересах или специализации.';
     }
 
     case 'research': {
-      return knowledge?.contextual || 'Подготовлю информацию по вашему запросу. Уточните аспект для более точной рекомендации.';
+      if (knowledge?.contextual) return knowledge.contextual;
+      return 'Проведу анализ по вашему запросу. Уточните, что именно нужно сравнить или изучить.';
     }
 
     case 'automation': {
-      return 'Помогу с настройками и автоматизацией. Что именно нужно настроить?';
+      return 'Помогу с настройками. Что нужно автоматизировать?';
     }
 
     case 'patient': {
-      if (/найти/i.test(msg)) return 'Уточните имя или телефон пациента для поиска.';
-      return 'Помогу найти информацию о пациенте.';
+      const nameMatch = msg.match(/(?:найти|найди|покажи)\s+(.+?)(?:\s+и|\s*$)/i);
+      if (nameMatch) {
+        return `Ищу "${nameMatch[1].trim()}" в базе пациентов.`;
+      }
+      return 'Уточните имя или телефон пациента.';
     }
 
     default:
-      return 'Помогу с вопросами по стоматологии, управлению клиникой, обучением и подбором оборудования. Уточните, что именно вас интересует.';
+      return 'Помогу с любым вопросом — пациенты, расписание, подбор оборудования, обучение. Что вас интересует?';
   }
 }
-
-// ─── SUGGESTION GENERATOR ────────────────────────────────────
 
 function generateSuggestions(skillId, intent, clinicContext, permittedActions) {
   const suggestions = [];
 
   switch (skillId) {
     case 'clinical':
-      suggestions.push('Найти пациента', 'Показать расписание', 'Открыть медицинскую карту');
+      suggestions.push('Найти пациента', 'Показать расписание', 'Открыть медкарту');
       break;
     case 'practice':
       suggestions.push('Показать расписание', 'Неподтверждённые записи', 'Создать запись');
@@ -326,13 +317,13 @@ function generateSuggestions(skillId, intent, clinicContext, permittedActions) {
       suggestions.push('Статистика за сегодня', 'Неоплаченные счета', 'Отчёт за день');
       break;
     case 'shopping':
-      suggestions.push('Обзор сканеров', 'Композиты для реставрации', 'Оборудование для кабинета');
+      suggestions.push('Сравнить сканеры', 'Композиты для реставрации', 'Оборудование');
       break;
     case 'learning':
       suggestions.push('Курсы по терапии', 'Курсы по имплантации', 'Мой профиль');
       break;
     case 'research':
-      suggestions.push('Сравнить импланты', 'Протоколы лечения', 'Обзор литературы');
+      suggestions.push('Сравнить импланты', 'Протоколы лечения', 'Клинические случаи');
       break;
     default:
       if (clinicContext?.todayAppointments !== undefined) {
@@ -343,8 +334,6 @@ function generateSuggestions(skillId, intent, clinicContext, permittedActions) {
 
   return suggestions.slice(0, 4);
 }
-
-// ─── CONVERSATION CONTEXT UPDATE ─────────────────────────────
 
 function updateConversationContext(prev, { message, response, intent, skillId }) {
   const entities = { ...prev.entities };
@@ -359,6 +348,10 @@ function updateConversationContext(prev, { message, response, intent, skillId })
     entities.lastEntity = { name: entityMatch[1].trim(), type: 'reference' };
   }
 
+  if (/снимок|кт|рентген|панорам/i.test(message)) {
+    entities.lastImaging = true;
+  }
+
   return {
     entities,
     lastSkill: skillId,
@@ -367,8 +360,6 @@ function updateConversationContext(prev, { message, response, intent, skillId })
     lastActivity: new Date().toISOString(),
   };
 }
-
-// ─── GREETING GENERATOR ──────────────────────────────────────
 
 export async function generateInitialGreeting(user, clinic) {
   const [clinicContext, proactiveAlerts, digitalTwin] = await Promise.all([
