@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -40,6 +40,14 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth()
   const { sidebarOpen, toggleSidebar } = useUIStore()
   const [collapsed, setCollapsed] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   if (!isPublic && (!isAuthenticated || !user)) {
     return <Navigate to="/login" replace />
@@ -47,40 +55,40 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
 
   const handleNavClick = (path: string) => {
     navigate(path)
-    if (window.innerWidth < 768) toggleSidebar()
+    if (isMobile) toggleSidebar()
   }
 
+  const sidebarWidth = collapsed ? 'var(--dv-sidebar-collapsed)' : 'var(--dv-sidebar-width)'
+
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-0">
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
-          onClick={toggleSidebar}
-        />
-      )}
+    <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden" style={{ display: 'grid', gridTemplateColumns: `${sidebarWidth} 1fr` }}>
+      {/* Mobile Sidebar Overlay */}
+      <motion.div
+        initial={false}
+        animate={{ opacity: isMobile && sidebarOpen ? 1 : 0 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+        onClick={toggleSidebar}
+      />
 
       {/* Sidebar */}
       <motion.aside
         initial={false}
         animate={{
-          width: collapsed ? 'var(--dv-sidebar-collapsed)' : 'var(--dv-sidebar-width)',
-          x: window.innerWidth < 768 ? (sidebarOpen ? 0 : -280) : 0,
+          x: isMobile ? (sidebarOpen ? 0 : -280) : 0,
+          width: sidebarWidth,
         }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className={cn(
-          'fixed left-0 top-0 z-50 flex h-full flex-col',
+          'h-full flex flex-col',
           'bg-surface-1 border-r border-bdr-subtle',
           'md:translate-x-0',
           'max-md:shadow-2xl',
         )}
-        style={{ width: collapsed ? 'var(--dv-sidebar-collapsed)' : 'var(--dv-sidebar-width)' }}
+        style={{ width: sidebarWidth }}
       >
         {/* Header with service branding */}
-        <div className="flex items-center justify-between px-4 h-14 border-b border-bdr-subtle">
+        <div className="flex items-center justify-between px-4 h-14 border-b border-bdr-subtle flex-shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
@@ -117,7 +125,7 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
         {!collapsed && (
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 mx-3 mt-3 px-3 py-2 rounded-lg text-sm text-txt-muted hover:text-txt-primary hover:bg-white/[0.04] transition-colors"
+            className="flex items-center gap-2 mx-3 mt-3 px-3 py-2 rounded-lg text-sm text-txt-muted hover:text-txt-primary hover:bg-white/[0.04] transition-colors flex-shrink-0"
           >
             <LayoutGrid size={15} />
             Все сервисы
@@ -126,7 +134,7 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
 
         {/* User info (auth only) */}
         {!collapsed && !isPublic && user && (
-          <div className="px-3 py-3 border-b border-bdr-subtle">
+          <div className="px-3 py-3 border-b border-bdr-subtle flex-shrink-0">
             <div className="flex items-center gap-2.5">
               <Avatar name={user?.name || user?.login || '?'} size="sm" />
               <div className="min-w-0 flex-1">
@@ -139,7 +147,7 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
 
         {/* Guest prompt (public mode) */}
         {!collapsed && isPublic && (
-          <div className="px-3 py-3 border-b border-bdr-subtle">
+          <div className="px-3 py-3 border-b border-bdr-subtle flex-shrink-0">
             <button
               onClick={() => navigate('/login')}
               className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/[0.04]"
@@ -152,7 +160,7 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
         )}
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1 no-scrollbar">
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1 no-scrollbar flex-shrink-0 min-h-0">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/')
 
@@ -209,7 +217,7 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
         </nav>
 
         {/* Footer */}
-        <div className="px-3 py-3 border-t border-bdr-subtle">
+        <div className="px-3 py-3 border-t border-bdr-subtle flex-shrink-0">
           {isPublic ? (
             <button
               onClick={() => navigate('/login')}
@@ -239,9 +247,9 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
       </motion.aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col min-w-0 md:ml-[var(--dv-sidebar-width)]">
+      <div className="flex flex-col min-w-0 overflow-hidden">
         {/* Topbar */}
-        <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-1/80 backdrop-blur-xl border-b border-bdr-subtle">
+        <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-1/80 backdrop-blur-xl border-b border-bdr-subtle flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={toggleSidebar}
@@ -251,7 +259,7 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
                 <line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </button>
-            <h2 className="text-base font-semibold text-txt-primary">
+            <h2 className="text-base font-semibold text-txt-primary truncate">
               {navItems.find((item) => location.pathname.startsWith(item.path))?.label || serviceName}
             </h2>
           </div>
@@ -293,7 +301,7 @@ export function ServiceLayout({ navItems, serviceName, serviceColor, serviceIcon
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto min-h-0">
           <div className="page-enter p-4 md:p-6 pb-20 md:pb-6">
             <Outlet context={{ user, clinic, roleInfo }} />
           </div>
