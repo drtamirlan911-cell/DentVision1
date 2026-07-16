@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,6 +21,10 @@ import {
   Calendar,
   Users,
   Menu,
+  Sparkles,
+  Brain,
+  Zap,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -73,10 +77,16 @@ export default function IntelligenceLayout() {
     return true;
   });
   const [activeService, setActiveService] = useState<string | null>(null);
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [aiPanelWidth, setAiPanelWidth] = useState(700);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   const handleWelcomeComplete = useCallback(() => {
     sessionStorage.setItem('dv_welcomed', '1');
     setShowWelcome(false);
+    setSidebarVisible(true);
   }, []);
 
   if (!isAuthenticated || !user) {
@@ -108,30 +118,23 @@ export default function IntelligenceLayout() {
     if (window.innerWidth < 768) toggleSidebar();
   };
 
-  // Welcome Screen Animation
   if (showWelcome) {
     return <WelcomeAnimation onComplete={handleWelcomeComplete} />;
   }
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-surface-0">
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
-          onClick={toggleSidebar}
-        />
-      )}
+  const isCRMRoute = location.pathname.startsWith('/crm');
+  const isShopRoute = location.pathname.startsWith('/shop');
+  const isSchoolRoute = location.pathname.startsWith('/school');
+  const isAIHome = location.pathname === '/' || location.pathname === '/dashboard';
 
-      {/* Left Sidebar - Services */}
-      <motion.aside
+  return (
+    <div className="fixed inset-0 z-50 bg-surface-0 flex overflow-hidden">
+      <motion.div
         initial={false}
         animate={{
-          width: collapsed ? 'var(--dv-sidebar-collapsed, 70px)' : 'var(--dv-sidebar-width, 260px)',
           x: window.innerWidth < 768 ? (sidebarOpen ? 0 : -280) : 0,
+          opacity: sidebarVisible ? 1 : 0,
+          width: collapsed ? 70 : sidebarWidth,
         }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className={cn(
@@ -140,9 +143,9 @@ export default function IntelligenceLayout() {
           'md:translate-x-0',
           'max-md:shadow-2xl',
         )}
-        style={{ width: collapsed ? '70px' : '260px' }}
+        style={{ width: collapsed ? 70 : sidebarWidth, opacity: sidebarVisible ? 1 : 0 }}
+        ref={sidebarRef}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-4 h-14 border-b border-bdr-subtle">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-dv-gold/15">
@@ -159,7 +162,10 @@ export default function IntelligenceLayout() {
           </div>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setCollapsed(!collapsed)}
+              onClick={() => {
+                setCollapsed(!collapsed);
+                setSidebarWidth(collapsed ? 260 : 70);
+              }}
               className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
             >
               {collapsed ? <ChevronLeft size={14} className="rotate-180" /> : <ChevronLeft size={14} />}
@@ -173,7 +179,6 @@ export default function IntelligenceLayout() {
           </div>
         </div>
 
-        {/* User info */}
         {!collapsed && (
           <div className="px-3 py-3 border-b border-bdr-subtle">
             <div className="flex items-center gap-2.5">
@@ -188,13 +193,13 @@ export default function IntelligenceLayout() {
           </div>
         )}
 
-        {/* Service Navigation */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1 no-scrollbar">
           {filteredServiceItems.map((item) => {
             const isActive = activeService === item.id || location.pathname.startsWith(item.path);
             return (
-              <button
+              <motion.button
                 key={item.id}
+                layout
                 onClick={() => handleNavClick(item.path, item.id)}
                 className={cn(
                   'group relative flex w-full items-center gap-2.5 rounded-lg transition-all duration-150',
@@ -204,6 +209,7 @@ export default function IntelligenceLayout() {
                     : 'text-txt-secondary hover:bg-white/[0.04] hover:text-txt-primary'
                 )}
                 title={collapsed ? item.label : undefined}
+                whileTap={{ scale: 0.98 }}
               >
                 {isActive && (
                   <motion.div
@@ -216,12 +222,11 @@ export default function IntelligenceLayout() {
                   {item.icon}
                 </span>
                 {!collapsed && <span className="text-sm truncate">{item.label}</span>}
-              </button>
+              </motion.button>
             );
           })}
         </nav>
 
-        {/* Platform Navigation */}
         {!collapsed && filteredPlatformItems.length > 0 && (
           <>
             <div className="px-3 py-2 border-t border-bdr-subtle">
@@ -233,8 +238,9 @@ export default function IntelligenceLayout() {
               {filteredPlatformItems.map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
-                  <button
+                  <motion.button
                     key={item.id}
+                    layout
                     onClick={() => handleNavClick(item.path)}
                     className={cn(
                       'flex w-full items-center gap-2.5 rounded-lg transition-all duration-150 px-3 py-2',
@@ -242,36 +248,46 @@ export default function IntelligenceLayout() {
                         ? 'bg-dv-gold/10 text-dv-gold font-semibold'
                         : 'text-txt-secondary hover:bg-white/[0.04] hover:text-txt-primary'
                     )}
+                    whileTap={{ scale: 0.98 }}
                   >
                     <span className={cn('shrink-0', isActive ? 'text-dv-gold' : 'text-txt-muted')}>
                       {item.icon}
                     </span>
                     <span className="text-sm truncate">{item.label}</span>
-                  </button>
+                  </motion.button>
                 );
               })}
             </nav>
           </>
         )}
 
-        {/* Footer */}
         <div className="px-3 py-3 border-t border-bdr-subtle">
-          <button
+          <motion.button
             onClick={() => { logout(); navigate('/login'); }}
+            layout
             className={cn(
               'flex w-full items-center gap-2 rounded-lg border border-error/15 text-error transition-colors hover:bg-error/10',
               collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
             )}
+            whileTap={{ scale: 0.98 }}
           >
             <LogOut size={16} />
             {!collapsed && <span className="text-sm font-medium">Выйти</span>}
-          </button>
+          </motion.button>
         </div>
-      </motion.aside>
+      </motion.div>
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col min-w-0 md:ml-[260px]">
-        {/* Top Bar */}
+      <motion.div
+        initial={false}
+        animate={{ width: aiPanelWidth }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="flex flex-1 flex-col min-w-0 relative"
+        style={{ 
+          width: `calc(100% - ${collapsed ? 70 : sidebarWidth}px - 320px)`,
+          minWidth: 500,
+        }}
+        ref={contentRef}
+      >
         <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-1/80 backdrop-blur-xl border-b border-bdr-subtle">
           <div className="flex items-center gap-3">
             <button
@@ -280,46 +296,66 @@ export default function IntelligenceLayout() {
             >
               <Menu size={18} />
             </button>
-            <h2 className="text-base font-semibold text-txt-primary">
+            <motion.h2
+              layoutId="page-title"
+              className="text-base font-semibold text-txt-primary"
+            >
               {SERVICE_NAV_ITEMS.find((i) => location.pathname.startsWith(i.path))?.label || 
                PLATFORM_NAV_ITEMS.find((i) => location.pathname === i.path)?.label || 
                'DentVision'}
-            </h2>
+            </motion.h2>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <motion.button
               onClick={() => navigate('/')}
+              layoutId="home-btn"
               className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
               <LayoutGrid size={14} />
-              Все сервисы
-            </button>
+              <span className="hidden sm:inline">Все сервисы</span>
+            </motion.button>
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-surface-0">
-          <div className="p-4 md:p-6 pb-20 md:pb-6">
+        <main className="flex-1 overflow-y-auto bg-surface-0 relative">
+          <div className="h-full w-full">
             <Outlet context={{ user, clinic, roleInfo }} />
           </div>
-        </main>
-      </div>
 
-      {/* Right Context Panel */}
+          {isAIHome && (
+            <DentVisionIntelligence 
+              onNavigate={(path) => {
+                handleNavClick(path);
+              }}
+            />
+          )}
+        </main>
+      </motion.div>
+
       <motion.aside
-        initial={{ width: 320, opacity: 1 }}
+        initial={{ width: 320, opacity: 1, x: 0 }}
         animate={{ 
           width: 320, 
           opacity: 1,
           x: 0
         }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className="hidden lg:flex flex-col border-l border-bdr-subtle bg-surface-1"
-        style={{ width: 320 }}
+        style={{ width: 320, opacity: sidebarVisible ? 1 : 0 }}
       >
         <ContextPanel />
       </motion.aside>
 
-      {/* Mobile bottom nav */}
+      <motion.div
+        initial={false}
+        animate={{ opacity: window.innerWidth < 768 && sidebarOpen ? 1 : 0 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+        onClick={toggleSidebar}
+      />
+
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
         <div className="bg-surface-1/80 backdrop-blur-xl border-t border-bdr-subtle">
           <div className="flex items-center justify-around h-14 px-2">
@@ -332,10 +368,12 @@ export default function IntelligenceLayout() {
             ].map((item) => {
               const active = location.pathname.startsWith(item.path);
               return (
-                <button
+                <motion.button
                   key={item.id}
+                  layoutId={`bottomnav-${item.id}`}
                   onClick={() => navigate(item.path)}
                   className="relative flex flex-col items-center justify-center w-14 h-full gap-0.5"
+                  whileTap={{ scale: 0.9 }}
                 >
                   <div
                     className={cn(
@@ -355,7 +393,7 @@ export default function IntelligenceLayout() {
                   <span className={cn('text-2xs font-medium transition-colors', active ? 'text-dv-gold' : 'text-txt-muted')}>
                     {item.label}
                   </span>
-                </button>
+                </motion.button>
               );
             })}
           </div>
