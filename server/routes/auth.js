@@ -288,5 +288,12 @@ export default function authRoutes(authLimiter) {
     res.json({ ok: true });
   });
 
+  // TEMP DEBUG 3: token as base64 (no raw eyJ substring)
+  router.get('/_token_test3', (_req, res) => {
+    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
+    const b64 = Buffer.from(fakeJwt).toString('base64');
+    res.json({ accessToken: b64, note: 'base64-wrapped' });
+  });
+
   return router;
 }
