@@ -1,5 +1,5 @@
 import { detectSkill, getSkill } from '../skills.js';
-import { getActionsForRole } from '../actions.js';
+import { getAction, getActionsForRole } from '../actions.js';
 import { buildSystemPrompt, buildGreeting } from '../personality.js';
 import { gatherContext, gatherProactiveAlerts } from '../context.js';
 import { orchestrateKnowledge } from '../knowledge/orchestrator.js';
@@ -131,6 +131,19 @@ function formulateResponse({
     turnCount: (conversationContext.turnCount || 0) + 1,
   };
 
+  // Enrich permittedActions with full action definitions
+  const enrichedActions = permittedActions.map(a => {
+    const fullAction = getAction(a.name);
+    return {
+      ...a,
+      type: a.name,
+      label: a.description || a.name,
+      confidence: 0.8,
+      params: fullAction?.params || {},
+      requiresConfirmation: fullAction?.requiresConfirmation || false,
+    };
+  });
+
   if (knowledge?.directAnswer) {
     return {
       reply: knowledge.directAnswer,
@@ -138,9 +151,7 @@ function formulateResponse({
       source: knowledge.source || 'knowledge_base',
       data: knowledge.data,
       recommendations: knowledge.recommendations,
-      actions: permittedActions.slice(0, 3).map(a => ({
-        type: a.name, label: a.description || a.name, confidence: 0.9,
-      })),
+      actions: enrichedActions.slice(0, 3),
       suggestions: generateSuggestions(skillId, intent, clinicContext, permittedActions),
       proactive: proactiveAlerts,
       conversationContext: baseCtx,
@@ -150,10 +161,10 @@ function formulateResponse({
   if (knowledge?.contextual) {
     const sourceActions = [];
     if (knowledge.recommendations?.length > 0 && knowledge.source === 'shop') {
-      sourceActions.push({ type: 'SearchShop', label: 'Посмотреть в Shop', confidence: 0.85 });
+      sourceActions.push({ type: 'SearchShop', label: 'Посмотреть в Shop', confidence: 0.85, params: {}, requiresConfirmation: false });
     }
     if (knowledge.recommendations?.length > 0 && knowledge.source === 'school') {
-      sourceActions.push({ type: 'SearchCourses', label: 'Подробнее в Academy', confidence: 0.85 });
+      sourceActions.push({ type: 'SearchCourses', label: 'Подробнее в Academy', confidence: 0.85, params: {}, requiresConfirmation: false });
     }
 
     return {
@@ -162,9 +173,7 @@ function formulateResponse({
       source: knowledge.source || 'internal',
       data: knowledge.data,
       recommendations: knowledge.recommendations,
-      actions: [...sourceActions, ...permittedActions.slice(0, 2).map(a => ({
-        type: a.name, label: a.description || a.name, confidence: 0.8,
-      }))],
+      actions: [...sourceActions, ...enrichedActions.slice(0, 2)],
       suggestions: generateSuggestions(skillId, intent, clinicContext, permittedActions),
       proactive: proactiveAlerts,
       conversationContext: baseCtx,
@@ -179,9 +188,7 @@ function formulateResponse({
     source: knowledge?.source || 'internal',
     data: knowledge?.data,
     recommendations: knowledge?.recommendations,
-    actions: permittedActions.slice(0, 3).map(a => ({
-      type: a.name, label: a.description || a.name, confidence: 0.8,
-    })),
+    actions: enrichedActions.slice(0, 3),
     suggestions: generateSuggestions(skillId, intent, clinicContext, permittedActions),
     proactive: proactiveAlerts,
     conversationContext: baseCtx,
