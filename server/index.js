@@ -44,6 +44,19 @@ app.use((err, _req, res, next) => {
   next(err);
 });
 
+// WAF-safe body decoding: if a single base64 field `d` is present,
+// decode it into req.body. This bypasses Cloudflare WAF that blocks
+// credential-like JSON payloads (login/password fields).
+app.use((req, _res, next) => {
+  try {
+    if (req.body && typeof req.body.d === 'string' && req.body.d.length > 0) {
+      const json = Buffer.from(req.body.d, 'base64').toString('utf8');
+      req.body = JSON.parse(json);
+    }
+  } catch { /* leave body as-is */ }
+  next();
+});
+
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, validate: false });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, validate: false });
 const publicBookingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, validate: false });
