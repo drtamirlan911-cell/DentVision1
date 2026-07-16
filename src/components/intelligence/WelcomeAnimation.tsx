@@ -11,6 +11,7 @@ interface CardData {
   id: string;
   name: string;
   description: string;
+  event: string;
   icon: React.ReactNode;
   color: string;
   angle: number;
@@ -65,13 +66,13 @@ const UserIcon = () => (
 );
 
 const CARD_DEFS: CardData[] = [
-  { id: 'school', name: 'Academy', description: 'Обучение и вебинары', icon: <GraduationCapIcon />, color: '#16A085', angle: -90, radius: 200 },
-  { id: 'crm', name: 'CRM', description: 'Пациенты и расписание', icon: <StethoscopeIcon />, color: '#C9A96E', angle: 160, radius: 200 },
-  { id: 'shop', name: 'Shop', description: 'Маркетплейс товаров', icon: <ShoppingCartIcon />, color: '#8E44AD', angle: 20, radius: 200 },
-  { id: 'jobs', name: 'Jobs', description: 'Поиск сотрудников', icon: <BriefcaseIcon />, color: '#E67E22', angle: -140, radius: 200 },
-  { id: 'analytics', name: 'Analytics', description: 'Отчёты и метрики', icon: <BarChart3Icon />, color: '#F39C12', angle: -40, radius: 200 },
-  { id: 'community', name: 'Community', description: 'Сообщество', icon: <UsersIcon />, color: '#00BCD4', angle: -90, radius: 310 },
-  { id: 'profile', name: 'Profile', description: 'Ваш профиль', icon: <UserIcon />, color: '#5DADE2', angle: -90, radius: 390 },
+  { id: 'school', name: 'Academy', description: 'Обучение и вебинары', event: '2 новых курса', icon: <GraduationCapIcon />, color: '#16A085', angle: -90, radius: 200 },
+  { id: 'crm', name: 'CRM', description: 'Пациенты и расписание', event: '18 пациентов сегодня', icon: <StethoscopeIcon />, color: '#C9A96E', angle: 160, radius: 200 },
+  { id: 'shop', name: 'Shop', description: 'Маркетплейс товаров', event: '15 новых товаров', icon: <ShoppingCartIcon />, color: '#8E44AD', angle: 20, radius: 200 },
+  { id: 'jobs', name: 'Jobs', description: 'Поиск сотрудников', event: '3 вакансии', icon: <BriefcaseIcon />, color: '#E67E22', angle: -140, radius: 200 },
+  { id: 'analytics', name: 'Analytics', description: 'Отчёты и метрики', event: 'Отчет готов', icon: <BarChart3Icon />, color: '#F39C12', angle: -40, radius: 200 },
+  { id: 'community', name: 'Community', description: 'Сообщество', event: '12 в сети', icon: <UsersIcon />, color: '#00BCD4', angle: -90, radius: 310 },
+  { id: 'profile', name: 'Profile', description: 'Ваш профиль', event: '', icon: <UserIcon />, color: '#5DADE2', angle: -90, radius: 390 },
 ];
 
 export function WelcomeAnimation({ onComplete }: WelcomeScreenProps) {
@@ -367,6 +368,16 @@ export function WelcomeAnimation({ onComplete }: WelcomeScreenProps) {
                           <p className="text-[10px] text-white/40">{card.description}</p>
                         </div>
                       </div>
+
+                      {/* Event badge */}
+                      {card.event && (
+                        <div
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg inline-block"
+                          style={{ background: `${card.color}12`, color: card.color }}
+                        >
+                          {card.event}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </motion.div>
