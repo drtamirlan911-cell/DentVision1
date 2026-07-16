@@ -44,6 +44,8 @@ export default function authRoutes(authLimiter) {
       if (!user) return res.status(401).json({ error: 'Invalid credentials' });
       const isValid = await bcrypt.compare(password, user.passwordHash);
       if (!isValid) return res.status(401).json({ error: 'Invalid credentials' });
+      console.error('LOGIN password OK');
+      return res.json({ step: 'after-password', uid: user.id });
 
       const memberships = await prisma.membership.findMany({ where: { userId: user.id, status: 'active' } });
       const active = memberships[0];
