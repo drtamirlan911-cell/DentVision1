@@ -281,6 +281,10 @@ app.get('/api/clinics', async (_req, res) => {
 app.get('/api/v1/ping', (_req, res) => { res.json({ ok: true, prefix: 'v1' }); });
 app.get('/account/ping', (_req, res) => { res.json({ ok: true, prefix: 'account' }); });
 app.get('/api/plain', (_req, res) => { res.type('text/plain').send('ok plain'); });
+app.get('/api/pingdb', async (_req, res) => {
+  try { await prisma.$queryRaw`SELECT 1`; res.json({ ok: true, db: true }); }
+  catch { res.status(500).json({ error: 'db fail' }); }
+});
 
 // ═══════════════════════════════════════════════════════════════
 // AUTH ROUTES (with rate limiting)
