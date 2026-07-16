@@ -28,6 +28,7 @@ import { ChatInput } from './intelligence/ChatInput';
 import { SuggestionChips } from './intelligence/SuggestionChips';
 import { ActionCard } from './intelligence/ActionCard';
 import { ProactiveAlerts } from './intelligence/ProactiveAlerts';
+import { ActionConfirm } from './intelligence/ActionConfirm';
 import { Card } from '@/components/ui/ds/Card';
 
 interface ServiceCardDef {
@@ -72,6 +73,9 @@ export function DentVisionIntelligence() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [proactive, setProactive] = useState<Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>>([]);
   const [initialized, setInitialized] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; action: string; params: Record<string, unknown>; type: 'danger' | 'warning' | 'info'; label: string }>({
+    open: false, action: '', params: {}, type: 'info', label: '',
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<Array<{ role: string; content: string }>>([]);
@@ -197,6 +201,18 @@ export function DentVisionIntelligence() {
       return;
     }
 
+    const CRITICAL_ACTIONS = ['CreatePatient', 'CreateAppointment', 'CreateReceipt', 'CreateLabOrder', 'DeletePatient', 'DeleteAppointment'];
+    if (CRITICAL_ACTIONS.includes(actionType)) {
+      setConfirmState({
+        open: true,
+        action: actionType,
+        params: params || {},
+        type: actionType.startsWith('Delete') ? 'danger' : 'warning',
+        label: actionType,
+      });
+      return;
+    }
+
     try {
       const result = await (await import('@/utils/api')).aiAction(actionType, params || {});
       if (result?.success) {
@@ -216,6 +232,30 @@ export function DentVisionIntelligence() {
       }]);
     }
   }, [navigate]);
+
+  const handleConfirmExecute = useCallback(async () => {
+    const { action, params } = confirmState;
+    setConfirmState(prev => ({ ...prev, open: false }));
+    setIsProcessing(true);
+    try {
+      const result = await (await import('@/utils/api')).aiAction(action, params);
+      setMessages(prev => [...prev, {
+        id: `action-${Date.now()}`,
+        role: 'assistant',
+        content: result?.message || `Действие "${action}" выполнено.`,
+        timestamp: new Date(),
+      }]);
+    } catch (e: any) {
+      setMessages(prev => [...prev, {
+        id: `action-err-${Date.now()}`,
+        role: 'assistant',
+        content: `Ошибка: ${e?.message || 'неизвестная ошибка'}`,
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [confirmState]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -310,6 +350,16 @@ export function DentVisionIntelligence() {
           </motion.div>
         </motion.div>
       </div>
+
+      <ActionConfirm
+        open={confirmState.open}
+        title={confirmState.label}
+        description={`Выполнить действие "${confirmState.action}"?`}
+        params={confirmState.params}
+        type={confirmState.type}
+        onConfirm={handleConfirmExecute}
+        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+      />
     </div>
   );
 }
