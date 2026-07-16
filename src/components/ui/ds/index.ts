@@ -29,3 +29,7 @@ export { Tooltip } from './Tooltip'
 export { Dropdown } from './Dropdown'
 
 export { ProgressBar, CircularProgress } from './Progress'
+
+export { Drawer } from './Drawer'
+
+export { BottomSheet } from './BottomSheet'

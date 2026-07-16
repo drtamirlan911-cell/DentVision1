@@ -202,7 +202,3 @@ function RingSpinner({ size = 20, thickness = 2, color = 'gold', speed = 1.2 }: 
     </svg>
   )
 }
-
-function AnimatePresence({ children, mode }: { children: React.ReactNode; mode?: 'wait' | 'sync' | 'popLayout' }) {
-  return <>{children}</>
-}

@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Loader2, Bot, Zap, Brain, ChevronRight, Check, AlertCircle, Trash2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Sparkles, Bot } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { aiChat, aiAction, aiProactive } from '@/utils/api'
-import { GlassCard } from '@/components/ui/ds/GlassCard'
 import { Button } from '@/components/ui/ds/Button'
-import { TypingText, RingSpinner, CursorBlink } from '@/components/ui/motion'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
+import { useAIWorkspaceStore } from '@/stores/useAIWorkspaceStore'
+import type { Message } from '@/stores/useAIWorkspaceStore'
 
 interface AIWorkspaceIndexProps {
   onNavigate?: (path: string) => void
@@ -17,27 +16,38 @@ interface AIWorkspaceIndexProps {
 
 export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const { user, clinic } = useAuth()
-  const [messages, setMessages] = useState<ChatMsg[]>([])
-  const [input, setInput] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [initialized, setInitialized] = useState(false)
-  const [proactiveAlerts, setProactiveAlerts] = useState<Array<{ type: string; text: string; priority: number }>>([])
-  const [inputStatus, setInputStatus] = useState<'idle' | 'thinking' | 'executing' | 'result' | 'error'>('idle')
-  const [inputProgress, setInputProgress] = useState(0)
+  const initialized = useRef(false)
+  const historyRef = useRef<Array<{ role: string; content: string }>>([])
+
+  const messages = useAIWorkspaceStore((s) => s.ai.messages)
+  const status = useAIWorkspaceStore((s) => s.ai.status)
+  const suggestions = useAIWorkspaceStore((s) => s.ai.suggestions)
+  const proactiveAlerts = useAIWorkspaceStore((s) => s.ai.proactiveAlerts)
+  const progress = useAIWorkspaceStore((s) => s.ai.progress)
+
+  const setAIStatus = useAIWorkspaceStore((s) => s.setAIStatus)
+  const addMessage = useAIWorkspaceStore((s) => s.addMessage)
+  const setMessages = useAIWorkspaceStore((s) => s.setMessages)
+  const setSuggestionsFromStrings = useAIWorkspaceStore((s) => s.setSuggestionsFromStrings)
+  const addProactiveAlert = useAIWorkspaceStore((s) => s.addProactiveAlert)
+  const setProactiveAlerts = useAIWorkspaceStore((s) => s.setProactiveAlerts)
+  const setCurrentIntent = useAIWorkspaceStore((s) => s.setCurrentIntent)
+  const setCurrentAction = useAIWorkspaceStore((s) => s.setCurrentAction)
+  const setContextFocus = useAIWorkspaceStore((s) => s.setContextFocus)
+  const setProgress = useAIWorkspaceStore((s) => s.setProgress)
+  const setErrorMessage = useAIWorkspaceStore((s) => s.setErrorMessage)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const historyRef = useRef<Array<{ role: string; content: string }>>([])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isProcessing])
+  }, [messages, status])
 
   useEffect(() => {
-    if (initialized) return
-    setInitialized(true)
+    if (initialized.current) return
+    initialized.current = true
     initializeWorkspace()
-  }, [initialized, user, clinic])
+  }, [user, clinic])
 
   const initializeWorkspace = async () => {
     try {
@@ -54,14 +64,22 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         timestamp: new Date(),
         skill: chatRes?.skill || 'practice',
       }])
-      setSuggestions(chatRes?.suggestions || getDefaultSuggestions(user, clinic))
-      setProactiveAlerts(proactiveData?.alerts || [])
-
+      setSuggestionsFromStrings(chatRes?.suggestions || getDefaultSuggestions(user, clinic))
+      if (proactiveData?.alerts?.length) {
+        setProactiveAlerts(proactiveData.alerts.map((a: any) => ({
+          id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: a.type || 'info',
+          category: a.category || 'general',
+          text: a.text,
+          priority: a.priority || 0,
+          action: a.action,
+        })))
+      }
       historyRef.current = [{ role: 'assistant', content: reply }]
     } catch {
       const fallback = buildGreeting(user, clinic)
       setMessages([{ id: 'greeting', role: 'assistant', content: fallback, timestamp: new Date() }])
-      setSuggestions(getDefaultSuggestions(user, clinic))
+      setSuggestionsFromStrings(getDefaultSuggestions(user, clinic))
     }
   }
 
@@ -92,104 +110,144 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     return map[role] || base
   }
 
+  const isProcessing = status !== 'idle' && status !== 'result'
+
   const handleSend = useCallback(async (text: string) => {
     if (!text.trim() || isProcessing) return
 
-    setMessages(prev => [...prev, { id: `u-${Date.now()}`, role: 'user', content: text, timestamp: new Date() }])
-    setInput('')
-    setIsProcessing(true)
-    setInputStatus('thinking')
-    setSuggestions([])
+    addMessage({ id: `u-${Date.now()}`, role: 'user', content: text, timestamp: new Date() })
+    setAIStatus('thinking')
+    setSuggestionsFromStrings([])
+    setCurrentIntent(null)
+    setCurrentAction(null)
     historyRef.current.push({ role: 'user', content: text })
 
     try {
       const res = await aiChat(text, historyRef.current.slice(-20))
 
       if (res.conversationContext?.entities) {
-        // Update context if needed
+        setCurrentIntent({
+          id: `int-${Date.now()}`,
+          type: res.skill || 'general',
+          skill: res.skill || 'general',
+          entities: res.conversationContext.entities as Record<string, unknown>,
+          confidence: 1,
+        })
+        const entityKeys = Object.keys(res.conversationContext.entities as Record<string, unknown>)
+        if (entityKeys.includes('patientId') || entityKeys.includes('patientName')) {
+          setContextFocus('patient', (res.conversationContext.entities as any).patientId || null, res.conversationContext.entities as Record<string, unknown>)
+        } else if (entityKeys.includes('productId') || entityKeys.includes('productName')) {
+          setContextFocus('product', (res.conversationContext.entities as any).productId || null, res.conversationContext.entities as Record<string, unknown>)
+        }
       }
 
-      const aiMsg: ChatMsg = {
+      const aiMsg: Message = {
         id: `a-${Date.now()}`,
         role: 'assistant',
         content: res.reply,
         timestamp: new Date(),
         skill: res.skill,
-        source: res.source as ChatMsg['source'],
-        actions: res.actions?.map(a => ({
-          action: a.action || a.type,
+        source: res.source,
+        actions: res.actions?.map((a: any) => ({
+          id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: a.type || a.action,
           label: a.label,
           confidence: a.confidence || 1,
           params: a.params || {},
+          requiresConfirmation: a.requiresConfirmation,
         })),
         data: res.data,
         recommendations: res.recommendations,
       }
 
-      setMessages(prev => [...prev, aiMsg])
-      setSuggestions(res.suggestions || [])
+      addMessage(aiMsg)
+      setSuggestionsFromStrings(res.suggestions || [])
       historyRef.current.push({ role: 'assistant', content: res.reply })
 
       if (res.proactive?.length) {
-        setProactiveAlerts(prev => {
-          const existing = new Set(prev.map(p => p.text))
-          const newAlerts = res.proactive.filter((p: any) => !existing.has(p.text))
-          return [...prev, ...newAlerts].sort((a, b) => b.priority - a.priority).slice(0, 8)
-        })
+        for (const p of res.proactive) {
+          addProactiveAlert({
+            id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: p.type || 'info',
+            category: p.category || 'general',
+            text: p.text,
+            priority: p.priority || 0,
+            action: p.action,
+          })
+        }
       }
 
-      // Handle auto-execution of high-confidence actions
       if (res.actions?.length) {
         const action = res.actions[0]
+        setCurrentAction({
+          id: `act-${Date.now()}`,
+          type: action.type || action.action,
+          label: action.label,
+          confidence: action.confidence || 1,
+          params: action.params || {},
+          requiresConfirmation: action.requiresConfirmation,
+        })
+
         if (action.confidence > 0.85 && !action.requiresConfirmation) {
-          setInputStatus('executing')
-          setInputProgress(0)
+          setAIStatus('executing')
+          setProgress(0)
           try {
             const result = await aiAction(action.type || action.action, { ...action.params })
-            setInputProgress(100)
-            setInputStatus('result')
-            setTimeout(() => setInputStatus('idle'), 2000)
+            setProgress(100)
+            setAIStatus('result')
+            setTimeout(() => setAIStatus('idle'), 2000)
             if (result?.message) {
-              setMessages(prev => [...prev, {
+              addMessage({
                 id: `action-${Date.now()}`,
                 role: 'assistant',
                 content: result.message,
                 timestamp: new Date(),
-              }])
+              })
             }
             if (onNavigate && NAV_ACTIONS[action.type || action.action]) {
               onNavigate(NAV_ACTIONS[action.type || action.action])
             }
           } catch (e: any) {
-            setInputStatus('error')
-            setTimeout(() => setInputStatus('idle'), 3000)
-            setMessages(prev => [...prev, {
+            setAIStatus('error')
+            setErrorMessage(e?.message || 'Неизвестная ошибка')
+            setTimeout(() => setAIStatus('idle'), 3000)
+            addMessage({
               id: `action-err-${Date.now()}`,
               role: 'assistant',
               content: `Ошибка: ${e?.message || 'неизвестная ошибка'}`,
               timestamp: new Date(),
-            }])
+            })
           }
         } else if (action.confidence > 0.6) {
-          // Show confirmation for lower confidence
+          setAIStatus('confirmation')
         }
       }
     } catch {
-      setMessages(prev => [...prev, {
+      addMessage({
         id: `err-${Date.now()}`, role: 'assistant',
         content: 'Извините, произошла ошибка. Попробуйте ещё раз.',
         timestamp: new Date(),
-      }])
+      })
     } finally {
-      setIsProcessing(false)
-      setInputStatus('idle')
-      setInputProgress(0)
+      if (status !== 'confirmation') {
+        setAIStatus('idle')
+      }
+      setProgress(0)
     }
   }, [isProcessing, onNavigate])
 
+  const getStatusLabel = () => {
+    switch (status) {
+      case 'thinking': return 'AI анализирует...'
+      case 'executing': return 'AI выполняет...'
+      case 'confirmation': return 'Требуется подтверждение'
+      case 'error': return 'Ошибка'
+      default: return ''
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
-      {/* AI Status Header */}
       <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-bdr-subtle bg-surface-1/50 backdrop-blur-sm flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-dv-gold/10">
@@ -197,49 +255,58 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           </div>
           <div>
             <h1 className="text-sm font-bold text-txt-primary">DentVision Intelligence</h1>
-            <p className="text-xs text-txt-muted">Цифровой ассистент</p>
+            <p className="text-xs text-txt-muted">{getStatusLabel() || 'Цифровой ассистент'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {proactiveAlerts.length > 0 && (
+          {proactiveAlerts.filter(a => !a.acknowledged).length > 0 && (
             <Button variant="ghost" size="sm" className="relative">
               <span className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 transition-all">
                 <Sparkles size={14} />
-                <span className="text-xs font-medium hidden sm:inline">{proactiveAlerts.length}</span>
+                <span className="text-xs font-medium hidden sm:inline">{proactiveAlerts.filter(a => !a.acknowledged).length}</span>
               </span>
             </Button>
           )}
           <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-            <span className="text-[10px] font-medium text-dv-gold">AI активен</span>
+            <span className={cn(
+              'w-1.5 h-1.5 rounded-full',
+              status === 'error' ? 'bg-red-400' :
+              status === 'thinking' || status === 'executing' ? 'bg-amber-400 animate-pulse' :
+              'bg-green-400'
+            )} />
+            <span className="text-[10px] font-medium text-dv-gold">
+              {status === 'error' ? 'Ошибка' : status === 'thinking' ? 'Думает' : status === 'executing' ? 'Выполняет' : 'AI активен'}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Chat Area */}
       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4">
         <AnimatePresence>
           {messages.map((msg) => (
             <ChatMessage key={msg.id} msg={msg} />
           ))}
         </AnimatePresence>
-        {isProcessing && <TypingIndicator />}
+        {isProcessing && status !== 'confirmation' && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggestions + Input */}
       <div className="flex-shrink-0 border-t border-bdr-subtle bg-surface-1/50 backdrop-blur-sm">
         {suggestions.length > 0 && !isProcessing && (
           <div className="px-4 md:px-6 pt-3 pb-2">
-            <SuggestionChips suggestions={suggestions} onSelect={handleSend} disabled={isProcessing} />
+            <SuggestionChips
+              suggestions={suggestions.map(s => s.label)}
+              onSelect={handleSend}
+              disabled={isProcessing}
+            />
           </div>
         )}
         <AIInputArea
           onSend={handleSend}
           disabled={isProcessing}
-          status={inputStatus}
-          progress={inputProgress}
-          suggestions={suggestions}
+          status={status === 'confirmation' ? 'result' : status}
+          progress={progress}
+          suggestions={suggestions.map(s => s.label)}
           placeholder="Чем помочь?"
         />
       </div>
@@ -292,28 +359,4 @@ function TypingIndicator() {
   )
 }
 
-function AnimatePresence({ children, mode }: { children: React.ReactNode; mode?: 'wait' | 'sync' | 'popLayout' }) {
-  return <>{children}</>
-}
-
-function Sparkles({ size = 12, className }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-    </svg>
-  )
-}
-
 export type { AIWorkspaceIndexProps }
-
-interface ChatMsg {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  timestamp: Date
-  skill?: string
-  source?: 'crm' | 'shop' | 'school' | 'knowledge' | 'external' | 'market'
-  actions?: Array<{ action: string; label: string; confidence: number; params?: Record<string, unknown> }>
-  data?: Record<string, unknown>
-  recommendations?: Array<Record<string, unknown>>
-}

@@ -302,7 +302,3 @@ function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string
     </GlassCard>
   )
 }
-
-function AnimatePresence({ children, mode }: { children: React.ReactNode; mode?: 'wait' | 'sync' | 'popLayout' }) {
-  return <>{children}</>
-}
