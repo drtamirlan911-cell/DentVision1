@@ -11,7 +11,7 @@
 // - Shop (скидки на нужные товары)
 // ═══════════════════════════════════════════════════════════════
 
-import prisma from '../../lib/prisma.js';
+import prisma from '../lib/prisma.js';
 
 export async function generateProactiveAlerts(userId, clinicId) {
   const alerts = [];
