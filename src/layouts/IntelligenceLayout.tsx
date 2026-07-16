@@ -28,7 +28,6 @@ import {
   Maximize2,
   Minimize2,
   Bell,
-  MessageSquare,
   LayoutDashboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -55,12 +54,8 @@ export default function IntelligenceLayout() {
   });
   const [activeService, setActiveService] = useState<string | null>(null);
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [aiPanelWidth, setAiPanelWidth] = useState(720);
-  const [sidebarWidth, setSidebarWidth] = useState(280);
   const [contextPanelOpen, setContextPanelOpen] = useState(true);
   const [proactiveAlerts, setProactiveAlerts] = useState<Array<{ type: string; text: string; priority: number }>>([]);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const sidebarRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
 
   const handleWelcomeComplete = useCallback(() => {
@@ -126,13 +121,6 @@ export default function IntelligenceLayout() {
     if (isMobile) toggleSidebar();
   };
 
-  const handleServiceSelect = (service: { id: string; path: string }) => {
-    handleNavClick(service.path, service.id);
-    if (!isMobile) {
-      setSidebarVisible(false);
-    }
-  };
-
   if (showWelcome) {
     return <WelcomeAnimation onComplete={handleWelcomeComplete} />;
   }
@@ -142,28 +130,40 @@ export default function IntelligenceLayout() {
   const isSchoolRoute = location.pathname.startsWith('/school');
   const isAIHome = location.pathname === '/' || location.pathname === '/dashboard' || location.pathname === '/intelligence';
 
+  const sidebarWidth = collapsed ? 72 : 280;
+  const contextWidth = contextPanelOpen ? 340 : 0;
+
   return (
-    <div className="fixed inset-0 z-50 bg-surface-0 flex overflow-hidden">
-      {/* Left Sidebar - Services Navigation */}
+    <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden" style={{ display: 'grid', gridTemplateColumns: `${sidebarWidth}px 1fr ${contextWidth}px`, gridTemplateRows: '1fr' }}>
+      {/* Mobile Sidebar Overlay */}
       <motion.div
         initial={false}
+        animate={{ opacity: isMobile && sidebarOpen ? 1 : 0 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+        onClick={toggleSidebar}
+      />
+
+      {/* Left Sidebar - Services Navigation */}
+      <motion.aside
+        initial={false}
         animate={{
-          x: isMobile ? (sidebarOpen ? 0 : -300) : 0,
+          x: isMobile ? (sidebarOpen ? 0 : -sidebarWidth) : 0,
           opacity: sidebarVisible ? 1 : 0,
-          width: collapsed ? 72 : sidebarWidth,
+          width: sidebarWidth,
         }}
         transition={{ type: 'spring', stiffness: 350, damping: 30 }}
         className={cn(
-          'fixed left-0 top-0 z-50 flex h-full flex-col',
+          'h-full flex flex-col',
           'bg-surface-1 border-r border-bdr-subtle',
           'md:translate-x-0',
           'max-md:shadow-2xl',
+          'z-50',
         )}
-        style={{ width: collapsed ? 72 : sidebarWidth, opacity: sidebarVisible ? 1 : 0 }}
-        ref={sidebarRef}
+        style={{ width: sidebarWidth, opacity: sidebarVisible ? 1 : 0 }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 h-14 border-b border-bdr-subtle">
+        <div className="flex items-center justify-between px-4 h-14 border-b border-bdr-subtle flex-shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-dv-gold/15">
               <Stethoscope size={16} className="text-dv-gold" />
@@ -181,7 +181,6 @@ export default function IntelligenceLayout() {
             <button
               onClick={() => {
                 setCollapsed(!collapsed);
-                setSidebarWidth(collapsed ? 280 : 72);
               }}
               className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
             >
@@ -198,7 +197,7 @@ export default function IntelligenceLayout() {
 
         {/* User Info */}
         {!collapsed && (
-          <div className="px-3 py-3 border-b border-bdr-subtle">
+          <div className="px-3 py-3 border-b border-bdr-subtle flex-shrink-0">
             <div className="flex items-center gap-2.5">
               <Avatar name={user?.name || user?.login || '?'} size="sm" />
               <div className="min-w-0 flex-1">
@@ -212,7 +211,7 @@ export default function IntelligenceLayout() {
         )}
 
         {/* Services Navigation */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1 no-scrollbar">
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1 no-scrollbar flex-shrink-0 min-h-0">
           {filteredServiceItems.map((item, i) => {
             const isActive = activeService === item.id || location.pathname.startsWith(item.path);
             return (
@@ -250,12 +249,12 @@ export default function IntelligenceLayout() {
         {/* Platform Services */}
         {!collapsed && filteredPlatformItems.length > 0 && (
           <>
-            <div className="px-3 py-2 border-t border-bdr-subtle">
+            <div className="px-3 py-2 border-t border-bdr-subtle flex-shrink-0">
               <p className="text-2xs font-semibold text-txt-ghost uppercase tracking-wider mb-2">
                 Платформа
               </p>
             </div>
-            <nav className="px-2 pb-3 space-y-1">
+            <nav className="px-2 pb-3 space-y-1 flex-shrink-0">
               {filteredPlatformItems.map((item, i) => {
                 const isActive = location.pathname === item.path;
                 return (
@@ -284,7 +283,7 @@ export default function IntelligenceLayout() {
         )}
 
         {/* Logout */}
-        <div className="px-3 py-3 border-t border-bdr-subtle">
+        <div className="px-3 py-3 border-t border-bdr-subtle flex-shrink-0">
           <motion.button
             onClick={() => { logout(); navigate('/login'); }}
             layout
@@ -298,21 +297,11 @@ export default function IntelligenceLayout() {
             {!collapsed && <span className="text-sm font-medium">Выйти</span>}
           </motion.button>
         </div>
-      </motion.div>
+      </motion.aside>
 
       {/* Main Content Area - AI Chat Center */}
-      <motion.div
-        initial={false}
-        animate={{ width: aiPanelWidth }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="flex flex-1 flex-col min-w-0 relative"
-        style={{ 
-          width: `calc(100% - ${collapsed ? 72 : sidebarWidth}px - ${contextPanelOpen ? 340 : 0}px)`,
-          minWidth: 520,
-        }}
-        ref={contentRef}
-      >
-        <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-1/80 backdrop-blur-xl border-b border-bdr-subtle">
+      <main className="flex flex-col min-w-0 overflow-hidden" style={{ minWidth: 0 }}>
+        <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-1/80 backdrop-blur-xl border-b border-bdr-subtle flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={toggleSidebar}
@@ -322,7 +311,7 @@ export default function IntelligenceLayout() {
             </button>
             <motion.h2
               layoutId="page-title"
-              className="text-base font-semibold text-txt-primary"
+              className="text-base font-semibold text-txt-primary truncate"
             >
               {filteredServiceItems.find((i) => location.pathname.startsWith(i.path))?.label || 
                filteredPlatformItems.find((i) => location.pathname === i.path)?.label || 
@@ -340,31 +329,11 @@ export default function IntelligenceLayout() {
               <LayoutDashboard size={14} />
               <span className="hidden sm:inline">Все сервисы</span>
             </motion.button>
-            
-            {/* AI Panel Resize Handle */}
-            <div 
-              className="w-px h-8 bg-gradient-to-b from-transparent via-bdr-subtle to-transparent mx-1" 
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const startX = e.clientX;
-                const startWidth = aiPanelWidth;
-                const onMouseMove = (moveEvent: MouseEvent) => {
-                  const newWidth = Math.max(520, Math.min(1000, startWidth + (startX - moveEvent.clientX)));
-                  setAiPanelWidth(newWidth);
-                };
-                const onMouseUp = () => {
-                  window.removeEventListener('mousemove', onMouseMove);
-                  window.removeEventListener('mouseup', onMouseUp);
-                };
-                window.addEventListener('mousemove', onMouseMove);
-                window.addEventListener('mouseup', onMouseUp);
-              }}
-            />
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-surface-0 relative">
-          <div className="h-full w-full">
+        <div className="flex-1 overflow-y-auto bg-surface-0 relative min-h-0">
+          <div className="w-full">
             <Outlet context={{ user, clinic, roleInfo }} />
           </div>
 
@@ -389,8 +358,8 @@ export default function IntelligenceLayout() {
               }} />
             </motion.div>
           )}
-        </main>
-      </motion.div>
+        </div>
+      </main>
 
       {/* Right Context Panel */}
       <motion.aside
@@ -404,21 +373,12 @@ export default function IntelligenceLayout() {
         transition={{ type: 'spring', stiffness: 350, damping: 30 }}
         className={cn(
           'hidden lg:flex flex-col border-l border-bdr-subtle bg-surface-1',
-          'overflow-hidden'
+          'overflow-hidden flex-shrink-0'
         )}
         style={{ width: contextPanelOpen ? 340 : 0, opacity: contextPanelOpen ? 1 : 0 }}
       >
         <ContextPanel />
       </motion.aside>
-
-      {/* Mobile Sidebar Overlay */}
-      <motion.div
-        initial={false}
-        animate={{ opacity: isMobile && sidebarOpen ? 1 : 0 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
-        onClick={toggleSidebar}
-      />
 
       {/* Mobile Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
