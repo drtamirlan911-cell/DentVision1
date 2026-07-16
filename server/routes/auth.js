@@ -37,15 +37,12 @@ export default function authRoutes(authLimiter) {
   // ─── Login ───
   router.post('/login', authLimiter, async (req, res) => {
     try {
-      console.error('LOGIN body:', JSON.stringify(req.body));
       const { login, password } = req.body;
       if (!login || !password) return res.status(400).json({ error: 'Login and password required' });
       const user = await prisma.user.findUnique({ where: { login } });
       if (!user) return res.status(401).json({ error: 'Invalid credentials' });
       const isValid = await bcrypt.compare(password, user.passwordHash);
       if (!isValid) return res.status(401).json({ error: 'Invalid credentials' });
-      console.error('LOGIN password OK');
-      return res.status(202).json({ step: 'after-password', uid: user.id });
 
       const memberships = await prisma.membership.findMany({ where: { userId: user.id, status: 'active' } });
       const active = memberships[0];
@@ -54,15 +51,10 @@ export default function authRoutes(authLimiter) {
         active?.clinicId || null,
         active?.role || null
       );
-      console.error('LOGIN tokens generated, active:', active?.clinicId);
-      const result = { ...tokens, user: publicUser(user), memberships: memberships.map(m => ({ ...m, clinic: undefined })), activeMembership: active || null };
-      console.error('LOGIN result keys:', Object.keys(result));
-      // TEMP DEBUG: return minimal to test if WAF blocks full token response
-      return res.json({ debug: true, uid: user.id, hasToken: !!tokens.accessToken });
-      // res.json(result);
+      res.json({ ...tokens, user: publicUser(user), memberships: memberships.map(m => ({ ...m, clinic: undefined })), activeMembership: active || null });
     } catch (e) {
       console.error('LOGIN ERROR:', e);
-      res.status(500).json({ error: 'Internal server error', detail: (e as Error)?.message, stack: (e as Error)?.stack });
+      res.status(500).json({ error: 'Internal server error', detail: (e as Error)?.message });
     }
   });
 
