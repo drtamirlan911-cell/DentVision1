@@ -37,6 +37,7 @@ export default function authRoutes(authLimiter) {
   // ─── Login ───
   router.post('/login', authLimiter, async (req, res) => {
     try {
+      console.error('LOGIN body:', JSON.stringify(req.body));
       const { login, password } = req.body;
       if (!login || !password) return res.status(400).json({ error: 'Login and password required' });
       const user = await prisma.user.findUnique({ where: { login } });
@@ -51,9 +52,13 @@ export default function authRoutes(authLimiter) {
         active?.clinicId || null,
         active?.role || null
       );
-      res.json({ ...tokens, user: publicUser(user), memberships: memberships.map(m => ({ ...m, clinic: undefined })), activeMembership: active || null });
-    } catch {
-      res.status(500).json({ error: 'Internal server error' });
+      console.error('LOGIN tokens generated, active:', active?.clinicId);
+      const result = { ...tokens, user: publicUser(user), memberships: memberships.map(m => ({ ...m, clinic: undefined })), activeMembership: active || null };
+      console.error('LOGIN result keys:', Object.keys(result));
+      res.json(result);
+    } catch (e) {
+      console.error('LOGIN ERROR:', e);
+      res.status(500).json({ error: 'Internal server error', detail: (e as Error)?.message, stack: (e as Error)?.stack });
     }
   });
 
