@@ -280,6 +280,7 @@ app.get('/api/clinics', async (_req, res) => {
 // TEMP DEBUG: test if WAF blocks other prefixes on 200
 app.get('/api/v1/ping', (_req, res) => { res.json({ ok: true, prefix: 'v1' }); });
 app.get('/account/ping', (_req, res) => { res.json({ ok: true, prefix: 'account' }); });
+app.get('/api/plain', (_req, res) => { res.type('text/plain').send('ok plain'); });
 
 // ═══════════════════════════════════════════════════════════════
 // AUTH ROUTES (with rate limiting)
