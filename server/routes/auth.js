@@ -54,7 +54,7 @@ export default function authRoutes(authLimiter) {
       res.json({ ...tokens, user: publicUser(user), memberships: memberships.map(m => ({ ...m, clinic: undefined })), activeMembership: active || null });
     } catch (e) {
       console.error('LOGIN ERROR:', e);
-      res.status(500).json({ error: 'Internal server error', detail: (e as Error)?.message });
+      res.status(500).json({ error: 'Internal server error', detail: (e && e.message) || 'unknown' });
     }
   });
 
@@ -98,7 +98,7 @@ export default function authRoutes(authLimiter) {
       );
       res.json(tokens);
     } catch (e) {
-      res.status(500).json({ error: 'Internal server error', detail: (e as Error)?.message });
+      res.status(500).json({ error: 'Internal server error', detail: (e && e.message) || 'unknown' });
     }
   });
 
