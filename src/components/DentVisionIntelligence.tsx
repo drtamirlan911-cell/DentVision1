@@ -27,6 +27,7 @@ import { ChatInput } from './intelligence/ChatInput';
 import { SuggestionChips } from './intelligence/SuggestionChips';
 import { ProactiveAlerts } from './intelligence/ProactiveAlerts';
 import { cn } from '@/lib/utils';
+import { Card } from '@/components/ui/ds/Card';
 
 interface ServiceCardDef {
   id: string;
