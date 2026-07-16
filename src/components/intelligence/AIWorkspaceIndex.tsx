@@ -304,7 +304,6 @@ function Sparkles({ size = 12, className }: { size?: number; className?: string 
   )
 }
 
-export { AIWorkspaceIndex }
 export type { AIWorkspaceIndexProps }
 
 interface ChatMsg {

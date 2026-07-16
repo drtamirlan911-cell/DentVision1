@@ -7,7 +7,7 @@ import { CartProvider } from './context/CartContext';
 import { NotificationProvider } from './context/NotificationsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/ds';
-import { DentVisionIntelligence } from './components/DentVisionIntelligence';
+import { AIWorkspaceIndex } from './components/intelligence/AIWorkspaceIndex';
 import IntelligenceLayout from './layouts/IntelligenceLayout';
 
 import Login from './pages/auth/Login';
@@ -101,7 +101,7 @@ if (container) {
 
                 {/* AI-First Intelligence Layout - Main entry point after login */}
                 <Route path="/" element={<IntelligenceLayout />}>
-                  <Route index element={<Suspense fallback={<PageLoader />}><DentVisionIntelligence /></Suspense>} />
+                  <Route index element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
                   
                   {/* Dashboard as child of Intelligence */}
                   <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
