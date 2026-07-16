@@ -1,0 +1,528 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───
+
+enum UserRole {
+  OWNER
+  DOCTOR
+  ASSISTANT
+  ADMIN
+  CASHIER
+  LAB
+  MANAGER
+  STUDENT
+  SUPERADMIN
+}
+
+enum ClinicPlan {
+  DEMO
+  STANDARD
+  PRO
+  ENTERPRISE
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum InvoiceStatus {
+  PAID
+  UNPAID
+  PARTIAL
+  REFUND
+  PENDING
+  OVERDUE
+}
+
+enum ImageType {
+  PHOTO
+  X_RAY
+  CBCT
+  DICOM
+  SCAN
+}
+
+// ─── USER SYSTEM ───
+
+model User {
+  id        String   @id @default("")
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  avatar    String?
+  phone     String?
+  spec      String?
+  role      UserRole @default(DOCTOR)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships  ClinicMember[]
+  aiSessions   AISession[]
+  notifications Notification[]
+  aiActions    AIAction[]
+  aiAlerts     AIAlert[]
+  orders       Order[]
+  enrollments  SchoolEnrollment[]
+
+  @@map("users")
+}
+
+model Clinic {
+  id      String      @id @default("")
+  name    String
+  city    String?
+  address String?
+  phone   String?
+  logo    String?
+  plan    ClinicPlan  @default(DEMO)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members     ClinicMember[]
+  patients    Patient[]
+  appointments Appointment[]
+  labOrders   LabOrder[]
+  invoices    Invoice[]
+  inventory   InventoryItem[]
+  orders      Order[]
+
+  @@map("clinics")
+}
+
+model ClinicMember {
+  id        String   @id @default("")
+  userId    String
+  clinicId  String
+  role      UserRole @default(DOCTOR)
+
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime @default(now())
+
+  @@unique([userId, clinicId])
+  @@map("clinic_members")
+}
+
+// ─── PATIENT CRM ───
+
+model Patient {
+  id        String  @id @default("")
+  clinicId  String
+  firstName String
+  lastName  String
+  phone     String?
+  email     String?
+  birthDate DateTime?
+  gender    String?
+  address   String?
+  notes     String?
+  medicalHistory Json?
+
+  clinic      Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  visits      Visit[]
+  appointments Appointment[]
+  teeth       Tooth[]
+  treatmentPlans TreatmentPlan[]
+  images      PatientImage[]
+  documents   Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@map("patients")
+}
+
+// ─── APPOINTMENTS ───
+
+model Appointment {
+  id        String              @id @default("")
+  clinicId  String
+  patientId String
+  doctorId  String
+  date      DateTime
+  time      String?
+  duration  Int?                @default(30)
+  status    AppointmentStatus   @default(PENDING)
+  type      String?
+  notes     String?
+
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId, date])
+  @@index([doctorId, date])
+  @@map("appointments")
+}
+
+// ─── MEDICAL RECORDS ───
+
+model Visit {
+  id         String  @id @default("")
+  patientId  String
+  doctorId   String
+  date       DateTime @default(now())
+  diagnosis  String?
+  complaints String?
+  anamnesis  String?
+  treatment  Json?
+  notes      String?
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@map("visits")
+}
+
+model Tooth {
+  id        String @id @default("")
+  patientId String
+  number    Int
+  condition String?
+  diagnosis String?
+  notes     String?
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, number])
+  @@map("teeth")
+}
+
+model TreatmentPlan {
+  id        String  @id @default("")
+  patientId String
+  title     String
+  status    String  @default("draft")
+  items     Json
+  price     Float?
+  notes     String?
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("treatment_plans")
+}
+
+model PatientImage {
+  id        String    @id @default("")
+  patientId String
+  type      ImageType
+  url       String
+  name      String?
+  metadata  Json?
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@map("patient_images")
+}
+
+model Document {
+  id        String  @id @default("")
+  patientId String?
+  clinicId  String?
+  type      String
+  name      String?
+  url       String
+  signed    Boolean @default(false)
+  signedAt  DateTime?
+
+  patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@map("documents")
+}
+
+// ─── LAB ORDERS ───
+
+model LabOrder {
+  id        String   @id @default("")
+  patientId String?
+  clinicId  String
+  labName   String?
+  status    String   @default("pending")
+  type      String?
+  notes     String?
+  files     Json?
+  deadline  DateTime?
+  price     Float?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@map("lab_orders")
+}
+
+// ─── BILLING ───
+
+model Invoice {
+  id        String        @id @default("")
+  clinicId  String
+  patientId String?
+  amount    Float
+  status    InvoiceStatus @default(UNPAID)
+  items     Json
+  notes     String?
+  paidAt    DateTime?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@map("invoices")
+}
+
+// ─── INVENTORY ───
+
+model InventoryItem {
+  id       String @id @default("")
+  clinicId String
+  name     String
+  category String?
+  quantity Int    @default(0)
+  minimum  Int    @default(0)
+  price    Float?
+  unit     String?
+  supplier String?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@map("inventory")
+}
+
+// ─── AI CORE ───
+
+model AISession {
+  id       String @id @default("")
+  userId   String
+  clinicId String
+  messages Json
+  context  Json
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("ai_sessions")
+}
+
+model AIAction {
+  id       String @id @default("")
+  userId   String
+  intent   String
+  payload  Json
+  status   String @default("pending")
+  result   Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("ai_actions")
+}
+
+model AIAlert {
+  id       String  @id @default("")
+  userId   String
+  type     String
+  priority String  @default("low")
+  message  String
+  resolved Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, resolved])
+  @@map("ai_alerts")
+}
+
+// ─── MARKETPLACE ───
+
+model Product {
+  id          String @id @default("")
+  name        String
+  brand       String?
+  category    String?
+  price       Float
+  stock       Int    @default(0)
+  description String?
+  imageUrl    String?
+  rating      Float?
+  supplierId  String?
+
+  favorites Favorite[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("products")
+}
+
+model Order {
+  id       String @id @default("")
+  clinicId String
+  userId   String
+  items    Json
+  status   String @default("pending")
+  total    Float
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([clinicId])
+  @@map("orders")
+}
+
+model Favorite {
+  id        String @id @default("")
+  userId    String
+  productId String
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@map("favorites")
+}
+
+// ─── ICD-10 ───
+
+model ICD10Code {
+  code        String @id
+  description String
+  category    String?
+
+  @@map("icd10_codes")
+}
+
+// ─── SCHOOL ───
+
+model Course {
+  id          String @id @default("")
+  title       String
+  description String?
+  author      String?
+  imageUrl    String?
+  price       Float?
+  category    String?
+  duration    String?
+
+  lessons    Lesson[]
+  enrollments SchoolEnrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("courses")
+}
+
+model Lesson {
+  id       String  @id @default("")
+  courseId  String
+  title    String
+  videoUrl String?
+  content  String?
+  order    Int     @default(0)
+  duration Int?
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@map("lessons")
+}
+
+model SchoolEnrollment {
+  id       String @id @default("")
+  userId   String
+  courseId  String
+  progress Int    @default(0)
+  completed Boolean @default(false)
+  certificateUrl String?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
+  @@map("school_enrollments")
+}
+
+// ─── NOTIFICATIONS ───
+
+model Notification {
+  id       String  @id @default("")
+  userId   String
+  type     String
+  title    String
+  message  String
+  read     Boolean @default(false)
+  link     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+// ─── AUDIT ───
+
+model AuditLog {
+  id       String @id @default("")
+  userId   String?
+  clinicId String?
+  action   String
+  entity   String?
+  entityId String?
+  details  Json?
+  ip       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId])
+  @@map("audit_logs")
+}
