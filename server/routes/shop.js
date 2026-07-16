@@ -83,10 +83,19 @@ export default function shopRoutes() {
   });
 
   // ─── Orders (authenticated) ───
-  router.post('/orders', authenticate, requireSameClinic, requireServiceAccess('shop'), async (req, res) => {
+  router.post('/orders', authenticate, requireServiceAccess('shop'), async (req, res) => {
     try {
       const { clinic_id, items, delivery_address, delivery_method, payment_method, notes } = req.body;
       if (!items || items.length === 0) return res.status(400).json({ error: 'No items' });
+      // Personal order when clinic_id is null/empty — no cross-clinic check needed
+      const targetClinicId = clinic_id || null;
+      if (targetClinicId) {
+        const activeClinicId = req.user.activeClinicId || req.user.clinicId;
+        const isSuper = req.user.platformRole === 'superadmin' || req.user.role === 'superadmin';
+        if (!isSuper && targetClinicId !== activeClinicId) {
+          return res.status(403).json({ error: 'Access denied: cross-clinic access forbidden' });
+        }
+      }
       const orderId = crypto.randomUUID();
       let total = 0;
       const orderItems = [];
@@ -100,7 +109,7 @@ export default function shopRoutes() {
       const deliveryCost = total >= 50000 ? 0 : 2500;
       await prisma.shopOrder.create({
         data: {
-          id: orderId, clinicId: clinic_id, userId: req.user.id, userName: req.user.name,
+          id: orderId, clinicId: targetClinicId, userId: req.user.id, userName: req.user.name,
           total: total + deliveryCost, deliveryAddress: delivery_address, deliveryMethod: delivery_method,
           deliveryCost, paymentMethod: payment_method, notes,
           items: { create: orderItems },
@@ -113,7 +122,7 @@ export default function shopRoutes() {
       await createNotification({
         type: 'shop',
         category: 'order',
-        clinicId: clinic_id,
+        clinicId: targetClinicId,
         title: 'Новый заказ в Магазине',
         message: `Заказ #${orderId.slice(0, 8)} на сумму ${(total + deliveryCost).toLocaleString('ru-RU')} ₸ сформирован`,
         actionUrl: '/shop',
@@ -122,10 +131,27 @@ export default function shopRoutes() {
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
 
-  router.get('/orders', authenticate, requireSameClinic, requireServiceAccess('shop'), async (req, res) => {
+  router.get('/orders', authenticate, requireServiceAccess('shop'), async (req, res) => {
     try {
       const { clinic_id } = req.query;
-      const where = clinic_id ? { clinicId: clinic_id } : {};
+      let where = {};
+      if (clinic_id === 'personal') {
+        // Orders placed by the current user without a clinic
+        where = { clinicId: null, userId: req.user.id };
+      } else if (clinic_id) {
+        const activeClinicId = req.user.activeClinicId || req.user.clinicId;
+        const isSuper = req.user.platformRole === 'superadmin' || req.user.role === 'superadmin';
+        if (!isSuper && clinic_id !== activeClinicId) {
+          return res.status(403).json({ error: 'Access denied: cross-clinic access forbidden' });
+        }
+        where = { clinicId: clinic_id };
+      } else {
+        // No clinic filter: show current user's orders (personal + active clinic)
+        const activeClinicId = req.user.activeClinicId || req.user.clinicId;
+        where = activeClinicId
+          ? { OR: [{ clinicId: activeClinicId }, { clinicId: null, userId: req.user.id }] }
+          : { clinicId: null, userId: req.user.id };
+      }
       const result = await prisma.shopOrder.findMany({
         where,
         include: { items: true },

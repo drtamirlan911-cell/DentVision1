@@ -13,6 +13,9 @@ import {
   Database,
   Bot,
   User,
+  Building2,
+  ChevronDown,
+  Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -41,9 +44,10 @@ const PLATFORM_NAV_ITEMS: NavItem[] = [
 export function PlatformLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth()
+  const { user, clinic, clinics, activeMembership, switchClinic, isAuthenticated, roleInfo, logout } = useAuth()
   const { sidebarOpen, toggleSidebar } = useUIStore()
   const [collapsed, setCollapsed] = React.useState(false)
+  const [wsOpen, setWsOpen] = React.useState(false)
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />
@@ -209,7 +213,62 @@ export function PlatformLayout() {
               {PLATFORM_NAV_ITEMS.find((i) => location.pathname === i.path)?.label || 'DentVision'}
             </h2>
           </div>
-          <div className="flex items-center gap-2">
+           <div className="flex items-center gap-2">
+            {/* Workspace switcher */}
+            <div className="relative hidden md:block">
+              <button
+                onClick={() => setWsOpen(!wsOpen)}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm text-txt-secondary hover:text-txt-primary hover:bg-white/5 transition-colors border border-bdr-subtle"
+              >
+                <Building2 size={14} className={activeMembership ? 'text-dv-gold' : 'text-txt-muted'} />
+                <span className="max-w-[160px] truncate">{activeMembership ? activeMembership.clinic?.name : 'Личный режим'}</span>
+                <ChevronDown size={13} className="text-txt-muted" />
+              </button>
+              <AnimatePresence>
+                {wsOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setWsOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      className="absolute right-0 top-10 z-50 w-[260px] bg-surface-1 border border-bdr-subtle rounded-xl shadow-2xl p-1.5"
+                    >
+                      <p className="px-2.5 py-1.5 text-2xs uppercase tracking-wide text-txt-muted">Рабочее пространство</p>
+                      {clinics.length === 0 && (
+                        <p className="px-2.5 py-2 text-xs text-txt-muted">Нет организаций</p>
+                      )}
+                      {clinics.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={async () => { setWsOpen(false); await switchClinic(m.clinicId); }}
+                          className={cn(
+                            'w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-left transition-colors',
+                            activeMembership?.clinicId === m.clinicId ? 'bg-dv-gold/10 text-dv-gold' : 'text-txt-secondary hover:bg-white/[0.04]'
+                          )}
+                        >
+                          <div className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold shrink-0"
+                            style={{ background: (m.clinic?.color || '#C9A96E') + '22', color: m.clinic?.color || '#C9A96E' }}>
+                            {(m.clinic?.name || '?').slice(0, 1)}
+                          </div>
+                          <span className="flex-1 min-w-0 truncate">{m.clinic?.name}</span>
+                          <span className="text-2xs text-txt-muted">{m.role}</span>
+                        </button>
+                      ))}
+                      <div className="border-t border-bdr-subtle mt-1 pt-1">
+                        <button
+                          onClick={() => { setWsOpen(false); navigate('/my-clinics'); }}
+                          className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-txt-secondary hover:bg-white/[0.04] transition-colors"
+                        >
+                          <Plus size={15} /> Управлять клиниками
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
             <button
               onClick={() => navigate('/')}
               className="hidden md:flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"

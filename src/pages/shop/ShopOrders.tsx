@@ -25,7 +25,7 @@ interface Order { id: string; total: number; status: string; createdAt: string; 
 export default function ShopOrders() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, activeClinic } = useAuth();
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,12 +33,14 @@ export default function ShopOrders() {
   useEffect(() => {
     const st = (location.state as any)?.successOrderId;
     if (st) toast.success('Заказ успешно оформлен');
-    if (!user?.clinicId) { setLoading(false); return; }
-    api.getShopOrders(user.clinicId)
+    if (!user) { setLoading(false); return; }
+    // Personal orders: clinic_id=null; workspace orders: activeClinic.id
+    const clinicId = activeClinic?.id || '';
+    api.getShopOrders(activeClinic ? clinicId : 'personal')
       .then(setOrders)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [user?.clinicId]);
+  }, [user, activeClinic]);
 
   if (loading) return (
     <div className="flex justify-center py-16">

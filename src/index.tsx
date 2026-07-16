@@ -55,6 +55,9 @@ const SchoolCourse = lazy(() => import('./pages/school/SchoolCourse'));
 const ShopAdmin = lazy(() => import('./pages/admin/ShopAdmin'));
 const SchoolAdmin = lazy(() => import('./pages/admin/SchoolAdmin'));
 
+// Workspace selection
+const MyClinics = lazy(() => import('./pages/MyClinics'));
+
 // Layouts
 import { CrmLayout } from './layouts/services/CrmLayout';
 import { ShopLayout } from './layouts/services/ShopLayout';
@@ -113,6 +116,9 @@ if (container) {
                   <Route path="shop/admin" element={<Suspense fallback={<PageLoader />}><ShopAdmin /></Suspense>} />
                   <Route path="school/admin" element={<Suspense fallback={<PageLoader />}><SchoolAdmin /></Suspense>} />
                 </Route>
+
+                {/* Workspace selection (no active clinic) */}
+                <Route path="my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
 
                 {/* CRM sub-app */}
                 <Route path="crm" element={<CrmLayout />}>

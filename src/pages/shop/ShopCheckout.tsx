@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShoppingBag, Truck, CreditCard, Check, ArrowLeft } from 'lucide-react';
+import { ShoppingBag, Truck, CreditCard, Check, ArrowLeft, Building2 } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
 import { useCart } from '../../context/CartContext';
@@ -19,7 +19,7 @@ const DELIVERY_COST = 2500;
 export default function ShopCheckout() {
   const navigate = useNavigate();
   const { cart, cartTotal, clearCart } = useCart();
-  const { user } = useAuth();
+  const { user, activeClinic } = useAuth();
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -28,6 +28,7 @@ export default function ShopCheckout() {
     delivery_address: '',
     delivery_method: 'courier',
     payment_method: 'kaspi',
+    buyFor: 'self' as 'self' | 'clinic',
     notes: '',
   });
 
@@ -46,17 +47,20 @@ export default function ShopCheckout() {
 
   const deliveryCost = cartTotal >= DELIVERY_FREE_FROM ? 0 : DELIVERY_COST;
   const total = cartTotal + deliveryCost;
+  const canBuyForClinic = !!activeClinic;
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }));
 
   const handleSubmit = async () => {
-    if (!user?.clinicId) { toast.error('Необходимо войти в систему'); return; }
+    if (!user) { toast.error('Необходимо войти в систему'); return; }
     if (!form.delivery_address.trim()) { toast.error('Укажите адрес доставки'); return; }
+    // "for" = clinicId when buying for the workspace, else null (personal)
+    const clinicId = form.buyFor === 'clinic' && activeClinic ? activeClinic.id : null;
     setSubmitting(true);
     try {
       const res = await api.createShopOrder({
-        clinic_id: user.clinicId,
+        clinic_id: clinicId,
         items: cart.map(i => ({ product_id: i.id, quantity: i.qty })),
         delivery_address: form.delivery_address,
         delivery_method: form.delivery_method,
@@ -97,6 +101,33 @@ export default function ShopCheckout() {
               </div>
               <div className="mt-2.5">
                 <Input label="Адрес доставки" value={form.delivery_address} onChange={set('delivery_address')} placeholder="Город, улица, дом" />
+              </div>
+              <div className="mt-3">
+                <label className="text-xs text-[var(--slate)] mb-1.5 block">Купить для</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, buyFor: 'self' }))}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all ${
+                      form.buyFor === 'self' ? 'border-[#C9A96E]/60 bg-[#C9A96E]/10 text-[#C9A96E]' : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)]'
+                    }`}
+                  >
+                    <ShoppingBag size={15} /> Для себя
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canBuyForClinic}
+                    onClick={() => setForm(f => ({ ...f, buyFor: 'clinic' }))}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                      form.buyFor === 'clinic' ? 'border-[#C9A96E]/60 bg-[#C9A96E]/10 text-[#C9A96E]' : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)]'
+                    }`}
+                  >
+                    <Building2 size={15} /> {activeClinic ? activeClinic.name : 'Для клиники'}
+                  </button>
+                </div>
+                {!canBuyForClinic && (
+                  <p className="text-[11px] text-[var(--slate)] mt-1.5">Чтобы купить для клиники, выберите рабочее пространство в шапке</p>
+                )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2.5">
                 <div>

@@ -210,7 +210,7 @@ function CategoriesManager() {
   useEffect(() => { load() }, [load])
 
   function openCreate() { setEditing(null); setForm({ name: '', slug: '', icon: '', description: '', sortOrder: '' }); setOpen(true) }
-  function openEdit(c: Category) { setEditing(c); setForm({ name: c.name, slug: c.slug, icon: <c size={16} />.icon || '', description: c.description || '', sortOrder: String(c.sortOrder ?? 0) }); setOpen(true) }
+  function openEdit(c: Category) { setEditing(c); setForm({ name: c.name, slug: c.slug, icon: c.icon || '', description: c.description || '', sortOrder: String(c.sortOrder ?? 0) }); setOpen(true) }
 
   async function save() {
     if (!form.name?.trim() || !form.slug?.trim()) { toast.error('Введите название и slug'); return }
@@ -255,7 +255,7 @@ function CategoriesManager() {
         <div className="grid grid-cols-2 gap-3">
           <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           <Input label="Slug *" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="naprimer-instrument" />
-          <Input label="Иконка (emoji/символ)" value={form.icon} onChange={e => setForm({ ...form, icon: <e size={16} />.target.value })} />
+          <Input label="Иконка (emoji/символ)" value={form.icon} onChange={e => setForm({ ...form, icon: e.target.value })} />
           <Input label="Порядок" type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} />
           <Textarea label="Описание" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="col-span-2" />
         </div>

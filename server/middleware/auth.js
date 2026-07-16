@@ -7,13 +7,16 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dv-' + (process.env.DATABASE_URL |
 const JWT_EXPIRES = '24h';
 const REFRESH_EXPIRES = '7d';
 
-export function generateTokens(user) {
+export function generateTokens(user, activeClinic = null, activeRole = null) {
   const payload = {
     id: user.id,
     login: user.login,
     name: user.name,
     role: user.role,
+    platformRole: user.platformRole || 'user',
     clinicId: user.clinicId || user.clinic_id || null,
+    activeClinicId: activeClinic || user.clinicId || user.clinic_id || null,
+    activeRole: activeRole || user.role || null,
   };
   return {
     accessToken: jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES }),

@@ -12,44 +12,60 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Core Clinic ────────────────────────────────────────────
+// ─── Core Organization (Workspace) ──────────────────────────
+// An Organization is a tenant/workspace. A User joins it via Membership.
+// Clinic is the primary organization type; extensible to schools/labs/chains.
 
 model Clinic {
-  id        String   @id @default("") @db.VarChar(50)
-  name      String   @db.VarChar(255)
-  city      String?  @db.VarChar(100)
-  address   String?  @db.Text
-  phone     String?  @db.VarChar(50)
-  plan      String   @default("starter") @db.VarChar(50)
-  active    Boolean  @default(true)
-  color     String   @default("#C9A96E") @db.VarChar(7)
-  createdAt DateTime @default(now()) @map("created_at")
+  id           String   @id @default("") @db.VarChar(50)
+  name         String   @db.VarChar(255)
+  slug         String?  @unique @db.VarChar(100)
+  username     String?  @unique @db.VarChar(100)
+  type         String   @default("clinic") @db.VarChar(50)
+  city         String?  @db.VarChar(100)
+  country      String?  @db.VarChar(100)
+  address      String?  @db.Text
+  phone        String?  @db.VarChar(50)
+  email        String?  @db.VarChar(255)
+  logoUrl      String?  @map("logo_url") @db.Text
+  language     String   @default("ru") @db.VarChar(10)
+  timezone     String   @default("Asia/Almaty") @db.VarChar(50)
+  currency     String   @default("KZT") @db.VarChar(10)
+  plan         String   @default("starter") @db.VarChar(50)
+  seats        Int      @default(5)
+  active       Boolean  @default(true)
+  color        String   @default("#C9A96E") @db.VarChar(7)
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  users         User[]
-  patients      Patient[]
-  appointments  Appointment[]
-  treatments    Treatment[]
-  receipts      Receipt[]
-  subscription  Subscription?
-  labOrders     LabOrder[]
-  photos        Photo[]
-  expenses      Expense[]
-  inventory     Inventory[]
-  debts         Debt[]
-  referrals     Referral[]
-  promotions    Promotion[]
-  bookings      Booking[]
-  medicalCards  MedicalCard[]
-  visits        Visit[]
-  documents     Document[]
-  waitingList   WaitingList[]
-  auditLogs     AuditLog[]
-  shopOrders    ShopOrder[]
-  serviceAccesses ServiceAccess[]
-  notifications Notification[]
+  memberships       Membership[]
+  legacyUsers       User[]            @relation("ClinicLegacyUsers")
+  patients          Patient[]
+  appointments      Appointment[]
+  treatments        Treatment[]
+  receipts          Receipt[]
+  subscription      Subscription?
+  labOrders         LabOrder[]
+  photos            Photo[]
+  expenses          Expense[]
+  inventory         Inventory[]
+  debts             Debt[]
+  referrals         Referral[]
+  promotions        Promotion[]
+  bookings          Booking[]
+  medicalCards      MedicalCard[]
+  visits            Visit[]
+  documents         Document[]
+  waitingList       WaitingList[]
+  auditLogs         AuditLog[]
+  shopOrders        ShopOrder[]
+  serviceAccesses   ServiceAccess[]
+  notifications     Notification[]
+  invitations       Invitation[]
 }
 
-// ─── Auth & Users ───────────────────────────────────────────
+// ─── Auth & Users (Platform-level identity) ────────────────
+// A User is independent of any clinic. Platform roles: guest/user/verified/
+// support/superadmin. Organization roles live on Membership.
 
 model User {
   id              String    @id @default("") @db.VarChar(50)
@@ -57,18 +73,33 @@ model User {
   login           String    @unique @db.VarChar(100)
   passwordHash    String    @map("password_hash") @db.VarChar(255)
   name            String    @db.VarChar(255)
+  firstName       String?   @map("first_name") @db.VarChar(100)
+  lastName        String?   @map("last_name") @db.VarChar(100)
+  username        String?   @unique @db.VarChar(100)
   role            String    @db.VarChar(50)
+  platformRole    String    @default("user") @map("platform_role") @db.VarChar(50)
   spec            String?   @db.VarChar(100)
+  headline        String?   @db.VarChar(255)
   phone           String?   @db.VarChar(50)
   email           String?   @db.VarChar(255)
   bio             String?   @db.Text
   photoUrl        String?   @map("photo_url") @db.Text
+  city            String?   @db.VarChar(100)
+  country         String?   @db.VarChar(100)
   visibility      String?   @default("public") @db.VarChar(20)
   experienceYears Int?      @default(0) @map("experience_years")
-  createdAt       DateTime  @default(now()) @map("created_at")
+  createdAt       DateTime @default(now()) @map("created_at")
 
-  clinic              Clinic?          @relation(fields: [clinicId], references: [id])
+  clinic              Clinic?          @relation("ClinicLegacyUsers", fields: [clinicId], references: [id])
+  memberships         Membership[]
   passwordReset       PasswordReset?
+  skills              UserSkill[]
+  certificates        UserCertificateModel[]
+  achievements        UserAchievement[]
+  portfolio           UserPortfolioItem[]
+  cases               UserCase[]
+  reviewsReceived     UserReview[]
+  activities          UserActivity[]
   appointmentsDoctor  Appointment[]    @relation("DoctorAppointments")
   treatmentsDoctor    Treatment[]
   receipts            Receipt[]
@@ -76,6 +107,118 @@ model User {
   bookings            Booking[]
   visitsDoctor        Visit[]
   documentsDoctor     Document[]
+  invitationsSent     Invitation[]     @relation("Inviter")
+}
+
+// ─── Membership (User ↔ Organization) ──────────────────────
+// The organization-role + specialization. One user can be in many orgs
+// with different roles. This replaces the old single User.clinicId/role.
+
+model Membership {
+  id           String   @id @default("") @db.VarChar(50)
+  userId       String   @map("user_id") @db.VarChar(50)
+  clinicId     String   @map("clinic_id") @db.VarChar(50)
+  role         String   @db.VarChar(50)
+  spec         String?  @db.VarChar(100)
+  department   String?  @db.VarChar(100)
+  status       String   @default("active") @db.VarChar(20)
+  joinedAt     DateTime @default(now()) @map("joined_at")
+  invitedBy    String?  @map("invited_by") @db.VarChar(50)
+
+  user   User   @relation(fields: [userId], references: [id])
+  clinic Clinic @relation(fields: [clinicId], references: [id])
+
+  @@unique([userId, clinicId])
+}
+
+// ─── Invitations ────────────────────────────────────────────
+
+model Invitation {
+  id         String   @id @default("") @db.VarChar(50)
+  clinicId   String   @map("clinic_id") @db.VarChar(50)
+  code       String   @unique @db.VarChar(50)
+  email      String?  @db.VarChar(255)
+  role       String   @default("doctor") @db.VarChar(50)
+  spec       String?  @db.VarChar(100)
+  invitedBy  String?  @map("invited_by") @db.VarChar(50)
+  status     String   @default("pending") @db.VarChar(20)
+  expiresAt  DateTime? @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  clinic Clinic @relation(fields: [clinicId], references: [id])
+  inviter User?  @relation("Inviter", fields: [invitedBy], references: [id])
+}
+
+// ─── User Professional Profile (belongs to User, not Clinic) ─
+
+model UserSkill {
+  id     String @id @default("") @db.VarChar(50)
+  userId String @map("user_id") @db.VarChar(50)
+  name   String @db.VarChar(100)
+  level  String? @db.VarChar(50)
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model UserCertificateModel {
+  id          String   @id @default("") @db.VarChar(50)
+  userId      String   @map("user_id") @db.VarChar(50)
+  title       String   @db.VarChar(255)
+  issuer      String?  @db.VarChar(255)
+  year        Int?
+  fileUrl     String?  @map("file_url") @db.Text
+  issuedAt    DateTime? @map("issued_at")
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model UserAchievement {
+  id       String @id @default("") @db.VarChar(50)
+  userId   String @map("user_id") @db.VarChar(50)
+  title    String @db.VarChar(255)
+  description String? @db.Text
+  date     DateTime? @db.Date
+  user     User   @relation(fields: [userId], references: [id])
+}
+
+model UserPortfolioItem {
+  id          String   @id @default("") @db.VarChar(50)
+  userId      String   @map("user_id") @db.VarChar(50)
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  imageUrl    String?  @map("image_url") @db.Text
+  link        String?  @db.Text
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model UserCase {
+  id          String   @id @default("") @db.VarChar(50)
+  userId      String   @map("user_id") @db.VarChar(50)
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  beforeImage String?  @map("before_image") @db.Text
+  afterImage  String?  @map("after_image") @db.Text
+  tags        String[] @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model UserReview {
+  id        String   @id @default("") @db.VarChar(50)
+  userId    String   @map("user_id") @db.VarChar(50)
+  authorName String? @map("author_name") @db.VarChar(255)
+  rating    Int      @default(5)
+  comment   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model UserActivity {
+  id        String   @id @default("") @db.VarChar(50)
+  userId    String   @map("user_id") @db.VarChar(50)
+  type      String   @db.VarChar(50)
+  title     String   @db.VarChar(255)
+  meta      String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model PasswordReset {

@@ -50,7 +50,7 @@ function parseLessons(raw: any): string[] {
 export default function SchoolCourse() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, activeClinic } = useAuth();
   const toast = useToast();
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,7 +84,7 @@ export default function SchoolCourse() {
 
   const handleEnroll = async () => {
     try {
-      const res = await api.enrollCourse({ course_id: id });
+      const res = await api.enrollCourse({ course_id: id, clinic_id: activeClinic?.id || null });
       setEnrolled(true);
       setEnrollmentId(res.id);
     } catch { toast.error('Не удалось записаться'); }
@@ -172,14 +172,19 @@ export default function SchoolCourse() {
             )}
 
             {!enrolled ? (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleEnroll}
-                className="w-full py-2.5 px-4 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit"
-              >
-                Записаться бесплатно
-              </motion.button>
+              <>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleEnroll}
+                  className="w-full py-2.5 px-4 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit"
+                >
+                  Записаться бесплатно
+                </motion.button>
+                <p className="text-[11px] text-[var(--slate)] mt-1.5 text-center">
+                  {activeClinic ? `Запись для «${activeClinic.name}»` : 'Запись для личного обучения'}
+                </p>
+              </>
             ) : (
               <div className="flex items-center gap-1.5 text-[#27AE60] text-[13px] font-semibold">
                 <Check size={16} /> Вы записаны

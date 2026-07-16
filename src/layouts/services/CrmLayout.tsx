@@ -1,4 +1,6 @@
 import React from 'react'
+import { Navigate } from 'react-router-dom'
+import { useAuth } from '@/context/AuthContext'
 import { ServiceLayout } from '../ServiceLayout'
 import {
   Calendar,
@@ -32,6 +34,10 @@ const CRM_NAV_ITEMS = [
 ]
 
 export function CrmLayout() {
+  const { isAuthenticated, activeMembership, loading } = useAuth();
+  if (!loading && isAuthenticated && !activeMembership) {
+    return <Navigate to="/my-clinics" replace />;
+  }
   return (
     <ServiceLayout
       navItems={CRM_NAV_ITEMS}

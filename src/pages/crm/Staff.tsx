@@ -5,7 +5,7 @@ import {
   Users, UserPlus, Shield, Stethoscope, Briefcase, Crown, Phone, Mail,
   Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings,
 } from 'lucide-react'
-import { useAuth, ROLES } from '../../context/AuthContext'
+import { useAuth, ORG_ROLES } from '../../context/AuthContext'
 import { useToast } from '../../hooks/useData'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
@@ -564,11 +564,11 @@ export default function Staff() {
                     <div className="mt-3 p-2.5 rounded-lg bg-white/[0.02] border border-bdr-subtle">
                       <p className="text-2xs font-bold text-txt-muted uppercase tracking-wider mb-2">Доступ</p>
                       <div className="flex gap-1 flex-wrap">
-                        {(ROLES[member.role]?.pages || []).slice(0, 8).map(p => (
+                        {(ORG_ROLES[member.role]?.pages || []).slice(0, 8).map(p => (
                           <Badge key={p} variant="default" size="xs">{PAGE_ICONS[p] || p}</Badge>
                         ))}
-                        {(ROLES[member.role]?.pages || []).length > 8 && (
-                          <Badge variant="default" size="xs">+{ROLES[member.role]!.pages.length - 8}</Badge>
+                        {(ORG_ROLES[member.role]?.pages || []).length > 8 && (
+                          <Badge variant="default" size="xs">+{ORG_ROLES[member.role]!.pages.length - 8}</Badge>
                         )}
                       </div>
                     </div>

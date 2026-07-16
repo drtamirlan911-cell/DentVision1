@@ -39,12 +39,20 @@ export default function schoolRoutes() {
   // ─── Enrollments (authenticated) ───
   router.post('/enrollments', authenticate, requireServiceAccess('school'), async (req, res) => {
     try {
-      const { course_id } = req.body;
+      const { course_id, clinic_id } = req.body;
+      // Enroll "for clinic" when clinic_id provided, else personal (active clinic if any)
+      const targetClinicId = clinic_id || req.user.activeClinicId || req.user.clinicId || null;
+      if (targetClinicId) {
+        const isSuper = req.user.platformRole === 'superadmin' || req.user.role === 'superadmin';
+        if (!isSuper && targetClinicId !== (req.user.activeClinicId || req.user.clinicId)) {
+          return res.status(403).json({ error: 'Access denied: cross-clinic access forbidden' });
+        }
+      }
       const existing = await prisma.schoolEnrollment.findFirst({ where: { userId: req.user.id, courseId: course_id } });
       if (existing) return res.json(existing);
       const id = crypto.randomUUID();
       await prisma.schoolEnrollment.create({
-        data: { id, clinicId: req.user.clinicId, userId: req.user.id, userName: req.user.name, courseId: course_id },
+        data: { id, clinicId: targetClinicId, userId: req.user.id, userName: req.user.name, courseId: course_id },
       });
       await prisma.schoolCourse.update({ where: { id: course_id }, data: { enrolledCount: { increment: 1 } } });
       // Push to the unified Notification Center (personal)
@@ -52,7 +60,7 @@ export default function schoolRoutes() {
       await createNotification({
         type: 'school',
         category: 'enrollment',
-        clinicId: req.user.clinicId,
+        clinicId: targetClinicId,
         userId: req.user.id,
         title: 'Вы записались на курс',
         message: `«${course?.title || 'Курс'}» — обучение доступно в Академии`,

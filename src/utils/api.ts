@@ -153,6 +153,26 @@ export async function resetPassword(token: string, newPassword: string): Promise
   });
 }
 
+// ─── Workspaces (Membership) ───
+export async function getMyClinics(): Promise<any[]> {
+  return apiRequest('/api/auth/my-clinics');
+}
+export async function switchClinic(clinicId: string | null): Promise<any> {
+  return apiRequest('/api/auth/switch-clinic', { method: 'POST', body: JSON.stringify({ clinicId }) });
+}
+export async function createClinic(data: any): Promise<any> {
+  return apiRequest('/api/auth/clinics', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function joinClinic(data: { code?: string; clinicId?: string }): Promise<any> {
+  return apiRequest('/api/auth/join-clinic', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function createInvitation(data: { clinicId: string; email?: string; role?: string; spec?: string }): Promise<any> {
+  return apiRequest('/api/auth/invitations', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function getInvitation(code: string): Promise<any> {
+  return apiRequest(`/api/auth/invitations/lookup?code=${code}`);
+}
+
 // ─── Clinics ───
 export async function getClinics(): Promise<Clinic[]> {
   return apiRequest('/api/clinics');
