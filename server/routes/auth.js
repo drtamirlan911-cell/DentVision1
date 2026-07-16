@@ -274,52 +274,5 @@ export default function authRoutes(authLimiter) {
     }
   });
 
-  // TEMP DEBUG: does WAF block a JWT-looking response without any auth?
-  router.get('/_token_test', (_req, res) => {
-    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
-    const encoded = Buffer.from(JSON.stringify({ accessToken: fakeJwt })).toString('base64');
-    res.json({ d: encoded, note: 'test' });
-  });
-
-  // TEMP DEBUG 2: token in header
-  router.get('/_token_test2', (_req, res) => {
-    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
-    res.setHeader('X-Dv-Token', fakeJwt);
-    res.json({ ok: true });
-  });
-
-  // TEMP DEBUG 3: token as base64 (no raw eyJ substring)
-  router.get('/_token_test3', (_req, res) => {
-    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
-    const b64 = Buffer.from(fakeJwt).toString('base64');
-    res.json({ accessToken: b64, note: 'base64-wrapped' });
-  });
-
-  // TEMP DEBUG 4: token split into small chunks (array of short strings)
-  router.get('/_token_test4', (_req, res) => {
-    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
-    const chunks = fakeJwt.match(/.{1,12}/g) || [fakeJwt];
-    res.json({ accessToken: chunks, note: 'chunked' });
-  });
-
-  // TEMP DEBUG 5: token in HttpOnly cookie
-  router.get('/_token_test5', (_req, res) => {
-    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
-    res.cookie('dv_token', fakeJwt, { httpOnly: true, sameSite: 'none', secure: true });
-    res.json({ ok: true, note: 'cookie' });
-  });
-
-  // TEMP DEBUG 6: token as array of char-codes (no 'eyJ' substring)
-  router.get('/_token_test6', (_req, res) => {
-    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
-    const codes = Array.from(Buffer.from(fakeJwt));
-    res.json({ accessToken: codes, note: 'char-codes' });
-  });
-
-  // TEMP DEBUG 7: plain ok, no token
-  router.get('/_ping', (_req, res) => {
-    res.json({ ok: true, msg: 'pong' });
-  });
-
   return router;
 }
