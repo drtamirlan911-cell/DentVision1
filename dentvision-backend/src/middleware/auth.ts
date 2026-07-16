@@ -32,8 +32,9 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     };
 
     next();
-  } catch {
-    return res.status(401).json({ ok: false, error: 'Невалидный токен' });
+  } catch (err: any) {
+    const code = err?.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : undefined;
+    return res.status(401).json({ ok: false, error: 'Невалидный токен', code });
   }
 }
 
