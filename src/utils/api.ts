@@ -520,3 +520,31 @@ export async function deletePortfolioItem(id: string): Promise<any> { return api
 
 export async function addCase(data: any): Promise<any> { return apiRequest('/api/profile/cases', { method: 'POST', body: JSON.stringify(data) }); }
 export async function deleteCase(id: string): Promise<any> { return apiRequest(`/api/profile/cases/${id}`, { method: 'DELETE' }); }
+
+// ─── AI Intelligence ───
+export interface AIChatResponse {
+  reply: string;
+  skill: string;
+  actions: Array<{ action: string; label: string; confidence: number; params?: Record<string, unknown> }>;
+  suggestions: string[];
+  proactive: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;
+  conversationContext: { turnCount: number; entities: Record<string, unknown> };
+}
+export async function aiChat(message: string, history: Array<{ role: string; content: string }> = []): Promise<AIChatResponse> {
+  return apiRequest('/api/ai/chat', { method: 'POST', body: JSON.stringify({ message, history }) });
+}
+export async function aiGreeting(): Promise<{ greeting: string; proactive: any[]; skill: string }> {
+  return apiRequest('/api/ai/greeting');
+}
+export async function aiProactive(): Promise<{ alerts: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }> }> {
+  return apiRequest('/api/ai/proactive');
+}
+export async function aiAction(action: string, params: Record<string, unknown> = {}): Promise<any> {
+  return apiRequest('/api/ai/action', { method: 'POST', body: JSON.stringify({ action, params }) });
+}
+export async function aiDigitalTwin(): Promise<any> {
+  return apiRequest('/api/ai/digital-twin');
+}
+export async function aiSetContext(data: { patientId?: string; appointmentId?: string }): Promise<any> {
+  return apiRequest('/api/ai/context', { method: 'POST', body: JSON.stringify(data) });
+}
