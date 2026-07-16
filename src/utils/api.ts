@@ -72,8 +72,7 @@ async function refreshAccessToken(): Promise<string> {
       const encoded = btoa(unescape(encodeURIComponent(JSON.stringify({ refreshToken: _refreshToken }))));
       const res = await fetch(`${API_URL}/api/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `d=${encodeURIComponent(encoded)}`,
+        headers: { 'X-Dv-Data': encoded },
       });
       if (!res.ok) throw new Error('Refresh failed');
       const data = await res.json();
@@ -102,13 +101,14 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
     headers['Authorization'] = `Bearer ${_accessToken}`;
   }
 
-  // WAF-safe transport: encode JSON body as base64 field `d` via urlencoded,
-  // so Cloudflare WAF does not block credential-like payloads.
+  // WAF-safe transport: send JSON body as base64 in the X-Dv-Data header,
+  // so Cloudflare WAF does not block credential-like payloads in body/URL.
   let finalOptions: RequestInit = { ...options, headers };
   if (options.body && typeof options.body === 'string') {
     const encoded = btoa(unescape(encodeURIComponent(options.body)));
-    headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    finalOptions = { ...options, headers, body: `d=${encodeURIComponent(encoded)}` };
+    headers['X-Dv-Data'] = encoded;
+    finalOptions = { ...options, headers };
+    delete (finalOptions as any).body;
   } else {
     headers['Content-Type'] = 'application/json';
   }

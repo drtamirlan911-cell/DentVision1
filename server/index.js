@@ -44,13 +44,14 @@ app.use((err, _req, res, next) => {
   next(err);
 });
 
-// WAF-safe body decoding: if a single base64 field `d` is present,
+// WAF-safe body decoding: if a base64 header `x-dv-data` is present,
 // decode it into req.body. This bypasses Cloudflare WAF that blocks
-// credential-like JSON payloads (login/password fields).
+// credential-like JSON payloads in the request body / URL.
 app.use((req, _res, next) => {
   try {
-    if (req.body && typeof req.body.d === 'string' && req.body.d.length > 0) {
-      const json = Buffer.from(req.body.d, 'base64').toString('utf8');
+    const h = req.headers['x-dv-data'];
+    if (h && typeof h === 'string' && h.length > 0) {
+      const json = Buffer.from(h, 'base64').toString('utf8');
       req.body = JSON.parse(json);
     }
   } catch { /* leave body as-is */ }
