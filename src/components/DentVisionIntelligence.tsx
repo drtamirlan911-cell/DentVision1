@@ -231,7 +231,7 @@ export function DentVisionIntelligence({ onNavigate }: { onNavigate: (path: stri
         content: result?.message || `Действие выполнено.`,
         timestamp: new Date(),
       }]);
-      if (NAV_ACTIONS[actionType]) onNavigate(NAV_ACTIONS[actionType]);
+      if (NAV_ACTIONS[actionType] && typeof onNavigate === 'function') onNavigate(NAV_ACTIONS[actionType]);
     } catch (e: any) {
       setMessages(prev => [...prev, {
         id: `action-err-${Date.now()}`, role: 'assistant',
