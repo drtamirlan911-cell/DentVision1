@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { X, BarChart3, Brain, Zap, Users, Calendar, FlaskConical, DollarSign, BookOpen, Settings2, Stethoscope } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GlassCard } from '@/components/ui/ds/GlassCard'
