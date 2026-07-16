@@ -525,6 +525,7 @@ export async function deleteCase(id: string): Promise<any> { return apiRequest(`
 export interface AIChatResponse {
   reply: string;
   skill: string;
+  source?: string;
   actions: Array<{ action: string; label: string; confidence: number; params?: Record<string, unknown> }>;
   suggestions: string[];
   proactive: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;

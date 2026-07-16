@@ -78,7 +78,40 @@ export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query
               : 'bg-surface-2 border border-bdr-subtle text-txt-primary rounded-bl-md'
           )}
         >
-          {msg.content}
+          {msg.content.split('\n\n').map((block, i) => {
+            if (block.startsWith('•') || block.startsWith('-')) {
+              return (
+                <div key={i} className="space-y-1 my-1.5">
+                  {block.split('\n').map((line, j) => (
+                    <p key={j} className="flex gap-2 text-sm">
+                      <span className="text-dv-gold shrink-0">—</span>
+                      <span>{line.replace(/^[•\-]\s*/, '')}</span>
+                    </p>
+                  ))}
+                </div>
+              );
+            }
+            if (block.startsWith('**') && block.includes('** —')) {
+              return (
+                <div key={i} className="my-1.5 p-2 rounded-lg bg-dv-gold/5 border border-dv-gold/10">
+                  {block.split('\n').map((line, j) => {
+                    const parts = line.match(/\*\*(.+?)\*\*\s*[—–-]\s*(.+)/);
+                    if (parts) {
+                      return (
+                        <p key={j} className="text-sm mb-0.5">
+                          <span className="font-semibold text-dv-gold">{parts[1]}</span>
+                          <span className="text-txt-muted"> — </span>
+                          <span>{parts[2]}</span>
+                        </p>
+                      );
+                    }
+                    return <p key={j} className="text-sm">{line}</p>;
+                  })}
+                </div>
+              );
+            }
+            return <p key={i} className="my-1.5">{block}</p>;
+          })}
         </div>
 
         {/* Action buttons */}

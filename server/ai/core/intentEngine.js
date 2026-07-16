@@ -171,6 +171,7 @@ function formulateResponse({
   return {
     reply,
     skill: skillId,
+    source: knowledge?.source || 'internal',
     actions: permittedActions.slice(0, 3).map(a => ({
       type: a.name, label: a.description || a.name, confidence: 0.8,
     })),

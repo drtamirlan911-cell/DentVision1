@@ -59,6 +59,7 @@ export default function aiRoutes() {
       res.json({
         reply: response.reply,
         skill: response.skill,
+        source: response.source || 'internal',
         actions: response.actions || [],
         suggestions: response.suggestions || [],
         proactive: response.proactive || [],
@@ -99,7 +100,8 @@ export default function aiRoutes() {
   router.get('/proactive', authenticate, async (req, res) => {
     try {
       const clinicId = req.user.activeClinicId || req.user.clinicId || null;
-      const alerts = await generateProactiveAlerts(req.user.id, clinicId);
+      const userRole = req.user.role || req.user.platformRole || 'doctor';
+      const alerts = await generateProactiveAlerts(req.user.id, clinicId, userRole);
       res.json({ alerts });
     } catch (e) {
       console.error('AI Proactive error:', e);

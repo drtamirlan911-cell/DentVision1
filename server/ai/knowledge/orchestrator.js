@@ -3,11 +3,11 @@
 //
 // Question → Knowledge Router → Sources → Merge → Answer
 //
-// Источники (по приоритету):
-// 1. DentVision DB (CRM, пациенты, расписание)
-// 2. School (курсы, статьи, материалы)
-// 3. Shop (товары, характеристики)
-// 4. Внутренняя база знаний (протоколы, рекомендации)
+// Источники (строгий приоритет):
+// 1. DentVision DB (CRM, пациенты, расписание, финансы, склад)
+// 2. Внутренняя база знаний (протоколы, клин. рекомендации)
+// 3. School (курсы, статьи, вебинары)
+// 4. DentVision Shop (товары, оборудование)
 // 5. Внешние источники (научные публикации)
 //
 // AI НЕ продаёт. AI консультирует.
@@ -31,15 +31,20 @@ export async function orchestrateKnowledge(message, ctx) {
   }
 
   // 2. Собрать из всех источников параллельно
+  // 2. Определить приоритеты по ключевым словам (не только по навыку)
+  const isShoppingQuery = /стоимост|цена|купить|заказать|бюджет|выбрать|сканер|композит/i.test(msg);
+  const isLearningQuery = /курс|обучени|вебинар|статья|научиться|повысить/i.test(msg);
+  const effectiveSkill = isShoppingQuery ? 'shopping' : isLearningQuery ? 'learning' : skillId;
+
   const sources = await Promise.allSettled([
     queryDentVisionDB(message, clinic, skillId),
-    querySchool(message, skillId),
-    queryShop(message, skillId),
     queryDentalKnowledge(message, directMatch, digitalTwin),
+    querySchool(message, effectiveSkill),
+    queryShop(message, effectiveSkill),
   ]);
 
   // 3. Смержить результаты
-  const merged = mergeSources(sources, skillId);
+  const merged = mergeSources(sources);
 
   return merged;
 }
@@ -128,7 +133,7 @@ async function queryDentVisionDB(message, clinic, skillId) {
 // ─── SOURCE: School ──────────────────────────────────────────
 
 async function querySchool(message, skillId) {
-  if (skillId !== 'learning' && skillId !== 'research') return null;
+  if (skillId !== 'learning' && skillId !== 'research' && skillId !== 'shopping') return null;
   const msg = message.toLowerCase();
 
   try {
@@ -226,27 +231,30 @@ async function queryDentalKnowledge(message, directMatch, digitalTwin) {
 
 // ─── MERGE ───────────────────────────────────────────────────
 
-function mergeSources(results, skillId) {
+const SOURCE_PRIORITY = ['database', 'knowledge_base', 'school', 'shop', 'manufacturer'];
+
+function mergeSources(results) {
   const texts = [];
   let data = null;
   let recommendations = null;
   let source = 'internal';
+  let bestPriority = Infinity;
 
   for (const r of results) {
     if (r.status === 'fulfilled' && r.value) {
       const v = r.value;
+      const priority = SOURCE_PRIORITY.indexOf(v.source || 'internal');
       if (v.text) texts.push(v.text);
       if (v.data) {
         if (!data) data = {};
         data[v.type] = v.data;
       }
-      if (v.type === 'products') {
-        recommendations = v.data;
+      if (v.type === 'products') recommendations = v.data;
+      if (v.type === 'courses' && !recommendations) recommendations = v.data;
+      if (priority >= 0 && priority < bestPriority) {
+        bestPriority = priority;
+        source = v.source || source;
       }
-      if (v.type === 'courses' && !recommendations) {
-        recommendations = v.data;
-      }
-      source = v.source || source;
     }
   }
 

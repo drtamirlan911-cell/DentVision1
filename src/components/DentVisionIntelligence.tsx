@@ -128,11 +128,7 @@ export function DentVisionIntelligence({ onNavigate }: { onNavigate: (path: stri
     const greeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
     const name = u?.name?.split(' ')[0] || u?.login || 'Пользователь';
     const spec = u?.spec || 'доктор';
-    let ctx = '';
-    if (c) {
-      ctx = `\n\nСегодня: 18 пациентов, первая запись через 30 мин, 2 лабораторные работы готовы, 1 ожидает подтверждения.`;
-    }
-    return `${greeting}, ${spec} ${name}.${ctx}\n\nЧем могу помочь?`;
+    return `${greeting}, ${spec} ${name}.\n\nDentVision Intelligence к вашим услугам. Чем могу помочь?`;
   }
 
   function getDefaultSuggestions(role: string, _clinic: any) {
@@ -140,10 +136,16 @@ export function DentVisionIntelligence({ onNavigate }: { onNavigate: (path: stri
     const map: Record<string, string[]> = {
       doctor: [...base, 'Мои пациенты на сегодня', 'Открыть медкарту'],
       director: [...base, 'Аналитика за сегодня', 'Неоплаченные счета'],
+      owner: ['Аналитика за сегодня', 'Отчёт за месяц', 'Неоплаченные счета', 'Загрузка врачей'],
       admin: [...base, 'Новая запись', 'Создать счёт'],
       assistant: [...base, 'Новая запись', 'Подтвердить запись'],
       reception: [...base, 'Новая запись', 'Подтвердить запись'],
       laboratory: ['Активные заказы', 'Готовые работы', 'Изменить статус'],
+      cashier: ['Приходы сегодня', 'Неоплаченные счета', 'Касса'],
+      accountant: ['Отчёт за день', 'Расходы', 'Финансовая сводка'],
+      manager: ['Загрузка врачей', 'Аналитика', 'Пациенты'],
+      intern: ['Моё обучение', 'Курсы', 'Расписание'],
+      superadmin: ['Платформа', 'Аналитика', 'Все клиники'],
     };
     return map[role] || base;
   }
@@ -172,6 +174,7 @@ export function DentVisionIntelligence({ onNavigate }: { onNavigate: (path: stri
         content: res.reply,
         timestamp: new Date(),
         skill: res.skill,
+        source: res.source as ChatMsg['source'],
         actions: res.actions?.map(a => ({
           action: a.action || a.type,
           label: a.label,

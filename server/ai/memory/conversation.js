@@ -105,6 +105,21 @@ function extractEntities(ctx, message) {
       detectedAt: Date.now(),
     };
   }
+
+  const equipM = message.match(/(?:сканер|микроскоп|компрессор|автоклав|кресло|лазер|рентген|визиограф|аппарат)\s+([А-Яа-яёЁ][а-яёЁ]+)?/i);
+  if (equipM) {
+    ctx.entities.lastEquipment = { name: equipM[0], type: 'equipment', detectedAt: Date.now() };
+  }
+
+  const courseM = message.match(/(?:курс|вебинар|тренинг|обучение)\s+([А-Яа-яёЁ][а-яёЁ]+)/i);
+  if (courseM) {
+    ctx.entities.lastCourse = { name: courseM[0], type: 'course', detectedAt: Date.now() };
+  }
+
+  const productM = message.match(/(?:композит|имплант|материал|пломба)\s+([А-Яа-яёЁa-zA-Z][а-яёЁa-zA-Z]+)/i);
+  if (productM) {
+    ctx.entities.lastProduct = { name: productM[0], type: 'product', detectedAt: Date.now() };
+  }
 }
 
 function createEmptyContext() {
