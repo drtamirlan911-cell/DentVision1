@@ -526,6 +526,8 @@ export interface AIChatResponse {
   reply: string;
   skill: string;
   source?: string;
+  data?: Record<string, unknown>;
+  recommendations?: Array<Record<string, unknown>>;
   actions: Array<{ action: string; label: string; confidence: number; params?: Record<string, unknown> }>;
   suggestions: string[];
   proactive: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;

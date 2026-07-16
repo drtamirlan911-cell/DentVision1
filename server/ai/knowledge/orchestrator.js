@@ -21,21 +21,53 @@ export async function orchestrateKnowledge(message, ctx) {
   const { user, clinic, clinicContext, skillId, digitalTwin } = ctx;
   const msg = message.toLowerCase();
 
-  // 1. Проверить внутреннюю базу знаний
+  // 1. Проверить внутреннюю базу знаний (быстрый ответ)
   const directMatch = matchKnowledge(message);
   if (directMatch?.type === 'answer') {
+    const specialty = digitalTwin?.specialty || user?.spec || '';
+    const personalized = specialty ? `\n\nУчитывая вашу специализацию (${specialty}), ` : '\n\n';
+
+    // Параллельно ищем товары и курсы для дополнения ответа
+    const enrichment = await Promise.allSettled([
+      queryShop(message, 'shopping'),
+      querySchool(message, 'learning'),
+    ]);
+
+    const products = enrichment[0].status === 'fulfilled' ? enrichment[0].value : null;
+    const courses = enrichment[1].status === 'fulfilled' ? enrichment[1].value : null;
+
+    let reply = directMatch.response;
+    const extraData = {};
+    const recs = [];
+
+    if (products?.data) {
+      extraData.products = products.data;
+      recs.push(...(Array.isArray(products.data) ? products.data : []));
+      reply += `\n\n**Доступно в DentVision Shop:**\n${formatProducts(products.data)}`;
+    }
+
+    if (courses?.data) {
+      extraData.courses = courses.data;
+      if (!recs.length) recs.push(...(Array.isArray(courses.data) ? courses.data : []));
+      reply += `\n\n**Рекомендую курсы в Academy:**\n${formatCourses(courses.data)}`;
+    }
+
     return {
-      directAnswer: directMatch.response,
+      directAnswer: reply,
       source: 'knowledge_base',
+      data: Object.keys(extraData).length ? extraData : undefined,
+      recommendations: recs.length ? recs : undefined,
     };
   }
 
-  // 2. Собрать из всех источников параллельно
-  // 2. Определить приоритеты по ключевым словам (не только по навыку)
-  const isShoppingQuery = /стоимост|цена|купить|заказать|бюджет|выбрать|сканер|композит/i.test(msg);
-  const isLearningQuery = /курс|обучени|вебинар|статья|научиться|повысить/i.test(msg);
+  // 2. Определить тип запроса по ключевым словам (не только по навыку)
+  const isEquipmentQuery = /сканер|микроскоп|компрессор|автоклав|кресло|лазер|рентген|визиограф|аппарат|инструмент/i.test(msg);
+  const isMaterialQuery = /композит|керамик|цирконий|имплант|анестетик|материал|пломб/i.test(msg);
+  const isShoppingQuery = /стоимост|цена|купить|заказать|бюджет|выбрать|подбер/i.test(msg) || isEquipmentQuery || isMaterialQuery;
+  const isLearningQuery = /курс|обучени|вебинар|статья|научиться|повысить|лекц/i.test(msg);
   const effectiveSkill = isShoppingQuery ? 'shopping' : isLearningQuery ? 'learning' : skillId;
 
+  // 3. Собрать из всех источников параллельно
   const sources = await Promise.allSettled([
     queryDentVisionDB(message, clinic, skillId),
     queryDentalKnowledge(message, directMatch, digitalTwin),
@@ -43,8 +75,20 @@ export async function orchestrateKnowledge(message, ctx) {
     queryShop(message, effectiveSkill),
   ]);
 
-  // 3. Смержить результаты
+  // 4. Смержить результаты
   const merged = mergeSources(sources);
+
+  // 5. Если запрос про оборудование/материалы и товаров нет — добавить уведомление
+  if (merged && (isEquipmentQuery || isMaterialQuery)) {
+    const hasProducts = sources.some(s => s.status === 'fulfilled' && s.value?.type === 'products');
+    if (!hasProducts) {
+      merged.contextual += '\n\nВ DentVision Shop этого товара пока нет. Могу предложить аналоги или помочь найти информацию о производителе.';
+    }
+    // Добавить специализацию в контекст
+    if (digitalTwin?.specialty) {
+      merged.contextual = `Для специалиста по ${digitalTwin.specialty}.\n\n${merged.contextual}`;
+    }
+  }
 
   return merged;
 }
@@ -275,6 +319,20 @@ function extractKeywords(text) {
     'композит', 'керамика', 'цирконий', 'имплант', 'микроскоп',
   ];
   return dental.filter(k => text.includes(k));
+}
+
+function formatProducts(products) {
+  if (!products?.length) return '';
+  return products.slice(0, 4).map(p =>
+    `• ${p.brand ? p.brand + ' ' : ''}${p.name} — ${p.price?.toLocaleString('ru-RU') || 'цена по запросу'} ₸, рейтинг ${p.rating || '—'}`
+  ).join('\n');
+}
+
+function formatCourses(courses) {
+  if (!courses?.length) return '';
+  return courses.slice(0, 4).map(c =>
+    `• «${c.title}» — ${c.instructor || c.category || ''}, ${c.durationHours || ''} ч.`
+  ).join('\n');
 }
 
 export default { orchestrateKnowledge };

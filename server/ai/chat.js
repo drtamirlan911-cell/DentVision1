@@ -63,6 +63,8 @@ export default function aiRoutes() {
         actions: response.actions || [],
         suggestions: response.suggestions || [],
         proactive: response.proactive || [],
+        data: response.data || undefined,
+        recommendations: response.recommendations || undefined,
         conversationContext: {
           turnCount: response.conversationContext?.turnCount || 0,
           entities: response.conversationContext?.entities || {},

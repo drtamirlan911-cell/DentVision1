@@ -175,6 +175,8 @@ export function DentVisionIntelligence({ onNavigate }: { onNavigate: (path: stri
         timestamp: new Date(),
         skill: res.skill,
         source: res.source as ChatMsg['source'],
+        data: res.data as ChatMsg['data'],
+        recommendations: res.recommendations as ChatMsg['recommendations'],
         actions: res.actions?.map(a => ({
           action: a.action || a.type,
           label: a.label,

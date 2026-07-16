@@ -129,17 +129,24 @@ function formulateResponse({
   proactiveAlerts, digitalTwin, permittedActions, conversationContext,
   historySnippet, user, clinic,
 }) {
+  const baseCtx = {
+    entities: conversationContext.entities || {},
+    turnCount: (conversationContext.turnCount || 0) + 1,
+  };
+
   if (knowledge?.directAnswer) {
     return {
       reply: knowledge.directAnswer,
       skill: skillId,
       source: knowledge.source || 'knowledge_base',
+      data: knowledge.data,
+      recommendations: knowledge.recommendations,
       actions: permittedActions.slice(0, 3).map(a => ({
         type: a.name, label: a.description || a.name, confidence: 0.9,
       })),
       suggestions: generateSuggestions(skillId, intent, clinicContext, permittedActions),
       proactive: proactiveAlerts,
-      conversationContext: { entities: conversationContext.entities || {}, turnCount: (conversationContext.turnCount || 0) + 1 },
+      conversationContext: baseCtx,
     };
   }
 
@@ -157,12 +164,13 @@ function formulateResponse({
       skill: skillId,
       source: knowledge.source || 'internal',
       data: knowledge.data,
+      recommendations: knowledge.recommendations,
       actions: [...sourceActions, ...permittedActions.slice(0, 2).map(a => ({
         type: a.name, label: a.description || a.name, confidence: 0.8,
       }))],
       suggestions: generateSuggestions(skillId, intent, clinicContext, permittedActions),
       proactive: proactiveAlerts,
-      conversationContext: { entities: conversationContext.entities || {}, turnCount: (conversationContext.turnCount || 0) + 1 },
+      conversationContext: baseCtx,
     };
   }
 
@@ -172,12 +180,14 @@ function formulateResponse({
     reply,
     skill: skillId,
     source: knowledge?.source || 'internal',
+    data: knowledge?.data,
+    recommendations: knowledge?.recommendations,
     actions: permittedActions.slice(0, 3).map(a => ({
       type: a.name, label: a.description || a.name, confidence: 0.8,
     })),
     suggestions: generateSuggestions(skillId, intent, clinicContext, permittedActions),
     proactive: proactiveAlerts,
-    conversationContext: { entities: conversationContext.entities || {}, turnCount: (conversationContext.turnCount || 0) + 1 },
+    conversationContext: baseCtx,
   };
 }
 

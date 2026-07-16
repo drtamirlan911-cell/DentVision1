@@ -12,6 +12,8 @@ export interface ChatMsg {
   actions?: Array<{ action: string; label: string; confidence: number; params?: Record<string, unknown> }>;
   proactive?: Array<{ type: string; text: string; priority: number }>;
   source?: 'crm' | 'shop' | 'school' | 'knowledge' | 'external' | 'market';
+  data?: Record<string, unknown>;
+  recommendations?: Array<Record<string, unknown>>;
   onAction?: (action: string, params?: Record<string, unknown>) => void;
 }
 
@@ -113,6 +115,71 @@ export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query
             return <p key={i} className="my-1.5">{block}</p>;
           })}
         </div>
+
+        {/* Structured data: products */}
+        {msg.data?.products && Array.isArray(msg.data.products) && msg.data.products.length > 0 && (
+          <div className="grid gap-2 w-full">
+            {(msg.data.products as Array<any>).slice(0, 4).map((p: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-surface-1 border border-bdr-subtle">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-dv-gold/10">
+                  <ShoppingCart size={16} className="text-dv-gold" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-txt-primary truncate">{p.brand ? `${p.brand} ` : ''}{p.name}</p>
+                  <p className="text-xs text-txt-muted">
+                    {p.price?.toLocaleString?.('ru-RU') || p.price || 'Цена по запросу'} ₸
+                    {p.rating ? ` · ${'★'.repeat(Math.round(p.rating))} ${p.rating}` : ''}
+                  </p>
+                </div>
+                {p.stock !== undefined && (
+                  <span className={`text-2xs font-medium px-2 py-0.5 rounded-full ${p.stock > 0 ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
+                    {p.stock > 0 ? 'В наличии' : 'Нет'}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Structured data: courses */}
+        {msg.data?.courses && Array.isArray(msg.data.courses) && msg.data.courses.length > 0 && (
+          <div className="grid gap-2 w-full">
+            {(msg.data.courses as Array<any>).slice(0, 4).map((c: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-surface-1 border border-bdr-subtle">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-400/10">
+                  <GraduationCap size={16} className="text-emerald-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-txt-primary truncate">{c.title}</p>
+                  <p className="text-xs text-txt-muted">
+                    {c.instructor || c.category || ''}
+                    {c.durationHours ? ` · ${c.durationHours} ч.` : ''}
+                    {c.rating ? ` · ${'★'.repeat(Math.round(c.rating))}` : ''}
+                  </p>
+                </div>
+                {c.enrolledCount !== undefined && (
+                  <span className="text-2xs text-txt-muted">{c.enrolledCount} зап.</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Legacy recommendations (fallback) */}
+        {!msg.data && msg.recommendations && Array.isArray(msg.recommendations) && msg.recommendations.length > 0 && (
+          <div className="grid gap-2 w-full">
+            {msg.recommendations.slice(0, 4).map((r: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-surface-1 border border-bdr-subtle">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-txt-primary truncate">{r.name || r.title || r.brand || ''}</p>
+                  {(r.price || r.instructor) && (
+                    <p className="text-xs text-txt-muted">{r.price ? `${r.price} ₸` : r.instructor || ''}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Action buttons */}
         {msg.actions && msg.actions.length > 0 && (
