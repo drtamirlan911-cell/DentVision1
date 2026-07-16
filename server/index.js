@@ -74,6 +74,7 @@ import publicRoutes from './routes/public.js';
 import auditRoutes from './routes/audit.js';
 import serviceAccessRoutes from './routes/serviceAccess.js';
 import notificationRoutes from './routes/notifications.js';
+import profileRoutes from './routes/profile.js';
 import { authenticate } from './middleware/auth.js';
 import { requireServiceAccess, invalidateServiceCache } from './middleware/serviceAccess.js';
 
@@ -258,6 +259,11 @@ app.get('/api/clinics', async (_req, res) => {
 // AUTH ROUTES (with rate limiting)
 // ═══════════════════════════════════════════════════════════════
 app.use('/api/auth', authRoutes(authLimiter));
+
+// ═══════════════════════════════════════════════════════════════
+// PROFILE ROUTES (authenticated, user-scoped)
+// ═══════════════════════════════════════════════════════════════
+app.use('/api/profile', authenticate, profileRoutes());
 
 // ═══════════════════════════════════════════════════════════════
 // PROTECTED ROUTES (JWT required)

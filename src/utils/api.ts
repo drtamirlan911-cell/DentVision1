@@ -488,3 +488,23 @@ export async function createSchoolClinicalCase(data: any): Promise<any> { return
 export async function deleteSchoolClinicalCase(id: string): Promise<any> { return apiRequest(`/api/school/clinical-cases/${id}`, { method: 'DELETE' }); }
 export async function createSchoolLibraryItem(data: any): Promise<any> { return apiRequest('/api/school/library', { method: 'POST', body: JSON.stringify(data) }); }
 export async function deleteSchoolLibraryItem(id: string): Promise<any> { return apiRequest(`/api/school/library/${id}`, { method: 'DELETE' }); }
+
+// ─── User Professional Profile (LinkedIn-style) ───
+export async function getMyProfile(): Promise<any> { return apiRequest('/api/profile'); }
+export async function getPublicProfile(identifier: string): Promise<any> { return apiRequest(`/api/profile/${identifier}`); }
+export async function updateMyProfile(data: any): Promise<any> { return apiRequest('/api/profile', { method: 'PUT', body: JSON.stringify(data) }); }
+
+export async function addSkill(data: any): Promise<any> { return apiRequest('/api/profile/skills', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteSkill(id: string): Promise<any> { return apiRequest(`/api/profile/skills/${id}`, { method: 'DELETE' }); }
+
+export async function addCertificate(data: any): Promise<any> { return apiRequest('/api/profile/certificates', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteCertificate(id: string): Promise<any> { return apiRequest(`/api/profile/certificates/${id}`, { method: 'DELETE' }); }
+
+export async function addAchievement(data: any): Promise<any> { return apiRequest('/api/profile/achievements', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteAchievement(id: string): Promise<any> { return apiRequest(`/api/profile/achievements/${id}`, { method: 'DELETE' }); }
+
+export async function addPortfolioItem(data: any): Promise<any> { return apiRequest('/api/profile/portfolio', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deletePortfolioItem(id: string): Promise<any> { return apiRequest(`/api/profile/portfolio/${id}`, { method: 'DELETE' }); }
+
+export async function addCase(data: any): Promise<any> { return apiRequest('/api/profile/cases', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteCase(id: string): Promise<any> { return apiRequest(`/api/profile/cases/${id}`, { method: 'DELETE' }); }

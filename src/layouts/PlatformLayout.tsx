@@ -138,13 +138,16 @@ export function PlatformLayout() {
         {/* User info */}
         {!collapsed && (
           <div className="px-3 py-3 border-b border-bdr-subtle">
-            <div className="flex items-center gap-2.5">
-              <Avatar name={user?.name || user?.login || '?'} size="sm" />
+            <button
+              onClick={() => navigate('/profile')}
+              className="flex w-full items-center gap-2.5 rounded-lg hover:bg-white/[0.04] transition-colors -mx-1 px-1 py-1 text-left"
+            >
+              <Avatar name={user?.name || user?.login || '?'} src={(user as any)?.photoUrl} size="sm" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-txt-primary truncate">{user?.name || user?.login}</p>
                 <p className="text-2xs text-txt-muted">{roleInfo?.label || 'Сотрудник'}</p>
               </div>
-            </div>
+            </button>
           </div>
         )}
 
