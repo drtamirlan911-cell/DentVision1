@@ -213,13 +213,25 @@ export default function IntelligenceLayout() {
             </div>
           )}
 
-          <nav className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 no-scrollbar">
+          <motion.nav
+            initial="hidden"
+            animate={sidebarVisible ? 'visible' : 'hidden'}
+            variants={{
+              hidden: {},
+              visible: { transition: { staggerChildren: 0.035, delayChildren: 0.1 } },
+            }}
+            className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 no-scrollbar"
+          >
             {filteredServiceItems.map(item => {
               const isActive = location.pathname.startsWith(item.path);
               return (
                 <motion.button
                   key={item.id}
                   layout
+                  variants={{
+                    hidden: { opacity: 0, x: -12 },
+                    visible: { opacity: 1, x: 0 },
+                  }}
                   onClick={() => handleNavClick(item.path)}
                   className={cn(
                     'group relative flex w-full items-center gap-2.5 rounded-lg transition-all duration-150',
@@ -245,7 +257,7 @@ export default function IntelligenceLayout() {
                 </motion.button>
               );
             })}
-          </nav>
+          </motion.nav>
 
           {/* Platform services */}
           {!collapsed && filteredPlatformItems.length > 0 && (
