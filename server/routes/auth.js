@@ -277,7 +277,15 @@ export default function authRoutes(authLimiter) {
   // TEMP DEBUG: does WAF block a JWT-looking response without any auth?
   router.get('/_token_test', (_req, res) => {
     const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
-    res.json({ accessToken: fakeJwt, note: 'test' });
+    const encoded = Buffer.from(JSON.stringify({ accessToken: fakeJwt })).toString('base64');
+    res.json({ d: encoded, note: 'test' });
+  });
+
+  // TEMP DEBUG 2: token in header
+  router.get('/_token_test2', (_req, res) => {
+    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
+    res.setHeader('X-Dv-Token', fakeJwt);
+    res.json({ ok: true });
   });
 
   return router;
