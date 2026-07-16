@@ -277,6 +277,10 @@ app.get('/api/clinics', async (_req, res) => {
   } catch { res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// TEMP DEBUG: test if WAF blocks other prefixes on 200
+app.get('/api/v1/ping', (_req, res) => { res.json({ ok: true, prefix: 'v1' }); });
+app.get('/account/ping', (_req, res) => { res.json({ ok: true, prefix: 'account' }); });
+
 // ═══════════════════════════════════════════════════════════════
 // AUTH ROUTES (with rate limiting)
 // ═══════════════════════════════════════════════════════════════
