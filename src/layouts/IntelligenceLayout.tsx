@@ -19,7 +19,6 @@ import { useUIStore } from '@/stores/useUIStore';
 import { Avatar } from '@/components/ui/ds/Avatar';
 import { WelcomeAnimation } from '@/components/intelligence/WelcomeAnimation';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
-import { ProactiveAlerts } from '@/components/intelligence/ProactiveAlerts';
 import { AI_SERVICES, AI_PLATFORM_SERVICES } from '@/components/intelligence/AIServiceCards';
 import { aiProactive } from '@/utils/api';
 

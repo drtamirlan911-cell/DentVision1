@@ -536,9 +536,6 @@ export interface AIChatResponse {
 export async function aiChat(message: string, history: Array<{ role: string; content: string }> = []): Promise<AIChatResponse> {
   return apiRequest('/api/ai/chat', { method: 'POST', body: JSON.stringify({ message, history }) });
 }
-export async function aiGreeting(): Promise<{ greeting: string; proactive: any[]; skill: string }> {
-  return apiRequest('/api/ai/greeting');
-}
 export async function aiProactive(): Promise<{ alerts: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }> }> {
   return apiRequest('/api/ai/proactive');
 }
@@ -547,7 +544,4 @@ export async function aiAction(action: string, params: Record<string, unknown> =
 }
 export async function aiDigitalTwin(): Promise<any> {
   return apiRequest('/api/ai/digital-twin');
-}
-export async function aiSetContext(data: { patientId?: string; appointmentId?: string }): Promise<any> {
-  return apiRequest('/api/ai/context', { method: 'POST', body: JSON.stringify(data) });
 }

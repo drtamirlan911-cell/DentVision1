@@ -63,8 +63,6 @@ const MyClinics = lazy(() => import('./pages/MyClinics'));
 import { CrmLayout } from './layouts/services/CrmLayout';
 import { ShopLayout } from './layouts/services/ShopLayout';
 import { SchoolLayout } from './layouts/services/SchoolLayout';
-import { PlatformLayout } from './layouts/PlatformLayout';
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
