@@ -96,8 +96,8 @@ export default function authRoutes(authLimiter) {
         decoded.activeRole || user.role || null
       );
       res.json(tokens);
-    } catch {
-      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    } catch (e) {
+      res.status(500).json({ error: 'Internal server error', detail: (e as Error)?.message });
     }
   });
 
