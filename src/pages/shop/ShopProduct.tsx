@@ -4,6 +4,9 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Star, ShoppingCart, Heart, Package, Truck, Clock, Shield, ChevronRight, MessageSquare, ThumbsUp } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
+import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/ds/Toast';
 import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Badge } from '../../components/ui/ds/Badge';
@@ -42,10 +45,48 @@ interface ProductDetail {
 export default function ShopProduct() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { addToCart, toggleFav, isFav } = useCart();
+  const { user } = useAuth();
+  const toast = useToast();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('description');
   const [reviewForm, setReviewForm] = useState({ rating: 5, pros: '', cons: '', comment: '' });
+
+  const favActive = product ? isFav(product.id) : false;
+
+  const handleAddToCart = () => {
+    if (!product) return;
+    addToCart({ id: product.id, name: product.name, brand: product.brand, price: product.price, imageUrl: product.image_url });
+    toast.success('Добавлено в корзину');
+  };
+
+  const handleToggleFav = () => {
+    if (!product) return;
+    const wasFav = isFav(product.id);
+    toggleFav({ id: product.id, name: product.name, brand: product.brand, price: product.price, rating: product.rating });
+    toast.success(wasFav ? 'Убрано из избранного' : 'Добавлено в избранное');
+  };
+
+  const handleSubmitReview = async () => {
+    if (!user) { toast.error('Войдите, чтобы оставить отзыв'); return; }
+    if (!reviewForm.comment.trim() && !reviewForm.pros.trim() && !reviewForm.cons.trim()) {
+      toast.error('Напишите текст отзыва'); return;
+    }
+    try {
+      await api.createShopReview({ product_id: id, rating: reviewForm.rating, pros: reviewForm.pros, cons: reviewForm.cons, comment: reviewForm.comment });
+      const rc = product!.review_count || 0;
+      const newAvg = Math.round(((product!.rating * rc + reviewForm.rating) / (rc + 1)) * 10) / 10;
+      setProduct(prev => prev ? {
+        ...prev,
+        reviews: [{ user_name: user.name || 'Вы', rating: reviewForm.rating, pros: reviewForm.pros, cons: reviewForm.cons, comment: reviewForm.comment }, ...(prev.reviews || [])],
+        review_count: rc + 1,
+        rating: newAvg,
+      } : prev);
+      setReviewForm({ rating: 5, pros: '', cons: '', comment: '' });
+      toast.success('Отзыв добавлен');
+    } catch { toast.error('Не удалось отправить отзыв'); }
+  };
 
   useEffect(() => {
     api.getShopProduct(id).then(setProduct).catch(() => {}).finally(() => setLoading(false));
@@ -149,13 +190,14 @@ export default function ShopProduct() {
                 className="w-full"
                 disabled={product.stock <= 0}
                 icon={<ShoppingCart size={16} />}
+                onClick={handleAddToCart}
               >
                 {product.stock > 0 ? 'Добавить в корзину' : 'Нет в наличии'}
               </Button>
             </motion.div>
             <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
-              <Button variant="outline" size="icon">
-                <Heart size={18} />
+              <Button variant="outline" size="icon" onClick={handleToggleFav}>
+                <Heart size={18} className={favActive ? 'text-[#E74C3C] fill-[#E74C3C]' : ''} />
               </Button>
             </motion.div>
           </div>
@@ -207,6 +249,43 @@ export default function ShopProduct() {
 
         {activeTab === 'reviews' && (
           <div>
+            <div className="bg-white/[0.02] border border-[var(--border-subtle)] rounded-xl p-4 mb-5">
+              <h4 className="text-sm font-bold text-white m-0 mb-3">Оставить отзыв</h4>
+              <div className="flex items-center gap-1 mb-3">
+                {[...Array(5)].map((_, j) => (
+                  <button
+                    key={j}
+                    type="button"
+                    onClick={() => setReviewForm(prev => ({ ...prev, rating: j + 1 }))}
+                    className="bg-transparent border-none cursor-pointer p-0"
+                  >
+                    <Star size={20} color="#C9A96E" fill={j < reviewForm.rating ? '#C9A96E' : 'transparent'} />
+                  </button>
+                ))}
+              </div>
+              <input
+                value={reviewForm.pros}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReviewForm(prev => ({ ...prev, pros: e.target.value }))}
+                placeholder="Плюсы"
+                className="!rounded-lg !mb-2"
+              />
+              <input
+                value={reviewForm.cons}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReviewForm(prev => ({ ...prev, cons: e.target.value }))}
+                placeholder="Минусы"
+                className="!rounded-lg !mb-2"
+              />
+              <textarea
+                value={reviewForm.comment}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
+                placeholder="Ваш отзыв"
+                rows={3}
+                className="!rounded-lg !mb-3"
+              />
+              <Button variant="primary" size="sm" onClick={handleSubmitReview}>
+                Отправить отзыв
+              </Button>
+            </div>
             {product.reviews?.length! > 0 ? product.reviews!.map((review, i) => (
               <div key={i} className="py-4 border-b border-[var(--border-subtle)]">
                 <div className="flex justify-between items-center mb-2">

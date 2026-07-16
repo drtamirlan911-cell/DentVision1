@@ -644,6 +644,7 @@ model SchoolEnrollment {
   userName   String?   @map("user_name") @db.VarChar(255)
   courseId    String    @map("course_id") @db.VarChar(50)
   progress   Int?      @default(0)
+  completedLessons Json? @map("completed_lessons") @db.JsonB
   completed  Boolean?  @default(false)
   startedAt  DateTime  @default(now()) @map("started_at")
   completedAt DateTime? @map("completed_at")

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
 import { NotificationProvider } from './context/NotificationsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/ds';
@@ -41,6 +42,10 @@ const Documents = lazy(() => import('./pages/crm/Documents'));
 // Shop sub-app pages
 const Shop = lazy(() => import('./pages/shop/Shop'));
 const ShopProduct = lazy(() => import('./pages/shop/ShopProduct'));
+const ShopCheckout = lazy(() => import('./pages/shop/ShopCheckout'));
+const ShopOrders = lazy(() => import('./pages/shop/ShopOrders'));
+const ShopFavorites = lazy(() => import('./pages/shop/ShopFavorites'));
+const ShopSuppliers = lazy(() => import('./pages/shop/ShopSuppliers'));
 
 // School sub-app pages
 const School = lazy(() => import('./pages/school/School'));
@@ -83,6 +88,7 @@ if (container) {
           <QueryClientProvider client={queryClient}>
             <BrowserRouter>
             <AuthProvider>
+              <CartProvider>
               <NotificationProvider>
               <Routes>
                 {/* Public / standalone routes */}
@@ -128,6 +134,10 @@ if (container) {
                 <Route path="shop" element={<ShopLayout />}>
                   <Route index element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
                   <Route path=":id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
+                  <Route path="checkout" element={<Suspense fallback={<PageLoader />}><ShopCheckout /></Suspense>} />
+                  <Route path="orders" element={<Suspense fallback={<PageLoader />}><ShopOrders /></Suspense>} />
+                  <Route path="favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
+                  <Route path="suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
                 </Route>
 
                 {/* School sub-app */}
@@ -139,6 +149,7 @@ if (container) {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
               </NotificationProvider>
+              </CartProvider>
             </AuthProvider>
           </BrowserRouter>
         </QueryClientProvider>

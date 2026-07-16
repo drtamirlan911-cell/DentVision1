@@ -73,6 +73,40 @@ export default function schoolRoutes() {
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
 
+  router.patch('/enrollments/:id', authenticate, requireServiceAccess('school'), async (req, res) => {
+    try {
+      const { progress, completedLessons } = req.body;
+      const enrollment = await prisma.schoolEnrollment.findUnique({ where: { id: req.params.id } });
+      if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
+      if (enrollment.userId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+      const completed = (progress ?? enrollment.progress ?? 0) >= 100;
+      const updated = await prisma.schoolEnrollment.update({
+        where: { id: req.params.id },
+        data: {
+          progress: progress ?? enrollment.progress,
+          completedLessons: completedLessons !== undefined ? JSON.stringify(completedLessons) : undefined,
+          completed,
+          completedAt: completed ? (enrollment.completedAt || new Date()) : null,
+        },
+      });
+      if (completed && !enrollment.completed) {
+        const course = await prisma.schoolCourse.findUnique({ where: { id: enrollment.courseId }, select: { title: true, certificateEnabled: true } });
+        if (course?.certificateEnabled !== false) {
+          const certId = crypto.randomUUID();
+          const num = 'DV-' + new Date().getFullYear() + '-' + crypto.randomUUID().slice(0, 6).toUpperCase();
+          await prisma.schoolCertificate.create({
+            data: { id: certId, clinicId: enrollment.clinicId, userId: enrollment.userId, userName: enrollment.userName, courseId: enrollment.courseId, courseTitle: course?.title, certificateNumber: num },
+          });
+          await createNotification({
+            type: 'school', category: 'certificate', clinicId: enrollment.clinicId, userId: enrollment.userId,
+            title: 'Сертификат получен', message: `Вы завершили курс «${course?.title}» и получили сертификат`, actionUrl: '/school',
+          });
+        }
+      }
+      res.json(updated);
+    } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
   // ─── Clinical Cases (public read) ───
   router.get('/clinical-cases', async (req, res) => {
     try {

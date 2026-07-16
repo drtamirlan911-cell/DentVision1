@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle } from 'lucide-react';
-import { Button, Badge, EmptyState, Card } from '../../components/ui/ds';
+import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2 } from 'lucide-react';
+import { Button, Badge, EmptyState, Card, ProgressBar } from '../../components/ui/ds';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/ds/Toast';
 import * as api from '../../utils/api';
 
 interface Lesson {
@@ -38,25 +40,72 @@ const DIFF_LABELS: Record<string, string> = { beginner: 'Начинающий', 
 const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = { video: Video, text: FileText, test: HelpCircle };
 const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест' };
 
+function parseLessons(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return []; } }
+  return [];
+}
+
 export default function SchoolCourse() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const toast = useToast();
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [enrolled, setEnrolled] = useState(false);
+  const [enrollmentId, setEnrollmentId] = useState<string | null>(null);
+  const [completedLessons, setCompletedLessons] = useState<string[]>([]);
+  const [progress, setProgress] = useState(0);
+  const [certificate, setCertificate] = useState<any>(null);
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    api.getSchoolCourse(id).then((c: CourseDetail) => {
+    Promise.all([
+      api.getSchoolCourse(id),
+      user ? api.getEnrollments(user.id) : Promise.resolve([]),
+    ]).then(([c, enr]: [CourseDetail, any[]]) => {
       setCourse(c);
+      const e = enr?.find(x => x.courseId === id);
+      if (e) {
+        setEnrolled(true);
+        setEnrollmentId(e.id);
+        setProgress(e.progress || 0);
+        setCompletedLessons(parseLessons(e.completedLessons));
+      }
       if (c.modules?.[0]?.lessons?.[0]) setActiveLesson(c.modules[0].lessons[0]);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [id]);
+  }, [id, user]);
+
+  const allLessons = course?.modules?.flatMap(m => m.lessons || []) || [];
+  const totalLessons = allLessons.length;
 
   const handleEnroll = async () => {
-    await api.enrollCourse({ course_id: id });
-    setEnrolled(true);
+    try {
+      const res = await api.enrollCourse({ course_id: id });
+      setEnrolled(true);
+      setEnrollmentId(res.id);
+    } catch { toast.error('Не удалось записаться'); }
+  };
+
+  const markComplete = async (lessonId: string) => {
+    if (!enrollmentId) { toast.error('Сначала запишитесь на курс'); return; }
+    if (completedLessons.includes(lessonId)) { toast.info('Урок уже пройден'); return; }
+    const arr = [...completedLessons, lessonId];
+    const prog = totalLessons > 0 ? Math.round((arr.length / totalLessons) * 100) : 100;
+    setCompletedLessons(arr);
+    setProgress(prog);
+    try {
+      await api.updateEnrollment(enrollmentId, { progress: prog, completedLessons: arr });
+      toast.success('Урок отмечен как пройденный');
+      if (prog >= 100) {
+        const certs = await api.getSchoolCertificates(user!.id);
+        const cert = certs.find((c: any) => c.courseId === id);
+        if (cert) setCertificate(cert);
+      }
+    } catch { toast.error('Не удалось сохранить прогресс'); }
   };
 
   const toggleModule = (modId: string) => {
@@ -97,9 +146,9 @@ export default function SchoolCourse() {
             <div className="flex gap-1.5 mb-2">
               <span
                 className="text-[10px] font-bold px-2 py-0.5 rounded-md"
-                style={{ background: DIFF_COLORS[course.difficulty!] + '15', color: DIFF_COLORS[course.difficulty!] }}
+                style={{ background: (DIFF_COLORS[course.difficulty!] || '#C9A96E') + '15', color: DIFF_COLORS[course.difficulty!] || '#C9A96E' }}
               >
-                {DIFF_LABELS[course.difficulty!]}
+                {DIFF_LABELS[course.difficulty!] || course.difficulty}
               </span>
               <Badge variant="gold" size="xs">{course.category}</Badge>
             </div>
@@ -111,6 +160,17 @@ export default function SchoolCourse() {
               <span className="flex items-center gap-1"><Users size={12} /> {course.enrolled_count}</span>
               <span className="flex items-center gap-1"><Star size={12} className="text-[#C9A96E] fill-[#C9A96E]" /> {course.rating}</span>
             </div>
+
+            {enrolled && totalLessons > 0 && (
+              <div className="mb-3">
+                <div className="flex justify-between text-[11px] text-[var(--slate)] mb-1">
+                  <span>Прогресс</span>
+                  <span className="text-[#C9A96E] font-semibold">{progress}%</span>
+                </div>
+                <ProgressBar value={progress} />
+              </div>
+            )}
+
             {!enrolled ? (
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -123,6 +183,16 @@ export default function SchoolCourse() {
             ) : (
               <div className="flex items-center gap-1.5 text-[#27AE60] text-[13px] font-semibold">
                 <Check size={16} /> Вы записаны
+              </div>
+            )}
+
+            {certificate && (
+              <div className="mt-3 flex items-center gap-2 bg-[#C9A96E]/10 border border-[#C9A96E]/30 rounded-lg px-3 py-2">
+                <Award size={18} className="text-[#C9A96E]" />
+                <div className="min-w-0">
+                  <p className="text-[11px] text-[#C9A96E] font-bold m-0">Сертификат получен</p>
+                  <p className="text-[10px] text-[var(--slate)] m-0 truncate">№ {certificate.certificateNumber}</p>
+                </div>
               </div>
             )}
           </div>
@@ -155,6 +225,7 @@ export default function SchoolCourse() {
                         {mod.lessons?.map((lesson) => {
                           const LIcon = TYPE_ICONS[lesson.type] || FileText;
                           const isActive = activeLesson?.id === lesson.id;
+                          const isDone = completedLessons.includes(lesson.id);
                           return (
                             <button
                               key={lesson.id}
@@ -165,7 +236,7 @@ export default function SchoolCourse() {
                                   : 'border-l-[3px] border-l-transparent text-[var(--slate-light)]'
                               }`}
                             >
-                              <LIcon size={13} />
+                              {isDone ? <CheckCircle2 size={13} className="text-[#27AE60]" /> : <LIcon size={13} />}
                               <span className="flex-1">{lesson.title}</span>
                               <span className="text-[10px] text-[var(--slate)] flex items-center gap-0.5">
                                 <Clock size={10} /> {lesson.duration_minutes}м
@@ -206,18 +277,21 @@ export default function SchoolCourse() {
                 <div className="text-center">
                   <HelpCircle size={48} className="text-[#C9A96E]/60" />
                   <p className="text-sm text-[var(--slate-light)] mt-2">Тест: {activeLesson.title}</p>
-                  <motion.button
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="mt-3 py-2.5 px-6 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit"
-                  >
-                    Начать тест
-                  </motion.button>
+                  {enrolled && (
+                    <Button variant="primary" size="sm" className="mt-3" onClick={() => markComplete(activeLesson.id)}>
+                      Завершить тест
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="text-center">
                   <FileText size={48} className="text-[#C9A96E]/60" />
                   <p className="text-sm text-[var(--slate-light)] mt-2">Статья: {activeLesson.title}</p>
+                </div>
+              )}
+              {completedLessons.includes(activeLesson.id) && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 bg-[#27AE60]/20 border border-[#27AE60]/40 text-[#27AE60] text-[10px] font-bold px-2 py-0.5 rounded-md">
+                  <Check size={11} /> Пройдено
                 </div>
               )}
             </div>
@@ -240,10 +314,9 @@ export default function SchoolCourse() {
               </p>
             </div>
 
-            <div className="flex justify-between mt-5">
+            <div className="flex items-center justify-between mt-5">
               <button
                 onClick={() => {
-                  const allLessons = course.modules?.flatMap(m => m.lessons || []) || [];
                   const idx = allLessons.findIndex(l => l.id === activeLesson.id);
                   if (idx > 0) setActiveLesson(allLessons[idx - 1]);
                 }}
@@ -251,11 +324,22 @@ export default function SchoolCourse() {
               >
                 ← Предыдущий
               </button>
+              {enrolled ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => markComplete(activeLesson.id)}
+                  disabled={completedLessons.includes(activeLesson.id)}
+                >
+                  {completedLessons.includes(activeLesson.id) ? 'Пройдено ✓' : 'Отметить пройденным'}
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={handleEnroll}>Записаться, чтобы отмечать</Button>
+              )}
               <Button
                 variant="primary"
                 size="sm"
                 onClick={() => {
-                  const allLessons = course.modules?.flatMap(m => m.lessons || []) || [];
                   const idx = allLessons.findIndex(l => l.id === activeLesson.id);
                   if (idx < allLessons.length - 1) setActiveLesson(allLessons[idx + 1]);
                 }}

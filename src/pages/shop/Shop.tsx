@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
+import { useCart } from '../../context/CartContext';
 import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Input } from '../../components/ui/ds/Input';
@@ -42,22 +43,6 @@ interface ShopSupplier {
   name: string;
 }
 
-interface CartItem {
-  id: string;
-  name: string;
-  brand: string;
-  price: number;
-  qty: number;
-}
-
-interface FavoriteItem {
-  id: string;
-  name: string;
-  brand: string;
-  price: number;
-  rating: number;
-}
-
 interface AiResponse {
   query: string;
   results: ShopProductItem[];
@@ -77,11 +62,10 @@ const SORT_OPTIONS = [
 
 export default function Shop() {
   const navigate = useNavigate();
+  const { cart, favorites, cartCount, cartTotal, addToCart, toggleFav } = useCart();
   const [categories, setCategories] = useState<ShopCategory[]>([]);
   const [products, setProducts] = useState<ShopProductItem[]>([]);
   const [suppliers, setSuppliers] = useState<ShopSupplier[]>([]);
-  const [cart, setCart] = useState<CartItem[]>(() => { try { return JSON.parse(localStorage.getItem('dv_cart') || '[]'); } catch { return []; } });
-  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => { try { return JSON.parse(localStorage.getItem('dv_favs') || '[]'); } catch { return []; } });
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState('');
   const [sortBy, setSortBy] = useState('');
@@ -98,9 +82,6 @@ export default function Shop() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { localStorage.setItem('dv_cart', JSON.stringify(cart)); }, [cart]);
-  useEffect(() => { localStorage.setItem('dv_favs', JSON.stringify(favorites)); }, [favorites]);
-
   const filteredProducts = useMemo(() => {
     let list = [...products];
     if (selectedCat) list = list.filter(p => p.category_id === selectedCat);
@@ -114,25 +95,6 @@ export default function Shop() {
     else list.sort((a, b) => b.rating - a.rating);
     return list;
   }, [products, selectedCat, search, sortBy]);
-
-  const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.price * i.qty, 0), [cart]);
-  const cartCount = useMemo(() => cart.reduce((s, i) => s + i.qty, 0), [cart]);
-
-  const addToCart = (product: ShopProductItem) => {
-    setCart(prev => {
-      const ex = prev.find(i => i.id === product.id);
-      if (ex) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { id: product.id, name: product.name, brand: product.brand, price: product.price, qty: 1 }];
-    });
-  };
-
-  const toggleFav = (product: ShopProductItem) => {
-    setFavorites(prev => {
-      const exists = prev.find(f => f.id === product.id);
-      if (exists) return prev.filter(f => f.id !== product.id);
-      return [...prev, { id: product.id, name: product.name, brand: product.brand, price: product.price, rating: product.rating }];
-    });
-  };
 
   const handleAiSearch = () => {
     if (!aiQuery.trim()) return;
@@ -512,7 +474,7 @@ export default function Shop() {
                     <span className="text-sm text-[var(--slate-light)]">Итого:</span>
                     <span className="text-lg font-extrabold text-white">{tg(cartTotal)}</span>
                   </div>
-                  <Button variant="primary" size="lg" className="w-full">
+                  <Button variant="primary" size="lg" className="w-full" onClick={() => navigate('/shop/checkout')}>
                     Оформить заказ
                   </Button>
                 </div>

@@ -382,6 +382,7 @@ export async function getSchoolCourses(params: Record<string, string> = {}): Pro
 export async function getSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`); }
 export async function enrollCourse(data: any): Promise<any> { return apiRequest('/api/school/enrollments', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getEnrollments(userId: string): Promise<any> { return apiRequest(`/api/school/enrollments?user_id=${userId}`); }
+export async function updateEnrollment(id: string, data: any): Promise<any> { return apiRequest(`/api/school/enrollments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
 export async function getSchoolClinicalCases(category: string): Promise<any> { return apiRequest(`/api/school/clinical-cases${category ? `?category=${category}` : ''}`); }
 export async function getSchoolLibrary(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
