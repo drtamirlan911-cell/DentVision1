@@ -2,12 +2,18 @@ services:
   - type: web
     name: dentvision-api
     runtime: node
-    buildCommand: cd server && npm install && npx prisma generate && npx prisma db push --accept-data-loss
-    startCommand: cd server && node index.js
+    buildCommand: cd dentvision-backend && npm install && npx prisma generate && npx prisma db push --accept-data-loss
+    startCommand: cd dentvision-backend && npx tsx src/index.ts
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
         sync: false
-      - key: ENCRYPTION_KEY
+      - key: JWT_SECRET
         generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000
+      - key: CORS_ORIGIN
+        value: "*"
