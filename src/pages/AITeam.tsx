@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, type KeyboardEvent } from 'react';
-import { useOutletContext } from 'react-router-dom';
 import { useToast, useData } from '../hooks/useData';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/ds/Button';
 import { Card, CardContent } from '../components/ui/ds/Card';
 import { buildAiReply } from '../utils/aiHelpers';
@@ -18,7 +18,6 @@ import {
   Loader2,
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/ds/StatCard';
-import type { Clinic, User, RoleInfo } from '../types';
 
 interface Assistant {
   id: string;
@@ -111,7 +110,7 @@ const AI_FEATURES: AiFeature[] = [
 ];
 
 export default function AITeam() {
-  const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
+  const { clinic } = useAuth();
   const { showToast } = useToast();
   const { patients, appointments, receipts, doctors } = useData(clinic?.id);
   const [activeId, setActiveId] = useState<string>('consultant');

@@ -18,7 +18,7 @@ export function SuggestionChips({ suggestions, onSelect, disabled }: SuggestionC
       exit={{ opacity: 0, y: -10 }}
       className="flex flex-wrap gap-2"
     >
-      {suggestions.slice(0, 4).map((suggestion, i) => (
+      {suggestions.slice(0, 6).map((suggestion, i) => (
         <motion.button
           key={suggestion}
           onClick={() => !disabled && onSelect(suggestion)}

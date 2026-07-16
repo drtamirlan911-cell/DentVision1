@@ -25,6 +25,8 @@ const Backup = lazy(() => import('./pages/Backup'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Jobs = lazy(() => import('./pages/Jobs'));
+const Community = lazy(() => import('./pages/Community'));
 
 // CRM sub-app pages
 const Schedule = lazy(() => import('./pages/crm/Schedule'));
@@ -59,8 +61,6 @@ const SchoolAdmin = lazy(() => import('./pages/admin/SchoolAdmin'));
 // Workspace selection
 const MyClinics = lazy(() => import('./pages/MyClinics'));
 
-// Layouts
-// CRM/Shop/School now under IntelligenceLayout, using IntelligenceLayout sidebar
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -97,14 +97,15 @@ if (container) {
                 <Route path="/book/:clinicId" element={<PublicBooking />} />
                 <Route path="/sign/:token" element={<DocumentSign />} />
 
-                {/* AI-First Intelligence Layout - Main entry point after login */}
+                {/* Workspace selection (no active clinic) */}
+                <Route path="/my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
+
+                {/* AI-First Intelligence Layout — Main entry point after login */}
                 <Route path="/" element={<IntelligenceLayout />}>
                   <Route index element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
-                  
-                  {/* Dashboard as child of Intelligence */}
                   <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
                   <Route path="intelligence" element={<Navigate to="/" replace />} />
-                  
+
                   {/* Platform pages */}
                   <Route path="ai" element={<Suspense fallback={<PageLoader />}><AITeam /></Suspense>} />
                   <Route path="analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
@@ -113,38 +114,39 @@ if (container) {
                   <Route path="audit" element={<Suspense fallback={<PageLoader />}><AuditLog /></Suspense>} />
                   <Route path="backup" element={<Suspense fallback={<PageLoader />}><Backup /></Suspense>} />
                   <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
+                  <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
+                  <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
+
+                  {/* CRM sub-app — under IntelligenceLayout sidebar */}
+                  <Route path="crm/schedule" element={<Suspense fallback={<PageLoader />}><Schedule /></Suspense>} />
+                  <Route path="crm/patients" element={<Suspense fallback={<PageLoader />}><Patients /></Suspense>} />
+                  <Route path="crm/cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
+                  <Route path="crm/pricelist" element={<Suspense fallback={<PageLoader />}><PriceList /></Suspense>} />
+                  <Route path="crm/lab" element={<Suspense fallback={<PageLoader />}><Lab /></Suspense>} />
+                  <Route path="crm/inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
+                  <Route path="crm/promotions" element={<Suspense fallback={<PageLoader />}><Promotions /></Suspense>} />
+                  <Route path="crm/staff" element={<Suspense fallback={<PageLoader />}><Staff /></Suspense>} />
+                  <Route path="crm/medical-card" element={<Suspense fallback={<PageLoader />}><MedicalCard /></Suspense>} />
+                  <Route path="crm/icd10" element={<Suspense fallback={<PageLoader />}><ICD10 /></Suspense>} />
+                  <Route path="crm/visits" element={<Suspense fallback={<PageLoader />}><Visits /></Suspense>} />
+                  <Route path="crm/documents" element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
+
+                  {/* Shop sub-app — under IntelligenceLayout sidebar */}
+                  <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
+                  <Route path="shop/:id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
+                  <Route path="shop/checkout" element={<Suspense fallback={<PageLoader />}><ShopCheckout /></Suspense>} />
+                  <Route path="shop/orders" element={<Suspense fallback={<PageLoader />}><ShopOrders /></Suspense>} />
+                  <Route path="shop/favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
+                  <Route path="shop/suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
+
+                  {/* School sub-app — under IntelligenceLayout sidebar */}
+                  <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
+                  <Route path="school/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
+
+                  {/* Superadmin content management */}
                   <Route path="shop/admin" element={<Suspense fallback={<PageLoader />}><ShopAdmin /></Suspense>} />
                   <Route path="school/admin" element={<Suspense fallback={<PageLoader />}><SchoolAdmin /></Suspense>} />
                 </Route>
-
-                {/* Workspace selection (no active clinic) */}
-                <Route path="my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
-
-                {/* CRM sub-app - now under IntelligenceLayout */}
-                <Route path="crm/schedule" element={<Suspense fallback={<PageLoader />}><Schedule /></Suspense>} />
-                <Route path="crm/patients" element={<Suspense fallback={<PageLoader />}><Patients /></Suspense>} />
-                <Route path="crm/cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
-                <Route path="crm/pricelist" element={<Suspense fallback={<PageLoader />}><PriceList /></Suspense>} />
-                <Route path="crm/lab" element={<Suspense fallback={<PageLoader />}><Lab /></Suspense>} />
-                <Route path="crm/inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
-                <Route path="crm/promotions" element={<Suspense fallback={<PageLoader />}><Promotions /></Suspense>} />
-                <Route path="crm/staff" element={<Suspense fallback={<PageLoader />}><Staff /></Suspense>} />
-                <Route path="crm/medical-card" element={<Suspense fallback={<PageLoader />}><MedicalCard /></Suspense>} />
-                <Route path="crm/icd10" element={<Suspense fallback={<PageLoader />}><ICD10 /></Suspense>} />
-                <Route path="crm/visits" element={<Suspense fallback={<PageLoader />}><Visits /></Suspense>} />
-                <Route path="crm/documents" element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
-
-                {/* Shop sub-app - under IntelligenceLayout */}
-                <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
-                <Route path="shop/:id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
-                <Route path="shop/checkout" element={<Suspense fallback={<PageLoader />}><ShopCheckout /></Suspense>} />
-                <Route path="shop/orders" element={<Suspense fallback={<PageLoader />}><ShopOrders /></Suspense>} />
-                <Route path="shop/favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
-                <Route path="shop/suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
-
-                {/* School sub-app - under IntelligenceLayout */}
-                <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
-                <Route path="school/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
 
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
