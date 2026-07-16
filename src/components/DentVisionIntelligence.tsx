@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { aiChat, aiAction, aiProactive, aiSetContext } from '@/utils/api';
+import { aiChat, aiAction } from '@/utils/api';
 import { ChatMessage, type ChatMsg } from './intelligence/ChatMessage';
 import { TypingIndicator } from './intelligence/TypingIndicator';
 import { ChatInput } from './intelligence/ChatInput';
@@ -28,7 +28,7 @@ import { ActionConfirm } from './intelligence/ActionConfirm';
 import { cn } from '@/lib/utils';
 
 interface AIAction {
-  type: string;
+  action: string;
   label: string;
   confidence: number;
   params?: Record<string, unknown>;
@@ -178,7 +178,7 @@ export function DentVisionIntelligence({ onNavigate }: { onNavigate: (path: stri
         data: res.data as ChatMsg['data'],
         recommendations: res.recommendations as ChatMsg['recommendations'],
         actions: res.actions?.map(a => ({
-          action: a.action || a.type,
+          action: a.type,
           label: a.label,
           confidence: a.confidence || 1,
           params: a.params || {},
@@ -201,10 +201,10 @@ export function DentVisionIntelligence({ onNavigate }: { onNavigate: (path: stri
       if (res.actions?.length) {
         const action = res.actions[0];
         if (action.confidence > 0.85 && !action.requiresConfirmation) {
-          await executeAction(action.type || action.action, action.params);
+          await executeAction(action.type, action.params);
         } else if (action.confidence > 0.6) {
           setPendingAction({
-            action: { type: action.action || action.type, label: action.label, confidence: action.confidence, params: action.params },
+            action: { action: action.type, label: action.label, confidence: action.confidence, params: action.params },
             params: action.params || {},
             confirmMessage: `Выполнить: ${action.label}?`,
           });
@@ -293,7 +293,7 @@ export function DentVisionIntelligence({ onNavigate }: { onNavigate: (path: stri
         <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4">
           <AnimatePresence>
             {messages.map((msg) => (
-              <ChatMessage key={msg.id} msg={msg} />
+              <ChatMessage key={msg.id} msg={msg} onAction={(q) => handleSend(q)} />
             ))}
           </AnimatePresence>
           {isProcessing && <TypingIndicator />}

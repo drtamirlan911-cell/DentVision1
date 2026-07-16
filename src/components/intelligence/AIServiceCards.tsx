@@ -28,7 +28,6 @@ export const AI_SERVICES: ServiceCardDef[] = [
 
 export const AI_PLATFORM_SERVICES: ServiceCardDef[] = [
   { id: 'profile', name: 'Профиль', description: 'Профессиональный профиль', icon: <ProfileIcon size={20} />, path: '/profile', color: '#2980B9', gradient: 'from-[#2980B9]/20 to-[#2980B9]/5', category: 'platform' },
-  { id: 'ai', name: 'AI Команда', description: 'Интеллектуальные агенты', icon: <AITeamIcon size={20} />, path: '/ai', color: '#8E44AD', gradient: 'from-[#8E44AD]/20 to-[#8E44AD]/5', category: 'platform' },
   { id: 'admin', name: 'Super Admin', description: 'Управление платформой', icon: <AdminIcon size={20} />, path: '/admin', color: '#E74C3C', gradient: 'from-[#E74C3C]/20 to-[#E74C3C]/5', category: 'platform' },
   { id: 'audit', name: 'Аудит', description: 'Журнал действий', icon: <AuditIcon size={20} />, path: '/audit', color: '#F39C12', gradient: 'from-[#F39C12]/20 to-[#F39C12]/5', category: 'platform' },
   { id: 'backup', name: 'Бэкапы', description: 'Резервное копирование', icon: <BackupIcon size={20} />, path: '/backup', color: '#00BCD4', gradient: 'from-[#00BCD4]/20 to-[#00BCD4]/5', category: 'platform' },
@@ -275,7 +274,7 @@ export function AIServiceCards({
                 whileTap={{ scale: 0.9 }}
                 onClick={() => onSelect(service)}
                 className={cn(
-                  'relative flex flex-col items-center gap-2 w-28 p-3 rounded-2xl border border-white/10',
+                  'group relative flex flex-col items-center gap-2 w-28 p-3 rounded-2xl border border-white/10',
                   'bg-gradient-to-br transition-all duration-300',
                   service.gradient,
                   'hover:border-white/30 hover:shadow-xl hover:shadow-black/20'
@@ -305,15 +304,14 @@ export function AIServiceCards({
             key={item.id}
             variants={itemVariants}
             onClick={() => onSelect(item)}
-            className={cn(
-              'group relative flex w-full items-center gap-2.5 rounded-lg transition-all duration-150',
-              'px-3 py-2',
-              animated
-                ? 'text-txt-secondary hover:bg-white/[0.04] hover:text-txt-primary'
-                : ''
-            )}
-            whileTap={{ scale: 0.98 }}
-            style={{ animationDelay: `${delayBase + i * 50}ms` }}
+              className={cn(
+                  'group relative flex w-full items-center gap-2.5 rounded-lg transition-all duration-150',
+                  'px-3 py-2',
+                  animated
+                    ? 'text-txt-secondary hover:bg-white/[0.04] hover:text-txt-primary'
+                    : ''
+                )}
+                whileTap={{ scale: 0.98 }}
           >
             <span className={cn('shrink-0 transition-colors', 'text-txt-muted group-hover:text-txt-secondary')}>
               {item.icon}

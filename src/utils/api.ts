@@ -528,7 +528,7 @@ export interface AIChatResponse {
   source?: string;
   data?: Record<string, unknown>;
   recommendations?: Array<Record<string, unknown>>;
-  actions: Array<{ action: string; label: string; confidence: number; params?: Record<string, unknown> }>;
+  actions: Array<{ type: string; label: string; confidence: number; params?: Record<string, unknown>; requiresConfirmation?: boolean }>;
   suggestions: string[];
   proactive: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;
   conversationContext: { turnCount: number; entities: Record<string, unknown> };

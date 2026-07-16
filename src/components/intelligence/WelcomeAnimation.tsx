@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, Sparkles, Brain } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -105,19 +105,6 @@ export function WelcomeAnimation({ onComplete }: WelcomeFlowProps) {
     sessionStorage.setItem('dv_welcomed', '1');
     onComplete();
   };
-
-  // Calculate sidebar target positions for each card
-  const sidebarTargets = useMemo(() => {
-    const startX = typeof window !== 'undefined' ? window.innerWidth / 2 : 400;
-    const startY = typeof window !== 'undefined' ? window.innerHeight / 2 + 100 : 300;
-    return AI_SERVICES.map((_, i) => {
-      const col = i % GRID_COLS;
-      const row = Math.floor(i / GRID_COLS);
-      const sidebarItemHeight = 44;
-      const sidebarY = 240 + row * 3 * sidebarItemHeight + col * sidebarItemHeight;
-      return { x: -startX + 130, y: -startY + sidebarY };
-    });
-  }, []);
 
   return (
     <motion.div
@@ -324,7 +311,8 @@ export function WelcomeAnimation({ onComplete }: WelcomeFlowProps) {
               const gridX = gridStartX + col * (cardW + gapX);
               const gridY = gridStartY + row * (cardH + gapY);
 
-              const sidebarX = -window.innerWidth / 2 + 130;
+              const winW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+              const sidebarX = -winW / 2 + 130;
               const sidebarItemH = 44;
               const sidebarY = 240 + i * sidebarItemH;
 

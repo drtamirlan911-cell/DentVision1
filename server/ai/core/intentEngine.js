@@ -1,6 +1,5 @@
 import { detectSkill, getSkill } from '../skills.js';
-import { getAction, getActionsForRole } from '../actions.js';
-import { getConversationContext } from '../memory/conversation.js';
+import { getActionsForRole } from '../actions.js';
 import { buildSystemPrompt, buildGreeting } from '../personality.js';
 import { gatherContext, gatherProactiveAlerts } from '../context.js';
 import { orchestrateKnowledge } from '../knowledge/orchestrator.js';
@@ -84,7 +83,6 @@ export async function processMessage(userMessage, ctx) {
   const resolvedMessage = resolveReferences(userMessage, conversationContext);
   const intent = classifyIntent(resolvedMessage);
   const skillId = detectSkill(resolvedMessage);
-  const skill = getSkill(skillId);
 
   const [clinicContext, proactiveAlerts, digitalTwin] = await Promise.all([
     gatherContext(clinic?.id),
@@ -92,8 +90,7 @@ export async function processMessage(userMessage, ctx) {
     buildDigitalTwin(user.id),
   ]);
 
-  const resolvedSkill = detectSkill(resolvedMessage);
-  const skillActions = getSkill(resolvedSkill).actions || [];
+  const skillActions = getSkill(skillId).actions || [];
   const roleActions = getActionsForRole(user.role || user.platformRole || '*');
   const availableActions = roleActions.filter(a => skillActions.includes(a.name));
   const permittedActions = availableActions.filter(a => {
@@ -174,7 +171,7 @@ function formulateResponse({
     };
   }
 
-  const reply = generateContextualReply(intent, skillId, message, clinicContext, digitalTwin, knowledge, user);
+  const reply = generateContextualReply(intent, skillId, message, clinicContext, digitalTwin, knowledge, user, conversationContext);
 
   return {
     reply,
@@ -191,7 +188,7 @@ function formulateResponse({
   };
 }
 
-function generateContextualReply(intent, skillId, message, clinicContext, digitalTwin, knowledge, user) {
+function generateContextualReply(intent, skillId, message, clinicContext, digitalTwin, knowledge, user, conversationContext) {
   const msg = message.toLowerCase();
 
   switch (skillId) {
