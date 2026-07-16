@@ -55,7 +55,9 @@ export default function authRoutes(authLimiter) {
       console.error('LOGIN tokens generated, active:', active?.clinicId);
       const result = { ...tokens, user: publicUser(user), memberships: memberships.map(m => ({ ...m, clinic: undefined })), activeMembership: active || null };
       console.error('LOGIN result keys:', Object.keys(result));
-      res.json(result);
+      // TEMP DEBUG: return minimal to test if WAF blocks full token response
+      return res.json({ debug: true, uid: user.id, hasToken: !!tokens.accessToken });
+      // res.json(result);
     } catch (e) {
       console.error('LOGIN ERROR:', e);
       res.status(500).json({ error: 'Internal server error', detail: (e as Error)?.message, stack: (e as Error)?.stack });
