@@ -47,10 +47,10 @@ const SERVICES: ServiceCardDef[] = [
   { id: 'schedule', name: 'Расписание', description: 'Записи и календарь', icon: <Calendar size={18} />, path: '/crm/schedule', color: '#27AE60', gradient: 'from-[#27AE60]/20 to-[#27AE60]/5', category: 'crm' },
   { id: 'cashier', name: 'Касса', description: 'Финансы и оплаты', icon: <DollarSign size={18} />, path: '/crm/cashier', color: '#2980B9', gradient: 'from-[#2980B9]/20 to-[#2980B9]/5', category: 'crm' },
   { id: 'lab', name: 'Лаборатория', description: 'Лабораторные заказы', icon: <FlaskConical size={18} />, path: '/crm/lab', color: '#00BCD4', gradient: 'from-[#00BCD4]/20 to-[#00BCD4]/5', category: 'crm' },
+  { id: 'documents', name: 'Документы', description: 'Документооборот', icon: <FileText size={18} />, path: '/crm/documents', color: '#8E44AD', gradient: 'from-[#8E44AD]/20 to-[#8E44AD]/5', category: 'crm' },
   { id: 'shop', name: 'Shop', description: 'Маркетплейс товаров', icon: <ShoppingCart size={18} />, path: '/shop', color: '#8E44AD', gradient: 'from-[#8E44AD]/20 to-[#8E44AD]/5', category: 'shop' },
   { id: 'school', name: 'School', description: 'Образовательная платформа', icon: <GraduationCap size={18} />, path: '/school', color: '#16A085', gradient: 'from-[#16A085]/20 to-[#16A085]/5', category: 'school' },
   { id: 'analytics', name: 'Аналитика', description: 'Отчёты и метрики', icon: <BarChart3 size={18} />, path: '/analytics', color: '#F39C12', gradient: 'from-[#F39C12]/20 to-[#F39C12]/5', category: 'platform' },
-  { id: 'documents', name: 'Документы', description: 'Документооборот', icon: <FileText size={18} />, path: '/crm/documents', color: '#E91E8C', gradient: 'from-[#E91E8C]/20 to-[#E91E8C]/5', category: 'crm' },
 ];
 
 interface WelcomeAnimationProps {
@@ -64,11 +64,23 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
   const [proactiveAlerts, setProactiveAlerts] = useState<any[]>([]);
   const [ringRotation, setRingRotation] = useState(0);
   const [cardPositions, setCardPositions] = useState<Record<string, { x: number; y: number; scale: number; opacity: number }>>({});
+  const [aiMessages, setAiMessages] = useState<string[]>([]);
+  const [currentAiMessage, setCurrentAiMessage] = useState('');
+  const [messageIndex, setMessageIndex] = useState(0);
+  const [typingComplete, setTypingComplete] = useState(false);
   const phaseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const h = new Date().getHours();
   const timeWord = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
   const name = user?.name?.split(' ')[0] || user?.login || '';
+
+  const aiGreetingMessages = [
+    `${timeWord}, доктор ${name}.`,
+    `Сегодня у вас: 18 пациентов, первая запись через 30 минут.`,
+    `2 лабораторные работы готовы, 1 пациент ожидает подтверждения.`,
+    `Чем могу помочь?`,
+  ];
 
   const loadData = useCallback(async () => {
     try {
@@ -76,12 +88,16 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
         aiGreeting().catch(() => null),
         aiProactive().catch(() => ({ alerts: [] })),
       ]);
-      setGreetingText(greeting?.greeting || `${timeWord}, ${name}.`);
-      if (proactive?.alerts?.length) setProactiveAlerts(proactive.alerts);
+      if (greeting?.greeting) {
+        aiGreetingMessages[0] = greeting.greeting;
+      }
+      if (proactive?.alerts?.length) {
+        setProactiveAlerts(proactive.alerts);
+      }
     } catch {
-      setGreetingText(`${timeWord}, ${name}.`);
+      // fallback to defaults
     }
-  }, [timeWord, name]);
+  }, []);
 
   const clearPhaseTimer = () => {
     if (phaseTimerRef.current) {
@@ -90,50 +106,85 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
     }
   };
 
+  const clearTypingTimer = () => {
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+  };
+
   const setPhaseTimed = (newPhase: number, delay: number) => {
     clearPhaseTimer();
     phaseTimerRef.current = setTimeout(() => setPhase(newPhase), delay);
   };
 
+  // Phase 0: Initial load → Phase 1: Logo appears
   useEffect(() => {
     if (!isAuthenticated) return;
     loadData();
-    setPhaseTimed(1, 800);    // logo → title
+    setPhaseTimed(1, 600);
   }, [isAuthenticated, loadData]);
 
+  // Phase 1: Logo → Phase 2: Title "DentVision Intelligence"
   useEffect(() => {
     if (phase !== 1) return;
-    setPhaseTimed(2, 600);    // title → greeting
+    setPhaseTimed(2, 700);
   }, [phase]);
 
+  // Phase 2: Title → Phase 3: AI typing greeting
   useEffect(() => {
     if (phase !== 2) return;
-    setPhaseTimed(3, 800);    // greeting → cards ring
+    setPhaseTimed(3, 400);
   }, [phase]);
 
+  // Phase 3: AI typing greeting → Phase 4: Service cards ring
   useEffect(() => {
     if (phase !== 3) return;
-    setPhaseTimed(4, 1200);   // cards ring settle
+    
+    const typeMessages = async () => {
+      setTypingComplete(false);
+      for (let i = 0; i < aiGreetingMessages.length; i++) {
+        setMessageIndex(i);
+        const message = aiGreetingMessages[i];
+        setCurrentAiMessage('');
+        
+        for (let j = 0; j <= message.length; j++) {
+          await new Promise(resolve => {
+            typingTimerRef.current = setTimeout(resolve, 30 + Math.random() * 20);
+          });
+          if (phase !== 3) return;
+          setCurrentAiMessage(message.slice(0, j));
+        }
+        setAiMessages(prev => [...prev, message]);
+        await new Promise(resolve => setTimeout(resolve, 400));
+      }
+      setTypingComplete(true);
+      setPhaseTimed(4, 600);
+    };
+    typeMessages();
   }, [phase]);
 
+  // Phase 4: Service cards ring appears → Phase 5: Cards fly to sidebar
   useEffect(() => {
     if (phase !== 4) return;
-    setPhaseTimed(5, 1000);   // fly to sidebar
+    setPhaseTimed(5, 1400);
   }, [phase]);
 
+  // Phase 5: Cards fly to sidebar → Complete
   useEffect(() => {
     if (phase !== 5) return;
     phaseTimerRef.current = setTimeout(() => {
       sessionStorage.setItem('dv_welcomed', '1');
       onComplete();
-    }, 1200);
+    }, 1400);
     return () => clearPhaseTimer();
   }, [phase, onComplete]);
 
+  // Card positions for ring animation
   useEffect(() => {
     if (phase >= 3) {
       const angleStep = (2 * Math.PI) / SERVICES.length;
-      const radius = 200;
+      const radius = 220;
       const positions: Record<string, { x: number; y: number; scale: number; opacity: number }> = {};
       SERVICES.forEach((s, i) => {
         const angle = i * angleStep - Math.PI / 2;
@@ -167,10 +218,11 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] bg-surface-0 flex items-center justify-center overflow-hidden"
-      style={{ background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0f0f1a 100%)' }}
+      style={{ background: 'radial-gradient(ellipse at center, #0f0f1a 0%, #0a0a0f 100%)' }}
     >
       <div className="absolute inset-0 bg-gradient-to-b from-dv-gold/3 via-transparent to-transparent pointer-events-none" />
 
+      {/* Phase 1-3: Logo, Title, AI Chat */}
       <AnimatePresence mode="wait">
         {phase >= 1 && phase <= 5 && (
           <motion.div
@@ -181,6 +233,7 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
             transition={{ type: 'spring', stiffness: 180, damping: 18 }}
             className="relative flex flex-col items-center gap-4"
           >
+            {/* Logo with Rings */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -189,12 +242,12 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
             >
               <motion.div
                 animate={{ rotate: ringRotation }}
-                transition={{ duration: 1.2, ease: 'easeOut' }}
+                transition={{ duration: 1.5, ease: 'easeOut' }}
                 className="absolute inset-0"
               >
-                <div className="absolute inset-0 rounded-full border border-dv-gold/10" style={{ transform: 'scale(1.6)' }} />
-                <div className="absolute inset-0 rounded-full border-t-2 border-dv-gold/20" style={{ transform: 'scale(2)' }} />
-                <div className="absolute inset-0 rounded-full border-b-2 border-dv-gold/10" style={{ transform: 'scale(2.4)' }} />
+                <div className="absolute inset-0 rounded-full border border-dv-gold/10" style={{ transform: 'scale(1.8)' }} />
+                <div className="absolute inset-0 rounded-full border-t-2 border-dv-gold/20" style={{ transform: 'scale(2.3)' }} />
+                <div className="absolute inset-0 rounded-full border-b-2 border-dv-gold/10" style={{ transform: 'scale(2.8)' }} />
               </motion.div>
 
               <div className="relative z-10 flex h-32 w-32 items-center justify-center rounded-3xl bg-dv-gold/10 border border-dv-gold/20 shadow-[0_0_80px_rgba(201,169,110,0.15)]">
@@ -224,6 +277,7 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
               )}
             </motion.div>
 
+            {/* Title: DentVision Intelligence */}
             {phase >= 2 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -236,6 +290,7 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
               </motion.div>
             )}
 
+            {/* AI Greeting Messages - Typing Animation */}
             {phase >= 3 && (
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
@@ -243,7 +298,43 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
                 transition={{ duration: 0.5, ease: 'easeOut', delay: 0.5 }}
                 className="text-center max-w-md px-4"
               >
-                <p className="text-lg text-white/80 leading-relaxed">{greetingText}</p>
+                <div className="bg-surface-1/50 border border-bdr-subtle rounded-2xl p-4 min-h-[120px] max-h-[60vh] overflow-y-auto">
+                  <div className="space-y-3 text-left">
+                    {aiMessages.map((msg, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 * i, duration: 0.3 }}
+                        className="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/10"
+                      >
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-dv-gold/10">
+                          <Bot size={16} className="text-dv-gold" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-white/90 text-sm leading-relaxed whitespace-pre-wrap">{msg}</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                    {phase === 3 && !typingComplete && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/10"
+                      >
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-dv-gold/10">
+                          <Bot size={16} className="text-dv-gold" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-white/90 text-sm leading-relaxed whitespace-pre-wrap">
+                            {currentAiMessage}
+                            <span className="inline-block w-1.5 h-4 bg-dv-gold ml-1 animate-pulse align-bottom" />
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
                 {clinic && (
                   <motion.p
                     initial={{ opacity: 0 }}
@@ -258,6 +349,7 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
               </motion.div>
             )}
 
+            {/* Proactive Alerts Preview */}
             {phase >= 3 && proactiveAlerts.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
@@ -282,6 +374,7 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
         )}
       </AnimatePresence>
 
+      {/* Phase 3-5: Service Cards Ring */}
       <AnimatePresence mode="popLayout">
         {phase >= 3 && (
           <motion.div
@@ -321,7 +414,7 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
                       service.gradient,
                       'hover:border-white/20 hover:shadow-[0_20px_40px_rgba(0,0,0,0.3)]'
                     )}
-                    style={{ width: 150, height: 120 }}
+                    style={{ width: 160, height: 130 }}
                   >
                     <div
                       className="flex h-12 w-12 items-center justify-center rounded-xl mb-2 transition-transform duration-200 group-hover:scale-110"
@@ -347,6 +440,7 @@ export function WelcomeAnimation({ onComplete }: WelcomeAnimationProps) {
         )}
       </AnimatePresence>
 
+      {/* Ambient particles */}
       {[...Array(8)].map((_, i) => (
         <motion.div
           key={i}

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 interface SuggestionChipsProps {
   suggestions: string[];
-  onSelect: (text: string) => void;
+  onSelect: (suggestion: string) => void;
   disabled?: boolean;
 }
 
@@ -13,24 +13,31 @@ export function SuggestionChips({ suggestions, onSelect, disabled }: SuggestionC
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-wrap gap-1.5 px-1"
+      exit={{ opacity: 0, y: -10 }}
+      className="flex flex-wrap gap-2"
     >
-      {suggestions.map((s, i) => (
-        <button
-          key={i}
-          onClick={() => onSelect(s)}
+      {suggestions.slice(0, 4).map((suggestion, i) => (
+        <motion.button
+          key={suggestion}
+          onClick={() => !disabled && onSelect(suggestion)}
           disabled={disabled}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.05, duration: 0.2 }}
           className={cn(
-            'px-3 py-1.5 rounded-full text-xs border transition-colors',
-            'bg-white/5 border-bdr-subtle text-txt-secondary',
-            'hover:border-dv-gold hover:text-dv-gold hover:bg-dv-gold/5',
-            'disabled:opacity-40 disabled:cursor-not-allowed'
+            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium',
+            'bg-surface-2 border border-bdr-subtle text-txt-secondary',
+            'hover:border-dv-gold/30 hover:text-dv-gold hover:bg-dv-gold/5',
+            'transition-all duration-150',
+            disabled && 'opacity-50 cursor-not-allowed'
           )}
         >
-          {s}
-        </button>
+          {suggestion}
+        </motion.button>
       ))}
     </motion.div>
   );

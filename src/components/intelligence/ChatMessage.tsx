@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, Sparkles, Zap, Stethoscope, Calendar, BarChart3, ShoppingCart, GraduationCap, BookOpen, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface ChatMsg {
@@ -12,6 +12,17 @@ export interface ChatMsg {
   actions?: Array<{ action: string; label: string; confidence: number; params?: Record<string, unknown> }>;
   onAction?: (action: string, params?: Record<string, unknown>) => void;
 }
+
+const SKILL_ICONS: Record<string, React.ReactNode> = {
+  clinical: <Stethoscope size={10} />,
+  practice: <Calendar size={10} />,
+  analytics: <BarChart3 size={10} />,
+  shopping: <ShoppingCart size={10} />,
+  learning: <GraduationCap size={10} />,
+  research: <BookOpen size={10} />,
+  automation: <Zap size={10} />,
+  patient: <Users size={10} />,
+};
 
 export function ChatMessage({ msg }: { msg: ChatMsg }) {
   const isUser = msg.role === 'user';
@@ -29,10 +40,17 @@ export function ChatMessage({ msg }: { msg: ChatMsg }) {
         </div>
       )}
 
-      <div className={cn('flex flex-col gap-2 max-w-[80%]', isUser ? 'items-end' : 'items-start')}>
+      <div className={cn('flex flex-col gap-2 max-w-[85%]', isUser ? 'items-end' : 'items-start')}>
+        {!isUser && msg.skill && (
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-dv-gold/10 text-dv-gold text-[10px] font-medium">
+            {SKILL_ICONS[msg.skill] || <Sparkles size={10} />}
+            <span className="capitalize">{msg.skill}</span>
+          </div>
+        )}
+
         <div
           className={cn(
-            'rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
+            'rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap max-w-full',
             isUser
               ? 'bg-dv-gold text-white rounded-br-md'
               : 'bg-surface-2 border border-bdr-subtle text-txt-primary rounded-bl-md'
@@ -44,13 +62,22 @@ export function ChatMessage({ msg }: { msg: ChatMsg }) {
         {msg.actions && msg.actions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {msg.actions.map((a, i) => (
-              <button
+              <motion.button
                 key={i}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }}
                 onClick={() => msg.onAction?.(a.action, a.params)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-dv-gold/10 text-dv-gold border border-dv-gold/20 hover:bg-dv-gold/20 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-dv-gold/10 text-dv-gold border border-dv-gold/20 hover:bg-dv-gold/20 hover:border-dv-gold/40 transition-all"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
+                <Zap size={10} />
                 {a.label}
-              </button>
+                {a.confidence > 0 && (
+                  <span className="text-[9px] opacity-60">{(a.confidence * 100).toFixed(0)}%</span>
+                )}
+              </motion.button>
             ))}
           </div>
         )}
