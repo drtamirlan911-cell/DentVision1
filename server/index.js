@@ -277,6 +277,11 @@ app.get('/api/clinics', async (_req, res) => {
   } catch { res.status(500).json({ error: 'Internal server error' }); }
 });
 
+app.get('/api/__deploycheck', (_req, res) => {
+  res.json({ version: 'v2-membership', hasMembership: typeof prisma.membership !== 'undefined', hasClinic: typeof prisma.clinic !== 'undefined' });
+});
+});
+
 // ═══════════════════════════════════════════════════════════════
 // AUTH ROUTES (with rate limiting)
 // ═══════════════════════════════════════════════════════════════
