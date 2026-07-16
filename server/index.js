@@ -33,7 +33,15 @@ function isOriginAllowed(origin) {
 
 app.use(helmet());
 app.use(cors({ origin: (origin, cb) => cb(null, isOriginAllowed(origin)), credentials: true }));
+
+// JSON body parser that fails gracefully (never crashes on malformed bodies)
 app.use(express.json({ limit: '1mb' }));
+app.use((err, _req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Некорректный JSON в теле запроса' });
+  }
+  next(err);
+});
 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, validate: false });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, validate: false });
