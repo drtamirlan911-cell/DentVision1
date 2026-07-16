@@ -7,6 +7,8 @@ import { CartProvider } from './context/CartContext';
 import { NotificationProvider } from './context/NotificationsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/ds';
+import { DentVisionIntelligence } from './components/DentVisionIntelligence';
+import IntelligenceLayout from './layouts/IntelligenceLayout';
 
 import Login from './pages/auth/Login';
 import ForgotPassword from './pages/auth/ForgotPassword';
@@ -100,12 +102,15 @@ if (container) {
                 <Route path="/book/:clinicId" element={<PublicBooking />} />
                 <Route path="/sign/:token" element={<DocumentSign />} />
 
-                {/* Hub landing (Kaspi-style service picker) */}
-                <Route path="/" element={<Suspense fallback={<PageLoader />}><ServiceHub /></Suspense>} />
-
-                {/* Platform pages (settings, analytics, admin, AI, etc.) */}
-                <Route element={<PlatformLayout />}>
+                {/* AI-First Intelligence Layout - Main entry point after login */}
+                <Route path="/" element={<IntelligenceLayout />}>
+                  <Route index element={<Suspense fallback={<PageLoader />}><ServiceHub /></Suspense>} />
+                  <Route path="intelligence" element={<Suspense fallback={<PageLoader />}><DentVisionIntelligence /></Suspense>} />
+                  
+                  {/* Dashboard as child of Intelligence */}
                   <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+                  
+                  {/* Platform pages */}
                   <Route path="ai" element={<Suspense fallback={<PageLoader />}><AITeam /></Suspense>} />
                   <Route path="analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
