@@ -17,7 +17,6 @@ import DocumentSign from './pages/auth/DocumentSign';
 import './styles/global.css';
 
 // Platform pages
-const ServiceHub = lazy(() => import('./pages/hub/ServiceHub'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AITeam = lazy(() => import('./pages/AITeam'));
 const SuperAdmin = lazy(() => import('./pages/SuperAdmin'));
@@ -104,11 +103,11 @@ if (container) {
 
                 {/* AI-First Intelligence Layout - Main entry point after login */}
                 <Route path="/" element={<IntelligenceLayout />}>
-                  <Route index element={<Suspense fallback={<PageLoader />}><ServiceHub /></Suspense>} />
-                  <Route path="intelligence" element={<Suspense fallback={<PageLoader />}><DentVisionIntelligence /></Suspense>} />
+                  <Route index element={<Suspense fallback={<PageLoader />}><DentVisionIntelligence /></Suspense>} />
                   
                   {/* Dashboard as child of Intelligence */}
                   <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+                  <Route path="intelligence" element={<Navigate to="/" replace />} />
                   
                   {/* Platform pages */}
                   <Route path="ai" element={<Suspense fallback={<PageLoader />}><AITeam /></Suspense>} />
