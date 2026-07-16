@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { aiChat, aiAction, aiProactive } from '@/utils/api'
 import { Button } from '@/components/ui/ds/Button'

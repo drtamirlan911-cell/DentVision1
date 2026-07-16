@@ -119,7 +119,7 @@ export const useAIWorkspaceStore = create<AIWorkspaceState>((set) => ({
   },
 
   onboarding: {
-    completed: typeof window !== 'undefined' ? !!sessionStorage.getItem('dv_welcomed') : false,
+    completed: (() => { try { return typeof window !== 'undefined' && !!sessionStorage.getItem('dv_welcomed'); } catch { return false; } })(),
     currentScreen: 0,
     skipped: false,
   },
