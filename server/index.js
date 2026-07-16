@@ -278,7 +278,7 @@ app.get('/api/clinics', async (_req, res) => {
 });
 
 app.get('/api/__deploycheck', (_req, res) => {
-  res.json({ version: 'v2-membership', hasMembership: typeof prisma.membership !== 'undefined', hasClinic: typeof prisma.clinic !== 'undefined' });
+  res.json({ version: 'v3-clean', hasMembership: typeof prisma.membership !== 'undefined', hasClinic: typeof prisma.clinic !== 'undefined' });
 });
 });
 
