@@ -316,5 +316,10 @@ export default function authRoutes(authLimiter) {
     res.json({ accessToken: codes, note: 'char-codes' });
   });
 
+  // TEMP DEBUG 7: plain ok, no token
+  router.get('/_ping', (_req, res) => {
+    res.json({ ok: true, msg: 'pong' });
+  });
+
   return router;
 }
