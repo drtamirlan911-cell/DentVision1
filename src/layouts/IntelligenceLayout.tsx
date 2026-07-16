@@ -28,6 +28,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { Avatar } from '@/components/ui/ds/Avatar';
 import { DentVisionIntelligence } from '@/components/DentVisionIntelligence';
 import { WelcomeAnimation } from '@/components/intelligence/WelcomeAnimation';
+import { ContextPanel } from '@/components/intelligence/ContextPanel';
 
 interface NavItem {
   id: string;
@@ -304,7 +305,7 @@ export default function IntelligenceLayout() {
         </main>
       </div>
 
-      {/* Right Context Panel - Collapsible */}
+      {/* Right Context Panel */}
       <motion.aside
         initial={{ width: 320, opacity: 1 }}
         animate={{ 
@@ -315,18 +316,7 @@ export default function IntelligenceLayout() {
         className="hidden lg:flex flex-col border-l border-bdr-subtle bg-surface-1"
         style={{ width: 320 }}
       >
-        <div className="h-14 border-b border-bdr-subtle flex items-center justify-between px-4">
-          <h3 className="text-sm font-semibold text-txt-primary">Контекст</h3>
-          <button className="text-txt-muted hover:text-txt-primary">
-            <X size={16} />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          {/* Context content will be populated by child pages */}
-          <div className="text-sm text-txt-muted">
-            <p className="mb-2">AI будет отображать здесь релевантную информацию на основе текущего раздела.</p>
-          </div>
-        </div>
+        <ContextPanel />
       </motion.aside>
 
       {/* Mobile bottom nav */}
