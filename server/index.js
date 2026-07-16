@@ -35,11 +35,10 @@ app.use(helmet());
 app.use(cors({ origin: (origin, cb) => cb(null, isOriginAllowed(origin)), credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
-const publicBookingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, validate: false });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, validate: false });
+const publicBookingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, validate: false });
 app.use('/api/', apiLimiter);
-app.use('/api/auth/login', authLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // AUDIT LOG HELPER
@@ -299,6 +298,15 @@ app.get('/api/csp-policy', (_req, res) => {
   res.json({
     policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GLOBAL ERROR HANDLER (diagnostics)
+// ═══════════════════════════════════════════════════════════════
+app.use((err, _req, res, _next) => {
+  console.error('Unhandled error:', err.message, err.stack);
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Internal server error', detail: err.message });
 });
 
 // ═══════════════════════════════════════════════════════════════
