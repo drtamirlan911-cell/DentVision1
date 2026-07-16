@@ -295,5 +295,19 @@ export default function authRoutes(authLimiter) {
     res.json({ accessToken: b64, note: 'base64-wrapped' });
   });
 
+  // TEMP DEBUG 4: token split into small chunks (array of short strings)
+  router.get('/_token_test4', (_req, res) => {
+    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
+    const chunks = fakeJwt.match(/.{1,12}/g) || [fakeJwt];
+    res.json({ accessToken: chunks, note: 'chunked' });
+  });
+
+  // TEMP DEBUG 5: token in HttpOnly cookie
+  router.get('/_token_test5', (_req, res) => {
+    const fakeJwt = 'eyJhbGciOiJIUzI1NiJ9.' + Buffer.from('x').toString('base64').repeat(20) + '.sig';
+    res.cookie('dv_token', fakeJwt, { httpOnly: true, sameSite: 'none', secure: true });
+    res.json({ ok: true, note: 'cookie' });
+  });
+
   return router;
 }
