@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/ds/Button'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
+import { GreetingArea, AIStatus } from '@/components/ai'
 import { useAIWorkspaceStore } from '@/stores/useAIWorkspaceStore'
 import type { Message } from '@/stores/useAIWorkspaceStore'
 
@@ -253,21 +254,12 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
               </span>
             </Button>
           )}
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20">
-            <span className={cn(
-              'w-1.5 h-1.5 rounded-full',
-              status === 'error' ? 'bg-red-400' :
-              status === 'thinking' || status === 'executing' ? 'bg-amber-400 animate-pulse' :
-              'bg-green-400'
-            )} />
-            <span className="text-[10px] font-medium text-dv-gold">
-              {status === 'error' ? 'Ошибка' : status === 'thinking' ? 'Думает' : status === 'executing' ? 'Выполняет' : 'AI активен'}
-            </span>
-          </div>
+          <AIStatus />
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4">
+        <GreetingArea />
         <AnimatePresence>
           {messages.map((msg) => (
             <ChatMessage key={msg.id} msg={msg} />

@@ -1,10 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from './context/AuthContext';
-import { CartProvider } from './context/CartContext';
-import { NotificationProvider } from './context/NotificationsContext';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { Providers } from '@/app/providers';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/ds';
 import { AIWorkspaceIndex } from './components/intelligence/AIWorkspaceIndex';
@@ -61,15 +58,6 @@ const SchoolAdmin = lazy(() => import('./pages/admin/SchoolAdmin'));
 // Workspace selection
 const MyClinics = lazy(() => import('./pages/MyClinics'));
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5,
-      retry: 1,
-    },
-  },
-});
-
 function PageLoader() {
   return (
     <div className="flex min-h-[50vh] items-center justify-center">
@@ -85,12 +73,8 @@ if (container) {
     <React.StrictMode>
       <ErrorBoundary>
         <ToastProvider>
-          <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
-            <AuthProvider>
-              <CartProvider>
-              <NotificationProvider>
-              <Routes>
+          <Providers>
+            <Routes>
                 {/* Public / standalone routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -150,11 +134,7 @@ if (container) {
 
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-              </NotificationProvider>
-              </CartProvider>
-            </AuthProvider>
-          </BrowserRouter>
-        </QueryClientProvider>
+          </Providers>
         </ToastProvider>
       </ErrorBoundary>
     </React.StrictMode>
