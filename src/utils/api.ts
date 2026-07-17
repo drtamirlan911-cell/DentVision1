@@ -528,3 +528,27 @@ export async function aiAction(action: string, params: Record<string, unknown> =
 export async function aiDigitalTwin(): Promise<any> {
   return apiRequest('/api/ai/digital-twin');
 }
+
+// ─── Admin (SuperAdmin) ───
+export async function getAdminStats(): Promise<any> { return apiRequest('/api/admin/stats'); }
+export async function getAdminClinics(): Promise<any> { return apiRequest('/api/admin/clinics'); }
+export async function getAdminClinic(id: string): Promise<any> { return apiRequest(`/api/admin/clinics/${id}`); }
+export async function createAdminClinic(data: any): Promise<any> { return apiRequest('/api/admin/clinics', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateAdminClinic(id: string, data: any): Promise<any> { return apiRequest(`/api/admin/clinics/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function deleteAdminClinic(id: string): Promise<any> { return apiRequest(`/api/admin/clinics/${id}`, { method: 'DELETE' }); }
+export async function toggleAdminClinic(id: string): Promise<any> { return apiRequest(`/api/admin/clinics/${id}/toggle`, { method: 'PATCH' }); }
+export async function changeAdminClinicPlan(id: string, plan: string): Promise<any> { return apiRequest(`/api/admin/clinics/${id}/plan`, { method: 'PATCH', body: JSON.stringify({ plan }) }); }
+export async function extendAdminClinic(id: string, months: number): Promise<any> { return apiRequest(`/api/admin/clinics/${id}/extend`, { method: 'PATCH', body: JSON.stringify({ months }) }); }
+export async function getAdminUsers(params?: { clinicId?: string; platformRole?: string }): Promise<any> {
+  const q = new URLSearchParams();
+  if (params?.clinicId) q.set('clinicId', params.clinicId);
+  if (params?.platformRole) q.set('platformRole', params.platformRole);
+  const qs = q.toString();
+  return apiRequest(`/api/admin/users${qs ? '?' + qs : ''}`);
+}
+export async function createAdminUser(data: any): Promise<any> { return apiRequest('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }); }
+export async function resetAdminUserPassword(id: string, password: string): Promise<any> { return apiRequest(`/api/admin/users/${id}/password`, { method: 'PATCH', body: JSON.stringify({ password }) }); }
+export async function deleteAdminUser(id: string): Promise<any> { return apiRequest(`/api/admin/users/${id}`, { method: 'DELETE' }); }
+export async function getAdminSupport(): Promise<any> { return apiRequest('/api/admin/support'); }
+export async function createAdminSupport(data: any): Promise<any> { return apiRequest('/api/admin/support', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteAdminSupport(id: string): Promise<any> { return apiRequest(`/api/admin/support/${id}`, { method: 'DELETE' }); }

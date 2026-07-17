@@ -1,8 +1,12 @@
-﻿import React, { useState, type FormEvent } from 'react';
-import { useOutletContext } from 'react-router-dom';
+﻿import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Building2, CheckCircle, Ban, AlertTriangle, Users, Banknote, Pencil, KeyRound, Trash2, Plus, Info } from 'lucide-react';
-import { useAuth } from '@/store/auth.store';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Building2, CheckCircle, Ban, AlertTriangle, Users, Banknote, Pencil,
+  KeyRound, Trash2, Plus, Shield, UserPlus, Eye, EyeOff, Copy, RefreshCw,
+  Search, LifeBuoy, Headphones, UserCheck,
+} from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '../components/ui/ds/Button';
 import { Card } from '../components/ui/ds/Card';
@@ -10,317 +14,455 @@ import { Input, Select } from '../components/ui/ds/Input';
 import { Badge } from '../components/ui/ds/Badge';
 import { Modal } from '../components/ui/ds/Modal';
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard';
-import { PLANS, tg, gid, fd } from '../utils/constants';
-import type { Clinic, User, RoleInfo } from '../types';
+import { tg, fd } from '../utils/constants';
+import * as api from '@/utils/api';
+import { queryKeys } from '@/queries/keys';
+import { useAuth } from '@/store/auth.store';
 
-const PLAN_COLORS: Record<string, string> = { starter: '#4e8cff', pro: '#c9a96e', enterprise: '#9b5de5' };
-const PLAN_BADGE_CLASSES: Record<string, string> = {
+const PLANS: Record<string, { name: string; price: string }> = {
+  starter: { name: 'Starter', price: '15 000 ₽' },
+  pro: { name: 'Pro', price: '35 000 ₽' },
+  enterprise: { name: 'Enterprise', price: '150 000 ₽' },
+};
+
+const PLAN_BADGE: Record<string, string> = {
   starter: 'bg-[#4e8cff]/10 text-[#4e8cff] border-[#4e8cff]/20',
   pro: 'bg-dv-gold/10 text-dv-gold border-dv-gold/20',
   enterprise: 'bg-[#9b5de5]/10 text-[#9b5de5] border-[#9b5de5]/20',
-  default: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
 };
 
-interface ClinicForm {
-  name: string;
-  city: string;
-  address: string;
-  phone: string;
-  email: string;
-  plan: string;
-  active: boolean;
-}
+type Tab = 'clinics' | 'users' | 'support';
 
 export default function SuperAdmin() {
-  const { user } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
-  const { allClinics, allUsers } = useAuth();
   const { showToast } = useToast();
+  const qc = useQueryClient();
+  const platformRole = useAuth(s => s.user?.platformRole);
+  const userRole = useAuth(s => s.user?.role);
 
-  const [clinics, setClinics] = useState<Clinic[]>(allClinics);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editClinic, setEditClinic] = useState<Clinic | null>(null);
-  const [form, setForm] = useState<ClinicForm>({ name: '', city: '', address: '', phone: '', email: '', plan: 'starter', active: true });
-  const [resetModalOpen, setResetModalOpen] = useState(false);
-  const [resetUser, setResetUser] = useState<User | null>(null);
-  const [newPassword, setNewPassword] = useState('');
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [clinicToDelete, setClinicToDelete] = useState<Clinic | null>(null);
+  const [tab, setTab] = useState<Tab>('clinics');
+  const [search, setSearch] = useState('');
 
-  const users = allUsers;
+  const stats = useQuery({ queryKey: queryKeys.admin.stats, queryFn: api.getAdminStats, staleTime: 30_000 });
+  const clinics = useQuery({ queryKey: queryKeys.admin.clinics, queryFn: api.getAdminClinics, staleTime: 30_000 });
+  const users = useQuery({ queryKey: queryKeys.admin.users(), queryFn: () => api.getAdminUsers(), staleTime: 30_000 });
+  const support = useQuery({ queryKey: queryKeys.admin.support, queryFn: api.getAdminSupport, staleTime: 30_000 });
 
-  const openNew = () => {
-    setEditClinic(null);
-    setForm({ name: '', city: '', address: '', phone: '', email: '', plan: 'starter', active: true });
-    setModalOpen(true);
-  };
+  const [clinicModal, setClinicModal] = useState<false | 'create' | 'edit'>(false);
+  const [editClinic, setEditClinic] = useState<any>(null);
+  const [clinicForm, setClinicForm] = useState({ name: '', city: '', phone: '', email: '', address: '', plan: 'starter' });
+  const [deleteModal, setDeleteModal] = useState<any>(null);
+  const [pwModal, setPwModal] = useState<any>(null);
+  const [pw, setPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [userModal, setUserModal] = useState(false);
+  const [userForm, setUserForm] = useState({ login: '', name: '', email: '', role: 'doctor', clinicId: '', password: '' });
+  const [newUserPw, setNewUserPw] = useState<string | null>(null);
+  const [supportModal, setSupportModal] = useState(false);
+  const [supportForm, setSupportForm] = useState({ login: '', name: '', email: '', password: '' });
+  const [newSupportPw, setNewSupportPw] = useState<string | null>(null);
 
-  const openEdit = (c: Clinic) => {
-    setEditClinic(c);
-    setForm({ name: c.name, city: c.city || '', address: c.address || '', phone: c.phone || '', email: c.email || '', plan: c.plan || 'starter', active: c.active ?? true });
-    setModalOpen(true);
-  };
+  const createClinic = useMutation({
+    mutationFn: api.createAdminClinic,
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: queryKeys.admin.clinics });
+      qc.invalidateQueries({ queryKey: queryKeys.admin.stats });
+      showToast(`Клиника создана. Директор: ${d.data?.directorLogin}, пароль: ${d.data?.tempPassword}`, 'success');
+      setClinicModal(false);
+    },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim()) { showToast('Введите название клиники', 'warning'); return; }
-    if (editClinic) {
-      setClinics(prev => prev.map(c => c.id === editClinic.id ? { ...c, ...form } : c));
-      showToast('Клиника обновлена', 'success');
-    } else {
-      const newClinic: Clinic = { ...form, id: gid(), createdAt: new Date().toISOString().slice(0, 10), color: '#c9a96e', subscriptionStart: new Date().toISOString().slice(0, 10), subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) };
-      setClinics(prev => [...prev, newClinic]);
-      showToast('Клиника добавлена', 'success');
-    }
-    setModalOpen(false);
-  };
+  const updateClinic = useMutation({
+    mutationFn: ({ id, ...rest }: any) => api.updateAdminClinic(id, rest),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); showToast('Клиника обновлена', 'success'); setClinicModal(false); },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
 
-  const toggleActive = (id: string) => {
-    setClinics(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
-    showToast('Статус обновлён', 'info');
-  };
+  const toggleClinic = useMutation({
+    mutationFn: api.toggleAdminClinic,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); showToast('Статус обновлён', 'info'); },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
 
-  const changePlan = (clinicId: string, newPlan: string) => {
-    setClinics(prev => prev.map(c => c.id === clinicId ? { ...c, plan: newPlan } : c));
-    showToast('Тариф изменён', 'success');
-  };
+  const changePlan = useMutation({
+    mutationFn: ({ id, plan }: any) => api.changeAdminClinicPlan(id, plan),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); showToast('Тариф изменён', 'success'); },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
 
-  const extendSubscription = (clinicId: string, months = 1) => {
-    setClinics(prev => prev.map(c => {
-      if (c.id === clinicId) {
-        const currentEnd = c.subscriptionEnd ? new Date(c.subscriptionEnd) : new Date();
-        const newEnd = new Date(currentEnd.setMonth(currentEnd.getMonth() + months));
-        return { ...c, subscriptionEnd: newEnd.toISOString().slice(0, 10) };
-      }
-      return c;
-    }));
-    showToast(`Подписка продлена на ${months} мес.`, 'success');
-  };
+  const extendSub = useMutation({
+    mutationFn: ({ id, months }: any) => api.extendAdminClinic(id, months),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); showToast('Подписка продлена', 'success'); },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
 
-  const openResetPassword = (u: User) => {
-    setResetUser(u);
-    setNewPassword('');
-    setResetModalOpen(true);
-  };
+  const deleteClinic = useMutation({
+    mutationFn: api.deleteAdminClinic,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); qc.invalidateQueries({ queryKey: queryKeys.admin.stats }); showToast('Клиника удалена', 'success'); setDeleteModal(null); },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
 
-  const handleResetPassword = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newPassword || newPassword.length < 6) { showToast('Пароль должен быть не менее 6 символов', 'warning'); return; }
-    showToast(`Пароль для ${resetUser?.login} сброшен`, 'success');
-    setResetModalOpen(false);
-  };
+  const resetPw = useMutation({
+    mutationFn: ({ id, password }: any) => api.resetAdminUserPassword(id, password),
+    onSuccess: () => { showToast('Пароль сброшен', 'success'); setPwModal(null); setPw(''); },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
 
-  const openDelete = (c: Clinic) => {
-    setClinicToDelete(c);
-    setDeleteModalOpen(true);
-  };
+  const createUser = useMutation({
+    mutationFn: api.createAdminUser,
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: queryKeys.admin.users() });
+      showToast('Пользователь создан', 'success');
+      if (d.data?.tempPassword) setNewUserPw(d.data.tempPassword);
+      setUserModal(false);
+    },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
 
-  const handleDelete = () => {
-    if (clinicToDelete) {
-      setClinics(prev => prev.filter(c => c.id !== clinicToDelete.id));
-      showToast('Клиника удалена', 'success');
-      setDeleteModalOpen(false);
-      setClinicToDelete(null);
-    }
-  };
+  const deleteUser = useMutation({
+    mutationFn: api.deleteAdminUser,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.users() }); showToast('Пользователь удалён', 'success'); },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
 
-  const stats = {
-    total: clinics.length,
-    active: clinics.filter(c => c.active).length,
-    blocked: clinics.filter(c => !c.active).length,
-    users: users.length,
-    revenue: clinics.reduce((s, c) => s + (c.plan === 'enterprise' ? 150000 : c.plan === 'pro' ? 35000 : 15000), 0),
-    expiringSoon: clinics.filter(c => {
-      if (!c.subscriptionEnd) return false;
-      const endDate = new Date(c.subscriptionEnd);
-      const now = new Date();
-      const daysLeft = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-      return daysLeft <= 7 && daysLeft >= 0;
-    }).length,
-  };
+  const createSupport = useMutation({
+    mutationFn: api.createAdminSupport,
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: queryKeys.admin.support });
+      showToast('Ассистент создан', 'success');
+      if (d.data?.tempPassword) setNewSupportPw(d.data.tempPassword);
+      setSupportModal(false);
+    },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
+
+  const deleteSupport = useMutation({
+    mutationFn: api.deleteAdminSupport,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.support }); showToast('Ассистент удалён', 'success'); },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
+
+  if (platformRole !== 'superadmin' && userRole !== 'superadmin') {
+    return <Navigate to="/" replace />;
+  }
+
+  const s = stats.data?.data;
+  const clinicList = clinics.data?.data || [];
+  const userList = users.data?.data || [];
+  const supportList = support.data?.data || [];
+
+  const filteredClinics = clinicList.filter((c: any) => !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.city?.toLowerCase().includes(search.toLowerCase()));
+  const filteredUsers = userList.filter((u: any) => !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.login?.toLowerCase().includes(search.toLowerCase()));
+  const filteredSupport = supportList.filter((u: any) => !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.login?.toLowerCase().includes(search.toLowerCase()));
+
+  const TABS: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
+    { id: 'clinics', label: 'Клиники', icon: <Building2 size={16} />, count: clinicList.length },
+    { id: 'users', label: 'Пользователи', icon: <Users size={16} />, count: userList.length },
+    { id: 'support', label: 'Поддержка', icon: <LifeBuoy size={16} />, count: supportList.length },
+  ];
+
+  const copyToClip = (text: string) => { navigator.clipboard?.writeText(text); showToast('Скопировано', 'info'); };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="p-6"
-    >
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="p-6 space-y-6">
       <PageHeader
-        title="Управление SaaS"
-        subtitle={`DentVision Platform · ${user?.name}`}
-        icon={<Building2 size={20} />}
-        actions={<Button icon={<Plus size={16} />} onClick={openNew}>Добавить клинику</Button>}
+        title="Управление платформой"
+        subtitle="DentVision Platform Admin"
+        icon={<Shield size={20} />}
+        actions={<Button icon={<RefreshCw size={16} />} variant="ghost" onClick={() => { qc.invalidateQueries({ queryKey: queryKeys.admin.stats }); qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); qc.invalidateQueries({ queryKey: queryKeys.admin.users() }); qc.invalidateQueries({ queryKey: queryKeys.admin.support }); }}>Обновить</Button>}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <StatCard label="Всего клиник" value={stats.total} icon={<Building2 size={18} />} />
-        <StatCard label="Активных" value={stats.active} icon={<CheckCircle size={18} />} />
-        <StatCard label="Заблокировано" value={stats.blocked} icon={<Ban size={18} />} />
-        <StatCard label="Истекают (7 дн.)" value={stats.expiringSoon} icon={<AlertTriangle size={18} />} />
-        <StatCard label="Пользователей" value={stats.users} icon={<Users size={18} />} />
-        <StatCard label="MRR" value={tg(stats.revenue)} icon={<Banknote size={18} />} />
-      </div>
-
-      <Card padding="none">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-bdr-subtle">
-                {['Клиника', 'Контакты', 'Тариф', 'Подписка', 'Статус', 'Действия'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {clinics.map(c => {
-                  const clinicUsers = users.filter((u: User) => u.clinicId === c.id);
-                  const endDate = c.subscriptionEnd ? new Date(c.subscriptionEnd) : null;
-                  const daysLeft = endDate ? Math.floor((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
-                  const isExpiring = daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
-                  const isExpired = daysLeft !== null && daysLeft < 0;
-                  return (
-                    <motion.tr
-                      key={c.id}
-                      layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="border-b border-bdr-subtle/50"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-semibold text-txt-primary mb-1">{c.name}</div>
-                        <div className="text-xs text-txt-muted">Город: {c.city || '—'}</div>
-                        <div className="text-xs text-txt-muted">Сотрудников: {clinicUsers.length}</div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-txt-secondary">
-                        <div>{c.phone || '—'}</div>
-                        <div>{c.email || '—'}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          size="sm"
-                          className={PLAN_BADGE_CLASSES[c.plan || ''] || PLAN_BADGE_CLASSES.default}
-                        >
-                          {PLANS[c.plan || '']?.name || c.plan}
-                        </Badge>
-                        <div className="mt-1.5">
-                          <Select
-                            value={c.plan || ''}
-                            onChange={(e) => changePlan(c.id, e.target.value)}
-                            options={Object.entries(PLANS).map(([k, v]) => ({ value: k, label: v.name }))}
-                            className="w-auto min-w-[100px] h-7 text-xs px-2"
-                          />
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {endDate && (
-                          <div>
-                            <div className={`text-xs font-medium mb-1 ${isExpired ? 'text-error' : isExpiring ? 'text-warning' : 'text-txt-muted'}`}>
-                              {isExpired ? <span className="inline-flex items-center gap-1"><Ban size={12} /> Истекла</span>
-                                : isExpiring ? <span className="inline-flex items-center gap-1"><AlertTriangle size={12} /> {daysLeft} дн.</span>
-                                : <span className="inline-flex items-center gap-1"><CheckCircle size={12} /> {daysLeft} дн.</span>}
-                            </div>
-                            <div className="text-xs text-txt-muted mb-1.5">{fd(c.subscriptionEnd)}</div>
-                            <div className="flex gap-1">
-                              <Button size="xs" variant="ghost" onClick={() => extendSubscription(c.id, 1)}>+1 мес.</Button>
-                              <Button size="xs" variant="ghost" onClick={() => extendSubscription(c.id, 3)}>+3 мес.</Button>
-                            </div>
-                          </div>
-                        )}
-                        {!endDate && <span className="text-xs text-txt-muted">—</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant={c.active ? 'success' : 'error'} size="sm" dot>
-                          {c.active ? 'Активна' : 'Заблокирована'}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1.5 flex-wrap">
-                          <Button size="icon-sm" variant="ghost" onClick={() => openEdit(c)} title="Редактировать">
-                            <Pencil size={14} />
-                          </Button>
-                          <Button
-                            size="icon-sm"
-                            variant={c.active ? 'danger' : 'outline'}
-                            onClick={() => toggleActive(c.id)}
-                            title={c.active ? 'Заблокировать' : 'Разблокировать'}
-                          >
-                            {c.active ? <Ban size={14} /> : <CheckCircle size={14} />}
-                          </Button>
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() => {
-                              const director = clinicUsers.find((u: User) => u.role === 'director');
-                              if (director) openResetPassword(director);
-                              else showToast('Нет директора у этой клиники', 'warning');
-                            }}
-                            title="Сбросить пароль директору"
-                          >
-                            <KeyRound size={14} />
-                          </Button>
-                          <Button size="icon-sm" variant="danger" onClick={() => openDelete(c)} title="Удалить клинику">
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  );
-                })}
-              </AnimatePresence>
-            </tbody>
-          </table>
+      {s && (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <StatCard label="Клиник" value={s.totalClinics} icon={<Building2 size={18} />} />
+          <StatCard label="Активных" value={s.activeClinics} icon={<CheckCircle size={18} />} />
+          <StatCard label="Заблокировано" value={s.blockedClinics} icon={<Ban size={18} />} />
+          <StatCard label="Истекают" value={s.expiringSoon} icon={<AlertTriangle size={18} />} />
+          <StatCard label="Пользователей" value={s.totalUsers} icon={<Users size={18} />} />
+          <StatCard label="MRR" value={tg(s.mrr)} icon={<Banknote size={18} />} />
         </div>
-      </Card>
+      )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editClinic ? 'Редактировать клинику' : 'Новая клиника'}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="Название клиники *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Город" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
-            <Input label="Телефон" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-          </div>
-          <Input label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" />
-          <Input label="Адрес" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
-          <div className="grid grid-cols-2 gap-3">
-            <Select label="Тарифный план" value={form.plan} onChange={e => setForm({ ...form, plan: e.target.value })} options={Object.entries(PLANS).map(([k, v]) => ({ value: k, label: `${v.name} (${v.price})` }))} />
-            <Select label="Статус" value={form.active ? 'active' : 'blocked'} onChange={e => setForm({ ...form, active: e.target.value === 'active' })} options={[{ value: 'active', label: 'Активна' }, { value: 'blocked', label: 'Заблокирована' }]} />
-          </div>
-          <div className="bg-dv-gold/5 border border-dv-gold/20 rounded-lg p-3 text-sm text-txt-secondary">
-            <strong className="flex items-center gap-1.5 mb-1"><Info size={14} /> При создании:</strong>
-            будет автоматически создан аккаунт директора с логином «admin_&lt;название&gt;» и временным паролем
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">{editClinic ? 'Сохранить' : 'Создать клинику'}</Button>
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={resetModalOpen && !!resetUser} onClose={() => setResetModalOpen(false)} title={`Сброс пароля: ${resetUser?.name}`}>
-        <form onSubmit={handleResetPassword} className="space-y-4">
-          <div className="text-sm text-txt-secondary">
-            Логин: <strong className="text-txt-primary font-mono">{resetUser?.login}</strong>
-          </div>
-          <Input label="Новый пароль *" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Минимум 6 символов" required />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">Сбросить пароль</Button>
-            <Button type="button" variant="ghost" onClick={() => setResetModalOpen(false)}>Отмена</Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={deleteModalOpen && !!clinicToDelete} onClose={() => setDeleteModalOpen(false)} title="Удаление клиники" size="sm">
-        <AlertTriangle size={20} className="text-warning mb-3" />
-        <div className="text-sm text-txt-secondary mb-6">
-          Вы действительно хотите удалить клинику <strong className="text-txt-primary">{clinicToDelete?.name}</strong>?
-          <br /><br />
-          Это действие необратимо. Все данные клиники (пациенты, записи, сотрудники) будут удалены.
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex gap-1 bg-surface-2 rounded-lg p-1">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => { setTab(t.id); setSearch(''); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
+              {t.icon}{t.label}<Badge size="xs" className="ml-1">{t.count}</Badge>
+            </button>
+          ))}
         </div>
         <div className="flex gap-2">
-          <Button variant="danger" className="flex-1" onClick={handleDelete}>Удалить</Button>
-          <Button variant="ghost" onClick={() => setDeleteModalOpen(false)}>Отмена</Button>
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
+              className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+          </div>
+          {tab === 'clinics' && <Button icon={<Plus size={16} />} onClick={() => { setEditClinic(null); setClinicForm({ name: '', city: '', phone: '', email: '', address: '', plan: 'starter' }); setClinicModal('create'); }}>Клиника</Button>}
+          {tab === 'users' && <Button icon={<UserPlus size={16} />} onClick={() => { setUserForm({ login: '', name: '', email: '', role: 'doctor', clinicId: '', password: '' }); setUserModal(true); }}>Пользователь</Button>}
+          {tab === 'support' && <Button icon={<Headphones size={16} />} onClick={() => { setSupportForm({ login: '', name: '', email: '', password: '' }); setSupportModal(true); }}>Ассистент</Button>}
+        </div>
+      </div>
+
+      {tab === 'clinics' && (
+        <Card padding="none">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-bdr-subtle">
+                  {['Клиника', 'Контакты', 'Тариф', 'Подписка', 'Статус', 'Действия'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence>
+                  {filteredClinics.map((c: any) => {
+                    const sub = c.subscription;
+                    const endDate = sub?.endDate ? new Date(sub.endDate) : null;
+                    const daysLeft = endDate ? Math.floor((endDate.getTime() - Date.now()) / 86400000) : null;
+                    const isExpiring = daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
+                    const isExpired = daysLeft !== null && daysLeft < 0;
+                    return (
+                      <motion.tr key={c.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-b border-bdr-subtle/50">
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-semibold text-txt-primary">{c.name}</div>
+                          <div className="text-xs text-txt-muted">{c.city || '—'} · {c._count?.memberships ?? 0} сотр. · {c._count?.patients ?? 0} пациен.</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-txt-secondary">
+                          <div>{c.phone || '—'}</div><div className="text-xs text-txt-muted">{c.email || '—'}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge size="sm" className={PLAN_BADGE[c.plan || '']}>{PLANS[c.plan]?.name || c.plan}</Badge>
+                          <div className="mt-1">
+                            <Select value={c.plan || ''} onChange={e => changePlan.mutate({ id: c.id, plan: e.target.value })}
+                              options={Object.entries(PLANS).map(([k, v]) => ({ value: k, label: v.name }))} className="w-auto min-w-[90px] h-7 text-xs px-2" />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {endDate ? (
+                            <div>
+                              <div className={`text-xs font-medium ${isExpired ? 'text-error' : isExpiring ? 'text-warning' : 'text-txt-muted'}`}>
+                                {isExpired ? 'Истекла' : isExpiring ? `${daysLeft} дн.` : `${daysLeft} дн.`}
+                              </div>
+                              <div className="text-xs text-txt-muted mb-1">{fd(sub.endDate)}</div>
+                              <div className="flex gap-1">
+                                <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 1 })}>+1</Button>
+                                <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 3 })}>+3</Button>
+                              </div>
+                            </div>
+                          ) : <span className="text-xs text-txt-muted">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant={c.active ? 'success' : 'error'} size="sm" dot>{c.active ? 'Активна' : 'Заблокирована'}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1">
+                            <Button size="icon-sm" variant="ghost" onClick={() => { setEditClinic(c); setClinicForm({ name: c.name, city: c.city || '', phone: c.phone || '', email: c.email || '', address: c.address || '', plan: c.plan || 'starter' }); setClinicModal('edit'); }} title="Ред."><Pencil size={14} /></Button>
+                            <Button size="icon-sm" variant={c.active ? 'danger' : 'outline'} onClick={() => toggleClinic.mutate(c.id)} title={c.active ? 'Заблок.' : 'Разблок.'}>
+                              {c.active ? <Ban size={14} /> : <CheckCircle size={14} />}
+                            </Button>
+                            <Button size="icon-sm" variant="ghost" onClick={() => { setPwModal(c); setPw(''); }} title="Сброс пароля"><KeyRound size={14} /></Button>
+                            <Button size="icon-sm" variant="danger" onClick={() => setDeleteModal(c)} title="Удалить"><Trash2 size={14} /></Button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {tab === 'users' && (
+        <Card padding="none">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-bdr-subtle">
+                  {['Пользователь', 'Логин', 'Роль', 'Клиника', 'Действия'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map((u: any) => (
+                  <tr key={u.id} className="border-b border-bdr-subtle/50">
+                    <td className="px-4 py-3"><div className="text-sm font-semibold text-txt-primary">{u.name}</div><div className="text-xs text-txt-muted">{u.email || '—'}</div></td>
+                    <td className="px-4 py-3 text-sm font-mono text-txt-secondary">{u.login}</td>
+                    <td className="px-4 py-3"><Badge size="sm">{u.role}</Badge></td>
+                    <td className="px-4 py-3 text-sm text-txt-muted">{u.clinicId || '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <Button size="icon-sm" variant="ghost" onClick={() => { setPwModal(u); setPw(''); }}><KeyRound size={14} /></Button>
+                        <Button size="icon-sm" variant="danger" onClick={() => { if (confirm(`Удалить ${u.name}?`)) deleteUser.mutate(u.id); }}><Trash2 size={14} /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {tab === 'support' && (
+        <div className="space-y-4">
+          <Card padding="sm">
+            <div className="flex items-center gap-2 mb-1">
+              <LifeBuoy size={16} className="text-dv-gold" />
+              <h3 className="text-sm font-semibold text-txt-primary">Ассистенты платформы</h3>
+            </div>
+            <p className="text-xs text-txt-muted">Пользователи с ролью поддержки — помогают управлять сервисом, обрабатывают заявки, следят за здоровьем платформы.</p>
+          </Card>
+          <Card padding="none">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-bdr-subtle">
+                    {['Ассистент', 'Логин', 'Email', 'Создан', 'Действия'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSupport.map((u: any) => (
+                    <tr key={u.id} className="border-b border-bdr-subtle/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-dv-gold/10 flex items-center justify-center text-dv-gold"><Headphones size={14} /></div>
+                          <div><div className="text-sm font-semibold text-txt-primary">{u.name}</div><Badge size="xs" className="mt-0.5">{u.platformRole}</Badge></div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-txt-secondary">{u.login}</td>
+                      <td className="px-4 py-3 text-sm text-txt-muted">{u.email || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-txt-muted">{u.createdAt ? fd(u.createdAt) : '—'}</td>
+                      <td className="px-4 py-3">
+                        <Button size="icon-sm" variant="danger" onClick={() => { if (confirm(`Удалить ассистента ${u.name}?`)) deleteSupport.mutate(u.id); }}><Trash2 size={14} /></Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredSupport.length === 0 && (
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-txt-muted text-sm">Нет ассистентов. Нажмите "Ассистент" чтобы добавить.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ═══ MODALS ═══ */}
+      <Modal open={!!clinicModal} onClose={() => setClinicModal(false)} title={clinicModal === 'edit' ? 'Редактировать клинику' : 'Новая клиника'}>
+        <form onSubmit={e => { e.preventDefault(); if (!clinicForm.name.trim()) { showToast('Введите название', 'warning'); return; } if (clinicModal === 'edit' && editClinic) updateClinic.mutate({ id: editClinic.id, ...clinicForm }); else createClinic.mutate(clinicForm); }} className="space-y-4">
+          <Input label="Название *" value={clinicForm.name} onChange={e => setClinicForm({ ...clinicForm, name: e.target.value })} required />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Город" value={clinicForm.city} onChange={e => setClinicForm({ ...clinicForm, city: e.target.value })} />
+            <Input label="Телефон" value={clinicForm.phone} onChange={e => setClinicForm({ ...clinicForm, phone: e.target.value })} />
+          </div>
+          <Input label="Email" value={clinicForm.email} onChange={e => setClinicForm({ ...clinicForm, email: e.target.value })} type="email" />
+          <Input label="Адрес" value={clinicForm.address} onChange={e => setClinicForm({ ...clinicForm, address: e.target.value })} />
+          {clinicModal === 'create' && (
+            <Select label="Тариф" value={clinicForm.plan} onChange={e => setClinicForm({ ...clinicForm, plan: e.target.value })}
+              options={Object.entries(PLANS).map(([k, v]) => ({ value: k, label: `${v.name} (${v.price})` }))} />
+          )}
+          {clinicModal === 'create' && (
+            <div className="bg-dv-gold/5 border border-dv-gold/20 rounded-lg p-3 text-xs text-txt-secondary">
+              Будет создан аккаунт директора с логином <code>admin_&lt;slug&gt;</code> и временным паролем.
+            </div>
+          )}
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" loading={createClinic.isPending || updateClinic.isPending}>{clinicModal === 'edit' ? 'Сохранить' : 'Создать клинику'}</Button>
+            <Button type="button" variant="ghost" onClick={() => setClinicModal(false)}>Отмена</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={userModal} onClose={() => { setUserModal(false); setNewUserPw(null); }} title="Новый пользователь">
+        {newUserPw ? (
+          <div className="space-y-4">
+            <div className="bg-success/10 border border-success/20 rounded-lg p-4 text-center">
+              <UserCheck size={24} className="mx-auto text-success mb-2" />
+              <p className="text-sm text-txt-primary font-medium">Пользователь создан!</p>
+              <p className="text-xs text-txt-muted mt-1">Пароль:</p>
+              <div className="mt-2 flex items-center justify-center gap-2">
+                <code className="text-lg font-mono text-dv-gold bg-surface-2 px-3 py-1 rounded">{newUserPw}</code>
+                <Button size="icon-sm" variant="ghost" onClick={() => copyToClip(newUserPw)}><Copy size={14} /></Button>
+              </div>
+            </div>
+            <Button className="w-full" onClick={() => setNewUserPw(null)}>Готово</Button>
+          </div>
+        ) : (
+          <form onSubmit={e => { e.preventDefault(); if (!userForm.login.trim() || !userForm.name.trim()) { showToast('Логин и имя обязательны', 'warning'); return; } createUser.mutate(userForm); }} className="space-y-4">
+            <Input label="Логин *" value={userForm.login} onChange={e => setUserForm({ ...userForm, login: e.target.value })} required />
+            <Input label="Имя *" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} required />
+            <Input label="Email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} type="email" />
+            <Select label="Роль" value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })}
+              options={[{ value: 'doctor', label: 'Врач' }, { value: 'assistant', label: 'Ассистент' }, { value: 'admin', label: 'Администратор' }, { value: 'cashier', label: 'Кассир' }, { value: 'reception', label: 'Регистратор' }, { value: 'manager', label: 'Менеджер' }, { value: 'laboratory', label: 'Лаборант' }]} />
+            <div className="flex gap-2 pt-2">
+              <Button type="submit" loading={createUser.isPending}>Создать</Button>
+              <Button type="button" variant="ghost" onClick={() => setUserModal(false)}>Отмена</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal open={supportModal} onClose={() => { setSupportModal(false); setNewSupportPw(null); }} title="Новый ассистент поддержки">
+        {newSupportPw ? (
+          <div className="space-y-4">
+            <div className="bg-success/10 border border-success/20 rounded-lg p-4 text-center">
+              <Headphones size={24} className="mx-auto text-success mb-2" />
+              <p className="text-sm text-txt-primary font-medium">Ассистент создан!</p>
+              <div className="mt-2 flex items-center justify-center gap-2">
+                <code className="text-lg font-mono text-dv-gold bg-surface-2 px-3 py-1 rounded">{newSupportPw}</code>
+                <Button size="icon-sm" variant="ghost" onClick={() => copyToClip(newSupportPw)}><Copy size={14} /></Button>
+              </div>
+            </div>
+            <Button className="w-full" onClick={() => setNewSupportPw(null)}>Готово</Button>
+          </div>
+        ) : (
+          <form onSubmit={e => { e.preventDefault(); if (!supportForm.login.trim() || !supportForm.name.trim()) { showToast('Логин и имя обязательны', 'warning'); return; } createSupport.mutate(supportForm); }} className="space-y-4">
+            <Input label="Логин *" value={supportForm.login} onChange={e => setSupportForm({ ...supportForm, login: e.target.value })} required />
+            <Input label="Имя *" value={supportForm.name} onChange={e => setSupportForm({ ...supportForm, name: e.target.value })} required />
+            <Input label="Email" value={supportForm.email} onChange={e => setSupportForm({ ...supportForm, email: e.target.value })} type="email" />
+            <div className="bg-dv-gold/5 border border-dv-gold/20 rounded-lg p-3 text-xs text-txt-secondary">
+              Ассистент получит роль <strong>support</strong> — доступ к аналитике, настройкам и управлению платформой.
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button type="submit" loading={createSupport.isPending}>Создать</Button>
+              <Button type="button" variant="ghost" onClick={() => setSupportModal(false)}>Отмена</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal open={!!pwModal} onClose={() => { setPwModal(null); setPw(''); }} title={`Сброс пароля: ${pwModal?.name || ''}`}>
+        <form onSubmit={e => { e.preventDefault(); if (!pw || pw.length < 6) { showToast('Минимум 6 символов', 'warning'); return; } resetPw.mutate({ id: pwModal.id, password: pw }); }} className="space-y-4">
+          <div className="text-sm text-txt-secondary">Логин: <strong className="text-txt-primary font-mono">{pwModal?.login}</strong></div>
+          <div className="relative">
+            <Input label="Новый пароль *" type={showPw ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} placeholder="Минимум 6 символов" required />
+            <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-9 text-txt-muted hover:text-txt-primary">
+              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" loading={resetPw.isPending}>Сбросить</Button>
+            <Button type="button" variant="ghost" onClick={() => { setPwModal(null); setPw(''); }}>Отмена</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={!!deleteModal} onClose={() => setDeleteModal(null)} title="Удаление клиники" size="sm">
+        <AlertTriangle size={20} className="text-warning mb-3" />
+        <div className="text-sm text-txt-secondary mb-6">
+          Удалить клинику <strong className="text-txt-primary">{deleteModal?.name}</strong>?<br /><br />
+          Это действие необратимо. Все данные будут удалены.
+        </div>
+        <div className="flex gap-2">
+          <Button variant="danger" className="flex-1" loading={deleteClinic.isPending} onClick={() => deleteClinic.mutate(deleteModal.id)}>Удалить</Button>
+          <Button variant="ghost" onClick={() => setDeleteModal(null)}>Отмена</Button>
         </div>
       </Modal>
     </motion.div>

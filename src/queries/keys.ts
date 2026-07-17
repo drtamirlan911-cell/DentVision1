@@ -26,4 +26,11 @@ export const queryKeys = {
   photos: ['photos'] as const,
   subscriptions: ['subscriptions'] as const,
   treatments: ['treatments'] as const,
+  admin: {
+    stats: ['admin', 'stats'] as const,
+    clinics: ['admin', 'clinics'] as const,
+    clinic: (id: string) => ['admin', 'clinic', id] as const,
+    users: (params?: Record<string, string>) => ['admin', 'users', params] as const,
+    support: ['admin', 'support'] as const,
+  },
 }
