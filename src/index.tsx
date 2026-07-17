@@ -25,6 +25,8 @@ const SettingsPage = lazy(() => import('./pages/Settings'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Jobs = lazy(() => import('./pages/Jobs'));
 const Community = lazy(() => import('./pages/Community'));
+const Demo = lazy(() => import('./pages/Demo'));
+const Pricing = lazy(() => import('./pages/Pricing'));
 
 // CRM sub-app pages
 const Schedule = lazy(() => import('./pages/crm/Schedule'));
@@ -101,6 +103,8 @@ if (container) {
                   <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
                   <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
                   <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
+                  <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />
+                  <Route path="pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
 
                   {/* CRM sub-app — under IntelligenceLayout sidebar */}
                   <Route path="crm/schedule" element={<Suspense fallback={<PageLoader />}><Schedule /></Suspense>} />

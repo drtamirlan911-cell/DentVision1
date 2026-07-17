@@ -76,6 +76,7 @@ import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
 import aiRoutes from './ai/chat.js';
 import adminRoutes from './routes/admin.js';
+import guestRoutes from './routes/guest.js';
 import { authenticate } from './middleware/auth.js';
 import { requirePermission, requireSuperadmin } from './middleware/rbac.js';
 
@@ -109,6 +110,7 @@ app.use('/api/school', schoolRoutes());
 app.use('/api/service-access', serviceAccessRoutes());
 app.use('/api/notifications', notificationRoutes());
 app.use('/api/admin', adminRoutes(writeAuditLog));
+app.use('/api/guest', guestRoutes());
 app.use('/api', auditRoutes(writeAuditLog));
 
 registerBridgeRoutes(app, writeAuditLog);

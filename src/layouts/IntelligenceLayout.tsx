@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { ChevronRight, Menu, Building2 } from 'lucide-react';
+import { ChevronRight, Menu, Building2, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
+import { useGuestStore } from '@/store/guest.store';
 import { WelcomeAnimation } from '@/components/intelligence/WelcomeAnimation';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
@@ -12,6 +13,7 @@ import { aiProactive } from '@/utils/api';
 import { Sidebar } from './Sidebar';
 import { AlertDropdown } from './AlertDropdown';
 import { BottomNav } from './BottomNav';
+import RegistrationModal from '@/components/guest/RegistrationModal';
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   crm: 'CRM',
@@ -34,7 +36,11 @@ export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth();
+  const { isGuest, isGuestRoute, requiresAuth, initGuest } = useGuestStore();
   const { sidebarOpen, toggleSidebar, contextSheetOpen, setContextSheetOpen } = useUIStore();
+
+  const isGuestAllowed = isGuest && isGuestRoute(location.pathname);
+  const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
 
   const [collapsed, setCollapsed] = useState(false);
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -88,7 +94,14 @@ export const IntelligenceLayout: React.FC = () => {
     } catch { /* ignore */ }
   }, []);
 
-  if (!isAuthenticated || !user) {
+  if (!isAuthenticated && !isGuest && !isGuestAllowed) {
+    initGuest();
+    if (requiresAuth(location.pathname)) {
+      return <Navigate to="/login" replace />;
+    }
+  }
+
+  if (needsAuth) {
     return <Navigate to="/login" replace />;
   }
 
@@ -135,10 +148,11 @@ export const IntelligenceLayout: React.FC = () => {
         sidebarVisible={sidebarVisible}
         isMobile={isMobile}
         sidebarOpen={sidebarOpen}
-        user={user}
-        roleInfo={roleInfo}
-        logout={logout}
+        user={isGuest ? { id: 'guest', name: 'Гость', login: 'guest', role: 'guest', platformRole: 'guest' } as any : user}
+        roleInfo={isGuest ? { label: 'Гость', icon: '👤', pages: ['shop', 'school', 'jobs', 'community', 'demo'] } as any : roleInfo}
+        logout={isGuest ? () => {} : logout}
         toggleSidebar={toggleSidebar}
+        isGuest={isGuest}
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -168,6 +182,16 @@ export const IntelligenceLayout: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {isGuest && (
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => useGuestStore.getState().setRegistrationModal(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-dv-gold/10 border border-dv-gold/20 text-dv-gold hover:bg-dv-gold/15 transition-colors"
+              >
+                <User size={12} />
+                <span className="text-[10px] font-semibold">Гость</span>
+              </motion.button>
+            )}
             <button
               onClick={() => setCmdOpen(true)}
               className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-dv-gold/30 transition-colors text-xs"
@@ -278,6 +302,7 @@ export const IntelligenceLayout: React.FC = () => {
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onAIQuery={handleAIQuery} />
       {isMobile && <BottomNav />}
+      <RegistrationModal />
     </div>
   );
 };

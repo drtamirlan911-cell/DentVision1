@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Stethoscope, ChevronLeft, ChevronRight, LogOut, Brain,
   ShoppingCart, GraduationCap, Briefcase, BarChart3, Users, User,
-  Shield, FileText, Database, Settings, Bot,
+  Shield, FileText, Database, Settings, Bot, FlaskConical, Star, LogIn,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/ds/Avatar';
@@ -44,6 +44,15 @@ const ADMIN_ITEMS: NavItem[] = [
   { id: 'backup', label: 'Бэкапы', icon: <Database size={16} />, path: '/backup', color: '#00BCD4', section: 'platform' },
 ];
 
+const GUEST_NAV_ITEMS: NavItem[] = [
+  { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={16} />, path: '/shop', color: '#8E44AD', section: 'services' },
+  { id: 'school', label: 'Академия', icon: <GraduationCap size={16} />, path: '/school', color: '#16A085', section: 'services' },
+  { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={16} />, path: '/jobs', color: '#E67E22', section: 'services' },
+  { id: 'community', label: 'Сообщество', icon: <Users size={16} />, path: '/community', color: '#00BCD4', section: 'services' },
+  { id: 'demo', label: 'Демо клиника', icon: <FlaskConical size={16} />, path: '/demo', color: '#C9A96E', section: 'platform' },
+  { id: 'pricing', label: 'Тарифы', icon: <Star size={16} />, path: '/pricing', color: '#F39C12', section: 'platform' },
+];
+
 interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
@@ -54,11 +63,12 @@ interface SidebarProps {
   roleInfo: RoleInfo | null;
   logout: () => void;
   toggleSidebar: () => void;
+  isGuest?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   collapsed, setCollapsed, sidebarVisible, isMobile, sidebarOpen,
-  user, roleInfo, logout, toggleSidebar,
+  user, roleInfo, logout, toggleSidebar, isGuest = false,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -87,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [queryClient, clinicId]);
 
-  const serviceItems = NAV_ITEMS.filter(item => {
+  const serviceItems = isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.section === 'platform' && item.id === 'ai') return true;
     if (item.section === 'platform') return true;
     if (item.id === 'crm') return allowedPages.some(p => p === 'schedule' || p === 'patients');
@@ -246,23 +256,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }}
         className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 no-scrollbar"
       >
-        {renderNavSection(serviceItems.filter(i => i.section !== 'platform'))}
-        {renderNavSection(serviceItems.filter(i => i.section === 'platform'), 'Платформа')}
-        {isAdmin && renderNavSection(ADMIN_ITEMS, 'Администрирование')}
+        {isGuest
+          ? renderNavSection(GUEST_NAV_ITEMS)
+          : <>
+            {renderNavSection(serviceItems.filter(i => i.section !== 'platform'))}
+            {renderNavSection(serviceItems.filter(i => i.section === 'platform'), 'Платформа')}
+            {isAdmin && renderNavSection(ADMIN_ITEMS, 'Администрирование')}
+          </>
+        }
       </motion.nav>
 
-      <div className="px-2 pb-2 flex-shrink-0">
-        <motion.button
-          onClick={() => { logout(); navigate('/login'); }}
-          whileTap={{ scale: 0.98 }}
-          className={cn(
-            'flex w-full items-center gap-2 rounded-lg border border-error/15 text-error transition-colors hover:bg-error/10',
-            collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
-          )}
-        >
-          <LogOut size={16} />
-          {!collapsed && <span className="text-sm font-medium">Выйти</span>}
-        </motion.button>
+      <div className="px-2 pb-2 flex-shrink-0 space-y-1">
+        {isGuest ? (
+          <motion.button
+            onClick={() => { navigate('/login'); }}
+            whileTap={{ scale: 0.98 }}
+            className={cn(
+              'flex w-full items-center gap-2 rounded-lg border border-dv-gold/20 text-dv-gold transition-colors hover:bg-dv-gold/10',
+              collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
+            )}
+          >
+            <LogIn size={16} />
+            {!collapsed && <span className="text-sm font-medium">Войти</span>}
+          </motion.button>
+        ) : (
+          <motion.button
+            onClick={() => { logout(); navigate('/login'); }}
+            whileTap={{ scale: 0.98 }}
+            className={cn(
+              'flex w-full items-center gap-2 rounded-lg border border-error/15 text-error transition-colors hover:bg-error/10',
+              collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
+            )}
+          >
+            <LogOut size={16} />
+            {!collapsed && <span className="text-sm font-medium">Выйти</span>}
+          </motion.button>
+        )}
       </div>
     </motion.aside>
   );
