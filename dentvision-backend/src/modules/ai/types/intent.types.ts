@@ -182,6 +182,7 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /открой\s+школ/,
     /открыть\s+школ/,
     /школа/,
+    /school/,
   ],
   [Intent.OPEN_SHOP]: [
     /открой\s+магазин/,
