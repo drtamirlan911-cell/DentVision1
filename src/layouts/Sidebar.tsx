@@ -14,6 +14,7 @@ import { Tooltip } from '@/components/ui/ds/Tooltip';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { useAuth } from '@/store/auth.store';
+import { useGuestStore } from '@/store/guest.store';
 import type { User as UserType, RoleInfo } from '@/types';
 
 interface NavItem {
@@ -45,6 +46,7 @@ const ADMIN_ITEMS: NavItem[] = [
 ];
 
 const GUEST_NAV_ITEMS: NavItem[] = [
+  { id: 'crm', label: 'CRM', icon: <Stethoscope size={16} />, path: '/crm/schedule', color: '#C9A96E', section: 'services' },
   { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={16} />, path: '/shop', color: '#8E44AD', section: 'services' },
   { id: 'school', label: 'Академия', icon: <GraduationCap size={16} />, path: '/school', color: '#16A085', section: 'services' },
   { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={16} />, path: '/jobs', color: '#E67E22', section: 'services' },
@@ -107,7 +109,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   });
 
   const handleNavClick = (path: string) => {
-    navigate(path);
+    if (isGuest) {
+      const publicPaths = ['/shop', '/school', '/jobs', '/community', '/demo', '/pricing', '/'];
+      if (publicPaths.some(p => path === p || path.startsWith(p + '/'))) {
+        navigate(path);
+      } else {
+        useGuestStore.getState().setRegistrationModal(true, () => navigate(path));
+      }
+    } else {
+      navigate(path);
+    }
     if (isMobile && sidebarOpen) toggleSidebar();
   };
 

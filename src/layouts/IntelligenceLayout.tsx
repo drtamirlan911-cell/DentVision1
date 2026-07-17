@@ -35,7 +35,7 @@ export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth();
-  const { isGuest, isGuestRoute, requiresAuth, initGuest } = useGuestStore();
+  const { isGuest, isGuestRoute, requiresAuth, initGuest, showRegistrationModal, setRegistrationModal } = useGuestStore();
   const { sidebarOpen, toggleSidebar, contextSheetOpen, setContextSheetOpen } = useUIStore();
 
   const isPublicRoute = isGuestRoute(location.pathname);
@@ -89,12 +89,32 @@ export const IntelligenceLayout: React.FC = () => {
 
   if (!isAuthenticated && !isGuest && !isPublicRoute) {
     initGuest();
-    if (requiresAuth(location.pathname)) {
-      return <Navigate to="/login" replace />;
-    }
   }
 
   if (needsAuth) {
+    if (isGuest) {
+      const pendingPath = location.pathname;
+      if (!showRegistrationModal) {
+        setRegistrationModal(true, () => navigate(pendingPath));
+      }
+      return (
+        <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center">
+              <User size={24} className="text-dv-gold" />
+            </div>
+            <h2 className="text-lg font-semibold text-txt-primary">Требуется авторизация</h2>
+            <p className="text-sm text-txt-secondary max-w-xs">Войдите или зарегистрируйтесь для доступа к CRM</p>
+            <button
+              onClick={() => setRegistrationModal(true, () => navigate(pendingPath))}
+              className="px-6 py-2.5 rounded-lg bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors"
+            >
+              Зарегистрироваться
+            </button>
+          </div>
+        </div>
+      );
+    }
     return <Navigate to="/login" replace />;
   }
 
