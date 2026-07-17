@@ -80,7 +80,7 @@ async function refreshAccessToken(): Promise<string> {
       return data.accessToken;
     } catch (err) {
       clearTokens();
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+      if (typeof window !== 'undefined') {
         window.location.href = '/login';
       }
       throw err;

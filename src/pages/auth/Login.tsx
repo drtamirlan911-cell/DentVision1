@@ -1,5 +1,5 @@
-﻿import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+﻿import React, { useEffect, useState, useMemo } from 'react'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
 import { useAuth } from '@/store/auth.store'
 import { Button, Input } from '@/components/ui/ds'
@@ -53,10 +53,27 @@ export default function Login() {
   const [showRegister, setShowRegister] = useState(false)
 
   useEffect(() => {
-    if (user) {
-      navigate('/intelligence', { replace: true })
+    if (searchParams.get('guest')) {
+      navigate('/', { replace: true });
     }
-  }, [user, navigate])
+  }, [searchParams, navigate]);
+
+  const returnUrl = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const returnUrl = params.get('returnUrl');
+    if (returnUrl) return returnUrl;
+    if (location.pathname !== '/login') {
+      return location.pathname + location.search + location.hash;
+    }
+    return '/';
+  }, [location]);
+
+  useEffect(() => {
+    if (user) {
+      const target = returnUrl.includes('/login') ? '/' : returnUrl;
+      navigate(target, { replace: true });
+    }
+  }, [user, navigate, returnUrl]);
 
   if (showRegister) return <Register onBack={() => setShowRegister(false)} />
 
