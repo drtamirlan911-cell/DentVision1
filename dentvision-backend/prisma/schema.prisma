@@ -92,13 +92,14 @@ model Clinic {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members     ClinicMember[]
-  patients    Patient[]
-  appointments Appointment[]
-  labOrders   LabOrder[]
-  invoices    Invoice[]
-  inventory   InventoryItem[]
-  orders      Order[]
+  members       ClinicMember[]
+  invitations   ClinicInvitation[]
+  patients      Patient[]
+  appointments  Appointment[]
+  labOrders     LabOrder[]
+  invoices      Invoice[]
+  inventory     InventoryItem[]
+  orders        Order[]
 
   @@map("clinics")
 }
@@ -116,6 +117,24 @@ model ClinicMember {
 
   @@unique([userId, clinicId])
   @@map("clinic_members")
+}
+
+model ClinicInvitation {
+  id        String   @id @default("")
+  clinicId  String
+  email     String?
+  role      UserRole @default(DOCTOR)
+  code      String   @unique
+  expiresAt DateTime?
+  usedAt    DateTime?
+  usedBy    String?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("clinic_invitations")
 }
 
 // ─── PATIENT CRM ───

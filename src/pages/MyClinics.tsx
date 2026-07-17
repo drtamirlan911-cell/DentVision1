@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, LogIn, FlaskConical, Building2, Users, QrCode, Link2, KeyRound,
-  CheckCircle2, ArrowRight, Sparkles, Loader2, Crown, ChevronRight,
+  CheckCircle2, ArrowRight, Sparkles, Loader2, Crown, ChevronRight, AlertCircle, CheckCircle,
 } from 'lucide-react';
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '@/components/ui/ds/Toast';
@@ -22,6 +22,7 @@ export default function MyClinics() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [createForm, setCreateForm] = useState({ name: '', city: '', country: 'Казахстан', address: '', phone: '', type: 'clinic', plan: 'starter' });
   const [joinCode, setJoinCode] = useState('');
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'join' | 'demo'>('list');
@@ -47,6 +48,10 @@ export default function MyClinics() {
     if (!joinCode.trim()) { toast.error('Введите код приглашения'); return; }
     setJoining(true);
     try {
+      // First lookup the invitation by code
+      const invite = await api.lookupInvitation(joinCode.trim());
+      if (!invite?.clinicId) throw new Error('Приглашение недействительно');
+      // Then join using the clinicId from the invitation
       const res = await api.joinClinic({ code: joinCode.trim() });
       await switchClinic(res.clinic?.id || null);
       toast.success('Вы присоединились к организации');
@@ -56,7 +61,14 @@ export default function MyClinics() {
   };
 
   const handleDemo = async () => {
-    toast.success('Демо-режим скоро будет доступен');
+    setDemoLoading(true);
+    try {
+      const res = await api.createDemoClinic();
+      await switchClinic(res.clinic?.id || null);
+      toast.success('Демо-клиника готова! Добро пожаловать в DentVision');
+      navigate('/crm/schedule');
+    } catch (e: any) { toast.error(e?.message || 'Не удалось создать демо-клинику'); }
+    finally { setDemoLoading(false); }
   };
 
   if (loading) return (
@@ -135,6 +147,7 @@ export default function MyClinics() {
             desc="Временный доступ"
             color="#27AE60"
             onClick={handleDemo}
+            loading={demoLoading}
           />
         </div>
 
@@ -189,12 +202,13 @@ export default function MyClinics() {
   );
 }
 
-function ActionCard({ icon, title, desc, color, onClick }: { icon: React.ReactNode; title: string; desc: string; color: string; onClick: () => void }) {
+function ActionCard({ icon, title, desc, color, onClick, loading }: { icon: React.ReactNode; title: string; desc: string; color: string; onClick: () => void; loading?: boolean }) {
   return (
     <motion.button
       whileHover={{ y: -3 }}
+      disabled={loading}
       onClick={onClick}
-      className="p-5 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px] text-left cursor-pointer hover:border-[rgba(201,169,110,0.4)] transition-all flex flex-col gap-2"
+      className="p-5 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px] text-left cursor-pointer hover:border-[rgba(201,169,110,0.4)] transition-all flex flex-col gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
     >
       <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: color + '22', color }}>{icon}</div>
       <div>

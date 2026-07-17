@@ -176,6 +176,14 @@ export async function createClinic(data: any): Promise<any> {
 export async function joinClinic(data: { code?: string; clinicId?: string }): Promise<any> {
   return apiRequest('/api/auth/join-clinic', { method: 'POST', body: JSON.stringify(data) });
 }
+
+export async function lookupInvitation(code: string): Promise<any> {
+  return apiRequest(`/api/auth/invitations/lookup?code=${encodeURIComponent(code)}`);
+}
+
+export async function createDemoClinic(): Promise<any> {
+  return apiRequest('/api/auth/demo-clinic', { method: 'POST' });
+}
 export async function createInvitation(data: { clinicId: string; email?: string; role?: string; spec?: string }): Promise<any> {
   return apiRequest('/api/auth/invitations', { method: 'POST', body: JSON.stringify(data) });
 }
