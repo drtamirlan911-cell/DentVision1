@@ -8,6 +8,7 @@ export interface AuthUser {
   lastName: string;
   role: UserRole;
   clinicId?: string;
+  isGuest?: boolean;
 }
 
 export interface AuthRequest extends Request {
@@ -19,6 +20,7 @@ export interface JwtPayload {
   email: string;
   role: UserRole;
   clinicId?: string;
+  isGuest?: boolean;
 }
 
 export interface PaginatedQuery {
