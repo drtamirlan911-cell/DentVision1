@@ -48,13 +48,7 @@ export class AIService {
     // Save user message
     await this.saveMessage(sessionId, 'user', text);
 
-    // Check permissions
-    const permissions = await contextManager.getCurrentPermissions(context.userId, context.clinicId);
-    if (!this.hasPermission(permissions, intent)) {
-      return this.permissionDenied(intent);
-    }
-
-    // Navigation intents → return an action the frontend can execute
+    // Navigation intents → return an action the frontend can execute (allowed for all roles)
     const navAction = this.mapNavigationAction(intent);
     if (navAction) {
       const label = this.navigationLabel(intent);
@@ -64,6 +58,12 @@ export class AIService {
         action: { type: navAction, payload: {} },
         suggestions: ['Записать пациента', 'Показать расписание', 'Создать счет'],
       };
+    }
+
+    // Check permissions
+    const permissions = await contextManager.getCurrentPermissions(context.userId, context.clinicId);
+    if (!this.hasPermission(permissions, intent)) {
+      return this.permissionDenied(intent);
     }
 
     // Route to agent
