@@ -13,7 +13,7 @@ export class MemoryEngine {
     await prisma.aIMemory.upsert({
       where: { key_userId_clinicId_scope: { key, userId, clinicId, scope: 'short' } },
       update: { value: value as any, updatedAt: new Date() },
-      create: { key, value: value as any, userId, clinicId, scope: 'short' },
+      create: { id: crypto.randomUUID(), key, value: value as any, userId, clinicId, scope: 'short' },
     });
   }
 
@@ -28,7 +28,7 @@ export class MemoryEngine {
     await prisma.aIMemory.upsert({
       where: { key_userId_clinicId_scope: { key, userId, clinicId, scope: 'session' } },
       update: { value: value as any, updatedAt: new Date() },
-      create: { key, value: value as any, userId, clinicId, scope: 'session' },
+      create: { id: crypto.randomUUID(), key, value: value as any, userId, clinicId, scope: 'session' },
     });
   }
 
@@ -43,7 +43,7 @@ export class MemoryEngine {
     await prisma.aIMemory.upsert({
       where: { key_userId_clinicId_scope: { key, userId, clinicId, scope: 'long' } },
       update: { value: value as any, updatedAt: new Date() },
-      create: { key, value: value as any, userId, clinicId, scope: 'long' },
+      create: { id: crypto.randomUUID(), key, value: value as any, userId, clinicId, scope: 'long' },
     });
   }
 

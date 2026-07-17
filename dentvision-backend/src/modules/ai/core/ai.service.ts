@@ -95,7 +95,7 @@ export class AIService {
 
   private async saveMessage(sessionId: string, role: string, content: string): Promise<void> {
     await prisma.aIMessage.create({
-      data: { sessionId, role: role as any, content },
+      data: { id: crypto.randomUUID(), sessionId, role: role as any, content },
     });
   }
 

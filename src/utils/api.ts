@@ -525,14 +525,51 @@ export interface AIChatResponse {
   proactive: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;
   conversationContext: { turnCount: number; entities: Record<string, unknown> };
 }
-export async function aiChat(message: string, history: Array<{ role: string; content: string }> = []): Promise<AIChatResponse> {
-  return apiRequest('/api/ai/chat', { method: 'POST', body: JSON.stringify({ message, history }) });
+export async function aiChat(message: string, _history: Array<{ role: string; content: string }> = []): Promise<AIChatResponse> {
+  const sessionId = (crypto as any)?.randomUUID?.() || Math.random().toString(36).slice(2);
+  const res = await apiRequest('/api/ai/query', {
+    method: 'POST',
+    body: JSON.stringify({ text: message, sessionId }),
+  });
+  const d = res?.data || {};
+  return {
+    reply: d.message || '',
+    skill: d.intent || 'general',
+    source: 'ai',
+    data: d,
+    recommendations: undefined,
+    actions: d.action
+      ? [
+          {
+            type: d.action.type,
+            label: d.action.type,
+            confidence: 1,
+            params: (d.action.payload as Record<string, unknown>) || {},
+            requiresConfirmation: !!d.needsConfirmation,
+          },
+        ]
+      : [],
+    suggestions: Array.isArray(d.suggestions) ? d.suggestions : [],
+    proactive: [],
+    conversationContext: { turnCount: 0, entities: {} },
+  } as AIChatResponse;
 }
 export async function aiProactive(): Promise<{ alerts: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }> }> {
-  return apiRequest('/api/ai/proactive');
+  const res = await apiRequest('/api/ai/proactive');
+  const alerts = (res?.data?.alerts || []).map((a: any) => ({
+    type: a.type || 'info',
+    category: a.type || 'general',
+    text: a.message || '',
+    priority: a.priority === 'high' ? 2 : a.priority === 'medium' ? 1 : 0,
+    action: a.action ? { type: a.action.type } : undefined,
+  }));
+  return { alerts };
 }
 export async function aiAction(action: string, params: Record<string, unknown> = {}): Promise<any> {
-  return apiRequest('/api/ai/action', { method: 'POST', body: JSON.stringify({ action, params }) });
+  return apiRequest('/api/ai/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ actionId: action, confirmed: true, data: params }),
+  });
 }
 export async function aiDigitalTwin(): Promise<any> {
   return apiRequest('/api/ai/digital-twin');
