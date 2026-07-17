@@ -8,11 +8,10 @@ function reportMetric(metric: Metric) {
 
 export function reportWebVitals() {
   if (typeof window === 'undefined') return;
-  import('web-vitals').then(({ onCLS, onFID, onLCP, onTTFB, onINP }) => {
+  import('web-vitals').then(({ onCLS, onLCP, onTTFB, onINP }) => {
     onCLS(reportMetric);
-    onFID(reportMetric);
     onLCP(reportMetric);
     onTTFB(reportMetric);
     onINP(reportMetric);
-  });
+  }).catch(() => {});
 }

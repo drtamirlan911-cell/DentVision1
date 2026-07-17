@@ -20,9 +20,9 @@ export default function Analytics() {
   const { user } = useAuth()
   const data = useDataQuery(user?.clinicId)
 
-  const patients = data.patients || []
-  const appointments = data.appointments || []
-  const receipts: Receipt[] = data.receipts || []
+  const patients = Array.isArray(data.patients) ? data.patients : []
+  const appointments = Array.isArray(data.appointments) ? data.appointments : []
+  const receipts: Receipt[] = Array.isArray(data.receipts) ? data.receipts : []
 
   const totalRevenue = receipts.reduce((s, r) => s + (Number(r.amount) || 0), 0)
   const thisMonth = new Date().toISOString().slice(0, 7)

@@ -14,7 +14,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    if (token) {
+    if (token && import.meta.env.VITE_WS_URL) {
+      socketClient.reset()
       socketClient.connect()
     } else {
       socketClient.disconnect()
@@ -25,47 +26,46 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubs = [
       socketClient.on(SOCKET_EVENTS.NOTIFICATION_NEW, () => {
-        useNotificationStore.getState().loadNotifications()
+        try { useNotificationStore.getState().loadNotifications() } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.AI_ALERT, () => {
-        queryClient.invalidateQueries({ queryKey: [...queryKeys.notifications, 'proactive'] })
+        try { queryClient.invalidateQueries({ queryKey: [...queryKeys.notifications, 'proactive'] }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.PATIENT_UPDATED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.patients })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.patients }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.PATIENT_DELETED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.patients })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.patients }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.APPOINTMENT_CREATED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.appointments }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.APPOINTMENT_UPDATED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.appointments }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.APPOINTMENT_DELETED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.appointments }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.VISIT_UPDATED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.visits('') })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.visits('') }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.MEDICAL_CARD_UPDATED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.visits('') })
-        queryClient.invalidateQueries({ queryKey: queryKeys.documents })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.visits('') }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.DOCUMENT_UPDATED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.documents })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.documents }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.DOCUMENT_DELETED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.documents })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.documents }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.INVOICE_PAID, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.receipts })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.receipts }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.INVENTORY_LOW, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.inventory })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.inventory }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.LAB_UPDATED, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.labOrders })
+        try { queryClient.invalidateQueries({ queryKey: queryKeys.labOrders }) } catch { /* noop */ }
       }),
     ]
     return () => { unsubs.forEach((u) => u()) }

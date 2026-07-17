@@ -6,44 +6,60 @@ class WebSocketClient {
   private ws: WebSocket | null = null
   private handlers: Map<string, Set<MessageHandler>> = new Map()
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
-  private reconnectDelay = 3000
+  private maxReconnectAttempts = 3
+  private reconnectDelay = 5000
+  private failed = false
 
   connect() {
+    if (this.failed) return
     const token = useAuthStore.getState().token
     if (!token) return
 
-    const url = `${import.meta.env.VITE_WS_URL || 'wss://dentvision-api.onrender.com'}?token=${token}`
-    this.ws = new WebSocket(url)
+    const base = import.meta.env.VITE_WS_URL
+    if (!base) { this.failed = true; return }
 
-    this.ws.onopen = () => {
-      this.reconnectAttempts = 0
-    }
+    try {
+      const url = `${base}/ws?token=${token}`
+      this.ws = new WebSocket(url)
 
-    this.ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data)
-        const handlers = this.handlers.get(message.event)
-        if (handlers) {
-          handlers.forEach(handler => handler(message.data))
+      this.ws.onopen = () => {
+        this.reconnectAttempts = 0
+        console.log('[WS] Connected')
+      }
+
+      this.ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data)
+          const handlers = this.handlers.get(message.event)
+          if (handlers) {
+            handlers.forEach(handler => handler(message.data))
+          }
+        } catch (e) {
+          console.warn('[WS] Parse error:', e)
         }
-      } catch (e) {
-        console.error('[WS] Parse error:', e)
       }
-    }
 
-    this.ws.onclose = () => {
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
-        setTimeout(() => {
+      this.ws.onclose = (event) => {
+        if (event.code === 1000 || event.code === 1001) return
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts)
           this.reconnectAttempts++
-          this.connect()
-        }, this.reconnectDelay * (this.reconnectAttempts + 1))
+          setTimeout(() => this.connect(), delay)
+        }
       }
-    }
 
-    this.ws.onerror = () => {
-      this.ws?.close()
+      this.ws.onerror = () => {
+        this.failed = true
+        this.ws?.close()
+      }
+    } catch {
+      this.failed = true
     }
+  }
+
+  reset() {
+    this.failed = false
+    this.reconnectAttempts = 0
   }
 
   disconnect() {
