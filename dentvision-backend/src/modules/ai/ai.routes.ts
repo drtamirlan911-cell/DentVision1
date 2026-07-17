@@ -27,6 +27,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
       role: req.user?.role || 'guest',
+      isGuest: !req.user,
       currentPatientId: req.body.currentPatientId,
       currentAppointmentId: req.body.currentAppointmentId,
       sessionId: sessionId || crypto.randomUUID(),

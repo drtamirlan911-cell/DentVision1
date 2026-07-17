@@ -60,6 +60,18 @@ export class AIService {
       };
     }
 
+    // Guests (anonymous/demo) may use read-only and demo intents
+    const GUEST_ALLOWED = new Set([
+      'SEARCH_PATIENT', 'VIEW_SCHEDULE', 'GET_ANALYTICS', 'VIEW_CBCT',
+      'CHECK_DEBTS', 'FIND_COURSE', 'GENERATE_REPORT', 'LOW_STOCK',
+      'VIEW_PATIENT', 'OPEN_MEDICAL_CARD_NAV', 'SHOW_CBCT',
+    ]);
+    if (context.isGuest && GUEST_ALLOWED.has(intent)) {
+      const response = await agentRouter.route(context, intent, {});
+      await this.saveMessage(sessionId, 'assistant', response.message);
+      return response;
+    }
+
     // Check permissions
     const permissions = await contextManager.getCurrentPermissions(context.userId, context.clinicId);
     if (!this.hasPermission(permissions, intent)) {
