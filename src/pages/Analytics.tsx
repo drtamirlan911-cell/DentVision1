@@ -1,9 +1,9 @@
-import React from 'react'
+﻿import React from 'react'
 import { motion } from 'framer-motion'
 import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 import { useData } from '@/hooks/useData'
 import type { Receipt } from '@/types'
 

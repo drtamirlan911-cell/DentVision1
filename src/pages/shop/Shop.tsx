@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+﻿import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
-import { useCart } from '../../context/CartContext';
+import { useCart } from '@/store/cart.store';
 import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Input } from '../../components/ui/ds/Input';

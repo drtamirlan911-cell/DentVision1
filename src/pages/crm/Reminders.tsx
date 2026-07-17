@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Bell,
@@ -13,7 +13,8 @@ import {
   Send,
   Info,
 } from 'lucide-react';
-import { useData, useToast } from '../../hooks/useData';
+import { useToast } from '@/components/ui/ds/Toast'
+import { useData } from '../../hooks/useData';
 import { getAppointmentReminders, getHygieneReminders, markSent } from '../../utils/reminders';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Badge } from '../../components/ui/ds/Badge';

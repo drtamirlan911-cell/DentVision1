@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+﻿import React, { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -25,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Car
 import { StatCard } from '@/components/ui/ds/StatCard'
 import { Badge } from '@/components/ui/ds/Badge'
 import { Avatar } from '@/components/ui/ds/Avatar'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 import { useData } from '@/hooks/useData'
 import type { Appointment, Patient } from '@/types'
 

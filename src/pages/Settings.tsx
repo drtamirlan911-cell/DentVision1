@@ -1,11 +1,11 @@
-import React from 'react'
+﻿import React from 'react'
 import { motion } from 'framer-motion'
 import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, LayoutGrid } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
 import { Switch } from '@/components/ui/ds/Misc'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 import * as api from '@/utils/api'
 
 const container = {

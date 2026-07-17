@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2 } from 'lucide-react';
 import { Button, Badge, EmptyState, Card, ProgressBar } from '../../components/ui/ds';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '@/store/auth.store';
 import { useToast } from '../../components/ui/ds/Toast';
 import * as api from '../../utils/api';
 

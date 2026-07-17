@@ -10,7 +10,7 @@ import {
   Check,
   X,
 } from 'lucide-react'
-import { useNotifications } from '@/context/NotificationsContext'
+import { useNotificationStore } from '@/store/notification.store'
 import { cn, timeAgo } from '@/lib/utils'
 import type { AppNotification, NotificationType } from '@/types'
 
@@ -23,7 +23,10 @@ const TYPE_META: Record<NotificationType, { label: string; icon: React.ReactNode
 
 export default function NotificationCenter() {
   const navigate = useNavigate()
-  const { notifications, unreadCount, markRead, markAll } = useNotifications()
+  const notifications = useNotificationStore((s) => s.notifications)
+  const unreadCount = useNotificationStore((s) => s.unread)
+  const markRead = useNotificationStore((s) => s.markAsRead)
+  const markAll = useNotificationStore((s) => s.markAllAsRead)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'all' | 'unread'>('all')
   const ref = useRef<HTMLDivElement>(null)

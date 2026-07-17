@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect, type KeyboardEvent } from 'react';
-import { useToast, useData } from '../hooks/useData';
-import { useAuth } from '../context/AuthContext';
+﻿import React, { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useToast } from '@/components/ui/ds/Toast'
+import { useData } from '../hooks/useData';
+import { useAuth } from '@/store/auth.store';
 import { Button } from '../components/ui/ds/Button';
 import { Card, CardContent } from '../components/ui/ds/Card';
 import { buildAiReply } from '../utils/aiHelpers';

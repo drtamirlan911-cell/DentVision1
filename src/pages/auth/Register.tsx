@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+﻿import React, { useState } from 'react';
+import { useAuth } from '@/store/auth.store';
 import { GLOBAL_CSS } from '../../utils/constants';
 import { Loader2, UserPlus, AlertTriangle, Check, User, Stethoscope, Bot, GraduationCap, ShoppingBag } from 'lucide-react';
 

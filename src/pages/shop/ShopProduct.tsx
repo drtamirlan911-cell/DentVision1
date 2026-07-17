@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Star, ShoppingCart, Heart, Package, Truck, Clock, Shield, ChevronRight, MessageSquare, ThumbsUp } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
-import { useCart } from '../../context/CartContext';
-import { useAuth } from '../../context/AuthContext';
+import { useCart } from '@/store/cart.store';
+import { useAuth } from '@/store/auth.store';
 import { useToast } from '../../components/ui/ds/Toast';
 import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';

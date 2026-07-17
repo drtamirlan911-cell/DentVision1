@@ -1,25 +1,25 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiClient } from '@/services/api'
+﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import * as api from '@/utils/api'
 import { queryKeys } from './keys'
 
 export function useNotifications(opts?: { unread?: boolean; type?: string; limit?: number }) {
   return useQuery({
     queryKey: [...queryKeys.notifications, opts],
-    queryFn: () => apiClient.getNotifications(opts),
+    queryFn: () => api.getNotifications(opts),
   })
 }
 
 export function useUnreadCount() {
   return useQuery({
     queryKey: [...queryKeys.notifications, 'unread-count'],
-    queryFn: () => apiClient.getUnreadCount(),
+    queryFn: () => api.getUnreadCount(),
   })
 }
 
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => apiClient.markNotificationRead(id),
+    mutationFn: (id: string) => api.markNotificationRead(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications })
     },
@@ -29,7 +29,7 @@ export function useMarkNotificationRead() {
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => apiClient.markAllNotificationsRead(),
+    mutationFn: () => api.markAllNotificationsRead(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications })
     },

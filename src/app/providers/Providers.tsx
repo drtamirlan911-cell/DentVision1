@@ -1,7 +1,4 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AuthProvider } from '@/context/AuthContext'
-import { CartProvider } from '@/context/CartContext'
-import { NotificationProvider } from '@/context/NotificationsContext'
 import { SocketProvider } from '@/services/websocket'
 import { BrowserRouter } from 'react-router-dom'
 
@@ -23,15 +20,9 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <CartProvider>
-            <NotificationProvider>
-              <SocketProvider>
-                {children}
-              </SocketProvider>
-            </NotificationProvider>
-          </CartProvider>
-        </AuthProvider>
+        <SocketProvider>
+          {children}
+        </SocketProvider>
       </QueryClientProvider>
     </BrowserRouter>
   )

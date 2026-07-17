@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 import { Button, Input } from '@/components/ui/ds'
 import { cn } from '@/lib/utils'
 import {

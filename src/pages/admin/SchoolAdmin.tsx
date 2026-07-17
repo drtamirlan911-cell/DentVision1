@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
+﻿import { useEffect, useState, useCallback } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 import {
   GraduationCap, BookOpen, Lightbulb, Library, Plus, Pencil, Trash2, Search,
   GripVertical, X,

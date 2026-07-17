@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Package, CheckCircle2, Clock, Truck } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '@/store/auth.store';
 import { useToast } from '../../components/ui/ds/Toast';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Badge } from '../../components/ui/ds/Badge';

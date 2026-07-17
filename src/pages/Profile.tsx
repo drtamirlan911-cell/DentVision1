@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+﻿import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -6,7 +6,7 @@ import {
   Plus, Trash2, Pencil, LogOut, Camera, Building2, Sparkles,
   ExternalLink, ChevronRight, GraduationCap, FolderGit2, MessageSquareQuote, Activity,
 } from 'lucide-react'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Badge } from '@/components/ui/ds/Badge'

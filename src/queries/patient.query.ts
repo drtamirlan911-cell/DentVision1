@@ -1,11 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiClient } from '@/services/api'
+﻿import { useQuery } from '@tanstack/react-query'
+import * as api from '@/utils/api'
 import { queryKeys } from './keys'
 
 export function usePatients(clinicId: string) {
   return useQuery({
     queryKey: queryKeys.patients,
-    queryFn: () => apiClient.getPatients(clinicId),
+    queryFn: () => api.getPatients(clinicId),
     enabled: !!clinicId,
   })
 }
@@ -13,7 +13,7 @@ export function usePatients(clinicId: string) {
 export function usePatient(id: string) {
   return useQuery({
     queryKey: queryKeys.patient(id),
-    queryFn: () => apiClient.getPatient(id),
+    queryFn: () => api.getPatient(id),
     enabled: !!id,
   })
 }
@@ -21,7 +21,7 @@ export function usePatient(id: string) {
 export function useMedicalCard(patientId: string) {
   return useQuery({
     queryKey: queryKeys.medicalCard(patientId),
-    queryFn: () => apiClient.getMedicalCard(patientId),
+    queryFn: () => api.getMedicalCard(patientId),
     enabled: !!patientId,
   })
 }
@@ -29,7 +29,7 @@ export function useMedicalCard(patientId: string) {
 export function useVisits(clinicId: string, patientId: string) {
   return useQuery({
     queryKey: queryKeys.visits(patientId),
-    queryFn: () => apiClient.getVisits(clinicId, patientId),
+    queryFn: () => api.getVisits(clinicId, patientId),
     enabled: !!patientId,
   })
 }

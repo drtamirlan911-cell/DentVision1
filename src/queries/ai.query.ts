@@ -1,5 +1,5 @@
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { apiClient } from '@/services/api'
+﻿import { useQuery, useMutation } from '@tanstack/react-query'
+import * as api from '@/utils/api'
 import { queryKeys } from './keys'
 
 export function useAIQuery() {
@@ -10,13 +10,13 @@ export function useAIQuery() {
     }: {
       message: string
       history?: Array<{ role: string; content: string }>
-    }) => apiClient.aiChat(message, history),
+    }) => api.aiChat(message, history),
   })
 }
 
 export function useProactiveAlerts() {
   return useQuery({
     queryKey: [...queryKeys.notifications, 'proactive'],
-    queryFn: () => apiClient.aiProactive(),
+    queryFn: () => api.aiProactive(),
   })
 }

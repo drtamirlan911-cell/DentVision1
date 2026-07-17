@@ -1,17 +1,17 @@
-import React, { useEffect, useCallback, useRef } from 'react'
+﻿import React, { useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 import { aiChat, aiAction, aiProactive } from '@/utils/api'
 import { Button } from '@/components/ui/ds/Button'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
 import { GreetingArea, AIStatus } from '@/components/ai'
-import { useAIWorkspaceStore } from '@/stores/useAIWorkspaceStore'
-import type { Message } from '@/stores/useAIWorkspaceStore'
+import { useAIWorkspaceStore } from '@/store/workspace.store'
 
+import type { Message } from '@/store/workspace.store'
 interface AIWorkspaceIndexProps {
   onNavigate?: (path: string) => void
 }

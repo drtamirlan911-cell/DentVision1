@@ -21,8 +21,6 @@ import type {
   Visit,
   Document,
   WaitingListItem,
-  Toast,
-  ToastType,
 } from '../types';
 
 const DEFAULT_INVENTORY: Omit<InventoryItem, 'clinicId'>[] = [
@@ -427,37 +425,5 @@ export function useData(clinicId?: string | null): UseDataReturn {
     upsertVisit,
     upsertDocument, deleteDocument,
     upsertWaitingListItem, deleteWaitingListItem,
-  };
-}
-
-export interface UseToastReturn {
-  toast: Toast | null;
-  showToast: (msg: string, type?: ToastType) => () => void;
-  clearToast: () => void;
-  success: (msg: string) => () => void;
-  error: (msg: string) => () => void;
-  warn: (msg: string) => () => void;
-  info: (msg: string) => () => void;
-}
-
-export function useToast(): UseToastReturn {
-  const [toast, setToast] = useState<Toast | null>(null);
-
-  const showToast = useCallback((msg: string, type: ToastType = 'success'): (() => void) => {
-    setToast({ msg, type });
-    const timer = setTimeout(() => setToast(null), 3500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const clearToast = useCallback((): void => setToast(null), []);
-
-  return {
-    toast,
-    showToast,
-    clearToast,
-    success: (msg: string) => showToast(msg, 'success'),
-    error: (msg: string) => showToast(msg, 'error'),
-    warn: (msg: string) => showToast(msg, 'warning'),
-    info: (msg: string) => showToast(msg, 'info'),
   };
 }

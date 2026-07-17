@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Briefcase, MapPin, Clock, DollarSign, Users, Search,
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { PageHeader } from '@/components/ui/ds/StatCard'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 
 const container = {
   hidden: { opacity: 0 },

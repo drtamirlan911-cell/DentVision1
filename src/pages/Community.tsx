@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Users, MessageSquare, Heart, Share2, Bookmark,
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { Button } from '@/components/ui/ds/Button'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { PageHeader } from '@/components/ui/ds/StatCard'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 
 const container = {
   hidden: { opacity: 0 },

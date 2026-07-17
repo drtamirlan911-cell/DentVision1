@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+﻿import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -6,7 +6,7 @@ import {
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight,
 } from 'lucide-react'
 import { useData } from '@/hooks/useData'
-import { useAuth } from '@/context/AuthContext'
+import { useAuth } from '@/store/auth.store'
 import { cn, today } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card'

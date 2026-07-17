@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, LogIn, FlaskConical, Building2, Users, QrCode, Link2, KeyRound,
   CheckCircle2, ArrowRight, Sparkles, Loader2, Crown, ChevronRight,
 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/store/auth.store';
 import { useToast } from '@/components/ui/ds/Toast';
 import * as api from '@/utils/api';
 import { Input } from '@/components/ui/ds/Input';
