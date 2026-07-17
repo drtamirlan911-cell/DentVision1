@@ -58,7 +58,14 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         aiProactive().catch(() => ({ alerts: [] })),
       ])
 
-      const reply = chatRes?.reply || buildGreeting(user, clinic)
+      let reply = chatRes?.reply || buildGreeting(user, clinic)
+
+      // Enrich greeting with real proactive data
+      if (proactiveData?.alerts?.length && !chatRes?.reply) {
+        const alertLines = proactiveData.alerts.slice(0, 4).map((a: any) => `• ${a.text}`).join('\n')
+        reply = buildGreeting(user, clinic) + '\n\nАктуальное:\n' + alertLines
+      }
+
       setMessages([{
         id: 'greeting',
         role: 'assistant',
@@ -90,7 +97,15 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     const greeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
     const name = u?.name?.split(' ')[0] || u?.login || 'Пользователь'
     const spec = u?.spec || 'доктор'
-    return `${greeting}, ${spec} ${name}.\n\nDentVision Intelligence к вашим услугам. Чем могу помочь?`
+    const clinicName = c?.name || ''
+    const lines = [
+      `${greeting}, ${spec} ${name}.`,
+      clinicName ? `Клиника: ${clinicName}.` : '',
+      '',
+      'DentVision Intelligence к вашим услугам.',
+      'Чем могу помочь?',
+    ].filter(Boolean)
+    return lines.join('\n')
   }
 
   const getDefaultSuggestions = (u: any, c: any) => {

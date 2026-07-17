@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
 import { useGuestStore } from '@/store/guest.store';
-import { WelcomeAnimation } from '@/components/intelligence/WelcomeAnimation';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
 import { aiProactive } from '@/utils/api';
@@ -43,11 +42,7 @@ export const IntelligenceLayout: React.FC = () => {
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
 
   const [collapsed, setCollapsed] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try { return !sessionStorage.getItem('dv_welcomed'); } catch { return false; }
-  });
-  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
   const [proactiveAlerts, setProactiveAlerts] = useState<Array<{ type: string; text: string; priority: number }>>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
@@ -80,11 +75,9 @@ export const IntelligenceLayout: React.FC = () => {
     if (!isMobile) setContextSheetOpen(false);
   }, [isMobile, setContextSheetOpen]);
 
-  const handleWelcomeComplete = useCallback(() => {
-    try { sessionStorage.setItem('dv_welcomed', '1'); } catch { /* ignore */ }
-    setShowWelcome(false);
-    setSidebarVisible(true);
-    setTimeout(() => fetchProactiveAlerts(), 500);
+  useEffect(() => {
+    const t = setTimeout(() => fetchProactiveAlerts(), 500);
+    return () => clearTimeout(t);
   }, []);
 
   const fetchProactiveAlerts = useCallback(async () => {
@@ -103,10 +96,6 @@ export const IntelligenceLayout: React.FC = () => {
 
   if (needsAuth) {
     return <Navigate to="/login" replace />;
-  }
-
-  if (showWelcome) {
-    return <WelcomeAnimation onComplete={handleWelcomeComplete} />;
   }
 
   return (
