@@ -142,4 +142,9 @@ export const useGuestStore = create<GuestState>((set, get) => ({
   requiresAuth: (pathname) => {
     return AUTH_REQUIRED_ROUTES.some((r) => pathname.startsWith(r));
   },
+
+  clearGuest: () => {
+    try { localStorage.removeItem(GUEST_STORAGE_KEY); } catch {}
+    set({ guestId: null, guestToken: null, isGuest: false, showRegistrationModal: false, pendingAction: null });
+  },
 }));

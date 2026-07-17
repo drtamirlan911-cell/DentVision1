@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { User, Clinic, UserRole } from '@/types'
 import * as api from '@/utils/api'
+import { useGuestStore } from './guest.store'
 import { INIT_CLINICS, INIT_USERS, gid } from '@/utils/constants'
 
 // ─── Role config (moved from AuthContext) ───
@@ -219,6 +220,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         loading: false,
         error: null,
       })
+      useGuestStore.getState().clearGuest()
       return true
     } catch (err) {
       set({ loading: false, error: (err as Error).message || 'Login failed' })
@@ -263,6 +265,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         loading: false,
         error: null,
       })
+      useGuestStore.getState().clearGuest()
       return true
     } catch (err) {
       set({ loading: false, error: (err as Error).message || 'Registration failed' })
