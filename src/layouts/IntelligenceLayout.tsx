@@ -38,7 +38,7 @@ export const IntelligenceLayout: React.FC = () => {
   const { isGuest, isGuestRoute, requiresAuth, initGuest } = useGuestStore();
   const { sidebarOpen, toggleSidebar, contextSheetOpen, setContextSheetOpen } = useUIStore();
 
-  const isGuestAllowed = isGuest && isGuestRoute(location.pathname);
+  const isPublicRoute = isGuestRoute(location.pathname);
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
 
   const [collapsed, setCollapsed] = useState(false);
@@ -87,7 +87,7 @@ export const IntelligenceLayout: React.FC = () => {
     } catch { /* ignore */ }
   }, []);
 
-  if (!isAuthenticated && !isGuest && !isGuestAllowed) {
+  if (!isAuthenticated && !isGuest && !isPublicRoute) {
     initGuest();
     if (requiresAuth(location.pathname)) {
       return <Navigate to="/login" replace />;

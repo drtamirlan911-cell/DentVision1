@@ -13,22 +13,22 @@ import { dispatch } from './core/commandBus.js';
 import { getConversationContext, updateConversationContext, clearConversationContext } from './memory/conversation.js';
 import { buildDigitalTwin } from './memory/digitalTwin.js';
 import { generateProactiveAlerts } from './proactive.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
 import prisma from '../lib/prisma.js';
 
 export default function aiRoutes() {
   const router = Router();
 
   // ─── POST /api/ai/chat — отправить сообщение ───────────────
-  router.post('/chat', authenticate, async (req, res) => {
+  router.post('/chat', optionalAuth, async (req, res) => {
     try {
       const { message, history = [] } = req.body;
       if (!message || typeof message !== 'string' || message.trim().length === 0) {
         return res.status(400).json({ error: 'Сообщение обязательно' });
       }
 
-      const user = req.user;
-      const clinicId = req.user.activeClinicId || req.user.clinicId || null;
+      const user = req.user || { id: 'guest', name: 'Гость', role: 'guest', platformRole: 'guest' };
+      const clinicId = (req.user?.activeClinicId || req.user?.clinicId) || null;
 
       let clinic = null;
       if (clinicId) {
@@ -77,10 +77,10 @@ export default function aiRoutes() {
   });
 
   // ─── GET /api/ai/greeting — приветствие ─────────────────────
-  router.get('/greeting', authenticate, async (req, res) => {
+  router.get('/greeting', optionalAuth, async (req, res) => {
     try {
-      const user = req.user;
-      const clinicId = req.user.activeClinicId || req.user.clinicId || null;
+      const user = req.user || { id: 'guest', name: 'Гость', role: 'guest' };
+      const clinicId = (req.user?.activeClinicId || req.user?.clinicId) || null;
 
       let clinic = null;
       if (clinicId) {
@@ -99,11 +99,12 @@ export default function aiRoutes() {
   });
 
   // ─── GET /api/ai/proactive — проактивные уведомления ───────
-  router.get('/proactive', authenticate, async (req, res) => {
+  router.get('/proactive', optionalAuth, async (req, res) => {
     try {
-      const clinicId = req.user.activeClinicId || req.user.clinicId || null;
-      const userRole = req.user.role || req.user.platformRole || 'doctor';
-      const alerts = await generateProactiveAlerts(req.user.id, clinicId, userRole);
+      const clinicId = (req.user?.activeClinicId || req.user?.clinicId) || null;
+      const userRole = req.user?.role || req.user?.platformRole || 'guest';
+      const userId = req.user?.id || 'guest';
+      const alerts = await generateProactiveAlerts(userId, clinicId, userRole);
       res.json({ alerts });
     } catch (e) {
       console.error('AI Proactive error:', e);

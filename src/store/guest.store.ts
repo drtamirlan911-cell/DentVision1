@@ -10,6 +10,8 @@ const API_URL: string =
     : 'http://localhost:3001');
 
 const GUEST_STORAGE_KEY = 'dv_guest';
+let _initInProgress = false;
+let _initFailed = false;
 
 interface GuestState {
   guestId: string | null;
@@ -60,25 +62,33 @@ export const useGuestStore = create<GuestState>((set, get) => ({
   pendingAction: null,
 
   initGuest: async () => {
+    if (_initInProgress || _initFailed) return;
+
+    // Restore from localStorage
     try {
       const stored = localStorage.getItem(GUEST_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        set({
-          guestId: parsed.guestId,
-          guestToken: parsed.guestToken,
-          isGuest: true,
-          aiRequestsLeft: parsed.aiRequestsLeft ?? 20,
-        });
-        return;
+        if (parsed.guestId && parsed.guestToken) {
+          set({
+            guestId: parsed.guestId,
+            guestToken: parsed.guestToken,
+            isGuest: true,
+            aiRequestsLeft: parsed.aiRequestsLeft ?? 20,
+          });
+          return;
+        }
       }
+    } catch { /* corrupted storage, continue to create */ }
 
+    _initInProgress = true;
+    try {
       const res = await fetch(`${API_URL}/api/guest/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
-      if (!res.ok) throw new Error('Failed to create guest session');
+      if (!res.ok) throw new Error(`Guest session ${res.status}`);
       const data = await res.json();
 
       const state = {
@@ -88,12 +98,17 @@ export const useGuestStore = create<GuestState>((set, get) => ({
         aiRequestsLeft: data.aiRequestsLeft ?? 20,
       };
       set(state);
-      localStorage.setItem(
-        GUEST_STORAGE_KEY,
-        JSON.stringify({ guestId: data.guestId, guestToken: data.token, aiRequestsLeft: data.aiRequestsLeft })
-      );
+      try {
+        localStorage.setItem(
+          GUEST_STORAGE_KEY,
+          JSON.stringify({ guestId: data.guestId, guestToken: data.token, aiRequestsLeft: data.aiRequestsLeft })
+        );
+      } catch { /* storage full, ignore */ }
     } catch (err) {
-      console.error('Guest init failed:', err);
+      console.warn('Guest init failed (server may be deploying):', (err as Error).message);
+      _initFailed = true;
+    } finally {
+      _initInProgress = false;
     }
   },
 

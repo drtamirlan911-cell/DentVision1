@@ -97,6 +97,15 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
 
   if (_accessToken) {
     headers['Authorization'] = `Bearer ${_accessToken}`;
+  } else {
+    // Fall back to guest token for anonymous access
+    try {
+      const guestData = localStorage.getItem('dv_guest');
+      if (guestData) {
+        const { guestToken } = JSON.parse(guestData);
+        if (guestToken) headers['Authorization'] = `Bearer ${guestToken}`;
+      }
+    } catch { /* ignore */ }
   }
 
   const finalOptions: RequestInit = { ...options, headers };
