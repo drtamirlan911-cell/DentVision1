@@ -515,7 +515,7 @@ export async function aiChat(message: string, history: Array<{ role: string; con
   return apiRequest('/api/ai/query', { method: 'POST', body: JSON.stringify({ text: message, history }) });
 }
 export async function aiProactive(): Promise<{ alerts: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }> }> {
-  return apiRequest('/api/ai/proactive-alerts');
+  return apiRequest('/api/ai/proactive');
 }
 export async function aiAction(action: string, params: Record<string, unknown> = {}): Promise<any> {
   return apiRequest('/api/ai/query', { method: 'POST', body: JSON.stringify({ text: action }) });

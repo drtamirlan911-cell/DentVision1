@@ -11,8 +11,10 @@ export const aiRouter = Router();
 aiRouter.use(authenticate);
 
 const querySchema = z.object({
-  text: z.string().min(1),
-  sessionId: z.string().uuid().optional(),
+  body: z.object({
+    text: z.string().min(1),
+    sessionId: z.string().uuid().optional(),
+  }),
 });
 
 aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {

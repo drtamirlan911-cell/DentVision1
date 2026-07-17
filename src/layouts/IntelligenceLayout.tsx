@@ -556,7 +556,7 @@ export const IntelligenceLayout: React.FC = () => {
               transition={{ duration: 0.15 }}
               className="h-full"
             >
-              <Outlet />
+              <Outlet context={{ user, clinic, roleInfo }} />
             </motion.div>
           </AnimatePresence>
         </div>
