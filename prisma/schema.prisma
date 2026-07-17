@@ -17,7 +17,7 @@ datasource db {
 // Clinic is the primary organization type; extensible to schools/labs/chains.
 
 model Clinic {
-  id           String   @id @default("") @db.VarChar(50)
+  id           String   @id @default(uuid()) @db.VarChar(50)
   name         String   @db.VarChar(255)
   slug         String?  @unique @db.VarChar(100)
   username     String?  @unique @db.VarChar(100)
@@ -68,7 +68,7 @@ model Clinic {
 // support/superadmin. Organization roles live on Membership.
 
 model User {
-  id              String    @id @default("") @db.VarChar(50)
+  id              String    @id @default(uuid()) @db.VarChar(50)
   clinicId        String?   @map("clinic_id") @db.VarChar(50)
   login           String    @unique @db.VarChar(100)
   passwordHash    String    @map("password_hash") @db.VarChar(255)
@@ -115,7 +115,7 @@ model User {
 // with different roles. This replaces the old single User.clinicId/role.
 
 model Membership {
-  id           String   @id @default("") @db.VarChar(50)
+  id           String   @id @default(uuid()) @db.VarChar(50)
   userId       String   @map("user_id") @db.VarChar(50)
   clinicId     String   @map("clinic_id") @db.VarChar(50)
   role         String   @db.VarChar(50)
@@ -134,7 +134,7 @@ model Membership {
 // ─── Invitations ────────────────────────────────────────────
 
 model Invitation {
-  id         String   @id @default("") @db.VarChar(50)
+  id         String   @id @default(uuid()) @db.VarChar(50)
   clinicId   String   @map("clinic_id") @db.VarChar(50)
   code       String   @unique @db.VarChar(50)
   email      String?  @db.VarChar(255)
@@ -152,7 +152,7 @@ model Invitation {
 // ─── User Professional Profile (belongs to User, not Clinic) ─
 
 model UserSkill {
-  id     String @id @default("") @db.VarChar(50)
+  id     String @id @default(uuid()) @db.VarChar(50)
   userId String @map("user_id") @db.VarChar(50)
   name   String @db.VarChar(100)
   level  String? @db.VarChar(50)
@@ -160,7 +160,7 @@ model UserSkill {
 }
 
 model UserCertificateModel {
-  id          String   @id @default("") @db.VarChar(50)
+  id          String   @id @default(uuid()) @db.VarChar(50)
   userId      String   @map("user_id") @db.VarChar(50)
   title       String   @db.VarChar(255)
   issuer      String?  @db.VarChar(255)
@@ -171,7 +171,7 @@ model UserCertificateModel {
 }
 
 model UserAchievement {
-  id       String @id @default("") @db.VarChar(50)
+  id       String @id @default(uuid()) @db.VarChar(50)
   userId   String @map("user_id") @db.VarChar(50)
   title    String @db.VarChar(255)
   description String? @db.Text
@@ -180,7 +180,7 @@ model UserAchievement {
 }
 
 model UserPortfolioItem {
-  id          String   @id @default("") @db.VarChar(50)
+  id          String   @id @default(uuid()) @db.VarChar(50)
   userId      String   @map("user_id") @db.VarChar(50)
   title       String   @db.VarChar(255)
   description String?  @db.Text
@@ -190,7 +190,7 @@ model UserPortfolioItem {
 }
 
 model UserCase {
-  id          String   @id @default("") @db.VarChar(50)
+  id          String   @id @default(uuid()) @db.VarChar(50)
   userId      String   @map("user_id") @db.VarChar(50)
   title       String   @db.VarChar(255)
   description String?  @db.Text
@@ -202,7 +202,7 @@ model UserCase {
 }
 
 model UserReview {
-  id        String   @id @default("") @db.VarChar(50)
+  id        String   @id @default(uuid()) @db.VarChar(50)
   userId    String   @map("user_id") @db.VarChar(50)
   authorName String? @map("author_name") @db.VarChar(255)
   rating    Int      @default(5)
@@ -212,7 +212,7 @@ model UserReview {
 }
 
 model UserActivity {
-  id        String   @id @default("") @db.VarChar(50)
+  id        String   @id @default(uuid()) @db.VarChar(50)
   userId    String   @map("user_id") @db.VarChar(50)
   type      String   @db.VarChar(50)
   title     String   @db.VarChar(255)
@@ -233,7 +233,7 @@ model PasswordReset {
 // ─── Patients ───────────────────────────────────────────────
 
 model Patient {
-  id          String   @id @default("") @db.VarChar(50)
+  id          String   @id @default(uuid()) @db.VarChar(50)
   clinicId    String   @map("clinic_id") @db.VarChar(50)
   fullName    String   @map("full_name") @db.VarChar(255)
   dob         DateTime? @db.Date
@@ -265,7 +265,7 @@ model Patient {
 // ─── Appointments ───────────────────────────────────────────
 
 model Appointment {
-  id          String   @id @default("") @db.VarChar(50)
+  id          String   @id @default(uuid()) @db.VarChar(50)
   clinicId    String   @map("clinic_id") @db.VarChar(50)
   patientId   String   @map("patient_id") @db.VarChar(50)
   doctorId    String   @map("doctor_id") @db.VarChar(50)
@@ -286,7 +286,7 @@ model Appointment {
 // ─── Treatments ─────────────────────────────────────────────
 
 model Treatment {
-  id             String   @id @default("") @db.VarChar(50)
+  id             String   @id @default(uuid()) @db.VarChar(50)
   clinicId       String   @map("clinic_id") @db.VarChar(50)
   patientId      String   @map("patient_id") @db.VarChar(50)
   doctorId       String   @map("doctor_id") @db.VarChar(50)
@@ -308,7 +308,7 @@ model Treatment {
 // ─── Receipts ───────────────────────────────────────────────
 
 model Receipt {
-  id         String   @id @default("") @db.VarChar(50)
+  id         String   @id @default(uuid()) @db.VarChar(50)
   clinicId   String   @map("clinic_id") @db.VarChar(50)
   patientId  String?  @map("patient_id") @db.VarChar(50)
   doctorId   String?  @map("doctor_id") @db.VarChar(50)
@@ -327,7 +327,7 @@ model Receipt {
 // ─── Subscriptions ──────────────────────────────────────────
 
 model Subscription {
-  id           String   @id @default("") @db.VarChar(50)
+  id           String   @id @default(uuid()) @db.VarChar(50)
   clinicId     String   @unique @map("clinic_id") @db.VarChar(50)
   plan         String   @db.VarChar(50)
   startDate    DateTime @map("start_date") @db.Date
@@ -342,7 +342,7 @@ model Subscription {
 // ─── Lab Orders ─────────────────────────────────────────────
 
 model LabOrder {
-  id          String    @id @default("") @db.VarChar(50)
+  id          String    @id @default(uuid()) @db.VarChar(50)
   clinicId    String    @map("clinic_id") @db.VarChar(50)
   patientId   String?   @map("patient_id") @db.VarChar(50)
   doctorId    String?   @map("doctor_id") @db.VarChar(50)
@@ -361,7 +361,7 @@ model LabOrder {
 // ─── Photos ─────────────────────────────────────────────────
 
 model Photo {
-  id         String   @id @default("") @db.VarChar(50)
+  id         String   @id @default(uuid()) @db.VarChar(50)
   clinicId   String   @map("clinic_id") @db.VarChar(50)
   patientId  String?  @map("patient_id") @db.VarChar(50)
   url        String   @db.Text
@@ -375,7 +375,7 @@ model Photo {
 // ─── Expenses ───────────────────────────────────────────────
 
 model Expense {
-  id          String   @id @default("") @db.VarChar(50)
+  id          String   @id @default(uuid()) @db.VarChar(50)
   clinicId    String   @map("clinic_id") @db.VarChar(50)
   categoryId  String?  @map("category_id") @db.VarChar(50)
   amount      Decimal  @db.Decimal(10, 2)
@@ -388,7 +388,7 @@ model Expense {
 // ─── Inventory ──────────────────────────────────────────────
 
 model Inventory {
-  id          String    @id @default("") @db.VarChar(50)
+  id          String    @id @default(uuid()) @db.VarChar(50)
   clinicId    String    @map("clinic_id") @db.VarChar(50)
   name        String    @db.VarChar(255)
   quantity    Int?      @default(0)
@@ -407,7 +407,7 @@ model Inventory {
 // ─── Debts ──────────────────────────────────────────────────
 
 model Debt {
-  id         String   @id @default("") @db.VarChar(50)
+  id         String   @id @default(uuid()) @db.VarChar(50)
   clinicId   String   @map("clinic_id") @db.VarChar(50)
   patientId  String?  @map("patient_id") @db.VarChar(50)
   amount     Decimal  @db.Decimal(10, 2)
@@ -424,7 +424,7 @@ model Debt {
 // ─── Referrals ──────────────────────────────────────────────
 
 model Referral {
-  id         String   @id @default("") @db.VarChar(50)
+  id         String   @id @default(uuid()) @db.VarChar(50)
   clinicId   String   @map("clinic_id") @db.VarChar(50)
   patientId  String?  @map("patient_id") @db.VarChar(50)
   referredBy String?  @map("referred_by") @db.VarChar(255)
@@ -439,7 +439,7 @@ model Referral {
 // ─── Promotions ─────────────────────────────────────────────
 
 model Promotion {
-  id              String   @id @default("") @db.VarChar(50)
+  id              String   @id @default(uuid()) @db.VarChar(50)
   clinicId        String   @map("clinic_id") @db.VarChar(50)
   title           String   @db.VarChar(255)
   description     String?  @db.Text
@@ -457,7 +457,7 @@ model Promotion {
 // ─── Bookings ───────────────────────────────────────────────
 
 model Booking {
-  id          String   @id @default("") @db.VarChar(50)
+  id          String   @id @default(uuid()) @db.VarChar(50)
   clinicId    String   @map("clinic_id") @db.VarChar(50)
   patientName String   @map("patient_name") @db.VarChar(255)
   phone       String   @db.VarChar(50)
@@ -477,7 +477,7 @@ model Booking {
 // ─── Medical Cards ──────────────────────────────────────────
 
 model MedicalCard {
-  id               String   @id @default("") @db.VarChar(50)
+  id               String   @id @default(uuid()) @db.VarChar(50)
   patientId        String   @map("patient_id") @db.VarChar(50)
   clinicId         String   @map("clinic_id") @db.VarChar(50)
   bloodType        String?  @map("blood_type") @db.VarChar(10)
@@ -501,7 +501,7 @@ model MedicalCard {
 // ─── Visits ─────────────────────────────────────────────────
 
 model Visit {
-  id              String    @id @default("") @db.VarChar(50)
+  id              String    @id @default(uuid()) @db.VarChar(50)
   clinicId        String    @map("clinic_id") @db.VarChar(50)
   patientId       String    @map("patient_id") @db.VarChar(50)
   doctorId        String?   @map("doctor_id") @db.VarChar(50)
@@ -525,7 +525,7 @@ model Visit {
 // ─── Documents ──────────────────────────────────────────────
 
 model Document {
-  id              String    @id @default("") @db.VarChar(50)
+  id              String    @id @default(uuid()) @db.VarChar(50)
   clinicId        String    @map("clinic_id") @db.VarChar(50)
   patientId       String?   @map("patient_id") @db.VarChar(50)
   doctorId        String?   @map("doctor_id") @db.VarChar(50)
@@ -550,7 +550,7 @@ model Document {
 // ─── Waiting List ───────────────────────────────────────────
 
 model WaitingList {
-  id              String   @id @default("") @db.VarChar(50)
+  id              String   @id @default(uuid()) @db.VarChar(50)
   clinicId        String   @map("clinic_id") @db.VarChar(50)
   patientId       String?  @map("patient_id") @db.VarChar(50)
   patientName     String?  @map("patient_name") @db.VarChar(255)
@@ -581,7 +581,7 @@ model Icd10 {
 // ─── Audit Log ──────────────────────────────────────────────
 
 model AuditLog {
-  id         String   @id @default("") @db.VarChar(50)
+  id         String   @id @default(uuid()) @db.VarChar(50)
   clinicId   String?  @map("clinic_id") @db.VarChar(50)
   userId     String?  @map("user_id") @db.VarChar(50)
   userName   String?  @map("user_name") @db.VarChar(255)
@@ -598,7 +598,7 @@ model AuditLog {
 // ─── Shop ───────────────────────────────────────────────────
 
 model ShopCategory {
-  id          String   @id @default("") @db.VarChar(50)
+  id          String   @id @default(uuid()) @db.VarChar(50)
   name        String   @db.VarChar(255)
   slug        String   @unique @db.VarChar(100)
   icon        String?  @db.VarChar(50)
@@ -610,7 +610,7 @@ model ShopCategory {
 }
 
 model ShopSupplier {
-  id              String   @id @default("") @db.VarChar(50)
+  id              String   @id @default(uuid()) @db.VarChar(50)
   name            String   @db.VarChar(255)
   country         String?  @db.VarChar(100)
   city            String?  @db.VarChar(100)
@@ -627,7 +627,7 @@ model ShopSupplier {
 }
 
 model ShopProduct {
-  id             String   @id @default("") @db.VarChar(50)
+  id             String   @id @default(uuid()) @db.VarChar(50)
   categoryId     String?  @map("category_id") @db.VarChar(50)
   supplierId     String?  @map("supplier_id") @db.VarChar(50)
   name           String   @db.VarChar(255)
@@ -662,7 +662,7 @@ model ShopProduct {
 }
 
 model ShopOrder {
-  id              String   @id @default("") @db.VarChar(50)
+  id              String   @id @default(uuid()) @db.VarChar(50)
   clinicId        String?  @map("clinic_id") @db.VarChar(50)
   userId          String?  @map("user_id") @db.VarChar(50)
   userName        String?  @map("user_name") @db.VarChar(255)
@@ -682,7 +682,7 @@ model ShopOrder {
 }
 
 model ShopOrderItem {
-  id          String   @id @default("") @db.VarChar(50)
+  id          String   @id @default(uuid()) @db.VarChar(50)
   orderId     String   @map("order_id") @db.VarChar(50)
   productId   String?  @map("product_id") @db.VarChar(50)
   productName String?  @map("product_name") @db.VarChar(255)
@@ -696,7 +696,7 @@ model ShopOrderItem {
 }
 
 model ShopReview {
-  id           String   @id @default("") @db.VarChar(50)
+  id           String   @id @default(uuid()) @db.VarChar(50)
   productId    String   @map("product_id") @db.VarChar(50)
   clinicId     String?  @map("clinic_id") @db.VarChar(50)
   userId       String?  @map("user_id") @db.VarChar(50)
@@ -712,7 +712,7 @@ model ShopReview {
 }
 
 model ShopFavorite {
-  id        String   @id @default("") @db.VarChar(50)
+  id        String   @id @default(uuid()) @db.VarChar(50)
   clinicId  String?  @map("clinic_id") @db.VarChar(50)
   userId    String?  @map("user_id") @db.VarChar(50)
   productId String   @map("product_id") @db.VarChar(50)
@@ -726,7 +726,7 @@ model ShopFavorite {
 // ─── School ─────────────────────────────────────────────────
 
 model SchoolCourse {
-  id                String   @id @default("") @db.VarChar(50)
+  id                String   @id @default(uuid()) @db.VarChar(50)
   category          String   @db.VarChar(100)
   title             String   @db.VarChar(255)
   subtitle          String?  @db.VarChar(255)
@@ -753,7 +753,7 @@ model SchoolCourse {
 }
 
 model SchoolModule {
-  id        String   @id @default("") @db.VarChar(50)
+  id        String   @id @default(uuid()) @db.VarChar(50)
   courseId   String   @map("course_id") @db.VarChar(50)
   title     String   @db.VarChar(255)
   sortOrder Int?     @default(0) @map("sort_order")
@@ -764,7 +764,7 @@ model SchoolModule {
 }
 
 model SchoolLesson {
-  id              String   @id @default("") @db.VarChar(50)
+  id              String   @id @default(uuid()) @db.VarChar(50)
   moduleId        String?  @map("module_id") @db.VarChar(50)
   courseId         String?  @map("course_id") @db.VarChar(50)
   title           String   @db.VarChar(255)
@@ -781,7 +781,7 @@ model SchoolLesson {
 }
 
 model SchoolEnrollment {
-  id         String    @id @default("") @db.VarChar(50)
+  id         String    @id @default(uuid()) @db.VarChar(50)
   clinicId   String?   @map("clinic_id") @db.VarChar(50)
   userId     String    @map("user_id") @db.VarChar(50)
   userName   String?   @map("user_name") @db.VarChar(255)
@@ -798,7 +798,7 @@ model SchoolEnrollment {
 }
 
 model SchoolCertificate {
-  id                String   @id @default("") @db.VarChar(50)
+  id                String   @id @default(uuid()) @db.VarChar(50)
   clinicId          String?  @map("clinic_id") @db.VarChar(50)
   userId            String?  @map("user_id") @db.VarChar(50)
   userName          String?  @map("user_name") @db.VarChar(255)
@@ -811,7 +811,7 @@ model SchoolCertificate {
 }
 
 model SchoolClinicalCase {
-  id           String   @id @default("") @db.VarChar(50)
+  id           String   @id @default(uuid()) @db.VarChar(50)
   category     String   @db.VarChar(100)
   title        String   @db.VarChar(255)
   description  String?  @db.Text
@@ -829,7 +829,7 @@ model SchoolClinicalCase {
 }
 
 model SchoolLibrary {
-  id            String   @id @default("") @db.VarChar(50)
+  id            String   @id @default(uuid()) @db.VarChar(50)
   category      String   @db.VarChar(100)
   title         String   @db.VarChar(255)
   type          String?  @default("article") @db.VarChar(50)
@@ -844,7 +844,7 @@ model SchoolLibrary {
 // ─── Service-Level Access Control ───────────────────────────
 
 model ServiceAccess {
-  id        String   @id @default("") @db.VarChar(50)
+  id        String   @id @default(uuid()) @db.VarChar(50)
   clinicId  String   @map("clinic_id") @db.VarChar(50)
   service   String   @db.VarChar(50)   // crm, shop, school, ai, analytics, settings
   enabled   Boolean  @default(true)
@@ -859,7 +859,7 @@ model ServiceAccess {
 // ─── Unified Notification Center ───────────────────────────
 
 model Notification {
-  id        String   @id @default("") @db.VarChar(50)
+  id        String   @id @default(uuid()) @db.VarChar(50)
   type      String   @db.VarChar(50)   // shop | school | clinic | system
   category  String?  @db.VarChar(50)   // order | promo | course | appointment | payment | enrollment | system
   clinicId  String?  @map("clinic_id") @db.VarChar(50)
@@ -875,4 +875,14 @@ model Notification {
   @@index([clinicId])
   @@index([userId])
   @@index([createdAt])
+}
+
+// ─── Token Blacklist (logout / refresh-token rotation) ───
+
+model TokenBlacklist {
+  tokenHash String   @id @db.VarChar(64)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }

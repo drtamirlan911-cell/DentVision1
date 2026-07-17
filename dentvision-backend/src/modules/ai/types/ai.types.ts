@@ -2,6 +2,7 @@ export interface AIContext {
   userId: string;
   clinicId: string;
   role: string;
+  isGuest?: boolean;
   currentPatientId?: string;
   currentAppointmentId?: string;
   sessionId: string;

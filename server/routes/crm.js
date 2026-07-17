@@ -92,11 +92,13 @@ export default function crmRoutes(writeAuditLog) {
     });
 
     // POST /api/crm/<resource> — upsert
-    router.post(`/${name}`, authenticate, requireSameClinic, requirePermission('write'), async (req, res) => {
+    router.post(`/${name}`, authenticate, requirePermission('write'), async (req, res) => {
       try {
         const row = req.body;
-        if (!row.clinic_id && !row.clinicId) {
-          return res.status(400).json({ error: 'clinic_id required' });
+        const activeClinicId = req.user.activeClinicId || req.user.clinicId;
+        const clinicId = row.clinic_id || row.clinicId || activeClinicId;
+        if (req.user.role !== 'superadmin' && clinicId !== activeClinicId) {
+          return res.status(403).json({ error: 'Access denied: cross-clinic write forbidden' });
         }
         // Encrypt patient fields before upsert
         if (name === 'patients') {
@@ -112,22 +114,28 @@ export default function crmRoutes(writeAuditLog) {
           data[camel] = val;
         }
         data.id = id;
-        data.clinicId = row.clinic_id || row.clinicId;
+        data.clinicId = clinicId;
         const result = await model.upsert({
           where: { id },
           update: data,
           create: data,
         });
         const action = `upsert_${name}`;
-        writeAuditLog(data.clinicId, req.user.id, req.user.name, action, name, id, { id });
-        broadcast(data.clinicId, `${name.slice(0, -1)}.updated`, { id, action });
+        writeAuditLog(clinicId, req.user.id, req.user.name, action, name, id, { id });
+        broadcast(clinicId, `${name.slice(0, -1)}.updated`, { id, action });
         res.json(result);
       } catch (e) { console.error(`CRM ${name} upsert error:`, e.message); res.status(500).json({ error: 'Internal server error' }); }
     });
 
     // DELETE /api/crm/<resource>/:id — delete
-    router.delete(`/${name}/:id`, authenticate, requireSameClinic, requirePermission('write'), async (req, res) => {
+    router.delete(`/${name}/:id`, authenticate, requirePermission('write'), async (req, res) => {
       try {
+        const activeClinicId = req.user.activeClinicId || req.user.clinicId;
+        const existing = await model.findUnique({ where: { id: req.params.id }, select: { clinicId: true } });
+        if (!existing) return res.status(404).json({ error: 'Not found' });
+        if (req.user.role !== 'superadmin' && existing.clinicId !== activeClinicId) {
+          return res.status(403).json({ error: 'Access denied: cross-clinic delete forbidden' });
+        }
         const result = await model.delete({ where: { id: req.params.id } });
         if (result.clinicId) {
           writeAuditLog(result.clinicId, req.user.id, req.user.name, `delete_${name}`, name, req.params.id, { id: req.params.id });
@@ -159,17 +167,19 @@ export default function crmRoutes(writeAuditLog) {
     try {
       const bcrypt = (await import('bcryptjs')).default;
       const { id, clinic_id, login, password, name, role, spec, phone } = req.body;
+      const activeClinicId = req.user.activeClinicId || req.user.clinicId;
+      const targetClinicId = clinic_id || activeClinicId;
       if (!login || !password || !name || !role) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
-      if (req.user.role !== 'superadmin' && clinic_id !== req.user.clinicId) {
+      if (req.user.role !== 'superadmin' && targetClinicId !== activeClinicId) {
         return res.status(403).json({ error: 'Cannot create users in other clinics' });
       }
-      const password_hash = await bcrypt.hash(password, 10);
+      const password_hash = await bcrypt.hash(password, 12);
       const user = await prisma.user.upsert({
         where: { id: id || '' },
-        update: { clinicId: clinic_id, login, name, role, spec, phone },
-        create: { id, clinicId: clinic_id, login, passwordHash: password_hash, name, role, spec, phone },
+        update: { clinicId: targetClinicId, login, name, role, spec, phone },
+        create: { id, clinicId: targetClinicId, login, passwordHash: password_hash, name, role, spec, phone },
       });
       const { passwordHash: _, ...safeUser } = user;
       res.json(safeUser);

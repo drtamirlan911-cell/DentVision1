@@ -38,17 +38,17 @@ const ICONS = {
   error: AlertTriangle,
 }
 
-export function ProactiveAlertsDisplay({ 
-  alerts, 
-  onAcknowledge, 
-  onResolve, 
-  maxVisible = 4 
+export function ProactiveAlertsDisplay({
+  alerts,
+  onAcknowledge,
+  onResolve,
+  maxVisible = 4
 }: ProactiveAlertsDisplayProps) {
-  if (!alerts.length) return null
-
   const { executeAction } = useAIExecutor()
   const sortedAlerts = [...alerts].sort((a, b) => b.priority - a.priority)
   const visibleAlerts = sortedAlerts.slice(0, maxVisible)
+
+  if (!alerts.length) return null
 
   const handleActionClick = async (actionType: string, params?: Record<string, unknown>) => {
     await executeAction({

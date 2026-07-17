@@ -138,7 +138,7 @@ export default function guestRoutes() {
       if (existing) return res.status(400).json({ error: 'Login already taken' });
 
       const bcrypt = await import('bcrypt');
-      const hashed = await bcrypt.hash(password, 10);
+      const hashed = await bcrypt.hash(password, 12);
 
       const user = await prisma.user.update({
         where: { id: guestId },

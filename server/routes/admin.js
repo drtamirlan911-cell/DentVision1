@@ -74,7 +74,7 @@ export default function adminRoutes(writeAuditLog) {
       // Create director account
       const directorLogin = `admin_${slug || clinicId}`.slice(0, 50);
       const tempPassword = `dv_${Date.now().toString(36)}`;
-      const passwordHash = await bcrypt.hash(tempPassword, 10);
+      const passwordHash = await bcrypt.hash(tempPassword, 12);
 
       const director = await prisma.user.create({
         data: {
@@ -278,7 +278,7 @@ export default function adminRoutes(writeAuditLog) {
       if (existing) return res.status(409).json({ error: 'Пользователь с таким логином уже существует' });
 
       const tempPassword = password || `dv_${Date.now().toString(36)}`;
-      const passwordHash = await bcrypt.hash(tempPassword, 10);
+      const passwordHash = await bcrypt.hash(tempPassword, 12);
 
       const user = await prisma.user.create({
         data: {
@@ -319,7 +319,7 @@ export default function adminRoutes(writeAuditLog) {
     try {
       const { password } = req.body;
       if (!password || password.length < 6) return res.status(400).json({ error: 'Пароль минимум 6 символов' });
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(password, 12);
       await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash } });
       writeAuditLog(null, req.user.id, req.user.name, 'user.password_reset', 'user', req.params.id);
       res.json({ data: { ok: true } });
@@ -376,7 +376,7 @@ export default function adminRoutes(writeAuditLog) {
       if (existing) return res.status(409).json({ error: 'Пользователь уже существует' });
 
       const tempPassword = password || `dv_${Date.now().toString(36)}`;
-      const passwordHash = await bcrypt.hash(tempPassword, 10);
+      const passwordHash = await bcrypt.hash(tempPassword, 12);
 
       const user = await prisma.user.create({
         data: {

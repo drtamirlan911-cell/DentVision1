@@ -60,6 +60,20 @@ export function clearTokens(): void {
   try { localStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
 }
 
+export async function logout(): Promise<void> {
+  try {
+    await fetch(`${API_URL}/api/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${_accessToken || ''}`,
+      },
+      body: JSON.stringify({ refreshToken: _refreshToken }),
+    });
+  } catch { /* ignore network errors */ }
+  clearTokens();
+}
+
 export function getAccessToken(): string | null { return _accessToken; }
 
 // ─── Token Refresh ───

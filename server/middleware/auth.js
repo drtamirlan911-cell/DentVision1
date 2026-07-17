@@ -2,6 +2,8 @@
 // JWT Authentication Middleware
 // ═══════════════════════════════════════════════════════════════
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import prisma from '../lib/prisma.js';
 
 if (!process.env.JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is required');
@@ -10,6 +12,26 @@ if (!process.env.JWT_SECRET) {
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '24h';
 const REFRESH_EXPIRES = '7d';
+
+export function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+export async function isTokenBlacklisted(token) {
+  const blacklisted = await prisma.tokenBlacklist.findUnique({
+    where: { tokenHash: hashToken(token) },
+    select: { tokenHash: true },
+  });
+  return !!blacklisted;
+}
+
+export async function blacklistToken(token, expiresAt) {
+  await prisma.tokenBlacklist.upsert({
+    where: { tokenHash: hashToken(token) },
+    update: {},
+    create: { tokenHash: hashToken(token), expiresAt: new Date(expiresAt) },
+  });
+}
 
 export function generateTokens(user, activeClinic = null, activeRole = null) {
   const payload = {
@@ -34,7 +56,7 @@ export function verifyToken(token) {
 }
 
 // Express middleware: verifies Authorization: Bearer <token>
-export function authenticate(req, res, next) {
+export async function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -44,6 +66,9 @@ export function authenticate(req, res, next) {
     const decoded = verifyToken(token);
     if (decoded.type === 'refresh') {
       return res.status(401).json({ error: 'Access token required, not refresh token' });
+    }
+    if (await isTokenBlacklisted(token)) {
+      return res.status(401).json({ error: 'Token revoked' });
     }
     req.user = decoded;
     next();
@@ -56,11 +81,14 @@ export function authenticate(req, res, next) {
 }
 
 // Optional auth: sets req.user if token present, but doesn't fail
-export function optionalAuth(req, _res, next) {
+export async function optionalAuth(req, _res, next) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
-      req.user = verifyToken(authHeader.slice(7));
+      const token = authHeader.slice(7);
+      if (!(await isTokenBlacklisted(token))) {
+        req.user = verifyToken(token);
+      }
     } catch {}
   }
   next();

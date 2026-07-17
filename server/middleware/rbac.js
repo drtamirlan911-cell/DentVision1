@@ -88,12 +88,16 @@ export function requireSameClinic(req, res, next) {
   // Superadmin can access any clinic
   if (req.user.platformRole === 'superadmin' || req.user.role === 'superadmin') return next();
 
-  // Get clinic_id from params, query, or body
+  // Get clinicId from params, query, or body (camelCase or snake_case)
   const clinicId = req.params.clinicId
+    || req.query.clinicId
     || req.query.clinic_id
+    || req.body?.clinicId
     || req.body?.clinic_id;
 
-  if (!clinicId) return next(); // No clinic_id in request — route doesn't require it
+  if (!clinicId) {
+    return res.status(403).json({ error: 'Access denied: clinic_id required' });
+  }
 
   const activeClinicId = req.user.activeClinicId || req.user.clinicId;
   if (clinicId !== activeClinicId) {

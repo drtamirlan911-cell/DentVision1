@@ -10,6 +10,7 @@ vi.mock('@/utils/api', () => ({
   switchClinic: vi.fn(),
   upsertUser: vi.fn(),
   forgotPassword: vi.fn(),
+  logout: vi.fn(),
 }))
 
 import { useAuthStore, ORG_ROLES, PLATFORM_ROLES } from './auth.store'
@@ -75,14 +76,14 @@ describe('auth store - login', () => {
 })
 
 describe('auth store - logout', () => {
-  it('clears all state and tokens', () => {
+  it('clears all state and tokens', async () => {
     useAuthStore.setState({ user: { id: '1', name: 'Test' } as any, token: 'abc' })
-    useAuthStore.getState().logout()
+    await useAuthStore.getState().logout()
     const state = useAuthStore.getState()
     expect(state.user).toBeNull()
     expect(state.token).toBeNull()
     expect(state.clinic).toBeNull()
-    expect(api.clearTokens).toHaveBeenCalled()
+    expect(api.logout).toHaveBeenCalled()
   })
 })
 

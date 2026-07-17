@@ -56,7 +56,7 @@ enum ImageType {
 // ─── USER SYSTEM ───
 
 model User {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   email     String   @unique
   password  String
   firstName String
@@ -81,7 +81,7 @@ model User {
 }
 
 model Clinic {
-  id      String      @id @default("")
+  id      String      @id @default(uuid())
   name    String
   city    String?
   address String?
@@ -104,7 +104,7 @@ model Clinic {
 }
 
 model ClinicMember {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   userId    String
   clinicId  String
   role      UserRole @default(DOCTOR)
@@ -121,7 +121,7 @@ model ClinicMember {
 // ─── PATIENT CRM ───
 
 model Patient {
-  id        String  @id @default("")
+  id        String  @id @default(uuid())
   clinicId  String
   firstName String
   lastName  String
@@ -151,7 +151,7 @@ model Patient {
 // ─── APPOINTMENTS ───
 
 model Appointment {
-  id        String              @id @default("")
+  id        String              @id @default(uuid())
   clinicId  String
   patientId String
   doctorId  String
@@ -176,7 +176,7 @@ model Appointment {
 // ─── MEDICAL RECORDS ───
 
 model Visit {
-  id         String  @id @default("")
+  id         String  @id @default(uuid())
   patientId  String
   doctorId   String
   date       DateTime @default(now())
@@ -193,7 +193,7 @@ model Visit {
 }
 
 model Tooth {
-  id        String @id @default("")
+  id        String @id @default(uuid())
   patientId String
   number    Int
   condition String?
@@ -207,7 +207,7 @@ model Tooth {
 }
 
 model TreatmentPlan {
-  id        String  @id @default("")
+  id        String  @id @default(uuid())
   patientId String
   title     String
   status    String  @default("draft")
@@ -224,7 +224,7 @@ model TreatmentPlan {
 }
 
 model PatientImage {
-  id        String    @id @default("")
+  id        String    @id @default(uuid())
   patientId String
   type      ImageType
   url       String
@@ -239,7 +239,7 @@ model PatientImage {
 }
 
 model Document {
-  id        String  @id @default("")
+  id        String  @id @default(uuid())
   patientId String?
   clinicId  String?
   type      String
@@ -258,7 +258,7 @@ model Document {
 // ─── LAB ORDERS ───
 
 model LabOrder {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   patientId String?
   clinicId  String
   labName   String?
@@ -281,7 +281,7 @@ model LabOrder {
 // ─── BILLING ───
 
 model Invoice {
-  id        String        @id @default("")
+  id        String        @id @default(uuid())
   clinicId  String
   patientId String?
   amount    Float
@@ -302,7 +302,7 @@ model Invoice {
 // ─── INVENTORY ───
 
 model InventoryItem {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   clinicId String
   name     String
   category String?
@@ -324,7 +324,7 @@ model InventoryItem {
 // ─── AI CORE ───
 
 model AISession {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   userId   String
   clinicId String
   messages Json
@@ -340,7 +340,7 @@ model AISession {
 }
 
 model AIAction {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   userId   String
   intent   String
   payload  Json
@@ -356,7 +356,7 @@ model AIAction {
 }
 
 model AIAlert {
-  id       String  @id @default("")
+  id       String  @id @default(uuid())
   userId   String
   type     String
   priority String  @default("low")
@@ -374,7 +374,7 @@ model AIAlert {
 // ─── MARKETPLACE ───
 
 model Product {
-  id          String @id @default("")
+  id          String @id @default(uuid())
   name        String
   brand       String?
   category    String?
@@ -394,7 +394,7 @@ model Product {
 }
 
 model Order {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   clinicId String
   userId   String
   items    Json
@@ -413,7 +413,7 @@ model Order {
 }
 
 model Favorite {
-  id        String @id @default("")
+  id        String @id @default(uuid())
   userId    String
   productId String
 
@@ -439,7 +439,7 @@ model ICD10Code {
 // ─── SCHOOL ───
 
 model Course {
-  id          String @id @default("")
+  id          String @id @default(uuid())
   title       String
   description String?
   author      String?
@@ -458,7 +458,7 @@ model Course {
 }
 
 model Lesson {
-  id       String  @id @default("")
+  id       String  @id @default(uuid())
   courseId  String
   title    String
   videoUrl String?
@@ -473,7 +473,7 @@ model Lesson {
 }
 
 model SchoolEnrollment {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   userId   String
   courseId  String
   progress Int    @default(0)
@@ -493,7 +493,7 @@ model SchoolEnrollment {
 // ─── NOTIFICATIONS ───
 
 model Notification {
-  id       String  @id @default("")
+  id       String  @id @default(uuid())
   userId   String
   type     String
   title    String
@@ -512,7 +512,7 @@ model Notification {
 // ─── AUDIT ───
 
 model AuditLog {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   userId   String?
   clinicId String?
   action   String
@@ -528,7 +528,7 @@ model AuditLog {
 }
 
 model AIMessage {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   sessionId String
   role      String
   content   String
@@ -540,7 +540,7 @@ model AIMessage {
 }
 
 model AIMemory {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   key       String
   value     Json
   scope     String

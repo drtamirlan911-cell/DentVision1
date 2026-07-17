@@ -149,17 +149,19 @@ export default function clinicRoutes(writeAuditLog) {
   router.post('/users/create', authenticate, requirePermission('manage_users'), async (req, res) => {
     try {
       const { id, clinic_id, login, password, name, role, spec, phone } = req.body;
+      const activeClinicId = req.user.activeClinicId || req.user.clinicId;
+      const targetClinicId = clinic_id || activeClinicId;
       if (!login || !password || !name || !role) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
-      if (req.user.role !== 'superadmin' && clinic_id !== req.user.clinicId) {
+      if (req.user.role !== 'superadmin' && targetClinicId !== activeClinicId) {
         return res.status(403).json({ error: 'Cannot create users in other clinics' });
       }
-      const password_hash = await bcrypt.hash(password, 10);
+      const password_hash = await bcrypt.hash(password, 12);
       const user = await prisma.user.upsert({
         where: { id: id || '' },
-        update: { clinicId: clinic_id, login, name, role, spec, phone },
-        create: { id, clinicId: clinic_id, login, passwordHash: password_hash, name, role, spec, phone },
+        update: { clinicId: targetClinicId, login, name, role, spec, phone },
+        create: { id, clinicId: targetClinicId, login, passwordHash: password_hash, name, role, spec, phone },
       });
       const { passwordHash: _, ...safeUser } = user;
       res.json(safeUser);

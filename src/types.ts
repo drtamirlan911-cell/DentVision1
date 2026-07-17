@@ -6,11 +6,23 @@
 
 export type UserRole = 'superadmin' | 'director' | 'admin' | 'doctor' | 'assistant'
 
+export interface Membership {
+  id: string
+  clinicId: string
+  role: string
+  spec?: string | null
+  department?: string | null
+  status: string
+  joinedAt: string
+  clinic?: Clinic
+}
+
 export interface User {
   id: string
   clinicId?: string
   login: string
   role: UserRole
+  platformRole?: UserRole | 'user'
   name: string
   phone?: string
   email?: string
@@ -21,6 +33,8 @@ export interface User {
   salary?: number
   paid?: number
   password?: string
+  memberships?: Membership[]
+  activeMembership?: Membership | null
   createdAt?: string
 }
 

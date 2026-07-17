@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { User, Clinic, UserRole } from '@/types'
+import { User, Clinic, UserRole, Membership } from '@/types'
 import * as api from '@/utils/api'
 import { INIT_CLINICS, INIT_USERS, gid } from '@/utils/constants'
 
@@ -40,19 +40,6 @@ export const PLATFORM_ROLES: Record<string, RoleConfig> = {
   support: { label: 'Поддержка', icon: '🛟', pages: ['admin','analytics','settings'] },
   user: { label: 'Пользователь', icon: '👤', pages: ['shop','school','ai'] },
   verified: { label: 'Проверенный', icon: '✅', pages: ['shop','school','ai'] },
-}
-
-// ─── Membership type ───
-
-interface Membership {
-  id: string
-  clinicId: string
-  role: string
-  spec?: string | null
-  department?: string | null
-  status: string
-  joinedAt: string
-  clinic?: Clinic
 }
 
 interface RegisterFormData {
@@ -227,8 +214,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   // ─── Logout ───
-  logout: () => {
-    api.clearTokens()
+  logout: async () => {
+    await api.logout()
     set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, loading: false, error: null })
   },
 

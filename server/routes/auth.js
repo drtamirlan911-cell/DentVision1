@@ -6,7 +6,8 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { generateTokens, verifyToken, authenticate } from '../middleware/auth.js';
+import jwt from 'jsonwebtoken';
+import { generateTokens, verifyToken, authenticate, blacklistToken } from '../middleware/auth.js';
 import prisma from '../lib/prisma.js';
 
 const ORG_ROLES = ['owner', 'director', 'admin', 'doctor', 'assistant', 'reception', 'cashier', 'accountant', 'laboratory', 'manager', 'intern'];
@@ -66,7 +67,7 @@ export default function authRoutes(authLimiter) {
       if (password.length < 6) return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
       const existing = await prisma.user.findUnique({ where: { login: loginStr } });
       if (existing) return res.status(400).json({ error: 'Такой логин уже занят — выберите другой' });
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(password, 12);
       const userId = crypto.randomUUID();
       const user = await prisma.user.create({
         data: {
@@ -82,15 +83,23 @@ export default function authRoutes(authLimiter) {
     }
   });
 
-  // ─── Refresh Token ───
+  // ─── Refresh Token (rotation + blacklist used token) ───
   router.post('/refresh', async (req, res) => {
     try {
       const { refreshToken } = req.body;
       if (!refreshToken) return res.status(400).json({ error: 'Refresh token required' });
       const decoded = verifyToken(refreshToken);
       if (decoded.type !== 'refresh') return res.status(401).json({ error: 'Invalid refresh token' });
+
+      const blacklisted = await prisma.tokenBlacklist.findUnique({ where: { tokenHash: crypto.createHash('sha256').update(refreshToken).digest('hex') } });
+      if (blacklisted) return res.status(401).json({ error: 'Refresh token revoked' });
+
       const user = await prisma.user.findUnique({ where: { id: decoded.id } });
       if (!user) return res.status(401).json({ error: 'User not found' });
+
+      // Invalidate the used refresh token
+      await blacklistToken(refreshToken, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+
       const tokens = generateTokens(
         { ...user, platformRole: user.platformRole || 'user' },
         decoded.activeClinicId || user.clinicId || null,
@@ -140,6 +149,29 @@ export default function authRoutes(authLimiter) {
         active?.role || null
       );
       res.json({ ...tokens, activeMembership: active ? { id: active.id, clinicId: active.clinicId, role: active.role, spec: active.spec } : null });
+    } catch {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ─── Logout (server-side token revocation) ───
+  router.post('/logout', authenticate, async (req, res) => {
+    try {
+      const accessToken = req.headers.authorization?.slice(7);
+      const { refreshToken } = req.body || {};
+      if (accessToken) {
+        const decoded = jwt.decode(accessToken);
+        if (decoded?.exp) {
+          await blacklistToken(accessToken, new Date(decoded.exp * 1000));
+        }
+      }
+      if (refreshToken) {
+        const decoded = jwt.decode(refreshToken);
+        if (decoded?.exp) {
+          await blacklistToken(refreshToken, new Date(decoded.exp * 1000));
+        }
+      }
+      res.json({ ok: true });
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -248,7 +280,7 @@ export default function authRoutes(authLimiter) {
       if (!login) return res.status(400).json({ error: 'Введите логин' });
       const user = await prisma.user.findUnique({ where: { login }, select: { id: true } });
       if (!user) return res.json({ message: 'Если аккаунт существует, инструкция отправлена' });
-      const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      const token = crypto.randomBytes(32).toString('hex');
       const expires = new Date(Date.now() + 60 * 60 * 1000);
       await prisma.passwordReset.upsert({ where: { userId: user.id }, update: { token, expiresAt: expires }, create: { userId: user.id, token, expiresAt: expires } });
       res.json({ message: 'Если аккаунт существует, инструкция отправлена' });
@@ -265,7 +297,7 @@ export default function authRoutes(authLimiter) {
       if (newPassword.length < 6) return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
       const reset = await prisma.passwordReset.findFirst({ where: { token, expiresAt: { gt: new Date() } } });
       if (!reset) return res.status(400).json({ error: 'Неверный или просроченный токен' });
-      const hash = await bcrypt.hash(newPassword, 10);
+      const hash = await bcrypt.hash(newPassword, 12);
       await prisma.user.update({ where: { id: reset.userId }, data: { passwordHash: hash } });
       await prisma.passwordReset.delete({ where: { userId: reset.userId } });
       res.json({ message: 'Пароль успешно изменён' });
