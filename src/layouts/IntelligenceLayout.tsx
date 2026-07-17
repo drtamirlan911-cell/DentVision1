@@ -145,7 +145,7 @@ export const IntelligenceLayout: React.FC = () => {
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-1/80 backdrop-blur-xl border-b border-bdr-subtle flex-shrink-0">
+        <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={toggleSidebar}

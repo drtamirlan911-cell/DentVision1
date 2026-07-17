@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/ds/Button'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
-import { GreetingArea, AIStatus } from '@/components/ai'
+import { AIStatus } from '@/components/ai'
 import { useAIWorkspaceStore } from '@/store/workspace.store'
 
 import type { Message } from '@/store/workspace.store'
@@ -60,7 +60,6 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
       let reply = chatRes?.reply || buildGreeting(user, clinic)
 
-      // Enrich greeting with real proactive data
       if (proactiveData?.alerts?.length && !chatRes?.reply) {
         const alertLines = proactiveData.alerts.slice(0, 4).map((a: any) => `• ${a.text}`).join('\n')
         reply = buildGreeting(user, clinic) + '\n\nАктуальное:\n' + alertLines
@@ -238,70 +237,123 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     }
   }, [isProcessing, onNavigate])
 
-  const getStatusLabel = () => {
-    switch (status) {
-      case 'thinking': return 'AI анализирует...'
-      case 'executing': return 'AI выполняет...'
-      case 'confirmation': return 'Требуется подтверждение'
-      case 'error': return 'Ошибка'
-      default: return ''
-    }
-  }
+  const showEmpty = messages.length === 0
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-bdr-subtle bg-surface-1/50 backdrop-blur-sm flex-shrink-0">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+        className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-white/[0.04] bg-surface-0/50 backdrop-blur-xl flex-shrink-0"
+      >
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-dv-gold/10">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-dv-gold/15 to-dv-gold/5 border border-dv-gold/10">
             <Bot size={18} className="text-dv-gold" />
           </div>
           <div>
-            <h1 className="text-sm font-bold text-txt-primary">DentVision Intelligence</h1>
-            <p className="text-xs text-txt-muted">{getStatusLabel() || 'Цифровой ассистент'}</p>
+            <h1 className="text-sm font-bold text-txt-primary tracking-tight">DentVision Intelligence</h1>
+            <p className="text-[11px] text-txt-muted">{status === 'idle' ? 'Цифровой ассистент' : status === 'thinking' ? 'AI анализирует...' : status === 'executing' ? 'Выполняю...' : ''}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {proactiveAlerts.filter(a => !a.acknowledged).length > 0 && (
-            <Button variant="ghost" size="sm" className="relative">
-              <span className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 transition-all">
-                <Sparkles size={14} />
-                <span className="text-xs font-medium hidden sm:inline">{proactiveAlerts.filter(a => !a.acknowledged).length}</span>
-              </span>
-            </Button>
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+            >
+              <Button variant="ghost" size="sm" className="relative">
+                <span className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-amber-400 bg-amber-400/8 border border-amber-400/15 hover:bg-amber-400/15 transition-all">
+                  <Sparkles size={14} />
+                  <span className="text-xs font-medium hidden sm:inline">{proactiveAlerts.filter(a => !a.acknowledged).length}</span>
+                </span>
+              </Button>
+            </motion.div>
           )}
           <AIStatus />
         </div>
+      </motion.div>
+
+      {/* Chat Area */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5">
+          {showEmpty && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-dv-gold/15 to-dv-gold/5 border border-dv-gold/10 mb-5 shadow-xl shadow-dv-gold/5"
+              >
+                <Bot size={28} className="text-dv-gold" />
+              </motion.div>
+              <h2 className="text-xl font-bold text-txt-primary mb-1">DentVision Intelligence</h2>
+              <p className="text-sm text-txt-muted max-w-xs">Ваш AI-ассистент для стоматологии. Задайте вопрос или выберите действие.</p>
+            </motion.div>
+          )}
+
+          <AnimatePresence>
+            {messages.map((msg) => (
+              <ChatMessage key={msg.id} msg={msg} />
+            ))}
+          </AnimatePresence>
+
+          {isProcessing && status !== 'confirmation' && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="flex items-start gap-3"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-dv-gold/15 to-dv-gold/5 border border-dv-gold/10">
+                <Bot size={17} className="text-dv-gold" />
+              </div>
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-3xl rounded-bl-xl px-5 py-3.5">
+                <div className="flex gap-1.5">
+                  {[0, 1, 2].map((i) => (
+                    <motion.div
+                      key={i}
+                      animate={{ opacity: [0.2, 0.7, 0.2], scale: [0.8, 1, 0.8] }}
+                      transition={{ duration: 1.2, delay: i * 0.2, repeat: Infinity }}
+                      className="w-2 h-2 rounded-full bg-dv-gold/50"
+                    />
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4">
-        <GreetingArea />
-        <AnimatePresence>
-          {messages.map((msg) => (
-            <ChatMessage key={msg.id} msg={msg} />
-          ))}
-        </AnimatePresence>
-        {isProcessing && status !== 'confirmation' && <TypingIndicator />}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="flex-shrink-0 border-t border-bdr-subtle bg-surface-1/50 backdrop-blur-sm">
-        {suggestions.length > 0 && !isProcessing && (
-          <div className="px-4 md:px-6 pt-3 pb-2">
-            <SuggestionChips
-              suggestions={suggestions.map(s => s.label)}
-              onSelect={handleSend}
-              disabled={isProcessing}
-            />
-          </div>
-        )}
-        <AIInputArea
-          onSend={handleSend}
-          disabled={isProcessing}
-          status={status === 'confirmation' ? 'result' : status}
-          progress={progress}
-          suggestions={suggestions.map(s => s.label)}
-          placeholder="Чем помочь?"
-        />
+      {/* Bottom: Suggestions + Input */}
+      <div className="flex-shrink-0 border-t border-white/[0.04] bg-surface-0/50 backdrop-blur-xl">
+        <div className="max-w-3xl mx-auto">
+          {suggestions.length > 0 && !isProcessing && (
+            <div className="px-4 md:px-6 pt-4 pb-1">
+              <SuggestionChips
+                suggestions={suggestions.map(s => s.label)}
+                onSelect={handleSend}
+                disabled={isProcessing}
+              />
+            </div>
+          )}
+          <AIInputArea
+            onSend={handleSend}
+            disabled={isProcessing}
+            status={status === 'confirmation' ? 'result' : status}
+            progress={progress}
+            suggestions={suggestions.map(s => s.label)}
+            placeholder="Чем помочь?"
+          />
+        </div>
       </div>
     </div>
   )
@@ -323,33 +375,6 @@ const NAV_ACTIONS: Record<string, string> = {
   OpenInventory: '/crm/inventory',
   OpenStaff: '/crm/staff',
   OpenPatient: '/crm/patients',
-}
-
-function TypingIndicator() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      className="flex items-start gap-2.5"
-    >
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10">
-        <Bot size={16} className="text-dv-gold" />
-      </div>
-      <div className="bg-surface-2 border border-bdr-subtle rounded-2xl px-4 py-2.5 max-w-[85%]">
-        <div className="flex gap-1">
-          {[1, 2, 3].map(i => (
-            <motion.div
-              key={i}
-              animate={{ opacity: [0.3, 1, 0.3] }}
-              transition={{ duration: 0.6, delay: i * 0.15, repeat: Infinity }}
-              className="w-2 h-2 rounded-full bg-dv-gold/60"
-            />
-          ))}
-        </div>
-      </div>
-    </motion.div>
-  )
 }
 
 export type { AIWorkspaceIndexProps }

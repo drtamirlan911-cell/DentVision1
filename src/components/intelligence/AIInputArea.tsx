@@ -1,9 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, Send, Sparkles, X, Loader2, CheckCircle } from 'lucide-react'
+import { Mic, Send, ArrowUp, Loader2, CheckCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/ds/Button'
-import { CursorBlink } from '@/components/ui/motion'
 
 interface AIInputAreaProps {
   onSend: (text: string) => void
@@ -22,19 +20,16 @@ export function AIInputArea({
   placeholder = 'Чем помочь?',
 }: AIInputAreaProps) {
   const [text, setText] = useState('')
-  const [hasVoice, setHasVoice] = useState(false)
+  const [focused, setFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [height, setHeight] = useState(48)
+  const [height, setHeight] = useState(52)
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     setText(value)
-    setHasVoice(value.trim().length > 0)
-
-    // Auto-resize
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
-      const newHeight = Math.min(textareaRef.current.scrollHeight, 160)
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 180)
       setHeight(newHeight)
     }
   }, [])
@@ -45,8 +40,7 @@ export function AIInputArea({
       if (text.trim() && !disabled) {
         onSend(text.trim())
         setText('')
-        setHasVoice(false)
-        setHeight(48)
+        setHeight(52)
       }
     }
   }, [text, disabled, onSend])
@@ -54,151 +48,165 @@ export function AIInputArea({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
-      const newHeight = Math.min(textareaRef.current.scrollHeight, 160)
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 180)
       setHeight(newHeight)
     }
   }, [text])
 
-  const showStatus = status !== 'idle'
+  const isProcessing = status !== 'idle'
 
   return (
-    <div className={cn('flex items-end gap-3 px-4 md:px-6 pb-4', showStatus && 'pb-0')}>
-      {/* Textarea Area */}
-      <div className={cn('flex-1 relative', showStatus && 'hidden')}>
-        <div className="relative">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            disabled={disabled || showStatus}
-            placeholder={placeholder}
-            className={cn(
-              'w-full bg-white/[0.03] border rounded-2xl px-4 py-3 pr-14 text-sm text-txt-primary',
-              'border-bdr-subtle placeholder:text-txt-muted',
-              'transition-colors duration-200 resize-none',
-              'focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-              showStatus && 'pointer-events-none opacity-60'
-            )}
-            style={{ height }}
-            rows={1}
-          />
-          <div className="absolute right-3 bottom-3 flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => { setHasVoice(!hasVoice) }}
-              disabled={disabled || showStatus}
-              className={cn('text-txt-muted hover:text-dv-gold transition-colors', hasVoice && 'text-dv-gold')}
-            >
-              <Mic size={16} />
-            </Button>
-            <Button
-              variant={text.trim() ? 'primary' : 'ghost'}
-              size="icon"
-              onClick={() => { if (text.trim() && !disabled) onSend(text.trim()) }}
-              disabled={disabled || !text.trim() || showStatus}
-            >
-              <Send size={16} />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Status Bar */}
+    <div className="px-4 md:px-6 pb-4 pt-2">
       <AnimatePresence mode="wait">
-        {showStatus && (
+        {isProcessing ? (
           <motion.div
-            key={status}
-            initial={{ opacity: 0, height: 0, y: 10 }}
-            animate={{ opacity: 1, height: 'auto', y: 0 }}
-            exit={{ opacity: 0, height: 0, y: -10 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-surface-2 border border-bdr-subtle"
+            key="status"
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.06] backdrop-blur-xl"
           >
             {status === 'thinking' && (
               <>
-                <div className="relative flex h-6 w-6">
-                  <RingSpinner size={20} thickness={2} color="gold" speed={1.2} />
+                <div className="relative">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                    className="w-5 h-5 rounded-full border-2 border-dv-gold/20 border-t-dv-gold"
+                  />
                 </div>
-                <span className="text-sm text-txt-secondary">ИИ думает...</span>
+                <span className="text-sm text-txt-secondary font-medium">AI анализирует запрос</span>
+                <motion.div
+                  className="flex gap-1 ml-auto"
+                  initial="hidden"
+                  animate="visible"
+                  variants={{ visible: { transition: { staggerChildren: 0.15 } } }}
+                >
+                  {[0, 1, 2].map((i) => (
+                    <motion.div
+                      key={i}
+                      variants={{
+                        hidden: { opacity: 0.2, scale: 0.8 },
+                        visible: { opacity: [0.2, 0.8, 0.2], scale: [0.8, 1, 0.8], transition: { duration: 1.2, repeat: Infinity } },
+                      }}
+                      className="w-1.5 h-1.5 rounded-full bg-dv-gold/60"
+                    />
+                  ))}
+                </motion.div>
               </>
             )}
             {status === 'executing' && (
               <>
-                <div className="relative flex h-6 w-6">
-                  <RingSpinner size={20} thickness={2} color="gold" speed={0.8} />
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                  className="w-5 h-5 rounded-full border-2 border-dv-gold/20 border-t-dv-gold border-r-transparent"
+                />
+                <span className="text-sm text-txt-secondary font-medium">Выполняю</span>
+                <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden max-w-[200px]">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 0.4, ease: 'easeOut' }}
+                    className="h-full bg-gradient-to-r from-dv-gold to-dv-gold/60 rounded-full"
+                  />
                 </div>
-                <div className="flex-1 flex items-center gap-2">
-                  <span className="text-sm text-txt-secondary">Выполняю действие...</span>
-                  <div className="flex-1 h-2 bg-surface-3 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                      transition={{ duration: 0.3, ease: 'easeOut' }}
-                      className="h-full bg-dv-gold rounded-full"
-                    />
-                  </div>
-                  <span className="text-xs text-txt-muted w-10 text-right">{Math.round(progress)}%</span>
-                </div>
+                <span className="text-[11px] text-txt-muted tabular-nums">{Math.round(progress)}%</span>
               </>
             )}
             {status === 'result' && (
               <>
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-success/10">
-                  <CheckCircle size={16} className="text-success" />
-                </div>
-                <span className="text-sm text-success font-medium">Готово</span>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                >
+                  <CheckCircle size={18} className="text-green-400" />
+                </motion.div>
+                <span className="text-sm text-green-400 font-medium">Готово</span>
               </>
             )}
             {status === 'error' && (
               <>
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-error/10">
-                  <X size={16} className="text-error" />
-                </div>
-                <span className="text-sm text-error font-medium">Ошибка</span>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                >
+                  <X size={18} className="text-red-400" />
+                </motion.div>
+                <span className="text-sm text-red-400 font-medium">Ошибка</span>
               </>
             )}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="input"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className={cn(
+              'relative rounded-2xl transition-all duration-300',
+              focused
+                ? 'shadow-[0_0_30px_rgba(201,169,110,0.08)] ring-1 ring-dv-gold/20'
+                : 'shadow-none ring-1 ring-white/[0.06]'
+            )}
+          >
+            <div className="relative bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/[0.06] overflow-hidden">
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                disabled={disabled}
+                placeholder={placeholder}
+                className={cn(
+                  'w-full bg-transparent px-5 py-3.5 pr-14 text-[13px] text-txt-primary',
+                  'placeholder:text-txt-muted/50 resize-none outline-none',
+                  'transition-colors duration-200',
+                  'disabled:cursor-not-allowed disabled:opacity-50'
+                )}
+                style={{ height }}
+                rows={1}
+              />
+
+              <div className="absolute right-3 bottom-2.5 flex items-center gap-1.5">
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => {}}
+                  disabled={disabled}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl text-txt-muted hover:text-txt-secondary hover:bg-white/[0.05] transition-all"
+                >
+                  <Mic size={16} />
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => { if (text.trim() && !disabled) { onSend(text.trim()); setText(''); setHeight(52) } }}
+                  disabled={disabled || !text.trim()}
+                  className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-xl transition-all',
+                    text.trim()
+                      ? 'bg-dv-gold text-surface-0 shadow-lg shadow-dv-gold/20'
+                      : 'bg-white/[0.05] text-txt-muted'
+                  )}
+                >
+                  <ArrowUp size={16} strokeWidth={2.5} />
+                </motion.button>
+              </div>
+            </div>
+
+            <p className="text-center text-[10px] text-txt-ghost/40 mt-1.5 select-none">
+              DentVision Intelligence · Enter для отправки
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
-  )
-}
-
-function RingSpinner({ size = 20, thickness = 2, color = 'gold', speed = 1.2 }: { size?: number; thickness?: number; color?: 'gold' | 'white' | 'primary'; speed?: number }) {
-  const colorStyles = { gold: 'text-dv-gold', white: 'text-white', primary: 'text-txt-primary' }
-
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" className={colorStyles[color]} fill="none">
-      <motion.circle
-        cx="12"
-        cy="12"
-        r="10"
-        strokeWidth={thickness}
-        stroke="currentColor"
-        fill="none"
-        strokeLinecap="round"
-        strokeDasharray={2 * Math.PI * 10}
-        initial={{ strokeDashoffset: 2 * Math.PI * 10 * 0.75 }}
-        animate={{ strokeDashoffset: [2 * Math.PI * 10 * 0.75, 2 * Math.PI * 10 * 0.25] }}
-        transition={{ duration: speed, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.circle
-        cx="12"
-        cy="12"
-        r="10"
-        strokeWidth={thickness}
-        stroke="currentColor"
-        fill="none"
-        strokeLinecap="round"
-        strokeDasharray={2 * Math.PI * 10}
-        initial={{ strokeDashoffset: 0 }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: speed * 1.5, repeat: Infinity, ease: 'linear' }}
-        style={{ transformOrigin: '12px 12px' }}
-      />
-    </svg>
   )
 }

@@ -170,10 +170,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         width: sidebarWidth,
         x: isMobile ? (sidebarOpen ? 0 : -sidebarWidth) : 0,
         opacity: sidebarVisible ? 1 : 0,
+        scale: sidebarVisible ? 1 : 0.95,
       }}
-      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
       className={cn(
-        'h-full flex flex-col bg-surface-1 border-r border-bdr-subtle flex-shrink-0 z-50 relative',
+        'h-full flex flex-col bg-surface-1/80 backdrop-blur-xl border-r border-white/[0.04] flex-shrink-0 z-50 relative',
         isMobile && 'fixed top-0 left-0 bottom-0'
       )}
       style={{ width: sidebarWidth }}
