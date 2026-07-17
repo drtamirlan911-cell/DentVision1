@@ -329,7 +329,10 @@ export async function getICD10(search: string): Promise<ICD10Code[]> {
 
 // ─── Visits ───
 export async function getVisits(clinicId: string, patientId: string): Promise<Visit[]> {
-  return apiRequest(`/api/medical/patients/${patientId}/visits`);
+  if (patientId) {
+    return apiRequest(`/api/medical/patients/${patientId}/visits`);
+  }
+  return apiRequest('/api/medical/visits');
 }
 
 export async function upsertVisit(data: Partial<Visit>): Promise<any> {

@@ -49,7 +49,8 @@ shopRouter.get('/products', async (req, res) => {
       prisma.product.count({ where }),
     ]);
 
-    res.json({ ok: true, data: paginatedResponse(products, total, page, limit) });
+    // Always return plain array for frontend compatibility
+    res.json({ ok: true, data: products });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch products' });
   }

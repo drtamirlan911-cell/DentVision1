@@ -51,6 +51,37 @@ medicalRouter.get('/visits/:patientId', async (req: AuthRequest, res) => {
   }
 });
 
+// Get all visits for a clinic (for global dashboard load)
+medicalRouter.get('/visits', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user!.clinicId;
+    const visits = await prisma.visit.findMany({
+      where: { patient: { clinicId } },
+      orderBy: { date: 'desc' },
+      take: 100,
+    });
+    res.json({ ok: true, data: visits });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to fetch visits' });
+  }
+});
+
+// Alias for frontend compatibility: /api/medical/patients/:patientId/visits
+medicalRouter.get('/patients/:patientId/visits', async (req: AuthRequest, res) => {
+  try {
+    const { patientId } = req.params as { patientId: string };
+
+    const visits = await prisma.visit.findMany({
+      where: { patientId },
+      orderBy: { date: 'desc' },
+    });
+
+    res.json({ ok: true, data: visits });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to fetch visits' });
+  }
+});
+
 medicalRouter.post('/treatment-plan', async (req: AuthRequest, res) => {
   try {
     const { patientId, title, items, price } = req.body;

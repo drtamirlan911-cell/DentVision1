@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../types/index.js';
@@ -370,7 +370,7 @@ aiRouter.get('/digital-twin', async (req: AuthRequest, res) => {
   }
 });
 
-aiRouter.get('/proactive', async (req: AuthRequest, res) => {
+async function proactiveHandler(req: AuthRequest, res: Response) {
   try {
     const clinicId = req.user!.clinicId;
     const userId = req.user!.id;
@@ -420,7 +420,7 @@ aiRouter.get('/proactive', async (req: AuthRequest, res) => {
     }
 
     const lowStockItems = await prisma.inventoryItem.findMany({
-      where: { clinicId, quantity: { lte: prisma.inventoryItem.fields ? 0 : 0 } },
+      where: { clinicId, quantity: { lte: 0 } },
       orderBy: { quantity: 'asc' },
       take: 10,
     });
@@ -457,7 +457,10 @@ aiRouter.get('/proactive', async (req: AuthRequest, res) => {
     const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
     return res.status(500).json({ ok: false, error: message });
   }
-});
+}
+
+aiRouter.get('/proactive', proactiveHandler);
+aiRouter.get('/proactive-alerts', proactiveHandler);
 
 aiRouter.get('/greeting', async (req: AuthRequest, res) => {
   try {
@@ -557,5 +560,8 @@ aiRouter.delete('/context', async (req: AuthRequest, res) => {
     return res.status(500).json({ ok: false, error: message });
   }
 });
+
+// Alias for frontend compatibility
+aiRouter.get('/proactive-alerts', proactiveHandler);
 
 export { aiRouter };
