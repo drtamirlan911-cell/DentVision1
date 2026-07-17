@@ -22,22 +22,31 @@ export enum Intent {
 export const INTENT_PATTERNS: Record<string, RegExp[]> = {
   [Intent.CREATE_APPOINTMENT]: [
     /записать\s+пациента/,
+    /запиши\s+пациента/,
+    /записать\s+на\s+прием/,
     /запиши\s+на\s+прием/,
+    /запишите\s+пациента/,
     /создай\s+запись/,
     /добавь\s+в\s+расписание/,
     /запланируй\s+визит/,
+    /новая\s+запись/,
+    /запись\s+на\s+/,
   ],
   [Intent.SEARCH_PATIENT]: [
     /найти\s+пациента/,
     /поиск\s+пациента/,
     /найди\s+пациента/,
     /где\s+пациент/,
+    /поиск\s+по\s+фамилии/,
+    /найди\s+по\s+фамилии/,
   ],
   [Intent.OPEN_MEDICAL_CARD]: [
     /медицинская\s+карта/,
     /карта\s+пациента/,
     /открой\s+карту/,
     /покажи\s+карту/,
+    /открой\s+карточку/,
+    /карточка\s+пациента/,
   ],
   [Intent.SHOW_CBCT]: [
     /покажи\s+кт/,
@@ -45,29 +54,38 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /открой\s+снимок/,
     /рентген/,
     /cbct/,
+    /кт\s+пациента/,
   ],
   [Intent.CREATE_TREATMENT_PLAN]: [
     /план\s+лечения/,
     /составь\s+план/,
     /план\s+терапии/,
+    /создай\s+план/,
+    /новый\s+план\s+лечения/,
   ],
   [Intent.GENERATE_INVOICE]: [
     /создай\s+счет/,
     /выпиши\s+счет/,
     /счет\s+на\s+оплату/,
     /инвойс/,
+    /сделай\s+счет/,
+    /открой\s+счет/,
   ],
   [Intent.CHECK_DEBTS]: [
     /долги/,
     /должники/,
     /кто\s+не\s+заплатил/,
     /проверь\s+оплату/,
+    /задолженности/,
+    /покажи\s+задолженности/,
   ],
   [Intent.ORDER_PRODUCT]: [
     /закажи\s+товар/,
     /купи\s+материал/,
     /заказ\s+в\s+магазин/,
     /пополни\s+склад/,
+    /закажи\s+еще\s+\d+/,
+    /заказать\s+имплант/,
   ],
   [Intent.FIND_COURSE]: [
     /найти\s+курс/,
@@ -75,6 +93,8 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /курс\s+для/,
     /обучение/,
     /школа/,
+    /найди\s+курс/,
+    /курсы\s+по\s+/,
   ],
   [Intent.GENERATE_REPORT]: [
     /отчет/,
@@ -82,6 +102,8 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /kpi/,
     /показатели/,
     /статистика/,
+    /доход\s+за/,
+    /мой\s+доход/,
   ],
   [Intent.SEARCH_DOCUMENT]: [
     /документ/,
@@ -94,6 +116,7 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /kpi/,
     /показатели/,
     /статистика/,
+    /открой\s+аналитику/,
   ],
   [Intent.VIEW_SCHEDULE]: [
     /расписание/,
@@ -101,6 +124,8 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /завтра/,
     /сегодня/,
     /кто\s+работает/,
+    /мое\s+расписание/,
+    /покажи\s+расписание/,
   ],
   [Intent.GET_MEDICAL_CARD]: [
     /медицинская\s+карта/,
@@ -111,6 +136,7 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /открой\s+рентген/,
     /cbct/,
     /кт/,
+    /открой\s+кт/,
   ],
   [Intent.RECOMMEND_PRODUCT]: [
     /рекомендуй\s+товар/,
