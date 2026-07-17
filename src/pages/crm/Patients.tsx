@@ -6,7 +6,7 @@ import {
   AlertTriangle, CreditCard, History, Smile, Star, User, Send, Trash2, Receipt,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
-import { useData } from '../../hooks/useData'
+import { useDataQuery } from '../../queries/useDataQuery'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Textarea, Select } from '../../components/ui/ds/Input'
@@ -81,7 +81,7 @@ interface OutletContext {
 
 export default function Patients() {
   const { clinic } = useOutletContext<OutletContext>()
-  const { patients, appointments, upsertPatient, deletePatient } = useData(clinic?.id)
+  const { patients, appointments, upsertPatient, deletePatient } = useDataQuery(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
 
   const [selected, setSelected] = useState<Patient | null>(null)

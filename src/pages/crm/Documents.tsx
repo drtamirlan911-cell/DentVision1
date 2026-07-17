@@ -5,7 +5,7 @@ import { FileText, Plus, Search, Edit3, Save, X, Trash2, Download, Eye, Copy, St
 import SignaturePad from '../../components/ui/SignaturePad';
 import { gid, today } from '../../utils/constants';
 import { useToast } from '@/components/ui/ds/Toast'
-import { useData } from '../../hooks/useData';
+import { useDataQuery } from '../../queries/useDataQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ds/Card';
 import { Button } from '../../components/ui/ds/Button';
 import { Badge } from '../../components/ui/ds/Badge';
@@ -439,7 +439,7 @@ function TemplateCard({ template, onSelect }: { template: TemplateItem; onSelect
 
 export default function Documents() {
   const { clinic, user } = useOutletContext<OutletContext>();
-  const { patients, doctors, documents, upsertDocument, deleteDocument } = useData(clinic?.id);
+  const { patients, doctors, documents, upsertDocument, deleteDocument } = useDataQuery(clinic?.id);
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -811,7 +811,7 @@ export default function Documents() {
                 key={doc.id}
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.02 }}
+                transition={{ delay: Math.min(i * 0.02, 0.3) }}
               >
                 <Card hover className="p-4">
                   <div className="flex items-center justify-between">

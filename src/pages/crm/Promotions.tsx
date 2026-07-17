@@ -12,7 +12,7 @@ import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
 import { Switch } from '../../components/ui/ds/Misc'
 import { gid, today, ALL_SERVICES } from '../../utils/constants'
-import { useData } from '../../hooks/useData'
+import { useDataQuery } from '../../queries/useDataQuery'
 import { cn } from '../../lib/utils'
 import type { Clinic, User, RoleInfo, Promotion } from '../../types'
 
@@ -37,7 +37,7 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 export default function Promotions() {
   const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>()
   const { showToast, toast, clearToast } = useToast()
-  const { promotions, upsertPromotion } = useData(clinic?.id)
+  const { promotions, upsertPromotion } = useDataQuery(clinic?.id)
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<PromotionForm>(EMPTY_FORM)
   const [editing, setEditing] = useState<Promotion | null>(null)

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun } from 'lucide-react';
 import { gid, today } from '../../utils/constants';
 import { useToast } from '@/components/ui/ds/Toast'
-import { useData } from '../../hooks/useData';
+import { useDataQuery } from '../../queries/useDataQuery';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Button } from '../../components/ui/ds/Button';
 import { Badge } from '../../components/ui/ds/Badge';
@@ -45,7 +45,7 @@ interface MedicalCardForm {
 
 export default function MedicalCard() {
   const { clinic, user } = useOutletContext<OutletContext>();
-  const { patients, medicalCards, upsertMedicalCard, visits } = useData(clinic?.id);
+  const { patients, medicalCards, upsertMedicalCard, visits } = useDataQuery(clinic?.id);
   const toast = useToast();
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');

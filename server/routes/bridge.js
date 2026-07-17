@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import prisma from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission, requireSuperadmin } from '../middleware/rbac.js';
+import { broadcast } from '../ws.js';
 import aiRoutes from '../ai/chat.js';
 import crmRoutes from './crm.js';
 
@@ -84,6 +85,7 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
         create: { id: data.id || crypto.randomUUID(), ...data },
         update: data,
       });
+      broadcast(req.user?.clinicId, 'visit.updated', { id: visit.id });
       res.json(visit);
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -96,6 +98,7 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
         create: { id: data.id || crypto.randomUUID(), patientId: data.patientId, ...data },
         update: data,
       });
+      broadcast(req.user?.clinicId, 'medical_card.updated', { id: result.id });
       res.json(result);
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -136,6 +139,7 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
         create: { id: data.id || crypto.randomUUID(), ...data },
         update: data,
       });
+      broadcast(req.user?.clinicId, 'document.updated', { id: doc.id });
       res.json(doc);
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -144,6 +148,7 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
     try {
       await prisma.document.delete({ where: { id: req.params.id } }).catch(() => {});
       await prisma.photo.delete({ where: { id: req.params.id } }).catch(() => {});
+      broadcast(req.user?.clinicId, 'document.deleted', { id: req.params.id });
       res.json({ ok: true });
     } catch { res.status(500).json({ error: 'Delete failed' }); }
   });

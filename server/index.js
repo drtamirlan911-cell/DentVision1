@@ -3,9 +3,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import http from 'http';
 import prisma from './lib/prisma.js';
 import { initDatabase } from './seed.js';
 import registerBridgeRoutes from './routes/bridge.js';
+import { initWebSocket } from './ws.js';
 
 dotenv.config();
 
@@ -127,7 +129,9 @@ process.on('SIGINT', async () => { await prisma.$disconnect(); process.exit(0); 
 async function startServer() {
   try {
     await initDatabase();
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+    initWebSocket(server);
+    server.listen(PORT, () => {
       console.log(`API Server running on http://localhost:${PORT}`);
     });
   } catch (err) {

@@ -6,7 +6,7 @@ import {
   Edit, Trash2,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
-import { useData } from '../../hooks/useData'
+import { useDataQuery } from '../../queries/useDataQuery'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Textarea, Select } from '../../components/ui/ds/Input'
@@ -102,7 +102,7 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Lab() {
   const { clinic } = useOutletContext<OutletContext>()
-  const { labOrders, upsertLabOrder, doctors } = useData(clinic?.id)
+  const { labOrders, upsertLabOrder, doctors } = useDataQuery(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
   const [activeTab, setActiveTab] = useState('active')
   const [modalOpen, setModalOpen] = useState(false)

@@ -21,11 +21,8 @@
       "@/*": ["src/*"],
       "@components/*": ["src/components/*"],
       "@pages/*": ["src/pages/*"],
-      "@hooks/*": ["src/hooks/*"],
       "@utils/*": ["src/utils/*"],
-      "@context/*": ["src/context/*"],
       "@layouts/*": ["src/layouts/*"],
-      "@stores/*": ["src/stores/*"],
       "@lib/*": ["src/lib/*"]
     }
   },

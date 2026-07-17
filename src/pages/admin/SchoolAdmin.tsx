@@ -16,7 +16,7 @@ import {
   getSchoolLibrary, createSchoolLibraryItem, deleteSchoolLibraryItem,
 } from '../../utils/api'
 
-function makeToast() {
+function useMakeToast() {
   const api = useToast()
   return {
     success: (m: string) => api.toast({ type: 'success', title: m }),
@@ -54,7 +54,7 @@ export default function SchoolAdmin() {
 }
 
 function CoursesManager() {
-  const toast = makeToast()
+  const toast = useMakeToast()
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -242,7 +242,7 @@ function CoursesManager() {
 }
 
 function CasesManager() {
-  const toast = makeToast()
+  const toast = useMakeToast()
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<any>(null)
@@ -316,7 +316,7 @@ function CasesManager() {
 }
 
 function LibraryManager() {
-  const toast = makeToast()
+  const toast = useMakeToast()
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<any>(null)

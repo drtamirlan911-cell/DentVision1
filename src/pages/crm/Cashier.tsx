@@ -7,7 +7,7 @@ import {
   User, Stethoscope, Search,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
-import { useData } from '../../hooks/useData'
+import { useDataQuery } from '../../queries/useDataQuery'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Select } from '../../components/ui/ds/Input'
@@ -83,7 +83,7 @@ interface ExpenseForm {
 
 export default function Cashier() {
   const { clinic } = useOutletContext<OutletContext>()
-  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useData(clinic?.id)
+  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useDataQuery(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
   const [activeTab, setActiveTab] = useState('unpaid')
   const [modalOpen, setModalOpen] = useState(false)

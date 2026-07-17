@@ -14,7 +14,7 @@ import {
   Info,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast'
-import { useData } from '../../hooks/useData';
+import { useDataQuery } from '../../queries/useDataQuery';
 import { getAppointmentReminders, getHygieneReminders, markSent } from '../../utils/reminders';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Badge } from '../../components/ui/ds/Badge';
@@ -36,7 +36,7 @@ interface RemindersProps {
 }
 
 export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
-  const { patients, appointments, receipts, doctors } = useData(clinic?.id);
+  const { patients, appointments, receipts, doctors } = useDataQuery(clinic?.id);
   const { showToast } = useToast();
   const [tick, setTick] = useState(0);
   const [tab, setTab] = useState('appointments');

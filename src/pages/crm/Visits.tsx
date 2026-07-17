@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { ClipboardList, Plus, Search, Edit3, Save, X, Stethoscope, User, Calendar, FileText, Pill } from 'lucide-react';
 import { gid, today } from '../../utils/constants';
 import { useToast } from '@/components/ui/ds/Toast'
-import { useData } from '../../hooks/useData';
+import { useDataQuery } from '../../queries/useDataQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ds/Card';
 import { Button } from '../../components/ui/ds/Button';
 import { Badge } from '../../components/ui/ds/Badge';
@@ -33,7 +33,7 @@ interface VisitForm {
 
 export default function Visits() {
   const { clinic, user } = useOutletContext<OutletContext>();
-  const { patients, doctors, visits, upsertVisit } = useData(clinic?.id);
+  const { patients, doctors, visits, upsertVisit } = useDataQuery(clinic?.id);
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -204,7 +204,7 @@ export default function Visits() {
               key={visit.id}
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.02 }}
+              transition={{ delay: Math.min(i * 0.02, 0.3) }}
             >
               <Card hover className="p-4">
                 <div className="flex items-start justify-between">

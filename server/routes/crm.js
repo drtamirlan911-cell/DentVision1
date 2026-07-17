@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission, requireSameClinic } from '../middleware/rbac.js';
 import prisma from '../lib/prisma.js';
+import { broadcast } from '../ws.js';
 
 // Resource definitions: name → { model, queryIncludes?, orderBy? }
 const RESOURCES = {
@@ -119,6 +120,7 @@ export default function crmRoutes(writeAuditLog) {
         });
         const action = `upsert_${name}`;
         writeAuditLog(data.clinicId, req.user.id, req.user.name, action, name, id, { id });
+        broadcast(data.clinicId, `${name.slice(0, -1)}.updated`, { id, action });
         res.json(result);
       } catch (e) { console.error(`CRM ${name} upsert error:`, e.message); res.status(500).json({ error: 'Internal server error' }); }
     });
@@ -129,6 +131,7 @@ export default function crmRoutes(writeAuditLog) {
         const result = await model.delete({ where: { id: req.params.id } });
         if (result.clinicId) {
           writeAuditLog(result.clinicId, req.user.id, req.user.name, `delete_${name}`, name, req.params.id, { id: req.params.id });
+          broadcast(result.clinicId, `${name.slice(0, -1)}.deleted`, { id: req.params.id });
         }
         res.json(result);
       } catch (e) { console.error(`CRM ${name} delete error:`, e.message); res.status(500).json({ error: 'Internal server error' }); }

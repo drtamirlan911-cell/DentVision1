@@ -49,7 +49,7 @@ export default function ShopFavorites() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
           {favs.map((f, i) => (
-            <motion.div key={f.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+            <motion.div key={f.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
               <Card hover>
                 <CardContent className="flex items-center gap-3">
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/shop/${f.productId}`)}>

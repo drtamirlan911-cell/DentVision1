@@ -19,7 +19,7 @@ type Product = any
 type Category = any
 type Supplier = any
 
-function makeToast() {
+function useMakeToast() {
   const api = useToast()
   return {
     success: (m: string) => api.toast({ type: 'success', title: m }),
@@ -57,7 +57,7 @@ export default function ShopAdmin() {
 }
 
 function ProductsManager() {
-  const toast = makeToast()
+  const toast = useMakeToast()
   const [items, setItems] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -197,7 +197,7 @@ function ProductsManager() {
 }
 
 function CategoriesManager() {
-  const toast = makeToast()
+  const toast = useMakeToast()
   const [items, setItems] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Category | null>(null)
@@ -271,7 +271,7 @@ function CategoriesManager() {
 }
 
 function SuppliersManager() {
-  const toast = makeToast()
+  const toast = useMakeToast()
   const [items, setItems] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Supplier | null>(null)

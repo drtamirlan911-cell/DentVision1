@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Stethoscope, ChevronLeft, ChevronRight, LogOut, Brain,
   ShoppingCart, GraduationCap, Briefcase, BarChart3, Users, User,
-  Shield, FileText, Database, Settings, Bot, Briefcase as BriefcaseIcon,
+  Shield, FileText, Database, Settings, Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/ds/Avatar';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Tooltip } from '@/components/ui/ds/Tooltip';
+import { queryKeys } from '@/queries/keys';
+import * as api from '@/utils/api';
+import { useAuth } from '@/store/auth.store';
 import type { User as UserType, RoleInfo } from '@/types';
 
 interface NavItem {
@@ -58,10 +62,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const sidebarWidth = collapsed ? 72 : 240;
+  const clinicId = useAuth((s) => s.user?.clinicId) || '';
 
   const allowedPages = roleInfo?.pages || [];
   const isAdmin = allowedPages.includes('admin');
+
+  const prefetchFor = useCallback((id: string) => {
+    switch (id) {
+      case 'crm':
+        queryClient.prefetchQuery({ queryKey: queryKeys.patients, queryFn: () => api.getPatients(clinicId), staleTime: 60_000 });
+        queryClient.prefetchQuery({ queryKey: queryKeys.appointments, queryFn: () => api.getAppointments(clinicId), staleTime: 60_000 });
+        break;
+      case 'shop':
+        queryClient.prefetchQuery({ queryKey: [...queryKeys.products], queryFn: () => api.getShopProducts(), staleTime: 60_000 });
+        break;
+      case 'school':
+        queryClient.prefetchQuery({ queryKey: [...queryKeys.courses], queryFn: () => api.getSchoolCourses(), staleTime: 60_000 });
+        break;
+      case 'analytics':
+        queryClient.prefetchQuery({ queryKey: queryKeys.receipts, queryFn: () => api.getReceipts(clinicId), staleTime: 60_000 });
+        break;
+    }
+  }, [queryClient, clinicId]);
 
   const serviceItems = NAV_ITEMS.filter(item => {
     if (item.section === 'platform' && item.id === 'ai') return true;
@@ -89,6 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         const btn = (
           <motion.button
             onClick={() => handleNavClick(item.path)}
+            onMouseEnter={() => prefetchFor(item.id)}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             className={cn(

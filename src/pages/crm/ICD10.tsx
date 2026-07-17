@@ -79,7 +79,7 @@ export default function ICD10() {
               key={code.code}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.02 }}
+              transition={{ delay: Math.min(i * 0.02, 0.3) }}
             >
               <Card hover className="p-4">
                 <div className="flex items-start justify-between mb-2">

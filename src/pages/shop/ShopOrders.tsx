@@ -64,7 +64,7 @@ export default function ShopOrders() {
           {orders.map((o, i) => {
             const st = STATUS[o.status] || STATUS.pending;
             return (
-              <motion.div key={o.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+              <motion.div key={o.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
                 <Card hover>
                   <CardContent>
                     <div className="flex items-center justify-between mb-3">

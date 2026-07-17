@@ -7,9 +7,11 @@ import { useAuth } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
 import { WelcomeAnimation } from '@/components/intelligence/WelcomeAnimation';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
+import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
 import { aiProactive } from '@/utils/api';
 import { Sidebar } from './Sidebar';
 import { AlertDropdown } from './AlertDropdown';
+import { BottomNav } from './BottomNav';
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   crm: 'CRM',
@@ -43,6 +45,11 @@ export const IntelligenceLayout: React.FC = () => {
   const [proactiveAlerts, setProactiveAlerts] = useState<Array<{ type: string; text: string; priority: number }>>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
+  const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
+
+  const handleAIQuery = useCallback((query: string) => {
+    navigate('/', { state: { aiQuery: query } });
+  }, [navigate]);
 
   const getBreadcrumbs = useCallback(() => {
     const segments = location.pathname.split('/').filter(Boolean);
@@ -68,7 +75,7 @@ export const IntelligenceLayout: React.FC = () => {
   }, [isMobile, setContextSheetOpen]);
 
   const handleWelcomeComplete = useCallback(() => {
-    try { sessionStorage.setItem('dv_welcomed', '1'); } catch {}
+    try { sessionStorage.setItem('dv_welcomed', '1'); } catch { /* ignore */ }
     setShowWelcome(false);
     setSidebarVisible(true);
     setTimeout(() => fetchProactiveAlerts(), 500);
@@ -78,7 +85,7 @@ export const IntelligenceLayout: React.FC = () => {
     try {
       const data = await aiProactive();
       if (data?.alerts?.length) setProactiveAlerts(data.alerts);
-    } catch {}
+    } catch { /* ignore */ }
   }, []);
 
   if (!isAuthenticated || !user) {
@@ -161,6 +168,13 @@ export const IntelligenceLayout: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCmdOpen(true)}
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-dv-gold/30 transition-colors text-xs"
+            >
+              <span>Поиск...</span>
+              <kbd className="px-1 py-0.5 text-[10px] font-mono bg-surface-3 rounded border border-bdr-subtle">⌘K</kbd>
+            </button>
             <AlertDropdown
               alerts={proactiveAlerts}
               isOpen={alertDropdownOpen}
@@ -183,7 +197,7 @@ export const IntelligenceLayout: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-surface-0 relative min-h-0">
+        <div className="flex-1 overflow-y-auto bg-surface-0 relative min-h-0 pb-16 md:pb-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -261,6 +275,9 @@ export const IntelligenceLayout: React.FC = () => {
           </>
         )}
       </AnimatePresence>
+
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onAIQuery={handleAIQuery} />
+      {isMobile && <BottomNav />}
     </div>
   );
 };

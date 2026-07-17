@@ -1,6 +1,6 @@
 ﻿import React, { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { useToast } from '@/components/ui/ds/Toast'
-import { useData } from '../hooks/useData';
+import { useDataQuery } from '../queries/useDataQuery';
 import { useAuth } from '@/store/auth.store';
 import { Button } from '../components/ui/ds/Button';
 import { Card, CardContent } from '../components/ui/ds/Card';
@@ -113,7 +113,7 @@ const AI_FEATURES: AiFeature[] = [
 export default function AITeam() {
   const { clinic } = useAuth();
   const { showToast } = useToast();
-  const { patients, appointments, receipts, doctors } = useData(clinic?.id);
+  const { patients, appointments, receipts, doctors } = useDataQuery(clinic?.id);
   const [activeId, setActiveId] = useState<string>('consultant');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     { role: 'assistant', content: 'Здравствуйте! Я AI-ассистент DentVision. Готов помочь автоматизировать вашу клинику. Чем могу помочь?' },

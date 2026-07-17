@@ -5,7 +5,7 @@ import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight,
 } from 'lucide-react'
-import { useData } from '@/hooks/useData'
+import { useDataQuery } from '@/queries/useDataQuery'
 import { useAuth } from '@/store/auth.store'
 import { cn, today } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
@@ -49,7 +49,7 @@ export default function Schedule() {
     upsertAppointment, deleteAppointment,
     upsertPatient, upsertReceipt,
     upsertWaitingListItem, deleteWaitingListItem,
-  } = useData(clinic?.id)
+  } = useDataQuery(clinic?.id)
 
   const navigate = useNavigate()
   const [selDate, setSelDate] = useState(today())
@@ -423,7 +423,7 @@ export default function Schedule() {
 
           <Select label="Врач" value={form.doctorId} onChange={e => setForm({ ...form, doctorId: e.target.value })} options={doctorOptions} />
           <Select label="Услуга из прайса" value={form.service}
-            onChange={e => { const svc = ALL_SERVICES.find(s => s.id === e.target.value); setForm({ ...form, service: e.target.value }); if (svc) {} }}
+            onChange={e => { const svc = ALL_SERVICES.find(s => s.id === e.target.value); setForm({ ...form, service: e.target.value }); if (svc) { setForm(f => ({ ...f, serviceName: svc.name, servicePrice: svc.price })); } }}
             options={serviceOptions} required />
 
           <div className="grid grid-cols-3 gap-2">

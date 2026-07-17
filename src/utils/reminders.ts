@@ -21,7 +21,7 @@ function loadSentLog(): SentLog {
 function saveSentLog(log: SentLog): void {
   try {
     localStorage.setItem(SENT_KEY, JSON.stringify(log));
-  } catch {}
+  } catch { /* ignore */ }
 }
 
 export function isSent(reminderId: string): boolean {

@@ -4,7 +4,7 @@ import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Activity } from 'lu
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { useAuth } from '@/store/auth.store'
-import { useData } from '@/hooks/useData'
+import { useDataQuery } from '@/queries/useDataQuery'
 import type { Receipt } from '@/types'
 
 const container = {
@@ -18,7 +18,7 @@ const item = {
 
 export default function Analytics() {
   const { user } = useAuth()
-  const data = useData(user?.clinicId)
+  const data = useDataQuery(user?.clinicId)
 
   const patients = data.patients || []
   const appointments = data.appointments || []

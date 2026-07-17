@@ -35,9 +35,9 @@ export function setTokens(access: string | null, refresh: string | null): void {
   _accessToken = access;
   _refreshToken = refresh;
   if (access && refresh) {
-    try { localStorage.setItem('dv_tokens', JSON.stringify({ access, refresh })); } catch {}
+    try { localStorage.setItem('dv_tokens', JSON.stringify({ access, refresh })); } catch { /* ignore */ }
   } else {
-    try { localStorage.removeItem('dv_tokens'); } catch {}
+    try { localStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
   }
 }
 
@@ -50,14 +50,14 @@ export function loadTokens(): { accessToken: string; refreshToken: string } | nu
       _refreshToken = refresh;
       return { accessToken: access, refreshToken: refresh };
     }
-  } catch {}
+  } catch { /* ignore */ }
   return null;
 }
 
 export function clearTokens(): void {
   _accessToken = null;
   _refreshToken = null;
-  try { localStorage.removeItem('dv_tokens'); } catch {}
+  try { localStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
 }
 
 export function getAccessToken(): string | null { return _accessToken; }
@@ -99,7 +99,7 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
     headers['Authorization'] = `Bearer ${_accessToken}`;
   }
 
-  let finalOptions: RequestInit = { ...options, headers };
+  const finalOptions: RequestInit = { ...options, headers };
   headers['Content-Type'] = 'application/json';
 
   let res = await fetch(`${API_URL}${path}`, finalOptions);

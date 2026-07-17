@@ -286,7 +286,7 @@ export default function ShopProduct() {
                 Отправить отзыв
               </Button>
             </div>
-            {product.reviews?.length! > 0 ? product.reviews!.map((review, i) => (
+            {(product.reviews?.length ?? 0) > 0 ? (product.reviews ?? []).map((review, i) => (
               <div key={i} className="py-4 border-b border-[var(--border-subtle)]">
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">

@@ -12,6 +12,7 @@ import ForgotPassword from './pages/auth/ForgotPassword';
 import PublicBooking from './pages/auth/PublicBooking';
 import DocumentSign from './pages/auth/DocumentSign';
 import './styles/global.css';
+import { reportWebVitals } from './utils/vitals';
 
 // Platform pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -139,4 +140,5 @@ if (container) {
       </ErrorBoundary>
     </React.StrictMode>
   );
+  reportWebVitals();
 }

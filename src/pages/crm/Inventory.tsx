@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
-import { useData } from '../../hooks/useData'
+import { useDataQuery } from '../../queries/useDataQuery'
 import { Button } from '../../components/ui/ds/Button'
 import { Card } from '../../components/ui/ds/Card'
 import { Input, Select } from '../../components/ui/ds/Input'
@@ -43,7 +43,7 @@ interface InventoryForm {
 export default function Inventory() {
   const { clinic } = useOutletContext<OutletContext>()
   const { showToast, toast, clearToast } = useToast()
-  const { inventory, upsertInventoryItem } = useData(clinic?.id)
+  const { inventory, upsertInventoryItem } = useDataQuery(clinic?.id)
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<InventoryForm>(EMPTY_FORM)
   const [editing, setEditing] = useState<InventoryItem | null>(null)

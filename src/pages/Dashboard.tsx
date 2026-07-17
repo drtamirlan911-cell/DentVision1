@@ -26,7 +26,7 @@ import { StatCard } from '@/components/ui/ds/StatCard'
 import { Badge } from '@/components/ui/ds/Badge'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { useAuth } from '@/store/auth.store'
-import { useData } from '@/hooks/useData'
+import { useDataQuery } from '@/queries/useDataQuery'
 import type { Appointment, Patient } from '@/types'
 
 const container = {
@@ -117,7 +117,7 @@ const SERVICE_TILES = [
   },
 ]
 
-function QuickStats({ data }: { data: ReturnType<typeof useData> }) {
+function QuickStats({ data }: { data: ReturnType<typeof useDataQuery> }) {
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0]
     const todayAppts = (data.appointments || []).filter((a) => a.date === today)
@@ -199,7 +199,7 @@ function ServiceGrid() {
   )
 }
 
-function UpcomingAppointments({ data }: { data: ReturnType<typeof useData> }) {
+function UpcomingAppointments({ data }: { data: ReturnType<typeof useDataQuery> }) {
   const today = new Date().toISOString().split('T')[0]
   const appointments = (data.appointments || [])
     .filter((a) => a.date >= today)
@@ -298,7 +298,7 @@ function QuickActions() {
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const data = useData(user?.clinicId)
+  const data = useDataQuery(user?.clinicId)
 
   return (
     <motion.div

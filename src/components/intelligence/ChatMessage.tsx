@@ -87,7 +87,7 @@ export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query
                   {block.split('\n').map((line, j) => (
                     <p key={j} className="flex gap-2 text-sm">
                       <span className="text-dv-gold shrink-0">—</span>
-                      <span>{line.replace(/^[•\-]\s*/, '')}</span>
+                      <span>{line.replace(/^[•-]\s*/, '')}</span>
                     </p>
                   ))}
                 </div>
