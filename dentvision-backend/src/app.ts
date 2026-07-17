@@ -25,6 +25,7 @@ import { auditRouter } from './modules/audit/audit.routes.js';
 const app = express();
 
 // ─── Global Middleware ───
+app.set('trust proxy', 1);
 app.use(helmet());
 const corsOrigins = env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(',').map(s => s.trim());
 app.use(cors({ origin: corsOrigins, credentials: true }));

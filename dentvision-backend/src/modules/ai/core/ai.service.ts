@@ -1,5 +1,5 @@
 import { AIContext, AIResponse, AIMessage } from '../types/ai.types.js';
-import { classifyIntent } from '../types/intent.types.js';
+import { classifyIntent, Intent } from '../types/intent.types.js';
 import { agentRouter } from './agent.router.js';
 import { DoctorAgent } from '../agents/doctor.agent.js';
 import { OwnerAgent } from '../agents/owner.agent.js';
@@ -52,6 +52,18 @@ export class AIService {
     const permissions = await contextManager.getCurrentPermissions(context.userId, context.clinicId);
     if (!this.hasPermission(permissions, intent)) {
       return this.permissionDenied(intent);
+    }
+
+    // Navigation intents → return an action the frontend can execute
+    const navAction = this.mapNavigationAction(intent);
+    if (navAction) {
+      const label = this.navigationLabel(intent);
+      return {
+        message: `Открываю: ${label}`,
+        intent,
+        action: { type: navAction, payload: {} },
+        suggestions: ['Записать пациента', 'Показать расписание', 'Создать счет'],
+      };
     }
 
     // Route to agent
@@ -115,6 +127,40 @@ export class AIService {
       intent,
       suggestions: ['Обратитесь к администратору'],
     };
+  }
+
+  private mapNavigationAction(intent: string): string | null {
+    const map: Record<string, string> = {
+      [Intent.OPEN_CRM]: 'OpenCRM',
+      [Intent.OPEN_SCHEDULE]: 'OpenSchedule',
+      [Intent.OPEN_PATIENTS]: 'OpenPatients',
+      [Intent.OPEN_SCHOOL]: 'OpenSchool',
+      [Intent.OPEN_SHOP]: 'OpenShop',
+      [Intent.OPEN_FINANCE]: 'OpenFinance',
+      [Intent.OPEN_LABORATORY]: 'OpenLab',
+      [Intent.OPEN_ANALYTICS]: 'OpenAnalytics',
+      [Intent.OPEN_INVENTORY]: 'OpenInventory',
+      [Intent.OPEN_DOCUMENTS]: 'OpenDocuments',
+      [Intent.OPEN_MEDICAL_CARD_NAV]: 'OpenMedicalCard',
+    };
+    return map[intent] ?? null;
+  }
+
+  private navigationLabel(intent: string): string {
+    const map: Record<string, string> = {
+      [Intent.OPEN_CRM]: 'CRM',
+      [Intent.OPEN_SCHEDULE]: 'Расписание',
+      [Intent.OPEN_PATIENTS]: 'Пациенты',
+      [Intent.OPEN_SCHOOL]: 'Школа',
+      [Intent.OPEN_SHOP]: 'Магазин',
+      [Intent.OPEN_FINANCE]: 'Финансы',
+      [Intent.OPEN_LABORATORY]: 'Лаборатория',
+      [Intent.OPEN_ANALYTICS]: 'Аналитика',
+      [Intent.OPEN_INVENTORY]: 'Склад',
+      [Intent.OPEN_DOCUMENTS]: 'Документы',
+      [Intent.OPEN_MEDICAL_CARD_NAV]: 'Медицинская карта',
+    };
+    return map[intent] ?? 'раздел';
   }
 
   async getProactiveAlerts(context: AIContext): Promise<Array<{ type: string; priority: string; message: string }>> {

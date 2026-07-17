@@ -35,11 +35,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
 
     const response = await aiService.processMessage(text, context, context.sessionId);
 
-    res.json({
-      ok: true,
-      data: response,
-      debug: { receivedText: text, intent: response.intent, schema: typeof text },
-    });
+    res.json({ ok: true, data: response });
   } catch (error) {
     console.error('[AI Query Error]', error);
     res.status(500).json({ ok: false, error: 'AI query failed' });
