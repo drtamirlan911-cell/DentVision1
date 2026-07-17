@@ -1,133 +1,298 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import Register from './Register';
-import { GLOBAL_CSS } from '../../utils/constants';
-import { Loader2, Stethoscope, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { motion, type Variants } from 'framer-motion'
+import { useAuth } from '@/context/AuthContext'
+import { Button, Input } from '@/components/ui/ds'
+import { cn } from '@/lib/utils'
+import {
+  Stethoscope,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  Check,
+  LogIn,
+} from 'lucide-react'
+import Register from './Register'
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.07, delayChildren: 0.15 },
+  },
+}
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0 },
+}
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 40, scale: 0.97 },
+  visible: { opacity: 1, y: 0, scale: 1 },
+}
+
+interface FormErrors {
+  login?: string
+  password?: string
+}
+
+const easing = { duration: 0.5, ease: 'easeOut' } as const
+const cardEasing = { duration: 0.7, ease: 'easeOut' } as const
 
 export default function Login() {
-  const navigate = useNavigate();
-  const { user, login, loading, error } = useAuth();
-  const [loginStr, setLoginStr] = useState('');
-  const [password, setPassword] = useState('');
-  const [localError, setLocalError] = useState('');
-  const [showRegister, setShowRegister] = useState(false);
+  const navigate = useNavigate()
+  const { user, login, loading, error } = useAuth()
+  const [loginStr, setLoginStr] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
+  const [localError, setLocalError] = useState('')
+  const [errors, setErrors] = useState<FormErrors>({})
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [showRegister, setShowRegister] = useState(false)
 
   useEffect(() => {
     if (user) {
-      navigate('/intelligence', { replace: true });
+      navigate('/intelligence', { replace: true })
     }
-  }, [user, navigate]);
+  }, [user, navigate])
 
-  if (showRegister) return <Register onBack={() => setShowRegister(false)} />;
+  if (showRegister) return <Register onBack={() => setShowRegister(false)} />
+
+  const validate = (): boolean => {
+    const newErrors: FormErrors = {}
+    if (!loginStr.trim()) newErrors.login = 'Введите логин'
+    else if (loginStr.trim().length < 3) newErrors.login = 'Логин должен содержать минимум 3 символа'
+    if (!password.trim()) newErrors.password = 'Введите пароль'
+    else if (password.length < 4) newErrors.password = 'Пароль должен содержать минимум 4 символа'
+    setErrors(newErrors)
+    setTouched({ login: true, password: true })
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }))
+    if (field === 'login' && !loginStr.trim()) {
+      setErrors((prev) => ({ ...prev, login: 'Введите логин' }))
+    }
+    if (field === 'password' && !password.trim()) {
+      setErrors((prev) => ({ ...prev, password: 'Введите пароль' }))
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError('');
-    if (!loginStr.trim() || !password.trim()) {
-      setLocalError('Введите логин и пароль');
-      return;
-    }
-    await login(loginStr.trim(), password);
-  };
+    e.preventDefault()
+    setLocalError('')
+    if (!validate()) return
+    await login(loginStr.trim(), password)
+  }
 
-  const displayError = error || localError;
+  const displayError = error || localError
 
   return (
-    <>
-      <style>{GLOBAL_CSS}</style>
-      <div className="min-h-screen bg-[#080F1A] flex items-center justify-center p-5 relative overflow-hidden">
-        <div className="absolute w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,#C9A96E08_0%,transparent_70%)] -top-24 -right-24 pointer-events-none" />
-        <div className="absolute w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,#2980B906_0%,transparent_70%)] -bottom-20 -left-20 pointer-events-none" />
+    <div className="relative min-h-screen bg-surface-0 flex items-center justify-center p-4 sm:p-5 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute -top-48 -right-48 w-[600px] h-[600px] rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(201,169,110,0.12) 0%, transparent 70%)' }}
+          animate={{ x: [0, 40, -20, 60, 0], y: [0, -30, 50, -10, 0] }}
+          transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(41,128,185,0.08) 0%, transparent 70%)' }}
+          animate={{ x: [0, -50, 30, -20, 0], y: [0, 40, -30, 20, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(201,169,110,0.06) 0%, transparent 70%)' }}
+          animate={{ scale: [1, 1.15, 0.95, 1.1, 1], opacity: [0.4, 0.7, 0.3, 0.6, 0.4] }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </div>
 
-        <div className="w-full max-w-[400px] bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-[18px] py-9 px-8 shadow-[0_40px_80px_rgba(0,0,0,0.5)] relative z-10">
-          <div className="text-center mb-8">
-            <div className="mb-3 flex justify-center text-[#C9A96E] drop-shadow-[0_4px_12px_rgba(201,169,110,0.4)]">
-              <Stethoscope size={44} />
+      <motion.div
+        variants={cardVariants}
+        initial="hidden"
+        animate="visible"
+        transition={cardEasing}
+        className={cn(
+          'relative z-10 w-full max-w-[420px]',
+          'bg-white/[0.03] backdrop-blur-2xl',
+          'border border-dv-gold/20',
+          'rounded-2xl py-9 px-6 sm:px-8',
+          'shadow-[0_40px_80px_rgba(0,0,0,0.5)]',
+        )}
+      >
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="space-y-5"
+        >
+          <motion.div variants={itemVariants} transition={easing} className="text-center">
+            <div className="mb-3 flex justify-center">
+              <div className="relative">
+                <div className="absolute inset-0 bg-dv-gold/20 blur-2xl rounded-full" />
+                <Stethoscope size={44} className="relative text-dv-gold drop-shadow-[0_4px_12px_rgba(201,169,110,0.4)]" />
+              </div>
             </div>
-            <h1 className="font-['Georgia',serif] text-[26px] font-bold text-white m-0 tracking-tight">
+            <h1 className="font-serif text-[28px] font-bold text-txt-primary tracking-tight">
               DentVision
             </h1>
-            <p className="text-[13px] text-[#7A8899] mt-1.5">CRM-система для стоматологических клиник</p>
-          </div>
+            <p className="text-xs text-txt-muted mt-1.5 max-w-[240px] mx-auto leading-relaxed">
+              CRM-система для стоматологических клиник
+            </p>
+          </motion.div>
 
           {displayError && (
-            <div className="bg-[#E74C3C]/15 border border-[#E74C3C]/30 rounded-lg px-3.5 py-2.5 mb-4 text-[13px] text-[#E74C3C] flex items-center gap-2">
-              <AlertTriangle size={16} />{displayError}
-            </div>
+            <motion.div
+              variants={itemVariants}
+              transition={easing}
+              className="flex items-start gap-2.5 bg-error/10 border border-error/25 rounded-xl px-4 py-3"
+            >
+              <AlertTriangle size={16} className="shrink-0 mt-0.5 text-error" />
+              <span className="text-xs text-error font-medium leading-relaxed">{displayError}</span>
+            </motion.div>
           )}
 
-          <form onSubmit={handleSubmit}>
-            <div className="mb-3.5">
-              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Логин</label>
-              <input
-                type="text" value={loginStr} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLoginStr(e.target.value)}
-                placeholder="admin_c1" autoComplete="username" required
-                className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors"
-              />
-            </div>
+          <motion.form variants={itemVariants} transition={easing} onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Логин"
+              type="text"
+              value={loginStr}
+              onChange={(e) => { setLoginStr(e.target.value); if (touched.login) setErrors((prev) => ({ ...prev, login: '' })) }}
+              onBlur={() => handleBlur('login')}
+              placeholder="admin_c1"
+              autoComplete="username"
+              error={touched.login ? errors.login : undefined}
+            />
 
-            <div className="mb-6">
-              <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Пароль</label>
-              <input
-                type="password" value={password} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                placeholder="••••••••" autoComplete="current-password" required
-                className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors"
+            <div className="space-y-1">
+              <Input
+                label="Пароль"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); if (touched.password) setErrors((prev) => ({ ...prev, password: '' })) }}
+                onBlur={() => handleBlur('password')}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                error={touched.password ? errors.password : undefined}
+                suffix={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((p) => !p)}
+                    className="text-txt-muted hover:text-txt-primary transition-colors"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                }
               />
-              <div className="text-right mt-1.5">
-                <button type="button" onClick={() => navigate('/forgot-password')} className="bg-transparent border-none text-[#C9A96E] text-xs cursor-pointer p-0">
+              <div className="flex items-center justify-between pt-0.5">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div
+                    className={cn(
+                      'w-4 h-4 rounded border transition-all duration-200 flex items-center justify-center shrink-0',
+                      rememberMe
+                        ? 'bg-dv-gold border-dv-gold shadow-[0_0_6px_rgba(201,169,110,0.3)]'
+                        : 'border-bdr-subtle bg-white/[0.03] group-hover:border-dv-gold/40',
+                    )}
+                    onClick={() => setRememberMe((r) => !r)}
+                  >
+                    {rememberMe && <Check size={10} className="text-surface-0" strokeWidth={3} />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <span className="text-[11px] text-txt-muted group-hover:text-txt-secondary transition-colors select-none">
+                    Запомнить меня
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  className="bg-transparent border-none text-dv-gold text-[11px] cursor-pointer p-0 hover:text-dv-gold-light transition-colors"
+                >
                   Забыли пароль?
                 </button>
               </div>
             </div>
 
-            <button
-              type="submit" disabled={loading}
-              className={`w-full py-3 border-none rounded-lg text-[#080F1A] text-sm font-bold flex items-center justify-center gap-2 ${
-                loading
-                  ? 'bg-[#8B6F3E] cursor-not-allowed'
-                  : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer shadow-[0_6px_20px_#C9A96E35]'
-              }`}
+            <Button
+              type="submit"
+              loading={loading}
+              disabled={loading}
+              variant="primary"
+              size="lg"
+              className="w-full h-10 text-sm font-bold"
             >
-              {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Вход…</> : 'Войти в систему'}
-            </button>
-          </form>
+              {loading ? 'Вход…' : 'Войти в систему'}
+            </Button>
+          </motion.form>
 
-          <div className="mt-4 p-3.5 bg-[#27AE60]/[0.08] border border-[#27AE60]/20 rounded-[10px] flex justify-between items-center">
+          <motion.div
+            variants={itemVariants}
+            transition={easing}
+            className="flex items-center justify-between gap-3 bg-success/5 border border-success/15 rounded-xl px-4 py-3"
+          >
             <div>
-              <div className="text-xs text-[#27AE60] font-bold">Новая клиника?</div>
-              <div className="text-[11px] text-[#7A8899]">14 дней бесплатно</div>
+              <div className="text-xs text-success font-bold">Новая клиника?</div>
+              <div className="text-[11px] text-txt-muted">14 дней бесплатно</div>
             </div>
-            <button
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setShowRegister(true)}
-              className="px-3.5 py-[7px] bg-[#27AE60]/20 border border-[#27AE60]/40 rounded-lg text-[#27AE60] text-xs font-bold cursor-pointer whitespace-nowrap"
+              className="shrink-0 border-success/30 text-success hover:bg-success/10 hover:border-success/50 hover:text-success"
             >
               Зарегистрироваться →
-            </button>
-          </div>
+            </Button>
+          </motion.div>
 
-          <div className="mt-3.5 p-3.5 bg-[#C9A96E]/[0.08] border border-[rgba(201,169,110,0.15)] rounded-[10px]">
-            <div className="text-[11px] text-[#C9A96E] font-bold mb-2 uppercase tracking-[0.06em]">
+          <motion.div
+            variants={itemVariants}
+            transition={easing}
+            className="bg-dv-gold/[0.04] border border-dv-gold/10 rounded-xl px-4 py-3.5"
+          >
+            <div className="text-[10px] text-dv-gold font-bold mb-2.5 uppercase tracking-[0.08em] flex items-center gap-1.5">
+              <LogIn size={12} />
               Demo-доступ
             </div>
-            {[
-              { login: 'admin_c1',  pass: 'admin123',        role: 'Администратор' },
-              { login: 'doc1_c1',  pass: 'doc123',           role: 'Врач-терапевт' },
-              { login: 'dr.tamirlan', pass: 'DentVision2025!', role: 'Super Admin' },
-            ].map((d, i) => (
-              <button
-                key={i}
-                onClick={() => { setLoginStr(d.login); setPassword(d.pass); }}
-                className="block w-full text-left bg-transparent border-none py-1 cursor-pointer text-[#B0BEC5] text-xs"
-              >
-                <span className="text-[#C9A96E] font-semibold">{d.login}</span>
-                <span className="text-[#7A8899]"> / {d.pass}</span>
-                <span className="text-[#7A8899] italic"> — {d.role}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </>
-  );
+            <div className="space-y-1">
+              {[
+                { login: 'admin_c1', pass: 'admin123', role: 'Администратор' },
+                { login: 'doc1_c1', pass: 'doc123', role: 'Врач-терапевт' },
+                { login: 'dr.tamirlan', pass: 'DentVision2025!', role: 'Super Admin' },
+              ].map((d, i) => (
+                <motion.button
+                  key={i}
+                  whileHover={{ x: 4 }}
+                  whileTap={{ scale: 0.99 }}
+                  type="button"
+                  onClick={() => { setLoginStr(d.login); setPassword(d.pass); setErrors({}); setTouched({}) }}
+                  className={cn(
+                    'w-full text-left bg-transparent border-none py-1.5 px-2 rounded-lg cursor-pointer',
+                    'transition-colors duration-150',
+                    'hover:bg-dv-gold/[0.06]',
+                  )}
+                >
+                  <span className="text-xs text-dv-gold font-semibold">{d.login}</span>
+                  <span className="text-[11px] text-txt-muted"> / {d.pass}</span>
+                  <span className="text-[11px] text-txt-ghost italic"> — {d.role}</span>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      </motion.div>
+    </div>
+  )
 }
