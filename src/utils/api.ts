@@ -526,7 +526,7 @@ export interface AIChatResponse {
   conversationContext: { turnCount: number; entities: Record<string, unknown> };
 }
 export async function aiChat(message: string, history: Array<{ role: string; content: string }> = []): Promise<AIChatResponse> {
-  return apiRequest('/api/ai/chat', { method: 'POST', body: JSON.stringify({ text: message, history }) });
+  return apiRequest('/api/ai/chat', { method: 'POST', body: JSON.stringify({ message, history }) });
 }
 export async function aiProactive(): Promise<{ alerts: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }> }> {
   return apiRequest('/api/ai/proactive');

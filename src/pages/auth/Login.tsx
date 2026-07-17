@@ -42,6 +42,8 @@ const cardEasing = { duration: 0.7, ease: 'easeOut' } as const
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { user, login, loading, error } = useAuth()
   const [loginStr, setLoginStr] = useState('')
   const [password, setPassword] = useState('')

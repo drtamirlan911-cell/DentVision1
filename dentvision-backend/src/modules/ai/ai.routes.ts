@@ -1,14 +1,16 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/auth.js';
+import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../types/index.js';
 import { validate } from '../../middleware/validate.js';
 import { z } from 'zod';
 import { aiService } from './core/ai.service.js';
 import { prisma } from '../../lib/prisma.js';
 
+const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
+
 export const aiRouter = Router();
 
-aiRouter.use(authenticate);
+aiRouter.use(optionalAuth);
 
 const querySchema = z.object({
   body: z.object({
@@ -22,9 +24,9 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     const { text, sessionId } = req.body;
 
     const context = {
-      userId: req.user!.id,
-      clinicId: req.user!.clinicId!,
-      role: req.user!.role,
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
+      role: req.user?.role || 'guest',
       currentPatientId: req.body.currentPatientId,
       currentAppointmentId: req.body.currentAppointmentId,
       sessionId: sessionId || crypto.randomUUID(),
@@ -94,9 +96,9 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
     else greeting = 'Добрый вечер';
 
     const alerts = await aiService.getProactiveAlerts({
-      userId: req.user!.id,
-      clinicId: req.user!.clinicId!,
-      role: req.user!.role,
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
+      role: req.user?.role || 'guest',
       sessionId: crypto.randomUUID(),
       metadata: {},
     });
@@ -104,7 +106,7 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
     res.json({
       ok: true,
       data: {
-        greeting: `${greeting}, ${req.user!.firstName}!`,
+        greeting: `${greeting}, ${req.user?.firstName || 'Гость'}!`,
         alerts: alerts.slice(0, 3),
       },
     });
@@ -117,9 +119,9 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
 aiRouter.get('/proactive', async (req: AuthRequest, res) => {
   try {
     const alerts = await aiService.getProactiveAlerts({
-      userId: req.user!.id,
-      clinicId: req.user!.clinicId!,
-      role: req.user!.role,
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
+      role: req.user?.role || 'guest',
       sessionId: crypto.randomUUID(),
       metadata: {},
     });
