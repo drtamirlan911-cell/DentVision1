@@ -22,6 +22,7 @@ export class ApiClient {
 
   // Patients
   async getPatients(clinicId: string) { return api.getPatients(clinicId) }
+  async getPatient(id: string) { return api.getPatient(id) }
   async upsertPatient(data: any) { return api.upsertPatient(data) }
   async deletePatient(id: string) { return api.deletePatient(id) }
 

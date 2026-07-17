@@ -184,7 +184,7 @@ function useCloudTable(table, def) {
 // ═══════════════════════════════════════════════════════════════════
 // INITIAL DATA
 // ═══════════════════════════════════════════════════════════════════
-const SUPER_ADMIN = { id: "sa", login: "dr.tamirlan", password: "DentVision2025!", role: "superadmin", name: "Dr. Tamirlan" };
+const SUPER_ADMIN = { id: "sa", login: "dr.tamirlan", role: "superadmin", name: "Dr. Tamirlan" };
 
 const INIT_CLINICS = [
   { id: "c1", name: "DentVision Тараз — Центр", city: "Тараз", address: "ул. Толе би, 32", phone: "+7 726 222-33-44", plan: "pro", active: true, createdAt: "2025-01-01", color: "#C9A96E" },
@@ -192,11 +192,11 @@ const INIT_CLINICS = [
 ];
 
 const INIT_USERS = [
-  { id: "u1", clinicId: "c1", login: "admin_c1", password: "admin123", role: "admin", name: "Анна Королёва" },
-  { id: "u2", clinicId: "c1", login: "doc1_c1",  password: "doc123",   role: "doctor", name: "Иванова Мария Сергеевна", spec: "Терапевт" },
-  { id: "u3", clinicId: "c1", login: "doc2_c1",  password: "doc456",   role: "doctor", name: "Петров Алексей Иванович", spec: "Ортопед" },
-  { id: "u4", clinicId: "c2", login: "admin_c2", password: "admin456", role: "admin", name: "Борис Сейткали" },
-  { id: "u5", clinicId: "c2", login: "doc1_c2",  password: "doc789",   role: "doctor", name: "Сидорова Елена Юрьевна", spec: "Терапевт" },
+  { id: "u1", clinicId: "c1", login: "admin_c1", role: "admin", name: "Анна Королёва" },
+  { id: "u2", clinicId: "c1", login: "doc1_c1", role: "doctor", name: "Иванова Мария Сергеевна", spec: "Терапевт" },
+  { id: "u3", clinicId: "c1", login: "doc2_c1", role: "doctor", name: "Петров Алексей Иванович", spec: "Ортопед" },
+  { id: "u4", clinicId: "c2", login: "admin_c2", role: "admin", name: "Борис Сейткали" },
+  { id: "u5", clinicId: "c2", login: "doc1_c2", role: "doctor", name: "Сидорова Елена Юрьевна", spec: "Терапевт" },
 ];
 
 const INIT_PATIENTS = [

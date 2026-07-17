@@ -189,6 +189,11 @@ export async function getPatients(clinicId: string): Promise<Patient[]> {
   return apiRequest('/api/patients');
 }
 
+export async function getPatient(id: string): Promise<Patient> {
+  const patients = await apiRequest('/api/patients');
+  return patients.find((p: any) => p.id === id);
+}
+
 export async function getAppointments(clinicId: string): Promise<Appointment[]> {
   return apiRequest('/api/appointments');
 }

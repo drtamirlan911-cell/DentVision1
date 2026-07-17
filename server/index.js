@@ -44,19 +44,8 @@ app.use((err, _req, res, next) => {
   next(err);
 });
 
-// WAF-safe body decoding: if a base64 header `x-dv-data` is present,
-// decode it into req.body. This bypasses Cloudflare WAF that blocks
-// credential-like JSON payloads in the request body / URL.
-app.use((req, _res, next) => {
-  try {
-    const h = req.headers['x-dv-data'];
-    if (h && typeof h === 'string' && h.length > 0) {
-      const json = Buffer.from(h, 'base64').toString('utf8');
-      req.body = JSON.parse(json);
-    }
-  } catch { /* leave body as-is */ }
-  next();
-});
+// NOTE: x-dv-data base64 body bypass middleware removed for security.
+// It allowed bypassing WAF, rate limiting body inspection, and input validation.
 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, validate: false });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, validate: false });
@@ -99,6 +88,7 @@ import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
 import aiRoutes from './ai/chat.js';
 import { authenticate } from './middleware/auth.js';
+import { requirePermission, requireSuperadmin } from './middleware/rbac.js';
 import { requireServiceAccess, invalidateServiceCache } from './middleware/serviceAccess.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -495,8 +485,8 @@ app.delete('/api/files/:id', authenticate, async (req, res) => {
   } catch { res.status(500).json({ error: 'Delete failed' }); }
 });
 
-// Audit log bridge
-app.get('/api/audit', authenticate, async (req, res) => {
+// Audit log bridge — requires view_audit permission (superadmin, director)
+app.get('/api/audit', authenticate, requirePermission('view_audit'), async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
     const logs = await prisma.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: limit });
@@ -504,7 +494,7 @@ app.get('/api/audit', authenticate, async (req, res) => {
   } catch { res.status(500).json({ error: 'Internal server error' }); }
 });
 
-app.post('/api/audit/backup', authenticate, async (req, res) => {
+app.post('/api/audit/backup', authenticate, requirePermission('backup'), async (req, res) => {
   try {
     await prisma.auditLog.create({ data: { id: crypto.randomUUID(), action: 'backup', details: JSON.stringify({ triggeredBy: req.user?.id }) } });
     res.json({ ok: true, message: 'Backup triggered' });
@@ -519,8 +509,8 @@ app.get('/api/auth/invitations/lookup', authenticate, async (req, res) => {
   } catch { res.status(500).json({ error: 'Lookup failed' }); }
 });
 
-// Shop product PATCH (update)
-app.patch('/api/shop/products/:id', authenticate, async (req, res) => {
+// Shop product PATCH (update) — superadmin only
+app.patch('/api/shop/products/:id', authenticate, requireSuperadmin(), async (req, res) => {
   try {
     const product = await prisma.shopProduct.update({ where: { id: req.params.id }, data: req.body });
     res.json(product);
@@ -557,7 +547,7 @@ app.get('/api/csp-policy', (_req, res) => {
 app.use((err, _req, res, _next) => {
   console.error('Unhandled error:', err.message, err.stack);
   if (res.headersSent) return;
-  res.status(500).json({ error: 'Internal server error', detail: err.message });
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // ═══════════════════════════════════════════════════════════════

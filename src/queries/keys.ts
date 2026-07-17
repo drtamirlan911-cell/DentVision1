@@ -14,8 +14,4 @@ export const queryKeys = {
   courses: ['courses'] as const,
   course: (id: string) => ['course', id] as const,
   notifications: ['notifications'] as const,
-  inventory: (clinicId: string) => ['inventory', clinicId] as const,
-  labOrders: (clinicId: string) => ['labOrders', clinicId] as const,
-  staff: (clinicId: string) => ['staff', clinicId] as const,
-  profile: ['profile'] as const,
 }

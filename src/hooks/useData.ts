@@ -385,7 +385,7 @@ export function useData(clinicId?: string | null): UseDataReturn {
 
   const deleteWaitingListItem = useCallback((id: string): Promise<void> => {
     removeRow('waitingList', id);
-    tryDelete('patients', id);
+    tryDelete('waitingList', id);
     return Promise.resolve();
   }, []);
 
@@ -460,40 +460,4 @@ export function useToast(): UseToastReturn {
     warn: (msg: string) => showToast(msg, 'warning'),
     info: (msg: string) => showToast(msg, 'info'),
   };
-}
-
-export function useCloudTable<T>(table: string, def: T): [T, React.Dispatch<React.SetStateAction<T>>, React.Dispatch<React.SetStateAction<T>>, { online: boolean }] {
-  const [state, setState] = useState<T>(def);
-  return [state, setState, setState, { online: true }];
-}
-
-export function useClinicData(_clinicId?: string | null): { data: null; loading: boolean; error: null } {
-  return { data: null, loading: false, error: null };
-}
-
-export function useSubscription(_clinicId?: string | null): { subscription: { plan: string; active: boolean }; loading: boolean; checkStatus: () => void; upgrade: () => void } {
-  const [subscription] = useState({ plan: 'pro', active: true });
-  return { subscription, loading: false, checkStatus: () => {}, upgrade: () => {} };
-}
-
-export function usePhotoProtocol(_clinicId?: string | null): { photos: Photo[]; loading: boolean; uploadPhoto: (photoData: Partial<Photo>) => Promise<boolean>; deletePhoto: (id: string) => boolean } {
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const uploadPhoto = useCallback(async (photoData: Partial<Photo>): Promise<boolean> => {
-    setPhotos(prev => [...prev, { ...photoData, id: gid() } as Photo]);
-    return true;
-  }, []);
-  const deletePhoto = useCallback((id: string): boolean => {
-    setPhotos(prev => prev.filter(p => p.id !== id));
-    return true;
-  }, []);
-  return { photos, loading: false, uploadPhoto, deletePhoto };
-}
-
-export function useLabOrders(clinicId?: string | null): { labOrders: LabOrder[]; loading: boolean; upsertLabOrder: (data: Partial<LabOrder>) => Promise<any>; createOrder: (data: Partial<LabOrder>) => Promise<any> } {
-  const { labOrders, upsertLabOrder } = useData(clinicId);
-  return { labOrders, loading: false, upsertLabOrder, createOrder: upsertLabOrder };
-}
-
-export function useAppointmentsWithReminders(): { scheduleReminder: () => void; sendReminders: () => void; reminderQueue: never[] } {
-  return { scheduleReminder: () => {}, sendReminders: () => {}, reminderQueue: [] };
 }

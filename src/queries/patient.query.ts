@@ -13,7 +13,7 @@ export function usePatients(clinicId: string) {
 export function usePatient(id: string) {
   return useQuery({
     queryKey: queryKeys.patient(id),
-    queryFn: () => apiClient.getClinic(id),
+    queryFn: () => apiClient.getPatient(id),
     enabled: !!id,
   })
 }

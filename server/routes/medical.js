@@ -176,14 +176,17 @@ export default function medicalRoutes(writeAuditLog) {
       if (!signature_data) return res.status(400).json({ error: 'signature_data required' });
       let result;
       if (token) {
+        // Public signing via token (no auth required — patient-facing)
         result = await prisma.document.update({
           where: { signatureToken: token },
           data: { signatureData: signature_data, signedAt: new Date(), signedByName: signed_by_name || 'Пациент', status: 'signed', signatureToken: null },
         });
       } else {
+        // Internal signing requires authentication
+        if (!req.user) return res.status(401).json({ error: 'Authentication required' });
         result = await prisma.document.update({
           where: { id: req.params.id },
-          data: { signatureData: signature_data, signedAt: new Date(), signedByName: signed_by_name || 'Пациент', status: 'signed' },
+          data: { signatureData: signature_data, signedAt: new Date(), signedByName: signed_by_name || req.user.name, status: 'signed' },
         });
       }
       res.json(result);

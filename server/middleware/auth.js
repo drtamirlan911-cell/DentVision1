@@ -3,7 +3,11 @@
 // ═══════════════════════════════════════════════════════════════
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dv-' + (process.env.DATABASE_URL || 'fallback-secret-change-me').slice(-32);
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '24h';
 const REFRESH_EXPIRES = '7d';
 
