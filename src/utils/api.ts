@@ -526,13 +526,13 @@ export interface AIChatResponse {
   conversationContext: { turnCount: number; entities: Record<string, unknown> };
 }
 export async function aiChat(message: string, history: Array<{ role: string; content: string }> = []): Promise<AIChatResponse> {
-  return apiRequest('/api/ai/query', { method: 'POST', body: JSON.stringify({ text: message, history }) });
+  return apiRequest('/api/ai/chat', { method: 'POST', body: JSON.stringify({ text: message, history }) });
 }
 export async function aiProactive(): Promise<{ alerts: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }> }> {
   return apiRequest('/api/ai/proactive');
 }
 export async function aiAction(action: string, params: Record<string, unknown> = {}): Promise<any> {
-  return apiRequest('/api/ai/query', { method: 'POST', body: JSON.stringify({ text: action }) });
+  return apiRequest('/api/ai/action', { method: 'POST', body: JSON.stringify({ action, params }) });
 }
 export async function aiDigitalTwin(): Promise<any> {
   return apiRequest('/api/ai/digital-twin');

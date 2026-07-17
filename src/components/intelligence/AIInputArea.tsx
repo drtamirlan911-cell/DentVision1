@@ -21,7 +21,9 @@ export function AIInputArea({
 }: AIInputAreaProps) {
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
+  const [listening, setListening] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const recognitionRef = useRef<any>(null)
   const [height, setHeight] = useState(52)
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -54,6 +56,34 @@ export function AIInputArea({
   }, [text])
 
   const isProcessing = status !== 'idle'
+
+  const startListening = useCallback(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return
+    const recognition = new SR()
+    recognition.lang = 'ru-RU'
+    recognition.interimResults = true
+    recognition.continuous = false
+    recognition.onresult = (event: any) => {
+      let transcript = ''
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript
+      }
+      setText(transcript)
+    }
+    recognition.onend = () => setListening(false)
+    recognition.onerror = () => setListening(false)
+    recognitionRef.current = recognition
+    recognition.start()
+    setListening(true)
+  }, [])
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop()
+    setListening(false)
+  }, [])
+
+  useEffect(() => () => recognitionRef.current?.stop(), [])
 
   return (
     <div className="px-4 md:px-6 pb-4 pt-2">
@@ -178,10 +208,22 @@ export function AIInputArea({
                 <motion.button
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  onClick={() => {}}
+                  onClick={() => (listening ? stopListening() : startListening())}
                   disabled={disabled}
-                  className="flex h-8 w-8 items-center justify-center rounded-xl text-txt-muted hover:text-txt-secondary hover:bg-white/[0.05] transition-all"
+                  className={cn(
+                    'relative flex h-8 w-8 items-center justify-center rounded-xl transition-all',
+                    listening
+                      ? 'text-red-400 bg-red-400/10'
+                      : 'text-txt-muted hover:text-txt-secondary hover:bg-white/[0.05]'
+                  )}
                 >
+                  {listening && (
+                    <motion.span
+                      className="absolute inset-0 rounded-xl bg-red-400/20"
+                      animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0, 0.6] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                  )}
                   <Mic size={16} />
                 </motion.button>
                 <motion.button
