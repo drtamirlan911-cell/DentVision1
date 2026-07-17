@@ -33,3 +33,15 @@ export { ProgressBar, CircularProgress } from './Progress'
 export { Drawer } from './Drawer'
 
 export { BottomSheet } from './BottomSheet'
+
+export { DataTable } from './DataTable'
+export type { Column } from './DataTable'
+
+export { Pagination } from './Pagination'
+
+export { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from './Accordion'
+
+export { Popover, PopoverTrigger, PopoverContent } from './Popover'
+
+export { DatePicker } from './DatePicker'
+export type { DatePickerProps } from './DatePicker'
