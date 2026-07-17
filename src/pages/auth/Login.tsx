@@ -44,7 +44,7 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const { user, login, loading, error } = useAuth()
+  const { user, login, loading, error, clinic, activeMembership } = useAuth()
   const [loginStr, setLoginStr] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -73,9 +73,11 @@ export default function Login() {
   useEffect(() => {
     if (user) {
       const target = returnUrl.includes('/login') ? '/' : returnUrl;
-      navigate(target, { replace: true });
+      // If user has no clinic, force redirect to my-clinics to create/join one
+      const hasClinic = clinic || activeMembership;
+      navigate(hasClinic ? target : '/my-clinics', { replace: true });
     }
-  }, [user, navigate, returnUrl]);
+  }, [user, clinic, activeMembership, navigate, returnUrl]);
 
   if (showRegister) return <Register onBack={() => setShowRegister(false)} />
 
