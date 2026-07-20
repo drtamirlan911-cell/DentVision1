@@ -192,3 +192,10 @@ Proactive cards появляются в chat/context panel, не как spam pus
 | C | Long-term memory graph + preference learning |
 | D | Multimodal imaging assist (Radiology) |
 | E | Device sync memory (3D scanner stream) — see §13 |
+
+---
+
+## 4.11 Internal Multi-Agent OS
+
+Публичный roster (§4.4) — то, что видит и явно вызывает пользователь.
+Внутренняя оркестрация, полная сеть специализированных агентов (Clinical / Business / Marketplace / Education / Compliance / Security / Communication / Automation / Knowledge / Infrastructure), их жизненный цикл, governance и реестр определены в **[§15 — AI Agents Operating System](./15-AI-AGENTS-OS.md)**.
