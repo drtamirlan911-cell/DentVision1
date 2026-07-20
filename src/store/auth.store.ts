@@ -17,30 +17,91 @@ interface RoleConfig {
   canBackup?: boolean
   canSeeReports?: boolean
   canSeeExpenses?: boolean
+  canManageClinicSettings?: boolean
+  canManageFinance?: boolean
   ownDataOnly?: boolean
   readOnly?: boolean
   [key: string]: string | boolean | string[] | undefined
 }
 
 export const ORG_ROLES: Record<string, RoleConfig> = {
-  owner: { label: 'Владелец', icon: '👑', pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','staff','audit','backup','shop','school','analytics','settings'], canSeeSalary: true, canSeeSuperAdmin: true, canAddStaff: true, canSeeAudit: true, canBackup: true },
-  director: { label: 'Руководитель', icon: '👔', pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','staff','audit','backup','shop','school','analytics','settings'], canSeeSalary: true, canSeeReports: true, canAddStaff: true, canSeeExpenses: true, canSeeAudit: true, canBackup: true },
-  admin: { label: 'Администратор', icon: '💼', pages: ['schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','reminders','promotions','inventory','staff','documents','shop','school','analytics','settings'], canSeeSalary: false, canSeeExpenses: false, canAddStaff: true },
-  doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule','patients','medical-card','visits','icd10','documents','lab','ai','reminders','school'], canSeeSalary: false, ownDataOnly: true },
-  assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule','patients','visits','documents','reminders','shop','school'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
-  reception: { label: 'Регистратор', icon: '📋', pages: ['schedule','patients','documents','reminders','shop'], canAddStaff: false, readOnly: true },
-  cashier: { label: 'Кассир', icon: '💰', pages: ['cashier','pricelist','receipts','shop'], readOnly: true },
-  accountant: { label: 'Бухгалтер', icon: '📊', pages: ['analytics','cashier','pricelist','dashboard'], canSeeSalary: true, canSeeExpenses: true },
-  laboratory: { label: 'Лаборатория', icon: '🔬', pages: ['lab','shop'] },
-  manager: { label: 'Менеджер', icon: '🧭', pages: ['dashboard','schedule','patients','analytics','staff','promotions','shop'], canSeeReports: true, canAddStaff: true },
-  intern: { label: 'Стажёр', icon: '🌱', pages: ['schedule','patients','visits','documents','school'], ownDataOnly: true, readOnly: true },
+  owner: {
+    label: 'Руководитель',
+    icon: '👔',
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'treatment-plans', 'dental-chart'],
+    canSeeSalary: true,
+    canSeeSuperAdmin: true,
+    canAddStaff: true,
+    canSeeAudit: true,
+    canBackup: true,
+    canManageClinicSettings: true,
+    canManageFinance: true,
+  },
+  director: {
+    label: 'Руководитель',
+    icon: '👔',
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'treatment-plans', 'dental-chart'],
+    canSeeSalary: true,
+    canSeeReports: true,
+    canAddStaff: true,
+    canSeeExpenses: true,
+    canSeeAudit: true,
+    canBackup: true,
+    canManageClinicSettings: true,
+    canManageFinance: true,
+  },
+  admin: {
+    label: 'Администратор',
+    icon: '💼',
+    // Касса / финансы выполняет Администратор (роль кассира убрана)
+    pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'treatment-plans', 'dental-chart'],
+    canSeeSalary: false,
+    canSeeExpenses: false,
+    canAddStaff: true,
+    canManageClinicSettings: true,
+    canManageFinance: true,
+  },
+  doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'ai', 'reminders', 'school', 'treatment-plans', 'dental-chart'], canSeeSalary: false, ownDataOnly: true },
+  assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
+  reception: { label: 'Регистратор', icon: '📋', pages: ['schedule', 'patients', 'documents', 'reminders', 'shop'], canAddStaff: false, readOnly: true },
+  accountant: { label: 'Бухгалтер', icon: '📊', pages: ['analytics', 'finance', 'cashier', 'pricelist', 'dashboard'], canSeeSalary: true, canSeeExpenses: true, canManageFinance: true },
+  laboratory: { label: 'Лаборатория', icon: '🔬', pages: ['lab', 'shop'] },
+  lab: { label: 'Лаборатория', icon: '🔬', pages: ['lab', 'shop'] },
+  manager: { label: 'Менеджер', icon: '🧭', pages: ['dashboard', 'schedule', 'patients', 'analytics', 'staff', 'promotions', 'shop'], canSeeReports: true, canAddStaff: true },
+  intern: { label: 'Стажёр', icon: '🌱', pages: ['schedule', 'patients', 'visits', 'documents', 'school'], ownDataOnly: true, readOnly: true },
 }
 
 export const PLATFORM_ROLES: Record<string, RoleConfig> = {
-  superadmin: { label: 'Super Admin', icon: '⚙️', pages: ['dashboard','schedule','patients','medical-card','visits','icd10','documents','cashier','pricelist','lab','ai','reminders','promotions','inventory','admin','audit','backup','shop','school','analytics','settings'], canSeeSalary: true, canSeeSuperAdmin: true, canAddStaff: true, canSeeAudit: true, canBackup: true },
-  support: { label: 'Поддержка', icon: '🛟', pages: ['admin','analytics','settings'] },
-  user: { label: 'Пользователь', icon: '👤', pages: ['shop','school','ai'] },
-  verified: { label: 'Проверенный', icon: '✅', pages: ['shop','school','ai'] },
+  superadmin: {
+    label: 'Super Admin',
+    icon: '⚙️',
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'admin', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'staff', 'treatment-plans', 'dental-chart'],
+    canSeeSalary: true,
+    canSeeSuperAdmin: true,
+    canAddStaff: true,
+    canSeeAudit: true,
+    canBackup: true,
+    canManageClinicSettings: true,
+    canManageFinance: true,
+  },
+  support: { label: 'Поддержка', icon: '🛟', pages: ['admin', 'analytics', 'settings'] },
+  user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school', 'ai'] },
+  verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school', 'ai'] },
+}
+
+/** Clinic settings ACL: Руководитель (owner/director) + Администратор. */
+export function canManageClinicSettings(role: string | null | undefined): boolean {
+  const r = normalizeRole(role)
+  return r === 'owner' || r === 'director' || r === 'admin' || r === 'superadmin'
+}
+
+function normalizeRole(role: string | undefined | null): string {
+  const raw = String(role || 'user').toLowerCase()
+  // Retired role: cashier duties belong to admin
+  if (raw === 'cashier') return 'admin'
+  // Backend OWNER ≈ frontend Руководитель
+  if (raw === 'owner') return 'owner'
+  return raw
 }
 
 // ─── Membership type ───
@@ -114,10 +175,6 @@ interface AuthState {
   can: (action: string) => boolean
   allClinics: Clinic[]
   allUsers: User[]
-}
-
-function normalizeRole(role: string | undefined | null): string {
-  return String(role || 'user').toLowerCase()
 }
 
 function normalizeUser(raw: any) {

@@ -223,8 +223,5 @@ function defaultSuggestions(role: string): string[] {
   if (normalized === 'DOCTOR') {
     return ['Моё расписание на сегодня', 'Найди пациента', 'Создай план лечения'];
   }
-  if (normalized === 'CASHIER') {
-    return ['Должники', 'Выручка за месяц', 'Открой кассу'];
-  }
   return ['Расписание на сегодня', 'Найди курс', 'Что на складе?'];
 }

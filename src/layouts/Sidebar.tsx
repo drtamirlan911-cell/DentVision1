@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/ds/Badge';
 import { Tooltip } from '@/components/ui/ds/Tooltip';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
-import { useAuth } from '@/store/auth.store';
+import { useAuth, canManageClinicSettings } from '@/store/auth.store';
 import { useGuestStore } from '@/store/guest.store';
 import type { User as UserType, RoleInfo } from '@/types';
 
@@ -82,6 +82,7 @@ const CRM_SUBNAV = [
   { id: 'pricelist', label: 'Прайс', path: '/crm/pricelist' },
   { id: 'staff', label: 'Сотрудники', path: '/crm/staff' },
   { id: 'reminders', label: 'Напоминания', path: '/crm/reminders' },
+  { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', adminOnly: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -93,15 +94,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const queryClient = useQueryClient();
   const [crmOpen, setCrmOpen] = React.useState(location.pathname.startsWith('/crm'));
   const sidebarWidth = !sidebarVisible && !isMobile ? 0 : (collapsed ? 72 : 240);
-  const { user: authUser } = useAuth();
+  const { user: authUser, role: authRole, roleInfo: authRoleInfo } = useAuth();
   const clinicId = authUser?.clinicId || '';
 
   React.useEffect(() => {
     if (location.pathname.startsWith('/crm')) setCrmOpen(true);
   }, [location.pathname]);
 
-  const allowedPages = (roleInfo as any)?.pages || [];
+  const allowedPages = (roleInfo as any)?.pages || authRoleInfo?.pages || [];
   const isAdmin = allowedPages.includes('admin');
+  const showClinicSettings =
+    !!(roleInfo as any)?.canManageClinicSettings ||
+    !!(authRoleInfo as any)?.canManageClinicSettings ||
+    canManageClinicSettings(authRole);
 
   const prefetchFor = useCallback((id: string) => {
     switch (id) {
@@ -208,7 +213,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {btn}
               {isCrm && !collapsed && crmOpen && !isGuest && (
                 <div className="ml-3 mt-0.5 mb-1 space-y-0.5 border-l border-white/[0.06] pl-2">
-                  {CRM_SUBNAV.map((sub) => {
+                  {CRM_SUBNAV.filter((sub) => !(sub as { adminOnly?: boolean }).adminOnly || showClinicSettings).map((sub) => {
                     const subActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
                     return (
                       <button

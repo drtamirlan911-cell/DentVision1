@@ -204,6 +204,33 @@ export async function getClinic(clinicId: string): Promise<Clinic> {
   return apiRequest(`/api/clinics/${clinicId}`);
 }
 
+export async function updateClinic(
+  clinicId: string,
+  data: Partial<Clinic> & { settings?: import('../types').ClinicSettings },
+): Promise<Clinic> {
+  return apiRequest(`/api/clinics/${clinicId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getClinicSettings(clinicId: string): Promise<{
+  clinic: Clinic;
+  settings: import('../types').ClinicSettings;
+}> {
+  return apiRequest(`/api/clinics/${clinicId}/settings`);
+}
+
+export async function saveClinicSettings(
+  clinicId: string,
+  settings: import('../types').ClinicSettings,
+): Promise<any> {
+  return apiRequest(`/api/clinics/${clinicId}/settings`, {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  });
+}
+
 export interface ClinicStaffMember {
   id: string;
   name: string;
@@ -221,7 +248,11 @@ export async function getClinicStaff(clinicId: string): Promise<ClinicStaffMembe
   return members.map((m: any) => ({
     id: m.user?.id,
     name: [m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ').trim() || 'Без имени',
-    role: String(m.role || '').toLowerCase(),
+    role: String(m.role || '').toLowerCase() === 'owner'
+      ? 'director'
+      : String(m.role || '').toLowerCase() === 'cashier'
+        ? 'admin'
+        : String(m.role || '').toLowerCase(),
     spec: m.user?.spec || null,
     avatar: m.user?.avatar || null,
     joinedAt: m.joinedAt,
@@ -439,6 +470,10 @@ export async function getChairs(_clinicId?: string): Promise<import('../types').
 
 export async function upsertChair(data: Partial<import('../types').Chair>): Promise<any> {
   return apiRequest('/api/crm/chairs', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function deleteChair(id: string): Promise<any> {
+  return apiRequest(`/api/crm/chairs/${id}`, { method: 'DELETE' });
 }
 
 export async function sendDocumentForSignature(id: string): Promise<any> {

@@ -400,7 +400,7 @@ export default function SuperAdmin() {
             <Input label="Имя *" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} required />
             <Input label="Email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} type="email" />
             <Select label="Роль" value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })}
-              options={[{ value: 'doctor', label: 'Врач' }, { value: 'assistant', label: 'Ассистент' }, { value: 'admin', label: 'Администратор' }, { value: 'cashier', label: 'Кассир' }, { value: 'reception', label: 'Регистратор' }, { value: 'manager', label: 'Менеджер' }, { value: 'laboratory', label: 'Лаборант' }]} />
+              options={[{ value: 'doctor', label: 'Врач' }, { value: 'assistant', label: 'Ассистент' }, { value: 'admin', label: 'Администратор' }, { value: 'reception', label: 'Регистратор' }, { value: 'manager', label: 'Менеджер' }, { value: 'laboratory', label: 'Лаборант' }, { value: 'owner', label: 'Руководитель' }]} />
             <div className="flex gap-2 pt-2">
               <Button type="submit" loading={createUser.isPending}>Создать</Button>
               <Button type="button" variant="ghost" onClick={() => setUserModal(false)}>Отмена</Button>

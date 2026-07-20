@@ -131,8 +131,12 @@ describe('auth store - staff', () => {
 
 describe('ORG_ROLES', () => {
   it('has all required roles', () => {
-    const expected = ['owner', 'director', 'admin', 'doctor', 'assistant', 'reception', 'cashier', 'accountant', 'laboratory', 'manager', 'intern']
+    const expected = ['owner', 'director', 'admin', 'doctor', 'assistant', 'reception', 'accountant', 'laboratory', 'manager', 'intern']
     expected.forEach(r => expect(ORG_ROLES[r]).toBeDefined())
+    expect(ORG_ROLES.cashier).toBeUndefined()
+    expect(ORG_ROLES.admin.canManageClinicSettings).toBe(true)
+    expect(ORG_ROLES.admin.pages).toContain('finance')
+    expect(ORG_ROLES.admin.pages).toContain('clinic-settings')
   })
 
   it('owner has canSeeSuperAdmin', () => {
