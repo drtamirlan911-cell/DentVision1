@@ -1,8 +1,9 @@
-﻿import React, { useState, type ChangeEvent } from 'react'
+﻿import React, { useState, useEffect, type ChangeEvent } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { DollarSign, Download, Edit, RotateCcw } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
+import * as api from '@/utils/api'
 import { Button } from '../../components/ui/ds/Button'
 import { Card } from '../../components/ui/ds/Card'
 import { Input } from '../../components/ui/ds/Input'
@@ -26,14 +27,35 @@ export default function PriceList() {
   const [editingService, setEditingService] = useState<{ id: string; cat: string; name: string; price: number } | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const rows = await api.getPriceList()
+        if (cancelled) return
+        const map: Record<string, number> = {}
+        for (const r of rows || []) {
+          if (r.serviceCode) map[r.serviceCode] = Number(r.price)
+        }
+        setClinicPrices(map)
+      } catch { /* keep defaults */ }
+    })()
+    return () => { cancelled = true }
+  }, [clinic?.id])
+
   const getServicePrice = (serviceId: string): number => {
     const custom = clinicPrices[serviceId]
     const base = ALL_SERVICES.find(s => s.id === serviceId)
     return custom !== undefined ? custom : base?.price || 0
   }
 
-  const handleSavePrice = (serviceId: string, newPrice: number) => {
+  const handleSavePrice = async (serviceId: string, newPrice: number, name?: string) => {
     setClinicPrices(prev => ({ ...prev, [serviceId]: Number(newPrice) }))
+    try {
+      await api.upsertPriceListItem({ serviceCode: serviceId, price: Number(newPrice), name })
+    } catch {
+      showToast('Не удалось сохранить на сервер', 'warning')
+    }
   }
 
   const filteredServices = selectedCategory === 'all'
@@ -45,19 +67,23 @@ export default function PriceList() {
     setModalOpen(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingService || editingService.price <= 0) {
       showToast('Введите корректную цену', 'warning')
       return
     }
-    handleSavePrice(editingService.id, editingService.price)
+    await handleSavePrice(editingService.id, editingService.price, editingService.name)
     showToast(`Цена на "${editingService.name}" обновлена`, 'success')
     setModalOpen(false)
     setEditingService(null)
   }
 
-  const handleReset = (serviceId: string) => {
+  const handleReset = async (serviceId: string) => {
     setClinicPrices(prev => { const next = { ...prev }; delete next[serviceId]; return next })
+    const base = ALL_SERVICES.find(s => s.id === serviceId)
+    if (base) {
+      try { await api.upsertPriceListItem({ serviceCode: serviceId, price: base.price, name: base.name }) } catch { /* ignore */ }
+    }
     showToast('Цена сброшена к стандартной', 'success')
   }
 

@@ -373,7 +373,12 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
     upsertVisit: (data) => upsertVisitM.mutateAsync(data),
     upsertDocument: (data) => upsertDocumentM.mutateAsync(data),
     deleteDocument: (id) => deleteDocumentM.mutateAsync(id),
-    upsertWaitingListItem: (data) => Promise.resolve(data),
-    deleteWaitingListItem: (id) => Promise.resolve(),
+    upsertWaitingListItem: (data) => api.upsertWaitingListItem({ ...data, clinicId: safeClinicId }).then((r) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.waitingList });
+      return r;
+    }),
+    deleteWaitingListItem: (id) => api.deleteWaitingListItem(id).then(() => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.waitingList });
+    }),
   };
 }

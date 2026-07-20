@@ -237,9 +237,69 @@ export default function TreatmentPlans() {
                     <p className="text-sm text-txt-secondary line-clamp-2">{p.diagnosis || p.notes}</p>
                   )}
                   {Array.isArray(p.stages) && p.stages.length > 0 && (
-                    <p className="text-[11px] text-txt-muted">
-                      Этапы: {p.stages.map((s: any) => s.title).filter(Boolean).join(' → ')}
-                    </p>
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-[11px] text-txt-muted">Этапы</p>
+                      {p.stages.map((s: any, i: number) => (
+                        <div key={s.id || i} className="flex items-center gap-2 flex-wrap">
+                          <Badge
+                            size="xs"
+                            variant={s.status === 'done' || s.status === 'completed' ? 'success' : s.status === 'in_progress' ? 'gold' : 'default'}
+                          >
+                            {s.status === 'done' || s.status === 'completed' ? 'Готово' : s.status === 'in_progress' ? 'В работе' : 'Ожидает'}
+                          </Badge>
+                          <span className="text-xs text-txt-secondary">{s.title}</span>
+                          {s.cost != null && <span className="text-[11px] text-txt-muted">{Number(s.cost).toLocaleString('ru-RU')} ₸</span>}
+                          {!p.legacy && (
+                            <div className="flex gap-1 ml-auto">
+                              {s.status !== 'in_progress' && s.status !== 'done' && s.status !== 'completed' && (
+                                <Button
+                                  size="xs"
+                                  variant="ghost"
+                                  onClick={async () => {
+                                    try {
+                                      await api.updateTreatmentPlanStage(p.id, s.id || String(i), { status: 'in_progress' });
+                                      showToast('Этап в работе', 'success');
+                                      load();
+                                    } catch { showToast('Не удалось обновить этап', 'error'); }
+                                  }}
+                                >
+                                  Старт
+                                </Button>
+                              )}
+                              {s.status !== 'done' && s.status !== 'completed' && (
+                                <Button
+                                  size="xs"
+                                  variant="secondary"
+                                  onClick={async () => {
+                                    try {
+                                      await api.updateTreatmentPlanStage(p.id, s.id || String(i), { status: 'done' });
+                                      showToast('Этап завершён', 'success');
+                                      load();
+                                    } catch { showToast('Не удалось завершить этап', 'error'); }
+                                  }}
+                                >
+                                  Готово
+                                </Button>
+                              )}
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => navigate(`/crm/schedule?patient=${p.patientId}`)}
+                              >
+                                Записать
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => navigate(`/crm/finance?patient=${p.patientId}&plan=${p.id}&stage=${s.id || i}`)}
+                              >
+                                Счёт
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
                 {p.patientId && (

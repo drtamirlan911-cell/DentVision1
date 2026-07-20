@@ -6,6 +6,7 @@ import SignaturePad from '../../components/ui/SignaturePad';
 import { gid, today } from '../../utils/constants';
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery';
+import * as api from '@/utils/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ds/Card';
 import { Button } from '../../components/ui/ds/Button';
 import { Badge } from '../../components/ui/ds/Badge';
@@ -597,13 +598,8 @@ export default function Documents() {
 
   const handleSendForSignature = async (doc: Document) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')}/api/documents/${doc.id}/send-signature`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setSignLink(data.signingUrl);
+      const data = await api.sendDocumentForSignature(doc.id);
+      setSignLink(data.signUrl || data.signingUrl || `/sign/${doc.id}`);
       toast.success('Ссылка для подписи создана');
     } catch {
       toast.error('Ошибка создания ссылки');
@@ -623,12 +619,10 @@ export default function Documents() {
   const handleInlineSignSave = async (signatureData: string) => {
     if (!signInlineName.trim()) { toast.warning('Введите имя'); return; }
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')}/api/documents/${signInlineDoc!.id}/sign`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature_data: signatureData, signed_by_name: signInlineName }),
+      await api.signDocument(signInlineDoc!.id, {
+        signatureData,
+        signedByName: signInlineName,
       });
-      if (!res.ok) throw new Error();
       toast.success('Документ подписан');
       setSignInlineDoc(null);
     } catch {

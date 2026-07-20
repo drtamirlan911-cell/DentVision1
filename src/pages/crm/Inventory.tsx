@@ -1,8 +1,9 @@
 ﻿import React, { useState, useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign } from 'lucide-react'
+import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign, ShoppingCart } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
+import { useNavigate } from 'react-router-dom'
 import { useDataQuery } from '../../queries/useDataQuery'
 import { Button } from '../../components/ui/ds/Button'
 import { Card } from '../../components/ui/ds/Card'
@@ -42,6 +43,7 @@ interface InventoryForm {
 
 export default function Inventory() {
   const { clinic } = useOutletContext<OutletContext>()
+  const navigate = useNavigate()
   const { showToast, toast, clearToast } = useToast()
   const { inventory, upsertInventoryItem } = useDataQuery(clinic?.id)
   const [modalOpen, setModalOpen] = useState(false)
@@ -224,6 +226,15 @@ export default function Inventory() {
                       <Button variant="danger" size="icon-xs" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} />
                       <Button variant="primary" size="icon-xs" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} />
                       <Button variant="primary" size="icon-xs" onClick={() => quickAdjust(item, 10)}>+10</Button>
+                      {isLow && (
+                        <Button
+                          variant="secondary"
+                          size="icon-xs"
+                          title="Заказать в Маркетплейсе"
+                          icon={<ShoppingCart size={12} />}
+                          onClick={() => navigate(`/shop?q=${encodeURIComponent(item.name || '')}`)}
+                        />
+                      )}
                     </div>
 
                     {item.supplier && <p className="text-xs text-txt-muted mt-2">Поставщик: {item.supplier}</p>}
