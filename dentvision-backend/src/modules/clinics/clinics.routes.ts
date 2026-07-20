@@ -46,7 +46,7 @@ const clinicPublicSelect = {
   createdAt: true,
 } as const;
 
-clinicsRouter.get('/', async (req, res) => {
+clinicsRouter.get('/', authenticate, async (req, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -90,7 +90,7 @@ clinicsRouter.get('/', async (req, res) => {
   }
 });
 
-clinicsRouter.get('/:id', async (req, res) => {
+clinicsRouter.get('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 

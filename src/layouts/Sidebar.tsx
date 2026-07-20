@@ -84,7 +84,6 @@ const CRM_SUBNAV = [
   { id: 'documents', label: 'Документы', path: '/crm/documents' },
   { id: 'staff', label: 'Сотрудники', path: '/crm/staff' },
   { id: 'reminders', label: 'Напоминания', path: '/crm/reminders' },
-  { id: 'promotions', label: 'Акции', path: '/crm/promotions' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
