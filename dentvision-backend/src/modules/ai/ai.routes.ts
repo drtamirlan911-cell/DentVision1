@@ -5,6 +5,8 @@ import { validate } from '../../middleware/validate.js';
 import { z } from 'zod';
 import { aiService } from './core/ai.service.js';
 import { improveResponseWithLLM } from './core/llm.service.js';
+import { orchestrate, orchestratorEnabled } from './os/orchestrator.js';
+import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
 
 const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
@@ -20,25 +22,99 @@ const querySchema = z.object({
   }),
 });
 
+interface ProcessedResponse extends AIResponse {
+  toolsUsed?: string[];
+}
+
+/**
+ * Convert the orchestrator's pending confirmation into an action card the
+ * existing AI workspace UI already knows how to render and execute: the
+ * user confirms → UI POSTs /api/ai/action with {action, params} → the
+ * RBAC-checked tool layer performs the mutation.
+ */
+function responseActions(response: ProcessedResponse): Array<Record<string, unknown>> {
+  const actions: Array<Record<string, unknown>> = [];
+  if (response.action) {
+    actions.push({
+      type: response.action.type,
+      label: response.action.type,
+      params: response.action.payload,
+      confidence: 1,
+      requiresConfirmation: false,
+    });
+  }
+  const confirm = response.confirmData as { action?: string; params?: Record<string, unknown>; summary?: string } | undefined;
+  if (confirm?.action) {
+    actions.push({
+      type: confirm.action,
+      label: confirm.summary || confirm.action,
+      params: confirm.params || {},
+      confidence: 1,
+      requiresConfirmation: true,
+    });
+  }
+  return actions;
+}
+
+/**
+ * Single entry point for both /query and /query/stream.
+ * Authenticated users with a working OPENAI_API_KEY get the full AI OS
+ * orchestrator (tool calling over live clinic data). Guests and
+ * LLM-unavailable situations fall back to the deterministic intent router.
+ */
+async function processQuery(
+  req: AuthRequest,
+  text: string,
+  sessionId: string,
+  history: Array<{ role: string; content: string }>,
+): Promise<ProcessedResponse> {
+  const isGuest = !req.user || req.user.isGuest === true;
+
+  if (!isGuest && orchestratorEnabled()) {
+    try {
+      const result = await orchestrate({
+        text,
+        userId: req.user!.id,
+        clinicId: req.user!.clinicId || null,
+        role: req.user!.role,
+        userName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
+        sessionId,
+        history,
+      });
+      return {
+        message: result.message,
+        intent: result.intent,
+        action: result.action,
+        suggestions: result.suggestions,
+        needsConfirmation: result.needsConfirmation,
+        confirmData: result.confirmData,
+        toolsUsed: result.toolsUsed,
+      };
+    } catch (error) {
+      console.error('[AI OS] orchestrator failed, falling back to intent router:', error);
+    }
+  }
+
+  const context = {
+    userId: req.user?.id || 'guest',
+    clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
+    role: req.user?.role || 'guest',
+    isGuest,
+    sessionId,
+    metadata: {},
+  };
+  const response = await aiService.processMessage(text, context, sessionId);
+  response.message = (await improveResponseWithLLM(text, response, context)) || response.message;
+  return response;
+}
+
 aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {
   try {
     const { text, sessionId } = req.body;
+    const history = Array.isArray(req.body.history) ? req.body.history : [];
+    const response = await processQuery(req, text, sessionId || crypto.randomUUID(), history);
 
-    const context = {
-      userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
-      role: req.user?.role || 'guest',
-      isGuest: !req.user || req.user.isGuest === true,
-      currentPatientId: req.body.currentPatientId,
-      currentAppointmentId: req.body.currentAppointmentId,
-      sessionId: sessionId || crypto.randomUUID(),
-      metadata: {},
-    };
-
-    const response = await aiService.processMessage(text, context, context.sessionId);
-    response.message = await improveResponseWithLLM(text, response, context) || response.message;
-
-    res.json({ ok: true, data: response });
+    res.json({ ok: true, data: { ...response, actions: responseActions(response) } });
   } catch (error) {
     console.error('[AI Query Error]', error);
     res.status(500).json({ ok: false, error: 'AI query failed' });
@@ -56,41 +132,49 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     }
 
     const sessionId = req.body.sessionId || crypto.randomUUID();
-    const context = {
-      userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
-      role: req.user?.role || 'guest',
-      isGuest: !req.user || req.user.isGuest === true,
-      currentPatientId: req.body.currentPatientId,
-      currentAppointmentId: req.body.currentAppointmentId,
-      sessionId,
-      metadata: {},
-    };
-    const response = await aiService.processMessage(text, context, sessionId);
-    response.message = await improveResponseWithLLM(text, response, context) || response.message;
+    const history = Array.isArray(req.body.history) ? req.body.history : [];
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
-    res.write(`data: ${JSON.stringify({ type: 'token', text: response.message || '' })}\n\n`);
+
+    // Keep the connection visibly alive while the orchestrator plans and
+    // executes tools (can take several seconds with multi-step chains).
+    res.write(`data: ${JSON.stringify({ type: 'status', status: 'thinking' })}\n\n`);
+    const heartbeat = setInterval(() => {
+      res.write(`data: ${JSON.stringify({ type: 'status', status: 'working' })}\n\n`);
+    }, 8000);
+
+    let response: ProcessedResponse;
+    try {
+      response = await processQuery(req, text, sessionId, history);
+    } finally {
+      clearInterval(heartbeat);
+    }
+
+    // Progressive rendering of the final message.
+    const message = response.message || '';
+    const chunkSize = Math.max(8, Math.ceil(message.length / 40));
+    for (let i = 0; i < message.length; i += chunkSize) {
+      res.write(`data: ${JSON.stringify({ type: 'token', text: message.slice(i, i + chunkSize) })}\n\n`);
+    }
+
     res.write(`data: ${JSON.stringify({
       type: 'done',
-      reply: response.message || '',
+      reply: message,
       skill: response.intent || 'general',
-      actions: response.action ? [{
-        type: response.action.type,
-        label: response.action.type,
-        params: response.action.payload,
-        confidence: 1,
-        requiresConfirmation: response.needsConfirmation,
-      }] : [],
+      actions: responseActions(response),
       suggestions: response.suggestions || [],
+      toolsUsed: response.toolsUsed || [],
     })}\n\n`);
     res.end();
   } catch (error) {
     console.error('[AI Stream Error]', error);
-    res.status(500).json({ ok: false, error: 'AI stream failed' });
+    try {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'AI stream failed' })}\n\n`);
+      res.end();
+    } catch { /* headers may not be sent */ }
   }
 });
 
@@ -145,6 +229,34 @@ aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
   const path = NAVIGATION_ACTION_PATHS[action];
   if (path) {
     return res.json({ ok: true, data: { type: 'navigate', path, query: params } });
+  }
+
+  // Confirmed mutations coming back from an orchestrator confirm card
+  // (createAppointment / createInvoice / createTreatmentPlan with
+  // confirmed=true) execute through the same RBAC-checked tool layer.
+  const { executeTool: runTool } = await import('./os/tools.js');
+  const { toolsForRole } = await import('./os/registry.js');
+  const allowed = toolsForRole(req.user!.role);
+  if (allowed.has(action)) {
+    const result = await runTool(action, params, {
+      userId: req.user!.id,
+      clinicId: req.user!.clinicId || null,
+      role: req.user!.role,
+    }, allowed);
+
+    if (!result.ok) return res.json({ ok: true, data: { type: 'error', message: result.error } });
+    if (result.needsConfirmation) {
+      return res.json({ ok: true, data: { type: 'data', data: result.needsConfirmation, label: 'Требуется подтверждение' } });
+    }
+    return res.json({
+      ok: true,
+      data: {
+        type: result.navigate ? 'created' : 'data',
+        data: result.data,
+        label: action,
+        path: result.navigate,
+      },
+    });
   }
 
   // Unknown/unimplemented action — return the params back rather than 404
