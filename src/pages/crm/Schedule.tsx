@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
-  Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight,
+  Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
 } from 'lucide-react'
 import { useDataQuery } from '@/queries/useDataQuery'
 import { useAuth } from '@/store/auth.store'
@@ -50,7 +50,6 @@ function getWeekDates(weekStart: string): string[] {
   return dates
 }
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-const STATUS_ADVANCE: Record<string, string> = { scheduled: 'confirmed', pending: 'confirmed', confirmed: 'done' }
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
@@ -220,27 +219,32 @@ export default function Schedule() {
   const shiftDate = (days: number): void => { const d = new Date(selDate); d.setDate(d.getDate() + days); setSelDate(d.toISOString().slice(0, 10)) }
   const shiftPeriod = (dir: -1 | 1): void => shiftDate(periodMode === 'week' ? dir * 7 : dir)
 
-  const handleAdvanceStatus = async (e: React.MouseEvent, appt: Appointment): Promise<void> => {
-    e.stopPropagation()
-    const next = STATUS_ADVANCE[appt.status]
-    if (!next) return
-    try {
-      await upsertAppointment({ ...appt, status: next })
-      showToast('Статус обновлён', 'success')
-    } catch {
-      showToast('Ошибка обновления статуса', 'error')
-    }
-  }
-
   const patientOptions = [{ value: '', label: '— Выберите пациента —' }, ...patients.map(p => ({ value: p.id, label: p.name }))]
   const doctorOptions = [{ value: '', label: '— Выберите врача —' }, ...doctors.map(d => ({ value: d.id, label: `${d.name} (${d.spec || 'Врач'})` }))]
 
   const dayStats = useMemo(() => ({
     total: dayAppts.length,
-    confirmed: dayAppts.filter(a => ['confirmed', 'done', 'completed'].includes(a.status)).length,
     scheduled: dayAppts.filter(a => ['scheduled', 'pending'].includes(a.status)).length,
+    confirmed: dayAppts.filter(a => ['confirmed', 'reminderSent'].includes(a.status)).length,
+    arrived: dayAppts.filter(a => a.status === 'arrived').length,
+    inChair: dayAppts.filter(a => a.status === 'in_chair').length,
+    done: dayAppts.filter(a => ['done', 'completed'].includes(a.status)).length,
     cancelled: dayAppts.filter(a => ['cancelled', 'noShow'].includes(a.status)).length,
   }), [dayAppts])
+
+  const advanceStatus = async (appt: Appointment, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    const chain = ['scheduled', 'confirmed', 'arrived', 'in_chair', 'done'] as const
+    const idx = chain.indexOf(appt.status as typeof chain[number])
+    const next = idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null
+    if (!next) return
+    try {
+      await upsertAppointment({ ...appt, status: next })
+      showToast(`Статус: ${STATUS_CFG[next]?.label || next}`, 'success')
+    } catch {
+      showToast('Не удалось сменить статус', 'error')
+    }
+  }
 
   const handleSaveWait = async (): Promise<void> => {
     if (!waitForm.patientName.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
@@ -297,19 +301,14 @@ export default function Schedule() {
               ) : (
                 <Badge variant="warning" size="xs">Не оплачено</Badge>
               )}
-              {STATUS_ADVANCE[appt.status] ? (
-                <button
-                  type="button"
-                  onClick={(e) => handleAdvanceStatus(e, appt)}
-                  className="text-2xs font-semibold px-1.5 py-0.5 rounded-md hover:opacity-80 transition-opacity"
-                  style={{ background: `${sc.dot}20`, color: sc.dot }}
-                  title={appt.status === 'confirmed' ? 'Отметить завершённым' : 'Подтвердить'}
-                >
-                  {sc.label || (sc as { l?: string }).l} →
-                </button>
-              ) : (
-                <Badge variant="default" size="xs">{sc.label || (sc as { l?: string }).l}</Badge>
-              )}
+              <button
+                type="button"
+                title="Следующий статус"
+                onClick={(e) => advanceStatus(appt, e)}
+                className="inline-flex"
+              >
+                <Badge variant="default" size="xs">{sc.label || sc.l}</Badge>
+              </button>
             </div>
           </div>
         )}
@@ -319,9 +318,11 @@ export default function Schedule() {
 
   const stats = [
     { label: 'Всего', value: dayStats.total, icon: <Calendar size={14} />, variant: 'info' },
-    { label: 'Ожидание', value: dayStats.scheduled, icon: <Clock size={14} />, variant: 'warning' },
+    { label: 'Запись', value: dayStats.scheduled, icon: <Clock size={14} />, variant: 'warning' },
     { label: 'Подтверждено', value: dayStats.confirmed, icon: <CheckCircle size={14} />, variant: 'success' },
-    { label: 'Отмены', value: dayStats.cancelled, icon: <XCircle size={14} />, variant: 'error' },
+    { label: 'Пришёл', value: dayStats.arrived, icon: <User size={14} />, variant: 'warning' },
+    { label: 'В кресле', value: dayStats.inChair, icon: <Stethoscope size={14} />, variant: 'gold' },
+    { label: 'Готово', value: dayStats.done, icon: <CheckCircle size={14} />, variant: 'success' },
   ]
 
   return (
@@ -443,10 +444,10 @@ export default function Schedule() {
           ) : (
             <>
               {/* Stats */}
-              <motion.div variants={fadeUp} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <motion.div variants={fadeUp} className="grid grid-cols-3 lg:grid-cols-6 gap-3">
                 {stats.map((s) => (
                   <div key={s.label} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
-                    <Badge variant={s.variant} size="md">{s.value}</Badge>
+                    <Badge variant={s.variant as any} size="md">{s.value}</Badge>
                     <div>
                       <p className="text-lg font-bold text-txt-primary leading-none">{s.value}</p>
                       <p className="text-2xs text-txt-muted mt-0.5">{s.label}</p>

@@ -38,7 +38,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         try { queryClient.invalidateQueries({ queryKey: queryKeys.patients }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.APPOINTMENT_CREATED, () => {
-        try { queryClient.invalidateQueries({ queryKey: queryKeys.appointments }) } catch { /* noop */ }
+        try {
+          queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+          queryClient.invalidateQueries({ queryKey: queryKeys.waitingList })
+        } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.APPOINTMENT_UPDATED, () => {
         try { queryClient.invalidateQueries({ queryKey: queryKeys.appointments }) } catch { /* noop */ }
@@ -50,7 +53,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         try { queryClient.invalidateQueries({ queryKey: queryKeys.visits('') }) } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.MEDICAL_CARD_UPDATED, () => {
-        try { queryClient.invalidateQueries({ queryKey: queryKeys.visits('') }) } catch { /* noop */ }
+        try {
+          queryClient.invalidateQueries({ queryKey: queryKeys.visits('') })
+          queryClient.invalidateQueries({ queryKey: queryKeys.patients })
+        } catch { /* noop */ }
       }),
       socketClient.on(SOCKET_EVENTS.DOCUMENT_UPDATED, () => {
         try { queryClient.invalidateQueries({ queryKey: queryKeys.documents }) } catch { /* noop */ }
@@ -68,7 +74,25 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         try { queryClient.invalidateQueries({ queryKey: queryKeys.labOrders }) } catch { /* noop */ }
       }),
     ]
-    return () => { unsubs.forEach((u) => u()) }
+
+    // Soft realtime fallback when WS URL is unset (Render free / local): refresh CRM caches on focus + every 45s
+    const softRefresh = () => {
+      try {
+        queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+        queryClient.invalidateQueries({ queryKey: queryKeys.patients })
+        queryClient.invalidateQueries({ queryKey: queryKeys.receipts })
+        queryClient.invalidateQueries({ queryKey: queryKeys.waitingList })
+      } catch { /* noop */ }
+    }
+    const onFocus = () => softRefresh()
+    window.addEventListener('focus', onFocus)
+    const interval = window.setInterval(softRefresh, 45_000)
+
+    return () => {
+      unsubs.forEach((u) => u())
+      window.removeEventListener('focus', onFocus)
+      window.clearInterval(interval)
+    }
   }, [queryClient])
 
   return (

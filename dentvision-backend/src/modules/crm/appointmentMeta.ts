@@ -8,6 +8,8 @@ export interface AppointmentMeta {
   toothNumber?: string | number;
   receiptId?: string;
   reason?: string;
+  /** Clinic floor pipeline beyond DB enum: arrived | in_chair */
+  flowStatus?: string;
 }
 
 const TO_DB: Record<string, AppointmentStatus> = {
@@ -56,13 +58,19 @@ export function parseMeta(raw: unknown): AppointmentMeta {
 export function buildMeta(body: Record<string, unknown>, existing?: AppointmentMeta): AppointmentMeta {
   const base = { ...(existing || {}) };
   const keys: (keyof AppointmentMeta)[] = [
-    'serviceName', 'servicePrice', 'paymentStatus', 'diagnosis', 'toothNumber', 'receiptId', 'reason',
+    'serviceName', 'servicePrice', 'paymentStatus', 'diagnosis', 'toothNumber', 'receiptId', 'reason', 'flowStatus',
   ];
   for (const key of keys) {
     if (body[key] !== undefined) (base as any)[key] = body[key];
   }
   if (body.service && !base.serviceName) base.serviceName = String(body.service);
   if (body.serviceId && !base.reason) base.reason = String(body.serviceId);
+  // Frontend sends arrived/in_chair as status — persist as flowStatus for round-trip.
+  if (body.status === 'arrived' || body.status === 'in_chair') {
+    base.flowStatus = String(body.status);
+  } else if (body.status === 'scheduled' || body.status === 'confirmed' || body.status === 'done' || body.status === 'completed') {
+    delete base.flowStatus;
+  }
   return base;
 }
 
@@ -86,6 +94,11 @@ export function serializeAppointment(row: {
   const patientName = row.patient
     ? `${row.patient.firstName} ${row.patient.lastName}`.trim()
     : undefined;
+  const flow = meta.flowStatus;
+  const status =
+    flow === 'arrived' || flow === 'in_chair'
+      ? flow
+      : fromDbStatus(row.status);
   return {
     id: row.id,
     clinicId: row.clinicId,
@@ -94,7 +107,7 @@ export function serializeAppointment(row: {
     date: row.date instanceof Date ? row.date.toISOString().slice(0, 10) : row.date,
     time: row.time || '09:00',
     duration: row.duration ?? 30,
-    status: fromDbStatus(row.status),
+    status,
     type: row.type,
     notes: row.notes || '',
     service: meta.serviceName || row.type || '',

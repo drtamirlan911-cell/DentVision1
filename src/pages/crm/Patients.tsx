@@ -1,13 +1,14 @@
-﻿import React, { useState, useCallback, useEffect } from 'react'
-import { useOutletContext, useSearchParams } from 'react-router-dom'
+﻿import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import { useOutletContext, useSearchParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   UserPlus, Search, ArrowLeft, Phone, Mail, MapPin, Calendar, FileText, Camera,
-  AlertTriangle, CreditCard, History, Smile, Star, User, Send, Trash2, Receipt,
+  AlertTriangle, CreditCard, History, Smile, Star, User, Send, Trash2, Receipt, RefreshCw,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery'
 import * as api from '@/utils/api'
+import { getRecallCandidates, findDuplicatePatients } from '@/utils/recall'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Textarea, Select } from '../../components/ui/ds/Input'
@@ -82,7 +83,8 @@ interface OutletContext {
 
 export default function Patients() {
   const { clinic } = useOutletContext<OutletContext>()
-  const { patients, appointments, upsertPatient, deletePatient } = useDataQuery(clinic?.id)
+  const navigate = useNavigate()
+  const { patients, appointments, receipts, upsertPatient, deletePatient } = useDataQuery(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
   const [params] = useSearchParams()
 
@@ -105,6 +107,31 @@ export default function Patients() {
     openPlans?: number
     nextVisit?: { date?: string; time?: string; service?: string } | null
   } | null>(null)
+  const [openPlanIds, setOpenPlanIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!clinic?.id) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const plans = await api.getTreatmentPlans(clinic.id)
+        const ids = new Set<string>()
+        for (const p of plans || []) {
+          if (['draft', 'proposed', 'accepted', 'in_progress', 'active'].includes(p.status)) {
+            if (p.patientId) ids.add(p.patientId)
+          }
+        }
+        if (!cancelled) setOpenPlanIds(ids)
+      } catch { /* ignore */ }
+    })()
+    return () => { cancelled = true }
+  }, [clinic?.id])
+
+  const recallList = useMemo(
+    () => getRecallCandidates(patients, appointments, receipts, { inactiveDays: 180, openPlanPatientIds: openPlanIds }),
+    [patients, appointments, receipts, openPlanIds],
+  )
+  const duplicates = useMemo(() => findDuplicatePatients(patients), [patients])
 
   useEffect(() => {
     const pid = params.get('patient')
@@ -137,6 +164,9 @@ export default function Patients() {
     const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase())
       || p.phone?.includes(search)
       || p.email?.toLowerCase().includes(search.toLowerCase())
+    if (filterCat === 'recall') {
+      return matchSearch && recallList.some((r) => r.patient.id === p.id)
+    }
     const matchCat = filterCat === 'all' || p.category === filterCat
     return matchSearch && matchCat
   })
@@ -337,7 +367,7 @@ export default function Patients() {
               icon={<Search size={16} />}
             />
           </div>
-          {Object.entries({ all: 'Все', ...Object.fromEntries(Object.entries(CAT_CFG).map(([k, v]) => [k, v.l])) }).map(([k, label]) => (
+          {Object.entries({ all: 'Все', ...Object.fromEntries(Object.entries(CAT_CFG).map(([k, v]) => [k, v.l])), recall: `Recall (${recallList.length})` }).map(([k, label]) => (
             <Button
               key={k}
               variant={filterCat === k ? 'outline' : 'ghost'}
@@ -349,6 +379,66 @@ export default function Patients() {
             </Button>
           ))}
         </div>
+
+        {duplicates.length > 0 && (
+          <Card padding="md" className="mb-4 border-warning/30 bg-warning/5">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={16} className="text-warning shrink-0 mt-0.5" />
+              <div className="text-sm text-txt-secondary">
+                <p className="font-semibold text-warning mb-1">Возможные дубликаты ({duplicates.length})</p>
+                {duplicates.slice(0, 3).map((d) => (
+                  <p key={d.key} className="text-xs">
+                    {d.match === 'phone' ? 'Телефон' : 'ФИО'}: {d.patients.map((p) => p.name).join(' · ')}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {filterCat === 'recall' && recallList.length > 0 && (
+          <Card padding="md" className="mb-4">
+            <p className="text-sm font-bold text-txt-primary mb-3 flex items-center gap-2">
+              <RefreshCw size={14} className="text-dv-gold" />
+              Smart Recall — нет визита 6+ мес.
+            </p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {recallList.slice(0, 20).map((r) => (
+                <div key={r.patient.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-txt-primary truncate">{r.patient.name}</p>
+                    <p className="text-[11px] text-txt-muted">
+                      {r.daysSince === Infinity ? 'Никогда не был' : `${Math.floor(r.daysSince / 30)} мес. назад`}
+                      {r.openPlansHint ? ' · открытый план' : ''}
+                      {(r.balanceHint || 0) > 0 ? ` · долг ${tg(r.balanceHint || 0)}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      icon={<Send size={12} />}
+                      onClick={() => {
+                        window.open(r.waLink, '_blank', 'noopener,noreferrer')
+                        showToast(`Recall: ${r.patient.name}`, 'success')
+                      }}
+                    >
+                      WhatsApp
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      icon={<Calendar size={12} />}
+                      onClick={() => navigate(`/crm/schedule?patient=${r.patient.id}`)}
+                    >
+                      Записать
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {filtered.length === 0 ? (
           <EmptyState

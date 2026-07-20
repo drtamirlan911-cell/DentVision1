@@ -97,12 +97,14 @@ export const LOWER = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38] as const;
 export const TOOTH_SURFACES = ["M", "O", "D", "B", "L"] as const;
 
 export const APPOINTMENT_STATUS = {
-  scheduled: { l: "Запланирован", dot: T.sapphire, bg: `${T.sapphire}12` },
-  confirmed: { l: "Подтверждён", dot: T.emerald, bg: `${T.emerald}12` },
-  reminderSent: { l: "Напоминание отправлено", dot: T.amber, bg: `${T.amber}12` },
-  done: { l: "Завершён", dot: T.emerald, bg: `${T.emerald}10` },
-  cancelled: { l: "Отменён", dot: T.ruby, bg: `${T.ruby}10` },
-  noShow: { l: "Неявка", dot: T.ruby, bg: `${T.ruby}15` }
+  scheduled: { l: "Запланирован", label: "Запланирован", dot: T.sapphire, bg: `${T.sapphire}12` },
+  confirmed: { l: "Подтверждён", label: "Подтверждён", dot: T.emerald, bg: `${T.emerald}12` },
+  arrived: { l: "Пришёл", label: "Пришёл", dot: T.amber, bg: `${T.amber}12` },
+  in_chair: { l: "В кресле", label: "В кресле", dot: T.gold, bg: `${T.gold}15` },
+  reminderSent: { l: "Напоминание отправлено", label: "Напоминание", dot: T.amber, bg: `${T.amber}12` },
+  done: { l: "Завершён", label: "Завершён", dot: T.emerald, bg: `${T.emerald}10` },
+  cancelled: { l: "Отменён", label: "Отменён", dot: T.ruby, bg: `${T.ruby}10` },
+  noShow: { l: "Неявка", label: "Неявка", dot: T.ruby, bg: `${T.ruby}15` }
 } as const;
 
 export const PATIENT_CATEGORY = {
