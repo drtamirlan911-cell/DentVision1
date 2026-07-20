@@ -631,6 +631,17 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+function normalizeInviteRole(role?: string): 'OWNER' | 'ADMIN' | 'DOCTOR' | 'ASSISTANT' | 'MANAGER' | 'LAB' | 'STUDENT' {
+  const raw = String(role || 'DOCTOR').toLowerCase();
+  if (raw === 'owner' || raw === 'director') return 'OWNER';
+  if (raw === 'admin' || raw === 'cashier') return 'ADMIN';
+  if (raw === 'assistant') return 'ASSISTANT';
+  if (raw === 'manager') return 'MANAGER';
+  if (raw === 'lab' || raw === 'laboratory') return 'LAB';
+  if (raw === 'student' || raw === 'intern') return 'STUDENT';
+  return 'DOCTOR';
+}
+
 authRouter.post('/invitations', authenticate, async (req: AuthRequest, res) => {
   try {
     const { clinicId, email, role, expiresInDays } = req.body as { clinicId: string; email?: string; role?: string; expiresInDays?: number };
@@ -639,25 +650,30 @@ authRouter.post('/invitations', authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'clinicId обязателен' });
     }
 
-    // Verify user is member of this clinic
+    // Verify user is member of this clinic and can invite (OWNER/ADMIN)
     const membership = await prisma.clinicMember.findUnique({
       where: { userId_clinicId: { userId: req.user!.id, clinicId } },
     });
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не состоите в этой клинике' });
     }
+    if (!['OWNER', 'ADMIN'].includes(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Только руководитель или администратор может приглашать' });
+    }
 
     // Generate unique code
     const code = Math.random().toString(36).substring(2, 10).toUpperCase();
 
-    const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000) : null;
+    const expiresAt = expiresInDays
+      ? new Date(Date.now() + Number(expiresInDays) * 24 * 60 * 60 * 1000)
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const invitation = await prisma.clinicInvitation.create({
       data: {
         id: uid(),
         clinicId,
-        email: email || null,
-        role: (role as any) || 'DOCTOR',
+        email: email?.trim() || null,
+        role: normalizeInviteRole(role),
         code,
         expiresAt,
       },
@@ -667,6 +683,7 @@ authRouter.post('/invitations', authenticate, async (req: AuthRequest, res) => {
     const response: ApiResponse = { ok: true, data: invitation };
     res.status(201).json(response);
   } catch (error) {
+    console.error('[auth] create invitation', error);
     res.status(500).json({ ok: false, error: 'Ошибка при создании приглашения' });
   }
 });

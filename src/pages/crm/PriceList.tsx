@@ -1,52 +1,102 @@
-﻿import React, { useState, useEffect, type ChangeEvent } from 'react'
+﻿import React, { useState, useEffect, useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { DollarSign, Download, Edit, RotateCcw } from 'lucide-react'
+import { DollarSign, Download, Edit, RotateCcw, Plus } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import * as api from '@/utils/api'
 import { Button } from '../../components/ui/ds/Button'
 import { Card } from '../../components/ui/ds/Card'
-import { Input } from '../../components/ui/ds/Input'
+import { Input, Select } from '../../components/ui/ds/Input'
 import { Badge } from '../../components/ui/ds/Badge'
 import { Modal } from '../../components/ui/ds/Modal'
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
-import { T, tg, ALL_SERVICES } from '../../utils/constants'
+import { tg, ALL_SERVICES } from '../../utils/constants'
 import { cn } from '../../lib/utils'
 import type { Clinic, User, RoleInfo } from '../../types'
 
-const CATEGORIES = [...new Set(ALL_SERVICES.map(s => s.cat))]
+type ServiceRow = {
+  id: string
+  cat: string
+  name: string
+  price: number
+  custom?: boolean
+}
+
+const BASE_CATEGORIES = [...new Set(ALL_SERVICES.map(s => s.cat))]
+const CUSTOM_CAT = 'Свои услуги'
+
+function parseCustomName(raw?: string | null): { cat: string; name: string } {
+  if (!raw) return { cat: CUSTOM_CAT, name: 'Услуга' }
+  const sep = raw.indexOf(' · ')
+  if (sep > 0) {
+    return { cat: raw.slice(0, sep) || CUSTOM_CAT, name: raw.slice(sep + 3) || raw }
+  }
+  return { cat: CUSTOM_CAT, name: raw }
+}
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function PriceList() {
   const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>()
-  const { toast, showToast, clearToast } = useToast()
+  const { showToast } = useToast()
   const [clinicPrices, setClinicPrices] = useState<Record<string, number>>({})
+  const [customServices, setCustomServices] = useState<ServiceRow[]>([])
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingService, setEditingService] = useState<{ id: string; cat: string; name: string; price: number } | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [editingService, setEditingService] = useState<ServiceRow | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [newService, setNewService] = useState({ name: '', cat: BASE_CATEGORIES[0] || CUSTOM_CAT, price: 0 })
+  const [saving, setSaving] = useState(false)
+
+  const reload = async () => {
+    try {
+      const rows = await api.getPriceList()
+      const map: Record<string, number> = {}
+      const customs: ServiceRow[] = []
+      for (const r of rows || []) {
+        if (!r.serviceCode) continue
+        map[r.serviceCode] = Number(r.price)
+        const isBase = ALL_SERVICES.some(s => s.id === r.serviceCode)
+        if (!isBase) {
+          const parsed = parseCustomName(r.name)
+          customs.push({
+            id: r.serviceCode,
+            cat: parsed.cat,
+            name: parsed.name,
+            price: Number(r.price),
+            custom: true,
+          })
+        }
+      }
+      setClinicPrices(map)
+      setCustomServices(customs)
+    } catch { /* keep defaults */ }
+  }
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      try {
-        const rows = await api.getPriceList()
-        if (cancelled) return
-        const map: Record<string, number> = {}
-        for (const r of rows || []) {
-          if (r.serviceCode) map[r.serviceCode] = Number(r.price)
-        }
-        setClinicPrices(map)
-      } catch { /* keep defaults */ }
+      if (cancelled) return
+      await reload()
     })()
     return () => { cancelled = true }
   }, [clinic?.id])
 
-  const getServicePrice = (serviceId: string): number => {
+  const allServices = useMemo<ServiceRow[]>(() => [
+    ...ALL_SERVICES.map(s => ({ ...s, custom: false })),
+    ...customServices,
+  ], [customServices])
+
+  const categories = useMemo(
+    () => [...new Set([...BASE_CATEGORIES, ...customServices.map(s => s.cat)])],
+    [customServices],
+  )
+
+  const getServicePrice = (serviceId: string, basePrice?: number): number => {
     const custom = clinicPrices[serviceId]
+    if (custom !== undefined) return custom
     const base = ALL_SERVICES.find(s => s.id === serviceId)
-    return custom !== undefined ? custom : base?.price || 0
+    return base?.price ?? basePrice ?? 0
   }
 
   const handleSavePrice = async (serviceId: string, newPrice: number, name?: string) => {
@@ -59,11 +109,11 @@ export default function PriceList() {
   }
 
   const filteredServices = selectedCategory === 'all'
-    ? ALL_SERVICES
-    : ALL_SERVICES.filter(s => s.cat === selectedCategory)
+    ? allServices
+    : allServices.filter(s => s.cat === selectedCategory)
 
-  const openEdit = (service: { id: string; cat: string; name: string; price: number }) => {
-    setEditingService({ ...service, price: getServicePrice(service.id) })
+  const openEdit = (service: ServiceRow) => {
+    setEditingService({ ...service, price: getServicePrice(service.id, service.price) })
     setModalOpen(true)
   }
 
@@ -72,7 +122,10 @@ export default function PriceList() {
       showToast('Введите корректную цену', 'warning')
       return
     }
-    await handleSavePrice(editingService.id, editingService.price, editingService.name)
+    const storedName = editingService.custom
+      ? `${editingService.cat} · ${editingService.name}`
+      : editingService.name
+    await handleSavePrice(editingService.id, editingService.price, storedName)
     showToast(`Цена на "${editingService.name}" обновлена`, 'success')
     setModalOpen(false)
     setEditingService(null)
@@ -87,6 +140,47 @@ export default function PriceList() {
     showToast('Цена сброшена к стандартной', 'success')
   }
 
+  const handleAddService = async () => {
+    if (!newService.name.trim()) {
+      showToast('Укажите название услуги', 'warning')
+      return
+    }
+    if (!newService.price || newService.price <= 0) {
+      showToast('Укажите цену', 'warning')
+      return
+    }
+    setSaving(true)
+    try {
+      const row = await api.addPriceListService({
+        name: newService.name.trim(),
+        price: Number(newService.price),
+        category: newService.cat || CUSTOM_CAT,
+      })
+      showToast(`Услуга «${newService.name.trim()}» добавлена`, 'success')
+      setAddOpen(false)
+      setNewService({ name: '', cat: BASE_CATEGORIES[0] || CUSTOM_CAT, price: 0 })
+      if (row?.serviceCode) {
+        setClinicPrices(prev => ({ ...prev, [row.serviceCode]: Number(row.price) }))
+        const parsed = parseCustomName(row.name)
+        setCustomServices(prev => [
+          ...prev,
+          { id: row.serviceCode, cat: parsed.cat, name: parsed.name, price: Number(row.price), custom: true },
+        ])
+      } else {
+        await reload()
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось добавить услугу', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const categoryOptions = [
+    ...BASE_CATEGORIES.map(c => ({ value: c, label: c })),
+    { value: CUSTOM_CAT, label: CUSTOM_CAT },
+  ]
+
   return (
     <div className="p-6">
       <PageHeader
@@ -94,21 +188,25 @@ export default function PriceList() {
         subtitle={`${clinic?.name} · Индивидуальные цены для клиники`}
         icon={<DollarSign size={20} />}
         actions={
-          <Button variant="secondary" icon={<Download size={16} />}
-            onClick={() => showToast('Прайс экспортирован в Excel', 'success')}>
-            Экспорт
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
+              Добавить услугу
+            </Button>
+            <Button variant="secondary" icon={<Download size={16} />}
+              onClick={() => showToast('Прайс экспортирован в Excel', 'success')}>
+              Экспорт
+            </Button>
+          </div>
         }
       />
 
-      {/* Category filter */}
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
         <Button variant={selectedCategory === 'all' ? 'outline' : 'ghost'} size="sm"
           onClick={() => setSelectedCategory('all')}
           className={selectedCategory === 'all' ? 'border-dv-gold/50 text-dv-gold' : ''}>
           Все услуги
         </Button>
-        {CATEGORIES.map(cat => (
+        {categories.map(cat => (
           <Button key={cat} variant={selectedCategory === cat ? 'outline' : 'ghost'} size="sm"
             onClick={() => setSelectedCategory(cat)}
             className={selectedCategory === cat ? 'border-dv-gold/50 text-dv-gold' : ''}>
@@ -117,7 +215,6 @@ export default function PriceList() {
         ))}
       </div>
 
-      {/* Services table */}
       <Card padding="none" className="overflow-hidden mb-5">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
@@ -133,22 +230,27 @@ export default function PriceList() {
             </thead>
             <tbody>
               {filteredServices.map((service, idx) => {
-                const basePrice = service.price
-                const clinicPrice = getServicePrice(service.id)
-                const isCustom = clinicPrice !== basePrice
+                const basePrice = service.custom ? service.price : service.price
+                const clinicPrice = getServicePrice(service.id, service.price)
+                const isCustomPrice = !service.custom && clinicPrice !== basePrice
                 return (
                   <tr key={service.id} className={cn('border-b border-bdr-subtle last:border-b-0', idx % 2 !== 0 && 'bg-white/[0.01]')}>
-                    <td className="py-3 px-4 text-sm font-semibold text-txt-primary">{service.name}</td>
+                    <td className="py-3 px-4 text-sm font-semibold text-txt-primary">
+                      {service.name}
+                      {service.custom && <Badge variant="gold" size="sm" className="ml-2">своя</Badge>}
+                    </td>
                     <td className="py-3 px-4"><Badge variant="info" size="sm">{service.cat}</Badge></td>
-                    <td className="py-3 px-4 text-right text-sm text-txt-secondary">{tg(basePrice)}</td>
-                    <td className={cn('py-3 px-4 text-right text-sm font-bold', isCustom ? 'text-dv-gold' : 'text-success')}>
+                    <td className="py-3 px-4 text-right text-sm text-txt-secondary">
+                      {service.custom ? '—' : tg(basePrice)}
+                    </td>
+                    <td className={cn('py-3 px-4 text-right text-sm font-bold', isCustomPrice || service.custom ? 'text-dv-gold' : 'text-success')}>
                       {tg(clinicPrice)}
-                      {isCustom && <span className="ml-1 text-warning">*</span>}
+                      {isCustomPrice && <span className="ml-1 text-warning">*</span>}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex gap-1 justify-end">
                         <Button variant="ghost" size="icon-sm" icon={<Edit size={14} />} onClick={() => openEdit(service)} />
-                        {isCustom && (
+                        {isCustomPrice && (
                           <Button variant="ghost" size="icon-sm" icon={<RotateCcw size={14} />}
                             onClick={() => handleReset(service.id)} className="text-error/60 hover:text-error" />
                         )}
@@ -162,13 +264,12 @@ export default function PriceList() {
         </div>
       </Card>
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Изменённых цен" value={Object.keys(clinicPrices).length} icon={<DollarSign size={18} />} />
-        <StatCard label="Всего услуг" value={ALL_SERVICES.length} icon={<DollarSign size={18} />} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <StatCard label="Изменённых цен" value={Object.keys(clinicPrices).filter(id => ALL_SERVICES.some(s => s.id === id && clinicPrices[id] !== s.price)).length} icon={<DollarSign size={18} />} />
+        <StatCard label="Своих услуг" value={customServices.length} icon={<Plus size={18} />} />
+        <StatCard label="Всего услуг" value={allServices.length} icon={<DollarSign size={18} />} />
       </div>
 
-      {/* Edit modal */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -177,10 +278,6 @@ export default function PriceList() {
       >
         {editingService && (
           <div className="space-y-4">
-            <div>
-              <p className="text-xs text-txt-secondary mb-1">Базовая цена:</p>
-              <p className="text-lg font-bold text-txt-secondary">{tg(editingService.price)}</p>
-            </div>
             <Input
               label="Цена для клиники (₸)"
               type="number"
@@ -194,6 +291,42 @@ export default function PriceList() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="Добавить услугу в прайс"
+        size="md"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Название *"
+            value={newService.name}
+            onChange={e => setNewService({ ...newService, name: e.target.value })}
+            placeholder="Профгигиена AirFlow"
+            autoFocus
+          />
+          <Select
+            label="Категория"
+            value={newService.cat}
+            onChange={e => setNewService({ ...newService, cat: e.target.value })}
+            options={categoryOptions}
+          />
+          <Input
+            label="Цена (₸) *"
+            type="number"
+            value={newService.price || ''}
+            onChange={e => setNewService({ ...newService, price: Number(e.target.value) })}
+            placeholder="15000"
+          />
+          <div className="flex gap-2 pt-2">
+            <Button onClick={handleAddService} disabled={saving} className="flex-1">
+              {saving ? 'Сохранение…' : 'Добавить'}
+            </Button>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>Отмена</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   )
