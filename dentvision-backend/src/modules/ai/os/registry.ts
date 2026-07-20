@@ -65,11 +65,19 @@ const AGENTS: AgentDefinition[] = [
     domain: 'clinical',
     version: '1.0.0',
     requiredPermissions: ['OWNER', 'ADMIN', 'DOCTOR', 'ASSISTANT', 'MANAGER', 'CASHIER'],
-    allowedTools: ['getSchedule', 'searchPatients', 'createAppointment', 'navigate'],
+    allowedTools: [
+      'getSchedule',
+      'searchPatients',
+      'createAppointment',
+      'updateAppointmentStatus',
+      'cancelAppointment',
+      'rescheduleAppointment',
+      'navigate',
+    ],
     owner: 'clinical-team',
     status: 'active',
     mandate:
-      'Ты управляешь записью: расписание, свободные слоты, создание и подтверждение записей. Создание записи требует подтверждения пользователем.',
+      'Ты управляешь записью: расписание, свободные слоты, создание, перенос, смена статуса и отмена. Любые мутации требуют подтверждения пользователем.',
   },
   {
     id: 'agent.business.finance',

@@ -5,9 +5,9 @@ import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import {
   buildMeta,
+  findScheduleConflicts,
   parseMeta,
   serializeAppointment,
-  timesOverlap,
   toDbStatus,
 } from '../crm/appointmentMeta.js';
 
@@ -71,9 +71,9 @@ appointmentsRouter.get('/conflicts', async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     }
 
-    const { doctorId, date, time, duration, excludeId, patientId } = req.query as Record<string, string>;
-    if (!doctorId || !date || !time) {
-      return res.status(400).json({ ok: false, error: 'doctorId, date и time обязательны' } satisfies ApiResponse);
+    const { doctorId, date, time, duration, excludeId, patientId, chairId } = req.query as Record<string, string>;
+    if (!date || !time) {
+      return res.status(400).json({ ok: false, error: 'date и time обязательны' } satisfies ApiResponse);
     }
 
     const dayStart = new Date(date);
@@ -87,18 +87,19 @@ appointmentsRouter.get('/conflicts', async (req: AuthRequest, res) => {
         date: { gte: dayStart, lte: dayEnd },
         status: { notIn: ['CANCELLED', 'NO_SHOW'] },
         ...(excludeId ? { id: { not: excludeId } } : {}),
-        OR: [
-          { doctorId },
-          ...(patientId ? [{ patientId }] : []),
-        ],
       },
       include: { patient: { select: patientSelect } },
     });
 
-    const conflicts = candidates.filter((c) =>
-      timesOverlap(time, dur, c.time || '09:00', c.duration || 30) &&
-      (c.doctorId === doctorId || (patientId && c.patientId === patientId)),
-    );
+    const conflicts = findScheduleConflicts({
+      candidates,
+      doctorId,
+      patientId,
+      chairId,
+      time,
+      duration: dur,
+      excludeId,
+    });
 
     return res.json({
       ok: true,
@@ -132,6 +133,7 @@ appointmentsRouter.post('/', async (req: AuthRequest, res) => {
       notes,
       status,
       force,
+      chairId,
     } = body;
 
     if (!patientId || !doctorId || !date) {
@@ -159,17 +161,21 @@ appointmentsRouter.post('/', async (req: AuthRequest, res) => {
           date: { gte: dayStart, lte: dayEnd },
           status: { notIn: ['CANCELLED', 'NO_SHOW'] },
           ...(id ? { id: { not: id } } : {}),
-          OR: [{ doctorId }, { patientId }],
         },
       });
-      const conflicts = candidates.filter((c) =>
-        timesOverlap(apptTime, apptDuration, c.time || '09:00', c.duration || 30) &&
-        (c.doctorId === doctorId || c.patientId === patientId),
-      );
+      const conflicts = findScheduleConflicts({
+        candidates,
+        doctorId,
+        patientId,
+        chairId: chairId || body.chairId,
+        time: apptTime,
+        duration: apptDuration,
+        excludeId: id,
+      });
       if (conflicts.length > 0) {
         return res.status(409).json({
           ok: false,
-          error: 'Конфликт записи: врач или пациент уже заняты в это время',
+          error: 'Конфликт записи: врач, пациент или кресло уже заняты в это время',
           data: { conflicts: conflicts.map(serializeAppointment) },
         });
       }
@@ -239,9 +245,15 @@ appointmentsRouter.patch('/:id/status', async (req: AuthRequest, res) => {
       return res.status(404).json({ ok: false, error: 'Запись не найдена' } satisfies ApiResponse);
     }
 
+    const status = req.body?.status;
+    const meta = buildMeta({ status }, parseMeta(existing.meta));
+
     const appointment = await prisma.appointment.update({
       where: { id: existing.id },
-      data: { status: toDbStatus(req.body?.status) },
+      data: {
+        status: toDbStatus(status),
+        meta: meta as any,
+      },
       include: { patient: { select: patientSelect } },
     });
 

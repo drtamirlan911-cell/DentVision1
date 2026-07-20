@@ -22,6 +22,7 @@ export const queryKeys = {
   bookings: ['bookings'] as const,
   documents: ['documents'] as const,
   waitingList: ['waitingList'] as const,
+  chairs: ['chairs'] as const,
   users: ['users'] as const,
   photos: ['photos'] as const,
   subscriptions: ['subscriptions'] as const,

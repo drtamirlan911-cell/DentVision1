@@ -1,6 +1,7 @@
 import app from './app.js';
 import { env } from './config.js';
 import prisma from './lib/prisma.js';
+import { startReminderCronInterval } from './jobs/reminderCron.js';
 
 async function main() {
   try {
@@ -14,6 +15,9 @@ async function main() {
   app.listen(env.PORT, () => {
     console.log(`[SERVER] DentVision Backend running on http://localhost:${env.PORT}`);
     console.log(`[ENV] ${env.NODE_ENV}`);
+    if (env.REMINDER_CRON_MS > 0) {
+      startReminderCronInterval(env.REMINDER_CRON_MS);
+    }
   });
 }
 

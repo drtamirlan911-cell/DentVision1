@@ -118,11 +118,42 @@ export function serializeAppointment(row: {
     toothNumber: meta.toothNumber ?? '',
     receiptId: meta.receiptId,
     reason: meta.reason || meta.serviceName || row.type || '',
+    chairId: meta.chairId || '',
+    chairName: meta.chairName || '',
     patientName,
     patientPhone: row.patient?.phone || undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/** Same-day overlap conflicts for doctor, patient, and/or chair. */
+export function findScheduleConflicts<T extends {
+  id: string;
+  doctorId: string;
+  patientId: string;
+  time: string | null;
+  duration: number | null;
+  meta?: unknown;
+}>(opts: {
+  candidates: T[];
+  doctorId?: string;
+  patientId?: string;
+  chairId?: string;
+  time: string;
+  duration: number;
+  excludeId?: string;
+}): T[] {
+  const { candidates, doctorId, patientId, chairId, time, duration, excludeId } = opts;
+  return candidates.filter((c) => {
+    if (excludeId && c.id === excludeId) return false;
+    if (!timesOverlap(time, duration, c.time || '09:00', c.duration || 30)) return false;
+    const meta = parseMeta(c.meta);
+    if (doctorId && c.doctorId === doctorId) return true;
+    if (patientId && c.patientId === patientId) return true;
+    if (chairId && meta.chairId === chairId) return true;
+    return false;
+  });
 }
 
 /** Overlap: same doctor, same calendar day, overlapping time windows. */

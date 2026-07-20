@@ -1,11 +1,23 @@
-﻿import React, { useState, useMemo } from 'react'
+﻿import React, { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'
+import { queryKeys } from '@/queries/keys'
+import * as api from '@/utils/api'
+import {
+  cacheDayAppointments,
+  enqueueAppointmentUpsert,
+  flushSyncQueue,
+  getSyncQueue,
+  isLikelyOffline,
+  readCachedDayAppointments,
+  startSyncQueueListener,
+} from '@/lib/syncQueue'
 import { useAuth } from '@/store/auth.store'
 import { cn, today } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
@@ -29,7 +41,7 @@ const MIN_PER_SLOT = 30
 
 const EMPTY_FORM = {
   patientId: '', doctorId: '', service: '', time: '09:00', status: 'scheduled', notes: '', duration: 60,
-  diagnosis: '', toothNumber: '',
+  diagnosis: '', toothNumber: '', chairId: '',
 }
 const EMPTY_PATIENT = { name: '', phone: '', email: '', dob: '', gender: '', notes: '' }
 const EMPTY_WAIT = { patientId: '', patientName: '', patientPhone: '', doctorId: '', preferredDate: '', preferredTime: '', preferredService: '', notes: '' }
@@ -50,7 +62,6 @@ function getWeekDates(weekStart: string): string[] {
   return dates
 }
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-const STATUS_ADVANCE: Record<string, string> = { scheduled: 'confirmed', pending: 'confirmed', confirmed: 'done' }
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
@@ -59,11 +70,18 @@ export default function Schedule() {
   const { user, roleInfo } = useAuth()
   const clinic = user?.clinicId ? { id: user.clinicId } : null
   const {
-    appointments, patients, doctors, waitingList,
-    upsertAppointment, deleteAppointment,
+    appointments: liveAppointments, patients, doctors, waitingList,
+    upsertAppointment: upsertAppointmentApi, deleteAppointment,
     upsertPatient, upsertReceipt,
     upsertWaitingListItem, deleteWaitingListItem,
   } = useDataQuery(clinic?.id)
+
+  const chairsQ = useQuery({
+    queryKey: queryKeys.chairs,
+    queryFn: () => api.getChairs(clinic?.id),
+    enabled: !!clinic?.id,
+  })
+  const chairs = chairsQ.data || []
 
   const navigate = useNavigate()
   const [selDate, setSelDate] = useState(today())
@@ -71,7 +89,7 @@ export default function Schedule() {
   const [editAppt, setEditAppt] = useState<Appointment | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [dragged, setDragged] = useState<Appointment | null>(null)
-  const [viewMode, setViewMode] = useState('doctors')
+  const [viewMode, setViewMode] = useState<'doctors' | 'single' | 'chairs'>('doctors')
   const [periodMode, setPeriodMode] = useState<'day' | 'week'>('day')
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all')
   const [activeTab, setActiveTab] = useState('schedule')
@@ -82,8 +100,58 @@ export default function Schedule() {
   const [newPatient, setNewPatient] = useState(EMPTY_PATIENT)
   const [searchAppts, setSearchAppts] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
+  const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
+  const [pendingSync, setPendingSync] = useState(0)
 
   const showToast = (msg: string, type: string = 'info'): void => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+
+  useEffect(() => {
+    const onOff = () => setOffline(true)
+    const onOn = () => setOffline(false)
+    window.addEventListener('offline', onOff)
+    window.addEventListener('online', onOn)
+    const stop = startSyncQueueListener((r) => {
+      setPendingSync(getSyncQueue().length)
+      if (r.flushed > 0) showToast(`Синхронизировано: ${r.flushed}`, 'success')
+    })
+    setPendingSync(getSyncQueue().length)
+    return () => {
+      window.removeEventListener('offline', onOff)
+      window.removeEventListener('online', onOn)
+      stop()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (clinic?.id && liveAppointments.length) {
+      cacheDayAppointments(clinic.id, selDate, liveAppointments.filter((a) => a.date === selDate))
+    }
+  }, [clinic?.id, selDate, liveAppointments])
+
+  const appointments = useMemo(() => {
+    if (liveAppointments.length) return liveAppointments
+    if (clinic?.id) {
+      const cached = readCachedDayAppointments(clinic.id, selDate)
+      if (cached?.length) return cached
+    }
+    return liveAppointments
+  }, [liveAppointments, clinic?.id, selDate])
+
+  const upsertAppointment = async (data: Partial<Appointment> & { force?: boolean; id?: string }) => {
+    try {
+      const result = await upsertAppointmentApi(data)
+      setPendingSync(getSyncQueue().length)
+      return result
+    } catch (err) {
+      if (isLikelyOffline(err) && data.id) {
+        enqueueAppointmentUpsert({ ...data, id: data.id } as any)
+        setPendingSync(getSyncQueue().length)
+        showToast('Нет сети — запись в очереди синка', 'warning')
+        return data
+      }
+      throw err
+    }
+  }
 
   const ownDataOnly = !!roleInfo?.ownDataOnly && user?.role === 'doctor'
 
@@ -143,8 +211,30 @@ export default function Schedule() {
   const selectedService = ALL_SERVICES.find(s => s.id === form.service)
 
   const openNew = (): void => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
-  const openSlotBooking = (time: string, doctorId: string): void => { setEditAppt(null); setForm({ ...EMPTY_FORM, time, doctorId: doctorId || '' }); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
-  const openEdit = (a: Appointment): void => { setEditAppt(a); setForm({ patientId: a.patientId || '', doctorId: a.doctorId || '', service: a.service || a.reason || '', time: a.time, status: a.status, notes: a.notes || '', duration: a.duration || 60, diagnosis: a.diagnosis || '', toothNumber: a.toothNumber || '' }); setShowNewPatient(false); setModalOpen(true) }
+  const openSlotBooking = (time: string, doctorId: string, chairId = ''): void => {
+    setEditAppt(null)
+    setForm({ ...EMPTY_FORM, time, doctorId: doctorId || '', chairId })
+    setShowNewPatient(false)
+    setNewPatient(EMPTY_PATIENT)
+    setModalOpen(true)
+  }
+  const openEdit = (a: Appointment): void => {
+    setEditAppt(a)
+    setForm({
+      patientId: a.patientId || '',
+      doctorId: a.doctorId || '',
+      service: a.service || a.reason || '',
+      time: a.time,
+      status: a.status,
+      notes: a.notes || '',
+      duration: a.duration || 60,
+      diagnosis: a.diagnosis || '',
+      toothNumber: a.toothNumber || '',
+      chairId: a.chairId || '',
+    })
+    setShowNewPatient(false)
+    setModalOpen(true)
+  }
 
   const handleCreatePatient = async (): Promise<Patient | null> => {
     if (!newPatient.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return null }
@@ -160,9 +250,10 @@ export default function Schedule() {
     if (showNewPatient && !patientId) { const created = await handleCreatePatient(); if (!created) return; patientId = created.id }
     if (!patientId || !form.time) { showToast('Выберите пациента и время', 'warning'); return }
     if (!form.doctorId) { showToast('Выберите врача', 'warning'); return }
+    const chair = chairs.find((c) => c.id === form.chairId)
     const payload = {
       ...form,
-      id: editAppt?.id,
+      id: editAppt?.id || gid(),
       clinicId: clinic?.id,
       date: selDate,
       patientId,
@@ -172,6 +263,8 @@ export default function Schedule() {
       reason: selectedService?.name || form.service,
       diagnosis: form.diagnosis,
       toothNumber: form.toothNumber,
+      chairId: form.chairId || '',
+      chairName: chair?.name || '',
       paymentStatus: editAppt?.paymentStatus || 'unpaid',
     }
     try {
@@ -219,18 +312,6 @@ export default function Schedule() {
   const handleDelete = async (): Promise<void> => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
   const shiftDate = (days: number): void => { const d = new Date(selDate); d.setDate(d.getDate() + days); setSelDate(d.toISOString().slice(0, 10)) }
   const shiftPeriod = (dir: -1 | 1): void => shiftDate(periodMode === 'week' ? dir * 7 : dir)
-
-  const handleAdvanceStatus = async (e: React.MouseEvent, appt: Appointment): Promise<void> => {
-    e.stopPropagation()
-    const next = STATUS_ADVANCE[appt.status]
-    if (!next) return
-    try {
-      await upsertAppointment({ ...appt, status: next })
-      showToast('Статус обновлён', 'success')
-    } catch {
-      showToast('Ошибка обновления статуса', 'error')
-    }
-  }
 
   const patientOptions = [{ value: '', label: '— Выберите пациента —' }, ...patients.map(p => ({ value: p.id, label: p.name }))]
   const doctorOptions = [{ value: '', label: '— Выберите врача —' }, ...doctors.map(d => ({ value: d.id, label: `${d.name} (${d.spec || 'Врач'})` }))]
@@ -314,19 +395,14 @@ export default function Schedule() {
               ) : (
                 <Badge variant="warning" size="xs">Не оплачено</Badge>
               )}
-              {STATUS_ADVANCE[appt.status] ? (
-                <button
-                  type="button"
-                  onClick={(e) => handleAdvanceStatus(e, appt)}
-                  className="text-2xs font-semibold px-1.5 py-0.5 rounded-md hover:opacity-80 transition-opacity"
-                  style={{ background: `${sc.dot}20`, color: sc.dot }}
-                  title={appt.status === 'confirmed' ? 'Отметить завершённым' : 'Подтвердить'}
-                >
-                  {sc.label || (sc as { l?: string }).l} →
-                </button>
-              ) : (
-                <Badge variant="default" size="xs">{sc.label || (sc as { l?: string }).l}</Badge>
-              )}
+              <button
+                type="button"
+                title="Следующий статус"
+                onClick={(e) => advanceStatus(appt, e)}
+                className="inline-flex"
+              >
+                <Badge variant="default" size="xs">{sc.label || sc.l}</Badge>
+              </button>
             </div>
           </div>
         )}
@@ -370,6 +446,28 @@ export default function Schedule() {
           )}
         </div>
       </motion.div>
+
+      {(offline || pendingSync > 0) && (
+        <motion.div variants={fadeUp} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-warning/30 bg-warning/10 text-sm text-txt-primary">
+          {offline ? <WifiOff size={16} className="text-warning" /> : <CloudOff size={16} className="text-warning" />}
+          <span className="flex-1">
+            {offline ? 'Офлайн-режим: правки сохраняются в очередь синка.' : `Очередь синка: ${pendingSync}`}
+          </span>
+          {!offline && pendingSync > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={async () => {
+                const r = await flushSyncQueue()
+                setPendingSync(getSyncQueue().length)
+                showToast(r.flushed ? `Синхронизировано: ${r.flushed}` : 'Нечего синхронизировать', r.flushed ? 'success' : 'info')
+              }}
+            >
+              Синхронизировать
+            </Button>
+          )}
+        </motion.div>
+      )}
 
       {/* Tabs */}
       <motion.div variants={fadeUp}>
@@ -415,7 +513,11 @@ export default function Schedule() {
 
               {roleInfo?.canSeeSuperAdmin !== false && (
                 <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
-                  {[{ key: 'doctors', label: 'По врачам' }, { key: 'single', label: 'Общий' }].map(m => (
+                  {([
+                    { key: 'doctors' as const, label: 'По врачам' },
+                    { key: 'chairs' as const, label: 'По креслам' },
+                    { key: 'single' as const, label: 'Общий' },
+                  ]).map(m => (
                     <button key={m.key} onClick={() => setViewMode(m.key)}
                       className={cn('px-3 py-1.5 text-xs font-semibold transition-colors',
                         viewMode === m.key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
@@ -462,10 +564,10 @@ export default function Schedule() {
           ) : (
             <>
               {/* Stats */}
-              <motion.div variants={fadeUp} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <motion.div variants={fadeUp} className="grid grid-cols-3 lg:grid-cols-6 gap-3">
                 {stats.map((s) => (
                   <div key={s.label} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
-                    <Badge variant={s.variant} size="md">{s.value}</Badge>
+                    <Badge variant={s.variant as any} size="md">{s.value}</Badge>
                     <div>
                       <p className="text-lg font-bold text-txt-primary leading-none">{s.value}</p>
                       <p className="text-2xs text-txt-muted mt-0.5">{s.label}</p>
@@ -474,8 +576,79 @@ export default function Schedule() {
                 ))}
               </motion.div>
 
-              {/* Doctor columns */}
-              {doctorColumns.length > 0 ? (
+              {/* Doctor / chair columns */}
+              {viewMode === 'chairs' ? (
+                chairs.length > 0 ? (
+                  <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+                    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(chairs.length, 4)}, minmax(260px, 1fr))` }}>
+                      {chairs.map((chair) => {
+                        const chairAppts = dayAppts.filter((a) => a.chairId === chair.id)
+                        return (
+                          <Card key={chair.id} padding="none" className="overflow-hidden">
+                            <div className="flex items-center gap-2.5 px-4 py-3 border-b border-bdr-subtle bg-dv-gold/[0.03]">
+                              <Stethoscope size={16} className="text-dv-gold" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-txt-primary truncate">{chair.name}</p>
+                                <p className="text-2xs text-txt-muted">{chairAppts.length} записей</p>
+                              </div>
+                            </div>
+                            <div className="overflow-y-auto" style={{ maxHeight: 520 }}>
+                              {HOURS.filter((h) => h >= WORK_START && h <= WORK_END).map((time) => {
+                                const slotAppts = chairAppts.filter((a) => a.time === time)
+                                const min = timeToMinutes(time)
+                                const isLunch = min >= 720 && min < 780
+                                return (
+                                  <div
+                                    key={time}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={async (e) => {
+                                      e.preventDefault()
+                                      if (!dragged) return
+                                      try {
+                                        await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name })
+                                        showToast('Перенесено на кресло', 'success')
+                                      } catch (err: any) {
+                                        const msg = String(err?.message || '')
+                                        if (msg.includes('Конфликт') || msg.includes('конфликт')) {
+                                          const force = window.confirm(`${msg}\n\nПеренести всё равно?`)
+                                          if (force) {
+                                            await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
+                                            showToast('Перенесено с овербукингом', 'warning')
+                                          }
+                                        } else {
+                                          showToast(msg || 'Не удалось перенести', 'error')
+                                        }
+                                      }
+                                      setDragged(null)
+                                    }}
+                                    onClick={() => slotAppts.length === 0 && !isLunch && openSlotBooking(time, form.doctorId || doctors[0]?.id || '', chair.id)}
+                                    className={cn('flex border-b border-bdr-subtle transition-colors',
+                                      slotAppts.length === 0 && !isLunch && 'cursor-pointer hover:bg-dv-gold/[0.03]')}
+                                    style={{ minHeight: HOUR_HEIGHT }}
+                                  >
+                                    <div className="w-12 shrink-0 px-1 text-center text-2xs font-semibold text-txt-muted pt-2.5 border-r border-bdr-subtle">{time}</div>
+                                    <div className="flex-1 p-1">
+                                      {isLunch ? (
+                                        <p className="text-2xs text-dv-gold/40 italic text-center pt-3">Обед</p>
+                                      ) : slotAppts.length === 0 ? (
+                                        <p className="text-2xs text-txt-ghost text-center pt-3">Свободно</p>
+                                      ) : (
+                                        slotAppts.map((a) => renderAppointmentBlock(a))
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  </motion.div>
+                ) : (
+                  <EmptyState icon={<Stethoscope size={32} />} title="Нет кресел" description="Кресла появятся автоматически после первого открытия расписания" />
+                )
+              ) : doctorColumns.length > 0 ? (
                 <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
                   <div className="grid gap-3" style={{ gridTemplateColumns: viewMode === 'doctors' ? `repeat(${Math.min(doctorColumns.length, 4)}, minmax(260px, 1fr))` : '1fr' }}>
                   {doctorColumns.map(doc => {
@@ -601,6 +774,12 @@ export default function Schedule() {
           )}
 
           <Select label="Врач" value={form.doctorId} onChange={e => setForm({ ...form, doctorId: e.target.value })} options={doctorOptions} />
+          <Select
+            label="Кресло"
+            value={form.chairId}
+            onChange={e => setForm({ ...form, chairId: e.target.value })}
+            options={[{ value: '', label: '— Без кресла —' }, ...chairs.map((c) => ({ value: c.id, label: c.name }))]}
+          />
           <Select label="Услуга из прайса" value={form.service}
             onChange={e => { const svc = ALL_SERVICES.find(s => s.id === e.target.value); setForm({ ...form, service: e.target.value }); if (svc) { setForm(f => ({ ...f, serviceName: svc.name, servicePrice: svc.price })); } }}
             options={serviceOptions} required />
