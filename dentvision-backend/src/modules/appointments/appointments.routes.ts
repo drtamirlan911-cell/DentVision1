@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
+import { publish } from '../../lib/events.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import {
@@ -114,7 +116,7 @@ appointmentsRouter.get('/conflicts', async (req: AuthRequest, res) => {
   }
 });
 
-appointmentsRouter.post('/', async (req: AuthRequest, res) => {
+appointmentsRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -221,6 +223,14 @@ appointmentsRouter.post('/', async (req: AuthRequest, res) => {
           include: { patient: { select: patientSelect } },
         });
 
+    if (!existing) {
+      publish('appointment.created', {
+        clinicId,
+        appointmentId: appointment.id,
+        userId: req.user?.id,
+      });
+    }
+
     return res.status(existing ? 200 : 201).json({
       ok: true,
       data: serializeAppointment(appointment),
@@ -231,7 +241,7 @@ appointmentsRouter.post('/', async (req: AuthRequest, res) => {
   }
 });
 
-appointmentsRouter.patch('/:id/status', async (req: AuthRequest, res) => {
+appointmentsRouter.patch('/:id/status', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -264,7 +274,7 @@ appointmentsRouter.patch('/:id/status', async (req: AuthRequest, res) => {
   }
 });
 
-appointmentsRouter.delete('/:id', async (req: AuthRequest, res) => {
+appointmentsRouter.delete('/:id', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {

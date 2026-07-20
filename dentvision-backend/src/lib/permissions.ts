@@ -18,6 +18,9 @@ export const PERMISSIONS = {
   APPOINTMENT_READ: 'appointment.read',
   APPOINTMENT_WRITE: 'appointment.write',
   APPOINTMENT_DELETE: 'appointment.delete',
+  INVENTORY_READ: 'inventory.read',
+  INVENTORY_WRITE: 'inventory.write',
+  INVENTORY_DELETE: 'inventory.delete',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -30,22 +33,26 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   OWNER: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
+    'inventory.read', 'inventory.write', 'inventory.delete',
   ],
   ADMIN: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
+    'inventory.read', 'inventory.write', 'inventory.delete',
   ],
   MANAGER: [
     'patient.read', 'patient.write',
     'appointment.read', 'appointment.write', 'appointment.delete',
+    'inventory.read', 'inventory.write',
   ],
   DOCTOR: [
     'patient.read', 'patient.write',
     'appointment.read', 'appointment.write',
+    'inventory.read',
   ],
-  ASSISTANT: ['patient.read', 'appointment.read', 'appointment.write'],
-  CASHIER: ['patient.read', 'appointment.read'],
-  LAB: ['appointment.read'],
+  ASSISTANT: ['patient.read', 'appointment.read', 'appointment.write', 'inventory.read'],
+  CASHIER: ['patient.read', 'appointment.read', 'inventory.read'],
+  LAB: ['appointment.read', 'inventory.read'],
   STUDENT: [],
 };
 
