@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
-  Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight,
+  Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
 } from 'lucide-react'
 import { useDataQuery } from '@/queries/useDataQuery'
 import { useAuth } from '@/store/auth.store'
@@ -237,10 +237,27 @@ export default function Schedule() {
 
   const dayStats = useMemo(() => ({
     total: dayAppts.length,
-    confirmed: dayAppts.filter(a => ['confirmed', 'done', 'completed'].includes(a.status)).length,
     scheduled: dayAppts.filter(a => ['scheduled', 'pending'].includes(a.status)).length,
+    confirmed: dayAppts.filter(a => ['confirmed', 'reminderSent'].includes(a.status)).length,
+    arrived: dayAppts.filter(a => a.status === 'arrived').length,
+    inChair: dayAppts.filter(a => a.status === 'in_chair').length,
+    done: dayAppts.filter(a => ['done', 'completed'].includes(a.status)).length,
     cancelled: dayAppts.filter(a => ['cancelled', 'noShow'].includes(a.status)).length,
   }), [dayAppts])
+
+  const advanceStatus = async (appt: Appointment, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    const chain = ['scheduled', 'confirmed', 'arrived', 'in_chair', 'done'] as const
+    const idx = chain.indexOf(appt.status as typeof chain[number])
+    const next = idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null
+    if (!next) return
+    try {
+      await upsertAppointment({ ...appt, status: next })
+      showToast(`Статус: ${STATUS_CFG[next]?.label || next}`, 'success')
+    } catch {
+      showToast('Не удалось сменить статус', 'error')
+    }
+  }
 
   const handleSaveWait = async (): Promise<void> => {
     if (!waitForm.patientName.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
@@ -319,9 +336,11 @@ export default function Schedule() {
 
   const stats = [
     { label: 'Всего', value: dayStats.total, icon: <Calendar size={14} />, variant: 'info' },
-    { label: 'Ожидание', value: dayStats.scheduled, icon: <Clock size={14} />, variant: 'warning' },
+    { label: 'Запись', value: dayStats.scheduled, icon: <Clock size={14} />, variant: 'warning' },
     { label: 'Подтверждено', value: dayStats.confirmed, icon: <CheckCircle size={14} />, variant: 'success' },
-    { label: 'Отмены', value: dayStats.cancelled, icon: <XCircle size={14} />, variant: 'error' },
+    { label: 'Пришёл', value: dayStats.arrived, icon: <User size={14} />, variant: 'warning' },
+    { label: 'В кресле', value: dayStats.inChair, icon: <Stethoscope size={14} />, variant: 'gold' },
+    { label: 'Готово', value: dayStats.done, icon: <CheckCircle size={14} />, variant: 'success' },
   ]
 
   return (
