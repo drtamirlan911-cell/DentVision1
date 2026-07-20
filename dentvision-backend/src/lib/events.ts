@@ -15,6 +15,7 @@ export interface DomainEventMap {
   'patient.deleted': { clinicId: string; patientId: string; userId?: string };
   'appointment.created': { clinicId: string; appointmentId: string; userId?: string };
   'supplier.status_changed': { supplierId: string; from: string; to: string; userId?: string };
+  'lecturer.level_changed': { lecturerId: string; from: string; to: string; userId?: string };
 }
 
 export type DomainEventName = keyof DomainEventMap;

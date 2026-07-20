@@ -25,6 +25,8 @@ export const PERMISSIONS = {
   // platform-level capability — granted to no clinic role, so only SUPERADMIN
   // (wildcard) passes today; scoped SUPPLIER memberships arrive in a later phase.
   SUPPLIER_MANAGE: 'supplier.manage',
+  // School governance (Phase 3). Platform-level, like supplier.manage.
+  ACADEMY_MANAGE: 'academy.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

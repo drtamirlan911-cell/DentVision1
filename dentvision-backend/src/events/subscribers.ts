@@ -66,5 +66,19 @@ export function registerSubscribers(): void {
     });
   });
 
+  subscribe('lecturer.level_changed', async ({ lecturerId, from, to, userId }) => {
+    await prisma.auditLog.create({
+      data: {
+        id: uid(),
+        userId: userId || null,
+        clinicId: null,
+        action: 'lecturer.level_changed',
+        entity: 'lecturer',
+        entityId: lecturerId,
+        details: { from, to },
+      },
+    });
+  });
+
   console.log('[events] subscribers registered');
 }
