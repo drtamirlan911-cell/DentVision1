@@ -83,16 +83,27 @@ Activation definition (D0): greeting + (AI message **or** CRM action).
 
 ## 14.5 Decision Framework
 
-Если фича не улучшает одно из:
+**Gate 0 — Mission Decision Rule** ([`MISSION.md`](./MISSION.md)):
+
+Каждая фича должна ответить YES на все:
+
+1. Does it improve patient care?
+2. Does it reduce doctor's workload?
+3. Does AI understand it?
+4. Can it be automated?
+5. Does it integrate with the ecosystem?
+6. Does it simplify the workflow?
+
+Если любой ответ NO — redesign до реализации.
+
+**Gate 1 — Portfolio priority** (после Gate 0): фича должна улучшать хотя бы одно из:
 
 1. WAP / retention  
 2. Automation minutes saved  
 3. Marketplace liquidity  
 4. Learning credentials  
 5. Network graph  
-6. Hardware loop readiness  
-
-— она не приоритет.
+6. Hardware loop readiness
 
 ---
 

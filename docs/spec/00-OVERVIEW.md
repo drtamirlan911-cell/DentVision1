@@ -1,5 +1,8 @@
 # 00 — Overview & Document Control
 
+> **CORE Mission:** [`MISSION.md`](./MISSION.md) — высший документ назначения продукта.  
+> Core Statement: *DentVision is an AI Operating System for Digital Dentistry.*
+
 ## 0.1 Назначение документа
 
 DentVision Platform Specification описывает:
@@ -21,7 +24,8 @@ DentVision Platform Specification описывает:
 |------|----------|
 | Product | DentVision Platform |
 | Spec ID | DV-PS-1.0 |
-| Version | 1.0.0 |
+| Version | 1.0.1 |
+| Core Mission | [`MISSION.md`](./MISSION.md) — DV-MISSION-1.0 |
 | Status | Approved for Product Foundation |
 | Language | RU (canonical), EN identifiers for modules/roles |
 | Owner | Product Leadership |

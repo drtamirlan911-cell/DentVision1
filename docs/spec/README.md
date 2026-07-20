@@ -1,7 +1,7 @@
 # DentVision Platform Specification
 
 **Статус:** Canonical Product Specification  
-**Версия:** 1.0.0  
+**Версия:** 1.0.1  
 **Дата:** 2026-07-20  
 **Уровень:** Product + Platform + Company Foundation
 
@@ -10,12 +10,23 @@
 
 ---
 
+## CORE — начать здесь
+
+→ **[`MISSION.md`](./MISSION.md)** — Mission · Status: CORE · Priority: CRITICAL
+
+> DentVision is an AI Operating System for Digital Dentistry.  
+> DentVision is not software. DentVision is the digital operating system of dentistry.
+
+Любая фича, экран или модуль сначала проходит **Decision Rule** из Mission.
+
+---
+
 ## Как пользоваться
 
 | Роль | С чего начать |
 |------|----------------|
-| Founder / CEO | [00 — Overview](./00-OVERVIEW.md), [01 — Vision](./01-VISION-AND-PRINCIPLES.md), [13 — Roadmap](./13-ROADMAP-AND-HARDWARE.md) |
-| Product | [02 — Personas](./02-PERSONAS-AND-ROLES.md), модули 05–09 |
+| Founder / CEO | [MISSION](./MISSION.md), [00 — Overview](./00-OVERVIEW.md), [13 — Roadmap](./13-ROADMAP-AND-HARDWARE.md) |
+| Product | [MISSION](./MISSION.md), [02 — Personas](./02-PERSONAS-AND-ROLES.md), модули 05–09 |
 | Design / UX | [03 — First Run](./03-FIRST-RUN-EXPERIENCE.md), [04 — AI](./04-AI-INTELLIGENCE.md) |
 | Engineering | [04 — AI](./04-AI-INTELLIGENCE.md), [10 — Platform Core](./10-PLATFORM-CORE.md), [12 — NFR](./12-NON-FUNCTIONAL.md) |
 | Security / Legal | [11 — Data & Privacy](./11-DATA-PRIVACY-SECURITY.md) |
@@ -25,6 +36,7 @@
 
 ## Оглавление
 
+- **[MISSION — Core Statement & Decision Rule](./MISSION.md)** ← CRITICAL
 0. [Overview & Document Control](./00-OVERVIEW.md)
 1. [Vision & Product Principles](./01-VISION-AND-PRINCIPLES.md)
 2. [Personas, Roles & Jobs-to-be-Done](./02-PERSONAS-AND-ROLES.md)
@@ -52,10 +64,13 @@
 | [`/README.md`](../../README.md) | Инженерный onboarding репозитория |
 | [`/docs/MODULE_STATUS.md`](../MODULE_STATUS.md) | Текущий статус реализации модулей |
 
-**Правило приоритета:** при конфликте между документами побеждает эта спецификация (`docs/spec/`), затем UX Blueprint, затем Blueprint, затем код.
+**Правило приоритета:**  
+1. [`MISSION.md`](./MISSION.md) (CORE)  
+2. Остальная спецификация `docs/spec/`  
+3. UX Blueprint → Blueprint → код  
 
 ---
 
 ## Product North Star (одно предложение)
 
-> DentVision — AI-операционная система стоматологии: врач, владелец и администратор управляют клиникой через интеллектуального помощника, а поставщики, обучение, сообщество и кадровый рынок живут в одной экосистеме.
+> DentVision is an AI Operating System for Digital Dentistry — one intelligence unifying clinics, doctors, labs, suppliers, education, community, jobs, analytics, hardware and cloud.
