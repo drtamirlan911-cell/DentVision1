@@ -66,7 +66,7 @@ export default function SuperAdmin() {
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: queryKeys.admin.clinics });
       qc.invalidateQueries({ queryKey: queryKeys.admin.stats });
-      showToast(`Клиника создана. Директор: ${d.data?.directorLogin}, пароль: ${d.data?.tempPassword}`, 'success');
+      showToast(`Клиника создана. Директор: ${d.directorLogin}, пароль: ${d.tempPassword}`, 'success');
       setClinicModal(false);
     },
     onError: (e: Error) => showToast(e.message, 'error'),
@@ -113,7 +113,7 @@ export default function SuperAdmin() {
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: queryKeys.admin.users() });
       showToast('Пользователь создан', 'success');
-      if (d.data?.tempPassword) setNewUserPw(d.data.tempPassword);
+      if (d.tempPassword) setNewUserPw(d.tempPassword);
       setUserModal(false);
     },
     onError: (e: Error) => showToast(e.message, 'error'),
@@ -130,7 +130,7 @@ export default function SuperAdmin() {
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: queryKeys.admin.support });
       showToast('Ассистент создан', 'success');
-      if (d.data?.tempPassword) setNewSupportPw(d.data.tempPassword);
+      if (d.tempPassword) setNewSupportPw(d.tempPassword);
       setSupportModal(false);
     },
     onError: (e: Error) => showToast(e.message, 'error'),
@@ -146,10 +146,10 @@ export default function SuperAdmin() {
     return <Navigate to="/" replace />;
   }
 
-  const s = stats.data?.data;
-  const clinicList = clinics.data?.data || [];
-  const userList = users.data?.data || [];
-  const supportList = support.data?.data || [];
+  const s = stats.data;
+  const clinicList = clinics.data || [];
+  const userList = users.data || [];
+  const supportList = support.data || [];
 
   const filteredClinics = clinicList.filter((c: any) => !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.city?.toLowerCase().includes(search.toLowerCase()));
   const filteredUsers = userList.filter((u: any) => !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.login?.toLowerCase().includes(search.toLowerCase()));
