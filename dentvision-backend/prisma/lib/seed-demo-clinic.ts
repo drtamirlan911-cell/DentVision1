@@ -111,7 +111,7 @@ export async function seedDemoClinic(
         date: new Date(Date.now() - 7 * 86400000),
         diagnosis: 'K02.1 Кариес дентина',
         complaints: 'Чувствительность к холодному',
-        treatment: 'Планируется реставрация',
+        notes: 'Планируется реставрация',
       },
     });
   }
