@@ -4,6 +4,7 @@ import type { AuthRequest } from '../../types/index.js';
 import { validate } from '../../middleware/validate.js';
 import { z } from 'zod';
 import { aiService } from './core/ai.service.js';
+import { improveResponseWithLLM } from './core/llm.service.js';
 import { prisma } from '../../lib/prisma.js';
 
 const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
@@ -35,12 +36,86 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     };
 
     const response = await aiService.processMessage(text, context, context.sessionId);
+    response.message = await improveResponseWithLLM(text, response, context) || response.message;
 
     res.json({ ok: true, data: response });
   } catch (error) {
     console.error('[AI Query Error]', error);
     res.status(500).json({ ok: false, error: 'AI query failed' });
   }
+});
+
+// The web client uses this endpoint for progressive rendering.  Keep the
+// protocol compatible even when the current AI provider returns a complete
+// response rather than provider-level token events.
+aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
+  try {
+    const text = req.body.text || req.body.message;
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Text is required' });
+    }
+
+    const sessionId = req.body.sessionId || crypto.randomUUID();
+    const context = {
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
+      role: req.user?.role || 'guest',
+      isGuest: !req.user || req.user.isGuest === true,
+      currentPatientId: req.body.currentPatientId,
+      currentAppointmentId: req.body.currentAppointmentId,
+      sessionId,
+      metadata: {},
+    };
+    const response = await aiService.processMessage(text, context, sessionId);
+    response.message = await improveResponseWithLLM(text, response, context) || response.message;
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+    res.write(`data: ${JSON.stringify({ type: 'token', text: response.message || '' })}\n\n`);
+    res.write(`data: ${JSON.stringify({
+      type: 'done',
+      reply: response.message || '',
+      skill: response.intent || 'general',
+      actions: response.action ? [{
+        type: response.action.type,
+        label: response.action.type,
+        params: response.action.payload,
+        confidence: 1,
+        requiresConfirmation: response.needsConfirmation,
+      }] : [],
+      suggestions: response.suggestions || [],
+    })}\n\n`);
+    res.end();
+  } catch (error) {
+    console.error('[AI Stream Error]', error);
+    res.status(500).json({ ok: false, error: 'AI stream failed' });
+  }
+});
+
+// Durable threads are not yet modelled in the deployed schema.  These
+// compatibility endpoints let the client restore safely while sessions are
+// persisted by the AI memory layer.
+aiRouter.get('/threads', authenticate, async (_req: AuthRequest, res) => {
+  res.json({ ok: true, data: { threads: [] } });
+});
+
+aiRouter.get('/threads/active', authenticate, async (_req: AuthRequest, res) => {
+  res.json({ ok: true, data: { threadId: null, messages: [], turnCount: 0, entities: {} } });
+});
+
+aiRouter.post('/threads/new', authenticate, async (_req: AuthRequest, res) => {
+  res.json({ ok: true, data: { threadId: null } });
+});
+
+aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
+  const { action, params = {} } = req.body;
+  if (!action) return res.status(400).json({ ok: false, error: 'Action is required' });
+
+  // Navigation is executed by the web client.  Return a stable response
+  // instead of a 404 for AI-generated commands.
+  res.json({ ok: true, data: { type: 'data', data: params, label: action } });
 });
 
 aiRouter.get('/history', async (req: AuthRequest, res) => {
