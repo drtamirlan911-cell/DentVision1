@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * After prisma is installed, wrap node_modules/.bin/prisma so
- * `--accept-data-loss` is always stripped (Render Dashboard still passes it).
+ * Optional: wrap node_modules/.bin/prisma to strip --accept-data-loss.
+ * Not run from postinstall by default (kept for manual use).
  */
 const fs = require('node:fs');
 const path = require('node:path');
