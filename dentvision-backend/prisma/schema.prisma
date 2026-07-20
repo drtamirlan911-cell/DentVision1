@@ -566,6 +566,91 @@ model SupplierDocument {
   @@map("supplier_documents")
 }
 
+// ─── FINANCE CORE (Phase 4) ───
+// Double-entry ledger. All monetary amounts are stored in MINOR units (тиын);
+// every Transaction is balanced (sum debit == sum credit), so the sum of all
+// wallet balances is always zero.
+
+enum WalletOwnerType {
+  CLINIC
+  SUPPLIER
+  ACADEMY
+  LECTURER
+  PARTNER
+  PLATFORM
+  GATEWAY
+}
+
+enum TxStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+model Wallet {
+  id        String          @id @default(uuid())
+  ownerType WalletOwnerType
+  ownerId   String
+  currency  String          @default("KZT")
+  balance   BigInt          @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries LedgerEntry[]
+
+  @@unique([ownerType, ownerId, currency])
+  @@map("wallets")
+}
+
+model Transaction {
+  id       String   @id @default(uuid())
+  type     String
+  status   TxStatus @default(COMPLETED)
+  amount   BigInt
+  currency String   @default("KZT")
+  refType  String?
+  refId    String?
+  meta     Json?
+
+  createdAt DateTime @default(now())
+
+  entries LedgerEntry[]
+
+  @@index([refType, refId])
+  @@map("transactions")
+}
+
+model LedgerEntry {
+  id            String @id @default(uuid())
+  transactionId String
+  walletId      String
+  direction     String // "debit" | "credit"
+  amount        BigInt
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  wallet      Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([transactionId])
+  @@map("ledger_entries")
+}
+
+model CommissionRule {
+  id         String  @id @default(uuid())
+  domain     String // shop | school | academy
+  scopeId    String? // null = global default; else per-supplier/academy override
+  percentBps Int // basis points: 1000 = 10%
+  splitJson  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([domain, scopeId])
+  @@map("commission_rules")
+}
+
 model Product {
   id          String @id @default("")
   name        String

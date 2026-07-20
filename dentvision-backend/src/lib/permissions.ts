@@ -27,6 +27,8 @@ export const PERMISSIONS = {
   SUPPLIER_MANAGE: 'supplier.manage',
   // School governance (Phase 3). Platform-level, like supplier.manage.
   ACADEMY_MANAGE: 'academy.manage',
+  // Finance (Phase 4). Platform-level (payouts, commission rules, ledger ops).
+  FINANCE_MANAGE: 'finance.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
