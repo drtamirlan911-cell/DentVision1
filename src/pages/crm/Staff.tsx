@@ -3,11 +3,12 @@ import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Users, UserPlus, Shield, Stethoscope, Briefcase, Crown, Phone, Mail,
-  Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings,
+  Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings, Copy, Check, Link2,
 } from 'lucide-react'
-import { useAuth, ORG_ROLES } from '@/store/auth.store'
+import { useAuth, ORG_ROLES, canManageClinicSettings } from '@/store/auth.store'
 import { useDataQuery } from '@/queries/useDataQuery'
 import { useToast } from '@/components/ui/ds/Toast'
+import * as api from '@/utils/api'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Textarea, Select } from '../../components/ui/ds/Input'
@@ -21,6 +22,13 @@ import { cn } from '../../lib/utils'
 import type { User as UserType, Clinic, RoleInfo } from '../../types'
 
 const ROLE_OPTIONS = [
+  { value: 'doctor', label: 'Врач' },
+  { value: 'assistant', label: 'Ассистент' },
+  { value: 'admin', label: 'Администратор' },
+  { value: 'director', label: 'Руководитель' },
+]
+
+const INVITE_ROLE_OPTIONS = [
   { value: 'doctor', label: 'Врач' },
   { value: 'assistant', label: 'Ассистент' },
   { value: 'admin', label: 'Администратор' },
@@ -114,15 +122,70 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Staff() {
   const { clinic, user } = useOutletContext<OutletContext>()
-  const { addStaffMember, roleInfo } = useAuth()
+  const { addStaffMember, roleInfo, role, activeMembership } = useAuth()
   const { users: staff } = useDataQuery(clinic?.id || user?.clinicId)
   const { toast, showToast, clearToast } = useToast()
   const [modalOpen, setModalOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteForm, setInviteForm] = useState({ email: '', role: 'doctor', expiresInDays: 7 })
+  const [inviteResult, setInviteResult] = useState<{ code: string; email?: string | null; role?: string } | null>(null)
+  const [inviteSaving, setInviteSaving] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [profileModal, setProfileModal] = useState<UserType | null>(null)
   const [form, setForm] = useState<StaffForm>(EMPTY_FORM)
   const [filter, setFilter] = useState('all')
   const [editingStaff, setEditingStaff] = useState<UserType | null>(null)
   const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter)
+
+  const canManage =
+    !!roleInfo?.canAddStaff ||
+    canManageClinicSettings(role) ||
+    canManageClinicSettings(activeMembership?.role)
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const clinicId = clinic?.id || user?.clinicId
+    if (!clinicId) {
+      showToast('Выберите клинику', 'warning')
+      return
+    }
+    setInviteSaving(true)
+    try {
+      const inv = await api.createInvitation({
+        clinicId,
+        email: inviteForm.email.trim() || undefined,
+        role: inviteForm.role,
+        expiresInDays: Number(inviteForm.expiresInDays) || 7,
+      })
+      const code = inv?.code
+      if (!code) throw new Error('Сервер не вернул код приглашения')
+      setInviteResult({ code, email: inv.email, role: inv.role })
+      showToast('Приглашение создано', 'success')
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось создать приглашение', 'error')
+    } finally {
+      setInviteSaving(false)
+    }
+  }
+
+  const copyInviteCode = async () => {
+    if (!inviteResult?.code) return
+    try {
+      await navigator.clipboard.writeText(inviteResult.code)
+      setCopied(true)
+      showToast('Код скопирован', 'success')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      showToast('Не удалось скопировать', 'warning')
+    }
+  }
+
+  const openInvite = () => {
+    setInviteForm({ email: '', role: 'doctor', expiresInDays: 7 })
+    setInviteResult(null)
+    setCopied(false)
+    setInviteOpen(true)
+  }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -169,7 +232,77 @@ export default function Staff() {
     setModalOpen(true)
   }
 
-  const canManage = roleInfo?.canAddStaff
+  const inviteModal = (
+    <Modal
+      open={inviteOpen}
+      onClose={() => setInviteOpen(false)}
+      title="Пригласить сотрудника"
+      size="md"
+    >
+      {inviteResult ? (
+        <div className="space-y-4">
+          <p className="text-sm text-txt-secondary">
+            Отправьте код сотруднику. Он войдёт в аккаунт и введёт код в разделе «Мои клиники» → «Вступить по коду».
+          </p>
+          <div className="p-4 rounded-xl border border-dv-gold/30 bg-dv-gold/5 text-center space-y-2">
+            <p className="text-2xs uppercase tracking-wider text-txt-muted">Код приглашения</p>
+            <p className="text-2xl font-bold tracking-[0.2em] text-dv-gold font-mono">{inviteResult.code}</p>
+            {inviteResult.email && (
+              <p className="text-xs text-txt-muted">для {inviteResult.email}</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button className="flex-1" icon={copied ? <Check size={16} /> : <Copy size={16} />} onClick={copyInviteCode}>
+              {copied ? 'Скопировано' : 'Скопировать код'}
+            </Button>
+            <Button variant="ghost" onClick={() => { setInviteResult(null); setInviteForm({ email: '', role: 'doctor', expiresInDays: 7 }) }}>
+              Ещё приглашение
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleInvite} className="space-y-4">
+          <Input
+            label="Email (необязательно)"
+            type="email"
+            value={inviteForm.email}
+            onChange={e => setInviteForm({ ...inviteForm, email: e.target.value })}
+            placeholder="doctor@example.com"
+            icon={<Mail size={16} />}
+          />
+          <p className="text-2xs text-txt-muted -mt-2">
+            Если указать email, код сможет использовать только этот адрес.
+          </p>
+          <Select
+            label="Роль *"
+            value={inviteForm.role}
+            onChange={e => setInviteForm({ ...inviteForm, role: e.target.value })}
+            options={INVITE_ROLE_OPTIONS}
+          />
+          <div className={cn(
+            'p-3 rounded-lg border text-xs text-txt-secondary',
+            'bg-white/[0.02] border-bdr-subtle',
+          )}>
+            {ROLE_DESC[inviteForm.role] || 'Доступ определяется выбранной ролью.'}
+          </div>
+          <Input
+            label="Срок действия (дней)"
+            type="number"
+            value={inviteForm.expiresInDays}
+            onChange={e => setInviteForm({ ...inviteForm, expiresInDays: Number(e.target.value) || 7 })}
+            min={1}
+            max={90}
+          />
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" className="flex-1" disabled={inviteSaving} icon={<Link2 size={16} />}>
+              {inviteSaving ? 'Создание…' : 'Создать приглашение'}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setInviteOpen(false)}>Отмена</Button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  )
 
   const staffFormModal = (
     <Modal
@@ -420,9 +553,14 @@ export default function Staff() {
         icon={<Users size={20} />}
         actions={
           canManage ? (
-            <Button icon={<UserPlus size={16} />} onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
-              Добавить сотрудника
-            </Button>
+            <div className="flex gap-2 flex-wrap">
+              <Button icon={<Link2 size={16} />} onClick={openInvite}>
+                Пригласить
+              </Button>
+              <Button variant="secondary" icon={<UserPlus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditingStaff(null); setModalOpen(true) }}>
+                Добавить вручную
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -469,8 +607,8 @@ export default function Staff() {
           description={canManage ? 'Добавьте первого сотрудника' : 'Нет данных'}
           action={
             canManage ? (
-              <Button icon={<UserPlus size={16} />} onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
-                Добавить
+              <Button icon={<Link2 size={16} />} onClick={openInvite}>
+                Пригласить
               </Button>
             ) : undefined
           }
@@ -595,6 +733,7 @@ export default function Staff() {
         </motion.div>
       )}
 
+      {inviteModal}
       {staffFormModal}
       {profileDetailModal}
     </div>

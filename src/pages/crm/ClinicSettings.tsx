@@ -3,10 +3,11 @@
  * Доступ: только Руководитель (owner/director) и Администратор.
  */
 import React, { useEffect, useMemo, useState } from 'react'
-import { Navigate, useOutletContext } from 'react-router-dom'
+import { Navigate, useNavigate, useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Settings, Building2, Clock, Bell, Armchair, Save, Plus, Trash2,
+  DollarSign, Users, Link2, Copy, Check,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth, canManageClinicSettings } from '@/store/auth.store'
@@ -18,10 +19,23 @@ import { Input, Select } from '@/components/ui/ds/Input'
 import { Switch } from '@/components/ui/ds/Misc'
 import { Badge } from '@/components/ui/ds/Badge'
 import { queryKeys } from '@/queries/keys'
+import { ALL_SERVICES } from '@/utils/constants'
 import * as api from '@/utils/api'
 import type { Clinic, ClinicSettings, Chair, User, RoleInfo } from '@/types'
 
 const fadeUp = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }
+
+const SERVICE_CATS = [
+  ...[...new Set(ALL_SERVICES.map(s => s.cat))].map(c => ({ value: c, label: c })),
+  { value: 'Свои услуги', label: 'Свои услуги' },
+]
+
+const INVITE_ROLES = [
+  { value: 'doctor', label: 'Врач' },
+  { value: 'assistant', label: 'Ассистент' },
+  { value: 'admin', label: 'Администратор' },
+  { value: 'director', label: 'Руководитель' },
+]
 
 const WEEKDAYS = [
   { value: 1, label: 'Пн' },
@@ -64,6 +78,7 @@ interface OutletCtx {
 
 export default function ClinicSettingsPage() {
   const outlet = useOutletContext<OutletCtx>() || {}
+  const navigate = useNavigate()
   const auth = useAuth()
   const clinicId = outlet.clinic?.id || auth.clinic?.id || auth.user?.clinicId || ''
   const role = auth.activeMembership?.role || auth.role
@@ -75,6 +90,12 @@ export default function ClinicSettingsPage() {
   const [settings, setSettings] = useState<ClinicSettings>({ ...DEFAULT_SETTINGS })
   const [saving, setSaving] = useState(false)
   const [newChairName, setNewChairName] = useState('')
+  const [serviceForm, setServiceForm] = useState({ name: '', cat: SERVICE_CATS[0]?.value || 'Свои услуги', price: 0 })
+  const [serviceSaving, setServiceSaving] = useState(false)
+  const [inviteForm, setInviteForm] = useState({ email: '', role: 'doctor', expiresInDays: 7 })
+  const [inviteCode, setInviteCode] = useState<string | null>(null)
+  const [inviteSaving, setInviteSaving] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const clinicQ = useQuery({
     queryKey: ['clinic-settings', clinicId],
@@ -164,6 +185,63 @@ export default function ClinicSettingsPage() {
       showToast('Кресло скрыто', 'info')
     } catch (err: any) {
       showToast(err?.message || 'Ошибка', 'error')
+    }
+  }
+
+  const addService = async () => {
+    if (!serviceForm.name.trim()) {
+      showToast('Укажите название услуги', 'warning')
+      return
+    }
+    if (!serviceForm.price || serviceForm.price <= 0) {
+      showToast('Укажите цену', 'warning')
+      return
+    }
+    setServiceSaving(true)
+    try {
+      await api.addPriceListService({
+        name: serviceForm.name.trim(),
+        price: Number(serviceForm.price),
+        category: serviceForm.cat,
+      })
+      showToast(`Услуга «${serviceForm.name.trim()}» добавлена в прайс`, 'success')
+      setServiceForm({ name: '', cat: SERVICE_CATS[0]?.value || 'Свои услуги', price: 0 })
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось добавить услугу', 'error')
+    } finally {
+      setServiceSaving(false)
+    }
+  }
+
+  const createInvite = async () => {
+    if (!clinicId) return
+    setInviteSaving(true)
+    try {
+      const inv = await api.createInvitation({
+        clinicId,
+        email: inviteForm.email.trim() || undefined,
+        role: inviteForm.role,
+        expiresInDays: Number(inviteForm.expiresInDays) || 7,
+      })
+      if (!inv?.code) throw new Error('Сервер не вернул код')
+      setInviteCode(inv.code)
+      showToast('Приглашение создано', 'success')
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось создать приглашение', 'error')
+    } finally {
+      setInviteSaving(false)
+    }
+  }
+
+  const copyCode = async () => {
+    if (!inviteCode) return
+    try {
+      await navigator.clipboard.writeText(inviteCode)
+      setCopied(true)
+      showToast('Код скопирован', 'success')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      showToast('Не удалось скопировать', 'warning')
     }
   }
 
@@ -371,6 +449,118 @@ export default function ClinicSettingsPage() {
                 onCheckedChange={(v: boolean) => setSettings({ ...settings, notifyNoShow: v })}
               />
             </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="flex items-center gap-2">
+                <DollarSign size={16} className="text-dv-gold" />
+                Прайс — добавить услугу
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => navigate('/crm/pricelist')}>
+                Весь прайс
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Input
+                label="Название"
+                value={serviceForm.name}
+                onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
+                placeholder="Профгигиена AirFlow"
+              />
+              <Select
+                label="Категория"
+                value={serviceForm.cat}
+                onChange={(e) => setServiceForm({ ...serviceForm, cat: e.target.value })}
+                options={SERVICE_CATS}
+              />
+              <Input
+                label="Цена (₸)"
+                type="number"
+                value={serviceForm.price || ''}
+                onChange={(e) => setServiceForm({ ...serviceForm, price: Number(e.target.value) })}
+                placeholder="15000"
+              />
+            </div>
+            <Button onClick={addService} disabled={serviceSaving} icon={<Plus size={14} />}>
+              {serviceSaving ? 'Сохранение…' : 'Добавить в прайс'}
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="flex items-center gap-2">
+                <Users size={16} className="text-dv-gold" />
+                Сотрудники — приглашение
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => navigate('/crm/staff')}>
+                Список сотрудников
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {inviteCode ? (
+              <div className="space-y-3">
+                <p className="text-sm text-txt-secondary">
+                  Отправьте код сотруднику. Вход → «Мои клиники» → «Вступить по коду».
+                </p>
+                <div className="p-4 rounded-xl border border-dv-gold/30 bg-dv-gold/5 text-center">
+                  <p className="text-2xs uppercase tracking-wider text-txt-muted mb-1">Код</p>
+                  <p className="text-xl font-bold tracking-[0.2em] text-dv-gold font-mono">{inviteCode}</p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Button icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={copyCode}>
+                    {copied ? 'Скопировано' : 'Скопировать'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setInviteCode(null)
+                      setInviteForm({ email: '', role: 'doctor', expiresInDays: 7 })
+                    }}
+                  >
+                    Новое приглашение
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <Input
+                    label="Email (необязательно)"
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    placeholder="doctor@example.com"
+                  />
+                  <Select
+                    label="Роль"
+                    value={inviteForm.role}
+                    onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                    options={INVITE_ROLES}
+                  />
+                  <Input
+                    label="Срок (дней)"
+                    type="number"
+                    value={inviteForm.expiresInDays}
+                    onChange={(e) => setInviteForm({ ...inviteForm, expiresInDays: Number(e.target.value) || 7 })}
+                  />
+                </div>
+                <Button onClick={createInvite} disabled={inviteSaving} icon={<Link2 size={14} />}>
+                  {inviteSaving ? 'Создание…' : 'Создать приглашение'}
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </motion.div>

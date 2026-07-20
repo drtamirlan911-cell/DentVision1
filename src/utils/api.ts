@@ -187,8 +187,34 @@ export async function lookupInvitation(code: string): Promise<any> {
 export async function createDemoClinic(): Promise<any> {
   return apiRequest('/api/auth/demo-clinic', { method: 'POST' });
 }
-export async function createInvitation(data: { clinicId: string; email?: string; role?: string; spec?: string }): Promise<any> {
-  return apiRequest('/api/auth/invitations', { method: 'POST', body: JSON.stringify(data) });
+/** Map frontend role labels to backend UserRole enum values. */
+export function toBackendInviteRole(role?: string): string {
+  const raw = String(role || 'doctor').toLowerCase();
+  if (raw === 'owner' || raw === 'director') return 'OWNER';
+  if (raw === 'admin' || raw === 'cashier') return 'ADMIN';
+  if (raw === 'assistant') return 'ASSISTANT';
+  if (raw === 'manager') return 'MANAGER';
+  if (raw === 'lab' || raw === 'laboratory') return 'LAB';
+  if (raw === 'student' || raw === 'intern') return 'STUDENT';
+  return 'DOCTOR';
+}
+
+export async function createInvitation(data: {
+  clinicId: string;
+  email?: string;
+  role?: string;
+  spec?: string;
+  expiresInDays?: number;
+}): Promise<any> {
+  return apiRequest('/api/auth/invitations', {
+    method: 'POST',
+    body: JSON.stringify({
+      clinicId: data.clinicId,
+      email: data.email || undefined,
+      role: toBackendInviteRole(data.role),
+      expiresInDays: data.expiresInDays ?? 7,
+    }),
+  });
 }
 export async function getInvitation(code: string): Promise<any> {
   return apiRequest(`/api/auth/invitations/lookup?code=${code}`);
@@ -441,8 +467,31 @@ export async function getPriceList(): Promise<any[]> {
   return collection(await apiRequest('/api/crm/price-list'));
 }
 
-export async function upsertPriceListItem(data: { serviceCode: string; price: number; name?: string }): Promise<any> {
+export async function upsertPriceListItem(data: {
+  serviceCode: string;
+  price: number;
+  name?: string;
+  active?: boolean;
+}): Promise<any> {
   return apiRequest('/api/crm/price-list', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Create a custom clinic service in the price list. */
+export async function addPriceListService(data: {
+  name: string;
+  price: number;
+  category?: string;
+}): Promise<any> {
+  const slug = String(data.name || 'service')
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/gi, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 40) || 'service';
+  const serviceCode = `custom_${slug}_${Date.now().toString(36)}`;
+  const name = data.category
+    ? `${data.category} · ${data.name}`
+    : data.name;
+  return upsertPriceListItem({ serviceCode, price: Number(data.price), name, active: true });
 }
 
 export async function markReminderSent(reminderKey: string, channel = 'whatsapp'): Promise<any> {
