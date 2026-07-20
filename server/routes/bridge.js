@@ -15,6 +15,13 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
     aiRouter(req, res, next);
   });
 
+  app.post('/api/ai/query/stream', optionalAuth, (req, res, next) => {
+    req.body.message = req.body.text || req.body.message;
+    req.body.history = req.body.history || [];
+    req.url = '/chat/stream';
+    aiRouter(req, res, next);
+  });
+
   const crmRouter = crmRoutes(writeAuditLog);
 
   const CRM_RESOURCE_MAP = {

@@ -439,6 +439,17 @@ export async function getSchoolCertificates(userId: string): Promise<any> {
   return apiRequest('/api/school/certificates');
 }
 
+export async function getLessonExam(lessonId: string): Promise<any> {
+  return apiRequest(`/api/school/lessons/${lessonId}/exam`);
+}
+
+export async function submitLessonExam(lessonId: string, answers: Record<string, number>, courseId?: string): Promise<any> {
+  return apiRequest(`/api/school/lessons/${lessonId}/exam/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ answers, courseId }),
+  });
+}
+
 // ─── Service Access ───
 export async function getServiceAccess(clinicId: string): Promise<Record<string, boolean>> {
   return Promise.resolve({});
@@ -581,12 +592,19 @@ export async function aiChat(message: string, history: Array<{ role: string; con
   } as AIChatResponse;
 }
 
-/** ChatGPT-class feel: resolve full reply, then stream chunks to UI */
+/** Prefer real SSE stream; fall back to local typewriter on failure */
 export async function aiChatStream(
   message: string,
   history: Array<{ role: string; content: string }> = [],
   onChunk: (partial: string, done: boolean) => void,
 ): Promise<AIChatResponse> {
+  try {
+    const streamed = await aiChatSSE(message, history, onChunk);
+    if (streamed) return streamed;
+  } catch {
+    // fall through to simulated stream
+  }
+
   const full = await aiChat(message, history);
   const text = full.reply || '';
   if (!text) {
@@ -605,6 +623,90 @@ export async function aiChatStream(
     tick();
   });
   return full;
+}
+
+async function aiChatSSE(
+  message: string,
+  history: Array<{ role: string; content: string }>,
+  onChunk: (partial: string, done: boolean) => void,
+): Promise<AIChatResponse | null> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (_accessToken) headers.Authorization = `Bearer ${_accessToken}`;
+  else {
+    try {
+      const guestData = localStorage.getItem('dv_guest');
+      if (guestData) {
+        const { guestToken } = JSON.parse(guestData);
+        if (guestToken) headers.Authorization = `Bearer ${guestToken}`;
+      }
+    } catch { /* ignore */ }
+  }
+
+  const res = await fetch(`${API_URL}/api/ai/query/stream`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ text: message, message, history: history.slice(-20) }),
+  });
+  if (!res.ok || !res.body) return null;
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let partial = '';
+  let donePayload: any = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+    for (const part of parts) {
+      const line = part.split('\n').find((l) => l.startsWith('data: '));
+      if (!line) continue;
+      try {
+        const evt = JSON.parse(line.slice(6));
+        if (evt.type === 'token' && evt.text) {
+          partial += evt.text;
+          onChunk(partial, false);
+        } else if (evt.type === 'done') {
+          donePayload = evt;
+          partial = evt.reply || partial;
+          onChunk(partial, true);
+        } else if (evt.type === 'error') {
+          throw new Error(evt.error || 'SSE error');
+        }
+      } catch (e) {
+        if (e instanceof SyntaxError) continue;
+        throw e;
+      }
+    }
+  }
+
+  if (!donePayload) {
+    onChunk(partial, true);
+    return {
+      reply: partial,
+      skill: 'general',
+      source: 'ai',
+      actions: [],
+      suggestions: [],
+      proactive: [],
+      conversationContext: { turnCount: 0, entities: {} },
+    };
+  }
+
+  return {
+    reply: donePayload.reply || partial,
+    skill: donePayload.skill || 'general',
+    source: donePayload.source || 'ai',
+    data: donePayload.data,
+    recommendations: donePayload.recommendations,
+    actions: Array.isArray(donePayload.actions) ? donePayload.actions : [],
+    suggestions: Array.isArray(donePayload.suggestions) ? donePayload.suggestions : [],
+    proactive: Array.isArray(donePayload.proactive) ? donePayload.proactive : [],
+    conversationContext: donePayload.conversationContext || { turnCount: 0, entities: {} },
+  };
 }
 
 export async function aiProactive(): Promise<{ alerts: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }> }> {

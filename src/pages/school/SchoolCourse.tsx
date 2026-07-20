@@ -38,7 +38,7 @@ interface CourseDetail {
 const DIFF_COLORS: Record<string, string> = { beginner: '#27AE60', intermediate: '#C9A96E', advanced: '#E74C3C' };
 const DIFF_LABELS: Record<string, string> = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
 const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = { video: Video, text: FileText, test: HelpCircle };
-const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест' };
+const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест', exam: 'Экзамен', quiz: 'Квиз', pdf: 'PDF' };
 
 function parseLessons(raw: any): string[] {
   if (!raw) return [];
@@ -61,6 +61,11 @@ export default function SchoolCourse() {
   const [progress, setProgress] = useState(0);
   const [certificate, setCertificate] = useState<any>(null);
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const [exam, setExam] = useState<any>(null);
+  const [examAnswers, setExamAnswers] = useState<Record<string, number>>({});
+  const [examResult, setExamResult] = useState<any>(null);
+  const [examLoading, setExamLoading] = useState(false);
+  const [examSubmitting, setExamSubmitting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -79,6 +84,20 @@ export default function SchoolCourse() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [id, user]);
 
+  useEffect(() => {
+    setExam(null);
+    setExamAnswers({});
+    setExamResult(null);
+    const type = String(activeLesson?.type || '').toLowerCase();
+    if (!activeLesson || !['test', 'exam', 'quiz'].includes(type)) return;
+    if (!enrolled) return;
+    setExamLoading(true);
+    api.getLessonExam(activeLesson.id)
+      .then((payload) => setExam(payload?.exam || null))
+      .catch(() => setExam(null))
+      .finally(() => setExamLoading(false));
+  }, [activeLesson?.id, enrolled]);
+
   const allLessons = course?.modules?.flatMap(m => m.lessons || []) || [];
   const totalLessons = allLessons.length;
 
@@ -87,25 +106,49 @@ export default function SchoolCourse() {
       const res = await api.enrollCourse({ course_id: id, clinic_id: activeClinic?.id || null });
       setEnrolled(true);
       setEnrollmentId(res.id);
-    } catch { toast.error('Не удалось записаться'); }
+    } catch { toast.showToast('Не удалось записаться', 'error'); }
   };
 
   const markComplete = async (lessonId: string) => {
-    if (!enrollmentId) { toast.error('Сначала запишитесь на курс'); return; }
-    if (completedLessons.includes(lessonId)) { toast.info('Урок уже пройден'); return; }
+    if (!enrollmentId) { toast.showToast('Сначала запишитесь на курс', 'error'); return; }
+    if (completedLessons.includes(lessonId)) { toast.showToast('Урок уже пройден', 'info'); return; }
     const arr = [...completedLessons, lessonId];
     const prog = totalLessons > 0 ? Math.round((arr.length / totalLessons) * 100) : 100;
     setCompletedLessons(arr);
     setProgress(prog);
     try {
       await api.updateEnrollment(enrollmentId, { progress: prog, completedLessons: arr });
-      toast.success('Урок отмечен как пройденный');
+      toast.showToast('Урок отмечен как пройденный', 'success');
       if (prog >= 100) {
         const certs = await api.getSchoolCertificates(user!.id);
         const cert = certs.find((c: any) => c.courseId === id);
         if (cert) setCertificate(cert);
       }
-    } catch { toast.error('Не удалось сохранить прогресс'); }
+    } catch { toast.showToast('Не удалось сохранить прогресс', 'error'); }
+  };
+
+  const submitExam = async () => {
+    if (!activeLesson) return;
+    if (!enrolled) { toast.showToast('Сначала запишитесь на курс', 'error'); return; }
+    setExamSubmitting(true);
+    try {
+      const result = await api.submitLessonExam(activeLesson.id, examAnswers, id);
+      setExamResult(result);
+      if (result.passed) {
+        if (!completedLessons.includes(activeLesson.id)) {
+          setCompletedLessons((prev) => [...prev, activeLesson.id]);
+        }
+        if (result.score) setProgress((p) => Math.max(p, result.score));
+        if (result.certificate) setCertificate(result.certificate);
+        toast.showToast(`Сдано: ${result.score}%`, 'success');
+      } else {
+        toast.showToast(`Не сдано: ${result.score}% (нужно ${result.passingScore}%)`, 'warning');
+      }
+    } catch {
+      toast.showToast('Не удалось отправить экзамен', 'error');
+    } finally {
+      setExamSubmitting(false);
+    }
   };
 
   const toggleModule = (modId: string) => {
@@ -288,17 +331,83 @@ export default function SchoolCourse() {
                     {(activeLesson.durationMinutes || activeLesson.duration_minutes || '—')} мин · видео скоро
                   </p>
                 </div>
-              ) : activeLesson.type === 'test' ? (
-                <div className="text-center px-6">
-                  <HelpCircle size={48} className="text-[#C9A96E]/60 mx-auto" />
-                  <p className="text-sm text-[var(--slate-light)] mt-2">Тест: {activeLesson.title}</p>
-                  <p className="text-xs text-txt-muted mt-1 max-w-sm mx-auto">
-                    Отметьте урок завершённым после прохождения. Полноценный exam engine — следующий этап School.
-                  </p>
-                  {enrolled && (
-                    <Button variant="primary" size="sm" className="mt-3" onClick={() => markComplete(activeLesson.id)}>
-                      Завершить тест
-                    </Button>
+              ) : activeLesson.type === 'test' || activeLesson.type === 'exam' || activeLesson.type === 'quiz' ? (
+                <div className="w-full h-full overflow-y-auto p-4 text-left">
+                  {examLoading ? (
+                    <div className="flex justify-center py-16 text-txt-muted">Загрузка экзамена…</div>
+                  ) : !enrolled ? (
+                    <div className="text-center py-10">
+                      <HelpCircle size={48} className="text-[#C9A96E]/60 mx-auto" />
+                      <p className="text-sm mt-3">Запишитесь на курс, чтобы пройти тест</p>
+                      <Button variant="primary" size="sm" className="mt-3" onClick={handleEnroll}>Записаться</Button>
+                    </div>
+                  ) : examResult ? (
+                    <div className="max-w-xl mx-auto space-y-3 py-6">
+                      <h3 className="text-lg font-bold text-white">
+                        {examResult.passed ? 'Экзамен сдан' : 'Экзамен не сдан'}
+                      </h3>
+                      <p className="text-sm text-txt-secondary">
+                        Результат: <span className="text-dv-gold font-semibold">{examResult.score}%</span>
+                        {' '}· порог {examResult.passingScore}% · верно {examResult.correct}/{examResult.total}
+                      </p>
+                      {examResult.certificate && (
+                        <div className="rounded-xl border border-dv-gold/30 bg-dv-gold/10 p-3 text-sm text-dv-gold">
+                          Сертификат: {examResult.certificate.certificateNumber || examResult.certificate.id}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => { setExamResult(null); setExamAnswers({}); }}>
+                          Пройти ещё раз
+                        </Button>
+                        {examResult.passed && (
+                          <Button size="sm" onClick={() => markComplete(activeLesson.id)}>Отметить урок</Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : exam ? (
+                    <div className="max-w-xl mx-auto space-y-4 py-2">
+                      <div>
+                        <h3 className="text-base font-bold text-white">{exam.title || activeLesson.title}</h3>
+                        <p className="text-xs text-txt-muted mt-1">
+                          {exam.questionCount || exam.questions?.length || 0} вопросов · проходной балл {exam.passingScore}%
+                        </p>
+                      </div>
+                      {(exam.questions || []).map((q: any, qi: number) => (
+                        <div key={q.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                          <p className="text-sm text-txt-primary font-medium">{qi + 1}. {q.text}</p>
+                          <div className="space-y-1.5">
+                            {(q.options || []).map((opt: string, oi: number) => (
+                              <label key={oi} className={`flex items-center gap-2 text-sm px-2.5 py-2 rounded-lg cursor-pointer border ${
+                                examAnswers[q.id] === oi
+                                  ? 'border-dv-gold/40 bg-dv-gold/10 text-dv-gold'
+                                  : 'border-transparent hover:bg-white/5 text-txt-secondary'
+                              }`}>
+                                <input
+                                  type="radio"
+                                  className="accent-[#C9A96E]"
+                                  name={q.id}
+                                  checked={examAnswers[q.id] === oi}
+                                  onChange={() => setExamAnswers((prev) => ({ ...prev, [q.id]: oi }))}
+                                />
+                                {opt}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        size="sm"
+                        onClick={submitExam}
+                        disabled={examSubmitting || Object.keys(examAnswers).length < (exam.questions?.length || 0)}
+                      >
+                        {examSubmitting ? 'Проверка…' : 'Сдать экзамен'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center py-10">
+                      <HelpCircle size={48} className="text-[#C9A96E]/60 mx-auto" />
+                      <p className="text-sm mt-3">Тест временно недоступен</p>
+                    </div>
                   )}
                 </div>
               ) : activeLesson.type === 'pdf' || activeLesson.fileUrl || activeLesson.file_url ? (
@@ -339,9 +448,15 @@ export default function SchoolCourse() {
             </div>
 
             <div className="bg-white/[0.02] border border-[var(--border-subtle)] rounded-xl p-6 min-h-[200px]">
-              <p className="text-sm text-[var(--slate-light)] leading-relaxed">
-                {activeLesson.content || `Содержание урока «${activeLesson.title}» будет доступно после начала курса. Видеоматериалы, иллюстрации и интерактивные элементы помогут вам освоить материал.`}
-              </p>
+              {['test', 'exam', 'quiz'].includes(String(activeLesson.type || '').toLowerCase()) ? (
+                <p className="text-sm text-[var(--slate-light)] leading-relaxed">
+                  Пройдите вопросы выше. После успешной сдачи урок и сертификат обновятся автоматически.
+                </p>
+              ) : (
+                <p className="text-sm text-[var(--slate-light)] leading-relaxed">
+                  {activeLesson.content || `Содержание урока «${activeLesson.title}» будет доступно после начала курса. Видеоматериалы, иллюстрации и интерактивные элементы помогут вам освоить материал.`}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-between mt-5">

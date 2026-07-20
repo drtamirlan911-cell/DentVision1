@@ -76,6 +76,86 @@ export default function aiRoutes() {
     }
   });
 
+  // ─── POST /api/ai/chat/stream — SSE token stream ───────────
+  router.post('/chat/stream', optionalAuth, async (req, res) => {
+    try {
+      const { message, history = [] } = req.body;
+      if (!message || typeof message !== 'string' || message.trim().length === 0) {
+        return res.status(400).json({ error: 'Сообщение обязательно' });
+      }
+
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+      const send = (payload) => {
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      };
+
+      const user = req.user || { id: 'guest', name: 'Гость', role: 'guest', platformRole: 'guest' };
+      const clinicId = (req.user?.activeClinicId || req.user?.clinicId) || null;
+      let clinic = null;
+      if (clinicId) {
+        clinic = await prisma.clinic.findUnique({
+          where: { id: clinicId },
+          select: { id: true, name: true, type: true, plan: true },
+        });
+      }
+
+      send({ type: 'status', status: 'thinking' });
+
+      const conversationCtx = getConversationContext(user.id);
+      const response = await processMessage(message.trim(), {
+        user,
+        clinic,
+        conversationHistory: history.length > 0 ? history : conversationCtx.history,
+        conversationContext: conversationCtx,
+        channel: 'chat',
+      });
+
+      updateConversationContext(user.id, {
+        message: message.trim(),
+        response: response.reply,
+        intent: response.skill,
+        skillId: response.skill,
+        entities: response.conversationContext?.entities || {},
+      });
+
+      const text = response.reply || '';
+      const chunkSize = Math.max(2, Math.ceil(text.length / 48));
+      for (let i = 0; i < text.length; i += chunkSize) {
+        send({ type: 'token', text: text.slice(i, i + chunkSize) });
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 12));
+      }
+
+      send({
+        type: 'done',
+        reply: response.reply,
+        skill: response.skill,
+        source: response.source || 'internal',
+        actions: response.actions || [],
+        suggestions: response.suggestions || [],
+        proactive: response.proactive || [],
+        data: response.data || undefined,
+        recommendations: response.recommendations || undefined,
+        conversationContext: {
+          turnCount: response.conversationContext?.turnCount || 0,
+          entities: response.conversationContext?.entities || {},
+        },
+      });
+      res.end();
+    } catch (e) {
+      console.error('AI Chat stream error:', e);
+      try {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: e.message || 'stream failed' })}\n\n`);
+        res.end();
+      } catch { /* ignore */ }
+    }
+  });
+
   // ─── GET /api/ai/greeting — приветствие ─────────────────────
   router.get('/greeting', optionalAuth, async (req, res) => {
     try {
