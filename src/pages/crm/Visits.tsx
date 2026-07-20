@@ -2,7 +2,7 @@
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ClipboardList, Plus, Search, Edit3, Save, X, Stethoscope, User, Calendar, FileText, Pill } from 'lucide-react';
-import { gid, today } from '../../utils/constants';
+import { today } from '../../utils/constants';
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ds/Card';
@@ -81,7 +81,7 @@ export default function Visits() {
   const saveVisit = async () => {
     if (!form.patient_id) { toast.error('Выберите пациента'); return; }
     await upsertVisit({
-      id: editingId || gid(),
+      ...(editingId ? { id: editingId } : {}),
       ...form,
       clinic_id: clinic.id,
       user_id: user?.id,
