@@ -108,8 +108,34 @@ model Clinic {
   priceList     PriceListItem[]
   reminderLogs  ReminderLog[]
   chairs        Chair[]
+  bookings      Booking[]
 
   @@map("clinics")
+}
+
+/// Online booking requests from public /book/:clinicId page (KazDent donor).
+model Booking {
+  id          String   @id @default("")
+  clinicId    String
+  patientName String
+  phone       String
+  email       String?
+  doctorId    String?
+  doctorName  String?
+  serviceName String?
+  date        DateTime @db.Date
+  time        String
+  notes       String?
+  status      String   @default("pending")
+  source      String   @default("online")
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId, status, date])
+  @@map("bookings")
 }
 
 model ClinicMember {

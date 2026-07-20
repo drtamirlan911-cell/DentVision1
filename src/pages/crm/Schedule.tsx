@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
-  WifiOff, CloudOff, Printer, ClipboardCheck,
+  WifiOff, CloudOff, Printer, ClipboardCheck, Globe,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -32,7 +32,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
-import type { Appointment, Patient, WaitingListItem, User } from '@/types'
+import type { Appointment, Patient, WaitingListItem, User, Booking } from '@/types'
 
 const STATUS_CFG = APPOINTMENT_STATUS
 const WORK_START = '08:00'
@@ -71,7 +71,7 @@ export default function Schedule() {
   const { user, roleInfo, clinic: activeClinic } = useAuth()
   const clinic = user?.clinicId ? { id: user.clinicId } : null
   const {
-    appointments: liveAppointments, patients, doctors, waitingList, receipts,
+    appointments: liveAppointments, patients, doctors, waitingList, bookings, receipts,
     upsertAppointment: upsertAppointmentApi, deleteAppointment,
     upsertPatient, upsertReceipt,
     upsertWaitingListItem, deleteWaitingListItem,
@@ -184,6 +184,14 @@ export default function Schedule() {
       return !pref || pref === selDate
     }),
     [waitingList, selDate]
+  )
+
+  const pendingBookings = useMemo(
+    () => (bookings as Booking[]).filter((b) => {
+      if (b.status !== 'pending') return false
+      return !b.date || b.date === selDate
+    }),
+    [bookings, selDate]
   )
 
   const weekStart = useMemo(() => getWeekStart(selDate), [selDate])
@@ -459,6 +467,28 @@ export default function Schedule() {
 
   const handleDeleteWait = async (id: string): Promise<void> => { await deleteWaitingListItem(id); showToast('Удалено', 'success') }
 
+  const handleConfirmBooking = async (b: Booking): Promise<void> => {
+    try {
+      await api.confirmBooking(b.id)
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings })
+      queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients })
+      showToast('Заявка подтверждена — запись создана', 'success')
+    } catch (e: any) {
+      showToast(e?.message || 'Не удалось подтвердить', 'error')
+    }
+  }
+
+  const handleRejectBooking = async (id: string): Promise<void> => {
+    try {
+      await api.deleteBooking(id)
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings })
+      showToast('Заявка отклонена', 'success')
+    } catch {
+      showToast('Ошибка', 'error')
+    }
+  }
+
   const handlePromoteFromWait = async (w: any): Promise<void> => {
     setForm({ ...EMPTY_FORM, patientId: w.patient_id || '', doctorId: w.doctor_id || '', time: w.preferred_time || '09:00', service: w.preferred_service || '' })
     setShowNewPatient(false); setModalOpen(true)
@@ -541,7 +571,7 @@ export default function Schedule() {
 
       {/* Header */}
       <motion.div variants={fadeUp} className="flex items-center justify-between gap-3">
-        <PageHeader title="Расписание" subtitle="Управление записями и лист ожидания" icon={<Calendar size={20} />} />
+        <PageHeader title="Расписание" subtitle="Записи, лист ожидания и онлайн-заявки" icon={<Calendar size={20} />} />
         <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
           <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
             <span className="hidden sm:inline">Печать дня</span>
@@ -590,6 +620,7 @@ export default function Schedule() {
           tabs={[
             { id: 'schedule', label: 'Расписание', icon: <Calendar size={14} /> },
             { id: 'waiting', label: `Лист ожидания`, count: dayWaitList.length },
+            { id: 'online', label: 'Онлайн-запись', icon: <Globe size={14} />, count: pendingBookings.length },
           ]}
           active={activeTab}
           onChange={setActiveTab}
@@ -815,7 +846,7 @@ export default function Schedule() {
             </>
           )}
         </>
-      ) : (
+      ) : activeTab === 'waiting' ? (
         /* Waiting List */
         <motion.div variants={fadeUp}>
           <Card padding="none">
@@ -852,6 +883,65 @@ export default function Schedule() {
                             <Button size="icon-xs" variant="ghost" onClick={() => handlePromoteFromWait(w)} title="Записать"><CheckCircle size={13} className="text-success" /></Button>
                             <Button size="icon-xs" variant="ghost" onClick={() => { setEditWaitId(w.id); setWaitForm({ patientId: w.patient_id || '', patientName: w.patient_name || '', patientPhone: w.patient_phone || '', doctorId: w.doctor_id || '', preferredDate: w.preferred_date || '', preferredTime: w.preferred_time || '', preferredService: w.preferred_service || '', notes: w.notes || '' }); setWaitModalOpen(true) }} title="Редактировать"><GripVertical size={13} className="text-dv-gold" /></Button>
                             <Button size="icon-xs" variant="ghost" onClick={() => handleDeleteWait(w.id)} title="Удалить"><Trash2 size={13} className="text-error" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </motion.div>
+      ) : (
+        /* Online bookings */
+        <motion.div variants={fadeUp}>
+          <Card padding="none">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-bdr-subtle">
+              <div className="flex items-center gap-2">
+                <Globe size={16} className="text-dv-gold" />
+                <span className="text-sm font-semibold text-txt-primary">Онлайн-заявки</span>
+                <Badge variant="gold" size="xs">{pendingBookings.length}</Badge>
+              </div>
+              {clinic?.id && (
+                <Button size="sm" variant="outline" onClick={() => window.open(`/book/${clinic.id}`, '_blank')}>
+                  Страница записи
+                </Button>
+              )}
+            </div>
+            {pendingBookings.length === 0 ? (
+              <EmptyState
+                icon={<Globe size={32} />}
+                title="Нет новых заявок"
+                description="Поделитесь ссылкой онлайн-записи с пациентами — заявки появятся здесь"
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-bdr-subtle">
+                      {['Пациент', 'Телефон', 'Дата', 'Время', 'Врач', 'Услуга', 'Действия'].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-left text-2xs font-semibold text-txt-muted uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingBookings.map((b) => (
+                      <tr key={b.id} className="border-b border-bdr-subtle hover:bg-white/[0.02] transition-colors">
+                        <td className="px-4 py-2.5 font-medium text-txt-primary">{b.patientName || '—'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{b.patientPhone || b.phone || '—'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{b.date ? b.date.split('-').reverse().join('.') : '—'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{b.time || '—'}</td>
+                        <td className="px-4 py-2.5 text-dv-gold">{(b as any).doctorName || 'Любой'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{b.serviceName || '—'}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex gap-1">
+                            <Button size="icon-xs" variant="ghost" onClick={() => handleConfirmBooking(b)} title="Подтвердить">
+                              <CheckCircle size={13} className="text-success" />
+                            </Button>
+                            <Button size="icon-xs" variant="ghost" onClick={() => handleRejectBooking(b.id)} title="Отклонить">
+                              <XCircle size={13} className="text-error" />
+                            </Button>
                           </div>
                         </td>
                       </tr>

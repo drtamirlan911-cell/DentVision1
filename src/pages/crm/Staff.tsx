@@ -191,51 +191,6 @@ export default function Staff() {
     setInviteOpen(true)
   }
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const clinicId = clinic?.id || user?.clinicId
-    if (!clinicId) {
-      showToast('Выберите клинику', 'warning')
-      return
-    }
-    setInviteSaving(true)
-    try {
-      const inv = await api.createInvitation({
-        clinicId,
-        email: inviteForm.email.trim() || undefined,
-        role: inviteForm.role,
-        expiresInDays: Number(inviteForm.expiresInDays) || 7,
-      })
-      const code = inv?.code
-      if (!code) throw new Error('Сервер не вернул код приглашения')
-      setInviteResult({ code, email: inv.email, role: inv.role })
-      showToast('Приглашение создано', 'success')
-    } catch (err: any) {
-      showToast(err?.message || 'Не удалось создать приглашение', 'error')
-    } finally {
-      setInviteSaving(false)
-    }
-  }
-
-  const copyInviteCode = async () => {
-    if (!inviteResult?.code) return
-    try {
-      await navigator.clipboard.writeText(inviteResult.code)
-      setCopied(true)
-      showToast('Код скопирован', 'success')
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      showToast('Не удалось скопировать', 'warning')
-    }
-  }
-
-  const openInvite = () => {
-    setInviteForm({ email: '', role: 'doctor', expiresInDays: 7 })
-    setInviteResult(null)
-    setCopied(false)
-    setInviteOpen(true)
-  }
-
   const refreshStaff = () => {
     queryClient.invalidateQueries({ queryKey: [...queryKeys.users, clinicId] })
   }
