@@ -31,7 +31,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
-import type { Appointment, Patient, WaitingListItem, User } from '@/types'
+import type { Appointment, Patient, WaitingListItem } from '@/types'
 
 const STATUS_CFG = APPOINTMENT_STATUS
 const WORK_START = '08:00'
