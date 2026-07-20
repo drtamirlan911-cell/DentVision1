@@ -41,6 +41,9 @@ const MedicalCard = lazy(() => import('./pages/crm/MedicalCard'));
 const ICD10 = lazy(() => import('./pages/crm/ICD10'));
 const Visits = lazy(() => import('./pages/crm/Visits'));
 const Documents = lazy(() => import('./pages/crm/Documents'));
+const Reminders = lazy(() => import('./pages/crm/Reminders'));
+const DentalChart = lazy(() => import('./pages/crm/DentalChart'));
+const TreatmentPlans = lazy(() => import('./pages/crm/TreatmentPlans'));
 
 // Shop sub-app pages
 const Shop = lazy(() => import('./pages/shop/Shop'));
@@ -119,6 +122,10 @@ if (container) {
                   <Route path="crm/icd10" element={<Suspense fallback={<PageLoader />}><ICD10 /></Suspense>} />
                   <Route path="crm/visits" element={<Suspense fallback={<PageLoader />}><Visits /></Suspense>} />
                   <Route path="crm/documents" element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
+                  <Route path="crm/reminders" element={<Suspense fallback={<PageLoader />}><Reminders /></Suspense>} />
+                  <Route path="crm/dental-chart" element={<Suspense fallback={<PageLoader />}><DentalChart /></Suspense>} />
+                  <Route path="crm/treatment-plans" element={<Suspense fallback={<PageLoader />}><TreatmentPlans /></Suspense>} />
+                  <Route path="crm/finance" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
 
                   {/* Shop sub-app — under IntelligenceLayout sidebar */}
                   <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />

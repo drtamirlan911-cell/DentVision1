@@ -1,7 +1,6 @@
 ﻿import React, { useEffect, useCallback, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Bot, CheckCircle, X, AlertTriangle, Loader2, Mic, ArrowUp, MessageSquare } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Sparkles, Bot, X, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/store/auth.store'
 import { aiChat, aiProactive, aiDigitalTwin } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
@@ -12,7 +11,9 @@ import { useAIWorkspaceStore } from '@/store/workspace.store'
 import { useAIExecutor, AIAction } from '@/utils/aiExecutor'
 import { ProactiveAlertsDisplay } from '@/components/ai/ProactiveAlertsDisplay'
 import { ContextPanel } from '@/components/intelligence/ContextPanel'
-import { useNavigate } from 'react-router-dom'
+import { ActionConfirm } from '@/components/intelligence/ActionConfirm'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { trackProductEvent } from '@/utils/analytics'
 
 import type { Message, Action } from '@/store/workspace.store'
 
@@ -22,18 +23,21 @@ interface AIWorkspaceIndexProps {
 
 export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, clinic } = useAuth()
   const initialized = useRef(false)
   const historyRef = useRef<Array<{ role: string; content: string }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const firstMessageTracked = useRef(false)
   const [showContextPanel, setShowContextPanel] = useState(false)
+  const [pendingConfirm, setPendingConfirm] = useState<Action | null>(null)
 
   const messages = useAIWorkspaceStore((s) => s.ai.messages)
   const status = useAIWorkspaceStore((s) => s.ai.status)
   const suggestions = useAIWorkspaceStore((s) => s.ai.suggestions)
   const proactiveAlerts = useAIWorkspaceStore((s) => s.ai.proactiveAlerts)
   const progress = useAIWorkspaceStore((s) => s.ai.progress)
-  const currentAction = useAIWorkspaceStore((s) => s.ai.currentAction)
+  const contextFocus = useAIWorkspaceStore((s) => s.context)
 
   const setAIStatus = useAIWorkspaceStore((s) => s.setAIStatus)
   const addMessage = useAIWorkspaceStore((s) => s.addMessage)
@@ -43,7 +47,6 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const setProactiveAlerts = useAIWorkspaceStore((s) => s.setProactiveAlerts)
   const setCurrentIntent = useAIWorkspaceStore((s) => s.setCurrentIntent)
   const setCurrentAction = useAIWorkspaceStore((s) => s.setCurrentAction)
-  const contextFocus = useAIWorkspaceStore((s) => s.ai.contextFocus)
   const setContextFocus = useAIWorkspaceStore((s) => s.setContextFocus)
   const setProgress = useAIWorkspaceStore((s) => s.setProgress)
   const setErrorMessage = useAIWorkspaceStore((s) => s.setErrorMessage)
@@ -63,16 +66,26 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     if (!initialized.current) {
       initialized.current = true
       initializeWorkspace()
+      trackProductEvent('chat_ready', { role: user?.role || 'guest' })
     }
   }, [user, clinic])
 
   useEffect(() => {
-    if (status === 'idle' || status === 'result' || status === 'confirmation') {
-      setSuggestionsFromStrings(getDefaultSuggestions(user, clinic))
+    const q = (location.state as any)?.aiQuery
+    if (q && typeof q === 'string') {
+      handleSend(q)
+      navigate(location.pathname, { replace: true, state: {} })
     }
-  }, [contextFocus, user])
+  }, [location.state])
+
+  useEffect(() => {
+    if (status === 'idle' || status === 'result' || status === 'confirmation') {
+      setSuggestionsFromStrings(getDefaultSuggestions(user, contextFocus.focusType).slice(0, 3))
+    }
+  }, [contextFocus.focusType, user])
 
   const initializeWorkspace = async () => {
+    const started = Date.now()
     try {
       const [chatRes, proactiveData, twinData] = await Promise.all([
         aiChat('Приветствие', []).catch(() => null),
@@ -80,11 +93,11 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         aiDigitalTwin().catch(() => ({ twin: null })),
       ])
 
-      let reply = chatRes?.reply || buildGreeting(user, clinic)
+      let reply = chatRes?.reply || buildGreeting(user, clinic, proactiveData?.alerts || [])
 
       if (proactiveData?.alerts?.length && !chatRes?.reply) {
-        const alertLines = proactiveData.alerts.slice(0, 4).map((a: any) => `• ${a.text}`).join('\n')
-        reply = buildGreeting(user, clinic) + '\n\nАктуальное:\n' + alertLines
+        const alertLines = proactiveData.alerts.slice(0, 3).map((a: any) => `• ${a.text}`).join('\n')
+        reply = `${buildGreeting(user, clinic, [])}\n\nАктуальное:\n${alertLines}`
       }
 
       setMessages([{
@@ -94,7 +107,14 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         timestamp: new Date(),
         skill: chatRes?.skill || 'practice',
       }])
-      setSuggestionsFromStrings(chatRes?.suggestions || getDefaultSuggestions(user, clinic))
+      trackProductEvent('ai_greeting_rendered', {
+        role: user?.role || 'guest',
+        latency_ms: Date.now() - started,
+        data_complete: !!(proactiveData?.alerts?.length || chatRes?.reply),
+      })
+      setSuggestionsFromStrings(
+        (chatRes?.suggestions || getDefaultSuggestions(user, 'workspace')).slice(0, 3)
+      )
       if (proactiveData?.alerts?.length) {
         setProactiveAlerts(proactiveData.alerts.map((a: any) => ({
           id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -110,65 +130,31 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       }
       historyRef.current = [{ role: 'assistant', content: reply }]
     } catch {
-      const fallback = buildGreeting(user, clinic)
+      const fallback = buildGreeting(user, clinic, [])
       setMessages([{ id: 'greeting', role: 'assistant', content: fallback, timestamp: new Date() }])
-      setSuggestionsFromStrings(getDefaultSuggestions(user, clinic))
+      setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
+      trackProductEvent('ai_greeting_rendered', {
+        role: user?.role || 'guest',
+        latency_ms: Date.now() - started,
+        data_complete: false,
+      })
     }
-  }
-
-  const buildGreeting = (u: any, c: any) => {
-    const h = new Date().getHours()
-    const greeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
-    const name = u?.name?.split(' ')[0] || u?.login || 'Пользователь'
-    const spec = u?.spec || 'доктор'
-    const clinicName = c?.name || ''
-    const lines = [
-      `${greeting}, ${spec} ${name}.`,
-      clinicName ? `Клиника: ${clinicName}.` : '',
-      '',
-      'DentVision Intelligence к вашим услугам.',
-      'Чем могу помочь?',
-    ].filter(Boolean)
-    return lines.join('\n')
-  }
-
-  const getDefaultSuggestions = (u: any, c: any) => {
-    const role = (u?.role || '').toLowerCase()
-    if (contextFocus?.type === 'patient') {
-      return [
-        'История лечения',
-        'План лечения',
-        'Показать КТ',
-        'Фото пациента',
-        'Создать счет',
-        'Назначить прием',
-        'Лаборатория',
-        'Отправить напоминание',
-      ]
-    }
-    if (role === 'doctor') {
-      return ['Показать расписание', 'Открыть карточку пациента', 'Заполнить прием', 'Создать план лечения', 'Открыть рентген', 'Назначить повторный прием']
-    }
-    if (role === 'lab' || role === 'laboratory') {
-      return ['Показать новые работы', 'Изменить статус', 'Загрузить фотографии', 'Отметить готовность', 'Лабораторные работы']
-    }
-    if (role === 'manager' || role === 'руководитель') {
-      return ['Показать прибыль', 'Заполненность кресел', 'Средний чек', 'Задолженности', 'Доходы врачей', 'Открыть аналитику']
-    }
-    if (role === 'admin' || role === 'администратор') {
-      return ['Записать пациента', 'Показать расписание', 'Создать счет', 'Принять оплату', 'Управлять расписанием', 'Показать задолженности']
-    }
-    return ['Записать пациента', 'Найти пациента', 'Показать КТ', 'Составить план лечения', 'Купить материал', 'Найти курс']
   }
 
   const handleSend = useCallback(async (text: string) => {
     if (!text.trim() || isProcessing) return
+
+    if (!firstMessageTracked.current) {
+      firstMessageTracked.current = true
+      trackProductEvent('first_user_message_sent')
+    }
 
     addMessage({ id: `u-${Date.now()}`, role: 'user', content: text, timestamp: new Date() })
     setAIStatus('thinking')
     setSuggestionsFromStrings([])
     setCurrentIntent(null)
     setCurrentAction(null)
+    setPendingConfirm(null)
     historyRef.current.push({ role: 'user', content: text })
 
     try {
@@ -210,7 +196,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       }
 
       addMessage(aiMsg)
-      setSuggestionsFromStrings(res.suggestions || [])
+      setSuggestionsFromStrings((res.suggestions || []).slice(0, 4))
       historyRef.current.push({ role: 'assistant', content: res.reply })
 
       if (res.proactive?.length) {
@@ -230,32 +216,39 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         const action = res.actions[0]
         const aiAction: Action = {
           id: `act-${Date.now()}`,
-          type: action.type || action.action,
+          type: (action as any).type || (action as any).action,
           label: action.label,
           confidence: action.confidence || 1,
           params: action.params || {},
-          requiresConfirmation: action.requiresConfirmation,
+          requiresConfirmation: (action as any).requiresConfirmation ?? true,
         }
         setCurrentAction(aiAction)
 
-        if (action.confidence > 0.85 && !action.requiresConfirmation) {
+        const needsConfirm = aiAction.requiresConfirmation || (action.confidence ?? 1) <= 0.85
+        if (!needsConfirm && (action.confidence ?? 0) > 0.85) {
           setAIStatus('executing')
           setProgress(0)
           try {
-            const result = await aiAction(action.type || action.action, { ...action.params })
+            const result = await executeAction(
+            { ...aiAction, requiresConfirmation: false } as AIAction,
+            {
+              onNavigate: (path) => { navigate(path); onNavigate?.(path) },
+              addMessage: (msg: any) => addMessage({
+                id: `act-${Date.now()}`,
+                role: msg.role || 'assistant',
+                content: msg.content,
+                timestamp: msg.timestamp || new Date(),
+                data: msg.data,
+              }),
+            }
+          )
             setProgress(100)
             setAIStatus('result')
-            setTimeout(() => setAIStatus('idle'), 2000)
-            if (result?.message) {
-              addMessage({
-                id: `action-${Date.now()}`,
-                role: 'assistant',
-                content: result.message,
-                timestamp: new Date(),
-              })
-            }
-            if (onNavigate && NAV_ACTIONS[action.type || action.action]) {
-              onNavigate(NAV_ACTIONS[action.type || action.action])
+            setTimeout(() => setAIStatus('idle'), 1500)
+            if (result?.type === 'navigate' && result.path) navigate(result.path)
+            else if (NAV_ACTIONS[aiAction.type]) {
+              navigate(NAV_ACTIONS[aiAction.type])
+              onNavigate?.(NAV_ACTIONS[aiAction.type])
             }
           } catch (e: any) {
             setAIStatus('error')
@@ -268,9 +261,12 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
               timestamp: new Date(),
             })
           }
-        } else if (action.confidence > 0.6) {
+        } else {
+          setPendingConfirm(aiAction)
           setAIStatus('confirmation')
         }
+      } else {
+        setAIStatus('idle')
       }
     } catch {
       addMessage({
@@ -278,44 +274,69 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         content: 'Извините, произошла ошибка. Попробуйте ещё раз.',
         timestamp: new Date(),
       })
+      setAIStatus('idle')
     } finally {
-      if (status !== 'confirmation') {
-        setAIStatus('idle')
-      }
       setProgress(0)
     }
-  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, setCurrentAction])
+  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, executeAction, navigate])
 
-  const handleActionConfirm = useCallback(async (action: AIAction) => {
-    const confirmed = window.confirm(`Выполнить: ${action.label}?`)
-    if (!confirmed) return
+  const handleActionConfirm = useCallback(async (confirmed: boolean) => {
+    const action = pendingConfirm
+    setPendingConfirm(null)
+    if (!action) {
+      setAIStatus('idle')
+      return
+    }
+    if (!confirmed) {
+      trackProductEvent('ai_action_cancelled', { action: action.type })
+      setCurrentAction(null)
+      setAIStatus('idle')
+      addMessage({
+        id: `cancel-${Date.now()}`,
+        role: 'assistant',
+        content: 'Действие отменено. Чем ещё помочь?',
+        timestamp: new Date(),
+      })
+      return
+    }
 
+    trackProductEvent('ai_action_confirmed', { action: action.type })
     setAIStatus('executing')
     setProgress(0)
     try {
-      const result = await executeAction(action, {
+const result = await executeAction(
+      { ...action, requiresConfirmation: false } as AIAction,
+      {
         onNavigate: (path) => { navigate(path); onNavigate?.(path) },
-        addMessage,
-      })
+        addMessage: (msg: any) => addMessage({
+          id: `act-${Date.now()}`,
+          role: msg.role || 'assistant',
+          content: msg.content,
+          timestamp: msg.timestamp || new Date(),
+          data: msg.data,
+        }),
+      }
+    )
       setProgress(100)
       setAIStatus('result')
-      setTimeout(() => setAIStatus('idle'), 2000)
+      setTimeout(() => setAIStatus('idle'), 1500)
       setCurrentAction(null)
       if (result?.type === 'navigate' && result.path) {
         navigate(result.path)
+      } else if (NAV_ACTIONS[action.type]) {
+        navigate(NAV_ACTIONS[action.type])
       }
     } catch (e: any) {
       setAIStatus('error')
       setErrorMessage(e?.message || 'Ошибка выполнения')
       setTimeout(() => setAIStatus('idle'), 3000)
     }
-  }, [executeAction, navigate, onNavigate, setAIStatus, setProgress, setErrorMessage, setCurrentAction, addMessage])
+  }, [pendingConfirm, executeAction, navigate, onNavigate, setAIStatus, setProgress, setErrorMessage, setCurrentAction, addMessage])
 
   const showEmpty = messages.length === 0
 
   return (
     <div className="flex flex-col h-full bg-surface-0">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -329,7 +350,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           <div>
             <h1 className="text-sm font-bold text-txt-primary tracking-tight">DentVision Intelligence</h1>
             <p className="text-[11px] text-txt-muted">
-              {status === 'idle' ? 'Цифровой ассистент' :
+              {status === 'idle' ? 'AI Operating System · стоматология' :
                status === 'thinking' ? 'AI анализирует...' :
                status === 'executing' ? 'Выполняю...' :
                status === 'confirmation' ? 'Ожидаю подтверждение' :
@@ -364,7 +385,6 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         </div>
       </motion.div>
 
-      {/* Chat Area */}
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5">
           {showEmpty && (
@@ -388,11 +408,11 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
           <AnimatePresence>
             {messages.map((msg) => (
-              <ChatMessage key={msg.id} msg={msg} />
+              <ChatMessage key={msg.id} msg={msg as any} />
             ))}
           </AnimatePresence>
 
-          {isProcessing && status !== 'confirmation' && (
+          {isProcessing && (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -421,24 +441,20 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         </div>
       </div>
 
-      {/* Proactive Alerts - Inline when active */}
       {unacknowledgedCount > 0 && (
         <ProactiveAlertsDisplay
-          alerts={proactiveAlerts}
+          alerts={proactiveAlerts as any}
           onAcknowledge={acknowledgeAlert}
           onResolve={resolveAlert}
         />
       )}
 
-      {/* Bottom: Suggestions + Input */}
       <div className="flex-shrink-0 border-t border-white/[0.04] bg-surface-0/50 backdrop-blur-xl">
         <div className="max-w-3xl mx-auto">
           {suggestions.length > 0 && !isProcessing && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
               className="px-4 md:px-6 pt-4 pb-1"
             >
               <SuggestionChips
@@ -454,12 +470,26 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
             status={status === 'confirmation' ? 'result' : status}
             progress={progress}
             suggestions={suggestions.map(s => s.label)}
-            placeholder="Чем помочь?"
+            placeholder="Чем помочь? Например: открой расписание, найди пациента…"
           />
         </div>
       </div>
 
-      {/* Context Panel - Right Side */}
+      <AnimatePresence>
+        {pendingConfirm && (
+          <ActionConfirm
+            action={{
+              action: pendingConfirm.type,
+              label: pendingConfirm.label,
+              confidence: pendingConfirm.confidence,
+              params: pendingConfirm.params,
+            }}
+            message="AI подготовил действие. Подтвердите выполнение безопасностью DNA."
+            onConfirm={handleActionConfirm}
+          />
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showContextPanel && (
           <motion.aside
@@ -480,13 +510,17 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
               </motion.button>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <ContextPanel />
+              <ContextPanel
+                onClose={() => setShowContextPanel(false)}
+                clinic={clinic}
+                user={user}
+                role={user?.role}
+              />
             </div>
           </motion.aside>
         )}
       </AnimatePresence>
 
-      {/* Backdrop for context panel */}
       <AnimatePresence>
         {showContextPanel && (
           <motion.div
@@ -502,10 +536,57 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   )
 }
 
+function buildGreeting(u: any, c: any, alerts: any[]) {
+  const h = new Date().getHours()
+  const greeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
+  const name = u?.name?.split(' ')[0] || u?.login || 'коллега'
+  const role = (u?.role || '').toLowerCase()
+  const clinicName = c?.name || ''
+
+  const roleLine =
+    role === 'owner' || role === 'руководитель'
+      ? 'Могу показать выручку, долги, загрузку и закупки.'
+      : role === 'admin' || role === 'администратор'
+        ? 'Могу подтвердить записи, открыть кассу и документы.'
+        : role === 'buyer'
+          ? 'Могу собрать закупку по складу и предложениям поставщиков.'
+          : 'Могу открыть расписание, зубную карту, план лечения или курс.'
+
+  const lines = [
+    `${greeting}, ${name}.`,
+    clinicName ? `Клиника: ${clinicName}.` : '',
+    roleLine,
+    alerts?.length ? '' : 'Чем помочь?',
+  ].filter(Boolean)
+
+  return lines.join('\n')
+}
+
+function getDefaultSuggestions(u: any, focusType: string) {
+  const role = (u?.role || '').toLowerCase()
+  if (focusType === 'patient') {
+    return ['История лечения', 'План лечения', 'Зубная карта']
+  }
+  if (role === 'doctor') {
+    return ['Показать расписание', 'Открыть зубную карту', 'Создать план лечения']
+  }
+  if (role === 'owner' || role === 'руководитель' || role === 'manager') {
+    return ['Показать финансы', 'Что на складе', 'Открыть аналитику']
+  }
+  if (role === 'admin' || role === 'администратор') {
+    return ['Записать пациента', 'Показать расписание', 'Открыть кассу']
+  }
+  if (role === 'buyer') {
+    return ['Что купить на склад', 'Открыть маркетплейс', 'Показать заказы']
+  }
+  return ['Показать расписание', 'Найти пациента', 'Купить материал']
+}
+
 const NAV_ACTIONS: Record<string, string> = {
   OpenSchedule: '/crm/schedule',
   OpenPatients: '/crm/patients',
-  OpenCashier: '/crm/cashier',
+  OpenCashier: '/crm/finance',
+  OpenFinance: '/crm/finance',
   OpenLab: '/crm/lab',
   OpenShop: '/shop',
   OpenSchool: '/school',
@@ -518,6 +599,10 @@ const NAV_ACTIONS: Record<string, string> = {
   OpenInventory: '/crm/inventory',
   OpenStaff: '/crm/staff',
   OpenPatient: '/crm/patients',
+  OpenDentalChart: '/crm/dental-chart',
+  OpenTreatmentPlans: '/crm/treatment-plans',
+  OpenJobs: '/jobs',
+  OpenCommunity: '/community',
 }
 
 export type { AIWorkspaceIndexProps }

@@ -66,19 +66,37 @@ interface SidebarProps {
   logout: () => void;
   toggleSidebar: () => void;
   isGuest?: boolean;
+  onToggleCollapsed?: () => void;
 }
+
+const CRM_SUBNAV = [
+  { id: 'schedule', label: 'Расписание', path: '/crm/schedule' },
+  { id: 'patients', label: 'Пациенты', path: '/crm/patients' },
+  { id: 'finance', label: 'Финансы', path: '/crm/finance' },
+  { id: 'inventory', label: 'Склад', path: '/crm/inventory' },
+  { id: 'documents', label: 'Документы', path: '/crm/documents' },
+  { id: 'dental-chart', label: 'Зубная карта', path: '/crm/dental-chart' },
+  { id: 'treatment-plans', label: 'Планы лечения', path: '/crm/treatment-plans' },
+  { id: 'reminders', label: 'Напоминания', path: '/crm/reminders' },
+];
 
 export const Sidebar: React.FC<SidebarProps> = ({
   collapsed, setCollapsed, sidebarVisible, isMobile, sidebarOpen,
-  user, roleInfo, logout, toggleSidebar, isGuest = false,
+  user, roleInfo, logout, toggleSidebar, isGuest = false, onToggleCollapsed,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const sidebarWidth = collapsed ? 72 : 240;
-  const clinicId = useAuth((s) => s.user?.clinicId) || '';
+  const [crmOpen, setCrmOpen] = React.useState(location.pathname.startsWith('/crm'));
+  const sidebarWidth = !sidebarVisible && !isMobile ? 0 : (collapsed ? 72 : 240);
+  const { user: authUser } = useAuth();
+  const clinicId = authUser?.clinicId || '';
 
-  const allowedPages = roleInfo?.pages || [];
+  React.useEffect(() => {
+    if (location.pathname.startsWith('/crm')) setCrmOpen(true);
+  }, [location.pathname]);
+
+  const allowedPages = (roleInfo as any)?.pages || [];
   const isAdmin = allowedPages.includes('admin');
 
   const prefetchFor = useCallback((id: string) => {
@@ -102,9 +120,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const serviceItems = isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.section === 'platform' && item.id === 'ai') return true;
     if (item.section === 'platform') return true;
-    if (item.id === 'crm') return allowedPages.some(p => p === 'schedule' || p === 'patients');
-    if (item.id === 'shop') return allowedPages.includes('shop');
-    if (item.id === 'school') return allowedPages.includes('school');
+    if (item.id === 'crm') return allowedPages.length === 0 || allowedPages.some((p: string) => p === 'schedule' || p === 'patients');
+    if (item.id === 'shop') return allowedPages.length === 0 || allowedPages.includes('shop');
+    if (item.id === 'school') return allowedPages.length === 0 || allowedPages.includes('school');
     return true;
   });
 
@@ -130,10 +148,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
       {items.map(item => {
-        const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+        const isCrm = item.id === 'crm';
+        const isActive = isCrm
+          ? location.pathname.startsWith('/crm')
+          : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
         const btn = (
           <motion.button
-            onClick={() => handleNavClick(item.path)}
+            onClick={() => {
+              if (isCrm && !collapsed) {
+                setCrmOpen((v) => !v);
+                if (!location.pathname.startsWith('/crm')) handleNavClick(item.path);
+              } else {
+                handleNavClick(item.path);
+              }
+            }}
             onMouseEnter={() => prefetchFor(item.id)}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
@@ -161,13 +189,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {item.badge && (
                   <Badge variant="gold" size="xs">{item.badge}</Badge>
                 )}
+                {isCrm && (
+                  <ChevronRight size={12} className={cn('text-txt-ghost transition-transform', crmOpen && 'rotate-90')} />
+                )}
               </>
             )}
           </motion.button>
         );
         return (
           <Tooltip key={item.id} content={collapsed ? item.label : undefined} side="right">
-            {btn}
+            <div>
+              {btn}
+              {isCrm && !collapsed && crmOpen && !isGuest && (
+                <div className="ml-3 mt-0.5 mb-1 space-y-0.5 border-l border-white/[0.06] pl-2">
+                  {CRM_SUBNAV.map((sub) => {
+                    const subActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
+                    return (
+                      <button
+                        key={sub.id}
+                        onClick={() => handleNavClick(sub.path)}
+                        className={cn(
+                          'w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors',
+                          subActive
+                            ? 'text-dv-gold bg-dv-gold/10'
+                            : 'text-txt-muted hover:text-txt-primary hover:bg-white/[0.04]'
+                        )}
+                      >
+                        {sub.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </Tooltip>
         );
       })}
@@ -185,8 +239,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }}
       transition={{ type: 'spring', stiffness: 300, damping: 28 }}
       className={cn(
-        'h-full flex flex-col bg-surface-1/80 backdrop-blur-xl border-r border-white/[0.04] flex-shrink-0 z-50 relative',
-        isMobile && 'fixed top-0 left-0 bottom-0'
+        'h-full flex flex-col bg-surface-1/80 backdrop-blur-xl border-r border-white/[0.04] flex-shrink-0 z-50 relative overflow-hidden',
+        isMobile && 'fixed top-0 left-0 bottom-0',
+        !sidebarVisible && !isMobile && 'pointer-events-none border-transparent'
       )}
       style={{ width: sidebarWidth }}
     >
@@ -211,7 +266,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => (onToggleCollapsed ? onToggleCollapsed() : setCollapsed(!collapsed))}
           className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
           aria-label={collapsed ? 'Развернуть сайдбар' : 'Свернуть сайдбар'}
         >
@@ -225,7 +280,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Avatar name={isGuest ? 'Гость' : (user?.name || user?.login || '?')} size="sm" />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-txt-primary truncate">{isGuest ? 'Гость' : (user?.name || user?.login)}</p>
-              <p className="text-2xs text-txt-muted">{isGuest ? 'Анонимный доступ' : (roleInfo?.label || 'Сотрудник')}</p>
+              <p className="text-2xs text-txt-muted">{isGuest ? 'Анонимный доступ' : ((roleInfo as any)?.label || 'Сотрудник')}</p>
             </div>
           </div>
         </div>

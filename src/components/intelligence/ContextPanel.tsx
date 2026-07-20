@@ -10,10 +10,10 @@ import { useAIStore } from '@/store/ai.store'
 type TabId = 'context' | 'digital-twin' | 'alerts'
 
 interface ContextPanelProps {
-  onClose: () => void
-  clinic: any
-  user: any
-  role: any
+  onClose?: () => void
+  clinic?: any
+  user?: any
+  role?: any
 }
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
