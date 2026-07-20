@@ -8,8 +8,8 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "db:generate": "prisma generate --schema ../prisma/schema.prisma",
-    "db:push": "prisma db push --accept-data-loss --schema ../prisma/schema.prisma",
-    "render:build": "npm run db:generate && npm run db:push",
+    "db:push": "prisma db push --schema ../prisma/schema.prisma",
+    "render:build": "npm run db:generate",
     "render:start": "node index.js",
     "postinstall": "npm run db:generate"
   },

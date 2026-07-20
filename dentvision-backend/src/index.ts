@@ -1,45 +1,36 @@
-/**
- * Render dashboard still runs:
- *   cd dentvision-backend && npx tsx src/index.ts
- *
- * The real production API lives in /server (CRM, School, AI, Jobs…).
- * This file is a thin launcher so existing Build/Start settings keep working.
- */
-import { spawn } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import fs from 'node:fs';
+import app from './app.js';
+import { env } from './config.js';
+import prisma from './lib/prisma.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../..');
-const serverDir = path.join(repoRoot, 'server');
-const serverEntry = path.join(serverDir, 'index.js');
-
-if (!fs.existsSync(serverEntry)) {
-  console.error('[BOOT] Missing server entry:', serverEntry);
-  process.exit(1);
-}
-
-console.log('[BOOT] Launching DentVision API from /server');
-console.log('[BOOT] entry:', serverEntry);
-
-const child = spawn(process.execPath, [serverEntry], {
-  cwd: serverDir,
-  env: process.env,
-  stdio: 'inherit',
-});
-
-const shutdown = (signal: NodeJS.Signals) => {
-  if (!child.killed) child.kill(signal);
-};
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
-
-child.on('exit', (code, signal) => {
-  if (signal) {
-    console.log(`[BOOT] server exited via ${signal}`);
+async function main() {
+  try {
+    await prisma.$connect();
+    console.log('[DB] PostgreSQL connected');
+  } catch (err) {
+    console.error('[DB] Connection failed:', err);
     process.exit(1);
   }
-  process.exit(code ?? 1);
+
+  app.listen(env.PORT, () => {
+    console.log(`[SERVER] DentVision Backend running on http://localhost:${env.PORT}`);
+    console.log(`[ENV] ${env.NODE_ENV}`);
+  });
+}
+
+process.on('SIGTERM', async () => {
+  console.log('[SERVER] Shutting down...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('[SERVER] Shutting down...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+main().catch(async (err) => {
+  console.error('[FATAL]', err);
+  await prisma.$disconnect();
+  process.exit(1);
 });
