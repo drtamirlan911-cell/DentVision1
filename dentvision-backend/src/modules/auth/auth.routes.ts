@@ -539,7 +539,8 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
 
 authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { clinicId, role, code } = req.body as { clinicId?: string; role?: string; code?: string };
+    const { clinicId, code } = req.body as { clinicId?: string; role?: string; code?: string };
+    let { role } = req.body as { role?: string };
 
     let targetClinicId = clinicId;
 
