@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import prisma from '../lib/prisma.js';
-import { wipeApplicationData } from '../../prisma/lib/reset-database.js';
+import prisma from '../../lib/prisma.js';
+import { wipeApplicationData } from '../../../prisma/lib/reset-database.js';
 import {
   seedDemoEnvironment,
   TEST_USER_PASSWORD,
   TEST_USERS,
   DEMO_CLINIC,
   DEMO_PATIENTS,
-} from '../../prisma/lib/seed-test-users.js';
+} from '../../../prisma/lib/seed-test-users.js';
 
 export const adminRouter = Router();
 
