@@ -109,12 +109,46 @@ aiRouter.post('/threads/new', authenticate, async (_req: AuthRequest, res) => {
   res.json({ ok: true, data: { threadId: null } });
 });
 
+// Mirrors the frontend NAVIGATION_ACTIONS maps in aiExecutor.ts /
+// AIWorkspaceIndex.tsx. Quick-action buttons (proactive alerts, context
+// panel) call POST /action directly with one of these names and expect
+// `{ type: 'navigate', path }` back — anything else silently dumped the
+// action's raw params into the chat instead of navigating.
+const NAVIGATION_ACTION_PATHS: Record<string, string> = {
+  OpenSchedule: '/crm/schedule',
+  OpenPatients: '/crm/patients',
+  OpenPatient: '/crm/patients',
+  OpenMedicalCard: '/crm/medical-card',
+  OpenCashier: '/crm/finance',
+  OpenFinance: '/crm/finance',
+  OpenLab: '/crm/lab',
+  OpenInventory: '/crm/inventory',
+  OpenStaff: '/crm/staff',
+  OpenVisits: '/crm/visits',
+  OpenDocuments: '/crm/documents',
+  OpenReminders: '/crm/reminders',
+  OpenDentalChart: '/crm/dental-chart',
+  OpenTreatmentPlans: '/crm/treatment-plans',
+  OpenShop: '/shop',
+  OpenSchool: '/school',
+  OpenAnalytics: '/analytics',
+  OpenProfile: '/profile',
+  OpenSettings: '/settings',
+  OpenMyClinics: '/my-clinics',
+  OpenCRM: '/crm/schedule',
+};
+
 aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
   const { action, params = {} } = req.body;
   if (!action) return res.status(400).json({ ok: false, error: 'Action is required' });
 
-  // Navigation is executed by the web client.  Return a stable response
-  // instead of a 404 for AI-generated commands.
+  const path = NAVIGATION_ACTION_PATHS[action];
+  if (path) {
+    return res.json({ ok: true, data: { type: 'navigate', path, query: params } });
+  }
+
+  // Unknown/unimplemented action — return the params back rather than 404
+  // so the AI workspace can still show something instead of crashing.
   res.json({ ok: true, data: { type: 'data', data: params, label: action } });
 });
 

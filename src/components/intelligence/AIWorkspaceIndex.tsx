@@ -683,6 +683,7 @@ const NAV_ACTIONS: Record<string, string> = {
   OpenSchool: '/school',
   OpenAnalytics: '/analytics',
   OpenDocuments: '/crm/documents',
+  OpenReminders: '/crm/reminders',
   OpenSettings: '/settings',
   OpenProfile: '/profile',
   OpenMedicalCard: '/crm/medical-card',

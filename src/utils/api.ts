@@ -204,6 +204,30 @@ export async function getClinic(clinicId: string): Promise<Clinic> {
   return apiRequest(`/api/clinics/${clinicId}`);
 }
 
+export interface ClinicStaffMember {
+  id: string;
+  name: string;
+  role: string;
+  spec?: string | null;
+  avatar?: string | null;
+  joinedAt?: string;
+}
+
+/** Clinic team roster, backed by the real /api/clinics/:id members list. */
+export async function getClinicStaff(clinicId: string): Promise<ClinicStaffMember[]> {
+  if (!clinicId) return [];
+  const clinic = await apiRequest(`/api/clinics/${clinicId}`);
+  const members = Array.isArray(clinic?.members) ? clinic.members : [];
+  return members.map((m: any) => ({
+    id: m.user?.id,
+    name: [m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ').trim() || 'Без имени',
+    role: String(m.role || '').toLowerCase(),
+    spec: m.user?.spec || null,
+    avatar: m.user?.avatar || null,
+    joinedAt: m.joinedAt,
+  }));
+}
+
 // ─── Clinic Data (resource endpoints — clinicId from JWT) ───
 function collection<T>(response: T[] | { data?: T[] }): T[] {
   return Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : [];
@@ -227,7 +251,7 @@ export async function getReceipts(clinicId: string): Promise<Receipt[]> {
 }
 
 export async function getLabOrders(clinicId: string): Promise<LabOrder[]> {
-  return Promise.resolve([]);
+  return collection<LabOrder>(await apiRequest('/api/lab-orders'));
 }
 
 export async function getExpenses(clinicId: string): Promise<Expense[]> {
@@ -260,7 +284,7 @@ export async function upsertReceipt(data: Partial<Receipt>): Promise<any> {
 }
 
 export async function upsertLabOrder(data: Partial<LabOrder>): Promise<any> {
-  return Promise.resolve({ ok: true });
+  return apiRequest('/api/lab-orders', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertExpense(data: Partial<Expense>): Promise<any> {
@@ -313,7 +337,7 @@ export async function deleteInventoryItem(id: string): Promise<any> {
 }
 
 export async function deleteLabOrder(id: string): Promise<any> {
-  return Promise.resolve({ ok: true });
+  return apiRequest(`/api/lab-orders/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteExpense(id: string): Promise<any> {
@@ -342,12 +366,22 @@ export async function submitBooking(data: Partial<Booking>): Promise<any> {
 }
 
 // ─── Medical Cards ───
+// There is no dedicated MedicalCard table on the deployed schema — the
+// structured fields (allergies, blood type, insurance, ...) are persisted
+// as JSON on Patient.medicalHistory via the existing patient PATCH route.
 export async function getMedicalCard(patientId: string): Promise<MedicalCard> {
-  return apiRequest(`/api/patients/${patientId}`);
+  const patient = await apiRequest(`/api/patients/${patientId}`);
+  return { id: patient.id, patientId: patient.id, clinicId: patient.clinicId, ...(patient.medicalHistory || {}) };
 }
 
-export async function upsertMedicalCard(data: Partial<MedicalCard>): Promise<any> {
-  return apiRequest('/api/medical/treatment-plan', { method: 'POST', body: JSON.stringify(data) });
+export async function upsertMedicalCard(data: Partial<MedicalCard> & Record<string, unknown>): Promise<any> {
+  const patientId = (data.patientId || data.patient_id) as string;
+  if (!patientId) throw new Error('patientId обязателен для медицинской карты');
+  const { id, patientId: _pid, patient_id, clinicId, clinic_id, ...medicalHistory } = data as Record<string, unknown>;
+  return apiRequest(`/api/patients/${patientId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ medicalHistory }),
+  });
 }
 
 // ─── ICD-10 ───
@@ -357,24 +391,97 @@ export async function getICD10(search: string): Promise<ICD10Code[]> {
 }
 
 // ─── Visits ───
-export async function getVisits(clinicId: string, patientId: string): Promise<Visit[]> {
-  if (patientId) {
-    return apiRequest(`/api/medical/patients/${patientId}/visits`);
-  }
-  return apiRequest('/api/medical/visits');
+// The backend Visit model only has {patientId, doctorId, diagnosis,
+// complaints, anamnesis, treatment (Json), notes, date}. The CRM form
+// collects more granular fields (procedures done, prescriptions, next
+// visit date, ICD-10 codes) — those are packed into the `treatment` JSON
+// column and unpacked again on read, instead of adding new columns.
+function mapVisitFromBackend(raw: any): any {
+  const t = (raw?.treatment && typeof raw.treatment === 'object') ? raw.treatment : {};
+  return {
+    ...raw,
+    patient_id: raw.patientId,
+    doctor_id: raw.doctorId,
+    chief_complaint: raw.complaints,
+    treatment_plan: t.plan || '',
+    procedures_done: t.proceduresDone || '',
+    prescriptions: t.prescriptions || '',
+    next_visit_date: t.nextVisitDate || '',
+    icd10_codes: t.icd10Codes || '',
+    visit_date: raw.date,
+  };
 }
 
-export async function upsertVisit(data: Partial<Visit>): Promise<any> {
-  return apiRequest('/api/medical/visits', { method: 'POST', body: JSON.stringify(data) });
+export async function getVisits(clinicId: string, patientId: string): Promise<Visit[]> {
+  const raw = patientId
+    ? await apiRequest(`/api/medical/patients/${patientId}/visits`)
+    : await apiRequest('/api/medical/visits');
+  return (Array.isArray(raw) ? raw : []).map(mapVisitFromBackend);
+}
+
+export async function upsertVisit(data: Partial<Visit> & Record<string, unknown>): Promise<any> {
+  const patientId = (data.patientId || data.patient_id) as string;
+  const doctorId = (data.doctorId || data.doctor_id) as string;
+  const body = {
+    doctorId,
+    diagnosis: data.diagnosis ?? null,
+    complaints: data.chief_complaint ?? data.complaints ?? null,
+    anamnesis: data.anamnesis ?? null,
+    notes: data.notes ?? null,
+    treatment: {
+      plan: data.treatment_plan ?? undefined,
+      proceduresDone: data.procedures_done ?? undefined,
+      prescriptions: data.prescriptions ?? undefined,
+      nextVisitDate: data.next_visit_date ?? undefined,
+      icd10Codes: data.icd10_codes ?? undefined,
+    },
+  };
+
+  if (data.id) {
+    return apiRequest(`/api/medical/visits/${data.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  if (!patientId || !doctorId) throw new Error('Пациент и врач обязательны для визита');
+  return apiRequest('/api/medical/visits', { method: 'POST', body: JSON.stringify({ ...body, patientId }) });
 }
 
 // ─── Documents ───
-export async function getDocuments(clinicId: string, patientId: string): Promise<Document[]> {
-  return Promise.resolve([]);
+function decodeDocumentUrl(url: string | undefined): string {
+  if (!url?.startsWith('data:text/plain')) return '';
+  try {
+    const base64 = url.split(',').slice(1).join(',');
+    return atob(base64);
+  } catch {
+    return '';
+  }
 }
 
-export async function upsertDocument(data: Partial<Document>): Promise<any> {
-  return apiRequest('/api/files/upload', { method: 'POST', body: JSON.stringify(data) });
+function mapDocument(raw: any): any {
+  return {
+    ...raw,
+    doc_type: raw.type,
+    patient_id: raw.patientId,
+    content: decodeDocumentUrl(raw.url),
+  };
+}
+
+export async function getDocuments(clinicId: string, patientId: string): Promise<Document[]> {
+  const qs = patientId ? `?patientId=${encodeURIComponent(patientId)}` : '';
+  const docs = await apiRequest(`/api/files${qs}`);
+  return (Array.isArray(docs) ? docs : []).map(mapDocument);
+}
+
+export async function upsertDocument(data: Partial<Document> & Record<string, unknown>): Promise<any> {
+  return apiRequest('/api/files/documents', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: data.id,
+      patientId: data.patientId || data.patient_id,
+      docType: data.doc_type || data.docType || data.type,
+      title: data.title,
+      content: data.content,
+      status: data.status,
+    }),
+  });
 }
 
 export async function deleteDocument(id: string): Promise<any> {
@@ -415,7 +522,7 @@ export async function getShopProducts(params: Record<string, string> = {}): Prom
 export async function getShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`); }
 export async function getShopSuppliers(): Promise<any> { return Promise.resolve([]); }
 export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
-export async function getShopOrders(clinicId: string): Promise<any> { return apiRequest('/api/shop/orders'); }
+export async function getShopOrders(clinicId: string): Promise<any> { return collection(await apiRequest('/api/shop/orders')); }
 export async function createShopReview(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
 export async function toggleShopFavorite(data: any): Promise<any> { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getShopFavorites(clinicId: string): Promise<any> { return apiRequest('/api/shop/favorites'); }

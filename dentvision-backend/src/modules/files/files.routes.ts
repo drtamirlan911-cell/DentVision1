@@ -31,6 +31,58 @@ const upload = multer({
   },
 });
 
+filesRouter.get('/', async (req: AuthRequest, res) => {
+  try {
+    const { patientId } = req.query as { patientId?: string };
+    const clinicId = req.user!.clinicId;
+
+    const documents = await prisma.document.findMany({
+      where: {
+        ...(patientId ? { patientId } : { clinicId }),
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.json({ ok: true, data: documents } satisfies ApiResponse);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
+    return res.status(500).json({ ok: false, error: message });
+  }
+});
+
+// Text-authored documents (contracts, consent forms) created from a
+// template in the CRM — distinct from binary /upload since there is no
+// dedicated "content" column on Document. The text is losslessly encoded
+// as a data: URI in the existing `url` field rather than adding a schema
+// column, avoiding another risky migration against production.
+filesRouter.post('/documents', async (req: AuthRequest, res) => {
+  try {
+    const { id, patientId, docType, title, content, status } = req.body as {
+      id?: string; patientId?: string; docType?: string; title?: string; content?: string; status?: string;
+    };
+    if (!docType || !title) {
+      return res.status(400).json({ ok: false, error: 'Тип и название документа обязательны' } satisfies ApiResponse);
+    }
+
+    const url = `data:text/plain;charset=utf-8;base64,${Buffer.from(content || '', 'utf-8').toString('base64')}`;
+    const clinicId = req.user!.clinicId || null;
+
+    const doc = id
+      ? await prisma.document.update({
+          where: { id },
+          data: { name: title, type: docType, url, ...(status === 'signed' && { signed: true, signedAt: new Date() }) },
+        })
+      : await prisma.document.create({
+          data: { id: uid(), patientId: patientId || null, clinicId, name: title, type: docType, url, signed: status === 'signed' },
+        });
+
+    return res.status(201).json({ ok: true, data: doc } satisfies ApiResponse);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
+    return res.status(500).json({ ok: false, error: message });
+  }
+});
+
 filesRouter.post('/upload', upload.single('file'), async (req: AuthRequest, res) => {
   try {
     if (!req.file) {

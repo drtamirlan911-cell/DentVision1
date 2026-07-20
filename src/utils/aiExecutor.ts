@@ -44,6 +44,7 @@ const NAVIGATION_ACTIONS: Record<string, string> = {
   OpenStaff: '/crm/staff',
   OpenVisits: '/crm/visits',
   OpenDocuments: '/crm/documents',
+  OpenReminders: '/crm/reminders',
   OpenShop: '/shop',
   OpenSchool: '/school',
   OpenAnalytics: '/analytics',

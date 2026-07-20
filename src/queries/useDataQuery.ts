@@ -135,6 +135,12 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
     enabled,
   });
 
+  const staffQ = useQuery({
+    queryKey: [...queryKeys.users, safeClinicId],
+    queryFn: () => api.getClinicStaff(safeClinicId),
+    enabled,
+  });
+
   // ─── Optimistic Mutations: Patients ───
   const upsertPatientM = useMutation({
     mutationFn: (data: Partial<Patient>) => api.upsertPatient({ ...data, clinicId: safeClinicId }),
@@ -297,6 +303,7 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.visits('') });
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
     },
   });
 
@@ -314,19 +321,37 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   const inventory = (inventoryQ.data as InventoryItem[]) || [];
   const promotions = (promotionsQ.data as Promotion[]) || [];
   const bookings = (bookingsQ.data as Booking[]) || [];
-  const visits = (visitsQ.data as Visit[]) || [];
+  const rawVisits = (visitsQ.data as Visit[]) || [];
   const documents = (documentsQ.data as Document[]) || [];
   const waitingList = (waitingListQ.data as WaitingListItem[]) || [];
-  const users: User[] = [];
-  const doctors = users.filter((u) => u.role === 'doctor');
+  // Clinic team roster (real ClinicMember records via /api/clinics/:id).
+  // "doctors" historically means "assignable staff" across Schedule/Cashier,
+  // so it intentionally includes every role, not just DOCTOR.
+  const users = ((staffQ.data as import('../utils/api').ClinicStaffMember[]) || []) as unknown as User[];
+  const doctors = users;
   const subscriptions: Subscription[] = [];
   const photos: Photo[] = [];
   const treatments: any[] = [];
+  // Structured medical-card fields live on Patient.medicalHistory (no
+  // dedicated table on the deployed schema) — derive the list from patients
+  // instead of a disconnected stub so MedicalCard.tsx can actually load data.
+  const medicalCards: MedicalCard[] = patients
+    .filter((p: any) => p.medicalHistory && typeof p.medicalHistory === 'object')
+    .map((p: any) => ({ id: p.id, patientId: p.id, clinicId: p.clinicId, ...p.medicalHistory }));
+
+  // Enrich visits with display names — the backend Visit model has no
+  // patient/doctor join, so Visits.tsx/MedicalCard.tsx would otherwise
+  // always show "—" for patient and doctor.
+  const visits = rawVisits.map((v: any) => {
+    const patient = patients.find((p: any) => p.id === (v.patientId || v.patient_id));
+    const doctor = users.find((d: any) => d.id === (v.doctorId || v.doctor_id));
+    return { ...v, patient_name: patient?.name, doctor_name: doctor?.name };
+  });
 
   return {
     patients, appointments, receipts, labOrders, expenses, inventory, doctors,
     transactions: receipts, treatments, users, subscriptions, photos,
-    promotions, bookings, medicalCards: [], visits, documents, waitingList,
+    promotions, bookings, medicalCards, visits, documents, waitingList,
     upsertPatient: (data) => upsertPatientM.mutateAsync(data),
     deletePatient: (id) => deletePatientM.mutateAsync(id),
     upsertAppointment: (data) => upsertAppointmentM.mutateAsync(data),

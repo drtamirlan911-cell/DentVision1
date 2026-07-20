@@ -243,16 +243,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { accessToken, refreshToken } = result.tokens || result
       api.setTokens(accessToken, refreshToken)
 
-      const me = await hydrateAuthFromMe()
+      // The login response already carries memberships (see auth.routes.ts).
+      // Only fall back to a second /me round trip for older/partial
+      // responses — this keeps login resilient to a transient /me failure.
+      let user = normalizeUser(result.user)
+      let memberships = mapMemberships(result.memberships || [])
+      let activeMembership = mapActiveMembership(result.activeMembership)
+
+      // Only the absence of the `memberships` key means the response used
+      // an older/partial contract — an explicit empty array is a valid
+      // "no clinics yet" state and must not trigger an extra round trip.
+      if (!user || result.memberships === undefined) {
+        const me = await hydrateAuthFromMe()
+        user = me.user
+        memberships = me.memberships
+        activeMembership = me.activeMembership
+      }
 
       set({
-        user: me.user,
+        user,
         token: accessToken,
         refreshToken,
-        clinic: buildClinicFromMembership(me.activeMembership),
-        clinics: me.memberships,
-        activeMembership: me.activeMembership,
-        activeClinic: buildClinicFromMembership(me.activeMembership),
+        clinic: buildClinicFromMembership(activeMembership),
+        clinics: memberships,
+        activeMembership,
+        activeClinic: buildClinicFromMembership(activeMembership),
         loading: false,
         error: null,
       })
@@ -278,16 +293,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { accessToken, refreshToken } = result.tokens || result
       if (accessToken) api.setTokens(accessToken, refreshToken)
 
-      const me = accessToken ? await hydrateAuthFromMe() : { user: result.user, memberships: [], activeMembership: null }
+      let user = normalizeUser(result.user)
+      let memberships = mapMemberships(result.memberships || [])
+      let activeMembership = mapActiveMembership(result.activeMembership)
+
+      if (accessToken && (!user || result.memberships === undefined)) {
+        const me = await hydrateAuthFromMe()
+        user = me.user
+        memberships = me.memberships
+        activeMembership = me.activeMembership
+      }
 
       set({
-        user: me.user,
+        user,
         token: accessToken || null,
         refreshToken: refreshToken || null,
-        clinic: buildClinicFromMembership(me.activeMembership),
-        clinics: me.memberships,
-        activeMembership: me.activeMembership,
-        activeClinic: buildClinicFromMembership(me.activeMembership),
+        clinic: buildClinicFromMembership(activeMembership),
+        clinics: memberships,
+        activeMembership,
+        activeClinic: buildClinicFromMembership(activeMembership),
         loading: false,
         error: null,
       })
