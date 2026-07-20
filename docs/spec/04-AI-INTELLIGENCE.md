@@ -20,7 +20,7 @@ DentVision Intelligence — главный продукт платформы.
 | Streaming | Token/stream ответа обязателен |
 | Tool use | AI вызывает платформенные actions (create appointment, open chart…) |
 | Continuity | Пользователь может вернуться к треду через дни/недели |
-| Multimodal (phased) | Текст → изображения снимков → голос → скан с устройства |
+| Multimodal (phased) | Текст → **голос (STT/TTS в браузере, ru-RU)** → изображения снимков → скан с устройства |
 | Safety | Клинические и финансовые действия — confirm / RBAC |
 | Personality | Профессиональный, спокойный, expert-peer tone; без «робо-канцелярита» |
 
