@@ -1,6 +1,8 @@
-import type { PrismaClient, UserRole } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
+import { seedDemoClinic, DEMO_CLINIC, DEMO_PATIENTS } from './seed-demo-clinic.js';
+import type { UserRole } from '@prisma/client';
 
 export const TEST_USER_PASSWORD = 'Demo1234!';
 
@@ -46,3 +48,12 @@ export async function seedTestUsersOnly(prisma: PrismaClient) {
 
   return created;
 }
+
+/** Full clean demo: test users + one clinic + test patients (+ 2 appointments, 1 visit). */
+export async function seedDemoEnvironment(prisma: PrismaClient) {
+  const users = await seedTestUsersOnly(prisma);
+  const demo = await seedDemoClinic(prisma, users);
+  return { users, ...demo };
+}
+
+export { DEMO_CLINIC, DEMO_PATIENTS };

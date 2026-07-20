@@ -1,19 +1,27 @@
 import { PrismaClient } from '@prisma/client';
 import { wipeApplicationData } from './lib/reset-database.js';
-import { seedTestUsersOnly, TEST_USER_PASSWORD, TEST_USERS } from './lib/seed-test-users.js';
+import {
+  seedDemoEnvironment,
+  TEST_USER_PASSWORD,
+  TEST_USERS,
+  DEMO_CLINIC,
+  DEMO_PATIENTS,
+} from './lib/seed-test-users.js';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('[SEED] Clean reset — test users only (no clinics, no patients)…');
+  console.log('[SEED] Clean reset — test users + demo clinic + patients…');
   await wipeApplicationData(prisma);
-  const users = await seedTestUsersOnly(prisma);
+  const { users, clinic, patients, memberCount } = await seedDemoEnvironment(prisma);
 
-  console.log(`[SEED] Created ${users.length} test users. Password for all: ${TEST_USER_PASSWORD}`);
+  console.log(`[SEED] Clinic: ${clinic.name} (${clinic.city}) — ${memberCount} members`);
+  console.log(`[SEED] Patients: ${patients.length}`);
+  console.log(`[SEED] Users: ${users.length}. Password: ${TEST_USER_PASSWORD}`);
   for (const u of TEST_USERS) {
     console.log(`  • ${u.email} (${u.role})`);
   }
-  console.log('[SEED] Done. Users register/create clinics via the app.');
+  console.log('[SEED] Done.');
 }
 
 main()
