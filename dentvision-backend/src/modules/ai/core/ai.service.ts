@@ -19,12 +19,15 @@ export class AIService {
     agentRouter.register('UPDATE_APPOINTMENT', new DoctorAgent());
     agentRouter.register('CANCEL_APPOINTMENT', new DoctorAgent());
     agentRouter.register('OPEN_MEDICAL_CARD', new DoctorAgent());
+    agentRouter.register('GET_MEDICAL_CARD', new DoctorAgent());
     agentRouter.register('CREATE_TREATMENT_PLAN', new DoctorAgent());
     agentRouter.register('VIEW_CBCT', new DoctorAgent());
+    agentRouter.register('SHOW_CBCT', new DoctorAgent());
     agentRouter.register('VIEW_SCHEDULE', new DoctorAgent());
 
     agentRouter.register('GENERATE_REPORT', new OwnerAgent());
     agentRouter.register('CHECK_DEBTS', new OwnerAgent());
+    agentRouter.register('GET_DEBTORS', new OwnerAgent());
     agentRouter.register('GET_ANALYTICS', new OwnerAgent());
     agentRouter.register('GENERATE_INVOICE', new OwnerAgent());
 
@@ -57,6 +60,18 @@ export class AIService {
         intent,
         action: { type: navAction, payload: {} },
         suggestions: ['Записать пациента', 'Показать расписание', 'Создать счет'],
+      };
+    }
+
+    // The classifier could not recognize the request. This is not a
+    // permissions problem, so it must never reach hasPermission() below —
+    // otherwise every unrecognized message reports "no permission".
+    if (intent === Intent.UNKNOWN) {
+      await this.saveMessage(sessionId, 'assistant', 'Не совсем понял запрос. Уточните или выберите действие из меню.');
+      return {
+        message: 'Не совсем понял запрос. Уточните или выберите действие из меню.',
+        intent,
+        suggestions: ['Показать расписание', 'Найти пациента', 'Проверить долги', 'Найти курс'],
       };
     }
 
@@ -154,6 +169,15 @@ export class AIService {
       [Intent.OPEN_INVENTORY]: 'OpenInventory',
       [Intent.OPEN_DOCUMENTS]: 'OpenDocuments',
       [Intent.OPEN_MEDICAL_CARD_NAV]: 'OpenMedicalCard',
+      // Requests that don't need a live data lookup to be useful — send the
+      // user straight to the relevant module instead of falling back to
+      // "no specialized agent for this intent".
+      [Intent.FIND_COURSE]: 'OpenSchool',
+      [Intent.ORDER_PRODUCT]: 'OpenShop',
+      [Intent.RECOMMEND_PRODUCT]: 'OpenShop',
+      [Intent.SEARCH_DOCUMENT]: 'OpenDocuments',
+      [Intent.RECALL_PATIENT]: 'OpenReminders',
+      [Intent.LOW_STOCK]: 'OpenInventory',
     };
     return map[intent] ?? null;
   }
@@ -171,6 +195,12 @@ export class AIService {
       [Intent.OPEN_INVENTORY]: 'Склад',
       [Intent.OPEN_DOCUMENTS]: 'Документы',
       [Intent.OPEN_MEDICAL_CARD_NAV]: 'Медицинская карта',
+      [Intent.FIND_COURSE]: 'Школа',
+      [Intent.ORDER_PRODUCT]: 'Магазин',
+      [Intent.RECOMMEND_PRODUCT]: 'Магазин',
+      [Intent.SEARCH_DOCUMENT]: 'Документы',
+      [Intent.RECALL_PATIENT]: 'Напоминания',
+      [Intent.LOW_STOCK]: 'Склад',
     };
     return map[intent] ?? 'раздел';
   }

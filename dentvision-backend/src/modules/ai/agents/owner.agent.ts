@@ -9,6 +9,7 @@ export class OwnerAgent implements Agent {
     const ownerIntents = [
       'GENERATE_REPORT',
       'CHECK_DEBTS',
+      'GET_DEBTORS',
       'GET_ANALYTICS',
       'GENERATE_INVOICE',
       'VIEW_SCHEDULE',
@@ -23,6 +24,7 @@ export class OwnerAgent implements Agent {
       case 'GENERATE_REPORT':
         return this.generateReport(context, params);
       case 'CHECK_DEBTS':
+      case 'GET_DEBTORS':
         return this.getDebtors(context);
       case 'GET_ANALYTICS':
         return this.getAnalytics(context, params);

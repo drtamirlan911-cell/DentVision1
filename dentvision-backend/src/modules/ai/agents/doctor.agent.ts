@@ -12,8 +12,10 @@ export class DoctorAgent implements Agent {
       'UPDATE_APPOINTMENT',
       'CANCEL_APPOINTMENT',
       'OPEN_MEDICAL_CARD',
+      'GET_MEDICAL_CARD',
       'CREATE_TREATMENT_PLAN',
       'VIEW_CBCT',
+      'SHOW_CBCT',
       'VIEW_SCHEDULE',
     ];
     return doctorIntents.includes(intent);
@@ -26,10 +28,12 @@ export class DoctorAgent implements Agent {
       case 'CREATE_APPOINTMENT':
         return this.createAppointment(context, params);
       case 'OPEN_MEDICAL_CARD':
+      case 'GET_MEDICAL_CARD':
         return this.openMedicalCard(context, params);
       case 'CREATE_TREATMENT_PLAN':
         return this.createTreatmentPlan(context, params);
       case 'VIEW_CBCT':
+      case 'SHOW_CBCT':
         return this.viewCBCT(context, params);
       case 'VIEW_SCHEDULE':
         return this.viewSchedule(context, params);
