@@ -205,8 +205,12 @@ export async function getClinic(clinicId: string): Promise<Clinic> {
 }
 
 // ─── Clinic Data (resource endpoints — clinicId from JWT) ───
+function collection<T>(response: T[] | { data?: T[] }): T[] {
+  return Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : [];
+}
+
 export async function getPatients(clinicId: string): Promise<Patient[]> {
-  return apiRequest('/api/patients');
+  return collection<Patient>(await apiRequest('/api/patients?limit=100'));
 }
 
 export async function getPatient(id: string): Promise<Patient> {
@@ -215,11 +219,11 @@ export async function getPatient(id: string): Promise<Patient> {
 }
 
 export async function getAppointments(clinicId: string): Promise<Appointment[]> {
-  return apiRequest('/api/appointments');
+  return collection<Appointment>(await apiRequest('/api/appointments?limit=100'));
 }
 
 export async function getReceipts(clinicId: string): Promise<Receipt[]> {
-  return apiRequest('/api/billing/invoices');
+  return collection<Receipt>(await apiRequest('/api/billing/invoices?limit=100'));
 }
 
 export async function getLabOrders(clinicId: string): Promise<LabOrder[]> {
