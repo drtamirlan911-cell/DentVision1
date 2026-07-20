@@ -21,6 +21,7 @@ import { analyticsRouter } from './modules/analytics/analytics.routes.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
 import { filesRouter } from './modules/files/files.routes.js';
 import { auditRouter } from './modules/audit/audit.routes.js';
+import { adminRouter } from './modules/admin/admin.routes.js';
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use('/api/analytics', analyticsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/audit', auditRouter);
+app.use('/api/admin', adminRouter);
 
 // ─── Error Handling ───
 app.use(notFound);
