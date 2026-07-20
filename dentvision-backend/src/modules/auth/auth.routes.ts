@@ -636,7 +636,7 @@ authRouter.get('/invitations/lookup', async (req: AuthRequest, res) => {
 
     const invitation = await prisma.clinicInvitation.findUnique({
       where: { code },
-      include: { clinic: { select: { id: true, name: true, city: true, type: true } } },
+      include: { clinic: { select: { id: true, name: true, city: true, address: true } } },
     });
 
     if (!invitation) {
