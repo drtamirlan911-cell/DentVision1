@@ -286,15 +286,16 @@ export async function getAppointments(clinicId: string): Promise<Appointment[]> 
 }
 
 export async function checkAppointmentConflicts(params: {
-  doctorId: string;
+  doctorId?: string;
   date: string;
   time: string;
   duration?: number;
   excludeId?: string;
   patientId?: string;
+  chairId?: string;
 }): Promise<{ hasConflict: boolean; conflicts: Appointment[] }> {
   const q = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => { if (v != null) q.set(k, String(v)); });
+  Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') q.set(k, String(v)); });
   return apiRequest(`/api/appointments/conflicts?${q}`);
 }
 
@@ -423,6 +424,21 @@ export async function markReminderSent(reminderKey: string, channel = 'whatsapp'
 export async function getReminderSentKeys(): Promise<string[]> {
   const rows = collection<{ reminderKey: string }>(await apiRequest('/api/crm/reminders/sent'));
   return rows.map(r => r.reminderKey);
+}
+
+export async function runClinicReminders(opts: { hoursWindow?: number; hoursMin?: number } = {}): Promise<any> {
+  return apiRequest('/api/crm/reminders/run', {
+    method: 'POST',
+    body: JSON.stringify(opts),
+  });
+}
+
+export async function getChairs(_clinicId?: string): Promise<import('../types').Chair[]> {
+  return collection(await apiRequest('/api/crm/chairs'));
+}
+
+export async function upsertChair(data: Partial<import('../types').Chair>): Promise<any> {
+  return apiRequest('/api/crm/chairs', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function sendDocumentForSignature(id: string): Promise<any> {

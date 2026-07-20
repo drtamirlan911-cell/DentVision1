@@ -355,17 +355,45 @@ aiRouter.get('/proactive', async (req: AuthRequest, res) => {
   }
 });
 
-aiRouter.post('/confirm', async (req: AuthRequest, res) => {
+aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { actionId, confirmed, data } = req.body;
-
-    if (!actionId || confirmed === undefined) {
-      return res.status(400).json({ ok: false, error: 'actionId and confirmed required' });
+    const { actionId, action, confirmed, data, params } = req.body || {};
+    const toolName = String(action || actionId || '');
+    if (!toolName || confirmed === undefined) {
+      return res.status(400).json({ ok: false, error: 'action (или actionId) и confirmed обязательны' });
+    }
+    if (!confirmed) {
+      return res.json({ ok: true, data: { confirmed: false, action: toolName } });
     }
 
-    // Here you would execute the confirmed action
-    // For now just acknowledge
-    res.json({ ok: true, data: { confirmed, actionId } });
+    const { executeTool: runTool } = await import('./os/tools.js');
+    const { toolsForRole } = await import('./os/registry.js');
+    const allowed = toolsForRole(req.user!.role);
+    if (!allowed.has(toolName)) {
+      return res.status(403).json({ ok: false, error: 'Действие недоступно для роли' });
+    }
+
+    const result = await runTool(
+      toolName,
+      { ...(params || data || {}), confirmed: true },
+      {
+        userId: req.user!.id,
+        clinicId: req.user!.clinicId || null,
+        role: req.user!.role,
+      },
+      allowed,
+    );
+
+    if (!result.ok) return res.json({ ok: false, error: result.error });
+    return res.json({
+      ok: true,
+      data: {
+        confirmed: true,
+        action: toolName,
+        result: result.data,
+        path: result.navigate,
+      },
+    });
   } catch (error) {
     console.error('[AI Confirm Error]', error);
     res.status(500).json({ ok: false, error: 'Confirm failed' });

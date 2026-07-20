@@ -19,6 +19,12 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(20).optional(),
   OPENAI_MODEL: z.string().default('gpt-5.6-sol'),
   OPENAI_REASONING_EFFORT: z.enum(['low', 'medium', 'high']).default('medium'),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(),
+  CRON_SECRET: z.string().optional(),
+  REMINDER_CRON_MS: z.coerce.number().default(900000),
 });
 
 export const env = envSchema.parse(process.env);

@@ -104,7 +104,17 @@ export interface Appointment {
   toothNumber?: string | number
   paymentStatus?: 'unpaid' | 'paid'
   receiptId?: string
+  chairId?: string
+  chairName?: string
   createdAt?: string
+}
+
+export interface Chair {
+  id: string
+  clinicId: string
+  name: string
+  sortOrder?: number
+  active?: boolean
 }
 
 // ─── Receipts / Payments ────────────────────────────────────────

@@ -10,6 +10,9 @@ export interface AppointmentMeta {
   reason?: string;
   /** Clinic floor pipeline beyond DB enum: arrived | in_chair */
   flowStatus?: string;
+  /** Chair / unit resource for conflict checks */
+  chairId?: string;
+  chairName?: string;
 }
 
 const TO_DB: Record<string, AppointmentStatus> = {
@@ -59,12 +62,17 @@ export function buildMeta(body: Record<string, unknown>, existing?: AppointmentM
   const base = { ...(existing || {}) };
   const keys: (keyof AppointmentMeta)[] = [
     'serviceName', 'servicePrice', 'paymentStatus', 'diagnosis', 'toothNumber', 'receiptId', 'reason', 'flowStatus',
+    'chairId', 'chairName',
   ];
   for (const key of keys) {
     if (body[key] !== undefined) (base as any)[key] = body[key];
   }
   if (body.service && !base.serviceName) base.serviceName = String(body.service);
   if (body.serviceId && !base.reason) base.reason = String(body.serviceId);
+  if (body.chairId === '' || body.chairId === null) {
+    delete base.chairId;
+    delete base.chairName;
+  }
   // Frontend sends arrived/in_chair as status — persist as flowStatus for round-trip.
   if (body.status === 'arrived' || body.status === 'in_chair') {
     base.flowStatus = String(body.status);
@@ -118,11 +126,42 @@ export function serializeAppointment(row: {
     toothNumber: meta.toothNumber ?? '',
     receiptId: meta.receiptId,
     reason: meta.reason || meta.serviceName || row.type || '',
+    chairId: meta.chairId || '',
+    chairName: meta.chairName || '',
     patientName,
     patientPhone: row.patient?.phone || undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/** Same-day overlap conflicts for doctor, patient, and/or chair. */
+export function findScheduleConflicts<T extends {
+  id: string;
+  doctorId: string;
+  patientId: string;
+  time: string | null;
+  duration: number | null;
+  meta?: unknown;
+}>(opts: {
+  candidates: T[];
+  doctorId?: string;
+  patientId?: string;
+  chairId?: string;
+  time: string;
+  duration: number;
+  excludeId?: string;
+}): T[] {
+  const { candidates, doctorId, patientId, chairId, time, duration, excludeId } = opts;
+  return candidates.filter((c) => {
+    if (excludeId && c.id === excludeId) return false;
+    if (!timesOverlap(time, duration, c.time || '09:00', c.duration || 30)) return false;
+    const meta = parseMeta(c.meta);
+    if (doctorId && c.doctorId === doctorId) return true;
+    if (patientId && c.patientId === patientId) return true;
+    if (chairId && meta.chairId === chairId) return true;
+    return false;
+  });
 }
 
 /** Overlap: same doctor, same calendar day, overlapping time windows. */

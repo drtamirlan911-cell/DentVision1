@@ -171,10 +171,12 @@ export const TOOLS: Record<string, ToolSpec> = {
       type: 'object',
       properties: {
         patientId: { type: 'string' },
+        doctorId: { type: 'string', description: 'ID врача (по умолчанию — текущий пользователь)' },
         date: { type: 'string', description: 'YYYY-MM-DD' },
         time: { type: 'string', description: 'HH:MM' },
         type: { type: 'string', description: 'Тип приёма (Терапия, Консультация, ...)' },
         duration: { type: 'number', description: 'Минуты, по умолчанию 60' },
+        chairId: { type: 'string', description: 'ID кресла (опционально)' },
         confirmed: { type: 'boolean', description: 'true только после явного подтверждения пользователем' },
       },
       required: ['patientId', 'date', 'time'],
@@ -182,37 +184,251 @@ export const TOOLS: Record<string, ToolSpec> = {
     mutating: true,
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
+      const { findScheduleConflicts, buildMeta } = await import('../../crm/appointmentMeta.js');
       const patient = await prisma.patient.findFirst({
         where: { id: String(args.patientId), clinicId },
         select: { id: true, firstName: true, lastName: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
 
+      const doctorId = String(args.doctorId || ctx.userId);
+      const time = String(args.time);
+      const duration = Number(args.duration) || 60;
+      const date = String(args.date);
+      const chairId = args.chairId ? String(args.chairId) : undefined;
+
       if (!args.confirmed) {
         return {
           ok: true,
           needsConfirmation: {
             action: 'createAppointment',
-            params: { ...args, confirmed: true },
-            summary: `Записать ${patient.firstName} ${patient.lastName} на ${args.date} в ${args.time}${args.type ? ` (${args.type})` : ''}`,
+            params: { ...args, doctorId, confirmed: true },
+            summary: `Записать ${patient.firstName} ${patient.lastName} на ${date} в ${time}${args.type ? ` (${args.type})` : ''}`,
           },
         };
       }
+
+      const dayStart = new Date(date);
+      const dayEnd = new Date(date);
+      dayEnd.setHours(23, 59, 59, 999);
+      const candidates = await prisma.appointment.findMany({
+        where: {
+          clinicId,
+          date: { gte: dayStart, lte: dayEnd },
+          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        },
+      });
+      const conflicts = findScheduleConflicts({
+        candidates,
+        doctorId,
+        patientId: patient.id,
+        chairId,
+        time,
+        duration,
+      });
+      if (conflicts.length > 0) {
+        return { ok: false, error: 'Конфликт: врач, пациент или кресло уже заняты в это время' };
+      }
+
+      const meta = buildMeta({
+        chairId,
+        serviceName: args.type ? String(args.type) : undefined,
+      });
 
       const appointment = await prisma.appointment.create({
         data: {
           id: uid(),
           clinicId,
           patientId: patient.id,
-          doctorId: ctx.userId,
-          date: new Date(String(args.date)),
-          time: String(args.time),
-          duration: Number(args.duration) || 60,
+          doctorId,
+          date: new Date(date),
+          time,
+          duration,
           status: 'PENDING',
           type: args.type ? String(args.type) : null,
+          meta: meta as any,
         },
       });
       return { ok: true, data: appointment, navigate: '/crm/schedule' };
+    },
+  },
+
+  updateAppointmentStatus: {
+    name: 'updateAppointmentStatus',
+    description:
+      'Сменить статус записи (scheduled/confirmed/arrived/in_chair/done/cancelled/noShow). Требует подтверждения.',
+    parameters: {
+      type: 'object',
+      properties: {
+        appointmentId: { type: 'string' },
+        status: {
+          type: 'string',
+          description: 'scheduled | confirmed | arrived | in_chair | done | cancelled | noShow',
+        },
+        confirmed: { type: 'boolean' },
+      },
+      required: ['appointmentId', 'status'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const { buildMeta, parseMeta, serializeAppointment, toDbStatus } = await import('../../crm/appointmentMeta.js');
+      const existing = await prisma.appointment.findFirst({
+        where: { id: String(args.appointmentId), clinicId },
+        include: { patient: { select: { firstName: true, lastName: true } } },
+      });
+      if (!existing) return { ok: false, error: 'Запись не найдена' };
+
+      const status = String(args.status);
+      const name = existing.patient
+        ? `${existing.patient.firstName} ${existing.patient.lastName}`.trim()
+        : 'пациента';
+
+      if (!args.confirmed) {
+        return {
+          ok: true,
+          needsConfirmation: {
+            action: 'updateAppointmentStatus',
+            params: { ...args, confirmed: true },
+            summary: `Сменить статус записи ${name} (${existing.date.toISOString().slice(0, 10)} ${existing.time || ''}) → ${status}`,
+          },
+        };
+      }
+
+      const meta = buildMeta({ status }, parseMeta(existing.meta));
+      const appointment = await prisma.appointment.update({
+        where: { id: existing.id },
+        data: { status: toDbStatus(status), meta: meta as any },
+        include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
+      });
+      return { ok: true, data: serializeAppointment(appointment), navigate: '/crm/schedule' };
+    },
+  },
+
+  cancelAppointment: {
+    name: 'cancelAppointment',
+    description: 'Отменить запись на приём. Требует подтверждения.',
+    parameters: {
+      type: 'object',
+      properties: {
+        appointmentId: { type: 'string' },
+        reason: { type: 'string' },
+        confirmed: { type: 'boolean' },
+      },
+      required: ['appointmentId'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const { serializeAppointment } = await import('../../crm/appointmentMeta.js');
+      const existing = await prisma.appointment.findFirst({
+        where: { id: String(args.appointmentId), clinicId },
+        include: { patient: { select: { firstName: true, lastName: true } } },
+      });
+      if (!existing) return { ok: false, error: 'Запись не найдена' };
+
+      const name = existing.patient
+        ? `${existing.patient.firstName} ${existing.patient.lastName}`.trim()
+        : 'пациента';
+
+      if (!args.confirmed) {
+        return {
+          ok: true,
+          needsConfirmation: {
+            action: 'cancelAppointment',
+            params: { ...args, confirmed: true },
+            summary: `Отменить запись ${name} на ${existing.date.toISOString().slice(0, 10)} ${existing.time || ''}${args.reason ? ` (${args.reason})` : ''}`,
+          },
+        };
+      }
+
+      const appointment = await prisma.appointment.update({
+        where: { id: existing.id },
+        data: {
+          status: 'CANCELLED',
+          notes: args.reason
+            ? `${existing.notes || ''}\n[Отмена] ${String(args.reason)}`.trim()
+            : existing.notes,
+        },
+        include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
+      });
+      return { ok: true, data: serializeAppointment(appointment), navigate: '/crm/schedule' };
+    },
+  },
+
+  rescheduleAppointment: {
+    name: 'rescheduleAppointment',
+    description: 'Перенести запись на другую дату/время (с проверкой конфликтов). Требует подтверждения.',
+    parameters: {
+      type: 'object',
+      properties: {
+        appointmentId: { type: 'string' },
+        date: { type: 'string', description: 'YYYY-MM-DD' },
+        time: { type: 'string', description: 'HH:MM' },
+        doctorId: { type: 'string' },
+        confirmed: { type: 'boolean' },
+      },
+      required: ['appointmentId', 'date', 'time'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const { findScheduleConflicts, parseMeta, serializeAppointment } = await import('../../crm/appointmentMeta.js');
+      const existing = await prisma.appointment.findFirst({
+        where: { id: String(args.appointmentId), clinicId },
+        include: { patient: { select: { firstName: true, lastName: true } } },
+      });
+      if (!existing) return { ok: false, error: 'Запись не найдена' };
+
+      const date = String(args.date);
+      const time = String(args.time);
+      const doctorId = String(args.doctorId || existing.doctorId);
+      const name = existing.patient
+        ? `${existing.patient.firstName} ${existing.patient.lastName}`.trim()
+        : 'пациента';
+
+      if (!args.confirmed) {
+        return {
+          ok: true,
+          needsConfirmation: {
+            action: 'rescheduleAppointment',
+            params: { ...args, doctorId, confirmed: true },
+            summary: `Перенести запись ${name} на ${date} в ${time}`,
+          },
+        };
+      }
+
+      const dayStart = new Date(date);
+      const dayEnd = new Date(date);
+      dayEnd.setHours(23, 59, 59, 999);
+      const meta = parseMeta(existing.meta);
+      const candidates = await prisma.appointment.findMany({
+        where: {
+          clinicId,
+          date: { gte: dayStart, lte: dayEnd },
+          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+          id: { not: existing.id },
+        },
+      });
+      const conflicts = findScheduleConflicts({
+        candidates,
+        doctorId,
+        patientId: existing.patientId,
+        chairId: meta.chairId,
+        time,
+        duration: existing.duration || 30,
+        excludeId: existing.id,
+      });
+      if (conflicts.length > 0) {
+        return { ok: false, error: 'Конфликт при переносе: слот занят' };
+      }
+
+      const appointment = await prisma.appointment.update({
+        where: { id: existing.id },
+        data: { date: new Date(date), time, doctorId },
+        include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
+      });
+      return { ok: true, data: serializeAppointment(appointment), navigate: '/crm/schedule' };
     },
   },
 

@@ -105,6 +105,7 @@ model Clinic {
   promotions    Promotion[]
   priceList     PriceListItem[]
   reminderLogs  ReminderLog[]
+  chairs        Chair[]
 
   @@map("clinics")
 }
@@ -293,6 +294,22 @@ model ReminderLog {
 
   @@index([clinicId, reminderKey])
   @@map("reminder_logs")
+}
+
+model Chair {
+  id        String  @id @default("")
+  clinicId  String
+  name      String
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId, active])
+  @@map("chairs")
 }
 
 // ─── MEDICAL RECORDS ───

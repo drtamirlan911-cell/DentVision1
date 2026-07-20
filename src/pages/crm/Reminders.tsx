@@ -43,6 +43,7 @@ export default function Reminders() {
   const { showToast } = useToast();
   const [tick, setTick] = useState(0);
   const [tab, setTab] = useState('appointments');
+  const [cronRunning, setCronRunning] = useState(false);
 
   const readOnly = !!(roleInfo as any)?.readOnly;
   const ownDataOnly = !!(roleInfo as any)?.ownDataOnly && user?.role === 'doctor';
@@ -102,6 +103,22 @@ export default function Reminders() {
     } catch { /* optional server sync */ }
     setTick(t => t + 1);
     showToast('Отмечено как отправлено', 'info');
+  };
+
+  const handleServerCron = async () => {
+    if (readOnly) return;
+    setCronRunning(true);
+    try {
+      const result = await api.runClinicReminders({ hoursWindow: 24, hoursMin: 0 });
+      const sent = result?.sent ?? result?.data?.sent ?? 0;
+      const errors = result?.errors ?? result?.data?.errors ?? 0;
+      showToast(`Серверная рассылка: отправлено ${sent}${errors ? `, ошибок ${errors}` : ''}`, sent ? 'success' : 'info');
+      setTick(t => t + 1);
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось запустить рассылку', 'error');
+    } finally {
+      setCronRunning(false);
+    }
   };
 
   const tabs = [
@@ -183,15 +200,22 @@ export default function Reminders() {
       {/* Header */}
       <PageHeader
         title="Напоминания"
-        subtitle={`WhatsApp-напоминания о приёмах и профгигиене · ${clinic?.name}`}
+        subtitle={`WhatsApp / SMS cron + ручные deep-link · ${clinic?.name}`}
         icon={<Bell size={20} />}
         actions={
-          (pendingAppt + pendingUrgent + pendingHyg) > 0 ? (
-            <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2 text-xs font-bold text-warning">
-              <AlertTriangle size={14} />
-              {pendingAppt + pendingUrgent + pendingHyg} требуют внимания
-            </div>
-          ) : null
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {!readOnly && (
+              <Button variant="secondary" size="sm" onClick={handleServerCron} disabled={cronRunning}>
+                {cronRunning ? 'Рассылка…' : 'Серверная рассылка'}
+              </Button>
+            )}
+            {(pendingAppt + pendingUrgent + pendingHyg) > 0 ? (
+              <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2 text-xs font-bold text-warning">
+                <AlertTriangle size={14} />
+                {pendingAppt + pendingUrgent + pendingHyg} требуют внимания
+              </div>
+            ) : null}
+          </div>
         }
       />
 

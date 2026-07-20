@@ -12,7 +12,8 @@
     "db:reset": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "cron:reminders": "tsx -e \"import { runReminderCron } from './src/jobs/reminderCron.ts'; runReminderCron().then(r => { console.log(JSON.stringify(r,null,2)); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })\""
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
