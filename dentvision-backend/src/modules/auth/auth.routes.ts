@@ -285,67 +285,214 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// Demo clinic endpoint — creates a temporary demo clinic with sample data
+// Demo clinic endpoint — creates a temporary demo clinic with rich sample data
 authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
   try {
     const clinicId = uid();
     const userId = req.user!.id;
 
-    // Create demo clinic and membership
     const [clinic] = await prisma.$transaction([
       prisma.clinic.create({
         data: {
           id: clinicId,
-          name: 'Демо-клиника DentVision',
+          name: 'Демо-клиника «Дентал Плюс»',
           city: 'Алматы',
-          address: 'ул. Абая 150',
+          address: 'ул. Абая 150, офис 301',
           phone: '+7 727 123 45 67',
           plan: 'DEMO',
         },
       }),
       prisma.clinicMember.create({
+        data: { id: uid(), userId, clinicId, role: 'OWNER' },
+      }),
+    ]);
+
+    const [p1, p2, p3, p4, p5] = await prisma.$transaction([
+      prisma.patient.create({
+        data: { id: uid(), clinicId, firstName: 'Иван', lastName: 'Иванов', phone: '+7 777 111 22 33', email: 'ivan@example.com', birthDate: new Date('1985-03-15'), gender: 'М', notes: 'Гипертония, осторожно с анестетиками' },
+      }),
+      prisma.patient.create({
+        data: { id: uid(), clinicId, firstName: 'Мария', lastName: 'Петрова', phone: '+7 777 222 33 44', email: 'maria@example.com', birthDate: new Date('1990-07-22'), gender: 'Ж' },
+      }),
+      prisma.patient.create({
+        data: { id: uid(), clinicId, firstName: 'Алексей', lastName: 'Сидоров', phone: '+7 777 333 44 55', email: 'alex@example.com', birthDate: new Date('1978-11-05'), gender: 'М', notes: 'Аллергия на латекс' },
+      }),
+      prisma.patient.create({
+        data: { id: uid(), clinicId, firstName: 'Айнура', lastName: 'Касымова', phone: '+7 701 444 55 66', email: 'ainura@example.com', birthDate: new Date('1995-01-30'), gender: 'Ж' },
+      }),
+      prisma.patient.create({
+        data: { id: uid(), clinicId, firstName: 'Дмитрий', lastName: 'Волков', phone: '+7 702 555 66 77', birthDate: new Date('1972-09-12'), gender: 'М', notes: 'Пациент с сахарным диабетом II типа' },
+      }),
+    ]);
+
+    const now = Date.now();
+    const day = 86400000;
+
+    await prisma.$transaction([
+      prisma.appointment.create({
+        data: { id: uid(), clinicId, patientId: p1.id, doctorId: userId, date: new Date(now + day), time: '10:00', duration: 30, status: 'CONFIRMED', type: 'Консультация', notes: 'Первичный осмотр, рентген' },
+      }),
+      prisma.appointment.create({
+        data: { id: uid(), clinicId, patientId: p2.id, doctorId: userId, date: new Date(now + day), time: '11:00', duration: 45, status: 'CONFIRMED', type: 'Лечение', notes: 'Лечение кариеса 46 зуба' },
+      }),
+      prisma.appointment.create({
+        data: { id: uid(), clinicId, patientId: p3.id, doctorId: userId, date: new Date(now + 2 * day), time: '14:00', duration: 60, status: 'PENDING', type: 'Протезирование', notes: 'Снятие слепков' },
+      }),
+      prisma.appointment.create({
+        data: { id: uid(), clinicId, patientId: p4.id, doctorId: userId, date: new Date(now + 3 * day), time: '09:30', duration: 30, status: 'CONFIRMED', type: 'Гигиена', notes: 'Профессиональная чистка' },
+      }),
+      prisma.appointment.create({
+        data: { id: uid(), clinicId, patientId: p5.id, doctorId: userId, date: new Date(now - day), time: '15:00', duration: 45, status: 'COMPLETED', type: 'Эндодонтия', notes: 'Пульпит 11 зуба — лечение завершено' },
+      }),
+      prisma.appointment.create({
+        data: { id: uid(), clinicId, patientId: p1.id, doctorId: userId, date: new Date(now - 2 * day), time: '10:30', duration: 30, status: 'COMPLETED', type: 'Консультация', notes: 'Первичный осмотр выполнен' },
+      }),
+    ]);
+
+    await prisma.$transaction([
+      prisma.tooth.create({ data: { id: uid(), patientId: p1.id, number: 16, condition: 'healthy', notes: '' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p1.id, number: 26, condition: 'treated', diagnosis: 'Кариес (лечен)', notes: 'Пломба composite, 2024' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p1.id, number: 36, condition: 'crown', diagnosis: 'Коронка metallokeramika', notes: 'Установлена 2023' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p1.id, number: 46, condition: 'caries', diagnosis: 'Кариес средний', notes: 'Требует лечения' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p1.id, number: 47, condition: 'missing', diagnosis: 'Отсутствует', notes: 'Рекомендован имплантат' } }),
+
+      prisma.tooth.create({ data: { id: uid(), patientId: p2.id, number: 46, condition: 'caries', diagnosis: 'Кариес глубокий', notes: 'Пульпит исключён' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p2.id, number: 11, condition: 'healthy' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p2.id, number: 21, condition: 'healthy' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p2.id, number: 31, condition: 'treated', diagnosis: 'Лечение каналов', notes: '3 канала, 2025' } }),
+
+      prisma.tooth.create({ data: { id: uid(), patientId: p3.id, number: 16, condition: 'crown', diagnosis: 'Коронка', notes: 'Металлокерамика, 2022' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p3.id, number: 26, condition: 'implant', diagnosis: 'Имплантат', notes: 'Nobel Biocare, 2024' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p3.id, number: 36, condition: 'bridge', diagnosis: 'Мостовидный протез', notes: '36-37-38' } }),
+      prisma.tooth.create({ data: { id: uid(), patientId: p3.id, number: 46, condition: 'caries', diagnosis: 'Кариес', notes: '' } }),
+    ]);
+
+    await prisma.$transaction([
+      prisma.treatmentPlan.create({
         data: {
-          id: uid(),
-          userId,
-          clinicId,
-          role: 'OWNER',
+          id: uid(), patientId: p1.id, title: 'План лечения — Иванов И.И.', status: 'active', price: 185000,
+          items: [
+            { tooth: 46, treatment: 'Лечение кариеса', price: 25000, status: 'pending' },
+            { tooth: 47, treatment: 'Имплантация + коронка', price: 150000, status: 'planned' },
+            { tooth: 26, treatment: 'Наблюдение', price: 10000, status: 'completed' },
+          ],
+          notes: 'Приоритет: лечение 46, затем имплантация 47',
+        },
+      }),
+      prisma.treatmentPlan.create({
+        data: {
+          id: uid(), patientId: p2.id, title: 'План лечения — Петрова М.А.', status: 'active', price: 45000,
+          items: [
+            { tooth: 46, treatment: 'Лечение кариеса + пломба', price: 25000, status: 'in_progress' },
+            { tooth: 31, treatment: 'Наблюдение после лечения каналов', price: 5000, status: 'completed' },
+            { tooth: null, treatment: 'Процедура отбеливания', price: 35000, status: 'planned' },
+          ],
+          notes: 'Отбеливание — после лечения 46',
+        },
+      }),
+      prisma.treatmentPlan.create({
+        data: {
+          id: uid(), patientId: p3.id, title: 'План лечения — Сидоров А.В.', status: 'completed', price: 320000,
+          items: [
+            { tooth: 26, treatment: 'Имплантация Nobel Biocare', price: 180000, status: 'completed' },
+            { tooth: 36, treatment: 'Мостовидный протез', price: 120000, status: 'completed' },
+            { tooth: 46, treatment: 'Лечение кариеса', price: 20000, status: 'completed' },
+          ],
+          notes: 'Все работы выполнены',
         },
       }),
     ]);
 
-    // Create sample patients
-    const [patient1, patient2, patient3] = await prisma.$transaction([
-      prisma.patient.create({
-        data: { id: uid(), clinicId, firstName: 'Иван', lastName: 'Иванов', phone: '+7 777 111 22 33', email: 'ivan@example.com', birthDate: new Date('1985-03-15') },
+    await prisma.$transaction([
+      prisma.visit.create({
+        data: {
+          id: uid(), patientId: p1.id, doctorId: userId, date: new Date(now - 2 * day),
+          diagnosis: 'Кариес 46 зуба средний. Отсутствие 47 зуба.',
+          complaints: 'Боли от холодного на 46 зуб',
+          anamnesis: 'Гипертония, прием лизиноприла. Аллергоанамнез — отрицательный.',
+          treatment: [{ tooth: 46, action: 'Осмотр, рентген', notes: 'SOP: постановка диагноза' }],
+          notes: 'Рентген 46 — кариес до пульпы. Рекомендовано лечение.',
+        },
       }),
-      prisma.patient.create({
-        data: { id: uid(), clinicId, firstName: 'Мария', lastName: 'Петрова', phone: '+7 777 222 33 44', email: 'maria@example.com', birthDate: new Date('1990-07-22') },
-      }),
-      prisma.patient.create({
-        data: { id: uid(), clinicId, firstName: 'Алексей', lastName: 'Сидоров', phone: '+7 777 333 44 55', email: 'alex@example.com', birthDate: new Date('1978-11-05') },
+      prisma.visit.create({
+        data: {
+          id: uid(), patientId: p5.id, doctorId: userId, date: new Date(now - day),
+          diagnosis: 'Пульпит 11 зуба острый. Диабетическая ангиопатия.',
+          complaints: 'Сильная самопроизвольная боль, ночная',
+          anamnesis: 'Сахарный диабет II типа, компенсированный. HbA1c — 6.8%.',
+          treatment: [{ tooth: 11, action: 'Эндодонтическое лечение', files: 3, notes: 'Orapermc, guttapercha, sealer' }],
+          notes: 'Лечение завершено за 1 визит. Контроль через 2 недели.',
+        },
       }),
     ]);
 
-    // Create sample appointments
     await prisma.$transaction([
-      prisma.appointment.create({
-        data: { id: uid(), clinicId, patientId: patient1.id, date: new Date(Date.now() + 86400000), time: '10:00', duration: 30, status: 'SCHEDULED', doctorName: 'Др. Смирнов' },
+      prisma.invoice.create({
+        data: {
+          id: uid(), clinicId, patientId: p1.id, amount: 26000, status: 'PAID',
+          items: [{ description: 'Консультация + рентген', amount: 6000 }, { description: 'Приём контрольный', amount: 5000 }, { description: 'Лечение кариеса (предоплата)', amount: 15000 }],
+          notes: 'Предоплата за лечение 46', paidAt: new Date(now - 2 * day),
+        },
       }),
-      prisma.appointment.create({
-        data: { id: uid(), clinicId, patientId: patient2.id, date: new Date(Date.now() + 172800000), time: '14:30', duration: 45, status: 'SCHEDULED', doctorName: 'Др. Козлова' },
+      prisma.invoice.create({
+        data: {
+          id: uid(), clinicId, patientId: p2.id, amount: 25000, status: 'UNPAID',
+          items: [{ description: 'Лечение кариеса 46', amount: 25000 }],
+          notes: 'Выставлен после осмотра',
+        },
+      }),
+      prisma.invoice.create({
+        data: {
+          id: uid(), clinicId, patientId: p3.id, amount: 120000, status: 'PAID',
+          items: [{ description: 'Мостовидный протез 36-38', amount: 120000 }],
+          paidAt: new Date(now - 5 * day),
+        },
+      }),
+      prisma.invoice.create({
+        data: {
+          id: uid(), clinicId, patientId: p5.id, amount: 45000, status: 'PARTIAL',
+          items: [{ description: 'Эндодонтическое лечение 11', amount: 45000 }, { description: 'Оплата частями', amount: 25000 }],
+          notes: 'Оплачено 25 000 из 45 000', paidAt: new Date(now - day),
+        },
       }),
     ]);
 
-    // Create sample inventory
     await prisma.$transaction([
       prisma.inventoryItem.create({
-        data: { id: uid(), clinicId, name: 'Композит Filtek Z350', category: 'materials', quantity: 20, unit: 'шт', minQuantity: 5, price: 8500 },
+        data: { id: uid(), clinicId, name: 'Композит Filtek Z350', category: 'materials', quantity: 20, unit: 'шт', minimum: 5, price: 8500 },
       }),
       prisma.inventoryItem.create({
-        data: { id: uid(), clinicId, name: 'Анестетик Убестезин', category: 'medicines', quantity: 50, unit: 'карп', minQuantity: 10, price: 1200 },
+        data: { id: uid(), clinicId, name: 'Анестетик Убестезин', category: 'medicines', quantity: 50, unit: 'карп', minimum: 10, price: 1200 },
       }),
       prisma.inventoryItem.create({
-        data: { id: uid(), clinicId, name: 'Перчатки нитриловые', category: 'consumables', quantity: 200, unit: 'шт', minQuantity: 50, price: 350 },
+        data: { id: uid(), clinicId, name: 'Перчатки нитриловые (M)', category: 'consumables', quantity: 200, unit: 'шт', minimum: 50, price: 350 },
+      }),
+      prisma.inventoryItem.create({
+        data: { id: uid(), clinicId, name: 'Ватные шарики 5×5', category: 'consumables', quantity: 150, unit: 'шт', minimum: 100, price: 80 },
+      }),
+      prisma.inventoryItem.create({
+        data: { id: uid(), clinicId, name: 'Наир паста', category: 'medicines', quantity: 3, unit: 'шт', minimum: 2, price: 3200 },
+      }),
+      prisma.inventoryItem.create({
+        data: { id: uid(), clinicId, name: 'Шприцы инъекционные 27G', category: 'consumables', quantity: 80, unit: 'шт', minimum: 30, price: 45 },
+      }),
+      prisma.inventoryItem.create({
+        data: { id: uid(), clinicId, name: 'Гуттаперча ProTaper', category: 'materials', quantity: 15, unit: 'шт', minimum: 5, price: 900 },
+      }),
+    ]);
+
+    await prisma.$transaction([
+      prisma.labOrder.create({
+        data: {
+          id: uid(), clinicId, patientId: p3.id, labName: 'DentalLab Pro', status: 'completed', type: 'Коронка металлокерамическая',
+          notes: 'Зуб 16, оттенок A2', price: 45000, deadline: new Date(now - 3 * day),
+        },
+      }),
+      prisma.labOrder.create({
+        data: {
+          id: uid(), clinicId, patientId: p1.id, labName: 'Волгоградская лаборатория', status: 'in_progress', type: 'Виниры',
+          notes: 'Зубы 11, 21 — композитные виниры', price: 80000, deadline: new Date(now + 7 * day),
+        },
       }),
     ]);
 
@@ -356,12 +503,7 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
       clinicId,
     });
 
-    const response: ApiResponse = {
-      ok: true,
-      data: { clinic, tokens },
-    };
-
-    res.status(201).json(response);
+    res.status(201).json({ ok: true, data: { clinic, tokens } });
   } catch (error) {
     console.error('[Demo Clinic Error]', error);
     res.status(500).json({ ok: false, error: 'Ошибка при создании демо-клиники' });

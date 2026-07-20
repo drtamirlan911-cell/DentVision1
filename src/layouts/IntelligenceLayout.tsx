@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { ChevronRight, Menu, Building2, User } from 'lucide-react';
+import { ChevronRight, Menu, Building2, User, Stethoscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
@@ -13,6 +13,7 @@ import { Sidebar } from './Sidebar';
 import { AlertDropdown } from './AlertDropdown';
 import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
+import GuestCRMModal from '@/components/guest/GuestCRMModal';
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   crm: 'CRM',
@@ -46,6 +47,7 @@ export const IntelligenceLayout: React.FC = () => {
   const [proactiveAlerts, setProactiveAlerts] = useState<Array<{ type: string; text: string; priority: number }>>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
+  const [guestCRMOpen, setGuestCRMOpen] = useState(false);
   const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
 
   const handleAIQuery = useCallback((query: string) => {
@@ -93,6 +95,24 @@ export const IntelligenceLayout: React.FC = () => {
 
   if (needsAuth) {
     if (isGuest) {
+      const isCRMRoute = location.pathname.startsWith('/crm');
+      if (isCRMRoute) {
+        if (!guestCRMOpen) {
+          setGuestCRMOpen(true);
+        }
+        return (
+          <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center">
+                <Stethoscope size={24} className="text-dv-gold" />
+              </div>
+              <h2 className="text-lg font-semibold text-txt-primary">CRM Стоматологии</h2>
+              <p className="text-sm text-txt-secondary max-w-xs">Выберите способ начать работу с CRM</p>
+            </div>
+            <GuestCRMModal open={guestCRMOpen} onClose={() => { setGuestCRMOpen(false); navigate('/'); }} />
+          </div>
+        );
+      }
       const pendingPath = location.pathname;
       if (!showRegistrationModal) {
         setRegistrationModal(true, () => navigate(pendingPath));
