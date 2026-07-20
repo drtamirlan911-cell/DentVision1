@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SocketProvider } from '@/services/websocket'
 import { BrowserRouter } from 'react-router-dom'
@@ -33,14 +33,35 @@ function GuestInitializer({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function AuthInitializer({ children }: { children: React.ReactNode }) {
+  const restoreSession = useAuthStore((s) => s.restoreSession)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    restoreSession().finally(() => setReady(true))
+  }, [restoreSession])
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#080F1A]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#C9A96E]/30 border-t-[#C9A96E]" />
+      </div>
+    )
+  }
+
+  return <>{children}</>
+}
+
 export function Providers({ children }: ProvidersProps) {
   return (
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <SocketProvider>
-          <GuestInitializer>
-            {children}
-          </GuestInitializer>
+          <AuthInitializer>
+            <GuestInitializer>
+              {children}
+            </GuestInitializer>
+          </AuthInitializer>
         </SocketProvider>
       </QueryClientProvider>
     </BrowserRouter>
