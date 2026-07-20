@@ -159,6 +159,80 @@ describe('ORG_ROLES', () => {
   })
 })
 
+describe('auth store - clinic settings visibility', () => {
+  it('OWNER membership exposes clinic-settings after login', async () => {
+    vi.mocked(api.login).mockResolvedValue({
+      user: { id: '1', name: 'Owner', role: 'OWNER', email: 'owner@dentvision.kz' },
+      tokens: { accessToken: 'at', refreshToken: 'rt' },
+      memberships: [
+        {
+          id: 'm1',
+          clinicId: 'c1',
+          role: 'OWNER',
+          clinic: { id: 'c1', name: 'Demo' },
+        },
+      ],
+      activeMembership: {
+        id: 'm1',
+        clinicId: 'c1',
+        role: 'OWNER',
+        clinic: { id: 'c1', name: 'Demo' },
+      },
+    } as any)
+
+    await useAuthStore.getState().login('owner@dentvision.kz', 'Demo1234!')
+    const state = useAuthStore.getState()
+    expect(state.activeMembership?.role).toBe('owner')
+    expect(state.can('canManageClinicSettings')).toBe(true)
+  })
+
+  it('switchClinic without activeMembership in response keeps clinic role', async () => {
+    useAuthStore.setState({
+      user: { id: '1', name: 'Owner', role: 'owner' } as any,
+      clinics: [
+        {
+          id: 'm1',
+          clinicId: 'c1',
+          role: 'owner',
+          status: 'active',
+          joinedAt: new Date().toISOString(),
+          clinic: { id: 'c1', name: 'Demo' } as any,
+        },
+      ],
+      activeMembership: {
+        id: 'm1',
+        clinicId: 'c1',
+        role: 'owner',
+        status: 'active',
+        joinedAt: new Date().toISOString(),
+        clinic: { id: 'c1', name: 'Demo' } as any,
+      },
+      clinic: { id: 'c1', name: 'Demo' } as any,
+    })
+
+    vi.mocked(api.switchClinic).mockResolvedValue({
+      accessToken: 'at2',
+      refreshToken: 'rt2',
+      // legacy: no activeMembership
+    } as any)
+
+    await useAuthStore.getState().switchClinic('c1')
+    const state = useAuthStore.getState()
+    expect(state.activeMembership?.clinicId).toBe('c1')
+    expect(state.activeMembership?.role).toBe('owner')
+    expect(state.can('canManageClinicSettings')).toBe(true)
+  })
+
+  it('user.role OWNER without membership still gets clinic-settings ACL', () => {
+    useAuthStore.setState({
+      user: { id: '1', name: 'Owner', role: 'owner', platformRole: 'owner' } as any,
+      activeMembership: null,
+      clinics: [],
+    })
+    expect(useAuthStore.getState().can('canManageClinicSettings')).toBe(true)
+  })
+})
+
 describe('PLATFORM_ROLES', () => {
   it('has superadmin, support, user, verified', () => {
     expect(PLATFORM_ROLES.superadmin).toBeDefined()

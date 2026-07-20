@@ -1,11 +1,12 @@
 ﻿import React from 'react'
 import { motion } from 'framer-motion'
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, LayoutGrid } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, LayoutGrid, Building2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
 import { Switch } from '@/components/ui/ds/Misc'
-import { useAuth } from '@/store/auth.store'
+import { useAuth, canManageClinicSettings } from '@/store/auth.store'
 import * as api from '@/utils/api'
 
 const container = {
@@ -34,12 +35,20 @@ const SERVICE_TOGGLES: ServiceToggle[] = [
 ]
 
 export default function SettingsPage() {
-  const { user, clinic, roleInfo } = useAuth()
+  const navigate = useNavigate()
+  const { user, clinic, roleInfo, role, activeMembership } = useAuth()
   const [notifications, setNotifications] = React.useState<boolean>(true)
   const [darkMode, setDarkMode] = React.useState<boolean>(true)
   const [autoSave, setAutoSave] = React.useState<boolean>(true)
 
   const canManageServices = roleInfo?.pages?.includes('settings')
+  const showClinicSettings =
+    canManageClinicSettings(role) ||
+    canManageClinicSettings(activeMembership?.role) ||
+    !!roleInfo?.canManageClinicSettings ||
+    !!roleInfo?.pages?.includes('clinic-settings')
+  const clinicId = clinic?.id || activeMembership?.clinicId || user?.clinicId || ''
+  const clinicName = clinic?.name || 'вашей клиники'
   const [accessMap, setAccessMap] = React.useState<Record<string, boolean> | null>(null)
   const [saving, setSaving] = React.useState<boolean>(false)
   const [saved, setSaved] = React.useState<boolean>(false)
@@ -78,6 +87,27 @@ export default function SettingsPage() {
           icon={<SettingsIcon size={20} />}
         />
       </motion.div>
+
+      {showClinicSettings && clinicId && (
+        <motion.div variants={item}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 size={16} className="text-dv-gold" />
+                Настройки клиники
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm text-txt-muted">
+                Профиль клиники, часы работы, напоминания и кресла — индивидуально для «{clinicName}».
+              </p>
+              <Button size="sm" onClick={() => navigate('/crm/clinic-settings')}>
+                Открыть
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Services */}
       {canManageServices && (

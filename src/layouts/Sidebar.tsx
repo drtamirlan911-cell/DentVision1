@@ -73,6 +73,7 @@ const CRM_SUBNAV = [
   { id: 'schedule', label: 'Расписание', path: '/crm/schedule' },
   { id: 'patients', label: 'Пациенты', path: '/crm/patients' },
   { id: 'finance', label: 'Финансы', path: '/crm/finance' },
+  { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', adminOnly: true },
   { id: 'visits', label: 'Визиты', path: '/crm/visits' },
   { id: 'inventory', label: 'Склад', path: '/crm/inventory' },
   { id: 'documents', label: 'Документы', path: '/crm/documents' },
@@ -82,7 +83,6 @@ const CRM_SUBNAV = [
   { id: 'pricelist', label: 'Прайс', path: '/crm/pricelist' },
   { id: 'staff', label: 'Сотрудники', path: '/crm/staff' },
   { id: 'reminders', label: 'Напоминания', path: '/crm/reminders' },
-  { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', adminOnly: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -94,19 +94,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const queryClient = useQueryClient();
   const [crmOpen, setCrmOpen] = React.useState(location.pathname.startsWith('/crm'));
   const sidebarWidth = !sidebarVisible && !isMobile ? 0 : (collapsed ? 72 : 240);
-  const { user: authUser, role: authRole, roleInfo: authRoleInfo } = useAuth();
+  const { user: authUser, role: authRole, roleInfo: authRoleInfo, activeMembership } = useAuth();
   const clinicId = authUser?.clinicId || '';
 
   React.useEffect(() => {
     if (location.pathname.startsWith('/crm')) setCrmOpen(true);
   }, [location.pathname]);
 
-  const allowedPages = (roleInfo as any)?.pages || authRoleInfo?.pages || [];
+  // Always prefer live useAuth roleInfo — prop roleInfo can lag behind membership.
+  const allowedPages = authRoleInfo?.pages?.length
+    ? authRoleInfo.pages
+    : ((roleInfo as any)?.pages || []);
   const isAdmin = allowedPages.includes('admin');
   const showClinicSettings =
-    !!(roleInfo as any)?.canManageClinicSettings ||
+    allowedPages.includes('clinic-settings') ||
     !!(authRoleInfo as any)?.canManageClinicSettings ||
-    canManageClinicSettings(authRole);
+    !!(roleInfo as any)?.canManageClinicSettings ||
+    canManageClinicSettings(authRole) ||
+    canManageClinicSettings(activeMembership?.role) ||
+    canManageClinicSettings(authUser?.role);
 
   const prefetchFor = useCallback((id: string) => {
     switch (id) {

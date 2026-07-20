@@ -169,10 +169,6 @@ interface AuthState {
   addStaffMember: (staffData: StaffData) => Promise<Record<string, unknown> | false>
   getClinicStaff: (clinicId: string) => User[]
 
-  isAuthenticated: boolean
-  role: UserRole | null
-  roleInfo: RoleConfig | null
-  mode: 'personal' | 'workspace'
   can: (action: string) => boolean
   allClinics: Clinic[]
   allUsers: User[]
@@ -212,7 +208,10 @@ async function hydrateAuthFromMe() {
   const me = await api.getMe() as any
   const user = normalizeUser(me.user)
   const memberships = mapMemberships(me.memberships || [])
-  const activeMembership = mapActiveMembership(me.activeMembership)
+  const activeMembership = pickActiveMembership(
+    mapActiveMembership(me.activeMembership),
+    memberships,
+  )
   return { user, memberships, activeMembership }
 }
 
@@ -228,7 +227,33 @@ function getTokenClinicId(token: string | null | undefined): string | null {
 
 function buildClinicFromMembership(m: Membership | null): Clinic | null {
   if (!m) return null
-  return (m.clinic as Clinic) || null
+  if (m.clinic) return m.clinic as Clinic
+  if (m.clinicId) return { id: m.clinicId, name: 'Клиника' } as Clinic
+  return null
+}
+
+function resolveRole(activeMembership: Membership | null, user: User | null): string {
+  return normalizeRole(activeMembership?.role || user?.platformRole || user?.role || 'user')
+}
+
+function resolveRoleInfo(activeMembership: Membership | null, user: User | null): RoleConfig {
+  const resolvedRole = resolveRole(activeMembership, user)
+  // Prefer org ACL whenever the resolved role is a clinic role (OWNER/ADMIN/…).
+  // Do NOT require activeMembership: switch-clinic historically returned only
+  // tokens and wiped membership, which previously fell through to PLATFORM user
+  // and hid clinic-settings from the sidebar.
+  if (ORG_ROLES[resolvedRole]) return ORG_ROLES[resolvedRole]
+  if (activeMembership) return ORG_ROLES.doctor
+  return PLATFORM_ROLES[resolvedRole] || PLATFORM_ROLES.user
+}
+
+/** Pick active membership from login/me payload, falling back to first clinic. */
+function pickActiveMembership(
+  active: Membership | null,
+  memberships: Membership[],
+): Membership | null {
+  if (active?.clinicId) return active
+  return memberships[0] || null
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -242,18 +267,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: false,
   error: null,
 
-  // ─── Derived state ───
-  get isAuthenticated() { return !!get().user },
-  get role() { const s = get(); return (s.activeMembership?.role || s.user?.platformRole || s.user?.role || null) as UserRole | null },
-  get roleInfo() {
+  // ─── Derived helpers (do NOT use getters on the state object —
+  // Zustand Object.assign freezes getters into stale snapshots on set()).
+  can: (action: string) => {
     const s = get()
-    const resolvedRole = s.activeMembership?.role || s.user?.platformRole || s.user?.role || 'user'
-    return s.activeMembership
-      ? (ORG_ROLES[resolvedRole] || ORG_ROLES.doctor)
-      : (PLATFORM_ROLES[resolvedRole] || PLATFORM_ROLES.user)
+    const ri = resolveRoleInfo(s.activeMembership, s.user)
+    return ri ? !!ri[action] : false
   },
-  get mode() { return get().activeMembership ? 'workspace' as const : 'personal' as const },
-  can: (action: string) => { const ri = get().roleInfo; return ri ? !!ri[action] : false },
   allClinics: _seedStore.clinics,
   allUsers: _seedStore.users,
 
@@ -306,7 +326,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // responses — this keeps login resilient to a transient /me failure.
       let user = normalizeUser(result.user)
       let memberships = mapMemberships(result.memberships || [])
-      let activeMembership = mapActiveMembership(result.activeMembership)
+      let activeMembership = pickActiveMembership(
+        mapActiveMembership(result.activeMembership),
+        memberships,
+      )
 
       // Only the absence of the `memberships` key means the response used
       // an older/partial contract — an explicit empty array is a valid
@@ -315,7 +338,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const me = await hydrateAuthFromMe()
         user = me.user
         memberships = me.memberships
-        activeMembership = me.activeMembership
+        activeMembership = pickActiveMembership(me.activeMembership, memberships)
       }
 
       set({
@@ -354,13 +377,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       let user = normalizeUser(result.user)
       let memberships = mapMemberships(result.memberships || [])
-      let activeMembership = mapActiveMembership(result.activeMembership)
+      let activeMembership = pickActiveMembership(
+        mapActiveMembership(result.activeMembership),
+        memberships,
+      )
 
       if (accessToken && (!user || result.memberships === undefined)) {
         const me = await hydrateAuthFromMe()
         user = me.user
         memberships = me.memberships
-        activeMembership = me.activeMembership
+        activeMembership = pickActiveMembership(me.activeMembership, memberships)
       }
 
       set({
@@ -413,10 +439,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const result = await api.switchClinic(clinicId)
       if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken ?? null)
-      const activeMembership = result.activeMembership || null
+
+      // API may return only tokens (legacy). Never wipe membership — rebuild
+      // from the local clinics list or re-hydrate /me.
+      let activeMembership = mapActiveMembership(result?.activeMembership)
+      if (!activeMembership && clinicId) {
+        activeMembership = get().clinics.find((m) => m.clinicId === clinicId) || null
+      }
+      if (!activeMembership) {
+        const me = await hydrateAuthFromMe()
+        activeMembership = pickActiveMembership(
+          clinicId
+            ? me.memberships.find((m) => m.clinicId === clinicId) || me.activeMembership
+            : me.activeMembership,
+          me.memberships,
+        )
+        set({
+          user: me.user,
+          clinics: me.memberships,
+          token: result?.accessToken || get().token,
+          refreshToken: result?.refreshToken ?? get().refreshToken,
+          activeMembership,
+          clinic: buildClinicFromMembership(activeMembership),
+          activeClinic: buildClinicFromMembership(activeMembership),
+        })
+        return
+      }
+
       set({
-        token: result.accessToken || get().token,
-        refreshToken: result.refreshToken ?? get().refreshToken,
+        token: result?.accessToken || get().token,
+        refreshToken: result?.refreshToken ?? get().refreshToken,
         activeMembership,
         clinic: buildClinicFromMembership(activeMembership),
         activeClinic: buildClinicFromMembership(activeMembership),
@@ -451,28 +503,49 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 // ─── useAuth hook (drop-in replacement for AuthContext) ───
 
 export function useAuth() {
-  const state = useAuthStore()
+  const user = useAuthStore((s) => s.user)
+  const clinic = useAuthStore((s) => s.clinic)
+  const clinics = useAuthStore((s) => s.clinics)
+  const activeMembership = useAuthStore((s) => s.activeMembership)
+  const activeClinic = useAuthStore((s) => s.activeClinic)
+  const loading = useAuthStore((s) => s.loading)
+  const error = useAuthStore((s) => s.error)
+  const login = useAuthStore((s) => s.login)
+  const logout = useAuthStore((s) => s.logout)
+  const register = useAuthStore((s) => s.register)
+  const forgotPassword = useAuthStore((s) => s.forgotPassword)
+  const addStaffMember = useAuthStore((s) => s.addStaffMember)
+  const getClinicStaff = useAuthStore((s) => s.getClinicStaff)
+  const switchClinic = useAuthStore((s) => s.switchClinic)
+  const can = useAuthStore((s) => s.can)
+  const allClinics = useAuthStore((s) => s.allClinics)
+  const allUsers = useAuthStore((s) => s.allUsers)
+
+  const role = resolveRole(activeMembership, user) as UserRole
+  const roleInfo = resolveRoleInfo(activeMembership, user)
+  const mode = activeMembership ? ('workspace' as const) : ('personal' as const)
+
   return {
-    user: state.user,
-    clinic: state.clinic,
-    clinics: state.clinics,
-    activeMembership: state.activeMembership,
-    activeClinic: state.activeClinic,
-    mode: state.mode,
-    loading: state.loading,
-    error: state.error,
-    login: state.login,
-    logout: state.logout,
-    register: state.register,
-    forgotPassword: state.forgotPassword,
-    addStaffMember: state.addStaffMember,
-    getClinicStaff: state.getClinicStaff,
-    switchClinic: state.switchClinic,
-    isAuthenticated: !!state.user,
-    role: state.role,
-    roleInfo: state.roleInfo,
-    can: state.can,
-    allClinics: state.allClinics,
-    allUsers: state.allUsers,
+    user,
+    clinic,
+    clinics,
+    activeMembership,
+    activeClinic,
+    mode,
+    loading,
+    error,
+    login,
+    logout,
+    register,
+    forgotPassword,
+    addStaffMember,
+    getClinicStaff,
+    switchClinic,
+    isAuthenticated: !!user,
+    role,
+    roleInfo,
+    can,
+    allClinics,
+    allUsers,
   }
 }
