@@ -415,7 +415,7 @@ export async function getShopProducts(params: Record<string, string> = {}): Prom
 export async function getShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`); }
 export async function getShopSuppliers(): Promise<any> { return Promise.resolve([]); }
 export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
-export async function getShopOrders(clinicId: string): Promise<any> { return apiRequest('/api/shop/orders'); }
+export async function getShopOrders(clinicId: string): Promise<any> { return collection(await apiRequest('/api/shop/orders')); }
 export async function createShopReview(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
 export async function toggleShopFavorite(data: any): Promise<any> { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getShopFavorites(clinicId: string): Promise<any> { return apiRequest('/api/shop/favorites'); }
