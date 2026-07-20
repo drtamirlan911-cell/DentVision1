@@ -36,6 +36,30 @@ medicalRouter.post('/visits', async (req: AuthRequest, res) => {
   }
 });
 
+medicalRouter.patch('/visits/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { diagnosis, complaints, anamnesis, treatment, notes, doctorId } = req.body;
+
+    const visit = await prisma.visit.update({
+      where: { id },
+      data: {
+        ...(doctorId !== undefined && { doctorId }),
+        ...(diagnosis !== undefined && { diagnosis: diagnosis || null }),
+        ...(complaints !== undefined && { complaints: complaints || null }),
+        ...(anamnesis !== undefined && { anamnesis: anamnesis || null }),
+        ...(treatment !== undefined && { treatment }),
+        ...(notes !== undefined && { notes: notes || null }),
+      },
+    });
+
+    res.json({ ok: true, data: visit });
+  } catch (error) {
+    console.error('Update visit error:', error);
+    res.status(500).json({ ok: false, error: 'Failed to update visit' });
+  }
+});
+
 medicalRouter.get('/visits/:patientId', async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
