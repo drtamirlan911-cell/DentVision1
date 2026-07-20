@@ -785,6 +785,22 @@ model WebhookDelivery {
   @@map("webhook_deliveries")
 }
 
+// ─── COMPLIANCE (Phase 7) ───
+// Rule-based gate for marketplace/education content (KZ requirements).
+
+model ComplianceCheck {
+  id         String @id @default(uuid())
+  entityType String // product | course | supplier
+  entityId   String
+  status     String @default("needs_review") // approved | blocked | needs_review
+  findings   Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("compliance_checks")
+}
+
 model Product {
   id          String @id @default("")
   name        String

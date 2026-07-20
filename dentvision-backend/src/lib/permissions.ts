@@ -29,6 +29,9 @@ export const PERMISSIONS = {
   ACADEMY_MANAGE: 'academy.manage',
   // Finance (Phase 4). Platform-level (payouts, commission rules, ledger ops).
   FINANCE_MANAGE: 'finance.manage',
+  // Compliance & ecosystem analytics (Phase 7). Platform-level.
+  COMPLIANCE_MANAGE: 'compliance.manage',
+  PLATFORM_ANALYTICS: 'platform.analytics',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
