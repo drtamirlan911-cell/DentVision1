@@ -87,7 +87,6 @@ export class ContextManager {
       ADMIN: ['patients:*', 'appointments:*', 'billing:*', 'inventory:*', 'reports:*'],
       DOCTOR: ['patients:read', 'appointments:*', 'medical:*', 'treatment-plans:*'],
       ASSISTANT: ['patients:read', 'appointments:read', 'medical:read'],
-      CASHIER: ['patients:read', 'appointments:read', 'billing:*'],
       LAB: ['lab-orders:*'],
       MANAGER: ['patients:*', 'appointments:*', 'inventory:*', 'reports:*'],
     };

@@ -36,7 +36,11 @@ export interface RoleInfo {
   canSeeSchool?: boolean
   canManageStaff?: boolean
   canManageFinance?: boolean
+  canManageClinicSettings?: boolean
+  canAddStaff?: boolean
   ownDataOnly?: boolean
+  readOnly?: boolean
+  pages?: string[]
 }
 
 // ─── Clinic ─────────────────────────────────────────────────────
@@ -47,6 +51,7 @@ export interface Clinic {
   city?: string
   address?: string
   phone?: string
+  logo?: string
   plan?: string
   active?: boolean
   createdAt?: string
@@ -54,6 +59,30 @@ export interface Clinic {
   country?: string
   currency?: string
   locale?: string
+  settings?: ClinicSettings
+}
+
+export interface ClinicSettings {
+  timezone?: string
+  currency?: string
+  locale?: string
+  workStart?: string
+  workEnd?: string
+  workDays?: number[]
+  lunchStart?: string
+  lunchEnd?: string
+  reminderHours?: number
+  reminderUrgentHours?: number
+  hygieneMonths?: number
+  bookingSlotMinutes?: number
+  overbookingAllowed?: boolean
+  whatsappEnabled?: boolean
+  smsEnabled?: boolean
+  defaultAppointmentDuration?: number
+  invoicePrefix?: string
+  taxPercent?: number
+  notifyNoShow?: boolean
+  requireChair?: boolean
 }
 
 // ─── Patients ───────────────────────────────────────────────────

@@ -20,7 +20,7 @@ export const DEMO_PATIENTS = [
 
 type CreatedUser = { id: string; email: string; role: UserRole };
 
-const CLINIC_ROLES: UserRole[] = ['OWNER', 'DOCTOR', 'ASSISTANT', 'ADMIN', 'CASHIER', 'LAB', 'STUDENT'];
+const CLINIC_ROLES: UserRole[] = ['OWNER', 'DOCTOR', 'ASSISTANT', 'ADMIN', 'LAB', 'STUDENT'];
 
 export async function seedDemoClinic(
   prisma: PrismaClient,

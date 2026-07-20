@@ -8,7 +8,6 @@ const ROLE_HIERARCHY: Record<string, number> = {
   ADMIN: 3,
   MANAGER: 3,
   DOCTOR: 2,
-  CASHIER: 2,
   LAB: 2,
   ASSISTANT: 1,
   STUDENT: 1,
