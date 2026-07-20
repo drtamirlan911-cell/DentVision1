@@ -244,13 +244,29 @@ authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) =>
     const tokens = generateTokens({
       sub: req.user!.id,
       email: req.user!.email,
-      role: req.user!.role,
+      role: membership.role || req.user!.role,
       clinicId,
     });
 
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { id: true, name: true, city: true, plan: true, logo: true },
+    });
+
+    const activeMembership = {
+      id: membership.id,
+      role: membership.role,
+      clinicId: membership.clinicId,
+      joinedAt: membership.joinedAt,
+      clinic,
+    };
+
     const response: ApiResponse = {
       ok: true,
-      data: tokens,
+      data: {
+        ...tokens,
+        activeMembership,
+      },
     };
 
     res.json(response);
