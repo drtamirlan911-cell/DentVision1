@@ -1,9 +1,21 @@
+# DentVision — Render Blueprint
+# Auto-deploy: merge to main → build runs prisma db push → API starts.
+#
+# Dashboard checklist (if not using Blueprint sync):
+# - Root Directory: (repo root) OR set build/start as below
+# - Build Command: cd server && npm ci && npm run render:build
+# - Start Command: cd server && npm run render:start
+# - Env: DATABASE_URL, JWT_SECRET, NODE_ENV=production, CORS_ORIGIN, PORT
+
 services:
   - type: web
     name: dentvision-api
     runtime: node
-    buildCommand: cd dentvision-backend && npm install && npx prisma generate && npx prisma db push --accept-data-loss
-    startCommand: cd dentvision-backend && npx tsx src/index.ts
+    plan: free
+    # Full repo is cloned; commands run from repo root
+    buildCommand: cd server && npm install && npm run render:build
+    startCommand: cd server && npm run render:start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production

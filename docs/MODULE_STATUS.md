@@ -10,16 +10,16 @@
 |---|---|---|---|---|
 | **Auth** | ✅ Ready | 5 | 993 | Login, Register, ForgotPassword, PublicBooking, DocumentSign |
 | **IntelligenceLayout** | 🟡 Partial | 1 | 598 | Too large. Needs splitting into Sidebar, Header, ContextPanel. |
-| **AI Workspace** | 🟡 Partial | 16 | ~2,500 | Chat-centric, not command workspace. ContextPanel has 3 tabs. |
+| **AI Workspace** | 🟡 Partial | 16 | ~2,500 | Persistent AiThread/AiMessage + SSE; local fallback. |
 | **Design System** | 🟡 Partial | 20 | ~1,800 | 19 components. Missing DatePicker, DataTable, Accordion, Pagination. |
-| **CRM** | 🟡 Partial | 12 | ~5,200 | All pages >300 lines. Functional but oversized. |
+| **CRM** | 🟡 Partial | 12 | ~5,200 | Dental chart + treatment plans persist; finance still thin. |
 | **Shop** | 🟡 Partial | 6 | ~1,100 | Working. Some mock data. |
-| **School** | 🟡 Partial | 2 | ~640 | Basic catalog + course detail. No clinical cases/library. |
+| **School** | 🟡 Partial | 2 | ~640 | Exams + AI Tutor; Live/practicals still missing. |
 | **Notifications** | 🟡 Partial | 3 | ~265 | NotificationCenter + store + query. No real-time integration. |
 | **WebSocket** | 🟡 Partial | 4 | ~190 | Client exists. 2/9 events handled. |
 | **Analytics** | 🔴 Missing | 1 | 82 | Placeholder only. No charts, no real metrics. |
-| **Jobs** | 🔴 Missing | 1 | 157 | Mock data only. |
-| **Community** | 🔴 Missing | 1 | 179 | Mock data only. |
+| **Jobs** | 🟡 Partial | 1 | ~200 | Prisma-first + apply flow. Employer inbox thin. |
+| **Community** | 🟡 Partial | 1 | ~200 | Prisma-first feed/likes. Comments/media missing. |
 | **Mobile** | 🟡 Partial | 2 | ~160 | BottomSheet + BottomNav. No touch gestures, no safe area. |
 | **Error Handling** | 🟡 Partial | 1 | 60 | ErrorBoundary exists but not wrapped around routes. |
 

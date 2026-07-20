@@ -126,8 +126,11 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
   }
 
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  // Backend wraps responses in { ok, data }. Unwrap for callers.
-  return data.data !== undefined ? data.data : data;
+  // Only unwrap explicit API envelopes { ok, data }. Do NOT strip domain payloads that include a `data` field (e.g. AI chat).
+  if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) {
+    return data.data;
+  }
+  return data;
 }
 
 // ─── Auth ───
@@ -423,11 +426,74 @@ export async function getSchoolCourse(id: string): Promise<any> { return apiRequ
 export async function enrollCourse(data: any): Promise<any> { return apiRequest('/api/school/enrollments', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getEnrollments(userId: string): Promise<any> { return apiRequest('/api/school/enrollments'); }
 export async function updateEnrollment(id: string, data: any): Promise<any> { return apiRequest(`/api/school/enrollments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
-export async function getSchoolClinicalCases(category: string): Promise<any> { return Promise.resolve([]); }
-export async function getSchoolLibrary(params: Record<string, string> = {}): Promise<any> {
-  return Promise.resolve([]);
+export async function getSchoolClinicalCases(category: string): Promise<any> {
+  const q = category ? `?category=${encodeURIComponent(category)}` : '';
+  return apiRequest(`/api/school/clinical-cases${q}`);
 }
-export async function getSchoolCertificates(userId: string): Promise<any> { return Promise.resolve([]); }
+export async function getSchoolLibrary(params: Record<string, string> = {}): Promise<any> {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
+  return apiRequest(`/api/school/library?${q}`);
+}
+export async function getSchoolCertificates(userId: string): Promise<any> {
+  return apiRequest('/api/school/certificates');
+}
+
+export async function getLessonExam(lessonId: string): Promise<any> {
+  return apiRequest(`/api/school/lessons/${lessonId}/exam`);
+}
+
+export async function submitLessonExam(lessonId: string, answers: Record<string, number>, courseId?: string): Promise<any> {
+  return apiRequest(`/api/school/lessons/${lessonId}/exam/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ answers, courseId }),
+  });
+}
+
+export async function askSchoolTutor(payload: {
+  message: string;
+  courseId?: string;
+  lessonId?: string;
+  history?: Array<{ role: string; content: string }>;
+}): Promise<any> {
+  return apiRequest('/api/school/tutor', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── Treatment Plans ───
+export async function getTreatmentPlans(clinicId: string, params: { patientId?: string; status?: string } = {}): Promise<any[]> {
+  const q = new URLSearchParams();
+  if (params.patientId) q.set('patientId', params.patientId);
+  if (params.status) q.set('status', params.status);
+  const qs = q.toString();
+  return apiRequest(`/api/crm/${clinicId}/treatment-plans${qs ? `?${qs}` : ''}`);
+}
+
+export async function upsertTreatmentPlan(data: Record<string, unknown>): Promise<any> {
+  return apiRequest('/api/crm/treatment-plans', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteTreatmentPlan(id: string): Promise<any> {
+  return apiRequest(`/api/crm/treatment-plans/${id}`, { method: 'DELETE' });
+}
+
+// ─── AI Threads ───
+export async function getAiThreads(): Promise<any> {
+  return apiRequest('/api/ai/threads');
+}
+
+export async function getActiveAiThread(): Promise<any> {
+  return apiRequest('/api/ai/threads/active');
+}
+
+export async function startNewAiThread(): Promise<any> {
+  return apiRequest('/api/ai/threads/new', { method: 'POST', body: '{}' });
+}
 
 // ─── Service Access ───
 export async function getServiceAccess(clinicId: string): Promise<Record<string, boolean>> {
@@ -533,54 +599,209 @@ export interface AIChatResponse {
   proactive: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;
   conversationContext: { turnCount: number; entities: Record<string, unknown> };
 }
-export async function aiChat(message: string, _history: Array<{ role: string; content: string }> = []): Promise<AIChatResponse> {
-  const sessionId = (crypto as any)?.randomUUID?.() || Math.random().toString(36).slice(2);
+export async function aiChat(message: string, history: Array<{ role: string; content: string }> = []): Promise<AIChatResponse> {
   const res = await apiRequest('/api/ai/query', {
     method: 'POST',
-    body: JSON.stringify({ text: message, sessionId }),
+    body: JSON.stringify({
+      text: message,
+      message,
+      history: history.slice(-20),
+    }),
   });
-  const d = res?.data || {};
+
+  // Support both live server shape ({ reply, skill, ... }) and legacy envelope ({ message, intent })
+  const reply = res?.reply || res?.message || '';
+  const skill = res?.skill || res?.intent || 'general';
+  const actionsRaw = Array.isArray(res?.actions)
+    ? res.actions
+    : res?.action
+      ? [{ type: res.action.type, label: res.action.type || res.action.label, params: res.action.payload || res.action.params, confidence: 1, requiresConfirmation: !!res.needsConfirmation }]
+      : [];
+
   return {
-    reply: d.message || '',
-    skill: d.intent || 'general',
-    source: 'ai',
-    data: d,
-    recommendations: undefined,
-    actions: d.action
-      ? [
-          {
-            type: d.action.type,
-            label: d.action.type,
-            confidence: 1,
-            params: (d.action.payload as Record<string, unknown>) || {},
-            requiresConfirmation: !!d.needsConfirmation,
-          },
-        ]
-      : [],
-    suggestions: Array.isArray(d.suggestions) ? d.suggestions : [],
-    proactive: [],
-    conversationContext: { turnCount: 0, entities: {} },
+    reply,
+    skill,
+    source: res?.source || 'ai',
+    data: res?.data,
+    recommendations: res?.recommendations,
+    actions: actionsRaw.map((a: any) => ({
+      type: a.type || a.action,
+      label: a.label || a.type || a.action,
+      confidence: a.confidence ?? 1,
+      params: a.params || {},
+      requiresConfirmation: a.requiresConfirmation,
+    })),
+    suggestions: Array.isArray(res?.suggestions) ? res.suggestions : [],
+    proactive: Array.isArray(res?.proactive) ? res.proactive : [],
+    conversationContext: res?.conversationContext || { turnCount: 0, entities: {} },
   } as AIChatResponse;
 }
+
+/** Prefer real SSE stream; fall back to local typewriter on failure */
+export async function aiChatStream(
+  message: string,
+  history: Array<{ role: string; content: string }> = [],
+  onChunk: (partial: string, done: boolean) => void,
+): Promise<AIChatResponse> {
+  try {
+    const streamed = await aiChatSSE(message, history, onChunk);
+    if (streamed) return streamed;
+  } catch {
+    // fall through to simulated stream
+  }
+
+  const full = await aiChat(message, history);
+  const text = full.reply || '';
+  if (!text) {
+    onChunk('', true);
+    return full;
+  }
+  const chunkSize = Math.max(2, Math.ceil(text.length / 40));
+  let i = 0;
+  await new Promise<void>((resolve) => {
+    const tick = () => {
+      i = Math.min(text.length, i + chunkSize);
+      onChunk(text.slice(0, i), i >= text.length);
+      if (i >= text.length) resolve();
+      else setTimeout(tick, 16);
+    };
+    tick();
+  });
+  return full;
+}
+
+async function aiChatSSE(
+  message: string,
+  history: Array<{ role: string; content: string }>,
+  onChunk: (partial: string, done: boolean) => void,
+): Promise<AIChatResponse | null> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (_accessToken) headers.Authorization = `Bearer ${_accessToken}`;
+  else {
+    try {
+      const guestData = localStorage.getItem('dv_guest');
+      if (guestData) {
+        const { guestToken } = JSON.parse(guestData);
+        if (guestToken) headers.Authorization = `Bearer ${guestToken}`;
+      }
+    } catch { /* ignore */ }
+  }
+
+  const res = await fetch(`${API_URL}/api/ai/query/stream`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ text: message, message, history: history.slice(-20) }),
+  });
+  if (!res.ok || !res.body) return null;
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let partial = '';
+  let donePayload: any = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+    for (const part of parts) {
+      const line = part.split('\n').find((l) => l.startsWith('data: '));
+      if (!line) continue;
+      try {
+        const evt = JSON.parse(line.slice(6));
+        if (evt.type === 'token' && evt.text) {
+          partial += evt.text;
+          onChunk(partial, false);
+        } else if (evt.type === 'done') {
+          donePayload = evt;
+          partial = evt.reply || partial;
+          onChunk(partial, true);
+        } else if (evt.type === 'error') {
+          throw new Error(evt.error || 'SSE error');
+        }
+      } catch (e) {
+        if (e instanceof SyntaxError) continue;
+        throw e;
+      }
+    }
+  }
+
+  if (!donePayload) {
+    onChunk(partial, true);
+    return {
+      reply: partial,
+      skill: 'general',
+      source: 'ai',
+      actions: [],
+      suggestions: [],
+      proactive: [],
+      conversationContext: { turnCount: 0, entities: {} },
+    };
+  }
+
+  return {
+    reply: donePayload.reply || partial,
+    skill: donePayload.skill || 'general',
+    source: donePayload.source || 'ai',
+    data: donePayload.data,
+    recommendations: donePayload.recommendations,
+    actions: Array.isArray(donePayload.actions) ? donePayload.actions : [],
+    suggestions: Array.isArray(donePayload.suggestions) ? donePayload.suggestions : [],
+    proactive: Array.isArray(donePayload.proactive) ? donePayload.proactive : [],
+    conversationContext: donePayload.conversationContext || { turnCount: 0, entities: {} },
+  };
+}
+
 export async function aiProactive(): Promise<{ alerts: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }> }> {
   const res = await apiRequest('/api/ai/proactive');
-  const alerts = (res?.data?.alerts || []).map((a: any) => ({
+  const raw = res?.alerts || res?.data?.alerts || [];
+  const alerts = raw.map((a: any) => ({
     type: a.type || 'info',
-    category: a.type || 'general',
-    text: a.message || '',
-    priority: a.priority === 'high' ? 2 : a.priority === 'medium' ? 1 : 0,
+    category: a.category || a.type || 'general',
+    text: a.text || a.message || '',
+    priority: typeof a.priority === 'number' ? a.priority : a.priority === 'high' ? 2 : a.priority === 'medium' ? 1 : 0,
     action: a.action ? { type: a.action.type } : undefined,
   }));
   return { alerts };
 }
 export async function aiAction(action: string, params: Record<string, unknown> = {}): Promise<any> {
-  return apiRequest('/api/ai/confirm', {
+  return apiRequest('/api/ai/action', {
     method: 'POST',
-    body: JSON.stringify({ actionId: action, confirmed: true, data: params }),
+    body: JSON.stringify({ action, params, confirmationRequired: false }),
   });
 }
 export async function aiDigitalTwin(): Promise<any> {
   return apiRequest('/api/ai/digital-twin');
+}
+
+// ─── Jobs (HH-class) ───
+export async function getJobs(params: Record<string, string> = {}): Promise<any[]> {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
+  return apiRequest(`/api/jobs?${q}`);
+}
+export async function createJob(data: any): Promise<any> {
+  return apiRequest('/api/jobs', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function applyToJob(id: string, coverNote = ''): Promise<any> {
+  return apiRequest(`/api/jobs/${id}/apply`, { method: 'POST', body: JSON.stringify({ coverNote }) });
+}
+export async function getMyJobApplications(): Promise<any[]> {
+  return apiRequest('/api/jobs/me/applications');
+}
+
+// ─── Community (IG + Threads) ───
+export async function getCommunityPosts(topic?: string): Promise<any[]> {
+  const q = topic && topic !== 'Все' ? `?topic=${encodeURIComponent(topic)}` : '';
+  return apiRequest(`/api/community/posts${q}`);
+}
+export async function createCommunityPost(data: { content: string; tags?: string[]; kind?: string }): Promise<any> {
+  return apiRequest('/api/community/posts', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function likeCommunityPost(id: string): Promise<any> {
+  return apiRequest(`/api/community/posts/${id}/like`, { method: 'POST' });
 }
 
 // ─── Admin (SuperAdmin) ───

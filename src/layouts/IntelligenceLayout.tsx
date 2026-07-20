@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { ChevronRight, Menu, Building2, User, Stethoscope } from 'lucide-react';
@@ -6,9 +6,11 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
 import { useGuestStore } from '@/store/guest.store';
+import { useAIWorkspaceStore } from '@/store/workspace.store';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
 import { aiProactive } from '@/utils/api';
+import { trackProductEvent } from '@/utils/analytics';
 import { Sidebar } from './Sidebar';
 import { AlertDropdown } from './AlertDropdown';
 import { BottomNav } from './BottomNav';
@@ -19,6 +21,13 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   crm: 'CRM',
   schedule: 'Расписание',
   patients: 'Пациенты',
+  finance: 'Финансы',
+  cashier: 'Касса',
+  inventory: 'Склад',
+  documents: 'Документы',
+  'dental-chart': 'Зубная карта',
+  'treatment-plans': 'Планы лечения',
+  reminders: 'Напоминания',
   shop: 'Маркетплейс',
   school: 'Академия',
   analytics: 'Аналитика',
@@ -32,23 +41,44 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   backup: 'Бэкапы',
 };
 
+const FIRST_RUN_COLLAPSE_MS = 15_000;
+
 export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth();
   const { isGuest, isGuestRoute, requiresAuth, initGuest, showRegistrationModal, setRegistrationModal } = useGuestStore();
-  const { sidebarOpen, toggleSidebar, contextSheetOpen, setContextSheetOpen } = useUIStore();
+  const {
+    sidebarOpen,
+    toggleSidebar,
+    contextSheetOpen,
+    setContextSheetOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    sidebarPinned,
+    sidebarVisible,
+    setSidebarVisible,
+    sidebarHovering,
+    setSidebarHovering,
+    firstRunPhase,
+    setFirstRunPhase,
+    completeFirstRun,
+    toggleSidebarCollapsed,
+  } = useUIStore();
+  const setOnboardingComplete = useAIWorkspaceStore((s) => s.setOnboardingComplete);
 
   const isPublicRoute = isGuestRoute(location.pathname);
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
+  const isAIHome = location.pathname === '/';
 
-  const [collapsed, setCollapsed] = useState(false);
-  const [sidebarVisible, setSidebarVisible] = useState(true);
   const [proactiveAlerts, setProactiveAlerts] = useState<Array<{ type: string; text: string; priority: number }>>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
   const [guestCRMOpen, setGuestCRMOpen] = useState(false);
   const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
+  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const firstRunBooted = useRef(false);
+  const openTs = useRef(Date.now());
 
   const handleAIQuery = useCallback((query: string) => {
     navigate('/', { state: { aiQuery: query } });
@@ -56,7 +86,7 @@ export const IntelligenceLayout: React.FC = () => {
 
   const getBreadcrumbs = useCallback(() => {
     const segments = location.pathname.split('/').filter(Boolean);
-    if (segments.length === 0) return [];
+    if (segments.length === 0) return [{ label: 'AI Workspace', path: '/' }];
     const crumbs: { label: string; path: string }[] = [];
     let accumulated = '';
     for (const seg of segments) {
@@ -88,6 +118,96 @@ export const IntelligenceLayout: React.FC = () => {
       if (data?.alerts?.length) setProactiveAlerts(data.alerts);
     } catch { /* ignore */ }
   }, []);
+
+  // ── First-run: greeting → functional sidebar dock → 15s collapse ──
+  useEffect(() => {
+    if (firstRunBooted.current) return;
+    if (firstRunPhase === 'done') {
+      setSidebarVisible(true);
+      return;
+    }
+    if (!isAIHome) {
+      setSidebarVisible(true);
+      setFirstRunPhase('done');
+      completeFirstRun();
+      setOnboardingComplete(true);
+      return;
+    }
+
+    firstRunBooted.current = true;
+    trackProductEvent('first_run_started', { role: user?.role || 'guest' });
+    setFirstRunPhase('greeting');
+    setSidebarVisible(false);
+    setSidebarCollapsed(false);
+
+    const dockTimer = setTimeout(() => {
+      setFirstRunPhase('docking');
+      setSidebarVisible(true);
+      setFirstRunPhase('docked');
+      trackProductEvent('sidebar_docked', { t_ms: Date.now() - openTs.current });
+    }, 700);
+
+    return () => clearTimeout(dockTimer);
+  }, [
+    firstRunPhase,
+    isAIHome,
+    setSidebarVisible,
+    setSidebarCollapsed,
+    setFirstRunPhase,
+    completeFirstRun,
+    setOnboardingComplete,
+    user?.role,
+  ]);
+
+  // 15s auto-collapse after dock (pause while hovering / pinned)
+  useEffect(() => {
+    if (firstRunPhase !== 'docked' || sidebarPinned || isMobile) return;
+
+    const clear = () => {
+      if (collapseTimerRef.current) {
+        clearTimeout(collapseTimerRef.current);
+        collapseTimerRef.current = null;
+      }
+    };
+
+    if (sidebarHovering) {
+      clear();
+      return clear;
+    }
+
+    collapseTimerRef.current = setTimeout(() => {
+      setSidebarCollapsed(true);
+      setFirstRunPhase('collapsed');
+      completeFirstRun();
+      setOnboardingComplete(true);
+      trackProductEvent('sidebar_auto_collapsed', { after_ms: FIRST_RUN_COLLAPSE_MS });
+    }, FIRST_RUN_COLLAPSE_MS);
+
+    return clear;
+  }, [
+    firstRunPhase,
+    sidebarPinned,
+    sidebarHovering,
+    isMobile,
+    setSidebarCollapsed,
+    setFirstRunPhase,
+    completeFirstRun,
+    setOnboardingComplete,
+  ]);
+
+  useEffect(() => {
+    if (location.pathname !== '/' && firstRunPhase !== 'done') {
+      // Navigating away during first-run still completes onboarding
+      completeFirstRun();
+      setOnboardingComplete(true);
+      setFirstRunPhase('done');
+      setSidebarVisible(true);
+      trackProductEvent('first_navigation', {
+        target: location.pathname,
+        t_ms: Date.now() - openTs.current,
+      });
+    }
+  }, [location.pathname, firstRunPhase, completeFirstRun, setOnboardingComplete, setFirstRunPhase, setSidebarVisible]);
 
   if (!isAuthenticated && !isGuest && !isPublicRoute) {
     initGuest();
@@ -124,7 +244,7 @@ export const IntelligenceLayout: React.FC = () => {
               <User size={24} className="text-dv-gold" />
             </div>
             <h2 className="text-lg font-semibold text-txt-primary">Требуется авторизация</h2>
-            <p className="text-sm text-txt-secondary max-w-xs">Войдите или зарегистрируйтесь для доступа к CRM</p>
+            <p className="text-sm text-txt-secondary max-w-xs">Войдите или зарегистрируйтесь для доступа</p>
             <button
               onClick={() => setRegistrationModal(true, () => navigate(pendingPath))}
               className="px-6 py-2.5 rounded-lg bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors"
@@ -140,25 +260,6 @@ export const IntelligenceLayout: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex">
-      <style>{`
-        @keyframes sidebarGradient {
-          0%, 100% { transform: translate(-25%, -25%) rotate(0deg); }
-          33% { transform: translate(25%, -25%) rotate(120deg); }
-          66% { transform: translate(25%, 25%) rotate(240deg); }
-          100% { transform: translate(-25%, 25%) rotate(360deg); }
-        }
-        .sidebar-gradient {
-          animation: sidebarGradient 30s ease-in-out infinite;
-        }
-        @keyframes alertPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); }
-          50% { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0); }
-        }
-        .alert-pulse {
-          animation: alertPulse 2s ease-in-out infinite;
-        }
-      `}</style>
-
       <AnimatePresence>
         {isMobile && sidebarOpen && (
           <motion.div
@@ -171,18 +272,30 @@ export const IntelligenceLayout: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <Sidebar
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
-        sidebarVisible={sidebarVisible}
-        isMobile={isMobile}
-        sidebarOpen={sidebarOpen}
-        user={isGuest ? { id: 'guest', name: 'Гость', login: 'guest', role: 'guest', platformRole: 'guest' } as any : user}
-        roleInfo={isGuest ? { label: 'Гость', icon: '👤', pages: ['shop', 'school', 'jobs', 'community', 'demo'] } as any : roleInfo}
-        logout={isGuest ? () => {} : logout}
-        toggleSidebar={toggleSidebar}
-        isGuest={isGuest}
-      />
+      <div
+        onMouseEnter={() => setSidebarHovering(true)}
+        onMouseLeave={() => setSidebarHovering(false)}
+        className="contents"
+      >
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          setCollapsed={(v) => {
+            setSidebarCollapsed(v);
+            if (!v) {
+              trackProductEvent('sidebar_user_expanded');
+            }
+          }}
+          sidebarVisible={sidebarVisible}
+          isMobile={isMobile}
+          sidebarOpen={sidebarOpen}
+          user={isGuest ? { id: 'guest', name: 'Гость', login: 'guest', role: 'guest', platformRole: 'guest' } as any : user}
+          roleInfo={isGuest ? { label: 'Гость', icon: '👤', pages: ['shop', 'school', 'jobs', 'community', 'demo'] } as any : roleInfo}
+          logout={isGuest ? () => {} : logout}
+          toggleSidebar={toggleSidebar}
+          isGuest={isGuest}
+          onToggleCollapsed={toggleSidebarCollapsed}
+        />
+      </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0">
@@ -196,17 +309,14 @@ export const IntelligenceLayout: React.FC = () => {
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-sm text-txt-muted">
-                {(() => {
-                  const crumbs = getBreadcrumbs();
-                  return crumbs.map((crumb, idx) => (
-                    <span key={crumb.path} className="flex items-center gap-1.5">
-                      {idx > 0 && <ChevronRight size={12} className="text-txt-ghost shrink-0" />}
-                      <span className={idx === crumbs.length - 1 ? 'text-txt-primary font-semibold' : 'truncate'}>
-                        {crumb.label}
-                      </span>
+                {getBreadcrumbs().map((crumb, idx, crumbs) => (
+                  <span key={crumb.path} className="flex items-center gap-1.5">
+                    {idx > 0 && <ChevronRight size={12} className="text-txt-ghost shrink-0" />}
+                    <span className={idx === crumbs.length - 1 ? 'text-txt-primary font-semibold' : 'truncate'}>
+                      {crumb.label}
                     </span>
-                  ));
-                })()}
+                  </span>
+                ))}
               </div>
             </div>
           </div>

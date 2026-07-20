@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import prisma from '../lib/prisma.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { requirePermission, requireSuperadmin } from '../middleware/rbac.js';
 import { broadcast } from '../ws.js';
 import aiRoutes from '../ai/chat.js';
@@ -8,9 +8,27 @@ import crmRoutes from './crm.js';
 
 export default function registerBridgeRoutes(app, writeAuditLog) {
   const aiRouter = aiRoutes();
-  app.post('/api/ai/query', authenticate, (req, res, next) => {
+  app.post('/api/ai/query', optionalAuth, (req, res, next) => {
     req.body.message = req.body.text || req.body.message;
+    req.body.history = req.body.history || [];
     req.url = '/chat';
+    aiRouter(req, res, next);
+  });
+
+  app.post('/api/ai/query/stream', optionalAuth, (req, res, next) => {
+    req.body.message = req.body.text || req.body.message;
+    req.body.history = req.body.history || [];
+    req.url = '/chat/stream';
+    aiRouter(req, res, next);
+  });
+
+  // Convenience aliases for AI threads (same router also mounted at /api/ai)
+  app.get('/api/ai/threads', authenticate, (req, res, next) => {
+    req.url = '/threads';
+    aiRouter(req, res, next);
+  });
+  app.get('/api/ai/threads/active', authenticate, (req, res, next) => {
+    req.url = '/threads/active';
     aiRouter(req, res, next);
   });
 

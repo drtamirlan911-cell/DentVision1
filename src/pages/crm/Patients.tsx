@@ -1,5 +1,5 @@
-﻿import React, { useState, useCallback } from 'react'
-import { useOutletContext } from 'react-router-dom'
+﻿import React, { useState, useCallback, useEffect } from 'react'
+import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   UserPlus, Search, ArrowLeft, Phone, Mail, MapPin, Calendar, FileText, Camera,
@@ -83,6 +83,7 @@ export default function Patients() {
   const { clinic } = useOutletContext<OutletContext>()
   const { patients, appointments, upsertPatient, deletePatient } = useDataQuery(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
+  const [params] = useSearchParams()
 
   const [selected, setSelected] = useState<Patient | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -97,6 +98,19 @@ export default function Patients() {
   const [photos, setPhotos] = useState<Array<{ id: string; url: string; category: string; date: string; name: string }>>([])
   const [photoCategory, setPhotoCategory] = useState('smile')
   const [payment, setPayment] = useState(EMPTY_PAYMENT)
+
+  useEffect(() => {
+    const pid = params.get('patient')
+    const tab = params.get('tab')
+    if (pid && patients.length) {
+      const p = patients.find((x) => x.id === pid)
+      if (p) {
+        setSelected(p)
+        setTeethState((p as any).teeth || {})
+      }
+    }
+    if (tab) setActiveTab(tab)
+  }, [params, patients])
 
   const filtered = patients.filter(p => {
     const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase())
@@ -149,10 +163,24 @@ export default function Patients() {
     setSelectedTooth(t => t === toothNum ? null : toothNum)
   }, [])
 
-  const handleSaveToothSurfaces = (toothNum: number, surfaces: any) => {
+  const handleSaveToothSurfaces = async (toothNum: number, surfaces: any) => {
     const updated = { ...teethState, [toothNum]: { ...teethState[toothNum], surfaces } }
     setTeethState(updated)
     setSelectedTooth(null)
+    if (selected) {
+      try {
+        await upsertPatient({
+          id: selected.id,
+          clinicId: clinic?.id || selected.clinicId,
+          name: selected.name,
+          phone: selected.phone,
+          teeth: updated,
+        } as any)
+        showToast('Зубная карта обновлена', 'success')
+      } catch {
+        showToast('Не удалось сохранить зубную карту', 'error')
+      }
+    }
   }
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

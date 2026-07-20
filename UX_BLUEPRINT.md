@@ -4,6 +4,9 @@
 **Статус:** ОБЯЗАТЕЛЬНЫЙ К ИСПОЛНЕНИЮ  
 **Дата:** 2026-01-16
 
+> **Canonical product specification:** [`docs/spec/README.md`](docs/spec/README.md)  
+> First-run (AI greeting → chat → functional sidebar → collapse at 15s) канонически описан в [`docs/spec/03-FIRST-RUN-EXPERIENCE.md`](docs/spec/03-FIRST-RUN-EXPERIENCE.md).
+
 ---
 
 ## IMPORTANT — ПРИНЦИПЫ

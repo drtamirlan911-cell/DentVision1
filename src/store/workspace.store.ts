@@ -190,9 +190,14 @@ export const useAIWorkspaceStore = create<AIWorkspaceState>((set) => ({
     context: { focusType: 'workspace', focusId: null, data: {}, lastUpdated: Date.now() },
   })),
 
-  setOnboardingComplete: (completed) => set((state) => ({
-    onboarding: { ...state.onboarding, completed },
-  })),
+  setOnboardingComplete: (completed) => {
+    try {
+      if (completed) sessionStorage.setItem('dv_welcomed', '1');
+    } catch { /* ignore */ }
+    set((state) => ({
+      onboarding: { ...state.onboarding, completed },
+    }));
+  },
 
   setOnboardingScreen: (screen) => set((state) => ({
     onboarding: { ...state.onboarding, currentScreen: screen },

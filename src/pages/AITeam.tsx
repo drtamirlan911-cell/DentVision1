@@ -1,366 +1,87 @@
-﻿import React, { useState, useRef, useEffect, type KeyboardEvent } from 'react';
-import { useToast } from '@/components/ui/ds/Toast'
-import { useDataQuery } from '../queries/useDataQuery';
-import { useAuth } from '@/store/auth.store';
-import { Button } from '../components/ui/ds/Button';
-import { Card, CardContent } from '../components/ui/ds/Card';
-import { buildAiReply } from '../utils/aiHelpers';
-import { motion, AnimatePresence } from 'framer-motion';
+﻿import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
-  MessageSquare,
-  Calendar,
-  BarChart3,
-  Megaphone,
-  Bot,
-  TrendingUp,
-  Target,
-  Trash2,
-  Send,
-  Loader2,
+  Bot, Brain, Scan, Bone, AlignCenter, Syringe, FlaskConical,
+  Wallet, Headset, Megaphone, ArrowRight, Sparkles,
 } from 'lucide-react';
-import { PageHeader } from '../components/ui/ds/StatCard';
+import { Card, CardContent } from '@/components/ui/ds/Card';
+import { Button } from '@/components/ui/ds/Button';
+import { Badge } from '@/components/ui/ds/Badge';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 
-interface Assistant {
-  id: string;
-  name: string;
-  Icon: React.ComponentType<{ size?: number; className?: string }>;
-  color: string;
-  bg: string;
-  border: string;
-  dot: string;
-  role: string;
-  quickActions: string[];
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-interface Feature {
-  Icon: React.ComponentType<{ size?: number; className?: string }>;
-  title: string;
-  desc: string;
-}
-
-interface AiFeature {
-  Icon: React.ComponentType<{ size?: number; className?: string }>;
-  text: string;
-}
-
-const ASSISTANTS: Assistant[] = [
-  {
-    id: 'consultant',
-    name: 'Консультант',
-    Icon: MessageSquare,
-    color: 'text-sky-400',
-    bg: 'bg-sky-500/15',
-    border: 'border-sky-500/50',
-    dot: 'bg-sky-400',
-    role: 'Отвечает на вопросы пациентов',
-    quickActions: ['Услуги и цены', 'О врачах', 'Текущие акции', 'Контакты клиники'],
-  },
-  {
-    id: 'scheduler',
-    name: 'Администратор',
-    Icon: Calendar,
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/15',
-    border: 'border-emerald-500/50',
-    dot: 'bg-emerald-400',
-    role: 'Управляет расписанием и записями',
-    quickActions: ['Записаться на приём', 'Отменить запись', 'Перенести время', 'Свободные слоты'],
-  },
-  {
-    id: 'analyst',
-    name: 'Аналитик',
-    Icon: BarChart3,
-    color: 'text-purple-400',
-    bg: 'bg-purple-500/15',
-    border: 'border-purple-500/50',
-    dot: 'bg-purple-400',
-    role: 'Анализирует показатели клиники',
-    quickActions: ['Отчёт за сегодня', 'Отчёт за месяц', 'KPI врачей', 'Прогноз доходов'],
-  },
-  {
-    id: 'marketing',
-    name: 'Маркетолог',
-    Icon: Megaphone,
-    color: 'text-pink-400',
-    bg: 'bg-pink-500/15',
-    border: 'border-pink-500/50',
-    dot: 'bg-pink-400',
-    role: 'Продвижение и работа с отзывами',
-    quickActions: ['Статистика рекламы', 'Предложения по акциям', 'Работа с отзывами', 'Контент-план'],
-  },
-];
-
-const FEATURES: Feature[] = [
-  { Icon: Bot, title: 'Автоответы', desc: 'Мгновенные ответы на вопросы пациентов 24/7' },
-  { Icon: Calendar, title: 'Умное расписание', desc: 'Автозаполнение окон в расписании' },
-  { Icon: TrendingUp, title: 'Прогнозы', desc: 'Предсказание загрузки и доходов клиники' },
-  { Icon: Target, title: 'Персонализация', desc: 'Индивидуальные предложения для каждого пациента' },
-];
-
-const AI_FEATURES: AiFeature[] = [
-  { Icon: Bot, text: 'Автоответы 24/7' },
-  { Icon: Calendar, text: 'Умное расписание' },
-  { Icon: TrendingUp, text: 'Прогнозы доходов' },
-  { Icon: MessageSquare, text: 'WhatsApp-рассылки' },
-  { Icon: Target, text: 'Персонализация' },
-];
+/** Spec §04 agent roster — routes explicit agent intent into AI Workspace */
+const AGENTS = [
+  { id: 'agent.dental', name: 'Dental AI', role: 'Клинический оркестратор', Icon: Brain, prompt: 'Dental AI: помоги с клиническим кейсом' },
+  { id: 'agent.radiology', name: 'Radiology AI', role: 'Снимки и red flags', Icon: Scan, prompt: 'Radiology AI: разбери снимок' },
+  { id: 'agent.orthopedic', name: 'Orthopedic AI', role: 'Ортопедия и конструкции', Icon: Bone, prompt: 'Orthopedic AI: план протезирования' },
+  { id: 'agent.orthodontic', name: 'Orthodontic AI', role: 'Ортодонтия', Icon: AlignCenter, prompt: 'Orthodontic AI: оценка ортодонтического случая' },
+  { id: 'agent.therapy', name: 'Therapy AI', role: 'Терапия и реставрации', Icon: Syringe, prompt: 'Therapy AI: протокол лечения кариеса' },
+  { id: 'agent.endodontic', name: 'Endodontic AI', role: 'Эндодонтия', Icon: Sparkles, prompt: 'Endodontic AI: эндодонтический план' },
+  { id: 'agent.laboratory', name: 'Laboratory AI', role: 'Лабораторные заказы', Icon: FlaskConical, prompt: 'Laboratory AI: статус лаборатории' },
+  { id: 'agent.finance', name: 'Finance AI', role: 'Финансы и долги', Icon: Wallet, prompt: 'Finance AI: покажи выручку и долги' },
+  { id: 'agent.reception', name: 'Reception AI', role: 'Запись и no-show', Icon: Headset, prompt: 'Reception AI: неподтверждённые записи на сегодня' },
+  { id: 'agent.marketing', name: 'Marketing AI', role: 'Акции и реактивация', Icon: Megaphone, prompt: 'Marketing AI: кого реактивировать' },
+] as const;
 
 export default function AITeam() {
-  const { clinic } = useAuth();
-  const { showToast } = useToast();
-  const { patients, appointments, receipts, doctors } = useDataQuery(clinic?.id);
-  const [activeId, setActiveId] = useState<string>('consultant');
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    { role: 'assistant', content: 'Здравствуйте! Я AI-ассистент DentVision. Готов помочь автоматизировать вашу клинику. Чем могу помочь?' },
-  ]);
-  const [userInput, setUserInput] = useState<string>('');
-  const [processing, setProcessing] = useState<boolean>(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const [active, setActive] = useState<string | null>(null);
 
-  const activeAssistant = ASSISTANTS.find(a => a.id === activeId);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory, processing]);
-
-  const sendMessage = (text?: string) => {
-    const msg = text || userInput.trim();
-    if (!msg) return;
-    setChatHistory(prev => [...prev, { role: 'user', content: msg }]);
-    setUserInput('');
-    setProcessing(true);
-
-    const delay = 600 + Math.random() * 300;
-    setTimeout(() => {
-      const reply = buildAiReply({
-        message: msg,
-        clinicName: clinic?.name || 'DentVision',
-        patients,
-        appointments,
-        receipts,
-        doctors,
-      });
-      setChatHistory(prev => [...prev, { role: 'assistant', content: reply }]);
-      setProcessing(false);
-    }, delay);
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
-  const switchAssistant = (id: string) => {
-    if (id === activeId) return;
-    setActiveId(id);
-    const assistant = ASSISTANTS.find(a => a.id === id);
-    if (assistant) {
-      setChatHistory([{
-        role: 'assistant',
-        content: `Привет! Я ${assistant.name}. ${assistant.role}. Чем могу помочь?`,
-      }]);
-    }
+  const openAgent = (prompt: string, id: string) => {
+    setActive(id);
+    navigate('/', { state: { aiQuery: prompt } });
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
+      className="max-w-6xl mx-auto space-y-6 p-4 md:p-6"
     >
       <PageHeader
         title="AI Команда"
-        subtitle="Виртуальные ассистенты для автоматизации клиники"
-        icon={<Bot size={24} className="text-dv-gold" />}
+        subtitle="10 специализированных агентов · единый AI Workspace"
+        icon={<Bot size={20} />}
+        actions={
+          <Button size="sm" onClick={() => navigate('/')}>
+            Открыть Workspace
+            <ArrowRight size={14} className="ml-1.5" />
+          </Button>
+        }
       />
 
-      <div className="grid grid-cols-[240px_1fr] gap-4 max-lg:grid-cols-1">
-        {/* Assistants sidebar */}
-        <div className="flex flex-col gap-3">
-          <Card className="p-4">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-txt-muted mb-3">
-              Выберите ассистента
-            </div>
-            <div className="flex flex-col gap-1">
-              {ASSISTANTS.map(a => {
-                const isActive = activeId === a.id;
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() => switchAssistant(a.id)}
-                    className={`flex items-center gap-3 w-full p-3 rounded-lg text-left transition-all duration-150 border-l-[3px] ${
-                      isActive
-                        ? 'bg-white/5'
-                        : 'border-l-transparent hover:bg-white/[0.03]'
-                    }`}
-                    style={{ borderLeftColor: isActive ? undefined : 'transparent' }}
-                  >
-                    <a.Icon size={20} className={isActive ? a.color : 'text-txt-muted'} />
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-[13px] font-semibold ${isActive ? a.color : 'text-txt-secondary'}`}>
-                        {a.name}
-                      </div>
-                      <div className="text-[10px] text-txt-muted truncate">{a.role}</div>
-                    </div>
-                    {isActive && (
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${a.dot}`} />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
+      <p className="text-sm text-txt-secondary max-w-2xl">
+        Агенты не живут в отдельных чатах. Вызовите специалиста — диалог продолжится в Intelligence с памятью и правами доступа.
+      </p>
 
-          <Card className="p-4">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-dv-gold mb-2.5">
-              Возможности AI
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {AI_FEATURES.map((f, i) => (
-                <div key={i} className="flex items-center gap-2 py-1 text-xs text-txt-secondary">
-                  <f.Icon size={14} className="text-dv-gold" />
-                  {f.text}
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        {/* Chat panel */}
-        <Card padding="none" className="flex flex-col overflow-hidden">
-          {/* Chat header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-bdr-subtle">
-            <div className="flex items-center gap-3">
-              <div className={`flex items-center justify-center w-11 h-11 rounded-full border-2 ${activeAssistant?.bg} ${activeAssistant?.border}`}>
-                {activeAssistant && <activeAssistant.Icon size={20} className={activeAssistant.color} />}
-              </div>
-              <div>
-                <div className="text-[15px] font-bold text-txt-primary">{activeAssistant?.name}</div>
-                <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
-                  <div className={`w-1.5 h-1.5 rounded-full ${activeAssistant?.dot}`} />
-                  Онлайн · {activeAssistant?.role}
-                </div>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<Trash2 size={14} />}
-              onClick={() =>
-                activeAssistant && setChatHistory([
-                  { role: 'assistant', content: `Привет! Я ${activeAssistant.name}. Чем могу помочь?` },
-                ])
-              }
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {AGENTS.map((agent) => {
+          const Icon = agent.Icon;
+          const isActive = active === agent.id;
+          return (
+            <Card
+              key={agent.id}
+              className={`transition-colors hover:border-dv-gold/30 ${isActive ? 'border-dv-gold/40 bg-dv-gold/5' : ''}`}
             >
-              Очистить
-            </Button>
-          </div>
-
-          {/* Quick actions */}
-          <div className="flex gap-2 flex-wrap px-5 py-3 border-b border-bdr-subtle">
-            {activeAssistant?.quickActions.map((action, i) => (
-              <button
-                key={i}
-                onClick={() => sendMessage(action)}
-                className="px-3 py-1.5 rounded-full text-xs border border-bdr-subtle bg-white/[0.04] text-txt-secondary transition-all duration-150 whitespace-nowrap hover:border-dv-gold hover:text-dv-gold"
-              >
-                {action}
-              </button>
-            ))}
-          </div>
-
-          {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 flex flex-col gap-4 max-h-[420px]">
-            <AnimatePresence initial={false}>
-              {chatHistory.map((msg, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {msg.role === 'assistant' && activeAssistant && (
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 mr-2 mt-0.5 ${activeAssistant.bg}`}>
-                      <activeAssistant.Icon size={16} className={activeAssistant.color} />
-                    </div>
-                  )}
-                  <div
-                    className={`max-w-[78%] px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-gradient-to-br from-dv-gold to-dv-gold-light text-surface-0 rounded-[14px_14px_4px_14px] shadow-[0_4px_12px_rgba(201,169,110,0.3)]'
-                        : 'bg-white/[0.07] text-txt-primary border border-bdr-subtle rounded-[14px_14px_14px_4px]'
-                    }`}
-                  >
-                    {msg.content}
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold">
+                    <Icon size={18} />
                   </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-
-            {processing && activeAssistant && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center gap-2.5"
-              >
-                <div className={`flex items-center justify-center w-8 h-8 rounded-full ${activeAssistant.bg}`}>
-                  <activeAssistant.Icon size={16} className={activeAssistant.color} />
+                  <Badge variant="gold" size="xs">{agent.id.replace('agent.', '')}</Badge>
                 </div>
-                <div className="flex items-center gap-1.5 px-4 py-3 rounded-[14px_14px_14px_4px] bg-white/[0.07] border border-bdr-subtle">
-                  <Loader2 size={16} className={`animate-spin ${activeAssistant.color}`} />
+                <div>
+                  <h3 className="text-sm font-semibold text-txt-primary">{agent.name}</h3>
+                  <p className="text-xs text-txt-muted mt-0.5">{agent.role}</p>
                 </div>
-              </motion.div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Input */}
-          <div className="flex gap-2.5 items-end px-5 py-4 border-t border-bdr-subtle">
-            <input
-              value={userInput}
-              onChange={e => setUserInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={activeAssistant ? `Написать ${activeAssistant.name.toLowerCase()}у\u2026 (Enter для отправки)` : ''}
-              disabled={processing}
-              className="flex-1"
-            />
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => sendMessage()}
-              disabled={processing || !userInput.trim()}
-              loading={processing}
-              icon={!processing ? <Send size={14} /> : undefined}
-              className="shrink-0"
-            >
-              Отправить
-            </Button>
-          </div>
-        </Card>
-      </div>
-
-      {/* Feature cards */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5">
-        {FEATURES.map((f, i) => (
-          <Card key={i} className="p-4 text-center">
-            <div className="flex justify-center mb-2.5">
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-dv-gold/10 text-dv-gold">
-                <f.Icon size={24} />
-              </div>
-            </div>
-            <div className="text-sm font-bold text-txt-primary mb-1.5">{f.title}</div>
-            <div className="text-xs text-txt-muted leading-relaxed">{f.desc}</div>
-          </Card>
-        ))}
+                <Button size="sm" variant="secondary" className="w-full" onClick={() => openAgent(agent.prompt, agent.id)}>
+                  Спросить агента
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </motion.div>
   );

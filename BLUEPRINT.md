@@ -2,6 +2,9 @@
 
 ## AI-First Super Platform Blueprint v1.0
 
+> **Canonical product specification:** [`docs/spec/README.md`](docs/spec/README.md)  
+> При конфликте смыслов побеждает Platform Specification, затем этот Blueprint, затем код.
+
 ---
 
 # 1. Product Vision

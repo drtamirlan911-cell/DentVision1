@@ -56,7 +56,36 @@ function decryptPatient(row) {
   if (!row) return row;
   const out = { ...row };
   for (const f of PATIENT_ENCRYPT_FIELDS) { if (out[f]) out[f] = decrypt(out[f]); }
+  // Frontend uses `name`; Prisma stores `fullName`
+  out.name = out.fullName || out.name || '';
+  if (out.teeth == null) out.teeth = {};
   return out;
+}
+
+const PATIENT_ALLOWED = new Set([
+  'clinicId', 'fullName', 'dob', 'gender', 'phone', 'email', 'address',
+  'occupation', 'notes', 'category', 'source', 'teeth', 'updatedAt',
+]);
+
+function normalizePatientData(row) {
+  const data = {};
+  for (const [key, val] of Object.entries(row)) {
+    if (key === 'id') continue;
+    const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    data[camel] = val;
+  }
+  if (data.name && !data.fullName) data.fullName = data.name;
+  delete data.name;
+  // Coerce teeth object
+  if (data.teeth && typeof data.teeth === 'string') {
+    try { data.teeth = JSON.parse(data.teeth); } catch { data.teeth = {}; }
+  }
+  const clean = {};
+  for (const key of PATIENT_ALLOWED) {
+    if (data[key] !== undefined) clean[key] = data[key];
+  }
+  clean.updatedAt = new Date();
+  return clean;
 }
 
 export default function crmRoutes(writeAuditLog) {
@@ -74,11 +103,17 @@ export default function crmRoutes(writeAuditLog) {
         // Pass through common query filters
         for (const [key, val] of Object.entries(req.query)) {
           if (key === 'search' && val) {
-            // Generic text search on name/title fields
-            where.OR = [
-              { name: { contains: val, mode: 'insensitive' } },
-              { title: { contains: val, mode: 'insensitive' } },
-            ];
+            if (name === 'patients') {
+              where.OR = [
+                { fullName: { contains: val, mode: 'insensitive' } },
+                { phone: { contains: val, mode: 'insensitive' } },
+              ];
+            } else {
+              where.OR = [
+                { name: { contains: val, mode: 'insensitive' } },
+                { title: { contains: val, mode: 'insensitive' } },
+              ];
+            }
           } else if (key !== 'clinic_id' && key !== 'limit' && key !== 'offset') {
             where[key] = val;
           }
@@ -100,19 +135,27 @@ export default function crmRoutes(writeAuditLog) {
         }
         // Encrypt patient fields before upsert
         if (name === 'patients') {
-          for (const f of PATIENT_ENCRYPT_FIELDS) { if (row[f]) row[f] = encrypt(row[f]); }
+          for (const f of PATIENT_ENCRYPT_FIELDS) {
+            if (row[f]) row[f] = encrypt(row[f]);
+            if (f === 'notes' && row.notes) { /* already handled */ }
+          }
         }
         const id = row.id || crypto.randomUUID();
-        const data = {};
-        // Map snake_case body fields to camelCase model fields
-        for (const [key, val] of Object.entries(row)) {
-          if (key === 'id') continue;
-          // Convert clinic_id → clinicId, patient_id → patientId, etc.
-          const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-          data[camel] = val;
+        let data = {};
+        if (name === 'patients') {
+          data = normalizePatientData(row);
+          data.id = id;
+          data.clinicId = row.clinic_id || row.clinicId;
+          if (!data.fullName) data.fullName = row.fullName || row.name || 'Без имени';
+        } else {
+          for (const [key, val] of Object.entries(row)) {
+            if (key === 'id') continue;
+            const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+            data[camel] = val;
+          }
+          data.id = id;
+          data.clinicId = row.clinic_id || row.clinicId;
         }
-        data.id = id;
-        data.clinicId = row.clinic_id || row.clinicId;
         const result = await model.upsert({
           where: { id },
           update: data,
@@ -121,7 +164,7 @@ export default function crmRoutes(writeAuditLog) {
         const action = `upsert_${name}`;
         writeAuditLog(data.clinicId, req.user.id, req.user.name, action, name, id, { id });
         broadcast(data.clinicId, `${name.slice(0, -1)}.updated`, { id, action });
-        res.json(result);
+        res.json(name === 'patients' ? decryptPatient(result) : result);
       } catch (e) { console.error(`CRM ${name} upsert error:`, e.message); res.status(500).json({ error: 'Internal server error' }); }
     });
 

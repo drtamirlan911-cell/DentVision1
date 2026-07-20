@@ -107,7 +107,48 @@ export async function initDatabase() {
           ],
         });
 
+        await prisma.schoolModule.createMany({
+          data: [
+            { id: 'mod1', courseId: 'crs1', title: 'Диагностика и кариес', sortOrder: 1 },
+            { id: 'mod2', courseId: 'crs1', title: 'Итоговая аттестация', sortOrder: 2 },
+            { id: 'mod9', courseId: 'crs9', title: 'AI Operating System', sortOrder: 1 },
+          ],
+        });
+
+        await prisma.schoolLesson.createMany({
+          data: [
+            { id: 'les1', moduleId: 'mod1', courseId: 'crs1', title: 'Введение в терапию', type: 'video', durationMinutes: 18, sortOrder: 1, isFree: true },
+            { id: 'les2', moduleId: 'mod1', courseId: 'crs1', title: 'Тест: кариес и реставрации', type: 'test', durationMinutes: 15, sortOrder: 2, content: null },
+            { id: 'les3', moduleId: 'mod2', courseId: 'crs1', title: 'Итоговый экзамен по терапии', type: 'exam', durationMinutes: 25, sortOrder: 1, content: null },
+            { id: 'les9', moduleId: 'mod9', courseId: 'crs9', title: 'Экзамен: AI OS DentVision', type: 'exam', durationMinutes: 20, sortOrder: 1, content: null },
+          ],
+        });
+
         console.log('Shop + School seed data inserted');
+      }
+
+      // Jobs / Community prisma seed (best-effort after schema push)
+      try {
+        if (prisma.jobVacancy && (await prisma.jobVacancy.count()) === 0) {
+          await prisma.jobVacancy.createMany({
+            data: [
+              { id: 'job-1', title: 'Врач-стоматолог-терапевт', clinicName: 'KazDent', city: 'Алматы', salary: '450 000 — 700 000 ₸', employmentType: 'Полная занятость', description: 'Требуется опытный стоматолог-терапевт.', tags: ['Терапия', 'Эндодонтия'], status: 'open' },
+              { id: 'job-2', title: 'Врач-ортодонт', clinicName: 'Dental Premium', city: 'Алматы', salary: '600 000 — 900 000 ₸', employmentType: 'Полная занятость', description: 'Ортодонт с опытом элайнеров и брекетов.', tags: ['Ортодонтия'], status: 'open' },
+            ],
+          });
+          console.log('Jobs seed inserted');
+        }
+        if (prisma.communityPost && (await prisma.communityPost.count()) === 0) {
+          await prisma.communityPost.createMany({
+            data: [
+              { id: 'post-1', authorName: 'Доктор Айдар К.', authorRole: 'Ортопед', content: 'Цифровое планирование имплантации с CBCT повышает точность.', tags: ['Имплантация'], kind: 'thread', likesCount: 24, commentsCount: 8 },
+              { id: 'post-2', authorName: 'DentVision Academy', authorRole: 'Платформа', content: 'Новый курс по лазерной стоматологии открыт.', tags: ['Обучение'], kind: 'thread', likesCount: 56, commentsCount: 22 },
+            ],
+          });
+          console.log('Community seed inserted');
+        }
+      } catch (e) {
+        console.warn('Jobs/Community seed skipped:', e.message);
       }
     }
 

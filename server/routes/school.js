@@ -8,6 +8,9 @@ import { requireServiceAccess } from '../middleware/serviceAccess.js';
 import { requireSuperadmin } from '../middleware/rbac.js';
 import { createNotification } from '../lib/notifications.js';
 import prisma from '../lib/prisma.js';
+import { resolveExamPayload, publicExamView, gradeExam } from '../lib/exams.js';
+import { processMessage } from '../ai/core/intentEngine.js';
+import { buildDigitalTwin } from '../ai/memory/digitalTwin.js';
 
 export default function schoolRoutes() {
   const router = Router();
@@ -146,6 +149,195 @@ export default function schoolRoutes() {
       });
       res.json(result);
     } catch { res.status(500).json({ error: 'Internal server error' }); }
+  });
+
+  // ─── Exam engine ───
+  router.get('/lessons/:lessonId/exam', authenticate, requireServiceAccess('school'), async (req, res) => {
+    try {
+      const lesson = await prisma.schoolLesson.findUnique({ where: { id: req.params.lessonId } });
+      if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+      if (!['test', 'exam', 'quiz'].includes(String(lesson.type || '').toLowerCase()) && !lesson.content) {
+        // Still allow exam payload via default bank for practice lessons marked as test in UI
+      }
+      const exam = resolveExamPayload(lesson);
+      res.json({
+        lessonId: lesson.id,
+        courseId: lesson.courseId,
+        type: lesson.type || 'test',
+        exam: publicExamView(exam),
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+  });
+
+  router.post('/lessons/:lessonId/exam/submit', authenticate, requireServiceAccess('school'), async (req, res) => {
+    try {
+      const lesson = await prisma.schoolLesson.findUnique({ where: { id: req.params.lessonId } });
+      if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+      const exam = resolveExamPayload(lesson);
+      const result = gradeExam(exam, req.body?.answers || {});
+
+      // Persist attempt when table exists
+      try {
+        if (prisma.schoolExamAttempt) {
+          await prisma.schoolExamAttempt.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: req.user.id,
+              userName: req.user.name || req.user.login,
+              courseId: lesson.courseId || req.body?.courseId || '',
+              lessonId: lesson.id,
+              answers: req.body?.answers || {},
+              score: result.score,
+              passed: result.passed,
+              passingScore: result.passingScore,
+              total: result.total,
+            },
+          });
+        }
+      } catch { /* table may not exist yet */ }
+
+      // On pass: mark lesson complete + maybe certificate
+      let certificate = null;
+      if (result.passed && lesson.courseId) {
+        const enrollment = await prisma.schoolEnrollment.findFirst({
+          where: { userId: req.user.id, courseId: lesson.courseId },
+        });
+        if (enrollment) {
+          let completed = [];
+          try {
+            completed = Array.isArray(enrollment.completedLessons)
+              ? enrollment.completedLessons
+              : JSON.parse(enrollment.completedLessons || '[]');
+          } catch { completed = []; }
+          if (!completed.includes(lesson.id)) completed.push(lesson.id);
+
+          const course = await prisma.schoolCourse.findUnique({
+            where: { id: lesson.courseId },
+            include: { lessons: { select: { id: true } }, modules: { include: { lessons: { select: { id: true } } } } },
+          });
+          const allLessonIds = new Set([
+            ...(course?.lessons || []).map((l) => l.id),
+            ...((course?.modules || []).flatMap((m) => (m.lessons || []).map((l) => l.id))),
+          ]);
+          const progress = allLessonIds.size
+            ? Math.min(100, Math.round((completed.filter((id) => allLessonIds.has(id)).length / allLessonIds.size) * 100))
+            : Math.max(enrollment.progress || 0, result.score);
+
+          const done = progress >= 100 || String(lesson.type).toLowerCase() === 'exam';
+          await prisma.schoolEnrollment.update({
+            where: { id: enrollment.id },
+            data: {
+              completedLessons: completed,
+              progress: done ? 100 : progress,
+              completed: done || enrollment.completed,
+              completedAt: done ? (enrollment.completedAt || new Date()) : enrollment.completedAt,
+            },
+          });
+
+          if ((done || String(lesson.type).toLowerCase() === 'exam') && course?.certificateEnabled !== false) {
+            const existingCert = await prisma.schoolCertificate.findFirst({
+              where: { userId: req.user.id, courseId: lesson.courseId },
+            });
+            if (!existingCert) {
+              const certId = crypto.randomUUID();
+              const num = 'DV-' + new Date().getFullYear() + '-' + crypto.randomUUID().slice(0, 6).toUpperCase();
+              certificate = await prisma.schoolCertificate.create({
+                data: {
+                  id: certId,
+                  clinicId: enrollment.clinicId,
+                  userId: req.user.id,
+                  userName: enrollment.userName || req.user.name,
+                  courseId: lesson.courseId,
+                  courseTitle: course?.title,
+                  certificateNumber: num,
+                },
+              });
+              await createNotification({
+                type: 'school',
+                category: 'certificate',
+                clinicId: enrollment.clinicId,
+                userId: req.user.id,
+                title: 'Сертификат получен',
+                message: `Экзамен сдан (${result.score}%). Сертификат по курсу «${course?.title}»`,
+                actionUrl: '/school',
+              });
+            } else {
+              certificate = existingCert;
+            }
+          }
+        }
+      }
+
+      res.json({
+        ...result,
+        details: result.details.map((d) => ({ id: d.id, selected: d.selected, correct: d.correct })),
+        certificate,
+      });
+    } catch (e) {
+      console.error('Exam submit error:', e);
+      res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+  });
+
+  // ─── AI Tutor (lesson / course scoped) ───
+  router.post('/tutor', authenticate, requireServiceAccess('school'), async (req, res) => {
+    try {
+      const { message, courseId, lessonId, history = [] } = req.body || {};
+      if (!message || typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ error: 'message required' });
+      }
+
+      const course = courseId
+        ? await prisma.schoolCourse.findUnique({ where: { id: courseId } })
+        : null;
+      const lesson = lessonId
+        ? await prisma.schoolLesson.findUnique({ where: { id: lessonId } })
+        : null;
+
+      const twin = await buildDigitalTwin(req.user.id).catch(() => null);
+      const tutorPrompt = [
+        `Ты — AI Tutor DentVision Academy. Отвечай как эксперт-наставник стоматолога.`,
+        course ? `Курс: «${course.title}» (${course.category || ''}, ${course.difficulty || ''}).` : '',
+        lesson ? `Урок: «${lesson.title}» (тип: ${lesson.type || 'video'}).` : '',
+        lesson?.content ? `Материал урока (фрагмент): ${String(lesson.content).slice(0, 800)}` : '',
+        twin?.specialization ? `Специализация врача: ${twin.specialization}.` : '',
+        twin?.learningPath ? `Learning path: ${JSON.stringify(twin.learningPath).slice(0, 300)}` : '',
+        `Правила: объясняй просто; связывай с клиникой без PHI; если вопрос про экзамен — дай подсказку без прямой сдачи ответа.`,
+        `Вопрос ученика: ${message.trim()}`,
+      ].filter(Boolean).join('\n');
+
+      const response = await processMessage(tutorPrompt, {
+        user: req.user,
+        clinic: null,
+        conversationHistory: Array.isArray(history) ? history.slice(-8) : [],
+        conversationContext: { entities: { lastCourse: course?.title, lastLesson: lesson?.title }, history: [], turnCount: 0 },
+        channel: 'school_tutor',
+      });
+
+      const suggestions = [
+        'Объясни простыми словами',
+        'Свяжи с клиническим кейсом',
+        'Подготовь к тесту',
+        lesson ? `Разбери урок «${lesson.title}»` : 'Составь learning path',
+      ];
+
+      res.json({
+        reply: response.reply,
+        skill: response.skill || 'school_tutor',
+        suggestions: response.suggestions?.length ? response.suggestions : suggestions,
+        context: {
+          courseId: course?.id || null,
+          lessonId: lesson?.id || null,
+          courseTitle: course?.title || null,
+          lessonTitle: lesson?.title || null,
+        },
+      });
+    } catch (e) {
+      console.error('AI Tutor error:', e);
+      res.status(500).json({ error: e.message || 'Tutor failed' });
+    }
   });
 
   // ═══════════════════════════════════════════════════════════════

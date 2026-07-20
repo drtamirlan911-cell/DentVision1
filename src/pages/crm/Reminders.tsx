@@ -1,4 +1,5 @@
 ﻿import React, { useState, useMemo } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Bell,
@@ -21,6 +22,7 @@ import { Badge } from '../../components/ui/ds/Badge';
 import { Button } from '../../components/ui/ds/Button';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { PageHeader } from '../../components/ui/ds/StatCard';
+import { useAuth } from '@/store/auth.store';
 import { fd } from '../../utils/constants';
 import type { Clinic, User, RoleInfo } from '../../types';
 
@@ -29,23 +31,23 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 };
 
-interface RemindersProps {
-  clinic: Clinic;
-  user: User;
-  roleInfo: RoleInfo;
-}
+export default function Reminders() {
+  const outlet = useOutletContext<{ clinic?: Clinic; user?: User; roleInfo?: RoleInfo }>() || {};
+  const auth = useAuth();
+  const clinic = outlet.clinic || auth.clinic;
+  const user = outlet.user || auth.user;
+  const roleInfo = outlet.roleInfo || auth.roleInfo;
 
-export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
-  const { patients, appointments, receipts, doctors } = useDataQuery(clinic?.id);
+  const { patients, appointments, receipts, doctors } = useDataQuery(clinic?.id || user?.clinicId);
   const { showToast } = useToast();
   const [tick, setTick] = useState(0);
   const [tab, setTab] = useState('appointments');
 
-  const readOnly = !!roleInfo?.readOnly;
-  const ownDataOnly = !!roleInfo?.ownDataOnly && user?.role === 'doctor';
+  const readOnly = !!(roleInfo as any)?.readOnly;
+  const ownDataOnly = !!(roleInfo as any)?.ownDataOnly && user?.role === 'doctor';
 
   const scopedAppointments = ownDataOnly
-    ? appointments.filter(a => a.doctorId === user.id)
+    ? appointments.filter(a => a.doctorId === user?.id)
     : appointments;
 
   const scopedPatients = ownDataOnly
@@ -53,7 +55,7 @@ export default function Reminders({ clinic, user, roleInfo }: RemindersProps) {
     : patients;
 
   const scopedDoctors = ownDataOnly
-    ? doctors.filter(d => d.id === user.id)
+    ? doctors.filter(d => d.id === user?.id)
     : doctors;
 
   const appointmentReminders = useMemo(
