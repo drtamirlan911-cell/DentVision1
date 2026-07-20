@@ -104,6 +104,7 @@ model Clinic {
   expenses      Expense[]
   promotions    Promotion[]
   priceList     PriceListItem[]
+  reminderLogs  ReminderLog[]
 
   @@map("clinics")
 }
@@ -278,6 +279,20 @@ model PriceListItem {
   @@unique([clinicId, serviceCode])
   @@index([clinicId])
   @@map("price_list")
+}
+
+model ReminderLog {
+  id          String   @id @default("")
+  clinicId    String
+  reminderKey String
+  channel     String?
+  sentAt      DateTime @default(now())
+  meta        Json?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, reminderKey])
+  @@map("reminder_logs")
 }
 
 // ─── MEDICAL RECORDS ───

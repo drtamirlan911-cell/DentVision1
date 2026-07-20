@@ -1,7 +1,7 @@
 ﻿import React, { useState, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ClipboardList, Plus, Search, Edit3, Save, X, Stethoscope, User, Calendar, FileText, Pill } from 'lucide-react';
+import { ClipboardList, Plus, Search, Edit3, Save, X, Stethoscope, User, Calendar, FileText, Pill, Smile, ArrowRight } from 'lucide-react';
 import { today } from '../../utils/constants';
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery';
@@ -33,6 +33,7 @@ interface VisitForm {
 
 export default function Visits() {
   const { clinic, user } = useOutletContext<OutletContext>();
+  const navigate = useNavigate();
   const { patients, doctors, visits, upsertVisit } = useDataQuery(clinic?.id);
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
@@ -207,10 +208,19 @@ export default function Visits() {
               transition={{ delay: Math.min(i * 0.02, 0.3) }}
             >
               <Card hover className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-sm font-bold text-txt-primary">{visit.patient_name || '—'}</span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                      <button
+                        type="button"
+                        className="text-sm font-bold text-txt-primary hover:text-dv-gold transition-colors"
+                        onClick={() => {
+                          const pid = visit.patient_id || visit.patientId
+                          if (pid) navigate(`/crm/patients?patient=${pid}`)
+                        }}
+                      >
+                        {visit.patient_name || '—'}
+                      </button>
                       {visit.icd10_codes && (
                         <Badge variant="gold" size="xs">МКБ: {visit.icd10_codes}</Badge>
                       )}
@@ -222,6 +232,42 @@ export default function Visits() {
                     {visit.diagnosis && <p className="text-sm text-txt-secondary mb-1"><span className="text-txt-ghost">Диагноз:</span> {visit.diagnosis}</p>}
                     {visit.chief_complaint && <p className="text-xs text-txt-muted mb-1"><span className="text-txt-ghost">Жалобы:</span> {visit.chief_complaint}</p>}
                     {visit.procedures_done && <p className="text-xs text-txt-muted"><span className="text-txt-ghost">Процедуры:</span> {visit.procedures_done}</p>}
+                    {(visit.patient_id || visit.patientId) && (
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          icon={<Smile size={12} />}
+                          onClick={() => navigate(`/crm/dental-chart?patient=${visit.patient_id || visit.patientId}`)}
+                        >
+                          Зубная карта
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          icon={<FileText size={12} />}
+                          onClick={() => navigate(`/crm/treatment-plans?patient=${visit.patient_id || visit.patientId}`)}
+                        >
+                          План лечения
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          icon={<Calendar size={12} />}
+                          onClick={() => navigate(`/crm/schedule`)}
+                        >
+                          Расписание
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          icon={<ArrowRight size={12} />}
+                          onClick={() => navigate(`/crm/medical-card?patient=${visit.patient_id || visit.patientId}`)}
+                        >
+                          Медкарта
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <Button variant="ghost" size="icon-xs" icon={<Edit3 size={14} />} onClick={() => startEdit(visit)} />
                 </div>

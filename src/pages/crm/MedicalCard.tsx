@@ -45,9 +45,16 @@ interface MedicalCardForm {
 
 export default function MedicalCard() {
   const { clinic, user } = useOutletContext<OutletContext>();
+  const [params] = useSearchParams();
   const { patients, medicalCards, upsertMedicalCard, visits } = useDataQuery(clinic?.id);
   const toast = useToast();
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(params.get('patient'));
+
+  useEffect(() => {
+    const pid = params.get('patient');
+    if (pid) setSelectedPatientId(pid);
+  }, [params]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [editing, setEditing] = useState(false);
   const [activeSection, setActiveSection] = useState('personal');

@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery';
-import { getAppointmentReminders, getHygieneReminders, markSent } from '../../utils/reminders';
+import { getAppointmentReminders, getUrgentReminders, getHygieneReminders, markSent } from '../../utils/reminders';
+import * as api from '../../utils/api';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Badge } from '../../components/ui/ds/Badge';
 import { Button } from '../../components/ui/ds/Button';
@@ -64,6 +65,12 @@ export default function Reminders() {
     [scopedAppointments, scopedPatients, scopedDoctors, tick]
   );
 
+  const urgentReminders = useMemo(
+    () => getUrgentReminders(scopedAppointments, scopedPatients, scopedDoctors),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scopedAppointments, scopedPatients, scopedDoctors, tick]
+  );
+
   const hygieneReminders = useMemo(
     () => getHygieneReminders(scopedPatients, appointments, receipts),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,25 +78,100 @@ export default function Reminders() {
   );
 
   const pendingAppt = appointmentReminders.filter(r => !r.sent).length;
+  const pendingUrgent = urgentReminders.filter(r => !r.sent).length;
   const pendingHyg = hygieneReminders.filter(r => !r.sent).length;
 
-  const handleSend = (reminder: any) => {
+  const handleSend = async (reminder: { id: string; waLink: string; patient: { name: string } }) => {
     window.open(reminder.waLink, '_blank', 'noopener,noreferrer');
     markSent(reminder.id);
+    try {
+      if (typeof api.markReminderSent === 'function') {
+        await api.markReminderSent(reminder.id);
+      }
+    } catch { /* optional server sync */ }
     setTick(t => t + 1);
     showToast(`Напоминание отправлено: ${reminder.patient.name}`, 'success');
   };
 
-  const handleMark = (reminder: any) => {
+  const handleMark = async (reminder: { id: string }) => {
     markSent(reminder.id);
+    try {
+      if (typeof api.markReminderSent === 'function') {
+        await api.markReminderSent(reminder.id);
+      }
+    } catch { /* optional server sync */ }
     setTick(t => t + 1);
     showToast('Отмечено как отправлено', 'info');
   };
 
   const tabs = [
+    { id: 'urgent', label: 'Срочно (2ч)', icon: <AlertTriangle size={15} />, count: pendingUrgent },
     { id: 'appointments', label: 'Приёмы (24ч)', icon: <Calendar size={15} />, count: pendingAppt },
     { id: 'hygiene', label: 'Проф. гигиена (6+ мес)', icon: <Smile size={15} />, count: pendingHyg },
   ];
+
+  const renderReminderList = (reminders: typeof appointmentReminders, emptyTitle: string, emptyDesc: string) => {
+    if (reminders.length === 0) {
+      return (
+        <EmptyState
+          icon={<CheckCircle size={28} />}
+          title={emptyTitle}
+          description={emptyDesc}
+        />
+      );
+    }
+    return (
+      <div className="flex flex-col gap-2.5">
+        {reminders.map(r => (
+          <Card key={r.id} className={r.sent ? 'opacity-55' : ''}>
+            <CardContent>
+              <div className="flex items-center justify-between gap-3.5 flex-wrap">
+                <div className="flex-1 min-w-[220px]">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-sm font-bold text-white">{r.patient.name}</span>
+                    {r.sent && <Badge variant="success" size="sm">Отправлено</Badge>}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-txt-secondary">
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar size={12} /> {fd(r.appointment.date)} в {r.appointment.time}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Stethoscope size={12} /> {r.doctor?.name || '—'}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Phone size={12} /> {r.patient.phone}
+                    </span>
+                  </div>
+                  {r.appointment.reason && (
+                    <div className="mt-1 flex items-center gap-1 text-xs text-txt-muted">
+                      <FileText size={12} /> {r.appointment.reason}
+                    </div>
+                  )}
+                </div>
+                {!readOnly && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={<MessageSquare size={14} />}
+                      onClick={() => handleSend(r)}
+                    >
+                      Отправить WhatsApp
+                    </Button>
+                    {!r.sent && (
+                      <Button variant="outline" size="sm" onClick={() => handleMark(r)}>
+                        Отметить
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <motion.div
@@ -104,10 +186,10 @@ export default function Reminders() {
         subtitle={`WhatsApp-напоминания о приёмах и профгигиене · ${clinic?.name}`}
         icon={<Bell size={20} />}
         actions={
-          (pendingAppt + pendingHyg) > 0 ? (
+          (pendingAppt + pendingUrgent + pendingHyg) > 0 ? (
             <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2 text-xs font-bold text-warning">
               <AlertTriangle size={14} />
-              {pendingAppt + pendingHyg} требуют внимания
+              {pendingAppt + pendingUrgent + pendingHyg} требуют внимания
             </div>
           ) : null
         }
@@ -138,65 +220,24 @@ export default function Reminders() {
         </div>
       </motion.div>
 
+      {/* Urgent tab */}
+      {tab === 'urgent' && (
+        <motion.div variants={fadeUp}>
+          {renderReminderList(
+            urgentReminders,
+            'Нет срочных приёмов',
+            'Нет записей в ближайшие 2 часа',
+          )}
+        </motion.div>
+      )}
+
       {/* Appointments tab */}
       {tab === 'appointments' && (
         <motion.div variants={fadeUp}>
-          {appointmentReminders.length === 0 ? (
-            <EmptyState
-              icon={<CheckCircle size={28} />}
-              title="Нет ближайших приёмов"
-              description="Все записи на ближайшие 24 часа уже обработаны"
-            />
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              {appointmentReminders.map(r => (
-                <Card key={r.id} className={r.sent ? 'opacity-55' : ''}>
-                  <CardContent>
-                    <div className="flex items-center justify-between gap-3.5 flex-wrap">
-                      <div className="flex-1 min-w-[220px]">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-sm font-bold text-white">{r.patient.name}</span>
-                          {r.sent && <Badge variant="success" size="sm">Отправлено</Badge>}
-                        </div>
-                        <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-txt-secondary">
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar size={12} /> {fd(r.appointment.date)} в {r.appointment.time}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Stethoscope size={12} /> {r.doctor?.name || '—'}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Phone size={12} /> {r.patient.phone}
-                          </span>
-                        </div>
-                        {r.appointment.reason && (
-                          <div className="mt-1 flex items-center gap-1 text-xs text-txt-muted">
-                            <FileText size={12} /> {r.appointment.reason}
-                          </div>
-                        )}
-                      </div>
-                      {!readOnly && (
-                        <div className="flex gap-2">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            icon={<MessageSquare size={14} />}
-                            onClick={() => handleSend(r)}
-                          >
-                            Отправить WhatsApp
-                          </Button>
-                          {!r.sent && (
-                            <Button variant="outline" size="sm" onClick={() => handleMark(r)}>
-                              Отметить
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+          {renderReminderList(
+            appointmentReminders,
+            'Нет ближайших приёмов',
+            'Все записи на ближайшие 24 часа уже обработаны',
           )}
         </motion.div>
       )}

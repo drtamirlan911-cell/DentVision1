@@ -413,6 +413,18 @@ export async function upsertPriceListItem(data: { serviceCode: string; price: nu
   return apiRequest('/api/crm/price-list', { method: 'POST', body: JSON.stringify(data) });
 }
 
+export async function markReminderSent(reminderKey: string, channel = 'whatsapp'): Promise<any> {
+  return apiRequest('/api/crm/reminders/sent', {
+    method: 'POST',
+    body: JSON.stringify({ reminderKey, channel }),
+  });
+}
+
+export async function getReminderSentKeys(): Promise<string[]> {
+  const rows = collection<{ reminderKey: string }>(await apiRequest('/api/crm/reminders/sent'));
+  return rows.map(r => r.reminderKey);
+}
+
 export async function sendDocumentForSignature(id: string): Promise<any> {
   return apiRequest(`/api/documents/${id}/send-signature`, { method: 'POST', body: '{}' });
 }

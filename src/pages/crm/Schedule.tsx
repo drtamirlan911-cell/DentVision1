@@ -37,6 +37,20 @@ const EMPTY_WAIT = { patientId: '', patientName: '', patientPhone: '', doctorId:
 function timeToMinutes(t: string): number { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 function minutesToTop(minutes: number): number { return ((minutes - timeToMinutes(WORK_START)) / MIN_PER_SLOT) * (HOUR_HEIGHT / 2) }
 function formatDuration(mins: number): string { if (mins < 60) return `${mins} мин`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h} ч ${m} мин` : `${h} ч` }
+function getWeekStart(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  const day = d.getDay()
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  return d.toISOString().slice(0, 10)
+}
+function getWeekDates(weekStart: string): string[] {
+  const dates: string[] = []
+  const d = new Date(weekStart + 'T12:00:00')
+  for (let i = 0; i < 7; i++) { dates.push(d.toISOString().slice(0, 10)); d.setDate(d.getDate() + 1) }
+  return dates
+}
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+const STATUS_ADVANCE: Record<string, string> = { scheduled: 'confirmed', pending: 'confirmed', confirmed: 'done' }
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
@@ -58,6 +72,7 @@ export default function Schedule() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [dragged, setDragged] = useState<Appointment | null>(null)
   const [viewMode, setViewMode] = useState('doctors')
+  const [periodMode, setPeriodMode] = useState<'day' | 'week'>('day')
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all')
   const [activeTab, setActiveTab] = useState('schedule')
   const [waitModalOpen, setWaitModalOpen] = useState(false)
@@ -87,9 +102,34 @@ export default function Schedule() {
   }, [appointments, selDate, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts])
 
   const dayWaitList = useMemo(
-    () => waitingList.filter(w => w.status === 'waiting' && (!w.preferred_date || w.preferred_date === selDate)),
+    () => waitingList.filter(w => {
+      if (w.status !== 'waiting') return false
+      const pref = w.preferredDate ?? (w as { preferred_date?: string }).preferred_date
+      return !pref || pref === selDate
+    }),
     [waitingList, selDate]
   )
+
+  const weekStart = useMemo(() => getWeekStart(selDate), [selDate])
+  const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart])
+
+  const weekApptsByDate = useMemo(() => {
+    const map: Record<string, Appointment[]> = {}
+    for (const d of weekDates) {
+      let list = appointments.filter(a => a.date === d)
+      if (ownDataOnly) list = list.filter(a => a.doctorId === user!.id)
+      if (selectedDoctorFilter !== 'all') list = list.filter(a => a.doctorId === selectedDoctorFilter)
+      if (searchAppts) {
+        const q = searchAppts.toLowerCase()
+        list = list.filter(a => {
+          const p = patients.find(pt => pt.id === a.patientId)
+          return p?.name?.toLowerCase().includes(q) || a.notes?.toLowerCase().includes(q) || a.service?.toLowerCase().includes(q)
+        })
+      }
+      map[d] = list.sort((a, b) => a.time.localeCompare(b.time))
+    }
+    return map
+  }, [appointments, weekDates, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts])
 
   const doctorColumns = useMemo(() => {
     if (selectedDoctorFilter !== 'all') {
@@ -178,6 +218,19 @@ export default function Schedule() {
   }
   const handleDelete = async (): Promise<void> => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
   const shiftDate = (days: number): void => { const d = new Date(selDate); d.setDate(d.getDate() + days); setSelDate(d.toISOString().slice(0, 10)) }
+  const shiftPeriod = (dir: -1 | 1): void => shiftDate(periodMode === 'week' ? dir * 7 : dir)
+
+  const handleAdvanceStatus = async (e: React.MouseEvent, appt: Appointment): Promise<void> => {
+    e.stopPropagation()
+    const next = STATUS_ADVANCE[appt.status]
+    if (!next) return
+    try {
+      await upsertAppointment({ ...appt, status: next })
+      showToast('Статус обновлён', 'success')
+    } catch {
+      showToast('Ошибка обновления статуса', 'error')
+    }
+  }
 
   const patientOptions = [{ value: '', label: '— Выберите пациента —' }, ...patients.map(p => ({ value: p.id, label: p.name }))]
   const doctorOptions = [{ value: '', label: '— Выберите врача —' }, ...doctors.map(d => ({ value: d.id, label: `${d.name} (${d.spec || 'Врач'})` }))]
@@ -244,7 +297,19 @@ export default function Schedule() {
               ) : (
                 <Badge variant="warning" size="xs">Не оплачено</Badge>
               )}
-              <Badge variant="default" size="xs">{sc.label}</Badge>
+              {STATUS_ADVANCE[appt.status] ? (
+                <button
+                  type="button"
+                  onClick={(e) => handleAdvanceStatus(e, appt)}
+                  className="text-2xs font-semibold px-1.5 py-0.5 rounded-md hover:opacity-80 transition-opacity"
+                  style={{ background: `${sc.dot}20`, color: sc.dot }}
+                  title={appt.status === 'confirmed' ? 'Отметить завершённым' : 'Подтвердить'}
+                >
+                  {sc.label || (sc as { l?: string }).l} →
+                </button>
+              ) : (
+                <Badge variant="default" size="xs">{sc.label || (sc as { l?: string }).l}</Badge>
+              )}
             </div>
           </div>
         )}
@@ -303,11 +368,21 @@ export default function Schedule() {
         <>
           {/* Controls bar */}
           <motion.div variants={fadeUp} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle overflow-x-auto">
-            <Button variant="ghost" size="icon-sm" onClick={() => shiftDate(-1)}><ChevronLeft size={16} /></Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(-1)}><ChevronLeft size={16} /></Button>
             <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
               className="h-8 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none" />
-            <Button variant="ghost" size="icon-sm" onClick={() => shiftDate(1)}><ChevronRight size={16} /></Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(1)}><ChevronRight size={16} /></Button>
             <Button variant="outline" size="sm" onClick={() => setSelDate(today())}>Сегодня</Button>
+
+            <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
+              {([['day', 'День'], ['week', 'Неделя']] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setPeriodMode(key)}
+                  className={cn('px-3 py-1.5 text-xs font-semibold transition-colors',
+                    periodMode === key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
+                  {label}
+                </button>
+              ))}
+            </div>
 
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <Input placeholder="Поиск..." value={searchAppts} onChange={e => setSearchAppts(e.target.value)}
@@ -333,68 +408,104 @@ export default function Schedule() {
             </div>
           </motion.div>
 
-          {/* Stats */}
-          <motion.div variants={fadeUp} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {stats.map((s) => (
-              <div key={s.label} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
-                <Badge variant={s.variant} size="md">{s.value}</Badge>
-                <div>
-                  <p className="text-lg font-bold text-txt-primary leading-none">{s.value}</p>
-                  <p className="text-2xs text-txt-muted mt-0.5">{s.label}</p>
-                </div>
-              </div>
-            ))}
-          </motion.div>
-
-          {/* Doctor columns */}
-          {doctorColumns.length > 0 ? (
+          {periodMode === 'week' ? (
             <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-              <div className="grid gap-3" style={{ gridTemplateColumns: viewMode === 'doctors' ? `repeat(${Math.min(doctorColumns.length, 4)}, minmax(260px, 1fr))` : '1fr' }}>
-              {doctorColumns.map(doc => {
-                const docAppts = dayAppts.filter(a => a.doctorId === doc.id)
-                return (
-                  <Card key={doc.id} padding="none" className="overflow-hidden">
-                    <div className="flex items-center gap-2.5 px-4 py-3 border-b border-bdr-subtle bg-dv-gold/[0.03]">
-                      <Avatar name={doc.name || '?'} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-txt-primary truncate">{doc.name}</p>
-                        <p className="text-2xs text-txt-muted">{doc.spec || 'Врач'} · {docAppts.length} записей</p>
+              <div className="grid grid-cols-7 gap-2 min-w-[700px]">
+                {weekDates.map((d, i) => {
+                  const appts = weekApptsByDate[d] || []
+                  const [, mo, dd] = d.split('-')
+                  const isToday = d === today()
+                  const isSelected = d === selDate
+                  return (
+                    <div key={d} className="flex flex-col rounded-xl bg-surface-raised border border-bdr-subtle overflow-hidden min-h-[320px]">
+                      <button
+                        type="button"
+                        onClick={() => { setSelDate(d); setPeriodMode('day') }}
+                        className={cn('px-2 py-2 text-center border-b border-bdr-subtle transition-colors hover:bg-dv-gold/[0.06]',
+                          isSelected && 'bg-dv-gold/10', isToday && 'ring-1 ring-inset ring-dv-gold/40')}
+                      >
+                        <p className="text-2xs font-semibold text-txt-muted">{WEEKDAY_LABELS[i]}</p>
+                        <p className={cn('text-sm font-bold', isToday ? 'text-dv-gold' : 'text-txt-primary')}>{dd}.{mo}</p>
+                        <p className="text-2xs text-txt-muted">{appts.length} зап.</p>
+                      </button>
+                      <div className="flex-1 p-1.5 space-y-1 overflow-y-auto" style={{ maxHeight: 480 }}>
+                        {appts.length === 0 ? (
+                          <p className="text-2xs text-txt-ghost text-center pt-4">Нет записей</p>
+                        ) : (
+                          appts.map(a => renderAppointmentBlock(a, true))
+                        )}
                       </div>
                     </div>
-                    <div className="overflow-y-auto" style={{ maxHeight: 520 }}>
-                      {HOURS.filter(h => h >= WORK_START && h <= WORK_END).map(time => {
-                        const slotAppts = docAppts.filter(a => a.time === time)
-                        const min = timeToMinutes(time)
-                        const isLunch = min >= 720 && min < 780
-                        return (
-                          <div key={time}
-                            onDragOver={e => e.preventDefault()}
-                            onDrop={e => handleDrop(e, time, doc.id)}
-                            onClick={() => slotAppts.length === 0 && !isLunch && openSlotBooking(time, doc.id)}
-                            className={cn('flex border-b border-bdr-subtle transition-colors',
-                              slotAppts.length === 0 && !isLunch && 'cursor-pointer hover:bg-dv-gold/[0.03]')}
-                            style={{ minHeight: HOUR_HEIGHT }}>
-                            <div className="w-12 shrink-0 px-1 text-center text-2xs font-semibold text-txt-muted pt-2.5 border-r border-bdr-subtle">{time}</div>
-                            <div className="flex-1 p-1">
-                              {isLunch ? (
-                                <p className="text-2xs text-dv-gold/40 italic text-center pt-3">Обед</p>
-                              ) : slotAppts.length === 0 ? (
-                                <p className="text-2xs text-txt-ghost text-center pt-3">Свободно</p>
-                              ) : (
-                                slotAppts.map(a => renderAppointmentBlock(a))
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </Card>
-                )
-              })}
+                  )
+                })}
               </div>
             </motion.div>
           ) : (
-            <EmptyState icon={<Calendar size={32} />} title="Нет врачей" description="Добавьте сотрудников для отображения расписания" />
+            <>
+              {/* Stats */}
+              <motion.div variants={fadeUp} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {stats.map((s) => (
+                  <div key={s.label} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
+                    <Badge variant={s.variant} size="md">{s.value}</Badge>
+                    <div>
+                      <p className="text-lg font-bold text-txt-primary leading-none">{s.value}</p>
+                      <p className="text-2xs text-txt-muted mt-0.5">{s.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
+
+              {/* Doctor columns */}
+              {doctorColumns.length > 0 ? (
+                <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+                  <div className="grid gap-3" style={{ gridTemplateColumns: viewMode === 'doctors' ? `repeat(${Math.min(doctorColumns.length, 4)}, minmax(260px, 1fr))` : '1fr' }}>
+                  {doctorColumns.map(doc => {
+                    const docAppts = dayAppts.filter(a => a.doctorId === doc.id)
+                    return (
+                      <Card key={doc.id} padding="none" className="overflow-hidden">
+                        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-bdr-subtle bg-dv-gold/[0.03]">
+                          <Avatar name={doc.name || '?'} size="sm" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-txt-primary truncate">{doc.name}</p>
+                            <p className="text-2xs text-txt-muted">{doc.spec || 'Врач'} · {docAppts.length} записей</p>
+                          </div>
+                        </div>
+                        <div className="overflow-y-auto" style={{ maxHeight: 520 }}>
+                          {HOURS.filter(h => h >= WORK_START && h <= WORK_END).map(time => {
+                            const slotAppts = docAppts.filter(a => a.time === time)
+                            const min = timeToMinutes(time)
+                            const isLunch = min >= 720 && min < 780
+                            return (
+                              <div key={time}
+                                onDragOver={e => e.preventDefault()}
+                                onDrop={e => handleDrop(e, time, doc.id)}
+                                onClick={() => slotAppts.length === 0 && !isLunch && openSlotBooking(time, doc.id)}
+                                className={cn('flex border-b border-bdr-subtle transition-colors',
+                                  slotAppts.length === 0 && !isLunch && 'cursor-pointer hover:bg-dv-gold/[0.03]')}
+                                style={{ minHeight: HOUR_HEIGHT }}>
+                                <div className="w-12 shrink-0 px-1 text-center text-2xs font-semibold text-txt-muted pt-2.5 border-r border-bdr-subtle">{time}</div>
+                                <div className="flex-1 p-1">
+                                  {isLunch ? (
+                                    <p className="text-2xs text-dv-gold/40 italic text-center pt-3">Обед</p>
+                                  ) : slotAppts.length === 0 ? (
+                                    <p className="text-2xs text-txt-ghost text-center pt-3">Свободно</p>
+                                  ) : (
+                                    slotAppts.map(a => renderAppointmentBlock(a))
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </Card>
+                    )
+                  })}
+                  </div>
+                </motion.div>
+              ) : (
+                <EmptyState icon={<Calendar size={32} />} title="Нет врачей" description="Добавьте сотрудников для отображения расписания" />
+              )}
+            </>
           )}
         </>
       ) : (
