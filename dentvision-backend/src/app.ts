@@ -22,6 +22,7 @@ import { notificationsRouter } from './modules/notifications/notifications.route
 import { filesRouter } from './modules/files/files.routes.js';
 import { auditRouter } from './modules/audit/audit.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
+import { crmRouter } from './modules/crm/crm.routes.js';
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/crm', crmRouter);
 
 // ─── Error Handling ───
 app.use(notFound);
