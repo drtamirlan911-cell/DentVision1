@@ -32,6 +32,9 @@ import { iamRouter } from './modules/iam/iam.routes.js';
 import { suppliersRouter } from './modules/suppliers/suppliers.routes.js';
 import { academiesRouter, lecturersRouter } from './modules/academy/academy.routes.js';
 import { financeRouter } from './modules/finance/finance.routes.js';
+import { paymentsRouter } from './modules/payments/payments.routes.js';
+import { subscriptionsRouter } from './modules/billing/subscriptions.routes.js';
+import { disputesRouter } from './modules/finance/disputes.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 
 // Wire up domain-event subscribers (audit, etc.) once at import time.
@@ -73,6 +76,9 @@ app.use('/api/suppliers', suppliersRouter);
 app.use('/api/academies', academiesRouter);
 app.use('/api/lecturers', lecturersRouter);
 app.use('/api/finance', financeRouter);
+app.use('/api/payments', paymentsRouter);
+app.use('/api/subscriptions', subscriptionsRouter);
+app.use('/api/disputes', disputesRouter);
 app.use('/api/school', schoolRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/guest', guestRouter);

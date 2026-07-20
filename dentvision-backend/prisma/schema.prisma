@@ -651,6 +651,71 @@ model CommissionRule {
   @@map("commission_rules")
 }
 
+// ─── PAYMENTS (Phase 5) ───
+
+model Payment {
+  id         String   @id @default(uuid())
+  provider   String   @default("kaspi_qr")
+  externalId String?  @unique
+  amount     BigInt
+  currency   String   @default("KZT")
+  status     String   @default("created") // created | pending | paid | failed | expired
+  refType    String? // sale | subscription | enrollment | order
+  refId      String?
+  domain     String?
+  sellerType String?
+  sellerId   String?
+  meta       Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([refType, refId])
+  @@map("payments")
+}
+
+model Subscription {
+  id        String          @id @default(uuid())
+  ownerType WalletOwnerType
+  ownerId   String
+  plan      String          @default("free") // free | starter | professional | enterprise
+  status    String          @default("active")
+  periodEnd DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ownerType, ownerId])
+  @@map("subscriptions")
+}
+
+model Payout {
+  id       String @id @default(uuid())
+  walletId String
+  amount   BigInt
+  status   String @default("requested") // requested | approved | paid | rejected
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([walletId])
+  @@map("payouts")
+}
+
+model Dispute {
+  id      String @id @default(uuid())
+  refType String // order | enrollment
+  refId   String
+  reason  String
+  status  String @default("open") // open | review | resolved | rejected
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([refType, refId])
+  @@map("disputes")
+}
+
 model Product {
   id          String @id @default("")
   name        String

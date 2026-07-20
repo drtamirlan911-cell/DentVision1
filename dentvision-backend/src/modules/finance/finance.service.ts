@@ -86,6 +86,43 @@ export async function recordSale(input: SaleInput) {
   });
 }
 
+/**
+ * Records a payout (withdrawal) as a balanced transaction:
+ *   debit  seller wallet  amount   (balance decreases)
+ *   credit GATEWAY        amount    (funds leave the system to the bank)
+ * Throws if the wallet has insufficient balance. Keeps net wallet balance at 0.
+ */
+export async function recordPayout(walletId: string, amountMinor: bigint) {
+  if (amountMinor <= 0n) throw new Error('Payout amount must be positive');
+  const wallet = await prisma.wallet.findUnique({ where: { id: walletId } });
+  if (!wallet) throw new Error('Wallet not found');
+  if (wallet.balance < amountMinor) throw new Error('Insufficient balance');
+
+  const gateway = await getOrCreateWallet('GATEWAY', 'system', wallet.currency);
+
+  return prisma.$transaction(async (tx) => {
+    const transaction = await tx.transaction.create({
+      data: {
+        type: 'payout',
+        status: 'COMPLETED',
+        amount: amountMinor,
+        currency: wallet.currency,
+        refType: 'payout',
+        entries: {
+          create: [
+            { walletId: wallet.id, direction: 'debit', amount: amountMinor },
+            { walletId: gateway.id, direction: 'credit', amount: amountMinor },
+          ],
+        },
+      },
+      include: { entries: true },
+    });
+    await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { decrement: amountMinor } } });
+    await tx.wallet.update({ where: { id: gateway.id }, data: { balance: { increment: amountMinor } } });
+    return transaction;
+  });
+}
+
 /** Invariant helper: total of all wallet balances (should always be 0n). */
 export async function ledgerNetBalance(): Promise<bigint> {
   const wallets = await prisma.wallet.findMany({ select: { balance: true } });
