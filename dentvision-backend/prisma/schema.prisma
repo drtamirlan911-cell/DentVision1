@@ -785,6 +785,36 @@ model WebhookDelivery {
   @@map("webhook_deliveries")
 }
 
+// ─── DATA INTELLIGENCE (Phase 10) ───
+
+model Metric {
+  id         String @id @default(uuid())
+  key        String @unique
+  domain     String
+  title      String
+  definition Json // { type: "patient_count" | "revenue_month" | ... }
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("metrics")
+}
+
+model Dashboard {
+  id        String @id @default(uuid())
+  scopeType String @default("CLINIC")
+  scopeId   String
+  name      String
+  layout    Json // widgets referencing metric keys
+  createdBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scopeType, scopeId])
+  @@map("dashboards")
+}
+
 // ─── WORKFLOW STUDIO (Phase 9) ───
 
 model Workflow {
