@@ -120,7 +120,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const serviceItems = isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.section === 'platform' && item.id === 'ai') return true;
     if (item.section === 'platform') return true;
-    if (item.id === 'crm') return allowedPages.length === 0 || allowedPages.some((p: string) => p === 'schedule' || p === 'patients');
+    // CRM is the workspace entry point. Keep it visible for every signed-in
+    // user; access to individual tools remains governed by their role.
+    if (item.id === 'crm') return true;
     if (item.id === 'shop') return allowedPages.length === 0 || allowedPages.includes('shop');
     if (item.id === 'school') return allowedPages.length === 0 || allowedPages.includes('school');
     return true;
