@@ -34,6 +34,8 @@ export const PERMISSIONS = {
   PLATFORM_ANALYTICS: 'platform.analytics',
   // Partner Program (Phase 11). Platform-level.
   PARTNER_MANAGE: 'partner.manage',
+  // Workflow Studio (Phase 9). Clinic-level automation management.
+  WORKFLOW_MANAGE: 'workflow.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -47,16 +49,19 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
+    'workflow.manage',
   ],
   ADMIN: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
+    'workflow.manage',
   ],
   MANAGER: [
     'patient.read', 'patient.write',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write',
+    'workflow.manage',
   ],
   DOCTOR: [
     'patient.read', 'patient.write',

@@ -40,12 +40,15 @@ import { v1Router } from './modules/developer/v1.routes.js';
 import { complianceRouter } from './modules/compliance/compliance.routes.js';
 import { ecosystemRouter } from './modules/analytics/ecosystem.routes.js';
 import { partnersRouter } from './modules/partners/partners.routes.js';
+import { workflowRouter } from './modules/workflow/workflow.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 import { registerWebhookDispatcher } from './modules/developer/webhook.dispatcher.js';
+import { registerWorkflowEngine } from './modules/workflow/workflow.engine.js';
 
-// Wire up domain-event subscribers (audit, webhooks, etc.) once at import time.
+// Wire up domain-event subscribers (audit, webhooks, workflow triggers) at import time.
 registerSubscribers();
 registerWebhookDispatcher();
+registerWorkflowEngine();
 
 const app = express();
 
@@ -95,6 +98,7 @@ app.use('/api/analytics', analyticsRouter);
 app.use('/api/analytics', ecosystemRouter);
 app.use('/api/compliance', complianceRouter);
 app.use('/api/partners', partnersRouter);
+app.use('/api/workflows', workflowRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/documents', filesRouter);
