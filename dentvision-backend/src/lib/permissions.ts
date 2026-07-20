@@ -32,6 +32,8 @@ export const PERMISSIONS = {
   // Compliance & ecosystem analytics (Phase 7). Platform-level.
   COMPLIANCE_MANAGE: 'compliance.manage',
   PLATFORM_ANALYTICS: 'platform.analytics',
+  // Partner Program (Phase 11). Platform-level.
+  PARTNER_MANAGE: 'partner.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

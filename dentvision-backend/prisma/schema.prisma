@@ -785,6 +785,98 @@ model WebhookDelivery {
   @@map("webhook_deliveries")
 }
 
+// ─── PARTNER PROGRAM (Phase 11) ───
+
+enum PartnerType {
+  MANUFACTURER
+  DISTRIBUTOR
+  ACADEMY
+  LABORATORY
+  OFFICIAL_PARTNER
+}
+
+model Partner {
+  id        String      @id @default(uuid())
+  type      PartnerType
+  refType   String // supplier | academy | lab
+  refId     String
+  tierId    String?
+  status    String      @default("active")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tier      PartnerTier?        @relation(fields: [tierId], references: [id])
+  kpis      PartnerKPI[]
+  slas      PartnerSLA[]
+  campaigns MarketingCampaign[]
+
+  @@index([type, status])
+  @@map("partners")
+}
+
+model PartnerTier {
+  id            String @id @default(uuid())
+  name          String @unique
+  commissionBps Int
+  minKpiJson    Json?
+  benefitsJson  Json?
+
+  createdAt DateTime @default(now())
+
+  partners Partner[]
+
+  @@map("partner_tiers")
+}
+
+model PartnerKPI {
+  id          String   @id @default(uuid())
+  partnerId   String
+  period      String
+  metricsJson Json?
+  score       Float    @default(0)
+
+  createdAt DateTime @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, period])
+  @@map("partner_kpis")
+}
+
+model PartnerSLA {
+  id        String  @id @default(uuid())
+  partnerId String
+  metric    String
+  target    Float
+  actual    Float?
+  breached  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@map("partner_slas")
+}
+
+model MarketingCampaign {
+  id        String    @id @default(uuid())
+  partnerId String
+  name      String
+  budget    BigInt    @default(0)
+  splitBps  Int       @default(5000)
+  status    String    @default("draft")
+  startsAt  DateTime?
+  endsAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@map("marketing_campaigns")
+}
+
 // ─── COMPLIANCE (Phase 7) ───
 // Rule-based gate for marketplace/education content (KZ requirements).
 
