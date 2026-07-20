@@ -6,6 +6,7 @@ import {
   Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings,
 } from 'lucide-react'
 import { useAuth, ORG_ROLES } from '@/store/auth.store'
+import { useDataQuery } from '@/queries/useDataQuery'
 import { useToast } from '@/components/ui/ds/Toast'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
@@ -111,15 +112,14 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Staff() {
   const { clinic, user } = useOutletContext<OutletContext>()
-  const { getClinicStaff, addStaffMember, roleInfo } = useAuth()
+  const { addStaffMember, roleInfo } = useAuth()
+  const { users: staff } = useDataQuery(clinic?.id || user?.clinicId)
   const { toast, showToast, clearToast } = useToast()
   const [modalOpen, setModalOpen] = useState(false)
   const [profileModal, setProfileModal] = useState<UserType | null>(null)
   const [form, setForm] = useState<StaffForm>(EMPTY_FORM)
   const [filter, setFilter] = useState('all')
   const [editingStaff, setEditingStaff] = useState<UserType | null>(null)
-
-  const staff = getClinicStaff(clinic?.id || user?.clinicId)
   const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter)
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
