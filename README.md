@@ -2,6 +2,14 @@
 
 AI-powered dental clinic management platform — CRM, scheduling, billing, AI workspace, e-commerce shop, and online academy.
 
+## Product Specification
+
+Canonical product & company foundation (Microsoft / Apple / Stripe–level):
+
+→ **[`docs/spec/README.md`](docs/spec/README.md)** — DentVision Platform Specification v1.0
+
+Covers first-run AI experience, ChatGPT-class intelligence + 10 agents, world-class CRM, Kaspi-class Marketplace, School, Community (IG/Threads), Jobs (HH.kz-class), and the 5-year 3D scanner hardware vision.
+
 ## Tech Stack
 
 | Layer | Technology |
