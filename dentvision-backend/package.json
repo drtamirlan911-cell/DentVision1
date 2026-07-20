@@ -6,11 +6,15 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:migrate": "prisma migrate dev",
-    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev --schema ../prisma/schema.prisma",
+    "db:push": "prisma db push --accept-data-loss --schema ../prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:studio": "prisma studio --schema ../prisma/schema.prisma",
+    "db:generate": "prisma generate --schema ../prisma/schema.prisma",
+    "postinstall": "npm --prefix ../server install && npm --prefix ../server run db:generate"
+  },
+  "prisma": {
+    "schema": "../prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
@@ -23,6 +27,7 @@
     "ioredis": "^5.4.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "prisma": "^6.19.0",
     "uuid": "^11.0.5",
     "zod": "^3.24.2"
   },
@@ -34,7 +39,6 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^22.12.0",
     "@types/uuid": "^10.0.0",
-    "prisma": "^6.19.0",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"
   }
