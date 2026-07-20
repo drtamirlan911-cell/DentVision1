@@ -79,6 +79,7 @@ import adminRoutes from './routes/admin.js';
 import guestRoutes from './routes/guest.js';
 import jobsRoutes from './routes/jobs.js';
 import communityRoutes from './routes/community.js';
+import treatmentPlanRoutes from './routes/treatmentPlans.js';
 import { authenticate } from './middleware/auth.js';
 import { requirePermission, requireSuperadmin } from './middleware/rbac.js';
 
@@ -106,6 +107,7 @@ app.use('/api/ai', aiRoutes());
 
 app.use('/api/clinic', clinicRoutes(writeAuditLog));
 app.use('/api/crm', crmRoutes(writeAuditLog));
+app.use('/api/crm', treatmentPlanRoutes());
 app.use('/api', medicalRoutes(writeAuditLog));
 app.use('/api/shop', shopRoutes());
 app.use('/api/school', schoolRoutes());

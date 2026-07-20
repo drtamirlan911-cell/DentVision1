@@ -450,6 +450,51 @@ export async function submitLessonExam(lessonId: string, answers: Record<string,
   });
 }
 
+export async function askSchoolTutor(payload: {
+  message: string;
+  courseId?: string;
+  lessonId?: string;
+  history?: Array<{ role: string; content: string }>;
+}): Promise<any> {
+  return apiRequest('/api/school/tutor', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── Treatment Plans ───
+export async function getTreatmentPlans(clinicId: string, params: { patientId?: string; status?: string } = {}): Promise<any[]> {
+  const q = new URLSearchParams();
+  if (params.patientId) q.set('patientId', params.patientId);
+  if (params.status) q.set('status', params.status);
+  const qs = q.toString();
+  return apiRequest(`/api/crm/${clinicId}/treatment-plans${qs ? `?${qs}` : ''}`);
+}
+
+export async function upsertTreatmentPlan(data: Record<string, unknown>): Promise<any> {
+  return apiRequest('/api/crm/treatment-plans', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteTreatmentPlan(id: string): Promise<any> {
+  return apiRequest(`/api/crm/treatment-plans/${id}`, { method: 'DELETE' });
+}
+
+// ─── AI Threads ───
+export async function getAiThreads(): Promise<any> {
+  return apiRequest('/api/ai/threads');
+}
+
+export async function getActiveAiThread(): Promise<any> {
+  return apiRequest('/api/ai/threads/active');
+}
+
+export async function startNewAiThread(): Promise<any> {
+  return apiRequest('/api/ai/threads/new', { method: 'POST', body: '{}' });
+}
+
 // ─── Service Access ───
 export async function getServiceAccess(clinicId: string): Promise<Record<string, boolean>> {
   return Promise.resolve({});

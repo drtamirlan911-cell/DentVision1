@@ -9,6 +9,8 @@ import { requireSuperadmin } from '../middleware/rbac.js';
 import { createNotification } from '../lib/notifications.js';
 import prisma from '../lib/prisma.js';
 import { resolveExamPayload, publicExamView, gradeExam } from '../lib/exams.js';
+import { processMessage } from '../ai/core/intentEngine.js';
+import { buildDigitalTwin } from '../ai/memory/digitalTwin.js';
 
 export default function schoolRoutes() {
   const router = Router();
@@ -276,6 +278,65 @@ export default function schoolRoutes() {
     } catch (e) {
       console.error('Exam submit error:', e);
       res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+  });
+
+  // ─── AI Tutor (lesson / course scoped) ───
+  router.post('/tutor', authenticate, requireServiceAccess('school'), async (req, res) => {
+    try {
+      const { message, courseId, lessonId, history = [] } = req.body || {};
+      if (!message || typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ error: 'message required' });
+      }
+
+      const course = courseId
+        ? await prisma.schoolCourse.findUnique({ where: { id: courseId } })
+        : null;
+      const lesson = lessonId
+        ? await prisma.schoolLesson.findUnique({ where: { id: lessonId } })
+        : null;
+
+      const twin = await buildDigitalTwin(req.user.id).catch(() => null);
+      const tutorPrompt = [
+        `Ты — AI Tutor DentVision Academy. Отвечай как эксперт-наставник стоматолога.`,
+        course ? `Курс: «${course.title}» (${course.category || ''}, ${course.difficulty || ''}).` : '',
+        lesson ? `Урок: «${lesson.title}» (тип: ${lesson.type || 'video'}).` : '',
+        lesson?.content ? `Материал урока (фрагмент): ${String(lesson.content).slice(0, 800)}` : '',
+        twin?.specialization ? `Специализация врача: ${twin.specialization}.` : '',
+        twin?.learningPath ? `Learning path: ${JSON.stringify(twin.learningPath).slice(0, 300)}` : '',
+        `Правила: объясняй просто; связывай с клиникой без PHI; если вопрос про экзамен — дай подсказку без прямой сдачи ответа.`,
+        `Вопрос ученика: ${message.trim()}`,
+      ].filter(Boolean).join('\n');
+
+      const response = await processMessage(tutorPrompt, {
+        user: req.user,
+        clinic: null,
+        conversationHistory: Array.isArray(history) ? history.slice(-8) : [],
+        conversationContext: { entities: { lastCourse: course?.title, lastLesson: lesson?.title }, history: [], turnCount: 0 },
+        channel: 'school_tutor',
+      });
+
+      const suggestions = [
+        'Объясни простыми словами',
+        'Свяжи с клиническим кейсом',
+        'Подготовь к тесту',
+        lesson ? `Разбери урок «${lesson.title}»` : 'Составь learning path',
+      ];
+
+      res.json({
+        reply: response.reply,
+        skill: response.skill || 'school_tutor',
+        suggestions: response.suggestions?.length ? response.suggestions : suggestions,
+        context: {
+          courseId: course?.id || null,
+          lessonId: lesson?.id || null,
+          courseTitle: course?.title || null,
+          lessonTitle: lesson?.title || null,
+        },
+      });
+    } catch (e) {
+      console.error('AI Tutor error:', e);
+      res.status(500).json({ error: e.message || 'Tutor failed' });
     }
   });
 

@@ -245,6 +245,8 @@ model Patient {
   notes       String?  @db.Text
   category    String?  @default("new") @db.VarChar(50)
   source      String?  @db.VarChar(100)
+  /// FDI odontogram: { "16": { "status": "caries", "surfaces": {...} }, ... }
+  teeth       Json?    @db.JsonB
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @default(now()) @map("updated_at")
 
@@ -260,6 +262,32 @@ model Patient {
   visits          Visit[]
   documents       Document[]
   waitingList     WaitingList[]
+  treatmentPlans  TreatmentPlan[]
+}
+
+// ─── Treatment Plans (CRM MUST) ─────────────────────────────
+
+model TreatmentPlan {
+  id          String   @id @default("") @db.VarChar(50)
+  clinicId    String   @map("clinic_id") @db.VarChar(50)
+  patientId   String   @map("patient_id") @db.VarChar(50)
+  doctorId    String?  @map("doctor_id") @db.VarChar(50)
+  title       String?  @db.VarChar(255)
+  status      String   @default("draft") @db.VarChar(50) // draft|proposed|accepted|in_progress|completed|cancelled
+  diagnosis   String?  @db.Text
+  notes       String?  @db.Text
+  totalBudget Float?   @map("total_budget")
+  /// [{ id, title, tooth?, cost?, status, sortOrder }]
+  stages      Json?    @db.JsonB
+  /// tooth numbers linked to this plan
+  teeth       Json?    @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, patientId])
+  @@index([status])
 }
 
 // ─── Appointments ───────────────────────────────────────────
@@ -925,6 +953,41 @@ model CommunityLike {
   post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([postId, userId])
+}
+
+// ─── AI Conversation Memory (persistent threads) ────────────
+
+model AiThread {
+  id         String   @id @default("") @db.VarChar(50)
+  userId     String   @map("user_id") @db.VarChar(50)
+  clinicId   String?  @map("clinic_id") @db.VarChar(50)
+  title      String?  @db.VarChar(255)
+  entities   Json?    @db.JsonB
+  turnCount  Int      @default(0) @map("turn_count")
+  lastSkill  String?  @map("last_skill") @db.VarChar(100)
+  lastIntent String?  @map("last_intent") @db.VarChar(100)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  messages AiMessage[]
+
+  @@index([userId, active])
+  @@index([updatedAt])
+}
+
+model AiMessage {
+  id        String   @id @default("") @db.VarChar(50)
+  threadId  String   @map("thread_id") @db.VarChar(50)
+  role      String   @db.VarChar(20) // user | assistant | system
+  content   String   @db.Text
+  skill     String?  @db.VarChar(100)
+  meta      Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread AiThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
 }
 
 // ─── Service-Level Access Control ───────────────────────────

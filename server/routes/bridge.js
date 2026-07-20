@@ -22,6 +22,16 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
     aiRouter(req, res, next);
   });
 
+  // Convenience aliases for AI threads (same router also mounted at /api/ai)
+  app.get('/api/ai/threads', authenticate, (req, res, next) => {
+    req.url = '/threads';
+    aiRouter(req, res, next);
+  });
+  app.get('/api/ai/threads/active', authenticate, (req, res, next) => {
+    req.url = '/threads/active';
+    aiRouter(req, res, next);
+  });
+
   const crmRouter = crmRoutes(writeAuditLog);
 
   const CRM_RESOURCE_MAP = {

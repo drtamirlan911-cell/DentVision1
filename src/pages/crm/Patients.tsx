@@ -163,10 +163,24 @@ export default function Patients() {
     setSelectedTooth(t => t === toothNum ? null : toothNum)
   }, [])
 
-  const handleSaveToothSurfaces = (toothNum: number, surfaces: any) => {
+  const handleSaveToothSurfaces = async (toothNum: number, surfaces: any) => {
     const updated = { ...teethState, [toothNum]: { ...teethState[toothNum], surfaces } }
     setTeethState(updated)
     setSelectedTooth(null)
+    if (selected) {
+      try {
+        await upsertPatient({
+          id: selected.id,
+          clinicId: clinic?.id || selected.clinicId,
+          name: selected.name,
+          phone: selected.phone,
+          teeth: updated,
+        } as any)
+        showToast('Зубная карта обновлена', 'success')
+      } catch {
+        showToast('Не удалось сохранить зубную карту', 'error')
+      }
+    }
   }
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

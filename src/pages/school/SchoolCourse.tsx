@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2, Sparkles, Send } from 'lucide-react';
 import { Button, Badge, EmptyState, Card, ProgressBar } from '../../components/ui/ds';
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '../../components/ui/ds/Toast';
@@ -12,8 +12,11 @@ interface Lesson {
   title: string;
   type: string;
   duration_minutes: number;
+  durationMinutes?: number;
   content?: string;
   is_free?: boolean;
+  videoUrl?: string;
+  video_url?: string;
 }
 
 interface CourseModule {
@@ -66,6 +69,15 @@ export default function SchoolCourse() {
   const [examResult, setExamResult] = useState<any>(null);
   const [examLoading, setExamLoading] = useState(false);
   const [examSubmitting, setExamSubmitting] = useState(false);
+  const [tutorOpen, setTutorOpen] = useState(false);
+  const [tutorInput, setTutorInput] = useState('');
+  const [tutorBusy, setTutorBusy] = useState(false);
+  const [tutorMessages, setTutorMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [tutorSuggestions, setTutorSuggestions] = useState<string[]>([
+    'Объясни простыми словами',
+    'Свяжи с клиническим кейсом',
+    'Подготовь к тесту',
+  ]);
 
   useEffect(() => {
     Promise.all([
@@ -148,6 +160,33 @@ export default function SchoolCourse() {
       toast.showToast('Не удалось отправить экзамен', 'error');
     } finally {
       setExamSubmitting(false);
+    }
+  };
+
+  const askTutor = async (text?: string) => {
+    const message = (text || tutorInput).trim();
+    if (!message || tutorBusy) return;
+    setTutorOpen(true);
+    setTutorBusy(true);
+    setTutorInput('');
+    const nextHistory = [...tutorMessages, { role: 'user', content: message }];
+    setTutorMessages(nextHistory);
+    try {
+      const res = await api.askSchoolTutor({
+        message,
+        courseId: id,
+        lessonId: activeLesson?.id,
+        history: nextHistory.slice(-8),
+      });
+      setTutorMessages((prev) => [...prev, { role: 'assistant', content: res.reply || 'Готов помочь с материалом.' }]);
+      if (Array.isArray(res.suggestions) && res.suggestions.length) {
+        setTutorSuggestions(res.suggestions.slice(0, 4));
+      }
+    } catch {
+      setTutorMessages((prev) => [...prev, { role: 'assistant', content: 'Не удалось связаться с AI Tutor. Попробуйте ещё раз.' }]);
+      toast.showToast('AI Tutor недоступен', 'error');
+    } finally {
+      setTutorBusy(false);
     }
   };
 
@@ -491,6 +530,69 @@ export default function SchoolCourse() {
               >
                 Следующий →
               </Button>
+            </div>
+
+            {/* AI Tutor */}
+            <div className="mt-8 rounded-2xl border border-[#C9A96E]/25 bg-gradient-to-br from-[#C9A96E]/10 to-transparent p-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-[#C9A96E]" />
+                  <h3 className="text-sm font-bold text-white m-0">AI Tutor</h3>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => setTutorOpen((v) => !v)}>
+                  {tutorOpen ? 'Свернуть' : 'Открыть'}
+                </Button>
+              </div>
+              <p className="text-xs text-[var(--slate)] m-0 mb-3">
+                Персональный наставник по уроку и курсу. Объяснит материал и свяжет с клиникой без PHI.
+              </p>
+              {tutorOpen && (
+                <div className="space-y-3">
+                  <div className="max-h-56 overflow-y-auto space-y-2 rounded-xl bg-black/20 p-3">
+                    {tutorMessages.length === 0 ? (
+                      <p className="text-xs text-[var(--slate)] m-0">Спросите, например: «Объясни ключевую идею урока».</p>
+                    ) : (
+                      tutorMessages.map((m, i) => (
+                        <div
+                          key={i}
+                          className={`text-xs leading-relaxed rounded-lg px-3 py-2 ${
+                            m.role === 'user'
+                              ? 'bg-[#C9A96E]/15 text-[#C9A96E] ml-6'
+                              : 'bg-white/[0.04] text-[var(--slate-light)] mr-6'
+                          }`}
+                        >
+                          {m.content}
+                        </div>
+                      ))
+                    )}
+                    {tutorBusy && <p className="text-[11px] text-[#C9A96E] m-0">Tutor думает…</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tutorSuggestions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => askTutor(s)}
+                        className="text-[10px] px-2.5 py-1 rounded-md border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] cursor-pointer font-inherit"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={tutorInput}
+                      onChange={(e) => setTutorInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') askTutor(); }}
+                      placeholder="Вопрос AI Tutor…"
+                      className="flex-1 rounded-lg bg-white/[0.04] border border-[var(--border-subtle)] px-3 py-2 text-xs text-white font-inherit outline-none"
+                    />
+                    <Button size="sm" onClick={() => askTutor()} disabled={tutorBusy || !tutorInput.trim()}>
+                      <Send size={14} />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         ) : (

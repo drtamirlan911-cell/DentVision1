@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot, X, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/store/auth.store'
-import { aiChat, aiChatStream, aiProactive, aiDigitalTwin } from '@/utils/api'
+import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, getActiveAiThread } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
@@ -65,16 +65,39 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true
-      const restored = restoreThread(user?.id)
-      if (restored?.length) {
-        setMessages(restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })))
-        historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
-        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true })
-        setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
-      } else {
-        initializeWorkspace()
-        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
-      }
+      ;(async () => {
+        try {
+          if (user?.id) {
+            const active = await getActiveAiThread()
+            if (active?.messages?.length) {
+              const restored = active.messages.map((m: any, i: number) => ({
+                id: m.id || `srv-${i}`,
+                role: m.role,
+                content: m.content,
+                timestamp: new Date(m.timestamp || Date.now()),
+                skill: m.skill,
+              }))
+              setMessages(restored)
+              historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
+              persistThread(user.id, restored)
+              trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
+              setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
+              return
+            }
+          }
+        } catch { /* fall through to local */ }
+
+        const restored = restoreThread(user?.id)
+        if (restored?.length) {
+          setMessages(restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })))
+          historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
+          trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
+          setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
+        } else {
+          initializeWorkspace()
+          trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
+        }
+      })()
     }
   }, [user, clinic])
 
