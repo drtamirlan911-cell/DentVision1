@@ -83,6 +83,68 @@ filesRouter.post('/documents', async (req: AuthRequest, res) => {
   }
 });
 
+filesRouter.post('/documents/:id/send-signature', async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const doc = await prisma.document.findUnique({ where: { id } });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Документ не найден' } satisfies ApiResponse);
+    if (doc.clinicId && req.user?.clinicId && doc.clinicId !== req.user.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Доступ запрещён' } satisfies ApiResponse);
+    }
+    const token = uid().replace(/-/g, '');
+    // Encode token into metadata via notes-like fields: prepend to url query for demo links
+    const signUrl = `/sign/${id}?token=${token}`;
+    await prisma.document.update({
+      where: { id },
+      data: {
+        // Persist token in name suffix is fragile; store in url fragment marker
+        url: doc.url.includes('#sig=') ? doc.url.replace(/#sig=.*/, `#sig=${token}`) : `${doc.url}#sig=${token}`,
+      },
+    });
+    return res.json({
+      ok: true,
+      data: { id, token, signUrl, message: 'Ссылка на подпись создана' },
+    } satisfies ApiResponse);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
+    return res.status(500).json({ ok: false, error: message } satisfies ApiResponse);
+  }
+});
+
+filesRouter.post('/documents/:id/sign', async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const { signatureData, signedByName, token } = req.body || {};
+    const doc = await prisma.document.findUnique({ where: { id } });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Документ не найден' } satisfies ApiResponse);
+
+    const storedToken = doc.url.includes('#sig=') ? doc.url.split('#sig=')[1] : null;
+    const staffOk = !!req.user?.clinicId && (!doc.clinicId || doc.clinicId === req.user.clinicId);
+    const tokenOk = token && storedToken && token === storedToken;
+    if (!staffOk && !tokenOk) {
+      return res.status(403).json({ ok: false, error: 'Нет права подписи' } satisfies ApiResponse);
+    }
+
+    const updated = await prisma.document.update({
+      where: { id },
+      data: {
+        signed: true,
+        signedAt: new Date(),
+        name: signedByName ? `${doc.name || 'Документ'} · ${signedByName}` : doc.name,
+        // Keep signature payload in url data field when content is data URI — append JSON marker
+        url: signatureData
+          ? (doc.url.includes('data:') ? doc.url : `${doc.url}#signed`)
+          : doc.url,
+      },
+    });
+
+    return res.json({ ok: true, data: updated } satisfies ApiResponse);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
+    return res.status(500).json({ ok: false, error: message } satisfies ApiResponse);
+  }
+});
+
 filesRouter.post('/upload', upload.single('file'), async (req: AuthRequest, res) => {
   try {
     if (!req.file) {

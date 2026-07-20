@@ -195,4 +195,77 @@ billingRouter.get('/summary', async (req: AuthRequest, res) => {
   }
 });
 
+billingRouter.get('/reports', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) {
+      res.status(400).json({ ok: false, error: 'Clinic ID not found' });
+      return;
+    }
+
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(new Date().setHours(0, 0, 0, 0));
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        clinicId,
+        createdAt: { gte: from, lte: to },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const paid = invoices.filter((i) => i.status === 'PAID');
+    const unpaid = invoices.filter((i) => ['PENDING', 'UNPAID', 'PARTIAL', 'OVERDUE'].includes(i.status));
+
+    const byDay: Record<string, { revenue: number; count: number }> = {};
+    const byService: Record<string, { revenue: number; count: number }> = {};
+
+    for (const inv of paid) {
+      const day = inv.paidAt
+        ? inv.paidAt.toISOString().slice(0, 10)
+        : inv.createdAt.toISOString().slice(0, 10);
+      if (!byDay[day]) byDay[day] = { revenue: 0, count: 0 };
+      byDay[day].revenue += inv.amount || 0;
+      byDay[day].count += 1;
+
+      const items = Array.isArray(inv.items) ? inv.items : [];
+      for (const raw of items as any[]) {
+        const name = raw?.name || raw?.service || 'Услуга';
+        if (!byService[name]) byService[name] = { revenue: 0, count: 0 };
+        byService[name].revenue += Number(raw?.price || raw?.amount || 0) * Number(raw?.qty || 1);
+        byService[name].count += Number(raw?.qty || 1);
+      }
+      if (items.length === 0) {
+        const fallback = inv.notes || 'Без позиции';
+        if (!byService[fallback]) byService[fallback] = { revenue: 0, count: 0 };
+        byService[fallback].revenue += inv.amount || 0;
+        byService[fallback].count += 1;
+      }
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        totals: {
+          revenue: paid.reduce((s, i) => s + (i.amount || 0), 0),
+          paidCount: paid.length,
+          unpaid: unpaid.reduce((s, i) => s + (i.amount || 0), 0),
+          unpaidCount: unpaid.length,
+        },
+        byDay: Object.entries(byDay)
+          .map(([date, v]) => ({ date, ...v }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+        byService: Object.entries(byService)
+          .map(([name, v]) => ({ name, ...v }))
+          .sort((a, b) => b.revenue - a.revenue),
+      },
+    });
+  } catch (error) {
+    console.error('Billing reports error:', error);
+    res.status(500).json({ ok: false, error: 'Failed to build finance report' });
+  }
+});
+
 export { billingRouter };

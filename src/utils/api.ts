@@ -229,25 +229,85 @@ export async function getClinicStaff(clinicId: string): Promise<ClinicStaffMembe
 }
 
 // ─── Clinic Data (resource endpoints — clinicId from JWT) ───
-function collection<T>(response: T[] | { data?: T[] }): T[] {
-  return Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : [];
+function collection<T>(response: T[] | { data?: T[]; items?: T[] } | null | undefined): T[] {
+  if (Array.isArray(response)) return response;
+  if (!response || typeof response !== 'object') return [];
+  if (Array.isArray((response as any).data)) return (response as any).data;
+  if (Array.isArray((response as any).items)) return (response as any).items;
+  return [];
+}
+
+function mapReceipt(raw: any): Receipt {
+  const statusRaw = String(raw?.status || '').toUpperCase();
+  const status =
+    statusRaw === 'PAID' || raw?.status === 'paid' || raw?.status === 'completed'
+      ? 'paid'
+      : statusRaw === 'PARTIAL'
+        ? 'partial'
+        : statusRaw === 'OVERDUE' || statusRaw === 'UNPAID' || statusRaw === 'PENDING'
+          ? 'debt'
+          : (raw?.status as Receipt['status']) || 'debt';
+  return {
+    id: raw.id,
+    clinicId: raw.clinicId,
+    patientId: raw.patientId,
+    patientName: raw.patientName,
+    doctorId: raw.doctorId,
+    date: raw.paidAt
+      ? String(raw.paidAt).slice(0, 10)
+      : raw.date || (raw.createdAt ? String(raw.createdAt).slice(0, 10) : ''),
+    status,
+    total: Number(raw.total ?? raw.amount ?? 0),
+    amount: Number(raw.amount ?? raw.total ?? 0),
+    payMethod: raw.payMethod || raw.paymentMethod,
+    paymentType: raw.paymentType,
+    notes: raw.notes,
+    service: raw.service,
+    appointmentId: raw.appointmentId,
+    items: Array.isArray(raw.items) ? raw.items : [],
+    createdAt: raw.createdAt,
+  };
 }
 
 export async function getPatients(clinicId: string): Promise<Patient[]> {
-  return collection<Patient>(await apiRequest('/api/patients?limit=100'));
+  return collection<Patient>(await apiRequest('/api/patients?limit=200'));
 }
 
 export async function getPatient(id: string): Promise<Patient> {
-  const patients = await apiRequest('/api/patients');
-  return patients.find((p: any) => p.id === id);
+  return apiRequest(`/api/patients/${id}`);
+}
+
+export async function getPatientSummary(patientId: string): Promise<any> {
+  return apiRequest(`/api/patients/${patientId}/summary`);
 }
 
 export async function getAppointments(clinicId: string): Promise<Appointment[]> {
-  return collection<Appointment>(await apiRequest('/api/appointments?limit=100'));
+  return collection<Appointment>(await apiRequest('/api/appointments?limit=200'));
+}
+
+export async function checkAppointmentConflicts(params: {
+  doctorId: string;
+  date: string;
+  time: string;
+  duration?: number;
+  excludeId?: string;
+  patientId?: string;
+}): Promise<{ hasConflict: boolean; conflicts: Appointment[] }> {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v != null) q.set(k, String(v)); });
+  return apiRequest(`/api/appointments/conflicts?${q}`);
 }
 
 export async function getReceipts(clinicId: string): Promise<Receipt[]> {
-  return collection<Receipt>(await apiRequest('/api/billing/invoices?limit=100'));
+  return collection(await apiRequest('/api/billing/invoices?limit=200')).map(mapReceipt);
+}
+
+export async function getFinanceReport(params: { from?: string; to?: string } = {}): Promise<any> {
+  const q = new URLSearchParams();
+  if (params.from) q.set('from', params.from);
+  if (params.to) q.set('to', params.to);
+  const qs = q.toString();
+  return apiRequest(`/api/billing/reports${qs ? `?${qs}` : ''}`);
 }
 
 export async function getLabOrders(clinicId: string): Promise<LabOrder[]> {
@@ -255,15 +315,22 @@ export async function getLabOrders(clinicId: string): Promise<LabOrder[]> {
 }
 
 export async function getExpenses(clinicId: string): Promise<Expense[]> {
-  return Promise.resolve([]);
+  return collection<Expense>(await apiRequest('/api/crm/expenses'));
 }
 
 export async function getInventory(clinicId: string): Promise<InventoryItem[]> {
-  return apiRequest('/api/inventory');
+  const rows = collection<any>(await apiRequest('/api/inventory'));
+  return rows.map((r) => ({
+    ...r,
+    min: r.min ?? r.minimum ?? 0,
+    minQuantity: r.minQuantity ?? r.minimum ?? 0,
+    cost: r.cost ?? r.price ?? 0,
+    unit: r.unit || 'шт',
+  }));
 }
 
 export async function getPromotions(clinicId: string): Promise<Promotion[]> {
-  return Promise.resolve([]);
+  return collection<Promotion>(await apiRequest('/api/crm/promotions'));
 }
 
 export async function getBookings(clinicId: string): Promise<Booking[]> {
@@ -275,12 +342,24 @@ export async function upsertPatient(data: Partial<Patient>): Promise<any> {
   return apiRequest('/api/patients', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertAppointment(data: Partial<Appointment>): Promise<any> {
+export async function upsertAppointment(data: Partial<Appointment> & { force?: boolean }): Promise<any> {
   return apiRequest('/api/appointments', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertReceipt(data: Partial<Receipt>): Promise<any> {
-  return apiRequest('/api/billing/invoices', { method: 'POST', body: JSON.stringify(data) });
+  const payload = {
+    ...data,
+    amount: data.amount ?? data.total,
+    items: data.items || (data.service ? [{ name: data.service, price: data.total || data.amount || 0, qty: 1 }] : []),
+    status: data.status === 'paid' || data.status === 'completed' ? 'PAID' : data.status === 'partial' ? 'PARTIAL' : 'PENDING',
+  };
+  const created = await apiRequest('/api/billing/invoices', { method: 'POST', body: JSON.stringify(payload) });
+  if ((data.status === 'paid' || data.status === 'completed') && created?.id) {
+    try {
+      await apiRequest(`/api/billing/invoices/${created.id}/pay`, { method: 'POST', body: '{}' });
+    } catch { /* ignore */ }
+  }
+  return mapReceipt(created);
 }
 
 export async function upsertLabOrder(data: Partial<LabOrder>): Promise<any> {
@@ -288,11 +367,18 @@ export async function upsertLabOrder(data: Partial<LabOrder>): Promise<any> {
 }
 
 export async function upsertExpense(data: Partial<Expense>): Promise<any> {
-  return Promise.resolve({ ok: true });
+  return apiRequest('/api/crm/expenses', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertInventoryItem(data: Partial<InventoryItem>): Promise<any> {
-  return apiRequest('/api/inventory', { method: 'POST', body: JSON.stringify(data) });
+  return apiRequest('/api/inventory', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...data,
+      minimum: data.minQuantity ?? data.min ?? 0,
+      price: (data as any).cost ?? (data as any).price,
+    }),
+  });
 }
 
 export async function upsertUser(data: Partial<User>): Promise<any> {
@@ -308,11 +394,42 @@ export async function uploadPhoto(data: Partial<Photo>): Promise<any> {
 }
 
 export async function upsertPromotion(data: Partial<Promotion>): Promise<any> {
-  return Promise.resolve({ ok: true });
+  return apiRequest('/api/crm/promotions', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function upsertBooking(data: Partial<Booking>): Promise<any> {
   return Promise.resolve({ ok: true });
+}
+
+export async function deletePromotion(id: string): Promise<any> {
+  return apiRequest(`/api/crm/promotions/${id}`, { method: 'DELETE' });
+}
+
+export async function getPriceList(): Promise<any[]> {
+  return collection(await apiRequest('/api/crm/price-list'));
+}
+
+export async function upsertPriceListItem(data: { serviceCode: string; price: number; name?: string }): Promise<any> {
+  return apiRequest('/api/crm/price-list', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function sendDocumentForSignature(id: string): Promise<any> {
+  return apiRequest(`/api/documents/${id}/send-signature`, { method: 'POST', body: '{}' });
+}
+
+export async function signDocument(id: string, payload: { signatureData?: string; signedByName?: string; token?: string }): Promise<any> {
+  return apiRequest(`/api/documents/${id}/sign`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateTreatmentPlanStage(
+  planId: string,
+  stageId: string,
+  data: { status?: string; cost?: number; title?: string; appointmentId?: string; invoiceId?: string },
+): Promise<any> {
+  return apiRequest(`/api/crm/treatment-plans/${planId}/stages/${stageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
 }
 
 // ─── Deletes (resource endpoints) ───
@@ -341,14 +458,10 @@ export async function deleteLabOrder(id: string): Promise<any> {
 }
 
 export async function deleteExpense(id: string): Promise<any> {
-  return Promise.resolve({ ok: true });
+  return apiRequest(`/api/crm/expenses/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteSubscription(id: string): Promise<any> {
-  return Promise.resolve({ ok: true });
-}
-
-export async function deletePromotion(id: string): Promise<any> {
   return Promise.resolve({ ok: true });
 }
 
@@ -509,7 +622,15 @@ export async function getTreatments(clinicId: string): Promise<any[]> {
 
 // ─── Waiting List ───
 export async function getWaitingList(clinicId: string): Promise<WaitingListItem[]> {
-  return Promise.resolve([]);
+  return collection<WaitingListItem>(await apiRequest('/api/crm/waiting-list'));
+}
+
+export async function upsertWaitingListItem(data: Partial<WaitingListItem>): Promise<any> {
+  return apiRequest('/api/crm/waiting-list', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function deleteWaitingListItem(id: string): Promise<any> {
+  return apiRequest(`/api/crm/waiting-list/${id}`, { method: 'DELETE' });
 }
 
 // ─── Shop ───

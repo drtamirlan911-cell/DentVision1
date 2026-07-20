@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery'
+import * as api from '@/utils/api'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Textarea, Select } from '../../components/ui/ds/Input'
@@ -98,6 +99,12 @@ export default function Patients() {
   const [photos, setPhotos] = useState<Array<{ id: string; url: string; category: string; date: string; name: string }>>([])
   const [photoCategory, setPhotoCategory] = useState('smile')
   const [payment, setPayment] = useState(EMPTY_PAYMENT)
+  const [patientSummary, setPatientSummary] = useState<{
+    balance?: number
+    paidTotal?: number
+    openPlans?: number
+    nextVisit?: { date?: string; time?: string; service?: string } | null
+  } | null>(null)
 
   useEffect(() => {
     const pid = params.get('patient')
@@ -111,6 +118,20 @@ export default function Patients() {
     }
     if (tab) setActiveTab(tab)
   }, [params, patients])
+
+  useEffect(() => {
+    if (!selected?.id) { setPatientSummary(null); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await api.getPatientSummary(selected.id)
+        if (!cancelled) setPatientSummary(data)
+      } catch {
+        if (!cancelled) setPatientSummary(null)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [selected?.id])
 
   const filtered = patients.filter(p => {
     const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase())
@@ -449,6 +470,29 @@ export default function Patients() {
                 {cat.l}
               </Badge>
             </div>
+
+            {patientSummary && (
+              <div className="grid grid-cols-2 gap-2 mb-4 text-left">
+                <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2.5">
+                  <p className="text-[10px] text-txt-muted uppercase tracking-wide">Баланс</p>
+                  <p className={cn('text-sm font-bold', (patientSummary.balance || 0) > 0 ? 'text-error' : 'text-success')}>
+                    {tg(patientSummary.balance || 0)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2.5">
+                  <p className="text-[10px] text-txt-muted uppercase tracking-wide">Планы</p>
+                  <p className="text-sm font-bold text-txt-primary">{patientSummary.openPlans || 0} откр.</p>
+                </div>
+                <div className="col-span-2 rounded-lg bg-white/[0.03] border border-white/[0.06] p-2.5">
+                  <p className="text-[10px] text-txt-muted uppercase tracking-wide">След. визит</p>
+                  <p className="text-sm font-medium text-txt-primary">
+                    {patientSummary.nextVisit
+                      ? `${patientSummary.nextVisit.date || ''} ${patientSummary.nextVisit.time || ''} · ${patientSummary.nextVisit.service || 'приём'}`
+                      : 'Не записан'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2.5 text-sm text-txt-secondary">
               {selected.phone && (

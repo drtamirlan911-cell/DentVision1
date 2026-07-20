@@ -23,6 +23,7 @@ import { filesRouter } from './modules/files/files.routes.js';
 import { auditRouter } from './modules/audit/audit.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
 import { crmRouter } from './modules/crm/crm.routes.js';
+import { crmOpsRouter } from './modules/crm/ops.routes.js';
 import { labRouter } from './modules/lab/lab.routes.js';
 
 const app = express();
@@ -62,9 +63,11 @@ app.use('/api/guest', guestRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/files', filesRouter);
+app.use('/api/documents', filesRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/crm', crmRouter);
+app.use('/api/crm', crmOpsRouter);
 app.use('/api/lab-orders', labRouter);
 
 // ─── Error Handling ───

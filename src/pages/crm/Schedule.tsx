@@ -119,15 +119,64 @@ export default function Schedule() {
     let patientId = form.patientId
     if (showNewPatient && !patientId) { const created = await handleCreatePatient(); if (!created) return; patientId = created.id }
     if (!patientId || !form.time) { showToast('Выберите пациента и время', 'warning'); return }
+    if (!form.doctorId) { showToast('Выберите врача', 'warning'); return }
+    const payload = {
+      ...form,
+      id: editAppt?.id,
+      clinicId: clinic?.id,
+      date: selDate,
+      patientId,
+      serviceId: form.service,
+      serviceName: selectedService?.name || form.service,
+      servicePrice: selectedService?.price || 0,
+      reason: selectedService?.name || form.service,
+      diagnosis: form.diagnosis,
+      toothNumber: form.toothNumber,
+      paymentStatus: editAppt?.paymentStatus || 'unpaid',
+    }
     try {
-      await upsertAppointment({ ...form, id: editAppt?.id, clinicId: clinic?.id, date: selDate, patientId, serviceId: form.service, serviceName: selectedService?.name || form.service, servicePrice: selectedService?.price || 0, reason: selectedService?.name || form.service, diagnosis: form.diagnosis, toothNumber: form.toothNumber, paymentStatus: 'unpaid' })
+      await upsertAppointment(payload)
       showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
       setModalOpen(false)
-    } catch { showToast('Ошибка сохранения', 'error') }
+    } catch (err: any) {
+      const msg = String(err?.message || '')
+      if (msg.includes('Конфликт') || msg.includes('конфликт')) {
+        const force = window.confirm(`${msg}\n\nСохранить запись всё равно (овербукинг)?`)
+        if (!force) return
+        try {
+          await upsertAppointment({ ...payload, force: true })
+          showToast('Запись сохранена с овербукингом', 'warning')
+          setModalOpen(false)
+        } catch {
+          showToast('Ошибка сохранения', 'error')
+        }
+        return
+      }
+      showToast(msg || 'Ошибка сохранения', 'error')
+    }
   }
 
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>, timeSlot: string, doctorId: string): Promise<void> => {
+    e.preventDefault()
+    if (!dragged) return
+    try {
+      await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId })
+      showToast('Запись перенесена', 'success')
+    } catch (err: any) {
+      const msg = String(err?.message || '')
+      if (msg.includes('Конфликт') || msg.includes('конфликт')) {
+        const force = window.confirm(`${msg}\n\nПеренести всё равно?`)
+        if (force) {
+          await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId, force: true })
+          showToast('Перенесено с овербукингом', 'warning')
+        }
+      } else {
+        showToast(msg || 'Не удалось перенести', 'error')
+      }
+    }
+    setDragged(null)
+  }
   const handleDelete = async (): Promise<void> => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>, timeSlot: string, doctorId: string): Promise<void> => { e.preventDefault(); if (!dragged) return; await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId }); showToast('Запись перенесена', 'success'); setDragged(null) }
   const shiftDate = (days: number): void => { const d = new Date(selDate); d.setDate(d.getDate() + days); setSelDate(d.toISOString().slice(0, 10)) }
 
   const patientOptions = [{ value: '', label: '— Выберите пациента —' }, ...patients.map(p => ({ value: p.id, label: p.name }))]

@@ -100,6 +100,10 @@ model Clinic {
   invoices      Invoice[]
   inventory     InventoryItem[]
   orders        Order[]
+  waitingList   WaitingList[]
+  expenses      Expense[]
+  promotions    Promotion[]
+  priceList     PriceListItem[]
 
   @@map("clinics")
 }
@@ -180,6 +184,8 @@ model Appointment {
   status    AppointmentStatus   @default(PENDING)
   type      String?
   notes     String?
+  /// CRM extras: serviceName, servicePrice, paymentStatus, diagnosis, toothNumber, receiptId
+  meta      Json?
 
   clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
@@ -190,6 +196,88 @@ model Appointment {
   @@index([clinicId, date])
   @@index([doctorId, date])
   @@map("appointments")
+}
+
+// ─── CRM OPS (waiting list, expenses, promotions, price list) ───
+
+model WaitingList {
+  id               String    @id @default("")
+  clinicId         String
+  patientId        String?
+  patientName      String?
+  patientPhone     String?
+  doctorId         String?
+  doctorName       String?
+  preferredDate    DateTime?
+  preferredTime    String?
+  preferredService String?
+  notes            String?
+  status           String    @default("waiting")
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId, status])
+  @@map("waiting_list")
+}
+
+model Expense {
+  id          String   @id @default("")
+  clinicId    String
+  category    String?
+  amount      Float
+  description String?
+  notes       String?
+  date        DateTime @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId, date])
+  @@map("expenses")
+}
+
+model Promotion {
+  id              String    @id @default("")
+  clinicId        String
+  title           String
+  description     String?
+  discountPercent Int?      @default(0)
+  serviceIds      Json?
+  startDate       DateTime?
+  endDate         DateTime?
+  active          Boolean   @default(true)
+  imageUrl        String?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@map("promotions")
+}
+
+model PriceListItem {
+  id          String  @id @default("")
+  clinicId    String
+  serviceCode String
+  name        String?
+  price       Float
+  active      Boolean @default(true)
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clinicId, serviceCode])
+  @@index([clinicId])
+  @@map("price_list")
 }
 
 // ─── MEDICAL RECORDS ───

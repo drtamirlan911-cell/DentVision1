@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react'
+﻿import React, { useState, useMemo, useEffect } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery'
+import * as api from '@/utils/api'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Select } from '../../components/ui/ds/Input'
@@ -25,6 +26,7 @@ const TABS = [
   { id: 'unpaid', label: 'К оплате', icon: <Clock size={14} /> },
   { id: 'transactions', label: 'Операции', icon: <CreditCard size={14} /> },
   { id: 'receivables', label: 'Долги', icon: <AlertTriangle size={14} /> },
+  { id: 'reports', label: 'Отчёты', icon: <TrendingUp size={14} /> },
   { id: 'payroll', label: 'Зарплата', icon: <Wallet size={14} /> },
   { id: 'inventory', label: 'Склад', icon: <Package size={14} /> },
   { id: 'expenses', label: 'Расходы', icon: <Receipt size={14} /> },
@@ -92,8 +94,28 @@ export default function Cashier() {
   const [expModalOpen, setExpModalOpen] = useState(false)
   const [cashSettings, setCashSettings] = useState({ defaultMethod: 'Kaspi QR', autoReceipt: true, reminders: true })
   const [searchUnpaid, setSearchUnpaid] = useState('')
+  const [financeReport, setFinanceReport] = useState<any>(null)
+  const [reportLoading, setReportLoading] = useState(false)
   const money = (value: number) => tg(value, clinic)
   const { currency } = getClinicCurrency(clinic)
+
+  useEffect(() => {
+    if (activeTab !== 'reports' || !clinic?.id) return
+    let cancelled = false
+    ;(async () => {
+      setReportLoading(true)
+      try {
+        const monthStart = `${today().slice(0, 7)}-01`
+        const data = await api.getFinanceReport({ from: monthStart, to: today() })
+        if (!cancelled) setFinanceReport(data)
+      } catch {
+        if (!cancelled) setFinanceReport(null)
+      } finally {
+        if (!cancelled) setReportLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [activeTab, clinic?.id])
 
   const todayKey = today()
   const todayReceipts = receipts.filter((r) => (r.date || todayKey) === todayKey && (r.status === 'paid' || r.status === 'completed'))
@@ -460,6 +482,54 @@ export default function Cashier() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'reports' && (
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-txt-primary">Отчёт за текущий месяц</p>
+              {reportLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="w-8 h-8 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
+                </div>
+              ) : !financeReport ? (
+                <EmptyState icon={<TrendingUp size={32} />} title="Нет данных" description="Оплатите счета — отчёт появится автоматически" />
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <StatCard label="Выручка" value={money(financeReport.totals?.revenue || 0)} icon={<DollarSign size={16} />} />
+                    <StatCard label="Оплат" value={String(financeReport.totals?.paidCount || 0)} icon={<CheckCircle size={16} />} />
+                    <StatCard label="Долг" value={money(financeReport.totals?.unpaid || 0)} icon={<AlertTriangle size={16} />} />
+                    <StatCard label="Неоплаченных" value={String(financeReport.totals?.unpaidCount || 0)} icon={<Clock size={16} />} />
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <Card>
+                      <CardHeader><CardTitle>По дням</CardTitle></CardHeader>
+                      <CardContent className="space-y-2">
+                        {(financeReport.byDay || []).slice(-14).map((d: any) => (
+                          <div key={d.date} className="flex justify-between text-sm">
+                            <span className="text-txt-muted">{d.date}</span>
+                            <span className="font-semibold text-txt-primary">{money(d.revenue)} · {d.count}</span>
+                          </div>
+                        ))}
+                        {(financeReport.byDay || []).length === 0 && <p className="text-xs text-txt-muted">Пока пусто</p>}
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader><CardTitle>По услугам</CardTitle></CardHeader>
+                      <CardContent className="space-y-2">
+                        {(financeReport.byService || []).slice(0, 12).map((s: any) => (
+                          <div key={s.name} className="flex justify-between text-sm gap-2">
+                            <span className="text-txt-muted truncate">{s.name}</span>
+                            <span className="font-semibold text-txt-primary whitespace-nowrap">{money(s.revenue)}</span>
+                          </div>
+                        ))}
+                        {(financeReport.byService || []).length === 0 && <p className="text-xs text-txt-muted">Пока пусто</p>}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

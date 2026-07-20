@@ -156,3 +156,63 @@ crmRouter.delete('/treatment-plans/:id', async (req: AuthRequest, res) => {
     return res.status(500).json({ ok: false, error: 'Не удалось удалить план лечения' } satisfies ApiResponse);
   }
 });
+
+/** Update a single stage — drives plan workflow (Spec §5.4.7). */
+crmRouter.patch('/treatment-plans/:id/stages/:stageId', async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const stageId = req.params.stageId as string;
+    const { status, cost, title, appointmentId, invoiceId } = req.body as {
+      status?: string;
+      cost?: number | null;
+      title?: string;
+      appointmentId?: string;
+      invoiceId?: string;
+    };
+
+    const plan = await prisma.treatmentPlan.findUnique({
+      where: { id },
+      include: { patient: { select: { clinicId: true, firstName: true, lastName: true } } },
+    });
+    if (!plan) {
+      return res.status(404).json({ ok: false, error: 'План не найден' } satisfies ApiResponse);
+    }
+    if (req.user?.clinicId && plan.patient?.clinicId !== req.user.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Доступ запрещён' } satisfies ApiResponse);
+    }
+
+    const items = ((plan.items as TreatmentPlanItems) || {}) as TreatmentPlanItems;
+    const stages = Array.isArray(items.stages) ? [...items.stages] : [];
+    const idx = stages.findIndex((s) => s.id === stageId || String(s.sortOrder) === stageId);
+    if (idx < 0) {
+      return res.status(404).json({ ok: false, error: 'Этап не найден' } satisfies ApiResponse);
+    }
+
+    stages[idx] = {
+      ...stages[idx],
+      ...(status !== undefined && { status }),
+      ...(cost !== undefined && { cost }),
+      ...(title !== undefined && { title }),
+      ...(appointmentId !== undefined && { appointmentId: appointmentId as any }),
+      ...(invoiceId !== undefined && { invoiceId: invoiceId as any }),
+    };
+
+    const allDone = stages.length > 0 && stages.every((s) => s.status === 'done' || s.status === 'completed');
+    const anyActive = stages.some((s) => s.status === 'in_progress' || s.status === 'active');
+    const nextPlanStatus = allDone ? 'completed' : anyActive ? 'in_progress' : plan.status;
+
+    const updated = await prisma.treatmentPlan.update({
+      where: { id },
+      data: {
+        items: { ...items, stages } as unknown as Prisma.InputJsonValue,
+        status: nextPlanStatus,
+      },
+      include: { patient: { select: { firstName: true, lastName: true } } },
+    });
+
+    return res.json({ ok: true, data: serializePlan(updated) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[CRM] Patch stage error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось обновить этап' } satisfies ApiResponse);
+  }
+});

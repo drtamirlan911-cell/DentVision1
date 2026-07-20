@@ -73,10 +73,14 @@ const CRM_SUBNAV = [
   { id: 'schedule', label: 'Расписание', path: '/crm/schedule' },
   { id: 'patients', label: 'Пациенты', path: '/crm/patients' },
   { id: 'finance', label: 'Финансы', path: '/crm/finance' },
+  { id: 'visits', label: 'Визиты', path: '/crm/visits' },
   { id: 'inventory', label: 'Склад', path: '/crm/inventory' },
   { id: 'documents', label: 'Документы', path: '/crm/documents' },
   { id: 'dental-chart', label: 'Зубная карта', path: '/crm/dental-chart' },
   { id: 'treatment-plans', label: 'Планы лечения', path: '/crm/treatment-plans' },
+  { id: 'lab', label: 'Лаборатория', path: '/crm/lab' },
+  { id: 'pricelist', label: 'Прайс', path: '/crm/pricelist' },
+  { id: 'staff', label: 'Сотрудники', path: '/crm/staff' },
   { id: 'reminders', label: 'Напоминания', path: '/crm/reminders' },
 ];
 
