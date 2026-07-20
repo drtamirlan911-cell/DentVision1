@@ -893,14 +893,40 @@ export interface AIChatResponse {
   suggestions: string[];
   proactive: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;
   conversationContext: { turnCount: number; entities: Record<string, unknown> };
+  sessionId?: string;
 }
-export async function aiChat(message: string, history: Array<{ role: string; content: string }> = []): Promise<AIChatResponse> {
+
+/** Stable UUID session id per user — prevents shared AI chat across accounts. */
+export function getAiSessionId(userId?: string | null): string {
+  const key = `dv_ai_session_${userId || 'guest'}`;
+  try {
+    const existing = localStorage.getItem(key);
+    if (existing && existing.length >= 8) return existing;
+  } catch { /* ignore */ }
+  const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  try { localStorage.setItem(key, id); } catch { /* ignore */ }
+  return id;
+}
+
+export function clearAiSessionId(userId?: string | null): void {
+  try { localStorage.removeItem(`dv_ai_session_${userId || 'guest'}`); } catch { /* ignore */ }
+}
+
+export async function aiChat(
+  message: string,
+  history: Array<{ role: string; content: string }> = [],
+  opts?: { sessionId?: string; userId?: string | null },
+): Promise<AIChatResponse> {
+  const sessionId = opts?.sessionId || getAiSessionId(opts?.userId);
   const res = await apiRequest('/api/ai/query', {
     method: 'POST',
     body: JSON.stringify({
       text: message,
       message,
       history: history.slice(-20),
+      sessionId,
     }),
   });
 
@@ -912,6 +938,12 @@ export async function aiChat(message: string, history: Array<{ role: string; con
     : res?.action
       ? [{ type: res.action.type, label: res.action.type || res.action.label, params: res.action.payload || res.action.params, confidence: 1, requiresConfirmation: !!res.needsConfirmation }]
       : [];
+
+  if (res?.sessionId) {
+    try {
+      localStorage.setItem(`dv_ai_session_${opts?.userId || 'guest'}`, res.sessionId);
+    } catch { /* ignore */ }
+  }
 
   return {
     reply,
@@ -929,6 +961,7 @@ export async function aiChat(message: string, history: Array<{ role: string; con
     suggestions: Array.isArray(res?.suggestions) ? res.suggestions : [],
     proactive: Array.isArray(res?.proactive) ? res.proactive : [],
     conversationContext: res?.conversationContext || { turnCount: 0, entities: {} },
+    sessionId: res?.sessionId || sessionId,
   } as AIChatResponse;
 }
 
@@ -937,15 +970,16 @@ export async function aiChatStream(
   message: string,
   history: Array<{ role: string; content: string }> = [],
   onChunk: (partial: string, done: boolean) => void,
+  opts?: { sessionId?: string; userId?: string | null },
 ): Promise<AIChatResponse> {
   try {
-    const streamed = await aiChatSSE(message, history, onChunk);
+    const streamed = await aiChatSSE(message, history, onChunk, opts);
     if (streamed) return streamed;
   } catch {
     // fall through to simulated stream
   }
 
-  const full = await aiChat(message, history);
+  const full = await aiChat(message, history, opts);
   const text = full.reply || '';
   if (!text) {
     onChunk('', true);
@@ -969,6 +1003,7 @@ async function aiChatSSE(
   message: string,
   history: Array<{ role: string; content: string }>,
   onChunk: (partial: string, done: boolean) => void,
+  opts?: { sessionId?: string; userId?: string | null },
 ): Promise<AIChatResponse | null> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (_accessToken) headers.Authorization = `Bearer ${_accessToken}`;
@@ -982,10 +1017,11 @@ async function aiChatSSE(
     } catch { /* ignore */ }
   }
 
+  const sessionId = opts?.sessionId || getAiSessionId(opts?.userId);
   const res = await fetch(`${API_URL}/api/ai/query/stream`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ text: message, message, history: history.slice(-20) }),
+    body: JSON.stringify({ text: message, message, history: history.slice(-20), sessionId }),
   });
   if (!res.ok || !res.body) return null;
 

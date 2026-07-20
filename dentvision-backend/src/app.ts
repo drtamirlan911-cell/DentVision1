@@ -27,6 +27,7 @@ import { crmOpsRouter } from './modules/crm/ops.routes.js';
 import { remindersRouter } from './modules/crm/reminders.routes.js';
 import { chairsRouter } from './modules/crm/chairs.routes.js';
 import { labRouter } from './modules/lab/lab.routes.js';
+import { communityRouter } from './modules/community/community.routes.js';
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/api/crm', crmOpsRouter);
 app.use('/api/crm', remindersRouter);
 app.use('/api/crm', chairsRouter);
 app.use('/api/lab-orders', labRouter);
+app.use('/api/community', communityRouter);
 
 // ─── Error Handling ───
 app.use(notFound);

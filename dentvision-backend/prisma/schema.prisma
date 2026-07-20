@@ -694,3 +694,36 @@ model AIMemory {
   @@index([userId, clinicId, scope])
   @@map("ai_memories")
 }
+
+// ─── COMMUNITY ───
+
+model CommunityPost {
+  id            String   @id @default("")
+  authorId      String?
+  authorName    String
+  authorRole    String?
+  content       String
+  tags          Json?
+  kind          String   @default("thread")
+  likesCount    Int      @default(0)
+  commentsCount Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  likes CommunityLike[]
+
+  @@index([createdAt])
+  @@map("community_posts")
+}
+
+model CommunityLike {
+  id        String   @id @default("")
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("community_likes")
+}
+
