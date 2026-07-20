@@ -19,6 +19,7 @@ import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
 import { Tabs } from '../../components/ui/ds/Misc'
 import { Switch } from '../../components/ui/ds/Misc'
 import { tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency, TOOTH_NAMES } from '../../utils/constants'
+import { buildWaLink } from '../../utils/reminders'
 import { cn, formatMoney } from '../../lib/utils'
 import type { Receipt, Appointment, Patient, Expense, InventoryItem, Clinic, User as UserType, RoleInfo } from '../../types'
 
@@ -229,11 +230,16 @@ export default function Cashier() {
       paid: Number(doctor.paid || 0),
     }))
 
-  const debtRows = debts.map((debt) => ({
-    patient: debt.patientName || patients.find((p) => p.id === debt.patientId)?.name || 'Пациент не указан',
-    amount: debt.total || Number(debt.amount) || 0,
-    date: debt.date,
-  }))
+  const debtRows = debts.map((debt) => {
+    const patient = patients.find((p) => p.id === debt.patientId)
+    return {
+      patientId: debt.patientId,
+      patient: debt.patientName || patient?.name || 'Пациент не указан',
+      phone: patient?.phone || '',
+      amount: debt.total || Number(debt.amount) || 0,
+      date: debt.date,
+    }
+  })
 
   return (
     <div className="p-6">
@@ -474,7 +480,15 @@ export default function Cashier() {
                         variant="ghost"
                         size="sm"
                         icon={<Send size={14} />}
-                        onClick={() => showToast('Напоминание отправлено через WhatsApp', 'success')}
+                        onClick={() => {
+                          if (!d.phone) {
+                            showToast('У пациента нет телефона', 'warning')
+                            return
+                          }
+                          const msg = `Здравствуйте, ${d.patient}!\n\nНапоминаем о задолженности ${Math.round(d.amount).toLocaleString('ru-RU')} ₸ в клинике ${clinic?.name || ''}.\nОплатить можно в кассе или онлайн. Ответьте, если нужна помощь.`
+                          window.open(buildWaLink(d.phone, msg), '_blank', 'noopener,noreferrer')
+                          showToast('WhatsApp-напоминание о долге открыто', 'success')
+                        }}
                       >
                         Напомнить
                       </Button>

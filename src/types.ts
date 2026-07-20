@@ -75,7 +75,15 @@ export interface Patient {
 
 // ─── Appointments ───────────────────────────────────────────────
 
-export type AppointmentStatus = 'scheduled' | 'confirmed' | 'reminderSent' | 'done' | 'cancelled' | 'noShow'
+export type AppointmentStatus =
+  | 'scheduled'
+  | 'confirmed'
+  | 'arrived'
+  | 'in_chair'
+  | 'reminderSent'
+  | 'done'
+  | 'cancelled'
+  | 'noShow'
 
 export interface Appointment {
   id: string
