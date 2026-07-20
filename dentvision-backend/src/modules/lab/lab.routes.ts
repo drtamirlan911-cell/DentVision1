@@ -80,8 +80,17 @@ labRouter.get('/', async (req: AuthRequest, res) => {
 
     const orders = await prisma.labOrder.findMany({ where: { clinicId }, orderBy: { createdAt: 'desc' } });
     return res.json({ ok: true, data: orders.map(serializeLabOrder) } satisfies ApiResponse);
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Lab] list error:', error);
+    // Missing/mismatched table should not break CRM shell — return empty until migration applied.
+    const code = error?.code || error?.meta?.code;
+    if (code === 'P2021' || code === 'P2022' || /does not exist|column|relation/i.test(String(error?.message || ''))) {
+      return res.json({
+        ok: true,
+        data: [],
+        warning: 'Таблица lab_orders не готова — примените миграцию 20260720_community_lab_fix',
+      } as any);
+    }
     return res.status(500).json({ ok: false, error: 'Не удалось получить заказы лаборатории' } satisfies ApiResponse);
   }
 });

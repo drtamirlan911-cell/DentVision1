@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX } from 'lucide-react'
 import { isVoiceRepliesEnabled, setVoiceRepliesEnabled, speak, stopSpeaking, voiceOutputSupported } from '@/utils/voice'
 import { useAuth } from '@/store/auth.store'
-import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, getActiveAiThread } from '@/utils/api'
+import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, getActiveAiThread, getAiSessionId } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
@@ -26,7 +26,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, clinic } = useAuth()
-  const initialized = useRef(false)
+  const initializedForUser = useRef<string | null>(null)
   const historyRef = useRef<Array<{ role: string; content: string }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const firstMessageTracked = useRef(false)
@@ -63,6 +63,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const setErrorMessage = useAIWorkspaceStore((s) => s.setErrorMessage)
   const acknowledgeAlert = useAIWorkspaceStore((s) => s.acknowledgeAlert)
   const resolveAlert = useAIWorkspaceStore((s) => s.resolveAlert)
+  const resetAI = useAIWorkspaceStore((s) => s.resetAI)
 
   const { executeAction } = useAIExecutor()
 
@@ -73,47 +74,62 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, status])
 
+  // Bind chat to the signed-in user — reset + reload when identity changes.
   useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true
-      ;(async () => {
-        try {
-          if (user?.id) {
-            const active = await getActiveAiThread()
-            if (active?.messages?.length) {
-              const restored = active.messages.map((m: any, i: number) => ({
-                id: m.id || `srv-${i}`,
-                role: m.role,
-                content: m.content,
-                timestamp: new Date(m.timestamp || Date.now()),
-                skill: m.skill,
-              }))
-              setMessages(restored)
-              historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
-              persistThread(user.id, restored)
-              trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
-              setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
-              return
-            }
+    const userKey = user?.id || 'guest'
+    if (initializedForUser.current === userKey) return
+    initializedForUser.current = userKey
+    firstMessageTracked.current = false
+    historyRef.current = []
+    resetAI()
+    // Ensure a stable per-user session id exists before first query.
+    getAiSessionId(user?.id)
+
+    ;(async () => {
+      try {
+        if (user?.id) {
+          const active = await getActiveAiThread()
+          if (active?.sessionId || active?.threadId) {
+            try {
+              localStorage.setItem(`dv_ai_session_${user.id}`, active.sessionId || active.threadId)
+            } catch { /* ignore */ }
           }
-        } catch { /* fall through to local */ }
-
-        const restored = restoreThread(user?.id)
-        if (restored?.length) {
-          setMessages(restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })))
-          historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
-          trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
-          setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
-        } else {
-          initializeWorkspace()
-          trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
+          if (active?.messages?.length) {
+            const restored = active.messages.map((m: any, i: number) => ({
+              id: m.id || `srv-${i}`,
+              role: m.role,
+              content: m.content,
+              timestamp: new Date(m.timestamp || Date.now()),
+              skill: m.skill,
+            }))
+            setMessages(restored)
+            historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
+            persistThread(user.id, restored)
+            trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
+            setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
+            return
+          }
         }
-      })()
-    }
-  }, [user, clinic])
+      } catch { /* fall through to local */ }
+
+      const restored = restoreThread(user?.id)
+      if (restored?.length) {
+        setMessages(restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })))
+        historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
+        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
+        setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
+      } else {
+        await initializeWorkspace()
+        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
+      }
+    })()
+  }, [user?.id])
 
   useEffect(() => {
-    if (messages.length > 0) persistThread(user?.id, messages)
+    // Only persist for the user who currently owns the in-memory thread.
+    if (messages.length > 0 && initializedForUser.current === (user?.id || 'guest')) {
+      persistThread(user?.id, messages)
+    }
   }, [messages, user?.id])
 
   useEffect(() => {
@@ -134,7 +150,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     const started = Date.now()
     try {
       const [chatRes, proactiveData, twinData] = await Promise.all([
-        aiChat('Приветствие', []).catch(() => null),
+        aiChat('Приветствие', [], { userId: user?.id }).catch(() => null),
         aiProactive().catch(() => ({ alerts: [] })),
         aiDigitalTwin().catch(() => ({ twin: null })),
       ])
@@ -224,7 +240,7 @@ const handleSend = useCallback(async (text: string) => {
             status: done ? state.ai.status : 'thinking',
           },
         }))
-      })
+      }, { userId: user?.id })
 
       if (res.conversationContext?.entities) {
         setCurrentIntent({

@@ -18,9 +18,82 @@ aiRouter.use(optionalAuth);
 const querySchema = z.object({
   body: z.object({
     text: z.string().min(1),
-    sessionId: z.string().uuid().optional(),
+    message: z.string().optional(),
+    sessionId: z.string().min(8).optional(),
+    history: z.array(z.object({
+      role: z.string(),
+      content: z.string(),
+    })).optional(),
   }),
 });
+
+/** Stable AI session per authenticated user (and clinic when present). */
+async function resolveUserSessionId(req: AuthRequest, requested?: string): Promise<string> {
+  if (!req.user?.id || req.user.isGuest) {
+    return requested && requested.length >= 8 ? requested : crypto.randomUUID();
+  }
+
+  const userId = req.user.id;
+  const clinicId = req.user.clinicId || DEMO_CLINIC_ID || 'platform';
+
+  if (requested) {
+    const owned = await prisma.aISession.findFirst({
+      where: { id: requested, userId },
+      select: { id: true },
+    });
+    if (owned) return owned.id;
+  }
+
+  const existing = await prisma.aISession.findFirst({
+    where: { userId, clinicId },
+    orderBy: { updatedAt: 'desc' },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const id = requested && requested.length >= 8 ? requested : crypto.randomUUID();
+  await prisma.aISession.create({
+    data: {
+      id,
+      userId,
+      clinicId,
+      messages: [],
+      context: {},
+    },
+  });
+  return id;
+}
+
+async function syncSessionMessages(sessionId: string, userId: string | undefined, clinicId: string | undefined) {
+  if (!userId) return;
+  try {
+    const rows = await prisma.aIMessage.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'asc' },
+      take: 80,
+      select: { id: true, role: true, content: true, createdAt: true },
+    });
+    const messages = rows.map((r) => ({
+      id: r.id,
+      role: r.role,
+      content: r.content,
+      timestamp: r.createdAt.toISOString(),
+    }));
+    await prisma.aISession.upsert({
+      where: { id: sessionId },
+      create: {
+        id: sessionId,
+        userId,
+        clinicId: clinicId || DEMO_CLINIC_ID || 'platform',
+        messages,
+        context: {},
+      },
+      update: { messages },
+    });
+  } catch (err) {
+    console.error('[AI] syncSessionMessages', err);
+  }
+}
 
 interface ProcessedResponse extends AIResponse {
   toolsUsed?: string[];
@@ -110,14 +183,23 @@ async function processQuery(
 
 aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {
   try {
-    const { text, sessionId } = req.body;
-    const history = Array.isArray(req.body.history) ? req.body.history : [];
-    const response = await processQuery(req, text, sessionId || crypto.randomUUID(), history);
-
-    res.json({ ok: true, data: { ...response, actions: responseActions(response) } });
+    const { text, message, sessionId: rawSession, history = [] } = req.body;
+    const prompt = String(text || message || '').trim();
+    const sessionId = await resolveUserSessionId(req, rawSession);
+    const response = await processQuery(req, prompt, sessionId, history);
+    await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
+    return res.json({
+      ok: true,
+      data: {
+        ...response,
+        reply: response.message,
+        sessionId,
+        actions: responseActions(response),
+      },
+    });
   } catch (error) {
-    console.error('[AI Query Error]', error);
-    res.status(500).json({ ok: false, error: 'AI query failed' });
+    console.error('[AI] query', error);
+    return res.status(500).json({ ok: false, error: 'AI query failed' });
   }
 });
 
@@ -131,7 +213,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'Text is required' });
     }
 
-    const sessionId = req.body.sessionId || crypto.randomUUID();
+    const sessionId = await resolveUserSessionId(req, req.body.sessionId);
     const history = Array.isArray(req.body.history) ? req.body.history : [];
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -149,6 +231,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     let response: ProcessedResponse;
     try {
       response = await processQuery(req, text, sessionId, history);
+      await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
     } finally {
       clearInterval(heartbeat);
     }
@@ -167,6 +250,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       actions: responseActions(response),
       suggestions: response.suggestions || [],
       toolsUsed: response.toolsUsed || [],
+      sessionId,
     })}\n\n`);
     res.end();
   } catch (error) {
@@ -178,19 +262,88 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
   }
 });
 
-// Durable threads are not yet modelled in the deployed schema.  These
-// compatibility endpoints let the client restore safely while sessions are
-// persisted by the AI memory layer.
-aiRouter.get('/threads', authenticate, async (_req: AuthRequest, res) => {
-  res.json({ ok: true, data: { threads: [] } });
+// Per-user durable threads backed by AISession + AIMessage.
+aiRouter.get('/threads', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const sessions = await prisma.aISession.findMany({
+      where: { userId: req.user!.id },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+      select: { id: true, clinicId: true, updatedAt: true, createdAt: true },
+    });
+    return res.json({
+      ok: true,
+      data: {
+        threads: sessions.map((s) => ({
+          threadId: s.id,
+          clinicId: s.clinicId,
+          updatedAt: s.updatedAt,
+          createdAt: s.createdAt,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('[AI] threads list', error);
+    return res.json({ ok: true, data: { threads: [] } });
+  }
 });
 
-aiRouter.get('/threads/active', authenticate, async (_req: AuthRequest, res) => {
-  res.json({ ok: true, data: { threadId: null, messages: [], turnCount: 0, entities: {} } });
+aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const sessionId = await resolveUserSessionId(req);
+    const session = await prisma.aISession.findFirst({
+      where: { id: sessionId, userId: req.user!.id },
+    });
+    let messages: Array<{ id: string; role: string; content: string; timestamp?: string }> = [];
+    if (Array.isArray(session?.messages) && (session!.messages as any[]).length) {
+      messages = session!.messages as any;
+    } else {
+      const rows = await prisma.aIMessage.findMany({
+        where: { sessionId },
+        orderBy: { createdAt: 'asc' },
+        take: 80,
+      });
+      messages = rows.map((r) => ({
+        id: r.id,
+        role: r.role,
+        content: r.content,
+        timestamp: r.createdAt.toISOString(),
+      }));
+    }
+    return res.json({
+      ok: true,
+      data: {
+        threadId: sessionId,
+        sessionId,
+        messages,
+        turnCount: messages.length,
+        entities: {},
+      },
+    });
+  } catch (error) {
+    console.error('[AI] threads active', error);
+    return res.json({ ok: true, data: { threadId: null, messages: [], turnCount: 0, entities: {} } });
+  }
 });
 
-aiRouter.post('/threads/new', authenticate, async (_req: AuthRequest, res) => {
-  res.json({ ok: true, data: { threadId: null } });
+aiRouter.post('/threads/new', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user!.clinicId || DEMO_CLINIC_ID || 'platform';
+    const id = crypto.randomUUID();
+    await prisma.aISession.create({
+      data: {
+        id,
+        userId: req.user!.id,
+        clinicId,
+        messages: [],
+        context: {},
+      },
+    });
+    return res.json({ ok: true, data: { threadId: id, sessionId: id } });
+  } catch (error) {
+    console.error('[AI] threads new', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось создать сессию' });
+  }
 });
 
 // Mirrors the frontend NAVIGATION_ACTIONS maps in aiExecutor.ts /
