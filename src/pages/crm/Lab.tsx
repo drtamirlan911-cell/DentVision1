@@ -1,16 +1,16 @@
 ﻿import React, { useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useOutletContext, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   FlaskConical, Plus, Printer, Clock, CheckCircle, Package, AlertTriangle,
-  Edit, Trash2,
+  Edit,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery'
 import { Button } from '../../components/ui/ds/Button'
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
-import { Input, Textarea, Select } from '../../components/ui/ds/Input'
-import { Badge, StatusBadge } from '../../components/ui/ds/Badge'
+import { Card } from '../../components/ui/ds/Card'
+import { Input, Select } from '../../components/ui/ds/Input'
+import { Badge } from '../../components/ui/ds/Badge'
 import { Modal } from '../../components/ui/ds/Modal'
 import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { PageHeader } from '../../components/ui/ds/StatCard'
@@ -20,14 +20,35 @@ import { cn } from '../../lib/utils'
 import type { LabOrder, User as UserType, Clinic, RoleInfo } from '../../types'
 
 const STATUS_CFG: Record<string, { label: string; variant: string }> = {
+  pending: { label: 'Ожидает', variant: 'default' },
+  sent: { label: 'Отправлен', variant: 'info' },
   in_progress: { label: 'В работе', variant: 'info' },
+  try_in: { label: 'Примерка', variant: 'warning' },
+  adjustment: { label: 'Правка', variant: 'warning' },
   ready: { label: 'Готово', variant: 'success' },
   delivered: { label: 'Выдано', variant: 'gold' },
+  remake: { label: 'Remake', variant: 'error' },
   delayed: { label: 'Просрочено', variant: 'error' },
   cancelled: { label: 'Отменено', variant: 'default' },
 }
 
-const STATUS_VARIANT: Record<string, string> = { in_progress: 'info', ready: 'success', delivered: 'gold', delayed: 'error', cancelled: 'default' }
+const STATUS_VARIANT: Record<string, string> = {
+  pending: 'default', sent: 'info', in_progress: 'info', try_in: 'warning',
+  adjustment: 'warning', ready: 'success', delivered: 'gold', remake: 'error',
+  delayed: 'error', cancelled: 'default',
+}
+
+const PIPELINE_NEXT: Record<string, { status: string; label: string }> = {
+  pending: { status: 'sent', label: 'Отправлен' },
+  sent: { status: 'in_progress', label: 'В работе' },
+  in_progress: { status: 'try_in', label: 'Примерка' },
+  try_in: { status: 'adjustment', label: 'Правка' },
+  adjustment: { status: 'ready', label: 'Готово' },
+  ready: { status: 'delivered', label: 'Выдано' },
+}
+
+const ACTIVE_STATUSES = ['pending', 'sent', 'in_progress', 'try_in', 'adjustment', 'remake', 'delayed']
+const COMPLETED_STATUSES = ['delivered', 'cancelled']
 
 const LAB_TYPES = [
   { value: 'crown', label: 'Коронка' },
@@ -36,6 +57,7 @@ const LAB_TYPES = [
   { value: 'implant', label: 'Имплант' },
   { value: 'denture', label: 'Протез' },
   { value: 'nightguard', label: 'Капа' },
+  { value: 'wax', label: 'Wax-Up' },
   { value: 'other', label: 'Другое' },
 ]
 
@@ -48,8 +70,8 @@ const MATERIALS = [
 ]
 
 const EMPTY_FORM = {
-  patientName: '', doctorId: '', labType: 'crown',
-  material: 'zirconia', toothNumber: '', shade: '', dueDate: '', notes: '', status: 'in_progress',
+  patientId: '', patientName: '', doctorId: '', labType: 'crown',
+  material: 'zirconia', toothNumber: '', shade: '', dueDate: '', notes: '', status: 'pending',
 }
 
 const TABS = [
@@ -70,6 +92,12 @@ function escapeHtml(str: string): string {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 }
 
+function isWaxUpOrder(order: LabOrder & { labType?: string }): boolean {
+  const type = (order.labType || '').toLowerCase()
+  const notes = order.notes || ''
+  return type.includes('wax') || /wax-up/i.test(notes)
+}
+
 function printWorkOrder(order: Partial<LabOrder>): void {
   const labTypeLabel = LAB_TYPES.find(t => t.value === order.labType)?.label || order.labType
   const materialLabel = MATERIALS.find(m => m.value === order.material)?.label || order.material
@@ -86,7 +114,7 @@ function printWorkOrder(order: Partial<LabOrder>): void {
     <div class="section"><div class="section-title">Параметры работы</div>
     <div class="row"><span class="label">Тип работы:</span><span class="value highlight">${escapeHtml(labTypeLabel || '')}</span></div>
     <div class="row"><span class="label">Материал:</span><span class="value highlight">${escapeHtml(materialLabel || '')}</span></div>
-    ${order.toothNumber ? `<div class="row"><span class="label">Зуб:</span><span class="value">${escapeHtml(order.toothNumber)}</span></div>` : ''}
+    ${order.toothNumber ? `<div class="row"><span class="label">Зуб:</span><span class="value">${escapeHtml(String(order.toothNumber))}</span></div>` : ''}
     ${order.shade ? `<div class="row"><span class="label">Цвет (Shade):</span><span class="value">${escapeHtml(order.shade)}</span></div>` : ''}</div>
     ${order.notes ? `<div class="section"><div class="section-title">Комментарии</div><div style="background:#f9f9f9;padding:15px;border-radius:8px;font-size:13px;line-height:1.5">${escapeHtml(order.notes)}</div></div>` : ''}
     <div class="stamp"><div class="stamp-box">Врач<br>_____________</div><div class="stamp-box">Техник<br>_____________</div><div class="stamp-box">Пациент<br>_____________</div></div>
@@ -102,25 +130,55 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Lab() {
   const { clinic } = useOutletContext<OutletContext>()
-  const { labOrders, upsertLabOrder, doctors } = useDataQuery(clinic?.id)
-  const { toast, showToast, clearToast } = useToast()
+  const { labOrders, upsertLabOrder, patients } = useDataQuery(clinic?.id)
+  const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState('active')
   const [modalOpen, setModalOpen] = useState(false)
   const [editOrder, setEditOrder] = useState<LabOrder | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
 
   const byStatus = (statuses: string[]) => labOrders.filter(o => statuses.includes(o.status))
-  const active = byStatus(['in_progress'])
+  const active = byStatus(ACTIVE_STATUSES)
   const ready = byStatus(['ready'])
-  const completed = byStatus(['delivered', 'cancelled'])
+  const completed = byStatus(COMPLETED_STATUSES)
   const delayed = byStatus(['delayed'])
+  const waxupOrders = labOrders.filter(isWaxUpOrder)
+
+  const patientOptions = [
+    { value: '', label: '— Выберите пациента —' },
+    ...patients.map(p => ({ value: p.id, label: p.name })),
+  ]
 
   const openNew = () => { setEditOrder(null); setForm(EMPTY_FORM); setModalOpen(true) }
-  const openEdit = (o: LabOrder) => { setEditOrder(o); setForm({ ...o }); setModalOpen(true) }
+  const openEdit = (o: LabOrder) => {
+    setEditOrder(o)
+    setForm({
+      patientId: o.patientId || '',
+      patientName: (o as any).patientName || '',
+      doctorId: (o as any).doctorId || '',
+      labType: (o as any).labType || 'crown',
+      material: (o as any).material || 'zirconia',
+      toothNumber: (o as any).toothNumber || '',
+      shade: (o as any).shade || '',
+      dueDate: o.dueDate || '',
+      notes: o.notes || '',
+      status: o.status || 'pending',
+    })
+    setModalOpen(true)
+  }
+
+  const handlePatientSelect = (patientId: string) => {
+    const patient = patients.find(p => p.id === patientId)
+    setForm({
+      ...form,
+      patientId,
+      patientName: patient?.name || form.patientName,
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!form.patientName || !form.dueDate) {
+    if ((!form.patientId && !form.patientName) || !form.dueDate) {
       showToast('Укажите пациента и срок готовности', 'warning')
       return
     }
@@ -147,6 +205,79 @@ export default function Lab() {
     : activeTab === 'completed' ? completed
     : []
 
+  const renderOrderCard = (order: LabOrder & { labType?: string; material?: string; toothNumber?: string; shade?: string; patientName?: string }) => {
+    const isOverdue = order.dueDate && new Date(order.dueDate) < new Date() && order.status !== 'delivered'
+    const labTypeLabel = LAB_TYPES.find(t => t.value === order.labType)?.label || order.labType
+    const materialLabel = MATERIALS.find(m => m.value === order.material)?.label || order.material
+    const nextStep = PIPELINE_NEXT[order.status]
+
+    return (
+      <motion.div key={order.id} variants={fadeUp}>
+        <Card padding="none" className="overflow-hidden">
+          <div className="p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                {order.patientId ? (
+                  <Link
+                    to={`/crm/patients?patient=${order.patientId}`}
+                    className="text-sm font-bold text-txt-primary hover:text-dv-gold transition-colors"
+                  >
+                    {order.patientName}
+                  </Link>
+                ) : (
+                  <p className="text-sm font-bold text-txt-primary">{order.patientName}</p>
+                )}
+                <p className="text-xs text-txt-muted mt-0.5">Создан {fd(order.createdAt || today())}</p>
+              </div>
+              <Badge variant={STATUS_VARIANT[order.status] as any || 'default'} size="sm">
+                {STATUS_CFG[order.status]?.label || order.status}
+              </Badge>
+            </div>
+
+            <div className="space-y-1.5 text-xs text-txt-secondary mb-3">
+              <div className="flex justify-between"><span className="text-txt-muted">Тип:</span><span className="font-semibold text-txt-primary">{labTypeLabel}</span></div>
+              <div className="flex justify-between"><span className="text-txt-muted">Материал:</span><span className="font-semibold text-txt-primary">{materialLabel}</span></div>
+              {order.toothNumber && <div className="flex justify-between"><span className="text-txt-muted">Зуб:</span><span className="font-semibold text-txt-primary">{order.toothNumber}</span></div>}
+              {order.shade && <div className="flex justify-between"><span className="text-txt-muted">Цвет:</span><span className="font-semibold text-dv-gold">{order.shade}</span></div>}
+              {order.dueDate && (
+                <div className="flex justify-between">
+                  <span className="text-txt-muted">Срок:</span>
+                  <span className={cn('font-semibold', isOverdue ? 'text-error' : 'text-txt-secondary')}>
+                    {isOverdue ? '!!! ' : ''}{fd(order.dueDate)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {order.notes && (
+              <div className="p-2.5 text-xs text-txt-muted rounded-lg bg-white/[0.02] border border-bdr-subtle mb-3">
+                {order.notes}
+              </div>
+            )}
+
+            <div className="flex gap-1.5 flex-wrap">
+              {nextStep && (
+                <Button variant="primary" size="sm" onClick={() => changeStatus(order, nextStep.status)}>
+                  {nextStep.label}
+                </Button>
+              )}
+              {!['remake', 'cancelled', 'delivered'].includes(order.status) && (
+                <Button variant="outline" size="sm" onClick={() => changeStatus(order, 'remake')}>
+                  Remake
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" icon={<Edit size={14} />} onClick={() => openEdit(order)}>Изменить</Button>
+              <Button variant="outline" size="sm" icon={<Printer size={14} />} onClick={() => printWorkOrder(order)}>Печать</Button>
+              {['pending', 'sent', 'in_progress'].includes(order.status) && (
+                <Button variant="danger" size="sm" icon={<AlertTriangle size={14} />} onClick={() => changeStatus(order, 'delayed')}>Просрочено</Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      </motion.div>
+    )
+  }
+
   return (
     <div className="p-6">
       <PageHeader
@@ -168,7 +299,7 @@ export default function Lab() {
         animate="show"
       >
         {[
-          { label: 'В работе', value: active.length, variant: 'info' },
+          { label: 'Активные', value: active.length, variant: 'info' },
           { label: 'Готово', value: ready.length, variant: 'success' },
           { label: 'Завершено', value: completed.length, variant: 'gold' },
           { label: 'Просрочено', value: delayed.length, variant: 'error' },
@@ -196,19 +327,22 @@ export default function Lab() {
             <p className="font-semibold text-txt-secondary mb-1">Загрузить файлы для Wax-Up</p>
             <p className="text-xs text-txt-muted">Форматы: STL, OBJ, DICOM, PNG, JPG</p>
           </label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="rounded-xl overflow-hidden border border-bdr-subtle bg-white/[0.02]">
-                <div className="h-28 bg-gradient-to-br from-info/10 to-accent-purple/10 flex items-center justify-center">
-                  <FlaskConical size={36} className="text-txt-muted" />
-                </div>
-                <div className="p-3">
-                  <p className="text-sm font-semibold text-txt-primary">Wax-Up #{i}</p>
-                  <p className="text-xs text-txt-muted">12.01.2025</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          {waxupOrders.length === 0 ? (
+            <EmptyState
+              icon={<FlaskConical size={32} />}
+              title="Нет Wax-Up заказов"
+              description="Создайте заказ с типом Wax-Up или укажите wax-up в комментарии"
+            />
+          ) : (
+            <motion.div
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+              variants={stagger}
+              initial="hidden"
+              animate="show"
+            >
+              {waxupOrders.map(order => renderOrderCard(order as any))}
+            </motion.div>
+          )}
         </Card>
       ) : displayOrders.length === 0 ? (
         <EmptyState
@@ -223,63 +357,7 @@ export default function Lab() {
           initial="hidden"
           animate="show"
         >
-          {displayOrders.map(order => {
-            const isOverdue = order.dueDate && new Date(order.dueDate) < new Date() && order.status !== 'delivered'
-            const labTypeLabel = LAB_TYPES.find(t => t.value === order.labType)?.label || order.labType
-            const materialLabel = MATERIALS.find(m => m.value === order.material)?.label || order.material
-            return (
-              <motion.div key={order.id} variants={fadeUp}>
-                <Card padding="none" className="overflow-hidden">
-                  <div className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="text-sm font-bold text-txt-primary">{order.patientName}</p>
-                        <p className="text-xs text-txt-muted mt-0.5">Создан {fd(order.createdAt || today())}</p>
-                      </div>
-                      <Badge variant={STATUS_VARIANT[order.status] as any || 'default'} size="sm">
-                        {STATUS_CFG[order.status]?.label || order.status}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs text-txt-secondary mb-3">
-                      <div className="flex justify-between"><span className="text-txt-muted">Тип:</span><span className="font-semibold text-txt-primary">{labTypeLabel}</span></div>
-                      <div className="flex justify-between"><span className="text-txt-muted">Материал:</span><span className="font-semibold text-txt-primary">{materialLabel}</span></div>
-                      {order.toothNumber && <div className="flex justify-between"><span className="text-txt-muted">Зуб:</span><span className="font-semibold text-txt-primary">{order.toothNumber}</span></div>}
-                      {order.shade && <div className="flex justify-between"><span className="text-txt-muted">Цвет:</span><span className="font-semibold text-dv-gold">{order.shade}</span></div>}
-                      {order.dueDate && (
-                        <div className="flex justify-between">
-                          <span className="text-txt-muted">Срок:</span>
-                          <span className={cn('font-semibold', isOverdue ? 'text-error' : 'text-txt-secondary')}>
-                            {isOverdue ? '!!! ' : ''}{fd(order.dueDate)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {order.notes && (
-                      <div className="p-2.5 text-xs text-txt-muted rounded-lg bg-white/[0.02] border border-bdr-subtle mb-3">
-                        {order.notes}
-                      </div>
-                    )}
-
-                    <div className="flex gap-1.5 flex-wrap">
-                      {order.status === 'in_progress' && (
-                        <Button variant="primary" size="sm" onClick={() => changeStatus(order, 'ready')}>Готово</Button>
-                      )}
-                      {order.status === 'ready' && (
-                        <Button variant="primary" size="sm" onClick={() => changeStatus(order, 'delivered')}>Выдать</Button>
-                      )}
-                      <Button variant="ghost" size="sm" icon={<Edit size={14} />} onClick={() => openEdit(order)}>Изменить</Button>
-                      <Button variant="outline" size="sm" icon={<Printer size={14} />} onClick={() => printWorkOrder(order)}>Печать</Button>
-                      {order.status === 'in_progress' && (
-                        <Button variant="danger" size="sm" icon={<AlertTriangle size={14} />} onClick={() => changeStatus(order, 'delayed')}>Просрочено</Button>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-            )
-          })}
+          {displayOrders.map(order => renderOrderCard(order as any))}
         </motion.div>
       )}
 
@@ -290,9 +368,18 @@ export default function Lab() {
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="Пациент" value={form.patientName}
+          <Select
+            label="Пациент из базы"
+            value={form.patientId}
+            onChange={e => handlePatientSelect(e.target.value)}
+            options={patientOptions}
+          />
+          <Input
+            label="Пациент (свободный ввод)"
+            value={form.patientName}
             onChange={e => setForm({ ...form, patientName: e.target.value })}
-            required placeholder="ФИО пациента" />
+            placeholder="ФИО пациента (если не выбран из базы)"
+          />
           <div className="grid grid-cols-2 gap-3">
             <Select label="Тип работы" value={form.labType}
               onChange={e => setForm({ ...form, labType: e.target.value })}

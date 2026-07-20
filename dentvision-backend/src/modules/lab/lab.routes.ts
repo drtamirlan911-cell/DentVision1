@@ -13,7 +13,16 @@ interface LabOrderMeta {
   material?: string;
   toothNumber?: string | number;
   shade?: string;
+  remakeOfId?: string;
+  appointmentId?: string;
+  tryInDate?: string;
+  doctorId?: string;
 }
+
+const VALID_STATUSES = [
+  'pending', 'sent', 'in_progress', 'try_in', 'adjustment',
+  'ready', 'delivered', 'remake', 'delayed', 'cancelled',
+] as const;
 
 // The LabOrder table predates the CRM's richer work-order form (patient
 // name as free text, material, tooth, shade). Rather than migrate the
@@ -34,12 +43,33 @@ function serializeLabOrder(order: {
     material: meta.material || '',
     toothNumber: meta.toothNumber || '',
     shade: meta.shade || '',
+    remakeOfId: meta.remakeOfId || null,
+    appointmentId: meta.appointmentId || null,
+    tryInDate: meta.tryInDate || null,
+    doctorId: meta.doctorId || null,
     dueDate: order.deadline,
     notes: order.notes,
     status: order.status,
     price: order.price,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
+  };
+}
+
+function buildMeta(
+  body: Partial<LabOrderMeta>,
+  existing: LabOrderMeta = {},
+): LabOrderMeta {
+  return {
+    ...existing,
+    ...(body.patientName !== undefined ? { patientName: body.patientName } : {}),
+    ...(body.material !== undefined ? { material: body.material } : {}),
+    ...(body.toothNumber !== undefined ? { toothNumber: body.toothNumber } : {}),
+    ...(body.shade !== undefined ? { shade: body.shade } : {}),
+    ...(body.remakeOfId !== undefined ? { remakeOfId: body.remakeOfId } : {}),
+    ...(body.appointmentId !== undefined ? { appointmentId: body.appointmentId } : {}),
+    ...(body.tryInDate !== undefined ? { tryInDate: body.tryInDate } : {}),
+    ...(body.doctorId !== undefined ? { doctorId: body.doctorId } : {}),
   };
 }
 
@@ -61,17 +91,32 @@ labRouter.post('/', async (req: AuthRequest, res) => {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
 
-    const { id, patientId, patientName, labType, material, toothNumber, shade, dueDate, notes, status, price } = req.body as {
+    const {
+      id, patientId, patientName, labType, material, toothNumber, shade,
+      dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId,
+    } = req.body as {
       id?: string; patientId?: string; patientName?: string; labType?: string; material?: string;
-      toothNumber?: string | number; shade?: string; dueDate?: string; notes?: string; status?: string; price?: number;
+      toothNumber?: string | number; shade?: string; dueDate?: string; notes?: string; status?: string;
+      price?: number; remakeOfId?: string; appointmentId?: string; tryInDate?: string; doctorId?: string;
     };
 
-    const files = { meta: { patientName, material, toothNumber, shade } satisfies LabOrderMeta };
+    let existingMeta: LabOrderMeta = {};
+    if (id) {
+      const existing = await prisma.labOrder.findUnique({ where: { id } });
+      existingMeta = (existing?.files as { meta?: LabOrderMeta } | null)?.meta || {};
+    }
+
+    const meta = buildMeta(
+      { patientName, material, toothNumber, shade, remakeOfId, appointmentId, tryInDate, doctorId },
+      existingMeta,
+    );
+    const files = { meta } as any;
+
     const data = {
       patientId: patientId || null,
       type: labType || null,
       notes: notes || null,
-      status: status || 'in_progress',
+      status: status || 'pending',
       deadline: dueDate ? new Date(dueDate) : null,
       price: price ?? null,
       files,
@@ -85,6 +130,28 @@ labRouter.post('/', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('[Lab] upsert error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить заказ лаборатории' } satisfies ApiResponse);
+  }
+});
+
+labRouter.patch('/:id/status', async (req: AuthRequest, res) => {
+  try {
+    const { status } = req.body as { status?: string };
+    if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
+      return res.status(400).json({
+        ok: false,
+        error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}`,
+      } satisfies ApiResponse);
+    }
+
+    const order = await prisma.labOrder.update({
+      where: { id: req.params.id as string },
+      data: { status },
+    });
+
+    return res.json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[Lab] status update error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось обновить статус заказа' } satisfies ApiResponse);
   }
 });
 

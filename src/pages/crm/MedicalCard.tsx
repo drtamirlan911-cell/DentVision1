@@ -1,5 +1,5 @@
-﻿import React, { useState, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+﻿import React, { useState, useMemo, useEffect } from 'react';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun } from 'lucide-react';
 import { gid, today } from '../../utils/constants';
@@ -45,9 +45,16 @@ interface MedicalCardForm {
 
 export default function MedicalCard() {
   const { clinic, user } = useOutletContext<OutletContext>();
+  const [params] = useSearchParams();
   const { patients, medicalCards, upsertMedicalCard, visits } = useDataQuery(clinic?.id);
   const toast = useToast();
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(params.get('patient'));
+
+  useEffect(() => {
+    const pid = params.get('patient');
+    if (pid) setSelectedPatientId(pid);
+  }, [params]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [editing, setEditing] = useState(false);
   const [activeSection, setActiveSection] = useState('personal');

@@ -80,18 +80,31 @@ function daysBetween(dateStr: string): number {
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
-// ── Appointment reminders: scheduled visits happening within next N hours ──
-export function getAppointmentReminders(appointments: Appointment[], patients: Patient[], doctors: Patient[], hoursWindow = 24): AppointmentReminder[] {
+const APPT_REMINDER_STATUSES = new Set(['scheduled', 'confirmed', 'pending', 'remindersent']);
+
+function isReminderEligibleStatus(status: string | undefined): boolean {
+  return APPT_REMINDER_STATUSES.has(String(status || '').toLowerCase());
+}
+
+// ── Appointment reminders: visits within [now+hoursMin, now+hoursWindow] ──
+export function getAppointmentReminders(
+  appointments: Appointment[],
+  patients: Patient[],
+  doctors: Patient[],
+  hoursWindow = 24,
+  hoursMin = 0,
+): AppointmentReminder[] {
   const now = new Date();
+  const windowStart = new Date(now.getTime() + hoursMin * 3600 * 1000);
   const windowEnd = new Date(now.getTime() + hoursWindow * 3600 * 1000);
 
   return appointments
-    .filter(a => a.status === 'scheduled')
+    .filter(a => isReminderEligibleStatus(a.status))
     .map(a => {
       const dt = new Date(`${a.date}T${a.time || '00:00'}`);
       return { a, dt };
     })
-    .filter(({ dt }) => dt >= now && dt <= windowEnd)
+    .filter(({ dt }) => dt >= windowStart && dt <= windowEnd)
     .map(({ a, dt }) => {
       const patient = patients.find(p => p.id === a.patientId);
       const doctor = doctors.find(d => d.id === a.doctorId);
@@ -107,6 +120,14 @@ export function getAppointmentReminders(appointments: Appointment[], patients: P
     })
     .filter((r): r is AppointmentReminder => r !== null)
     .sort((x, y) => x.dueAt.getTime() - y.dueAt.getTime());
+}
+
+export function getUrgentReminders(
+  appointments: Appointment[],
+  patients: Patient[],
+  doctors: Patient[],
+): AppointmentReminder[] {
+  return getAppointmentReminders(appointments, patients, doctors, 2, 0);
 }
 
 // ── Hygiene reminders: patients with no professional cleaning in N months ──
