@@ -7,7 +7,7 @@
 | Status | **CORE** |
 | Priority | **CRITICAL** |
 | Spec ID | DV-MISSION-1.0 |
-| Authority | Highest — overrides all other product docs on conflict of purpose |
+| Authority | Highest on purpose — paired with Product DNA for quality law |
 
 ---
 
@@ -197,3 +197,11 @@ If any answer is **NO**, the feature must be redesigned before implementation.
 DentVision is not software.
 
 **DentVision is the digital operating system of dentistry.**
+
+---
+
+## Related Constitution
+
+Product philosophy, AI-primary interface law, feature gates, and Apple/Linear quality standards:
+
+→ [`docs/00_CONSTITUTION/02_PRODUCT_DNA.md`](../00_CONSTITUTION/02_PRODUCT_DNA.md)

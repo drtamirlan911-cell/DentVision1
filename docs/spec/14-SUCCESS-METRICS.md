@@ -96,7 +96,11 @@ Activation definition (D0): greeting + (AI message **or** CRM action).
 
 Если любой ответ NO — redesign до реализации.
 
-**Gate 1 — Portfolio priority** (после Gate 0): фича должна улучшать хотя бы одно из:
+**Gate 1 — Product DNA** ([`../00_CONSTITUTION/02_PRODUCT_DNA.md`](../00_CONSTITUTION/02_PRODUCT_DNA.md)):
+
+World-class bar · AI-reachable · single source of truth · automation path · ecosystem fit · simplicity · FEAT MUST rules.
+
+**Gate 2 — Portfolio priority** (после Gate 0–1): фича должна улучшать хотя бы одно из:
 
 1. WAP / retention  
 2. Automation minutes saved  

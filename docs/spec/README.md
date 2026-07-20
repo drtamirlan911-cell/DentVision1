@@ -12,12 +12,15 @@
 
 ## CORE — начать здесь
 
-→ **[`MISSION.md`](./MISSION.md)** — Mission · Status: CORE · Priority: CRITICAL
+1. **[`MISSION.md`](./MISSION.md)** — Mission · CORE / CRITICAL  
+2. **[`../00_CONSTITUTION/02_PRODUCT_DNA.md`](../00_CONSTITUTION/02_PRODUCT_DNA.md)** — Product DNA · CORE / CRITICAL  
 
 > DentVision is an AI Operating System for Digital Dentistry.  
 > DentVision is not software. DentVision is the digital operating system of dentistry.
 
-Любая фича, экран или модуль сначала проходит **Decision Rule** из Mission.
+Любая фича сначала проходит **Mission Decision Rule**, затем **Product DNA** (MUST/SHOULD gates, AI-primary interface, Apple/Linear quality bar).
+
+Constitution index: [`../00_CONSTITUTION/README.md`](../00_CONSTITUTION/README.md)
 
 ---
 
@@ -65,7 +68,7 @@
 | [`/docs/MODULE_STATUS.md`](../MODULE_STATUS.md) | Текущий статус реализации модулей |
 
 **Правило приоритета:**  
-1. [`MISSION.md`](./MISSION.md) (CORE)  
+1. Constitution — [`MISSION`](./MISSION.md) + [`Product DNA`](../00_CONSTITUTION/02_PRODUCT_DNA.md)  
 2. Остальная спецификация `docs/spec/`  
 3. UX Blueprint → Blueprint → код  
 

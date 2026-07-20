@@ -1,7 +1,8 @@
 # 01 — Vision & Product Principles
 
-> Источник истины по назначению компании: [`MISSION.md`](./MISSION.md) (CORE / CRITICAL).  
-> Этот документ детализирует principles и pillars; при конфликте побеждает Mission.
+> Источник истины по назначению: [`MISSION.md`](./MISSION.md).  
+> Закон качества и AI-first: [`../00_CONSTITUTION/02_PRODUCT_DNA.md`](../00_CONSTITUTION/02_PRODUCT_DNA.md).  
+> Этот документ детализирует principles и pillars; при конфликте побеждает Constitution.
 
 ## 1.1 Vision Statement
 

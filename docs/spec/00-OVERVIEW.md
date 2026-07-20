@@ -1,6 +1,7 @@
 # 00 — Overview & Document Control
 
 > **CORE Mission:** [`MISSION.md`](./MISSION.md) — высший документ назначения продукта.  
+> **CORE Product DNA:** [`../00_CONSTITUTION/02_PRODUCT_DNA.md`](../00_CONSTITUTION/02_PRODUCT_DNA.md) — закон качества, AI-primary interface, feature gates (MUST/SHOULD).  
 > Core Statement: *DentVision is an AI Operating System for Digital Dentistry.*
 
 ## 0.1 Назначение документа
