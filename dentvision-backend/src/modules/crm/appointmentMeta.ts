@@ -10,9 +10,6 @@ export interface AppointmentMeta {
   reason?: string;
   /** Clinic floor pipeline beyond DB enum: arrived | in_chair */
   flowStatus?: string;
-  /** Chair / unit resource for conflict checks */
-  chairId?: string;
-  chairName?: string;
 }
 
 const TO_DB: Record<string, AppointmentStatus> = {
@@ -62,17 +59,12 @@ export function buildMeta(body: Record<string, unknown>, existing?: AppointmentM
   const base = { ...(existing || {}) };
   const keys: (keyof AppointmentMeta)[] = [
     'serviceName', 'servicePrice', 'paymentStatus', 'diagnosis', 'toothNumber', 'receiptId', 'reason', 'flowStatus',
-    'chairId', 'chairName',
   ];
   for (const key of keys) {
     if (body[key] !== undefined) (base as any)[key] = body[key];
   }
   if (body.service && !base.serviceName) base.serviceName = String(body.service);
   if (body.serviceId && !base.reason) base.reason = String(body.serviceId);
-  if (body.chairId === '' || body.chairId === null) {
-    delete base.chairId;
-    delete base.chairName;
-  }
   // Frontend sends arrived/in_chair as status — persist as flowStatus for round-trip.
   if (body.status === 'arrived' || body.status === 'in_chair') {
     base.flowStatus = String(body.status);
