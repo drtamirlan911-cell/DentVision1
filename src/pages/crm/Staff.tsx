@@ -107,6 +107,7 @@ interface StaffForm {
   photoUrl: string
   visibility: string
   experienceYears: number | string
+  commissionPercent: number | string
   workSchedule?: {
     start: string
     end: string
@@ -117,6 +118,7 @@ interface StaffForm {
 const EMPTY_FORM: StaffForm = {
   name: '', login: '', password: '', role: 'doctor', spec: '', phone: '',
   email: '', bio: '', photoUrl: '', visibility: 'public', experienceYears: 0,
+  commissionPercent: 30,
 }
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
@@ -257,7 +259,8 @@ export default function Staff() {
           role: form.role,
           spec: form.spec || undefined,
           password: form.password && form.password.length >= 6 ? form.password : undefined,
-        })
+          commissionPercent: Number(form.commissionPercent) || 30,
+        } as any)
         showToast('Сотрудник обновлён', 'success')
         setModalOpen(false)
         setForm(EMPTY_FORM)
@@ -286,7 +289,8 @@ export default function Staff() {
         phone: form.phone || undefined,
         role: form.role,
         spec: form.spec || undefined,
-      })
+        commissionPercent: Number(form.commissionPercent) || 30,
+      } as any)
       showToast(`${ROLE_LABELS[form.role] || 'Сотрудник'} добавлен`, 'success')
       setModalOpen(false)
       setForm(EMPTY_FORM)
@@ -311,6 +315,7 @@ export default function Staff() {
       photoUrl: member.photoUrl || '',
       visibility: member.visibility || 'public',
       experienceYears: member.experienceYears || 0,
+      commissionPercent: (member as any).commissionPercent ?? 30,
       workSchedule: (member as any).workSchedule || { start: '09:00', end: '18:00', workDays: ['пн', 'вт', 'ср', 'чт', 'пт'] },
     })
     setModalOpen(true)
@@ -411,6 +416,15 @@ export default function Staff() {
           onChange={e => setForm({ ...form, role: e.target.value })}
           options={ROLE_OPTIONS}
         />
+
+        <Input
+          label="% от услуг (зарплата)"
+          type="number"
+          value={form.commissionPercent}
+          onChange={e => setForm({ ...form, commissionPercent: e.target.value })}
+          placeholder="30"
+        />
+        <p className="text-2xs text-txt-muted -mt-2">Как в KazDent: врач получает % от (цена − материалы)</p>
 
         <div className={cn(
           'p-3 rounded-lg border text-xs text-txt-secondary',

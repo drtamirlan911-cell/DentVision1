@@ -281,6 +281,9 @@ export async function getClinicStaff(clinicId: string): Promise<ClinicStaffMembe
         : String(m.role || '').toLowerCase(),
     spec: m.user?.spec || null,
     avatar: m.user?.avatar || null,
+    email: m.user?.email || null,
+    phone: m.user?.phone || null,
+    commissionPercent: m.commissionPercent ?? 30,
     joinedAt: m.joinedAt,
   }));
 }
@@ -486,6 +489,7 @@ export async function upsertPriceListItem(data: {
   serviceCode: string;
   price: number;
   name?: string;
+  matCost?: number;
   active?: boolean;
 }): Promise<any> {
   return apiRequest('/api/crm/price-list', { method: 'POST', body: JSON.stringify(data) });
@@ -496,6 +500,7 @@ export async function addPriceListService(data: {
   name: string;
   price: number;
   category?: string;
+  matCost?: number;
 }): Promise<any> {
   const slug = String(data.name || 'service')
     .toLowerCase()
@@ -506,7 +511,40 @@ export async function addPriceListService(data: {
   const name = data.category
     ? `${data.category} · ${data.name}`
     : data.name;
-  return upsertPriceListItem({ serviceCode, price: Number(data.price), name, active: true });
+  return upsertPriceListItem({
+    serviceCode,
+    price: Number(data.price),
+    name,
+    matCost: Number(data.matCost || 0),
+    active: true,
+  });
+}
+
+export async function closeAppointment(
+  id: string,
+  data: {
+    notes?: string;
+    services?: Array<{ name: string; price: number; matCost?: number }>;
+    serviceName?: string;
+    servicePrice?: number;
+    matCost?: number;
+    discount?: number;
+    paymentStatus?: string;
+    diagnosis?: string;
+    toothNumber?: string;
+  },
+): Promise<any> {
+  return apiRequest(`/api/appointments/${id}/close`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function depositPatient(patientId: string, amount: number): Promise<any> {
+  return apiRequest(`/api/patients/${patientId}/deposit`, {
+    method: 'POST',
+    body: JSON.stringify({ amount }),
+  });
 }
 
 export async function markReminderSent(reminderKey: string, channel = 'whatsapp'): Promise<any> {
@@ -572,22 +610,6 @@ export async function deleteReceipt(id: string): Promise<any> {
   return apiRequest(`/api/billing/invoices/${id}`, { method: 'DELETE' });
 }
 
-export async function upsertClinicStaff(clinicId: string, data: {
-  email: string;
-  password?: string;
-  firstName?: string;
-  lastName?: string;
-  name?: string;
-  phone?: string;
-  role?: string;
-  spec?: string;
-}): Promise<any> {
-  return apiRequest(`/api/clinics/${clinicId}/staff`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-}
-
 export async function updateClinicStaff(
   clinicId: string,
   userId: string,
@@ -599,10 +621,28 @@ export async function updateClinicStaff(
     role?: string;
     spec?: string;
     password?: string;
+    commissionPercent?: number;
   },
 ): Promise<any> {
   return apiRequest(`/api/clinics/${clinicId}/staff/${userId}`, {
     method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function upsertClinicStaff(clinicId: string, data: {
+  email: string;
+  password?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  phone?: string;
+  role?: string;
+  spec?: string;
+  commissionPercent?: number;
+}): Promise<any> {
+  return apiRequest(`/api/clinics/${clinicId}/staff`, {
+    method: 'POST',
     body: JSON.stringify(data),
   });
 }
