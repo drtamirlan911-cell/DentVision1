@@ -63,8 +63,11 @@ export function ChatInput({ value, onChange, onSend, disabled, onAttach, onVoice
       <div className="flex items-center gap-1">
         {onVoice && (
           <button
+            type="button"
             onClick={onVoice}
-            disabled={disabled || !value.trim()}
+            disabled={disabled}
+            title="Голосовой ввод"
+            aria-label="Голосовой ввод"
             className="flex h-9 w-9 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors disabled:opacity-50"
           >
             <Mic size={18} />

@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, Send, ArrowUp, Loader2, CheckCircle, X } from 'lucide-react'
+import { Mic, MicOff, Send, ArrowUp, Loader2, CheckCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { startRecognition, stopSpeaking, voiceInputSupported, type VoiceRecognitionHandle } from '@/utils/voice'
 
 interface AIInputAreaProps {
   onSend: (text: string) => void
@@ -10,6 +11,13 @@ interface AIInputAreaProps {
   progress?: number
   suggestions?: string[]
   placeholder?: string
+  /** Auto-send the final recognized phrase (hands-free voice control). */
+  voiceAutoSend?: boolean
+  /**
+   * Increment to programmatically start listening (e.g. after TTS finishes
+   * in hands-free voice conversation mode).
+   */
+  voiceResumeToken?: number
 }
 
 export function AIInputArea({
@@ -18,13 +26,18 @@ export function AIInputArea({
   status = 'idle',
   progress = 0,
   placeholder = 'Чем помочь?',
+  voiceAutoSend = true,
+  voiceResumeToken = 0,
 }: AIInputAreaProps) {
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
   const [listening, setListening] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const recognitionRef = useRef<any>(null)
+  const recognitionRef = useRef<VoiceRecognitionHandle | null>(null)
+  const lastResumeToken = useRef(0)
   const [height, setHeight] = useState(52)
+  const voiceSupported = voiceInputSupported()
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
@@ -58,32 +71,48 @@ export function AIInputArea({
   const isProcessing = status !== 'idle'
 
   const startListening = useCallback(() => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SR) return
-    const recognition = new SR()
-    recognition.lang = 'ru-RU'
-    recognition.interimResults = true
-    recognition.continuous = false
-    recognition.onresult = (event: any) => {
-      let transcript = ''
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript
-      }
-      setText(transcript)
+    if (disabled) return
+    setVoiceError(null)
+    stopSpeaking()
+    const handle = startRecognition({
+      onInterim: (transcript) => setText(transcript),
+      onFinal: (transcript) => {
+        if (voiceAutoSend && transcript && !disabled) {
+          onSend(transcript)
+          setText('')
+          setHeight(52)
+        } else {
+          setText(transcript)
+        }
+      },
+      onEnd: () => setListening(false),
+      onError: (message) => {
+        setVoiceError(message)
+        setListening(false)
+        setTimeout(() => setVoiceError(null), 4000)
+      },
+    })
+    if (handle) {
+      recognitionRef.current = handle
+      setListening(true)
     }
-    recognition.onend = () => setListening(false)
-    recognition.onerror = () => setListening(false)
-    recognitionRef.current = recognition
-    recognition.start()
-    setListening(true)
-  }, [])
+  }, [voiceAutoSend, disabled, onSend])
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop()
     setListening(false)
   }, [])
 
-  useEffect(() => () => recognitionRef.current?.stop(), [])
+  useEffect(() => {
+    if (!voiceResumeToken || voiceResumeToken === lastResumeToken.current) return
+    lastResumeToken.current = voiceResumeToken
+    if (!disabled && voiceSupported && !listening) startListening()
+  }, [voiceResumeToken, disabled, voiceSupported, listening, startListening])
+
+  useEffect(() => () => {
+    recognitionRef.current?.stop()
+    stopSpeaking()
+  }, [])
 
   return (
     <div className="px-4 md:px-6 pb-4 pt-2">
@@ -209,12 +238,16 @@ export function AIInputArea({
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
                   onClick={() => (listening ? stopListening() : startListening())}
-                  disabled={disabled}
+                  disabled={disabled || !voiceSupported}
+                  title={voiceSupported ? (listening ? 'Остановить запись' : 'Голосовой ввод') : 'Голосовой ввод не поддерживается браузером'}
+                  aria-label={listening ? 'Остановить голосовой ввод' : 'Начать голосовой ввод'}
                   className={cn(
                     'relative flex h-8 w-8 items-center justify-center rounded-xl transition-all',
                     listening
                       ? 'text-red-400 bg-red-400/10'
-                      : 'text-txt-muted hover:text-txt-secondary hover:bg-white/[0.05]'
+                      : voiceSupported
+                        ? 'text-txt-muted hover:text-txt-secondary hover:bg-white/[0.05]'
+                        : 'text-txt-ghost/30 cursor-not-allowed'
                   )}
                 >
                   {listening && (
@@ -224,7 +257,7 @@ export function AIInputArea({
                       transition={{ duration: 1.5, repeat: Infinity }}
                     />
                   )}
-                  <Mic size={16} />
+                  {voiceSupported ? <Mic size={16} /> : <MicOff size={16} />}
                 </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.08 }}
@@ -243,8 +276,17 @@ export function AIInputArea({
               </div>
             </div>
 
-            <p className="text-center text-[10px] text-txt-ghost/40 mt-1.5 select-none">
-              DentVision Intelligence · Enter для отправки
+            <p className="text-center text-[10px] mt-1.5 select-none">
+              {voiceError ? (
+                <span className="text-red-400/80">{voiceError}</span>
+              ) : listening ? (
+                <span className="text-dv-gold/80">Говорите — фраза отправится автоматически</span>
+              ) : (
+                <span className="text-txt-ghost/40">
+                  DentVision Intelligence · Enter для отправки
+                  {voiceSupported ? ' · микрофон для голоса' : ''}
+                </span>
+              )}
             </p>
           </motion.div>
         )}

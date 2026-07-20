@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useCallback, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Bot, X, MessageSquare } from 'lucide-react'
+import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX } from 'lucide-react'
+import { isVoiceRepliesEnabled, setVoiceRepliesEnabled, speak, stopSpeaking, voiceOutputSupported } from '@/utils/voice'
 import { useAuth } from '@/store/auth.store'
 import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, getActiveAiThread } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
@@ -31,6 +32,16 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const firstMessageTracked = useRef(false)
   const [showContextPanel, setShowContextPanel] = useState(false)
   const [pendingConfirm, setPendingConfirm] = useState<Action | null>(null)
+  const [voiceReplies, setVoiceReplies] = useState(() => isVoiceRepliesEnabled())
+  const [voiceResumeToken, setVoiceResumeToken] = useState(0)
+  const ttsSupported = voiceOutputSupported()
+
+  const toggleVoiceReplies = useCallback(() => {
+    const next = !voiceReplies
+    setVoiceReplies(next)
+    setVoiceRepliesEnabled(next)
+    if (!next) stopSpeaking()
+  }, [voiceReplies])
 
   const messages = useAIWorkspaceStore((s) => s.ai.messages)
   const status = useAIWorkspaceStore((s) => s.ai.status)
@@ -179,6 +190,8 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 const handleSend = useCallback(async (text: string) => {
     if (!text.trim() || isProcessing) return
 
+    stopSpeaking()
+
     if (!firstMessageTracked.current) {
       firstMessageTracked.current = true
       trackProductEvent('first_user_message_sent')
@@ -257,6 +270,15 @@ const handleSend = useCallback(async (text: string) => {
 
       setSuggestionsFromStrings((res.suggestions || []).slice(0, 4))
       historyRef.current.push({ role: 'assistant', content: res.reply })
+
+      if (voiceReplies && res.reply) {
+        speak(res.reply, {
+          onEnd: () => {
+            // Hands-free loop: after the assistant finishes speaking, open the mic again.
+            if (isVoiceRepliesEnabled()) setVoiceResumeToken((n) => n + 1)
+          },
+        })
+      }
 
       if (res.proactive?.length) {
         for (const p of res.proactive) {
@@ -342,7 +364,7 @@ const handleSend = useCallback(async (text: string) => {
     } finally {
       setProgress(0)
     }
-  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, executeAction, navigate])
+  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, executeAction, navigate, voiceReplies])
 
   const handleActionConfirm = useCallback(async (confirmed: boolean) => {
     const action = pendingConfirm
@@ -433,6 +455,24 @@ const result = await executeAction(
             >
               <Sparkles size={14} />
               <span className="text-xs font-semibold hidden sm:inline">{unacknowledgedCount}</span>
+            </motion.button>
+          )}
+
+          {ttsSupported && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={toggleVoiceReplies}
+              title={voiceReplies ? 'Выключить голосовые ответы' : 'Включить голосовые ответы'}
+              aria-label={voiceReplies ? 'Выключить голосовые ответы' : 'Включить голосовые ответы'}
+              aria-pressed={voiceReplies}
+              className={
+                voiceReplies
+                  ? 'flex h-8 w-8 items-center justify-center rounded-lg text-dv-gold bg-dv-gold/10 border border-dv-gold/20 hover:bg-dv-gold/15 transition-colors'
+                  : 'flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors'
+              }
+            >
+              {voiceReplies ? <Volume2 size={16} /> : <VolumeX size={16} />}
             </motion.button>
           )}
 
@@ -535,6 +575,7 @@ const result = await executeAction(
             progress={progress}
             suggestions={suggestions.map(s => s.label)}
             placeholder="Чем помочь? Например: открой расписание, найди пациента…"
+            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
           />
         </div>
       </div>
