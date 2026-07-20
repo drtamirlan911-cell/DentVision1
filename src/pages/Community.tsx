@@ -1,8 +1,8 @@
-﻿import React, { useMemo, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  Users, MessageSquare, Heart, Share2, Bookmark, Plus, Image as ImageIcon,
+  Users, MessageSquare, Heart, Share2, Bookmark, Plus, Image as ImageIcon, Loader2,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/ds/Card'
 import { Badge } from '@/components/ui/ds/Badge'
@@ -12,78 +12,82 @@ import { Textarea } from '@/components/ui/ds/Input'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { useAuth } from '@/store/auth.store'
-
-type Post = {
-  id: string
-  author: string
-  role: string
-  time: string
-  content: string
-  likes: number
-  comments: number
-  tags: string[]
-  kind: 'media' | 'thread'
-}
-
-const SEED_POSTS: Post[] = [
-  {
-    id: '1', author: 'Доктор Айдар К.', role: 'Ортопед', time: '2 часа назад',
-    content: 'Цифровое планирование имплантации с CBCT и CAD/CAM заметно повышает точность. Делюсь протоколом в треде.',
-    likes: 24, comments: 8, tags: ['Имплантация', 'Цифровая стоматология'], kind: 'thread',
-  },
-  {
-    id: '2', author: 'Клиника Smile', role: 'Клиника', time: '5 часов назад',
-    content: 'Открыли новый филиал. Ищем специалистов — вакансии в Jobs.',
-    likes: 42, comments: 15, tags: ['Вакансии'], kind: 'media',
-  },
-  {
-    id: '3', author: 'Доктор Елена М.', role: 'Терапевт', time: '1 день назад',
-    content: 'Клинический кейс: реставрация 11. До/после — в портфолио профиля.',
-    likes: 31, comments: 6, tags: ['Терапия', 'Кейс'], kind: 'media',
-  },
-  {
-    id: '4', author: 'DentVision Academy', role: 'Платформа', time: '2 дня назад',
-    content: 'Новый курс: «Основы лазерной стоматологии» — 12 модулей, сертификат.',
-    likes: 56, comments: 22, tags: ['Обучение', 'Курс'], kind: 'thread',
-  },
-]
+import { createCommunityPost, getCommunityPosts, likeCommunityPost } from '@/utils/api'
+import { useToast } from '@/components/ui/ds/Toast'
 
 const TOPICS = ['Все', 'Имплантация', 'Терапия', 'Ортодонтия', 'Хирургия', 'Лаборатория', 'Обучение']
 
+function timeAgo(iso?: string) {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const h = Math.floor(diff / 3600000)
+  if (h < 1) return 'только что'
+  if (h < 24) return `${h} ч назад`
+  return `${Math.floor(h / 24)} дн назад`
+}
+
 export default function CommunityPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { isAuthenticated } = useAuth()
+  const { showToast } = useToast()
   const [topic, setTopic] = useState('Все')
   const [draft, setDraft] = useState('')
-  const [posts, setPosts] = useState(SEED_POSTS)
-  const [liked, setLiked] = useState<Record<string, boolean>>({})
+  const [posts, setPosts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [publishing, setPublishing] = useState(false)
 
-  const filtered = useMemo(() => {
-    if (topic === 'Все') return posts
-    return posts.filter((p) => p.tags.some((t) => t.includes(topic)))
-  }, [posts, topic])
+  const load = async () => {
+    setLoading(true)
+    try {
+      const list = await getCommunityPosts(topic)
+      setPosts(Array.isArray(list) ? list : [])
+    } catch {
+      setPosts([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const publish = () => {
+  useEffect(() => { load() }, [topic])
+
+  const publish = async () => {
     if (!draft.trim()) return
-    setPosts((prev) => [{
-      id: `local-${Date.now()}`,
-      author: user?.name || 'Вы',
-      role: user?.role || 'Специалист',
-      time: 'только что',
-      content: draft.trim(),
-      likes: 0,
-      comments: 0,
-      tags: ['Тред'],
-      kind: 'thread',
-    }, ...prev])
-    setDraft('')
+    if (!isAuthenticated) {
+      showToast('Войдите, чтобы публиковать', 'info')
+      navigate('/login')
+      return
+    }
+    setPublishing(true)
+    try {
+      const post = await createCommunityPost({ content: draft.trim(), tags: ['Тред'], kind: 'thread' })
+      setPosts((prev) => [post, ...prev])
+      setDraft('')
+      showToast('Опубликовано', 'success')
+    } catch (e: any) {
+      showToast(e?.message || 'Не удалось опубликовать', 'error')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  const toggleLike = async (id: string) => {
+    if (!isAuthenticated) {
+      showToast('Войдите, чтобы поставить like', 'info')
+      return
+    }
+    try {
+      const updated = await likeCommunityPost(id)
+      setPosts((prev) => prev.map((p) => (p.id === id ? updated : p)))
+    } catch (e: any) {
+      showToast(e?.message || 'Ошибка', 'error')
+    }
   }
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl mx-auto space-y-6 p-4 md:p-6">
       <PageHeader
         title="Community"
-        subtitle="Instagram + Threads для стоматологов · визуал и дискуссии"
+        subtitle="Instagram + Threads · live feed API"
         icon={<Users size={20} />}
         actions={
           <Button size="sm" variant="secondary" onClick={() => navigate('/school')}>
@@ -104,8 +108,8 @@ export default function CommunityPage() {
             <button className="inline-flex items-center gap-1.5 text-xs text-txt-muted hover:text-txt-primary">
               <ImageIcon size={14} /> Медиа
             </button>
-            <Button size="sm" onClick={publish} disabled={!draft.trim()}>
-              <Plus size={14} className="mr-1.5" />
+            <Button size="sm" onClick={publish} disabled={!draft.trim() || publishing}>
+              {publishing ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
               Опубликовать
             </Button>
           </div>
@@ -126,34 +130,36 @@ export default function CommunityPage() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center py-16 text-txt-muted"><Loader2 className="animate-spin" size={22} /></div>
+      ) : posts.length === 0 ? (
         <EmptyState title="Лента пуста" description="Смените тему или опубликуйте первый тред." />
       ) : (
         <div className="space-y-4">
-          {filtered.map((post) => (
+          {posts.map((post) => (
             <Card key={post.id}>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center gap-3">
-                  <Avatar name={post.author} size="sm" />
+                  <Avatar name={post.authorName || 'User'} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-txt-primary truncate">{post.author}</p>
-                    <p className="text-[11px] text-txt-muted">{post.role} · {post.time}</p>
+                    <p className="text-sm font-semibold text-txt-primary truncate">{post.authorName}</p>
+                    <p className="text-[11px] text-txt-muted">{post.authorRole} · {timeAgo(post.createdAt)}</p>
                   </div>
                   <Badge variant="outline" size="xs">{post.kind === 'thread' ? 'Thread' : 'Post'}</Badge>
                 </div>
                 <p className="text-sm text-txt-secondary whitespace-pre-wrap">{post.content}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {post.tags.map((t) => <Badge key={t} variant="gold" size="xs">#{t}</Badge>)}
+                  {(post.tags || []).map((t: string) => <Badge key={t} variant="gold" size="xs">#{t}</Badge>)}
                 </div>
                 <div className="flex items-center gap-4 pt-1 text-txt-muted">
                   <button
-                    className={`inline-flex items-center gap-1.5 text-xs ${liked[post.id] ? 'text-error' : 'hover:text-txt-primary'}`}
-                    onClick={() => setLiked((l) => ({ ...l, [post.id]: !l[post.id] }))}
+                    className={`inline-flex items-center gap-1.5 text-xs ${post.liked ? 'text-error' : 'hover:text-txt-primary'}`}
+                    onClick={() => toggleLike(post.id)}
                   >
-                    <Heart size={14} fill={liked[post.id] ? 'currentColor' : 'none'} />
-                    {post.likes + (liked[post.id] ? 1 : 0)}
+                    <Heart size={14} fill={post.liked ? 'currentColor' : 'none'} />
+                    {post.likesCount || 0}
                   </button>
-                  <span className="inline-flex items-center gap-1.5 text-xs"><MessageSquare size={14} />{post.comments}</span>
+                  <span className="inline-flex items-center gap-1.5 text-xs"><MessageSquare size={14} />{post.commentsCount || 0}</span>
                   <button className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary"><Bookmark size={14} /></button>
                   <button className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary ml-auto"><Share2 size={14} /></button>
                 </div>

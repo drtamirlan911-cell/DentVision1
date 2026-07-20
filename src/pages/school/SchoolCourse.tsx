@@ -267,8 +267,16 @@ export default function SchoolCourse() {
             transition={{ duration: 0.3 }}
             className="p-8 overflow-y-auto max-h-[calc(100vh-60px)]"
           >
-            <div className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center mb-6 border border-[var(--border-subtle)] relative">
-              {activeLesson.type === 'video' ? (
+            <div className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center mb-6 border border-[var(--border-subtle)] relative overflow-hidden">
+              {activeLesson.type === 'video' && (activeLesson.videoUrl || activeLesson.video_url) ? (
+                <video
+                  controls
+                  className="w-full h-full object-contain bg-black/40"
+                  src={activeLesson.videoUrl || activeLesson.video_url}
+                >
+                  Ваш браузер не поддерживает видео.
+                </video>
+              ) : activeLesson.type === 'video' ? (
                 <div className="text-center">
                   <motion.div
                     whileHover={{ scale: 1.1 }}
@@ -276,17 +284,34 @@ export default function SchoolCourse() {
                   >
                     <Play size={30} className="text-[#0D1B2E] fill-[#0D1B2E] ml-1" />
                   </motion.div>
-                  <p className="text-xs text-[var(--slate)] mt-3">{activeLesson.duration_minutes} мин</p>
+                  <p className="text-xs text-[var(--slate)] mt-3">
+                    {(activeLesson.durationMinutes || activeLesson.duration_minutes || '—')} мин · видео скоро
+                  </p>
                 </div>
               ) : activeLesson.type === 'test' ? (
-                <div className="text-center">
-                  <HelpCircle size={48} className="text-[#C9A96E]/60" />
+                <div className="text-center px-6">
+                  <HelpCircle size={48} className="text-[#C9A96E]/60 mx-auto" />
                   <p className="text-sm text-[var(--slate-light)] mt-2">Тест: {activeLesson.title}</p>
+                  <p className="text-xs text-txt-muted mt-1 max-w-sm mx-auto">
+                    Отметьте урок завершённым после прохождения. Полноценный exam engine — следующий этап School.
+                  </p>
                   {enrolled && (
                     <Button variant="primary" size="sm" className="mt-3" onClick={() => markComplete(activeLesson.id)}>
                       Завершить тест
                     </Button>
                   )}
+                </div>
+              ) : activeLesson.type === 'pdf' || activeLesson.fileUrl || activeLesson.file_url ? (
+                <div className="text-center px-6">
+                  <p className="text-sm text-txt-primary mb-3">PDF / материал урока</p>
+                  <a
+                    href={activeLesson.fileUrl || activeLesson.file_url || '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex px-4 py-2 rounded-lg bg-dv-gold/15 text-dv-gold text-sm border border-dv-gold/30"
+                  >
+                    Открыть материал
+                  </a>
                 </div>
               ) : (
                 <div className="text-center">

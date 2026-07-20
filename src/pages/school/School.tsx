@@ -96,7 +96,18 @@ export default function School() {
       api.getSchoolClinicalCases(),
       api.getSchoolLibrary(),
     ])
-      .then(([c, cc, lib]) => { setCourses(c); setClinicalCases(cc); setLibraryItems(lib); })
+      .then(([c, cc, lib]) => {
+        const normalized = (Array.isArray(c) ? c : []).map((course: any) => ({
+          ...course,
+          lesson_count: course.lesson_count ?? course.lessonCount ?? 0,
+          duration_hours: course.duration_hours ?? course.durationHours ?? 0,
+          enrolled_count: course.enrolled_count ?? course.enrolledCount ?? 0,
+          image_url: course.image_url ?? course.imageUrl,
+        }));
+        setCourses(normalized);
+        setClinicalCases(Array.isArray(cc) ? cc : []);
+        setLibraryItems(Array.isArray(lib) ? lib : []);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -128,9 +139,9 @@ export default function School() {
 
   const stats = useMemo(() => ({
     courses: courses.length,
-    totalLessons: courses.reduce((s, c) => s + (c.lesson_count || 0), 0),
-    totalHours: courses.reduce((s, c) => s + (c.duration_hours || 0), 0),
-    enrolled: courses.reduce((s, c) => s + (c.enrolled_count || 0), 0),
+    totalLessons: courses.reduce((s, c) => s + (c.lesson_count || c.lessonCount || 0), 0),
+    totalHours: courses.reduce((s, c) => s + (c.duration_hours || c.durationHours || 0), 0),
+    enrolled: courses.reduce((s, c) => s + (c.enrolled_count || c.enrolledCount || 0), 0),
   }), [courses]);
 
   return (
@@ -222,7 +233,7 @@ export default function School() {
                       </Badge>
                     </div>
                     <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-black/50 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-md">
-                      <Play size={10} fill="white" /> {course.lesson_count} уроков · {course.duration_hours}ч
+                      <Play size={10} fill="white" /> {course.lesson_count || course.lessonCount || 0} уроков · {course.duration_hours || course.durationHours || 0}ч
                     </div>
                   </div>
                   <div className="p-3.5">

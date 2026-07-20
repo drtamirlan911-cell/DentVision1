@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot, X, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/store/auth.store'
-import { aiChat, aiProactive, aiDigitalTwin } from '@/utils/api'
+import { aiChat, aiChatStream, aiProactive, aiDigitalTwin } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
@@ -65,10 +65,22 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true
-      initializeWorkspace()
-      trackProductEvent('chat_ready', { role: user?.role || 'guest' })
+      const restored = restoreThread(user?.id)
+      if (restored?.length) {
+        setMessages(restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })))
+        historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
+        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true })
+        setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
+      } else {
+        initializeWorkspace()
+        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
+      }
     }
   }, [user, clinic])
+
+  useEffect(() => {
+    if (messages.length > 0) persistThread(user?.id, messages)
+  }, [messages, user?.id])
 
   useEffect(() => {
     const q = (location.state as any)?.aiQuery
@@ -141,7 +153,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     }
   }
 
-  const handleSend = useCallback(async (text: string) => {
+const handleSend = useCallback(async (text: string) => {
     if (!text.trim() || isProcessing) return
 
     if (!firstMessageTracked.current) {
@@ -157,8 +169,26 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     setPendingConfirm(null)
     historyRef.current.push({ role: 'user', content: text })
 
+    const assistantId = `a-${Date.now()}`
+    addMessage({
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    })
+
     try {
-      const res = await aiChat(text, historyRef.current.slice(-20))
+      const res = await aiChatStream(text, historyRef.current.slice(-20), (partial, done) => {
+        useAIWorkspaceStore.setState((state) => ({
+          ai: {
+            ...state.ai,
+            messages: state.ai.messages.map((m) =>
+              m.id === assistantId ? { ...m, content: partial } : m
+            ),
+            status: done ? state.ai.status : 'thinking',
+          },
+        }))
+      })
 
       if (res.conversationContext?.entities) {
         setCurrentIntent({
@@ -176,26 +206,32 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         }
       }
 
-      const aiMsg: Message = {
-        id: `a-${Date.now()}`,
-        role: 'assistant',
-        content: res.reply,
-        timestamp: new Date(),
-        skill: res.skill,
-        source: res.source,
-        actions: res.actions?.map((a: any) => ({
-          id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          type: a.type || a.action,
-          label: a.label,
-          confidence: a.confidence || 1,
-          params: a.params || {},
-          requiresConfirmation: a.requiresConfirmation,
-        })),
-        data: res.data,
-        recommendations: res.recommendations,
-      }
+      useAIWorkspaceStore.setState((state) => ({
+        ai: {
+          ...state.ai,
+          messages: state.ai.messages.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content: res.reply || m.content,
+                  skill: res.skill,
+                  source: res.source,
+                  actions: res.actions?.map((a: any) => ({
+                    id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    type: a.type || a.action,
+                    label: a.label,
+                    confidence: a.confidence || 1,
+                    params: a.params || {},
+                    requiresConfirmation: a.requiresConfirmation,
+                  })),
+                  data: res.data,
+                  recommendations: res.recommendations,
+                }
+              : m
+          ),
+        },
+      }))
 
-      addMessage(aiMsg)
       setSuggestionsFromStrings((res.suggestions || []).slice(0, 4))
       historyRef.current.push({ role: 'assistant', content: res.reply })
 
@@ -230,18 +266,18 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           setProgress(0)
           try {
             const result = await executeAction(
-            { ...aiAction, requiresConfirmation: false } as AIAction,
-            {
-              onNavigate: (path) => { navigate(path); onNavigate?.(path) },
-              addMessage: (msg: any) => addMessage({
-                id: `act-${Date.now()}`,
-                role: msg.role || 'assistant',
-                content: msg.content,
-                timestamp: msg.timestamp || new Date(),
-                data: msg.data,
-              }),
-            }
-          )
+              { ...aiAction, requiresConfirmation: false } as AIAction,
+              {
+                onNavigate: (path) => { navigate(path); onNavigate?.(path) },
+                addMessage: (msg: any) => addMessage({
+                  id: `act-${Date.now()}`,
+                  role: msg.role || 'assistant',
+                  content: msg.content,
+                  timestamp: msg.timestamp || new Date(),
+                  data: msg.data,
+                }),
+              }
+            )
             setProgress(100)
             setAIStatus('result')
             setTimeout(() => setAIStatus('idle'), 1500)
@@ -269,11 +305,16 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         setAIStatus('idle')
       }
     } catch {
-      addMessage({
-        id: `err-${Date.now()}`, role: 'assistant',
-        content: 'Извините, произошла ошибка. Попробуйте ещё раз.',
-        timestamp: new Date(),
-      })
+      useAIWorkspaceStore.setState((state) => ({
+        ai: {
+          ...state.ai,
+          messages: state.ai.messages.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: 'Извините, произошла ошибка. Попробуйте ещё раз.' }
+              : m
+          ),
+        },
+      }))
       setAIStatus('idle')
     } finally {
       setProgress(0)
@@ -534,6 +575,33 @@ const result = await executeAction(
       </AnimatePresence>
     </div>
   )
+}
+
+function persistThread(userId: string | undefined, messages: Message[]) {
+  try {
+    const key = `dv_ai_thread_${userId || 'guest'}`
+    const slim = messages.slice(-40).map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp,
+      skill: m.skill,
+      source: m.source,
+    }))
+    localStorage.setItem(key, JSON.stringify(slim))
+  } catch { /* ignore */ }
+}
+
+function restoreThread(userId: string | undefined): Message[] | null {
+  try {
+    const key = `dv_ai_thread_${userId || 'guest'}`
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) && parsed.length ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 function buildGreeting(u: any, c: any, alerts: any[]) {

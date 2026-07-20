@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import prisma from '../lib/prisma.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { requirePermission, requireSuperadmin } from '../middleware/rbac.js';
 import { broadcast } from '../ws.js';
 import aiRoutes from '../ai/chat.js';
@@ -8,8 +8,9 @@ import crmRoutes from './crm.js';
 
 export default function registerBridgeRoutes(app, writeAuditLog) {
   const aiRouter = aiRoutes();
-  app.post('/api/ai/query', authenticate, (req, res, next) => {
+  app.post('/api/ai/query', optionalAuth, (req, res, next) => {
     req.body.message = req.body.text || req.body.message;
+    req.body.history = req.body.history || [];
     req.url = '/chat';
     aiRouter(req, res, next);
   });
