@@ -158,6 +158,16 @@ async function hydrateAuthFromMe() {
   return { user, memberships, activeMembership }
 }
 
+function getTokenClinicId(token: string | null | undefined): string | null {
+  try {
+    const payload = token?.split('.')[1]
+    if (!payload) return null
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).clinicId || null
+  } catch {
+    return null
+  }
+}
+
 function buildClinicFromMembership(m: Membership | null): Clinic | null {
   if (!m) return null
   return (m.clinic as Clinic) || null
@@ -199,10 +209,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true })
     try {
       const me = await hydrateAuthFromMe()
+      // Old sessions created before the workspace fix have no clinicId in
+      // their JWT. Re-issue a clinic-scoped token so CRM API calls work.
+      let accessToken = stored.accessToken
+      let refreshToken = stored.refreshToken
+      if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken)) {
+        const switched = await api.switchClinic(me.activeMembership.clinicId)
+        accessToken = switched.accessToken || accessToken
+        refreshToken = switched.refreshToken || refreshToken
+        api.setTokens(accessToken, refreshToken)
+      }
       set({
         user: me.user,
-        token: stored.accessToken,
-        refreshToken: stored.refreshToken,
+        token: accessToken,
+        refreshToken,
         clinic: buildClinicFromMembership(me.activeMembership),
         clinics: me.memberships,
         activeMembership: me.activeMembership,
