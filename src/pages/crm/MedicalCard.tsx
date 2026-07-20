@@ -188,7 +188,7 @@ export default function MedicalCard() {
               {/* Section Tabs */}
               <Tabs
                 tabs={CARD_SECTIONS.map(s => ({ id: s.id, label: s.label, icon: s.icon }))}
-                activeTab={activeSection}
+                active={activeSection}
                 onChange={setActiveSection}
               />
 

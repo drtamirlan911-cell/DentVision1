@@ -4,10 +4,12 @@ import { motion } from 'framer-motion'
 import {
   CreditCard, TrendingUp, TrendingDown, Wallet, AlertTriangle, Plus,
   DollarSign, Package, Receipt, Send, ShoppingCart, CheckCircle, Clock,
-  User, Stethoscope, Search,
+  User, Stethoscope, Search, Trash2,
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery'
+import { queryKeys } from '../../queries/keys'
 import * as api from '@/utils/api'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
@@ -87,7 +89,19 @@ interface ExpenseForm {
 export default function Cashier() {
   const { clinic } = useOutletContext<OutletContext>()
   const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useDataQuery(clinic?.id)
+  const queryClient = useQueryClient()
   const { toast, showToast, clearToast } = useToast()
+
+  const voidReceipt = async (id: string) => {
+    if (!window.confirm('Удалить эту операцию из кассы?')) return
+    try {
+      await api.deleteReceipt(id)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.receipts })
+      showToast('Операция удалена', 'success')
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось удалить', 'error')
+    }
+  }
   const [activeTab, setActiveTab] = useState('unpaid')
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<CashierForm>(EMPTY_FORM)
@@ -424,8 +438,8 @@ export default function Cashier() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-bdr-subtle">
-                        {['Дата', 'Пациент', 'Услуга', 'Зуб', 'Диагноз', 'Способ', 'Статус', 'Сумма'].map(h => (
-                          <th key={h} className="text-left py-2 px-3 text-2xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
+                        {['Дата', 'Пациент', 'Услуга', 'Зуб', 'Диагноз', 'Способ', 'Статус', 'Сумма', ''].map(h => (
+                          <th key={h || 'actions'} className="text-left py-2 px-3 text-2xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -446,6 +460,15 @@ export default function Cashier() {
                             <td className="py-2.5 px-3"><Badge variant={statusVariant} size="sm">{statusLabel}</Badge></td>
                             <td className={cn('py-2.5 px-3 text-right text-sm font-bold', statusVariant === 'success' ? 'text-success' : statusVariant === 'error' ? 'text-error' : 'text-warning')}>
                               +{money(r.total || r.amount || 0)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                icon={<Trash2 size={14} />}
+                                className="text-error/60 hover:text-error"
+                                onClick={() => voidReceipt(r.id)}
+                              />
                             </td>
                           </tr>
                         )

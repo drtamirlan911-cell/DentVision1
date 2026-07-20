@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ClipboardList, Plus, Search, ArrowRight, User, Save } from 'lucide-react';
+import { ClipboardList, Plus, Search, ArrowRight, User, Save, Trash2 } from 'lucide-react';
 import { useAuth } from '@/store/auth.store';
 import { useDataQuery } from '@/queries/useDataQuery';
 import * as api from '@/utils/api';
@@ -303,14 +303,36 @@ export default function TreatmentPlans() {
                   )}
                 </div>
                 {p.patientId && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => navigate(`/crm/patients?patient=${p.patientId}&tab=odontogram`)}
-                  >
-                    Карта пациента
-                    <ArrowRight size={14} className="ml-1.5" />
-                  </Button>
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => navigate(`/crm/patients?patient=${p.patientId}&tab=odontogram`)}
+                    >
+                      Карта пациента
+                      <ArrowRight size={14} className="ml-1.5" />
+                    </Button>
+                    {!p.legacy && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-error/80 hover:text-error"
+                        icon={<Trash2 size={14} />}
+                        onClick={async () => {
+                          if (!window.confirm('Удалить план лечения?')) return
+                          try {
+                            await api.deleteTreatmentPlan(p.id)
+                            showToast('План удалён', 'success')
+                            load()
+                          } catch {
+                            showToast('Не удалось удалить план', 'error')
+                          }
+                        }}
+                      >
+                        Удалить
+                      </Button>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>

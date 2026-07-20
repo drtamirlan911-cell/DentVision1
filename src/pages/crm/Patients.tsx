@@ -84,7 +84,7 @@ interface OutletContext {
 export default function Patients() {
   const { clinic } = useOutletContext<OutletContext>()
   const navigate = useNavigate()
-  const { patients, appointments, receipts, upsertPatient, deletePatient } = useDataQuery(clinic?.id)
+  const { patients, appointments, receipts, upsertPatient, deletePatient, upsertReceipt } = useDataQuery(clinic?.id)
   const { toast, showToast, clearToast } = useToast()
   const [params] = useSearchParams()
 
@@ -539,8 +539,19 @@ export default function Patients() {
         <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => setSelected(null)}>
           К списку
         </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" icon={<FileText size={16} />} onClick={() => setActiveTab('info')}>
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Button
+            variant="outline"
+            icon={<FileText size={16} />}
+            onClick={() => navigate(`/crm/medical-card?patient=${selected.id}`)}
+          >
+            Медкарта
+          </Button>
+          <Button
+            variant="outline"
+            icon={<FileText size={16} />}
+            onClick={() => navigate(`/crm/treatment-plans?patient=${selected.id}`)}
+          >
             План лечения
           </Button>
           <Button variant="secondary" icon={<FileText size={16} />} onClick={() => openEdit(selected)}>
@@ -718,10 +729,27 @@ export default function Patients() {
                       />
                       <Button
                         icon={<CreditCard size={16} />}
-                        onClick={() => {
+                        onClick={async () => {
+                          if (!selected?.id) { showToast('Выберите пациента', 'warning'); return }
                           if (!payment.amount || Number(payment.amount) <= 0) { showToast('Укажите сумму', 'warning'); return }
-                          showToast(`Оплата ${tg(Number(payment.amount))} внесена успешно`, 'success')
-                          setPayment(EMPTY_PAYMENT)
+                          try {
+                            await upsertReceipt({
+                              clinicId: clinic?.id,
+                              patientId: selected.id,
+                              patientName: selected.name,
+                              amount: Number(payment.amount),
+                              total: Number(payment.amount),
+                              payMethod: payment.payMethod,
+                              status: 'paid',
+                              service: 'Оплата',
+                              date: new Date().toISOString().slice(0, 10),
+                              items: [{ name: 'Оплата', price: Number(payment.amount), qty: 1 }],
+                            })
+                            showToast(`Оплата ${tg(Number(payment.amount))} внесена успешно`, 'success')
+                            setPayment(EMPTY_PAYMENT)
+                          } catch (err: any) {
+                            showToast(err?.message || 'Не удалось сохранить оплату', 'error')
+                          }
                         }}
                       >
                         Внести
@@ -730,33 +758,43 @@ export default function Patients() {
                   </div>
 
                   <p className="text-sm font-semibold text-txt-primary mb-3">История платежей</p>
-                  {patientAppts.filter(a => a.price).length === 0 ? (
-                    <EmptyState
-                      icon={<CreditCard size={32} />}
-                      title="Нет записей об оплате"
-                      description="Платежи появятся после завершения приёмов"
-                    />
-                  ) : (
-                    <div className="space-y-2">
-                      {patientAppts.filter(a => a.price).map(a => (
-                        <div key={a.id} className="flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
-                          <div>
-                            <p className="text-sm font-semibold text-txt-primary">{a.reason || a.service || '---'}</p>
-                            <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} · {a.time}</p>
+                  {(() => {
+                    const patientReceipts = (receipts || []).filter(
+                      (r: any) => r.patientId === selected?.id || r.patientName === selected?.name,
+                    )
+                    const fromAppts = patientAppts.filter(a => a.price)
+                    if (patientReceipts.length === 0 && fromAppts.length === 0) {
+                      return (
+                        <EmptyState
+                          icon={<CreditCard size={32} />}
+                          title="Нет записей об оплате"
+                          description="Внесите оплату выше или завершите приём в кассе"
+                        />
+                      )
+                    }
+                    return (
+                      <div className="space-y-2">
+                        {patientReceipts.map((r: any) => (
+                          <div key={r.id} className="flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
+                            <div>
+                              <p className="text-sm font-semibold text-txt-primary">{r.service || r.notes || 'Оплата'}</p>
+                              <p className="text-xs text-txt-muted mt-0.5">{fd(r.date || r.paidAt || r.createdAt)}</p>
+                            </div>
+                            <Badge variant="success" size="sm">+{Number(r.total || r.amount || 0).toLocaleString()} ₸</Badge>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <Badge variant="success" size="sm">+{a.price.toLocaleString()} ₸</Badge>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              icon={<Send size={14} />}
-                              onClick={() => showToast('Чек отправлен пациенту', 'success')}
-                            />
+                        ))}
+                        {fromAppts.map(a => (
+                          <div key={a.id} className="flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
+                            <div>
+                              <p className="text-sm font-semibold text-txt-primary">{a.reason || a.service || '---'}</p>
+                              <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} · {a.time}</p>
+                            </div>
+                            <Badge variant="info" size="sm">+{a.price.toLocaleString()} ₸</Badge>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </motion.div>
               )}
 
