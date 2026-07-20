@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
@@ -139,7 +140,7 @@ patientsRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
-patientsRouter.post('/', async (req: AuthRequest, res) => {
+patientsRouter.post('/', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -315,7 +316,7 @@ patientsRouter.get('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-patientsRouter.patch('/:id', async (req: AuthRequest, res) => {
+patientsRouter.patch('/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -378,7 +379,7 @@ patientsRouter.patch('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-patientsRouter.delete('/:id', async (req: AuthRequest, res) => {
+patientsRouter.delete('/:id', requirePermission('patient.delete'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {

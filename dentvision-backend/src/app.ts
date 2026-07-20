@@ -28,6 +28,7 @@ import { remindersRouter } from './modules/crm/reminders.routes.js';
 import { chairsRouter } from './modules/crm/chairs.routes.js';
 import { labRouter } from './modules/lab/lab.routes.js';
 import { communityRouter } from './modules/community/community.routes.js';
+import { iamRouter } from './modules/iam/iam.routes.js';
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.get('/api/health', (_req, res) => {
 
 // ─── Routes ───
 app.use('/api/auth', authRouter);
+app.use('/api/iam', iamRouter);
 app.use('/api/clinics', clinicsRouter);
 app.use('/api/patients', patientsRouter);
 app.use('/api/appointments', appointmentsRouter);
