@@ -703,3 +703,18 @@ AI занимает почти весь экран.
 Детальный, привязанный к кодовой базе план внедрения (целевая схема Prisma, изменения IAM, дорожная карта по фазам, стратегия миграции, тестирование и риски) вынесен в отдельный документ:
 
 **[`docs/DENTVISION_V2_INTEGRATION_PLAN.md`](docs/DENTVISION_V2_INTEGRATION_PLAN.md)**
+
+---
+
+# 24. Platform Extensions V2 (План интеграции)
+
+Второй набор обязательных глав — «платформенные» модули, превращающие DentVision в расширяемую **Platform-as-a-Product**. Строятся поверх фундамента главы 23 (IAM · Event Bus · Finance · Ecosystem · AI Core):
+
+- **Chapter: Developer Platform** — публичный API v1, SDK, API-ключи/OAuth, вебхуки, песочница (sandbox), маркетплейс интеграций.
+- **Chapter: Workflow Studio** — визуальный конструктор автоматизаций (аналог n8n/Power Automate) поверх Event Bus и единого Action Registry.
+- **Chapter: Data Intelligence** — разделение OLTP/OLAP, единое хранилище, реестр метрик, BI-панели, прогнозная аналитика и AI-отчёты.
+- **Chapter: Partner Program** — управление производителями/дистрибьюторами/академиями/лабораториями/официальными партнёрами: уровни, KPI, SLA, комиссии (override поверх `CommissionRule`) и co-marketing.
+
+Детальный план (целевая схема Prisma, модули/API, дорожная карта Фаз 8–12, зависимости, риски) вынесен в отдельный документ:
+
+**[`docs/DENTVISION_V2_PLATFORM_EXTENSIONS_PLAN.md`](docs/DENTVISION_V2_PLATFORM_EXTENSIONS_PLAN.md)**
