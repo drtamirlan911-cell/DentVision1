@@ -289,9 +289,9 @@ export default function Login() {
             </div>
             <div className="space-y-1">
               {[
-                { login: 'admin_c1', pass: 'admin123', role: 'Администратор' },
-                { login: 'doc1_c1', pass: 'doc123', role: 'Врач-терапевт' },
-                { login: 'dr.tamirlan', pass: 'DentVision2025!', role: 'Super Admin' },
+                { login: 'owner@dentvision.kz', pass: 'Demo1234!', role: 'Владелец (демо-клиника)' },
+                { login: 'doctor@dentvision.kz', pass: 'Demo1234!', role: 'Врач' },
+                { login: 'super@dentvision.kz', pass: 'Demo1234!', role: 'Super Admin' },
               ].map((d, i) => (
                 <motion.button
                   key={i}

@@ -77,8 +77,15 @@ authRouter.post('/login', async (req, res) => {
         role: true,
         password: true,
         memberships: {
-          select: { clinicId: true },
-          take: 1,
+          select: {
+            id: true,
+            role: true,
+            clinicId: true,
+            joinedAt: true,
+            clinic: {
+              select: { id: true, name: true, city: true, plan: true, logo: true },
+            },
+          },
         },
       },
     });
@@ -93,6 +100,15 @@ authRouter.post('/login', async (req, res) => {
     }
 
     const clinicId = user.memberships[0]?.clinicId;
+    const activeMembership = user.memberships[0]
+      ? {
+          id: user.memberships[0].id,
+          role: user.memberships[0].role,
+          clinicId: user.memberships[0].clinicId,
+          joinedAt: user.memberships[0].joinedAt,
+          clinic: user.memberships[0].clinic,
+        }
+      : null;
 
     const tokens = generateTokens({
       sub: user.id,
@@ -101,11 +117,22 @@ authRouter.post('/login', async (req, res) => {
       clinicId,
     });
 
-    const { password: _, ...userWithoutPassword } = user;
+    const { password: _, memberships, ...userWithoutPassword } = user;
 
     const response: ApiResponse = {
       ok: true,
-      data: { user: { ...userWithoutPassword, clinicId }, ...tokens },
+      data: {
+        user: { ...userWithoutPassword, clinicId, name: `${user.firstName} ${user.lastName}`.trim() },
+        memberships: memberships.map((m) => ({
+          id: m.id,
+          role: m.role,
+          clinicId: m.clinicId,
+          joinedAt: m.joinedAt,
+          clinic: m.clinic,
+        })),
+        activeMembership,
+        ...tokens,
+      },
     };
 
     res.json(response);
@@ -172,7 +199,7 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
             clinicId: true,
             joinedAt: true,
             clinic: {
-              select: { id: true, name: true, plan: true, logo: true },
+              select: { id: true, name: true, city: true, plan: true, logo: true },
             },
           },
         },

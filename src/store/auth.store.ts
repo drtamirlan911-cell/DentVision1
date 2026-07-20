@@ -116,17 +116,46 @@ interface AuthState {
   allUsers: User[]
 }
 
+function normalizeRole(role: string | undefined | null): string {
+  return String(role || 'user').toLowerCase()
+}
+
+function normalizeUser(raw: any) {
+  if (!raw) return raw
+  const name = raw.name || [raw.firstName, raw.lastName].filter(Boolean).join(' ').trim() || raw.email
+  return {
+    ...raw,
+    name,
+    platformRole: normalizeRole(raw.platformRole || raw.role),
+    role: normalizeRole(raw.role),
+  }
+}
+
 function mapMemberships(raw: any[]): Membership[] {
   return (raw || []).map((m: any) => ({
     id: m.id || m.clinicId,
     clinicId: m.clinicId,
-    role: m.role || 'staff',
+    role: normalizeRole(m.role),
     spec: m.spec || null,
     department: m.department || null,
     status: m.status || 'active',
     joinedAt: m.joinedAt || new Date().toISOString(),
-    clinic: m.clinic || null,
+    clinic: m.clinic ? { ...m.clinic, type: m.clinic.type || 'clinic' } : null,
   }))
+}
+
+function mapActiveMembership(raw: any): Membership | null {
+  if (!raw) return null
+  const mapped = mapMemberships([raw])
+  return mapped[0] || null
+}
+
+async function hydrateAuthFromMe() {
+  const me = await api.getMe() as any
+  const user = normalizeUser(me.user)
+  const memberships = mapMemberships(me.memberships || [])
+  const activeMembership = mapActiveMembership(me.activeMembership)
+  return { user, memberships, activeMembership }
 }
 
 function buildClinicFromMembership(m: Membership | null): Clinic | null {
@@ -169,18 +198,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     set({ loading: true })
     try {
-      const me = await api.getMe() as any
-      const user = me.user
-      const memberships = mapMemberships(me.memberships || [])
-      const activeMembership = me.activeMembership || null
+      const me = await hydrateAuthFromMe()
       set({
-        user,
+        user: me.user,
         token: stored.accessToken,
         refreshToken: stored.refreshToken,
-        clinic: buildClinicFromMembership(activeMembership),
-        clinics: memberships,
-        activeMembership,
-        activeClinic: buildClinicFromMembership(activeMembership),
+        clinic: buildClinicFromMembership(me.activeMembership),
+        clinics: me.memberships,
+        activeMembership: me.activeMembership,
+        activeClinic: buildClinicFromMembership(me.activeMembership),
         loading: false,
       })
     } catch {
@@ -197,26 +223,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { accessToken, refreshToken } = result.tokens || result
       api.setTokens(accessToken, refreshToken)
 
-      let user = result.user
-      let memberships = result.memberships || []
-      let activeMembership = result.activeMembership || null
+      const me = await hydrateAuthFromMe()
 
-      if (!user) {
-        const me = await api.getMe() as any
-        user = me.user
-        memberships = me.memberships || []
-        activeMembership = me.activeMembership || null
-      }
-
-      const mapped = mapMemberships(memberships)
       set({
-        user,
+        user: me.user,
         token: accessToken,
         refreshToken,
-        clinic: buildClinicFromMembership(activeMembership),
-        clinics: mapped,
-        activeMembership,
-        activeClinic: buildClinicFromMembership(activeMembership),
+        clinic: buildClinicFromMembership(me.activeMembership),
+        clinics: me.memberships,
+        activeMembership: me.activeMembership,
+        activeClinic: buildClinicFromMembership(me.activeMembership),
         loading: false,
         error: null,
       })
@@ -242,26 +258,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { accessToken, refreshToken } = result.tokens || result
       if (accessToken) api.setTokens(accessToken, refreshToken)
 
-      let user = result.user
-      let memberships = result.memberships || []
-      let activeMembership = result.activeMembership || null
+      const me = accessToken ? await hydrateAuthFromMe() : { user: result.user, memberships: [], activeMembership: null }
 
-      if (!user) {
-        const me = await api.getMe() as any
-        user = me.user
-        memberships = me.memberships || []
-        activeMembership = me.activeMembership || null
-      }
-
-      const mapped = mapMemberships(memberships)
       set({
-        user,
+        user: me.user,
         token: accessToken || null,
         refreshToken: refreshToken || null,
-        clinic: buildClinicFromMembership(activeMembership),
-        clinics: mapped,
-        activeMembership,
-        activeClinic: buildClinicFromMembership(activeMembership),
+        clinic: buildClinicFromMembership(me.activeMembership),
+        clinics: me.memberships,
+        activeMembership: me.activeMembership,
+        activeClinic: buildClinicFromMembership(me.activeMembership),
         loading: false,
         error: null,
       })
