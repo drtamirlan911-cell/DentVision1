@@ -87,3 +87,20 @@ DO $$ BEGIN
   ALTER TABLE "price_list" ADD CONSTRAINT "price_list_clinicId_fkey"
     FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS "reminder_logs" (
+  "id" TEXT NOT NULL,
+  "clinicId" TEXT NOT NULL,
+  "reminderKey" TEXT NOT NULL,
+  "channel" TEXT,
+  "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "meta" JSONB,
+  CONSTRAINT "reminder_logs_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "reminder_logs_clinicId_reminderKey_idx" ON "reminder_logs"("clinicId", "reminderKey");
+
+DO $$ BEGIN
+  ALTER TABLE "reminder_logs" ADD CONSTRAINT "reminder_logs_clinicId_fkey"
+    FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
