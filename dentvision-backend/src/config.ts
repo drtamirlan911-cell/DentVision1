@@ -16,6 +16,9 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string().optional(),
   S3_SECRET_KEY: z.string().optional(),
   ENCRYPTION_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().min(20).optional(),
+  OPENAI_MODEL: z.string().default('gpt-5.6-sol'),
+  OPENAI_REASONING_EFFORT: z.enum(['low', 'medium', 'high']).default('medium'),
 });
 
 export const env = envSchema.parse(process.env);

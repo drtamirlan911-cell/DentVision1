@@ -4,6 +4,7 @@ import type { AuthRequest } from '../../types/index.js';
 import { validate } from '../../middleware/validate.js';
 import { z } from 'zod';
 import { aiService } from './core/ai.service.js';
+import { improveResponseWithLLM } from './core/llm.service.js';
 import { prisma } from '../../lib/prisma.js';
 
 const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
@@ -35,6 +36,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     };
 
     const response = await aiService.processMessage(text, context, context.sessionId);
+    response.message = await improveResponseWithLLM(text, response, context) || response.message;
 
     res.json({ ok: true, data: response });
   } catch (error) {
@@ -65,6 +67,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       metadata: {},
     };
     const response = await aiService.processMessage(text, context, sessionId);
+    response.message = await improveResponseWithLLM(text, response, context) || response.message;
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
