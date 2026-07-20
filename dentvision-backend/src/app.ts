@@ -35,10 +35,14 @@ import { financeRouter } from './modules/finance/finance.routes.js';
 import { paymentsRouter } from './modules/payments/payments.routes.js';
 import { subscriptionsRouter } from './modules/billing/subscriptions.routes.js';
 import { disputesRouter } from './modules/finance/disputes.routes.js';
+import { developerRouter } from './modules/developer/developer.routes.js';
+import { v1Router } from './modules/developer/v1.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
+import { registerWebhookDispatcher } from './modules/developer/webhook.dispatcher.js';
 
-// Wire up domain-event subscribers (audit, etc.) once at import time.
+// Wire up domain-event subscribers (audit, webhooks, etc.) once at import time.
 registerSubscribers();
+registerWebhookDispatcher();
 
 const app = express();
 
@@ -79,6 +83,8 @@ app.use('/api/finance', financeRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/disputes', disputesRouter);
+app.use('/api/developer', developerRouter);
+app.use('/api/v1', v1Router);
 app.use('/api/school', schoolRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/guest', guestRouter);

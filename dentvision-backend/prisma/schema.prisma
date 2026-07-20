@@ -716,6 +716,75 @@ model Dispute {
   @@map("disputes")
 }
 
+// ─── DEVELOPER PLATFORM (Phase 8) ───
+
+model DeveloperApp {
+  id          String   @id @default(uuid())
+  ownerUserId String
+  name        String
+  environment String   @default("sandbox") // sandbox | production
+  scopes      String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  keys     ApiKey[]
+  webhooks Webhook[]
+
+  @@index([ownerUserId])
+  @@map("developer_apps")
+}
+
+model ApiKey {
+  id        String    @id @default(uuid())
+  appId     String
+  prefix    String    @unique
+  hash      String
+  scopes    String[]
+  rateLimit Int       @default(200)
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  app DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+model Webhook {
+  id     String   @id @default(uuid())
+  appId  String
+  url    String
+  events String[]
+  secret String
+  active Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  app       DeveloperApp      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id        String   @id @default(uuid())
+  webhookId String
+  event     String
+  payload   Json
+  status    String   @default("pending") // pending | delivered | failed
+  attempts  Int      @default(0)
+  lastError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, status])
+  @@map("webhook_deliveries")
+}
+
 model Product {
   id          String @id @default("")
   name        String
