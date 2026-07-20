@@ -7,6 +7,8 @@ import {
 } from 'lucide-react'
 import { useAuth, ORG_ROLES, canManageClinicSettings } from '@/store/auth.store'
 import { useDataQuery } from '@/queries/useDataQuery'
+import { queryKeys } from '@/queries/keys'
+import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/ds/Toast'
 import * as api from '@/utils/api'
 import { Button } from '../../components/ui/ds/Button'
@@ -189,6 +191,84 @@ export default function Staff() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    const clinicId = clinic?.id || user?.clinicId
+    if (!clinicId) {
+      showToast('Выберите клинику', 'warning')
+      return
+    }
+    setInviteSaving(true)
+    try {
+      const inv = await api.createInvitation({
+        clinicId,
+        email: inviteForm.email.trim() || undefined,
+        role: inviteForm.role,
+        expiresInDays: Number(inviteForm.expiresInDays) || 7,
+      })
+      const code = inv?.code
+      if (!code) throw new Error('Сервер не вернул код приглашения')
+      setInviteResult({ code, email: inv.email, role: inv.role })
+      showToast('Приглашение создано', 'success')
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось создать приглашение', 'error')
+    } finally {
+      setInviteSaving(false)
+    }
+  }
+
+  const copyInviteCode = async () => {
+    if (!inviteResult?.code) return
+    try {
+      await navigator.clipboard.writeText(inviteResult.code)
+      setCopied(true)
+      showToast('Код скопирован', 'success')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      showToast('Не удалось скопировать', 'warning')
+    }
+  }
+
+  const openInvite = () => {
+    setInviteForm({ email: '', role: 'doctor', expiresInDays: 7 })
+    setInviteResult(null)
+    setCopied(false)
+    setInviteOpen(true)
+  }
+
+  const refreshStaff = () => {
+    queryClient.invalidateQueries({ queryKey: [...queryKeys.users, clinicId] })
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!clinicId) {
+      showToast('Выберите клинику', 'warning')
+      return
+    }
+
+    if (editingStaff) {
+      if (!form.name.trim()) {
+        showToast('Укажите ФИО', 'warning')
+        return
+      }
+      try {
+        await api.updateClinicStaff(clinicId, editingStaff.id, {
+          name: form.name.trim(),
+          phone: form.phone || undefined,
+          role: form.role,
+          spec: form.spec || undefined,
+          password: form.password && form.password.length >= 6 ? form.password : undefined,
+        })
+        showToast('Сотрудник обновлён', 'success')
+        setModalOpen(false)
+        setForm(EMPTY_FORM)
+        setEditingStaff(null)
+        refreshStaff()
+      } catch (err: any) {
+        showToast(err?.message || 'Не удалось сохранить', 'error')
+      }
+      return
+    }
+
     if (!form.name || !form.login || !form.password) {
       showToast('Заполните все обязательные поля', 'warning')
       return
@@ -197,20 +277,24 @@ export default function Staff() {
       showToast('Пароль должен быть не менее 6 символов', 'warning')
       return
     }
-    const result = addStaffMember({
-      ...form,
-      workSchedule: form.role === 'doctor' ? form.workSchedule : undefined,
-      clinicId: clinic?.id || user?.clinicId,
-      experienceYears: Number(form.experienceYears) || 0,
-    } as any)
-    if (result === false) {
-      showToast('Такой логин уже занят', 'error')
-      return
+    try {
+      const email = form.email?.trim() || `${form.login.trim().toLowerCase()}@dentvision.local`
+      await api.upsertClinicStaff(clinicId, {
+        email,
+        password: form.password,
+        name: form.name.trim(),
+        phone: form.phone || undefined,
+        role: form.role,
+        spec: form.spec || undefined,
+      })
+      showToast(`${ROLE_LABELS[form.role] || 'Сотрудник'} добавлен`, 'success')
+      setModalOpen(false)
+      setForm(EMPTY_FORM)
+      setEditingStaff(null)
+      refreshStaff()
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось добавить сотрудника', 'error')
     }
-    showToast(`${ROLE_LABELS[form.role] || 'Сотрудник'} добавлен`, 'success')
-    setModalOpen(false)
-    setForm(EMPTY_FORM)
-    setEditingStaff(null)
   }
 
   const openEditStaff = (member: UserType) => {
@@ -453,14 +537,16 @@ export default function Staff() {
           <p className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <Settings size={14} /> Данные для входа
           </p>
-          <Input
-            label="Логин *"
-            value={form.login}
-            onChange={e => setForm({ ...form, login: e.target.value.toLowerCase().replace(/\s/g, '_') })}
-            placeholder="doctor_name"
-            required
-            icon={<Lock size={16} />}
-          />
+          {!editingStaff && (
+            <Input
+              label="Логин *"
+              value={form.login}
+              onChange={e => setForm({ ...form, login: e.target.value.toLowerCase().replace(/\s/g, '_') })}
+              placeholder="doctor_name"
+              required
+              icon={<Lock size={16} />}
+            />
+          )}
           {!editingStaff && (
             <Input
               label="Пароль *"
@@ -469,6 +555,16 @@ export default function Staff() {
               onChange={e => setForm({ ...form, password: e.target.value })}
               placeholder="Минимум 6 символов"
               required
+              icon={<Lock size={16} />}
+            />
+          )}
+          {editingStaff && (
+            <Input
+              label="Новый пароль (необязательно)"
+              type="password"
+              value={form.password}
+              onChange={e => setForm({ ...form, password: e.target.value })}
+              placeholder="Оставьте пустым, чтобы не менять"
               icon={<Lock size={16} />}
             />
           )}

@@ -149,6 +149,24 @@ billingRouter.post('/invoices/:id/pay', async (req: AuthRequest, res) => {
   }
 });
 
+billingRouter.delete('/invoices/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const clinicId = req.user?.clinicId;
+    const existing = await prisma.invoice.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Invoice not found' });
+    }
+    if (clinicId && existing.clinicId !== clinicId) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к этому счёту' });
+    }
+    await prisma.invoice.delete({ where: { id } });
+    return res.json({ ok: true, data: { id } });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Failed to delete invoice' });
+  }
+});
+
 billingRouter.get('/summary', async (req: AuthRequest, res) => {
   try {
     const user = req.user;

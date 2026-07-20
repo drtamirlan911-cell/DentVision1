@@ -439,7 +439,22 @@ export async function upsertInventoryItem(data: Partial<InventoryItem>): Promise
   });
 }
 
-export async function upsertUser(data: Partial<User>): Promise<any> {
+export async function upsertUser(data: Partial<User> & { clinicId?: string; password?: string; login?: string }): Promise<any> {
+  const clinicId = data.clinicId;
+  if (clinicId) {
+    const name = String(data.name || '').trim();
+    const parts = name.split(/\s+/).filter(Boolean);
+    return upsertClinicStaff(clinicId, {
+      email: String(data.email || data.login || ''),
+      password: data.password,
+      firstName: (data as any).firstName || parts[0] || name || 'Сотрудник',
+      lastName: (data as any).lastName || parts.slice(1).join(' ') || '',
+      name,
+      phone: data.phone,
+      role: data.role,
+      spec: data.spec,
+    });
+  }
   return apiRequest('/api/auth/register', { method: 'POST', body: JSON.stringify(data) });
 }
 
@@ -554,7 +569,42 @@ export async function deleteAppointment(id: string): Promise<any> {
 }
 
 export async function deleteReceipt(id: string): Promise<any> {
-  return Promise.resolve({ ok: true, message: 'Invoice deletion not supported via API' });
+  return apiRequest(`/api/billing/invoices/${id}`, { method: 'DELETE' });
+}
+
+export async function upsertClinicStaff(clinicId: string, data: {
+  email: string;
+  password?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  phone?: string;
+  role?: string;
+  spec?: string;
+}): Promise<any> {
+  return apiRequest(`/api/clinics/${clinicId}/staff`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateClinicStaff(
+  clinicId: string,
+  userId: string,
+  data: {
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    phone?: string;
+    role?: string;
+    spec?: string;
+    password?: string;
+  },
+): Promise<any> {
+  return apiRequest(`/api/clinics/${clinicId}/staff/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
 }
 
 export async function deletePhoto(id: string): Promise<any> {

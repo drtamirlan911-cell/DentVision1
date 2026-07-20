@@ -3,10 +3,13 @@ import { useOutletContext, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   FlaskConical, Plus, Printer, Clock, CheckCircle, Package, AlertTriangle,
-  Edit,
+  Edit, Trash2,
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery'
+import { queryKeys } from '../../queries/keys'
+import * as api from '@/utils/api'
 import { Button } from '../../components/ui/ds/Button'
 import { Card } from '../../components/ui/ds/Card'
 import { Input, Select } from '../../components/ui/ds/Input'
@@ -131,6 +134,7 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 export default function Lab() {
   const { clinic } = useOutletContext<OutletContext>()
   const { labOrders, upsertLabOrder, patients } = useDataQuery(clinic?.id)
+  const queryClient = useQueryClient()
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState('active')
   const [modalOpen, setModalOpen] = useState(false)
@@ -271,6 +275,24 @@ export default function Lab() {
               {['pending', 'sent', 'in_progress'].includes(order.status) && (
                 <Button variant="danger" size="sm" icon={<AlertTriangle size={14} />} onClick={() => changeStatus(order, 'delayed')}>Просрочено</Button>
               )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-error/70 hover:text-error"
+                icon={<Trash2 size={14} />}
+                onClick={async () => {
+                  if (!window.confirm('Удалить заказ лаборатории?')) return
+                  try {
+                    await api.deleteLabOrder(order.id)
+                    await queryClient.invalidateQueries({ queryKey: queryKeys.labOrders })
+                    showToast('Заказ удалён', 'success')
+                  } catch {
+                    showToast('Не удалось удалить', 'error')
+                  }
+                }}
+              >
+                Удалить
+              </Button>
             </div>
           </div>
         </Card>
