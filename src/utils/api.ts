@@ -1234,6 +1234,69 @@ export async function opsAddSupplierMember(
   });
 }
 
+// ─── Platform Ops Command Center ───
+export async function opsOverview(): Promise<any> {
+  return opsRequest('/api/ops/overview');
+}
+
+export async function opsListClinics(): Promise<any> {
+  return opsRequest('/api/ops/clinics');
+}
+
+export async function opsClinicPlan(id: string, plan: string): Promise<any> {
+  return opsRequest(`/api/ops/clinics/${id}/plan`, {
+    method: 'POST',
+    body: JSON.stringify({ plan }),
+  });
+}
+
+export async function opsClinicExtend(id: string, months = 1): Promise<any> {
+  return opsRequest(`/api/ops/clinics/${id}/extend`, {
+    method: 'POST',
+    body: JSON.stringify({ months }),
+  });
+}
+
+export async function opsClinicSuspend(id: string): Promise<any> {
+  return opsRequest(`/api/ops/clinics/${id}/suspend`, { method: 'POST' });
+}
+
+export async function opsClinicActivate(id: string): Promise<any> {
+  return opsRequest(`/api/ops/clinics/${id}/activate`, { method: 'POST' });
+}
+
+export async function opsSchool(): Promise<any> {
+  return opsRequest('/api/ops/school');
+}
+
+export async function opsLecturerLevel(id: string, level: string): Promise<any> {
+  return opsRequest(`/api/ops/lecturers/${id}/level`, {
+    method: 'POST',
+    body: JSON.stringify({ level }),
+  });
+}
+
+export async function opsAutoAdvanceSuppliers(verify = false): Promise<any> {
+  return opsRequest('/api/ops/automations/advance-supplier-reviews', {
+    method: 'POST',
+    body: JSON.stringify({ verify, verifyReviewed: verify }),
+  });
+}
+
+export async function opsAutoVerifyLecturers(): Promise<any> {
+  return opsRequest('/api/ops/automations/verify-new-lecturers', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function opsAutoExtendClinics(months = 1, daysAhead = 14): Promise<any> {
+  return opsRequest('/api/ops/automations/extend-expiring-clinics', {
+    method: 'POST',
+    body: JSON.stringify({ months, daysAhead }),
+  });
+}
+
 // ─── AI Intelligence ───
 export interface AIChatResponse {
   reply: string;

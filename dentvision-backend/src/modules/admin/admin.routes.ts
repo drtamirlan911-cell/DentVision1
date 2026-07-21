@@ -94,26 +94,33 @@ adminRouter.get('/test-accounts', (_req, res) => {
 });
 
 // ─── Platform administration (SuperAdmin panel) ─────────────────────────
-// Requires SUPERADMIN. Note: the schema has no clinic "active"/subscription
-// model yet, so block/unblock and subscription extension intentionally
-// return 501 instead of silently no-op'ing or requiring a risky migration.
+// Requires SUPERADMIN. Clinic.active + Subscription power stats/plan/toggle/extend.
 
 adminRouter.get('/stats', authenticate, requireSuperadmin, async (_req: AuthRequest, res) => {
   try {
-    const [totalClinics, totalUsers] = await Promise.all([
+    const now = new Date();
+    const in14d = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const [totalClinics, activeClinics, totalUsers, expiringSoon, activeSubs] = await Promise.all([
       prisma.clinic.count(),
+      prisma.clinic.count({ where: { active: true } }),
       prisma.user.count(),
+      prisma.subscription.count({
+        where: { ownerType: 'CLINIC', status: 'active', periodEnd: { gte: now, lte: in14d } },
+      }),
+      prisma.subscription.findMany({ where: { ownerType: 'CLINIC', status: 'active' }, select: { plan: true } }),
     ]);
+    const PRICE: Record<string, number> = { free: 0, starter: 15000, professional: 35000, enterprise: 150000 };
+    const mrr = activeSubs.reduce((s, x) => s + (PRICE[x.plan] || 0), 0);
 
     res.json({
       ok: true,
       data: {
         totalClinics,
-        activeClinics: totalClinics,
-        blockedClinics: 0,
-        expiringSoon: 0,
+        activeClinics,
+        blockedClinics: totalClinics - activeClinics,
+        expiringSoon,
         totalUsers,
-        mrr: 0,
+        mrr,
       },
     } satisfies ApiResponse);
   } catch (error) {
@@ -128,22 +135,31 @@ adminRouter.get('/clinics', authenticate, requireSuperadmin, async (_req: AuthRe
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { members: true, patients: true } } },
     });
+    const subs = await prisma.subscription.findMany({
+      where: { ownerType: 'CLINIC', ownerId: { in: clinics.map((c) => c.id) } },
+    });
+    const subBy = Object.fromEntries(subs.map((s) => [s.ownerId, s]));
 
     res.json({
       ok: true,
-      data: clinics.map((c) => ({
-        id: c.id,
-        name: c.name,
-        city: c.city,
-        address: c.address,
-        phone: c.phone,
-        email: null,
-        plan: c.plan.toLowerCase(),
-        active: true,
-        subscription: null,
-        _count: { memberships: c._count.members, patients: c._count.patients },
-        createdAt: c.createdAt,
-      })),
+      data: clinics.map((c) => {
+        const sub = subBy[c.id];
+        return {
+          id: c.id,
+          name: c.name,
+          city: c.city,
+          address: c.address,
+          phone: c.phone,
+          email: null,
+          plan: c.plan.toLowerCase(),
+          active: c.active,
+          subscription: sub
+            ? { plan: sub.plan, status: sub.status, endDate: sub.periodEnd, periodEnd: sub.periodEnd }
+            : null,
+          _count: { memberships: c._count.members, patients: c._count.patients },
+          createdAt: c.createdAt,
+        };
+      }),
     } satisfies ApiResponse);
   } catch (error) {
     console.error('[admin/clinics]', error);
@@ -237,20 +253,48 @@ adminRouter.delete('/clinics/:id', authenticate, requireSuperadmin, async (req: 
   }
 });
 
-adminRouter.patch('/clinics/:id/toggle', authenticate, requireSuperadmin, async (_req: AuthRequest, res) => {
-  res.status(501).json({
-    ok: false,
-    error: 'Блокировка клиник появится после расширения схемы БД (нужна колонка active)',
-  } satisfies ApiResponse);
+adminRouter.patch('/clinics/:id/toggle', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const existing = await prisma.clinic.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Clinic not found' } satisfies ApiResponse);
+    const clinic = await prisma.clinic.update({
+      where: { id },
+      data: { active: !existing.active },
+    });
+    await prisma.subscription.upsert({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: id } },
+      create: {
+        ownerType: 'CLINIC',
+        ownerId: id,
+        plan: existing.plan === 'PRO' ? 'professional' : existing.plan === 'ENTERPRISE' ? 'enterprise' : existing.plan === 'DEMO' ? 'free' : 'starter',
+        status: clinic.active ? 'active' : 'suspended',
+      },
+      update: { status: clinic.active ? 'active' : 'suspended' },
+    });
+    res.json({ ok: true, data: clinic } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[admin/clinics toggle]', error);
+    res.status(500).json({ ok: false, error: 'Failed to toggle clinic' });
+  }
 });
 
 adminRouter.patch('/clinics/:id/plan', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const { plan } = req.body as { plan: string };
-    const normalized = (plan === 'starter' ? 'STANDARD' : plan).toUpperCase() as ClinicPlan;
+    const normalized = (plan === 'starter' ? 'STANDARD' : plan === 'professional' ? 'PRO' : plan).toUpperCase() as ClinicPlan;
 
     const clinic = await prisma.clinic.update({ where: { id }, data: { plan: normalized } });
+    const saas =
+      normalized === 'PRO' ? 'professional'
+        : normalized === 'ENTERPRISE' ? 'enterprise'
+          : normalized === 'DEMO' ? 'free' : 'starter';
+    await prisma.subscription.upsert({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: id } },
+      create: { ownerType: 'CLINIC', ownerId: id, plan: saas, status: 'active' },
+      update: { plan: saas },
+    });
     res.json({ ok: true, data: clinic } satisfies ApiResponse);
   } catch (error) {
     console.error('[admin/clinics plan]', error);
@@ -258,11 +302,37 @@ adminRouter.patch('/clinics/:id/plan', authenticate, requireSuperadmin, async (r
   }
 });
 
-adminRouter.patch('/clinics/:id/extend', authenticate, requireSuperadmin, async (_req: AuthRequest, res) => {
-  res.status(501).json({
-    ok: false,
-    error: 'Продление подписки появится после расширения схемы БД (нужна модель Subscription)',
-  } satisfies ApiResponse);
+adminRouter.patch('/clinics/:id/extend', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const months = Math.min(Math.max(parseInt(String((req.body as any)?.months || 1), 10) || 1, 1), 24);
+    const clinic = await prisma.clinic.findUnique({ where: { id } });
+    if (!clinic) return res.status(404).json({ ok: false, error: 'Clinic not found' } satisfies ApiResponse);
+
+    const existing = await prisma.subscription.findUnique({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: id } },
+    });
+    const base = existing?.periodEnd && existing.periodEnd > new Date() ? existing.periodEnd : new Date();
+    const periodEnd = new Date(base);
+    periodEnd.setMonth(periodEnd.getMonth() + months);
+    const saas =
+      clinic.plan === 'PRO' ? 'professional'
+        : clinic.plan === 'ENTERPRISE' ? 'enterprise'
+          : clinic.plan === 'DEMO' ? 'free' : 'starter';
+
+    const sub = await prisma.subscription.upsert({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: id } },
+      create: { ownerType: 'CLINIC', ownerId: id, plan: saas, status: 'active', periodEnd },
+      update: { periodEnd, status: 'active', plan: saas },
+    });
+    if (!clinic.active) {
+      await prisma.clinic.update({ where: { id }, data: { active: true } });
+    }
+    res.json({ ok: true, data: { ...clinic, subscription: sub, periodEnd } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[admin/clinics extend]', error);
+    res.status(500).json({ ok: false, error: 'Failed to extend subscription' });
+  }
 });
 
 adminRouter.get('/users', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
