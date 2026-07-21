@@ -24,6 +24,8 @@ const envSchema = z.object({
   TWILIO_FROM_NUMBER: z.string().optional(),
   TWILIO_WHATSAPP_FROM: z.string().optional(),
   CRON_SECRET: z.string().optional(),
+  /** Shared secret for hidden platform-ops surface (supplier verify, etc.). Min 24 chars in production. */
+  PLATFORM_OPS_SECRET: z.string().min(24).optional(),
   REMINDER_CRON_MS: z.coerce.number().default(900000),
 });
 

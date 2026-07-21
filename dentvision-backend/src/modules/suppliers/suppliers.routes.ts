@@ -3,6 +3,7 @@ import { SupplierStatus } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
+import { requirePlatformOps } from '../../middleware/platformOps.js';
 import { publish } from '../../lib/events.js';
 import { paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -10,8 +11,9 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // Shop Governance — Suppliers (Phase 2, DENTVISION_V2_INTEGRATION_PLAN.md §5.1).
 // Platform-managed supplier registry + verification pipeline. Reads are open to
-// any authenticated user (marketplace); writes require `supplier.manage`
-// (platform / SUPERADMIN today).
+// any authenticated user (marketplace); writes require `supplier.manage` AND
+// PLATFORM_OPS_SECRET via X-Platform-Ops-Key (hidden ops surface).
+// Prefer /api/ops/suppliers for governance. Self-serve register stays open.
 // ─────────────────────────────────────────────────────────────────────────────
 export const suppliersRouter = Router();
 
@@ -57,6 +59,55 @@ suppliersRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/suppliers/register — self-serve: create supplier company + owner membership.
+// Must be registered BEFORE /:id routes.
+suppliersRouter.post('/register', async (req: AuthRequest, res) => {
+  try {
+    const { name, kind, bin, legalAddress, contactPerson, phone, email } = req.body || {};
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ ok: false, error: 'Название компании обязательно' } satisfies ApiResponse);
+    }
+
+    const existing = await prisma.supplierMember.findFirst({ where: { userId: req.user!.id } });
+    if (existing) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Вы уже привязаны к поставщику. Откройте кабинет продавца.',
+        data: { supplierId: existing.supplierId },
+      } satisfies ApiResponse);
+    }
+
+    const supplier = await prisma.supplier.create({
+      data: {
+        name: String(name).trim(),
+        kind: kind || 'SUPPLIER',
+        bin: bin || null,
+        legalAddress: legalAddress || null,
+        contactPerson: contactPerson || [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || null,
+        phone: phone || req.user!.email || null,
+        email: email || req.user!.email || null,
+        status: 'PENDING',
+        members: {
+          create: { userId: req.user!.id, role: 'owner' },
+        },
+      },
+      include: { members: true },
+    });
+
+    publish('supplier.status_changed', {
+      supplierId: supplier.id,
+      from: 'PENDING',
+      to: 'PENDING',
+      userId: req.user?.id,
+    });
+
+    return res.status(201).json({ ok: true, data: supplier } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Supplier register error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать поставщика' } satisfies ApiResponse);
+  }
+});
+
 // GET /api/suppliers/:id — detail with documents.
 suppliersRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
@@ -75,7 +126,7 @@ suppliersRouter.get('/:id', async (req: AuthRequest, res) => {
 });
 
 // POST /api/suppliers — create (platform).
-suppliersRouter.post('/', requirePermission('supplier.manage'), async (req: AuthRequest, res) => {
+suppliersRouter.post('/', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
     const { name, kind, bin, legalAddress, contactPerson, phone, email } = req.body || {};
     if (!name) {
@@ -100,7 +151,7 @@ suppliersRouter.post('/', requirePermission('supplier.manage'), async (req: Auth
 });
 
 // PATCH /api/suppliers/:id — update profile (platform).
-suppliersRouter.patch('/:id', requirePermission('supplier.manage'), async (req: AuthRequest, res) => {
+suppliersRouter.patch('/:id', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
     const existing = await prisma.supplier.findUnique({ where: { id: req.params.id as string } });
     if (!existing) {
@@ -127,7 +178,7 @@ suppliersRouter.patch('/:id', requirePermission('supplier.manage'), async (req: 
 });
 
 // POST /api/suppliers/:id/status — verification pipeline transition (platform).
-suppliersRouter.post('/:id/status', requirePermission('supplier.manage'), async (req: AuthRequest, res) => {
+suppliersRouter.post('/:id/status', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
     const target = req.body?.status as SupplierStatus | undefined;
     if (!target || !(target in STATUS_TRANSITIONS)) {
@@ -165,8 +216,71 @@ suppliersRouter.post('/:id/status', requirePermission('supplier.manage'), async 
   }
 });
 
+// GET /api/suppliers/:id/members — list members (platform).
+suppliersRouter.get('/:id/members', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
+  const members = await prisma.supplierMember.findMany({
+    where: { supplierId: req.params.id as string },
+    orderBy: { createdAt: 'asc' },
+  });
+  return res.json({ ok: true, data: members } satisfies ApiResponse);
+});
+
+// POST /api/suppliers/:id/members — link a user to the supplier (platform).
+// Body: { userId? , email?, role? } — resolve by email if userId omitted.
+suppliersRouter.post('/:id/members', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
+  try {
+    const { userId, email, role } = req.body || {};
+    const supplier = await prisma.supplier.findUnique({ where: { id: req.params.id as string } });
+    if (!supplier) {
+      return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
+    }
+
+    let resolvedUserId = userId as string | undefined;
+    if (!resolvedUserId && email) {
+      const u = await prisma.user.findUnique({ where: { email: String(email).toLowerCase().trim() }, select: { id: true } });
+      if (!u) return res.status(404).json({ ok: false, error: 'Пользователь с таким email не найден' } satisfies ApiResponse);
+      resolvedUserId = u.id;
+    }
+    if (!resolvedUserId) {
+      return res.status(400).json({ ok: false, error: 'userId или email обязателен' } satisfies ApiResponse);
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { id: true } });
+    if (!user) {
+      return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
+    }
+
+    const member = await prisma.supplierMember.upsert({
+      where: { userId_supplierId: { userId: resolvedUserId, supplierId: supplier.id } },
+      create: { userId: resolvedUserId, supplierId: supplier.id, role: role || 'owner' },
+      update: { role: role || 'owner' },
+    });
+    return res.status(201).json({ ok: true, data: member } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Add supplier member error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при добавлении участника' } satisfies ApiResponse);
+  }
+});
+
+// DELETE /api/suppliers/:id/members/:userId — unlink (platform).
+suppliersRouter.delete('/:id/members/:userId', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
+  try {
+    await prisma.supplierMember.delete({
+      where: {
+        userId_supplierId: {
+          userId: req.params.userId as string,
+          supplierId: req.params.id as string,
+        },
+      },
+    });
+    return res.json({ ok: true, data: { ok: true } } satisfies ApiResponse);
+  } catch {
+    return res.status(404).json({ ok: false, error: 'Участник не найден' } satisfies ApiResponse);
+  }
+});
+
 // POST /api/suppliers/:id/documents — attach a document (platform).
-suppliersRouter.post('/:id/documents', requirePermission('supplier.manage'), async (req: AuthRequest, res) => {
+suppliersRouter.post('/:id/documents', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
     const { type, url } = req.body || {};
     if (!type || !url) {

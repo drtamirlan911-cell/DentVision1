@@ -273,6 +273,18 @@ async function supplierFetch(path: string, token: string, options: RequestInit =
   return data.data !== undefined ? data.data : data;
 }
 
+export const lecturerWs = {
+  me: (t: string) => supplierFetch('/api/lecturer/me', t),
+  updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/lecturer/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
+  courses: (t: string) => supplierFetch('/api/lecturer/courses', t),
+  createCourse: (t: string, b: Record<string, unknown>) => supplierFetch('/api/lecturer/courses', t, { method: 'POST', body: JSON.stringify(b) }),
+  updateCourse: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/lecturer/courses/${id}`, t, { method: 'PATCH', body: JSON.stringify(b) }),
+  deleteCourse: (t: string, id: string) => supplierFetch(`/api/lecturer/courses/${id}`, t, { method: 'DELETE' }),
+  wallet: (t: string) => supplierFetch('/api/lecturer/wallet', t),
+  analytics: (t: string) => supplierFetch('/api/lecturer/analytics', t),
+  requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/lecturer/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
+};
+
 export const supplierWs = {
   me: (t: string) => supplierFetch('/api/supplier/me', t),
   updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
@@ -1136,24 +1148,117 @@ export async function createSchoolLibraryItem(data: any): Promise<any> { return 
 export async function deleteSchoolLibraryItem(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
 
 // ─── User Professional Profile (LinkedIn-style) ───
-export async function getMyProfile(): Promise<any> { return Promise.resolve({}); }
-export async function getPublicProfile(identifier: string): Promise<any> { return Promise.resolve({}); }
-export async function updateMyProfile(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function getMyProfile(): Promise<any> {
+  return apiRequest('/api/profile');
+}
+export async function getPublicProfile(identifier: string): Promise<any> {
+  return apiRequest(`/api/profile/${encodeURIComponent(identifier)}`);
+}
+export async function updateMyProfile(data: any): Promise<any> {
+  return apiRequest('/api/profile', { method: 'PUT', body: JSON.stringify(data) });
+}
 
-export async function addSkill(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteSkill(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addSkill(data: any): Promise<any> {
+  return apiRequest('/api/profile/skills', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deleteSkill(id: string): Promise<any> {
+  return apiRequest(`/api/profile/skills/${id}`, { method: 'DELETE' });
+}
 
-export async function addCertificate(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteCertificate(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addCertificate(data: any): Promise<any> {
+  return apiRequest('/api/profile/certificates', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deleteCertificate(id: string): Promise<any> {
+  return apiRequest(`/api/profile/certificates/${id}`, { method: 'DELETE' });
+}
 
-export async function addAchievement(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteAchievement(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addAchievement(data: any): Promise<any> {
+  return apiRequest('/api/profile/achievements', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deleteAchievement(id: string): Promise<any> {
+  return apiRequest(`/api/profile/achievements/${id}`, { method: 'DELETE' });
+}
 
-export async function addPortfolioItem(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deletePortfolioItem(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addPortfolioItem(data: any): Promise<any> {
+  return apiRequest('/api/profile/portfolio', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deletePortfolioItem(id: string): Promise<any> {
+  return apiRequest(`/api/profile/portfolio/${id}`, { method: 'DELETE' });
+}
 
-export async function addCase(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteCase(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addCase(data: any): Promise<any> {
+  return apiRequest('/api/profile/cases', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deleteCase(id: string): Promise<any> {
+  return apiRequest(`/api/profile/cases/${id}`, { method: 'DELETE' });
+}
+
+/** Self-serve: register as a supplier company and become owner. */
+export async function registerAsSupplier(data: {
+  name: string;
+  kind?: string;
+  bin?: string;
+  legalAddress?: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+}): Promise<any> {
+  return apiRequest('/api/suppliers/register', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Platform: link a user to a supplier by email or userId. */
+export async function addSupplierMember(supplierId: string, body: { email?: string; userId?: string; role?: string }): Promise<any> {
+  return apiRequest(`/api/suppliers/${supplierId}/members`, { method: 'POST', body: JSON.stringify(body) });
+}
+
+// ─── Hidden platform ops (SUPERADMIN + X-Platform-Ops-Key) ───
+const OPS_KEY_SESSION = 'dv_ops_key';
+
+function getOpsKey(): string {
+  try { return sessionStorage.getItem(OPS_KEY_SESSION) || ''; } catch { return ''; }
+}
+
+async function opsRequest(path: string, options: RequestInit = {}): Promise<any> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  const opsKey = getOpsKey();
+  if (opsKey) headers['X-Platform-Ops-Key'] = opsKey;
+  if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) return data.data;
+  return data;
+}
+
+export async function opsListSuppliers(params: { status?: string; search?: string; page?: number } = {}): Promise<any> {
+  const q = new URLSearchParams();
+  if (params.status) q.set('status', params.status);
+  if (params.search) q.set('search', params.search);
+  if (params.page) q.set('page', String(params.page));
+  const qs = q.toString();
+  return opsRequest(`/api/ops/suppliers${qs ? `?${qs}` : ''}`);
+}
+
+export async function opsSetSupplierStatus(id: string, status: string): Promise<any> {
+  return opsRequest(`/api/ops/suppliers/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function opsAddSupplierMember(
+  id: string,
+  body: { email?: string; userId?: string; role?: string },
+): Promise<any> {
+  return opsRequest(`/api/ops/suppliers/${id}/members`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
 
 // ─── AI Intelligence ───
 export interface AIChatResponse {
