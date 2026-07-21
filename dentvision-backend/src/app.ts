@@ -161,6 +161,8 @@ app.use('/api/suppliers', suppliersRouter);
 app.use('/api/supplier', supplierWorkspaceRouter);
 app.use('/api/lecturer', lecturerRouter);
 app.use('/api/school', schoolRouter);
+app.use('/api/academies', academiesRouter);
+app.use('/api/lecturers', lecturersRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/guest', guestRouter);
 app.use('/api/analytics', analyticsRouter);

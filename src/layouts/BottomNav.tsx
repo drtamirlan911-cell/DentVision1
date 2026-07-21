@@ -19,7 +19,7 @@ const ITEMS: BottomNavItem[] = [
   { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} />, path: '/crm/schedule', color: '#C9A96E', requiresAuth: true },
   { id: 'shop', label: 'Маркет', icon: <ShoppingCart size={18} />, path: '/shop', color: '#8E44AD', requiresAuth: false },
   { id: 'ai', label: 'AI', icon: <Bot size={18} />, path: '/', color: '#D4AF37', requiresAuth: false },
-  { id: 'school', label: 'Учёба', icon: <GraduationCap size={18} />, path: '/school', color: '#16A085', requiresAuth: false },
+  { id: 'school', label: 'Academy', icon: <GraduationCap size={18} />, path: '/school', color: '#16A085', requiresAuth: false },
   { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={18} />, path: '/analytics', color: '#F39C12', requiresAuth: true },
 ];
 

@@ -17,6 +17,8 @@ interface Lesson {
   is_free?: boolean;
   videoUrl?: string;
   video_url?: string;
+  fileUrl?: string;
+  file_url?: string;
 }
 
 interface CourseModule {
@@ -40,8 +42,8 @@ interface CourseDetail {
 
 const DIFF_COLORS: Record<string, string> = { beginner: '#27AE60', intermediate: '#C9A96E', advanced: '#E74C3C' };
 const DIFF_LABELS: Record<string, string> = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
-const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = { video: Video, text: FileText, test: HelpCircle };
-const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест', exam: 'Экзамен', quiz: 'Квиз', pdf: 'PDF' };
+const TYPE_ICONS: Record<string, any> = { video: Video, text: FileText, test: HelpCircle, exam: Award, quiz: HelpCircle, homework: FileText, pdf: FileText };
+const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест', exam: 'Экзамен', quiz: 'Квиз', pdf: 'PDF', homework: 'ДЗ' };
 
 function parseLessons(raw: any): string[] {
   if (!raw) return [];
@@ -80,12 +82,14 @@ export default function SchoolCourse() {
   ]);
 
   useEffect(() => {
+    if (!id) return;
     Promise.all([
       api.getSchoolCourse(id),
       user ? api.getEnrollments(user.id) : Promise.resolve([]),
-    ]).then(([c, enr]: [CourseDetail, any[]]) => {
+    ]).then(([c, enr]: [CourseDetail, any]) => {
       setCourse(c);
-      const e = enr?.find(x => x.courseId === id);
+      const list = Array.isArray(enr) ? enr : (enr?.data || []);
+      const e = list.find((x: any) => x.courseId === id);
       if (e) {
         setEnrolled(true);
         setEnrollmentId(e.id);
@@ -105,7 +109,7 @@ export default function SchoolCourse() {
     if (!enrolled) return;
     setExamLoading(true);
     api.getLessonExam(activeLesson.id)
-      .then((payload) => setExam(payload?.exam || null))
+      .then((payload) => setExam(payload || null))
       .catch(() => setExam(null))
       .finally(() => setExamLoading(false));
   }, [activeLesson?.id, enrolled]);
@@ -115,7 +119,7 @@ export default function SchoolCourse() {
 
   const handleEnroll = async () => {
     try {
-      const res = await api.enrollCourse({ course_id: id, clinic_id: activeClinic?.id || null });
+      const res = await api.enrollCourse({ courseId: id, course_id: id, clinic_id: activeClinic?.id || null });
       setEnrolled(true);
       setEnrollmentId(res.id);
     } catch { toast.showToast('Не удалось записаться', 'error'); }
@@ -154,7 +158,7 @@ export default function SchoolCourse() {
         if (result.certificate) setCertificate(result.certificate);
         toast.showToast(`Сдано: ${result.score}%`, 'success');
       } else {
-        toast.showToast(`Не сдано: ${result.score}% (нужно ${result.passingScore}%)`, 'warning');
+        toast.showToast(`Не сдано: ${result.score}% (нужно ${result.passingScore || result.passScore || 70}%)`, 'warning');
       }
     } catch {
       toast.showToast('Не удалось отправить экзамен', 'error');
@@ -210,7 +214,7 @@ export default function SchoolCourse() {
             onClick={() => navigate('/school')}
             className="flex items-center gap-1 bg-transparent border-none text-[#C9A96E] cursor-pointer font-inherit text-xs"
           >
-            <ArrowLeft size={14} /> School
+            <ArrowLeft size={14} /> Academy OS
           </button>
           <ChevronRight size={12} />
           <span>{course.category}</span>
@@ -387,7 +391,7 @@ export default function SchoolCourse() {
                       </h3>
                       <p className="text-sm text-txt-secondary">
                         Результат: <span className="text-dv-gold font-semibold">{examResult.score}%</span>
-                        {' '}· порог {examResult.passingScore}% · верно {examResult.correct}/{examResult.total}
+                        {' '}· порог {examResult.passingScore || examResult.passScore || 70}% · верно {examResult.correct}/{examResult.total}
                       </p>
                       {examResult.certificate && (
                         <div className="rounded-xl border border-dv-gold/30 bg-dv-gold/10 p-3 text-sm text-dv-gold">
@@ -408,7 +412,7 @@ export default function SchoolCourse() {
                       <div>
                         <h3 className="text-base font-bold text-white">{exam.title || activeLesson.title}</h3>
                         <p className="text-xs text-txt-muted mt-1">
-                          {exam.questionCount || exam.questions?.length || 0} вопросов · проходной балл {exam.passingScore}%
+                          {exam.questionCount || exam.questions?.length || 0} вопросов · проходной балл {exam.passingScore || exam.passScore || 70}%
                         </p>
                       </div>
                       {(exam.questions || []).map((q: any, qi: number) => (
