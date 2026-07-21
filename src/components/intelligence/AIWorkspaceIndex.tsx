@@ -116,14 +116,24 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
       const restored = restoreThread(user?.id)
       if (restored?.length) {
-        setMessages(restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })))
-        historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
-        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
-        setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
-      } else {
-        await initializeWorkspace()
-        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
+        // Guests must never reopen stale CRM briefings/chips from a previous session.
+        const looksLikeClinicCrm = isGuest && restored.some((m) =>
+          m.role === 'assistant' &&
+          (/расписан|выручк|долг|запис(и|ей)|briefing|важн(о|ые) сегодня|CRM/i.test(m.content) ||
+            /Показать расписание|Проверить долги|Показать выручку/.test(m.content)),
+        )
+        if (looksLikeClinicCrm) {
+          try { localStorage.removeItem('dv_ai_thread_guest') } catch { /* ignore */ }
+        } else {
+          setMessages(restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })))
+          historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
+          trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
+          setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
+          return
+        }
       }
+      await initializeWorkspace()
+      trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
     })()
   }, [user?.id, isGuest])
 

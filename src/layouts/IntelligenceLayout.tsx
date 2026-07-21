@@ -124,8 +124,31 @@ export const IntelligenceLayout: React.FC = () => {
     return () => clearTimeout(t);
   }, [loadProactiveAlerts]);
 
+  // Guests always get a labeled expanded sidebar (never icon-only rail).
+  useEffect(() => {
+    if (!isGuest) return;
+    setSidebarVisible(true);
+    setSidebarCollapsed(false);
+    setFirstRunPhase('done');
+    completeFirstRun();
+    setOnboardingComplete(true);
+    firstRunBooted.current = true;
+    // Show the right twin panel by default so guests see the platform guide.
+    if (!isMobile) setContextSheetOpen(true);
+  }, [
+    isGuest,
+    isMobile,
+    setSidebarVisible,
+    setSidebarCollapsed,
+    setFirstRunPhase,
+    completeFirstRun,
+    setOnboardingComplete,
+    setContextSheetOpen,
+  ]);
+
   // ── First-run: greeting → functional sidebar dock → 15s collapse ──
   useEffect(() => {
+    if (isGuest) return;
     if (firstRunBooted.current) return;
     if (firstRunPhase === 'done') {
       setSidebarVisible(true);
@@ -154,6 +177,7 @@ export const IntelligenceLayout: React.FC = () => {
 
     return () => clearTimeout(dockTimer);
   }, [
+    isGuest,
     firstRunPhase,
     isAIHome,
     setSidebarVisible,
@@ -166,6 +190,7 @@ export const IntelligenceLayout: React.FC = () => {
 
   // 15s auto-collapse after dock (pause while hovering / pinned)
   useEffect(() => {
+    if (isGuest) return;
     if (firstRunPhase !== 'docked' || sidebarPinned || isMobile) return;
 
     const clear = () => {
@@ -190,6 +215,7 @@ export const IntelligenceLayout: React.FC = () => {
 
     return clear;
   }, [
+    isGuest,
     firstRunPhase,
     sidebarPinned,
     sidebarHovering,

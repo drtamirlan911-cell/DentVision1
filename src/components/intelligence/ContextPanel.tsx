@@ -19,10 +19,10 @@ interface ContextPanelProps {
 }
 
 export function ContextPanel({ onClose }: ContextPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('context')
-  const alertCount = useAIStore((s) => s.proactiveAlerts.length)
   const { user } = useAuth()
   const isGuest = useGuestStore((s) => s.isGuest) && !user
+  const [activeTab, setActiveTab] = useState<TabId>(isGuest ? 'digital-twin' : 'context')
+  const alertCount = useAIStore((s) => s.proactiveAlerts.length)
 
   const tabs: { id: TabId; label: string; hint: string; icon: React.ElementType }[] = [
     {
@@ -98,7 +98,7 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <AnimatePresence mode="wait">
           {activeTab === 'context' && (
             <motion.div

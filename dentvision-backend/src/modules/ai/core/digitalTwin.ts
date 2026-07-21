@@ -45,20 +45,28 @@ function isClinicOps(role: TwinRole): boolean {
 }
 
 /** Product guide twin for anonymous guests — not an empty clinic CRM profile. */
+function sanitizeGuestDisplayName(raw?: string | null): string {
+  const v = String(raw || '').trim();
+  if (!v || /Р.|Ð.|Ñ./.test(v) || !/[А-Яа-яA-Za-z]/.test(v)) return 'Гость';
+  if (/^gost/i.test(v)) return 'Гость';
+  return v;
+}
+
 export function buildGuestPlatformTwin(user?: {
   firstName?: string | null;
   lastName?: string | null;
   email?: string | null;
 } | null) {
-  const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+  const rawName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
     || (user?.email?.endsWith('@guest.local') ? 'Гость' : null)
     || 'Гость';
+  const name = sanitizeGuestDisplayName(rawName);
 
   return {
     role: 'GUEST',
     roleLabel: 'Гость',
     profileKind: 'platform' as const,
-    name,
+    name: sanitizeGuestDisplayName(name),
     title: 'Гид по DentVision',
     specialty: 'Платформенный гид',
     clinic: null,
