@@ -68,6 +68,8 @@ const DEFAULT_SETTINGS: ClinicSettings = {
   taxPercent: 0,
   notifyNoShow: true,
   requireChair: false,
+  autoDeductItems: '',
+  bookingLink: '',
 }
 
 interface OutletCtx {
@@ -96,6 +98,12 @@ export default function ClinicSettingsPage() {
   const [inviteCode, setInviteCode] = useState<string | null>(null)
   const [inviteSaving, setInviteSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+
+  const bookingUrl = useMemo(() => {
+    if (!clinicId || typeof window === 'undefined') return ''
+    return `${window.location.origin}/book/${clinicId}`
+  }, [clinicId])
 
   const clinicQ = useQuery({
     queryKey: ['clinic-settings', clinicId],
@@ -240,6 +248,18 @@ export default function ClinicSettingsPage() {
       setCopied(true)
       showToast('Код скопирован', 'success')
       setTimeout(() => setCopied(false), 2000)
+    } catch {
+      showToast('Не удалось скопировать', 'warning')
+    }
+  }
+
+  const copyBookingLink = async () => {
+    if (!bookingUrl) return
+    try {
+      await navigator.clipboard.writeText(bookingUrl)
+      setCopiedLink(true)
+      showToast('Ссылка скопирована', 'success')
+      setTimeout(() => setCopiedLink(false), 2000)
     } catch {
       showToast('Не удалось скопировать', 'warning')
     }
@@ -449,6 +469,21 @@ export default function ClinicSettingsPage() {
                 onCheckedChange={(v: boolean) => setSettings({ ...settings, notifyNoShow: v })}
               />
             </div>
+            <Input
+              label="Авто-списание со склада (KazDent)"
+              value={settings.autoDeductItems || ''}
+              onChange={(e) => setSettings({ ...settings, autoDeductItems: e.target.value })}
+              placeholder="Перчатки:1, Маска:1, Слюноотсос:1"
+            />
+            <p className="text-2xs text-txt-muted -mt-2">
+              При закрытии приёма эти позиции спишутся со склада (имя должно совпадать со складом).
+            </p>
+            <Input
+              label="Ссылка онлайн-записи"
+              value={settings.bookingLink || ''}
+              onChange={(e) => setSettings({ ...settings, bookingLink: e.target.value })}
+              placeholder="https://instagram.com/… или 2GIS"
+            />
           </CardContent>
         </Card>
       </motion.div>

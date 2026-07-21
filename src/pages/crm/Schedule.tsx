@@ -6,7 +6,7 @@ import {
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
   WifiOff, CloudOff,
 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'
 import { queryKeys } from '@/queries/keys'
 import * as api from '@/utils/api'
@@ -32,7 +32,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
-import type { Appointment, Patient, WaitingListItem, User } from '@/types'
+import type { Appointment, Patient, WaitingListItem, User, Booking } from '@/types'
 
 const STATUS_CFG = APPOINTMENT_STATUS
 const WORK_START = '08:00'
@@ -68,15 +68,16 @@ const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { stag
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function Schedule() {
-  const { user, roleInfo } = useAuth()
+  const { user, roleInfo, clinic: activeClinic } = useAuth()
   const clinic = user?.clinicId ? { id: user.clinicId } : null
   const {
-    appointments: liveAppointments, patients, doctors, waitingList,
+    appointments: liveAppointments, patients, doctors, waitingList, receipts,
     upsertAppointment: upsertAppointmentApi, deleteAppointment,
     upsertPatient, upsertReceipt,
     upsertWaitingListItem, deleteWaitingListItem,
   } = useDataQuery(clinic?.id)
 
+  const queryClient = useQueryClient()
   const chairsQ = useQuery({
     queryKey: queryKeys.chairs,
     queryFn: () => api.getChairs(clinic?.id),
@@ -95,6 +96,12 @@ export default function Schedule() {
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all')
   const [activeTab, setActiveTab] = useState('schedule')
   const [waitModalOpen, setWaitModalOpen] = useState(false)
+  const [closeOpen, setCloseOpen] = useState(false)
+  const [closeAppt, setCloseAppt] = useState<Appointment | null>(null)
+  const [closeNotes, setCloseNotes] = useState('')
+  const [closeServices, setCloseServices] = useState<Array<{ name: string; price: number; matCost: number }>>([])
+  const [priceOptions, setPriceOptions] = useState<Array<{ name: string; price: number; matCost: number }>>([])
+  const [closeSaving, setCloseSaving] = useState(false)
   const [waitForm, setWaitForm] = useState(EMPTY_WAIT)
   const [editWaitId, setEditWaitId] = useState<string | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
@@ -177,6 +184,14 @@ export default function Schedule() {
       return !pref || pref === selDate
     }),
     [waitingList, selDate]
+  )
+
+  const pendingBookings = useMemo(
+    () => (bookings as Booking[]).filter((b) => {
+      if (b.status !== 'pending') return false
+      return !b.date || b.date === selDate
+    }),
+    [bookings, selDate]
   )
 
   const weekStart = useMemo(() => getWeekStart(selDate), [selDate])
@@ -311,6 +326,107 @@ export default function Schedule() {
     setDragged(null)
   }
   const handleDelete = async (): Promise<void> => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
+
+  const openCloseVisit = async (appt: Appointment) => {
+    setCloseAppt(appt)
+    setCloseNotes(appt.notes || '')
+    setCloseServices(appt.service || appt.serviceName
+      ? [{ name: String(appt.service || appt.serviceName), price: Number(appt.servicePrice || 0), matCost: Number((appt as any).matCost || 0) }]
+      : [])
+    setCloseOpen(true)
+    setModalOpen(false)
+    try {
+      const rows = await api.getPriceList()
+      const opts = (rows || []).map((r: any) => ({
+        name: r.name || r.serviceCode,
+        price: Number(r.price || 0),
+        matCost: Number(r.matCost || 0),
+      })).filter((r: any) => r.name)
+      // Also include catalog defaults lightly
+      setPriceOptions(opts)
+    } catch {
+      setPriceOptions([])
+    }
+  }
+
+  const handleCloseVisit = async () => {
+    if (!closeAppt) return
+    setCloseSaving(true)
+    try {
+      const res = await api.closeAppointment(closeAppt.id, {
+        notes: closeNotes,
+        services: closeServices,
+        paymentStatus: closeAppt.paymentStatus || 'unpaid',
+      })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.inventory })
+      showToast(
+        res?.deducted?.length
+          ? `Приём закрыт. Склад: ${res.deducted.join(', ')}`
+          : 'Приём закрыт',
+        'success',
+      )
+      setCloseOpen(false)
+      setCloseAppt(null)
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось закрыть приём', 'error')
+    } finally {
+      setCloseSaving(false)
+    }
+  }
+
+  const printDaySchedule = () => {
+    const rows = dayAppts.map((a) => {
+      const p = patients.find((x) => x.id === a.patientId)
+      const d = doctors.find((x) => x.id === a.doctorId)
+      return `<tr><td>${a.time || ''}</td><td>${d?.name || '—'}</td><td>${p?.name || a.patientName || '—'}</td><td>${a.service || a.reason || '—'}</td><td>${p?.phone || a.patientPhone || '—'}</td></tr>`
+    }).join('')
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Расписание ${selDate}</title>
+      <style>body{font-family:sans-serif;padding:24px} table{width:100%;border-collapse:collapse;margin-top:16px} th,td{border:1px solid #333;padding:8px;text-align:left} th{background:#eee}</style></head>
+      <body><h1>Расписание на ${selDate}</h1><p>${activeClinic?.name || 'Клиника'}</p>
+      <table><thead><tr><th>Время</th><th>Врач</th><th>Пациент</th><th>Услуга</th><th>Телефон</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Нет записей</td></tr>'}</tbody></table>
+      <script>window.onload=()=>window.print()</script></body></html>`
+    const w = window.open('', '_blank')
+    if (w) { w.document.write(html); w.document.close() }
+  }
+
+  const printZReport = async () => {
+    let byMethod: Record<string, number> = {}
+    let total = 0
+    try {
+      const report = await api.getFinanceReport({ from: selDate, to: selDate })
+      for (const row of report?.byMethod || []) {
+        byMethod[row.method] = Number(row.revenue || 0)
+        total += Number(row.revenue || 0)
+      }
+    } catch { /* fallback below */ }
+    if (total === 0) {
+      const dayReceipts = (receipts || []).filter((r: any) => {
+        const d = String(r.date || r.paidAt || r.createdAt || '').slice(0, 10)
+        return d === selDate && ['paid', 'completed', 'PAID'].includes(String(r.status || ''))
+      })
+      byMethod = {}
+      total = 0
+      for (const r of dayReceipts) {
+        const m = r.payMethod || 'Прочее'
+        byMethod[m] = (byMethod[m] || 0) + Number(r.total || r.amount || 0)
+        total += Number(r.total || r.amount || 0)
+      }
+    }
+    const doneAppts = dayAppts.filter((a) => ['done', 'completed'].includes(a.status))
+    const unpaid = doneAppts.filter((a) => a.paymentStatus !== 'paid')
+    const methodRows = Object.entries(byMethod).map(([m, v]) => `<tr><td>${m}</td><td style="text-align:right">${v.toLocaleString('ru-RU')} ₸</td></tr>`).join('')
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Z-отчёт ${selDate}</title>
+      <style>body{font-family:sans-serif;padding:24px} table{width:100%;border-collapse:collapse;margin-top:12px} th,td{border:1px solid #333;padding:8px}</style></head>
+      <body><h1>Z-отчёт кассы</h1><p>${activeClinic?.name || ''} · ${selDate}</p>
+      <p>Завершённых приёмов: <b>${doneAppts.length}</b> · Без оплаты: <b>${unpaid.length}</b></p>
+      <h3>По способам оплаты</h3>
+      <table><thead><tr><th>Способ</th><th>Сумма</th></tr></thead><tbody>${methodRows || '<tr><td colspan="2">Нет оплат</td></tr>'}</tbody>
+      <tfoot><tr><th>Итого</th><th style="text-align:right">${total.toLocaleString('ru-RU')} ₸</th></tr></tfoot></table>
+      <script>window.onload=()=>window.print()</script></body></html>`
+    const w = window.open('', '_blank')
+    if (w) { w.document.write(html); w.document.close() }
+  }
   const shiftDate = (days: number): void => { const d = new Date(selDate); d.setDate(d.getDate() + days); setSelDate(d.toISOString().slice(0, 10)) }
   const shiftPeriod = (dir: -1 | 1): void => shiftDate(periodMode === 'week' ? dir * 7 : dir)
 
@@ -350,6 +466,28 @@ export default function Schedule() {
   }
 
   const handleDeleteWait = async (id: string): Promise<void> => { await deleteWaitingListItem(id); showToast('Удалено', 'success') }
+
+  const handleConfirmBooking = async (b: Booking): Promise<void> => {
+    try {
+      await api.confirmBooking(b.id)
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings })
+      queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients })
+      showToast('Заявка подтверждена — запись создана', 'success')
+    } catch (e: any) {
+      showToast(e?.message || 'Не удалось подтвердить', 'error')
+    }
+  }
+
+  const handleRejectBooking = async (id: string): Promise<void> => {
+    try {
+      await api.deleteBooking(id)
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings })
+      showToast('Заявка отклонена', 'success')
+    } catch {
+      showToast('Ошибка', 'error')
+    }
+  }
 
   const handlePromoteFromWait = async (w: any): Promise<void> => {
     setForm({ ...EMPTY_FORM, patientId: w.patient_id || '', doctorId: w.doctor_id || '', time: w.preferred_time || '09:00', service: w.preferred_service || '' })
@@ -434,7 +572,13 @@ export default function Schedule() {
       {/* Header */}
       <motion.div variants={fadeUp} className="flex items-center justify-between gap-3">
         <PageHeader title="Расписание" subtitle="Управление записями и лист ожидания" icon={<Calendar size={20} />} />
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+          <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
+            <span className="hidden sm:inline">Печать дня</span>
+          </Button>
+          <Button variant="secondary" onClick={printZReport} icon={<ClipboardCheck size={14} />}>
+            <span className="hidden sm:inline">Z-отчёт</span>
+          </Button>
           <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>Касса</Button>
           <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
           <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
@@ -476,6 +620,7 @@ export default function Schedule() {
           tabs={[
             { id: 'schedule', label: 'Расписание', icon: <Calendar size={14} /> },
             { id: 'waiting', label: `Лист ожидания`, count: dayWaitList.length },
+            { id: 'online', label: 'Онлайн-запись', icon: <Globe size={14} />, count: pendingBookings.length },
           ]}
           active={activeTab}
           onChange={setActiveTab}
@@ -701,7 +846,7 @@ export default function Schedule() {
             </>
           )}
         </>
-      ) : (
+      ) : activeTab === 'waiting' ? (
         /* Waiting List */
         <motion.div variants={fadeUp}>
           <Card padding="none">
@@ -738,6 +883,65 @@ export default function Schedule() {
                             <Button size="icon-xs" variant="ghost" onClick={() => handlePromoteFromWait(w)} title="Записать"><CheckCircle size={13} className="text-success" /></Button>
                             <Button size="icon-xs" variant="ghost" onClick={() => { setEditWaitId(w.id); setWaitForm({ patientId: w.patient_id || '', patientName: w.patient_name || '', patientPhone: w.patient_phone || '', doctorId: w.doctor_id || '', preferredDate: w.preferred_date || '', preferredTime: w.preferred_time || '', preferredService: w.preferred_service || '', notes: w.notes || '' }); setWaitModalOpen(true) }} title="Редактировать"><GripVertical size={13} className="text-dv-gold" /></Button>
                             <Button size="icon-xs" variant="ghost" onClick={() => handleDeleteWait(w.id)} title="Удалить"><Trash2 size={13} className="text-error" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </motion.div>
+      ) : (
+        /* Online bookings */
+        <motion.div variants={fadeUp}>
+          <Card padding="none">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-bdr-subtle">
+              <div className="flex items-center gap-2">
+                <Globe size={16} className="text-dv-gold" />
+                <span className="text-sm font-semibold text-txt-primary">Онлайн-заявки</span>
+                <Badge variant="gold" size="xs">{pendingBookings.length}</Badge>
+              </div>
+              {clinic?.id && (
+                <Button size="sm" variant="outline" onClick={() => window.open(`/book/${clinic.id}`, '_blank')}>
+                  Страница записи
+                </Button>
+              )}
+            </div>
+            {pendingBookings.length === 0 ? (
+              <EmptyState
+                icon={<Globe size={32} />}
+                title="Нет новых заявок"
+                description="Поделитесь ссылкой онлайн-записи с пациентами — заявки появятся здесь"
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-bdr-subtle">
+                      {['Пациент', 'Телефон', 'Дата', 'Время', 'Врач', 'Услуга', 'Действия'].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-left text-2xs font-semibold text-txt-muted uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingBookings.map((b) => (
+                      <tr key={b.id} className="border-b border-bdr-subtle hover:bg-white/[0.02] transition-colors">
+                        <td className="px-4 py-2.5 font-medium text-txt-primary">{b.patientName || '—'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{b.patientPhone || b.phone || '—'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{b.date ? b.date.split('-').reverse().join('.') : '—'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{b.time || '—'}</td>
+                        <td className="px-4 py-2.5 text-dv-gold">{(b as any).doctorName || 'Любой'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{b.serviceName || '—'}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex gap-1">
+                            <Button size="icon-xs" variant="ghost" onClick={() => handleConfirmBooking(b)} title="Подтвердить">
+                              <CheckCircle size={13} className="text-success" />
+                            </Button>
+                            <Button size="icon-xs" variant="ghost" onClick={() => handleRejectBooking(b.id)} title="Отклонить">
+                              <XCircle size={13} className="text-error" />
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -847,12 +1051,90 @@ export default function Schedule() {
 
           <Input label="Заметки" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Дополнительная информация" />
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-2 flex-wrap">
             <Button type="submit" className="flex-1">{editAppt ? 'Сохранить' : 'Сохранить'}</Button>
+            {editAppt && !['done', 'completed', 'cancelled'].includes(editAppt.status) && (
+              <Button type="button" variant="secondary" icon={<ClipboardCheck size={14} />} onClick={() => openCloseVisit(editAppt)}>
+                Закрыть приём
+              </Button>
+            )}
             {editAppt && <Button type="button" variant="danger" onClick={handleDelete} icon={<Trash2 size={14} />} />}
             <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={closeOpen} onClose={() => setCloseOpen(false)} title="Закрыть приём" size="lg">
+        {closeAppt && (
+          <div className="space-y-4">
+            <p className="text-sm text-txt-secondary">
+              Укажите выполненные услуги и заметки — как в KazDent. При включённом авто-списании материалы уйдут со склада.
+            </p>
+            <Input
+              label="Заметки врача"
+              value={closeNotes}
+              onChange={(e) => setCloseNotes(e.target.value)}
+              placeholder="Лечение, рекомендации, швы…"
+            />
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-txt-muted uppercase tracking-wider">Услуги</p>
+              {closeServices.map((s, idx) => (
+                <div key={idx} className="flex gap-2 items-end">
+                  <Input
+                    label="Услуга"
+                    value={s.name}
+                    onChange={(e) => {
+                      const next = [...closeServices]
+                      next[idx] = { ...next[idx], name: e.target.value }
+                      setCloseServices(next)
+                    }}
+                    className="flex-1"
+                  />
+                  <Input
+                    label="Цена"
+                    type="number"
+                    value={s.price || ''}
+                    onChange={(e) => {
+                      const next = [...closeServices]
+                      next[idx] = { ...next[idx], price: Number(e.target.value) }
+                      setCloseServices(next)
+                    }}
+                    className="w-28"
+                  />
+                  <Button variant="ghost" size="icon-sm" icon={<Trash2 size={14} />} onClick={() => setCloseServices(closeServices.filter((_, i) => i !== idx))} />
+                </div>
+              ))}
+              <div className="flex gap-2 flex-wrap">
+                <Select
+                  label="Из прайса"
+                  value=""
+                  onChange={(e) => {
+                    const opt = priceOptions.find((p) => p.name === e.target.value)
+                    if (!opt) return
+                    setCloseServices([...closeServices, { ...opt }])
+                  }}
+                  options={[{ value: '', label: '— добавить услугу —' }, ...priceOptions.map((p) => ({ value: p.name, label: `${p.name} · ${p.price}` }))]}
+                />
+                <Button
+                  variant="secondary"
+                  className="self-end"
+                  onClick={() => setCloseServices([...closeServices, { name: '', price: 0, matCost: 0 }])}
+                >
+                  Своя строка
+                </Button>
+              </div>
+              <p className="text-sm font-semibold text-dv-gold">
+                Итого: {closeServices.reduce((s, x) => s + Number(x.price || 0), 0).toLocaleString('ru-RU')} ₸
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" disabled={closeSaving} onClick={handleCloseVisit}>
+                {closeSaving ? 'Сохранение…' : 'Завершить приём'}
+              </Button>
+              <Button variant="ghost" onClick={() => setCloseOpen(false)}>Отмена</Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Waiting List Modal */}

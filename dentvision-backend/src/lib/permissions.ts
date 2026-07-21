@@ -21,21 +21,6 @@ export const PERMISSIONS = {
   INVENTORY_READ: 'inventory.read',
   INVENTORY_WRITE: 'inventory.write',
   INVENTORY_DELETE: 'inventory.delete',
-  // Ecosystem / marketplace governance (Phase 2). supplier.manage is a
-  // platform-level capability — granted to no clinic role, so only SUPERADMIN
-  // (wildcard) passes today; scoped SUPPLIER memberships arrive in a later phase.
-  SUPPLIER_MANAGE: 'supplier.manage',
-  // School governance (Phase 3). Platform-level, like supplier.manage.
-  ACADEMY_MANAGE: 'academy.manage',
-  // Finance (Phase 4). Platform-level (payouts, commission rules, ledger ops).
-  FINANCE_MANAGE: 'finance.manage',
-  // Compliance & ecosystem analytics (Phase 7). Platform-level.
-  COMPLIANCE_MANAGE: 'compliance.manage',
-  PLATFORM_ANALYTICS: 'platform.analytics',
-  // Partner Program (Phase 11). Platform-level.
-  PARTNER_MANAGE: 'partner.manage',
-  // Workflow Studio (Phase 9). Clinic-level automation management.
-  WORKFLOW_MANAGE: 'workflow.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -49,19 +34,16 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
-    'workflow.manage',
   ],
   ADMIN: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
-    'workflow.manage',
   ],
   MANAGER: [
     'patient.read', 'patient.write',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write',
-    'workflow.manage',
   ],
   DOCTOR: [
     'patient.read', 'patient.write',

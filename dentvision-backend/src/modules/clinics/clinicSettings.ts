@@ -31,6 +31,10 @@ export interface ClinicSettingsPayload {
   taxPercent?: number;
   notifyNoShow?: boolean;
   requireChair?: boolean;
+  /** KazDent donor: "Перчатки:1, Маска:1, Слюноотсос:1" */
+  autoDeductItems?: string;
+  /** Public online booking link (Instagram / 2GIS) */
+  bookingLink?: string;
 }
 
 export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
@@ -54,6 +58,8 @@ export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
   taxPercent: 0,
   notifyNoShow: true,
   requireChair: false,
+  autoDeductItems: '',
+  bookingLink: '',
 };
 
 export function mergeClinicSettings(raw: unknown): ClinicSettingsPayload {
