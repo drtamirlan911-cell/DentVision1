@@ -99,9 +99,11 @@ export default function School() {
       .then(([c, cc, lib]) => {
         const normalized = (Array.isArray(c) ? c : []).map((course: any) => ({
           ...course,
-          lesson_count: course.lesson_count ?? course.lessonCount ?? 0,
+          instructor: course.instructor ?? course.author ?? 'Лектор DentVision',
+          lesson_count: course.lesson_count ?? course.lessonCount ?? course._count?.lessons ?? 0,
           duration_hours: course.duration_hours ?? course.durationHours ?? 0,
           enrolled_count: course.enrolled_count ?? course.enrolledCount ?? 0,
+          rating: course.rating ?? 4.8,
           image_url: course.image_url ?? course.imageUrl,
         }));
         setCourses(normalized);

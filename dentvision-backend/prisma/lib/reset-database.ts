@@ -13,9 +13,15 @@ export async function wipeApplicationData(prisma: PrismaClient) {
     'school_enrollments',
     'lessons',
     'courses',
+    'expert_verifications',
+    'lecturers',
+    'academies',
     'favorites',
     'orders',
     'products',
+    'supplier_documents',
+    'supplier_members',
+    'suppliers',
     'inventory',
     'invoices',
     'lab_orders',
@@ -25,6 +31,12 @@ export async function wipeApplicationData(prisma: PrismaClient) {
     'teeth',
     'visits',
     'appointments',
+    'waiting_list',
+    'expenses',
+    'promotions',
+    'price_list',
+    'chairs',
+    'reminder_logs',
     'patients',
     'clinic_invitations',
     'clinic_members',
@@ -33,6 +45,10 @@ export async function wipeApplicationData(prisma: PrismaClient) {
   ];
 
   for (const table of tables) {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE`);
+    try {
+      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE`);
+    } catch {
+      // Table may not exist on older DBs — continue wipe
+    }
   }
 }

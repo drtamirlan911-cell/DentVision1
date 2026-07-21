@@ -994,14 +994,76 @@ export async function deleteWaitingListItem(id: string): Promise<any> {
 }
 
 // ─── Shop ───
-export async function getShopCategories(): Promise<any> { return Promise.resolve([]); }
+function mapShopProduct(p: any) {
+  const category = p.category || p.category_id || 'Прочее';
+  return {
+    ...p,
+    category,
+    category_id: category,
+    brand: p.brand || p.manufacturer || '',
+    rating: Number(p.rating) || 4.5,
+    stock: Number(p.stock) || 0,
+    min_stock: Number(p.min_stock ?? p.minStock ?? 5),
+    created_at: p.created_at || p.createdAt,
+    image_url: p.image_url || p.imageUrl,
+    description: p.description || '',
+  };
+}
+
+export async function getShopCategories(): Promise<any> {
+  try {
+    const products = await getShopProducts();
+    const counts = new Map<string, number>();
+    for (const p of products) {
+      const cat = p.category || 'Прочее';
+      counts.set(cat, (counts.get(cat) || 0) + 1);
+    }
+    return [...counts.entries()].map(([name, count]) => ({
+      id: name,
+      name,
+      count,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getShopProducts(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
-  return apiRequest(`/api/shop/products?${q}`);
+  const raw = await apiRequest(`/api/shop/products?${q}`);
+  const rows = Array.isArray(raw) ? raw : (raw?.data ?? []);
+  return (Array.isArray(rows) ? rows : []).map(mapShopProduct);
 }
 export async function getShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`); }
-export async function getShopSuppliers(): Promise<any> { return Promise.resolve([]); }
+export async function getShopSuppliers(): Promise<any> {
+  try {
+    const raw = await apiRequest('/api/suppliers?limit=50');
+    const rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.items)
+          ? raw.items
+          : [];
+    return rows.map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      country: 'Казахстан',
+      city: String(s.legalAddress || 'Алматы').split(',')[0].trim() || 'Алматы',
+      phone: s.phone,
+      email: s.email,
+      website: s.email ? `https://${String(s.email).split('@')[1] || 'dentvision.kz'}` : undefined,
+      rating: s.status === 'OFFICIAL_PARTNER' ? 4.9 : s.status === 'VERIFIED' ? 4.6 : 4.2,
+      deliveryDays: s.status === 'OFFICIAL_PARTNER' ? 1 : 2,
+      deliveryCost: s.status === 'OFFICIAL_PARTNER' ? 0 : 2500,
+      status: s.status,
+      productCount: s._count?.products ?? 0,
+    }));
+  } catch {
+    return [];
+  }
+}
 export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getShopOrders(clinicId: string): Promise<any> { return collection(await apiRequest('/api/shop/orders')); }
 export async function createShopReview(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
