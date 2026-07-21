@@ -309,7 +309,7 @@ export default function PlatformOpsCommandCenter() {
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
                   <select
-                    className="h-8 rounded-lg border border-bdr-subtle bg-white/[0.03] px-2 text-xs text-txt-primary"
+                    className="dv-select !w-auto h-8 px-2 text-xs"
                     value={String(c.plan || 'DEMO').toLowerCase() === 'standard' ? 'starter' : String(c.plan || 'demo').toLowerCase()}
                     onChange={(e) => run(`plan-${c.id}`, async () => { await api.opsClinicPlan(c.id, e.target.value) }, 'План обновлён')}
                   >

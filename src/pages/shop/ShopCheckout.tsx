@@ -132,7 +132,7 @@ export default function ShopCheckout() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2.5">
                 <div>
                   <label className="text-xs text-[var(--slate)] mb-1 block">Способ доставки</label>
-                  <select value={form.delivery_method} onChange={set('delivery_method')} className="!w-full !rounded-lg">
+                  <select className="dv-select" value={form.delivery_method} onChange={set('delivery_method')}>
                     <option value="courier">Курьер</option>
                     <option value="self">Самовывоз</option>
                     <option value="post">Почта</option>
@@ -140,7 +140,7 @@ export default function ShopCheckout() {
                 </div>
                 <div>
                   <label className="text-xs text-[var(--slate)] mb-1 block">Оплата</label>
-                  <select value={form.payment_method} onChange={set('payment_method')} className="!w-full !rounded-lg">
+                  <select className="dv-select" value={form.payment_method} onChange={set('payment_method')}>
                     <option value="kaspi">Kaspi Pay</option>
                     <option value="card">Картой</option>
                     <option value="cash">Наличными при получении</option>

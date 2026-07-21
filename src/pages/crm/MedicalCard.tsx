@@ -228,7 +228,7 @@ export default function MedicalCard() {
                     {editing ? (
                       <div className="grid grid-cols-2 gap-4">
                         <Field label="Группа крови">
-                          <select value={form.blood_type} onChange={e => setForm(f => ({ ...f, blood_type: e.target.value }))}>
+                          <select className="dv-select" value={form.blood_type} onChange={e => setForm(f => ({ ...f, blood_type: e.target.value }))}>
                             <option value="">—</option>
                             {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
                           </select>
