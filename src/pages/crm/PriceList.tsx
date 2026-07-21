@@ -45,7 +45,7 @@ export default function PriceList() {
   const [addOpen, setAddOpen] = useState(false)
   const [editingService, setEditingService] = useState<ServiceRow | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [newService, setNewService] = useState({ name: '', cat: BASE_CATEGORIES[0] || CUSTOM_CAT, price: 0 })
+  const [newService, setNewService] = useState({ name: '', cat: BASE_CATEGORIES[0] || CUSTOM_CAT, price: 0, matCost: 0 })
   const [saving, setSaving] = useState(false)
 
   const reload = async () => {
@@ -151,14 +151,15 @@ export default function PriceList() {
     }
     setSaving(true)
     try {
-      const row = await api.addPriceListService({
+      const row =       await api.addPriceListService({
         name: newService.name.trim(),
         price: Number(newService.price),
         category: newService.cat || CUSTOM_CAT,
+        matCost: Number(newService.matCost || 0),
       })
       showToast(`Услуга «${newService.name.trim()}» добавлена`, 'success')
       setAddOpen(false)
-      setNewService({ name: '', cat: BASE_CATEGORIES[0] || CUSTOM_CAT, price: 0 })
+      setNewService({ name: '', cat: BASE_CATEGORIES[0] || CUSTOM_CAT, price: 0, matCost: 0 })
       if (row?.serviceCode) {
         setClinicPrices(prev => ({ ...prev, [row.serviceCode]: Number(row.price) }))
         const parsed = parseCustomName(row.name)
@@ -320,6 +321,14 @@ export default function PriceList() {
             onChange={e => setNewService({ ...newService, price: Number(e.target.value) })}
             placeholder="15000"
           />
+          <Input
+            label="Себестоимость материалов (₸)"
+            type="number"
+            value={newService.matCost || ''}
+            onChange={e => setNewService({ ...newService, matCost: Number(e.target.value) })}
+            placeholder="2000"
+          />
+          <p className="text-2xs text-txt-muted -mt-2">Учитывается в зарплате врача: (цена − материалы) × %</p>
           <div className="flex gap-2 pt-2">
             <Button onClick={handleAddService} disabled={saving} className="flex-1">
               {saving ? 'Сохранение…' : 'Добавить'}
