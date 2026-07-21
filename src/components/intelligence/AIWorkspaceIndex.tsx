@@ -182,7 +182,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           type: a.type || 'info',
           category: a.category || 'general',
-          text: a.text,
+          text: a.text || a.message || '',
           priority: a.priority || 0,
           action: a.action,
         })))

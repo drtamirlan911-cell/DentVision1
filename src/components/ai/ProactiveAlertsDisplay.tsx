@@ -1,13 +1,14 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Bell, AlertTriangle, Info, CheckCircle, X, ExternalLink, RefreshCw, ChevronRight } from 'lucide-react'
+import { normalizeAlertTone } from '@/utils/alertTone'
 import { cn } from '@/lib/utils'
 import { useAIWorkspaceStore } from '@/store/workspace.store'
 import { useAIExecutor } from '@/utils/aiExecutor'
 
 interface Alert {
   id: string
-  type: 'info' | 'warning' | 'success' | 'error'
+  type: string
   category: string
   text: string
   priority: number
@@ -84,14 +85,15 @@ export function ProactiveAlertsDisplay({
             }}
             className={cn(
               'relative flex gap-3 p-3.5 rounded-2xl border transition-all duration-300',
-              COLORS[alert.type],
+              COLORS[normalizeAlertTone(alert.type)],
               'shadow-lg shadow-black/20'
             )}
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/[0.05]">
               {(() => {
-                const AlertIcon = ICONS[alert.type]
-                return <AlertIcon size={16} className={cn(COLORS[alert.type].split(' ')[0])} />
+                const tone = normalizeAlertTone(alert.type)
+                const AlertIcon = ICONS[tone]
+                return <AlertIcon size={16} className={cn(COLORS[tone].split(' ')[0])} />
               })()}
             </div>
             
@@ -187,13 +189,14 @@ export function ProactiveAlertsCompact({
             transition={{ type: 'spring', stiffness: 300, damping: 25, delay: i * 0.1 }}
             className={cn(
               'flex items-start gap-2 px-3 py-2 rounded-xl border transition-all',
-              COLORS[alert.type]
+              COLORS[normalizeAlertTone(alert.type)]
             )}
           >
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/[0.05]">
               {(() => {
-                const AlertIcon = ICONS[alert.type]
-                return <AlertIcon size={12} className={cn(COLORS[alert.type].split(' ')[0])} />
+                const tone = normalizeAlertTone(alert.type)
+                const AlertIcon = ICONS[tone]
+                return <AlertIcon size={12} className={cn(COLORS[tone].split(' ')[0])} />
               })()}
             </div>
             <div className="flex-1 min-w-0">

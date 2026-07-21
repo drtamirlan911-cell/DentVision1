@@ -243,7 +243,7 @@ export class AIService {
       where: { clinicId: context.clinicId, status: 'UNPAID' },
     });
     if (unpaidCount > 0) {
-      alerts.push({ type: 'unpaid', priority: 'high', message: `Неоплаченных счетов: ${unpaidCount}` });
+      alerts.push({ type: 'error', priority: 'high', message: `Неоплаченных счетов: ${unpaidCount}` });
     }
 
     const tomorrow = new Date();
@@ -252,7 +252,7 @@ export class AIService {
       where: { clinicId: context.clinicId, date: { gte: new Date(), lte: tomorrow }, status: 'CONFIRMED' },
     });
     if (upcoming > 0) {
-      alerts.push({ type: 'upcoming', priority: 'medium', message: `Завтра записей: ${upcoming}` });
+      alerts.push({ type: 'warning', priority: 'medium', message: `Завтра записей: ${upcoming}` });
     }
 
     return alerts;

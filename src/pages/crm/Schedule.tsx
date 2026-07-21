@@ -49,7 +49,11 @@ const EMPTY_FORM = {
 const EMPTY_PATIENT = { name: '', phone: '', email: '', dob: '', gender: '', notes: '' }
 const EMPTY_WAIT = { patientId: '', patientName: '', patientPhone: '', doctorId: '', preferredDate: '', preferredTime: '', preferredService: '', notes: '' }
 
-function timeToMinutes(t: string): number { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+function timeToMinutes(t?: string | null): number {
+  if (!t) return 0
+  const [h, m] = String(t).split(':').map(Number)
+  return (h || 0) * 60 + (m || 0)
+}
 function minutesToTop(minutes: number): number { return ((minutes - timeToMinutes(WORK_START)) / MIN_PER_SLOT) * (HOUR_HEIGHT / 2) }
 function formatDuration(mins: number): string { if (mins < 60) return `${mins} мин`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h} ч ${m} мин` : `${h} ч` }
 function getWeekStart(dateStr: string): string {

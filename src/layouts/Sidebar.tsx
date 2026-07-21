@@ -121,6 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     canManageClinicSettings(authUser?.role);
 
   const prefetchFor = useCallback((id: string) => {
+    if ((id === 'crm' || id === 'analytics') && (!clinicId || isGuest)) return;
     switch (id) {
       case 'crm':
         queryClient.prefetchQuery({ queryKey: queryKeys.patients, queryFn: () => api.getPatients(clinicId), staleTime: 60_000 });
@@ -136,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         queryClient.prefetchQuery({ queryKey: queryKeys.receipts, queryFn: () => api.getReceipts(clinicId), staleTime: 60_000 });
         break;
     }
-  }, [queryClient, clinicId]);
+  }, [queryClient, clinicId, isGuest]);
 
   const serviceItems = isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.section === 'platform' && item.id === 'ai') return true;

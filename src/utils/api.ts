@@ -23,6 +23,7 @@ import type {
   ICD10Code,
   LoginResponse,
 } from '../types';
+import { normalizeAlertTone } from './alertTone';
 
 const API_URL: string = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
@@ -1635,7 +1636,7 @@ export async function aiProactive(): Promise<{ alerts: Array<{ type: string; cat
   const res = await apiRequest('/api/ai/proactive');
   const raw = res?.alerts || res?.data?.alerts || [];
   const alerts = raw.map((a: any) => ({
-    type: a.type || 'info',
+    type: normalizeAlertTone(a.type),
     category: a.category || a.type || 'general',
     text: a.text || a.message || '',
     priority: typeof a.priority === 'number' ? a.priority : a.priority === 'high' ? 2 : a.priority === 'medium' ? 1 : 0,
