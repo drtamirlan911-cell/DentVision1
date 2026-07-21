@@ -108,7 +108,7 @@ export default function DentalChart() {
     >
       <PageHeader
         title="Зубная карта"
-        subtitle="Одонтограмма FDI · связь с планом лечения и визитом"
+        subtitle="FDI · анатомия корней · импланты · план лечения"
         icon={<Smile size={20} />}
         actions={
           <div className="flex gap-2">

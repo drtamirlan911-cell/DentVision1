@@ -175,45 +175,47 @@ export default function Profile() {
   }
 
   return (
-    <div className="dv-page fade-in space-y-5 max-w-3xl mx-auto pb-10 pt-4 md:pt-6">
-      <PageHeader title="Мой профиль" subtitle="Визитка, кэшбэк DentCash и профессиональные данные" icon={<UserIcon size={22} className="text-dv-gold" />} />
+    <div className="dv-page fade-in space-y-4 sm:space-y-5 max-w-3xl mx-auto pb-10 pt-3 sm:pt-6 overflow-x-hidden">
+      <PageHeader title="Мой профиль" subtitle="Визитка, кэшбэк DentCash и профессиональные данные" icon={<UserIcon size={20} className="text-dv-gold" />} />
 
       {/* ─── Header card ─── */}
       <Card className="overflow-hidden">
-        <div className="h-24 bg-gradient-to-r from-dv-gold/30 via-dv-gold/10 to-transparent" />
-        <CardContent className="-mt-12 px-4 sm:px-6 pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-            <div className="relative self-start">
-              <Avatar name={fullName || '?'} size="xl" src={profile?.photoUrl || editForm.photoUrl} />
-              <button
-                type="button"
-                onClick={() => {
-                  openEdit()
-                  setTimeout(() => photoInputRef.current?.click(), 80)
-                }}
-                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-dv-gold text-surface-0 shadow-lg hover:bg-dv-gold-light transition-colors"
-                title="Загрузить фото"
-              >
-                <Camera size={14} />
-              </button>
-            </div>
-            <div className="flex-1 min-w-0 pb-1">
-              <h2 className="text-xl font-bold text-txt-primary truncate">{fullName}</h2>
-              {profile?.headline && <p className="text-sm text-dv-gold truncate">{profile.headline}</p>}
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-txt-muted">
-                {profile?.spec && <span className="flex items-center gap-1"><Briefcase size={12} /> {profile.spec}</span>}
-                {(profile?.city || profile?.country) && <span className="flex items-center gap-1"><MapPin size={12} /> {[profile?.city, profile?.country].filter(Boolean).join(', ')}</span>}
-                {profile?.experienceYears ? <span className="flex items-center gap-1"><Sparkles size={12} /> {profile.experienceYears} лет опыта</span> : null}
+        <div className="h-16 sm:h-24 bg-gradient-to-r from-dv-gold/30 via-dv-gold/10 to-transparent" />
+        <CardContent className="-mt-10 sm:-mt-12 px-3 sm:px-6 pb-5 sm:pb-6">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex items-end gap-3 min-w-0">
+              <div className="relative shrink-0">
+                <Avatar name={fullName || '?'} size="xl" src={profile?.photoUrl || editForm.photoUrl} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    openEdit()
+                    setTimeout(() => photoInputRef.current?.click(), 80)
+                  }}
+                  className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-dv-gold text-surface-0 shadow-lg hover:bg-dv-gold-light transition-colors"
+                  title="Загрузить фото"
+                >
+                  <Camera size={14} />
+                </button>
+              </div>
+              <div className="flex-1 min-w-0 pb-1">
+                <h2 className="text-lg sm:text-xl font-bold text-txt-primary truncate">{fullName}</h2>
+                {profile?.headline && <p className="text-sm text-dv-gold truncate">{profile.headline}</p>}
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-txt-muted">
+                  {profile?.spec && <span className="flex items-center gap-1"><Briefcase size={12} /> {profile.spec}</span>}
+                  {(profile?.city || profile?.country) && <span className="flex items-center gap-1 min-w-0"><MapPin size={12} className="shrink-0" /> <span className="truncate">{[profile?.city, profile?.country].filter(Boolean).join(', ')}</span></span>}
+                  {profile?.experienceYears ? <span className="flex items-center gap-1"><Sparkles size={12} /> {profile.experienceYears} лет опыта</span> : null}
+                </div>
               </div>
             </div>
-            <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={openEdit} className="w-full sm:w-auto">
+            <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={openEdit} className="w-full sm:w-auto sm:self-start">
               Редактировать
             </Button>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {clinic && <Badge variant="gold" size="sm"><Building2 size={12} className="mr-1" /> {clinic.name}</Badge>}
-            {activeClinic && activeClinic.id !== clinic?.id && <Badge variant="sky" size="sm"><Building2 size={12} className="mr-1" /> {activeClinic.name}</Badge>}
+          <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-2">
+            {clinic && <Badge variant="gold" size="sm" className="max-w-full"><Building2 size={12} className="mr-1 shrink-0" /> <span className="truncate">{clinic.name}</span></Badge>}
+            {activeClinic && activeClinic.id !== clinic?.id && <Badge variant="sky" size="sm" className="max-w-full"><Building2 size={12} className="mr-1 shrink-0" /> <span className="truncate">{activeClinic.name}</span></Badge>}
             {profile?.visibility === 'private' && <Badge variant="slate" size="sm">Профиль скрыт</Badge>}
             {profile?.username && <Badge variant="outline" size="sm">@{profile.username}</Badge>}
           </div>

@@ -330,8 +330,8 @@ export const IntelligenceLayout: React.FC = () => {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-3 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0 min-w-0">
-          <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-2 h-12 sm:h-14 px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 overflow-hidden">
             <button
               onClick={toggleSidebar}
               className="md:hidden flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
@@ -339,14 +339,14 @@ export const IntelligenceLayout: React.FC = () => {
             >
               <Menu size={18} />
             </button>
-            <div className="min-w-0 overflow-hidden">
+            <div className="min-w-0 overflow-hidden flex-1">
               <div className="flex items-center gap-1.5 text-sm text-txt-muted overflow-hidden">
                 {getBreadcrumbs().map((crumb, idx, crumbs) => (
-                  <span key={crumb.path} className="flex items-center gap-1.5 min-w-0">
+                  <span key={crumb.path} className="flex items-center gap-1.5 min-w-0 max-w-full">
                     {idx > 0 && <ChevronRight size={12} className="text-txt-ghost shrink-0" />}
                     <span className={cn(
                       'truncate',
-                      idx === crumbs.length - 1 ? 'text-txt-primary font-semibold' : 'hidden xs:inline sm:inline',
+                      idx === crumbs.length - 1 ? 'text-txt-primary font-semibold' : 'hidden md:inline',
                     )}>
                       {crumb.label}
                     </span>
@@ -355,7 +355,7 @@ export const IntelligenceLayout: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 max-w-[55%] sm:max-w-none">
             {isGuest && (
               <motion.button
                 whileTap={{ scale: 0.98 }}
@@ -382,14 +382,14 @@ export const IntelligenceLayout: React.FC = () => {
             <button
               onClick={() => setContextSheetOpen(!contextSheetOpen)}
               className={cn(
-                'hidden md:flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+                'hidden lg:flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
                 contextSheetOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-txt-muted hover:text-txt-primary hover:bg-white/5'
               )}
               aria-label="Контекстная панель"
             >
               <Building2 size={16} />
             </button>
-            <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20">
+            <div className="hidden lg:flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
               <span className="text-[10px] font-medium text-dv-gold">AI</span>
             </div>
