@@ -245,9 +245,9 @@ export default function Shop() {
           />
         </div>
         <select
+          className="dv-select !w-auto !rounded-xl min-w-[160px]"
           value={sortBy}
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSortBy(e.target.value)}
-          className="!w-auto !rounded-xl min-w-[160px]"
         >
           {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>

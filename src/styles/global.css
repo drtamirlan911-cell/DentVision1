@@ -46,9 +46,37 @@
   }
 
   /* Dark theme form controls */
-  input, textarea, select {
+  input, textarea {
     @apply bg-transparent text-txt-primary;
+  }
+
+  select {
+    @apply bg-surface-1 text-txt-primary;
     color-scheme: dark;
+  }
+
+  /* Native select dropdown list — OS-rendered; light text on white bg without these rules */
+  select option {
+    background-color: var(--dv-surface-1);
+    color: var(--dv-text-primary);
+  }
+
+  select optgroup {
+    background-color: var(--dv-surface-2);
+    color: var(--dv-text-secondary);
+    font-weight: 600;
+    font-style: normal;
+  }
+
+  select option:checked,
+  select option:hover,
+  select option:focus {
+    background-color: var(--dv-surface-3);
+    color: var(--dv-text-primary);
+  }
+
+  select option[value=""] {
+    color: var(--dv-text-muted);
   }
 
   /* Custom scrollbar — minimal */
@@ -142,6 +170,14 @@
   /* Page transition wrapper */
   .page-enter {
     @apply animate-fade-up;
+  }
+
+  /* Native select — consistent closed-state appearance app-wide */
+  .dv-select {
+    @apply w-full rounded-lg border border-bdr-subtle bg-white/[0.03] px-3 py-2 text-sm text-txt-primary appearance-none transition-all duration-200;
+    color-scheme: dark;
+    @apply focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
   }
 }
 

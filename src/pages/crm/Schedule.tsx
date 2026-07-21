@@ -1045,6 +1045,7 @@ export default function Schedule() {
           <div className="space-y-1">
             <label className="text-2xs font-semibold text-txt-muted uppercase">Зуб (номер по FDI)</label>
             <select
+              className="dv-select"
               value={form.toothNumber}
               onChange={e => setForm({ ...form, toothNumber: e.target.value })}
             >

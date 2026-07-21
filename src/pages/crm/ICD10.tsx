@@ -52,9 +52,9 @@ export default function ICD10() {
           />
         </div>
         <select
+          className="dv-select w-full md:w-64"
           value={selectedCategory}
           onChange={e => setSelectedCategory(e.target.value)}
-          className="w-full md:w-64"
         >
           {categories.map(c => (
             <option key={c} value={c}>{c === 'all' ? 'Все категории' : c}</option>

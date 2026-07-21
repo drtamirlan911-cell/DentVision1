@@ -357,7 +357,7 @@ export default function Profile() {
           <Textarea label="О себе" value={editForm.bio} onChange={e => setEditForm({ ...editForm, bio: e.target.value })} />
           <div>
             <label className="block text-xs font-medium text-txt-secondary mb-1.5">Видимость профиля</label>
-            <select value={editForm.visibility} onChange={e => setEditForm({ ...editForm, visibility: e.target.value })} className="flex h-9 w-full rounded-lg border border-bdr-subtle bg-white/[0.03] px-3 py-2 text-sm text-txt-primary">
+            <select className="dv-select" value={editForm.visibility} onChange={e => setEditForm({ ...editForm, visibility: e.target.value })}>
               <option value="public">Публичный</option>
               <option value="private">Скрытый</option>
             </select>

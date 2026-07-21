@@ -359,7 +359,7 @@ export function TreatmentPlanEditor({
               value={draft.patientId}
               onChange={(e) => setDraft((prev) => ({ ...prev, patientId: e.target.value }))}
               disabled={Boolean(draft.id)}
-              className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-txt-primary disabled:opacity-60"
+              className="dv-select disabled:opacity-60"
             >
               <option value="">Выберите пациента…</option>
               {patients.map((p) => (
@@ -388,7 +388,7 @@ export function TreatmentPlanEditor({
             <select
               value={draft.status}
               onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
-              className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-txt-primary"
+              className="dv-select"
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -533,7 +533,7 @@ export function TreatmentPlanEditor({
                           <select
                             value={selectedServiceId}
                             onChange={(e) => setSelectedServiceId(e.target.value)}
-                            className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-txt-primary"
+                            className="dv-select"
                           >
                             <option value="">— Выберите услугу —</option>
                             {servicesByCategory.map(([cat, items]) => (
