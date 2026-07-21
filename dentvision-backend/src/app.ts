@@ -46,6 +46,10 @@ import { profileRouter } from './modules/profile/profile.routes.js';
 import { jobsRouter } from './modules/jobs/jobs.routes.js';
 import { opsSuppliersRouter } from './modules/ops/ops.suppliers.routes.js';
 import { opsHubRouter } from './modules/ops/ops.hub.routes.js';
+import { suppliersRouter } from './modules/suppliers/suppliers.routes.js';
+import { ecosystemRouter } from './modules/analytics/ecosystem.routes.js';
+import { complianceRouter } from './modules/compliance/compliance.routes.js';
+import { publicRouter } from './modules/public/public.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 
 // Wire up domain-event subscribers (audit, etc.) once at import time.

@@ -327,6 +327,7 @@ opsHubRouter.post('/lecturers/:id/level', async (req: AuthRequest, res) => {
     });
     publish('lecturer.level_changed', {
       lecturerId: lecturer.id,
+      level: target,
       from: existing.level,
       to: target,
       userId: req.user?.id,
@@ -351,7 +352,11 @@ opsHubRouter.post('/automations/advance-supplier-reviews', async (req: AuthReque
     for (const s of toReview) {
       await prisma.supplier.update({ where: { id: s.id }, data: { status: 'DOCUMENTS_REVIEW' } });
       publish('supplier.status_changed', {
-        supplierId: s.id, from: 'PENDING', to: 'DOCUMENTS_REVIEW', userId: req.user?.id,
+        supplierId: s.id,
+        status: 'DOCUMENTS_REVIEW',
+        from: 'PENDING',
+        to: 'DOCUMENTS_REVIEW',
+        userId: req.user?.id,
       });
       advanced += 1;
     }
@@ -363,7 +368,11 @@ opsHubRouter.post('/automations/advance-supplier-reviews', async (req: AuthReque
       for (const s of reviewed) {
         await prisma.supplier.update({ where: { id: s.id }, data: { status: 'VERIFIED' } });
         publish('supplier.status_changed', {
-          supplierId: s.id, from: 'DOCUMENTS_REVIEW', to: 'VERIFIED', userId: req.user?.id,
+          supplierId: s.id,
+          status: 'VERIFIED',
+          from: 'DOCUMENTS_REVIEW',
+          to: 'VERIFIED',
+          userId: req.user?.id,
         });
         verified += 1;
       }
@@ -391,7 +400,11 @@ opsHubRouter.post('/automations/verify-new-lecturers', async (req: AuthRequest, 
     for (const l of ready) {
       await prisma.lecturer.update({ where: { id: l.id }, data: { level: 'VERIFIED' } });
       publish('lecturer.level_changed', {
-        lecturerId: l.id, from: 'NEW', to: 'VERIFIED', userId: req.user?.id,
+        lecturerId: l.id,
+        level: 'VERIFIED',
+        from: 'NEW',
+        to: 'VERIFIED',
+        userId: req.user?.id,
       });
       verified += 1;
     }
