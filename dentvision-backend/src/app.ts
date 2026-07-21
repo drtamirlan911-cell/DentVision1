@@ -108,6 +108,8 @@ app.use('/api/crm', chairsRouter);
 app.use('/api/lab-orders', labRouter);
 app.use('/api/community', communityRouter);
 app.use('/api/public', publicRouter);
+app.use('/api/profile', profileRouter);
+app.use('/api/jobs', jobsRouter);
 // Hidden platform ops (no UI nav). SUPERADMIN + X-Platform-Ops-Key required; else 404.
 app.use('/api/ops/suppliers', opsSuppliersRouter);
 app.use('/api/ops', opsHubRouter);
