@@ -69,7 +69,8 @@ const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function Schedule() {
   const { user, roleInfo, clinic: activeClinic } = useAuth()
-  const clinic = user?.clinicId ? { id: user.clinicId } : null
+  const clinicId = activeClinic?.id || user?.clinicId || null
+  const clinic = clinicId ? { id: clinicId } : null
   const {
     appointments: liveAppointments, patients, doctors, waitingList, bookings, receipts,
     upsertAppointment: upsertAppointmentApi, deleteAppointment,
@@ -228,12 +229,33 @@ export default function Schedule() {
   }, [appointments, weekDates, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts])
 
   const doctorColumns = useMemo(() => {
-    if (selectedDoctorFilter !== 'all') {
-      const doc = doctors.find(d => d.id === selectedDoctorFilter)
-      return doc ? [doc] : []
+    let list =
+      selectedDoctorFilter !== 'all'
+        ? doctors.filter((d) => d.id === selectedDoctorFilter)
+        : doctors
+
+    // If staff roster failed to load, still render columns from appointment doctorIds
+    // so a seeded schedule is never an empty «Нет врачей» wall in demos.
+    if (list.length === 0) {
+      const ids = Array.from(
+        new Set(
+          appointments
+            .map((a) => a.doctorId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      )
+      list = ids.map(
+        (id) =>
+          ({
+            id,
+            name: id === user?.id ? user.name || 'Я' : 'Врач',
+            role: 'doctor',
+            clinicId: clinic?.id,
+          }) as any,
+      )
     }
-    return doctors
-  }, [doctors, selectedDoctorFilter])
+    return list
+  }, [doctors, selectedDoctorFilter, appointments, user, clinic?.id])
 
   const serviceOptions = [{ value: '', label: '— Выберите услугу —' }, ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${tg(s.price)}` }))]
   const selectedService = ALL_SERVICES.find(s => s.id === form.service)

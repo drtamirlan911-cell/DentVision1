@@ -356,7 +356,9 @@ export async function getClinicStaff(clinicId: string): Promise<ClinicStaffMembe
   if (!clinicId) return [];
   const clinic = await apiRequest(`/api/clinics/${clinicId}`);
   const members = Array.isArray(clinic?.members) ? clinic.members : [];
-  return members.map((m: any) => ({
+  return members
+    .filter((m: any) => m?.user?.id)
+    .map((m: any) => ({
     id: m.user?.id,
     name: [m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ').trim() || 'Без имени',
     role: String(m.role || '').toLowerCase() === 'owner'
