@@ -11,8 +11,15 @@ export interface AuthUser {
   isGuest?: boolean;
 }
 
+export interface ApiKeyContext {
+  id: string;
+  appId: string;
+  scopes: string[];
+}
+
 export interface AuthRequest extends Request {
   user?: AuthUser;
+  apiKey?: ApiKeyContext;
 }
 
 export interface JwtPayload {
