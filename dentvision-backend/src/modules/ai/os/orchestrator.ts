@@ -21,7 +21,11 @@ import { env } from '../../../config.js';
 import prisma from '../../../lib/prisma.js';
 import { agentsForRole, toolsForRole } from './registry.js';
 import { executeTool, toolSchemasFor, type ToolContext } from './tools.js';
-import { preferTengeCurrency } from '../lib/currency.js';
+import {
+  clinicCurrencyPromptRule,
+  preferClinicCurrency,
+  resolveClinicCurrency,
+} from '../lib/currency.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_TOOL_ROUNDS = 6;
@@ -52,7 +56,7 @@ export function orchestratorEnabled(): boolean {
   return Boolean(env.OPENAI_API_KEY);
 }
 
-function systemPrompt(input: OrchestratorInput): string {
+function systemPrompt(input: OrchestratorInput, currencyCode: string): string {
   const agents = agentsForRole(input.role);
   const mandates = agents.map((a) => `- ${a.name}: ${a.mandate}`).join('\n');
 
@@ -70,7 +74,7 @@ ${mandates}
 5. Если инструмент вернул ошибку — скажи об этом честно и предложи следующий шаг.
 6. Если просят открыть раздел — используй navigate.
 7. Не упоминай внутренние названия инструментов и агентов в ответе.
-8. Валюта — тенге (KZT, символ ₸). Никогда не пиши суммы в рублях / ₽ / RUB.`;
+8. ${clinicCurrencyPromptRule(currencyCode)}`;
 }
 
 interface ResponsesAPIOutputItem {
@@ -118,6 +122,8 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   const allowedTools = toolsForRole(input.role);
   const toolSchemas = toolSchemasFor(allowedTools);
   const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role };
+  const currencyCode = await resolveClinicCurrency(input.clinicId);
+  const instructions = systemPrompt(input, currencyCode);
 
   await saveMessage(input.sessionId, 'user', input.text);
 
@@ -137,7 +143,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await callModel({
       model: env.OPENAI_MODEL,
-      instructions: systemPrompt(input),
+      instructions,
       input: conversation,
       tools: toolSchemas,
       reasoning: { effort: env.OPENAI_REASONING_EFFORT },
@@ -159,7 +165,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
           .trim() ||
         'Готово.';
 
-      const safeMessage = preferTengeCurrency(message);
+      const safeMessage = preferClinicCurrency(message, currencyCode);
       await saveMessage(input.sessionId, 'assistant', safeMessage);
 
       return {
