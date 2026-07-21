@@ -66,6 +66,7 @@ app.use('/api/medical', medicalRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/shop', shopRouter);
+app.use('/api/suppliers', suppliersRouter);
 app.use('/api/school', schoolRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/guest', guestRouter);
