@@ -76,14 +76,23 @@ function renderContent(content: string) {
 }
 
 export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query: string) => void }) {
-  const isUser = msg.role === 'user';
-  const [copied, setCopied] = useState(false);
+  const isUser = msg.role === 'user'
+  const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
-    navigator.clipboard?.writeText(msg.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+    navigator.clipboard?.writeText(msg.content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const hasContent = !!String(msg.content || '').trim()
+  const hasExtras = !!(
+    (msg.data && Object.keys(msg.data).length) ||
+    (msg.actions && msg.actions.length) ||
+    (msg.recommendations && msg.recommendations.length)
+  )
+  // Don't render empty assistant placeholders (optimistic stream shell).
+  if (!isUser && !hasContent && !hasExtras) return null
 
   return (
     <motion.div
@@ -241,7 +250,7 @@ export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query
           </div>
         )}
 
-        {!isUser && (
+        {!isUser && !!msg.content?.trim() && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

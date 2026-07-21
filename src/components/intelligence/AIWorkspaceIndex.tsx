@@ -222,24 +222,49 @@ const handleSend = useCallback(async (text: string) => {
     historyRef.current.push({ role: 'user', content: text })
 
     const assistantId = `a-${Date.now()}`
-    addMessage({
-      id: assistantId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-    })
+    let assistantCreated = false
 
-    try {
-      const res = await aiChatStream(text, historyRef.current.slice(-20), (partial, done) => {
-        useAIWorkspaceStore.setState((state) => ({
+    const upsertAssistant = (patch: Record<string, unknown>) => {
+      useAIWorkspaceStore.setState((state) => {
+        const exists = state.ai.messages.some((m) => m.id === assistantId)
+        if (!exists) {
+          assistantCreated = true
+          return {
+            ai: {
+              ...state.ai,
+              messages: [
+                ...state.ai.messages,
+                {
+                  id: assistantId,
+                  role: 'assistant' as const,
+                  content: '',
+                  timestamp: new Date(),
+                  ...patch,
+                },
+              ],
+            },
+          }
+        }
+        return {
           ai: {
             ...state.ai,
             messages: state.ai.messages.map((m) =>
-              m.id === assistantId ? { ...m, content: partial } : m
+              m.id === assistantId ? { ...m, ...patch } : m
             ),
-            status: done ? state.ai.status : 'thinking',
           },
-        }))
+        }
+      })
+    }
+
+    try {
+      const res = await aiChatStream(text, historyRef.current.slice(-20), (partial, done) => {
+        // Create the assistant bubble only when the first non-empty token arrives —
+        // otherwise the UI shows an empty grey bubble + thumbs/copy while thinking.
+        if (!partial?.trim() && !done) return
+        upsertAssistant({
+          content: partial,
+        })
+        if (!done) setAIStatus('thinking')
       }, { userId: user?.id })
 
       if (res.conversationContext?.entities) {
@@ -258,34 +283,36 @@ const handleSend = useCallback(async (text: string) => {
         }
       }
 
-      useAIWorkspaceStore.setState((state) => ({
-        ai: {
-          ...state.ai,
-          messages: state.ai.messages.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content: res.reply || m.content,
-                  skill: res.skill,
-                  source: res.source,
-                  actions: res.actions?.map((a: any) => ({
-                    id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                    type: a.type || a.action,
-                    label: a.label,
-                    confidence: a.confidence || 1,
-                    params: a.params || {},
-                    requiresConfirmation: a.requiresConfirmation,
-                  })),
-                  data: res.data,
-                  recommendations: res.recommendations,
-                }
-              : m
-          ),
-        },
-      }))
+      const finalContent = String(res.reply || '').trim()
+      const hasExtras = !!(res.data || res.actions?.length || res.recommendations?.length)
+      if (finalContent || hasExtras) {
+        upsertAssistant({
+          content: finalContent,
+          skill: res.skill,
+          source: res.source,
+          actions: res.actions?.map((a: any) => ({
+            id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: a.type || a.action,
+            label: a.label,
+            confidence: a.confidence || 1,
+            params: a.params || {},
+            requiresConfirmation: a.requiresConfirmation,
+          })),
+          data: res.data,
+          recommendations: res.recommendations,
+        })
+      } else if (assistantCreated) {
+        // Drop placeholder if the model returned nothing usable
+        useAIWorkspaceStore.setState((state) => ({
+          ai: {
+            ...state.ai,
+            messages: state.ai.messages.filter((m) => m.id !== assistantId),
+          },
+        }))
+      }
 
       setSuggestionsFromStrings((res.suggestions || []).slice(0, 4))
-      historyRef.current.push({ role: 'assistant', content: res.reply })
+      historyRef.current.push({ role: 'assistant', content: res.reply || '' })
 
       if (voiceReplies && res.reply) {
         speak(res.reply, {
@@ -366,16 +393,9 @@ const handleSend = useCallback(async (text: string) => {
         setAIStatus('idle')
       }
     } catch {
-      useAIWorkspaceStore.setState((state) => ({
-        ai: {
-          ...state.ai,
-          messages: state.ai.messages.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: 'Извините, произошла ошибка. Попробуйте ещё раз.' }
-              : m
-          ),
-        },
-      }))
+      upsertAssistant({
+        content: 'Извините, произошла ошибка. Попробуйте ещё раз.',
+      })
       setAIStatus('idle')
     } finally {
       setProgress(0)
