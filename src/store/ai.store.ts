@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import * as api from '@/utils/api'
+import { normalizeAlertTone } from '@/utils/alertTone'
 
 type AIStatus = 'idle' | 'thinking' | 'executing' | 'result' | 'error'
 
@@ -149,7 +150,7 @@ export const useAIStore = create<AIState>((set, get) => ({
             ? p
             : mapPriority(typeof p === 'number' ? p : Number(p) || 0)
         return {
-          type: a.type || a.category || 'info',
+          type: normalizeAlertTone(a.type || a.category || 'info'),
           priority,
           message: a.message || a.text || '',
           action: a.action

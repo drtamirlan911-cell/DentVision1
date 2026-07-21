@@ -435,7 +435,7 @@ export default function Cashier() {
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             {appt.diagnosis && (
-                              <span className="text-2xs text-dv-gold font-medium">{appt.diagnosis.split(' — ')[0]}</span>
+                              <span className="text-2xs text-dv-gold font-medium">{appt.diagnosis?.split(' — ')[0]}</span>
                             )}
                             {toothLabel && (
                               <span className="text-2xs text-emerald-400 font-medium">{toothLabel}</span>

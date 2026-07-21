@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   src?: string
-  name: string
+  name?: string
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   status?: 'online' | 'offline' | 'busy'
 }
@@ -23,7 +23,7 @@ const statusColors = {
 }
 
 function getInitials(name: string): string {
-  return name
+  return (name || '?')
     .split(' ')
     .map((w) => w[0])
     .join('')
@@ -43,21 +43,23 @@ function getColorFromName(name: string): string {
     'bg-accent-orange/20 text-accent-orange',
   ]
   let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  const safe = name || '?'
+  for (let i = 0; i < safe.length; i++) {
+    hash = safe.charCodeAt(i) + ((hash << 5) - hash)
   }
   return colors[Math.abs(hash) % colors.length]
 }
 
 function Avatar({ src, name, size = 'md', status, className, ...props }: AvatarProps) {
   const sizeClass = sizeMap[size]
+  const safeName = name || '?'
 
   return (
     <div className={cn('relative inline-flex shrink-0', className)} {...props}>
       {src ? (
         <img
           src={src}
-          alt={name}
+          alt={safeName}
           className={cn('rounded-full object-cover', sizeClass)}
         />
       ) : (
@@ -65,10 +67,10 @@ function Avatar({ src, name, size = 'md', status, className, ...props }: AvatarP
           className={cn(
             'flex items-center justify-center rounded-full font-semibold',
             sizeClass,
-            getColorFromName(name)
+            getColorFromName(safeName)
           )}
         >
-          {getInitials(name)}
+          {getInitials(safeName)}
         </div>
       )}
       {status && (

@@ -28,7 +28,7 @@ export function formatTime(date: string | Date): string {
 }
 
 export function getInitials(name: string): string {
-  return name
+  return (name || '?')
     .split(' ')
     .map((w) => w[0])
     .join('')
