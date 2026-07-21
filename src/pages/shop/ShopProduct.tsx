@@ -35,10 +35,13 @@ interface ProductDetail {
   sku?: string;
   category_name: string;
   description?: string;
+  supplier_id?: string;
   supplier_name?: string;
   supplier_country?: string;
+  own_brand?: boolean;
   delivery_days?: number;
   delivery_cost?: number;
+  image_url?: string;
   reviews?: ProductReview[];
   related?: { id: string; name: string; brand: string; price: number }[];
 }
@@ -58,7 +61,16 @@ export default function ShopProduct() {
 
   const handleAddToCart = () => {
     if (!product) return;
-    addToCart({ id: product.id, name: product.name, brand: product.brand, price: product.price, imageUrl: product.image_url });
+    addToCart({
+      id: product.id,
+      name: product.name,
+      brand: product.brand,
+      price: product.price,
+      imageUrl: product.image_url,
+      supplierId: product.supplier_id || null,
+      category: product.category_name || null,
+      ownBrand: !!product.own_brand,
+    });
     toast.success('Добавлено в корзину');
   };
 

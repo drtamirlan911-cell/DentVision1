@@ -14,12 +14,14 @@ export function clampRateBps(rateBps: number): number {
   return Math.max(0, Math.min(RATE_BPS.absoluteMax, Math.floor(rateBps || 0)));
 }
 
-/** Simple velocity: max earn events per user per day. */
-export async function exceedsEarnVelocity(userId: string, maxPerDay = 50): Promise<boolean> {
+/** Simple velocity: max distinct earn orders/payments per user per day. */
+export async function exceedsEarnVelocity(userId: string, maxOrdersPerDay = 40): Promise<boolean> {
   const since = new Date();
   since.setHours(0, 0, 0, 0);
-  const count = await prisma.dentCashLedger.count({
+  const rows = await prisma.dentCashLedger.findMany({
     where: { userId, type: 'earn', createdAt: { gte: since } },
+    select: { refId: true },
+    distinct: ['refId'],
   });
-  return count >= maxPerDay;
+  return rows.length >= maxOrdersPerDay;
 }

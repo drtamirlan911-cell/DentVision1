@@ -119,12 +119,17 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
 
     if (status === 'delivered' || status === 'completed') {
       const { releaseOrderCashback } = await import('../dentcash/cashback.engine.js');
-      await releaseOrderCashback(order.id).catch((err) => console.error('[dentcash release]', err));
+      // Full-order release: multi-supplier split needs per-line status (future).
+      await releaseOrderCashback(order.id)
+        .catch((err) => console.error('[dentcash release]', err));
     }
     if (status === 'cancelled') {
       const { reverseCashback } = await import('../dentcash/refund.service.js');
-      await reverseCashback({ refType: 'order', refId: order.id, reason: 'cancelled' })
-        .catch((err) => console.error('[dentcash reverse]', err));
+      await reverseCashback({
+        refType: 'order',
+        refId: order.id,
+        reason: 'cancelled',
+      }).catch((err) => console.error('[dentcash reverse]', err));
     }
 
     return res.json({ ok: true, data: order } satisfies ApiResponse);
