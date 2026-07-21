@@ -129,7 +129,7 @@ export default function Inventory() {
   }
 
   return (
-    <div className="p-6">
+    <div className="dv-page py-4 md:py-6">
       <PageHeader
         title="Склад"
         subtitle={`${clinic?.name} · ${stats.total} позиций`}
@@ -142,7 +142,7 @@ export default function Inventory() {
       />
 
       <motion.div
-        className="grid grid-cols-3 gap-3 mb-5"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5"
         variants={stagger}
         initial="hidden"
         animate="show"
@@ -154,7 +154,7 @@ export default function Inventory() {
           <StatCard label="Мало на складе" value={stats.lowStock} icon={<AlertTriangle size={18} />} />
         </motion.div>
         <motion.div variants={fadeUp}>
-          <StatCard label="Общая стоимость" value={`${(stats.totalValue / 1000).toFixed(0)}K ₸`} icon={<DollarSign size={18} />} />
+          <StatCard label="Общая стоимость" value={`${Math.round(stats.totalValue).toLocaleString('ru-RU')} ₸`} icon={<DollarSign size={18} />} />
         </motion.div>
       </motion.div>
 

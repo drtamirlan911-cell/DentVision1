@@ -631,7 +631,7 @@ export default function Documents() {
   };
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
       <PageHeader
         title="Электронные документы"
         subtitle="Согласия, рецепты, направления, договоры, справки, заключения"
@@ -642,7 +642,8 @@ export default function Documents() {
               Из шаблона
             </Button>
             <Button variant="primary" icon={<Plus size={16} />} onClick={() => { resetForm(); setShowForm(true); }}>
-              Вручную
+              <span className="sm:hidden">+</span>
+              <span className="hidden sm:inline">Вручную</span>
             </Button>
           </>
         }

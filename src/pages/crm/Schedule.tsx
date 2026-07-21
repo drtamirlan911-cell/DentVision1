@@ -709,9 +709,9 @@ export default function Schedule() {
   ]
 
   return (
-    <motion.div variants={stagger} initial="hidden" animate="show" className="max-w-7xl mx-auto space-y-4">
+    <motion.div variants={stagger} initial="hidden" animate="show" className="dv-page max-w-7xl mx-auto space-y-4 py-4 md:py-6">
       {toast && (
-        <div className={cn('fixed bottom-20 md:bottom-6 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-fade-up',
+        <div className={cn('fixed bottom-20 md:bottom-6 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-fade-up max-w-[calc(100vw-2rem)]',
           toast.type === 'success' && 'bg-success text-white',
           toast.type === 'error' && 'bg-error text-white',
           toast.type === 'warning' && 'bg-warning text-surface-0',
@@ -720,28 +720,36 @@ export default function Schedule() {
       )}
 
       {/* Header */}
-      <motion.div variants={fadeUp} className="flex items-center justify-between gap-3">
-        <PageHeader title="Расписание" subtitle="Управление записями и лист ожидания" icon={<Calendar size={20} />} />
-        <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-          <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
-            <span className="hidden sm:inline">Печать дня</span>
-          </Button>
-          <Button variant="secondary" onClick={printZReport} icon={<ClipboardCheck size={14} />}>
-            <span className="hidden sm:inline">Z-отчёт</span>
-          </Button>
-          {!ownDataOnly && (
-            <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>Касса</Button>
-          )}
-          <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
-          <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
-          {roleInfo?.canSeeSuperAdmin !== false && (
-            <Button variant="secondary" onClick={() => { setWaitForm(EMPTY_WAIT); setEditWaitId(null); setWaitModalOpen(true) }} icon={<ListOrdered size={14} />}>
-              <span className="hidden sm:inline">Лист ожидания</span>
-              <span className="sm:hidden">Ожидание</span>
-              {dayWaitList.length > 0 && <Badge variant="error" size="xs">{dayWaitList.length}</Badge>}
-            </Button>
-          )}
-        </div>
+      <motion.div variants={fadeUp}>
+        <PageHeader
+          title="Расписание"
+          subtitle="Управление записями и лист ожидания"
+          icon={<Calendar size={20} />}
+          actions={
+            <>
+              <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
+                <span className="hidden sm:inline">Печать дня</span>
+              </Button>
+              <Button variant="secondary" onClick={printZReport} icon={<ClipboardCheck size={14} />}>
+                <span className="hidden sm:inline">Z-отчёт</span>
+              </Button>
+              {!ownDataOnly && (
+                <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>
+                  <span className="hidden xs:inline sm:inline">Касса</span>
+                </Button>
+              )}
+              <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
+              <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
+              {roleInfo?.canSeeSuperAdmin !== false && (
+                <Button variant="secondary" onClick={() => { setWaitForm(EMPTY_WAIT); setEditWaitId(null); setWaitModalOpen(true) }} icon={<ListOrdered size={14} />}>
+                  <span className="hidden sm:inline">Лист ожидания</span>
+                  <span className="sm:hidden">Ожидание</span>
+                  {dayWaitList.length > 0 && <Badge variant="error" size="xs">{dayWaitList.length}</Badge>}
+                </Button>
+              )}
+            </>
+          }
+        />
       </motion.div>
 
       {(offline || pendingSync > 0) && (
@@ -782,44 +790,47 @@ export default function Schedule() {
       {activeTab === 'schedule' ? (
         <>
           {/* Controls bar */}
-          <motion.div variants={fadeUp} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle overflow-x-auto">
-            <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(-1)}><ChevronLeft size={16} /></Button>
-            <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
-              className="h-8 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none" />
-            <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(1)}><ChevronRight size={16} /></Button>
-            <Button variant="outline" size="sm" onClick={() => setSelDate(today())}>Сегодня</Button>
+          <motion.div variants={fadeUp} className="flex flex-col gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(-1)}><ChevronLeft size={16} /></Button>
+              <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
+                className="h-8 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none min-w-0" />
+              <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(1)}><ChevronRight size={16} /></Button>
+              <Button variant="outline" size="sm" onClick={() => setSelDate(today())}>Сегодня</Button>
 
-            <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
-              {([['day', 'День'], ['week', 'Неделя']] as const).map(([key, label]) => (
-                <button key={key} onClick={() => setPeriodMode(key)}
-                  className={cn('px-3 py-1.5 text-xs font-semibold transition-colors',
-                    periodMode === key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
-                  {label}
-                </button>
-              ))}
+              <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
+                {([['day', 'День'], ['week', 'Неделя']] as const).map(([key, label]) => (
+                  <button key={key} onClick={() => setPeriodMode(key)}
+                    className={cn('px-3 py-1.5 text-xs font-semibold transition-colors',
+                      periodMode === key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="ml-auto flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <Input placeholder="Поиск..." value={searchAppts} onChange={e => setSearchAppts(e.target.value)}
-                icon={<Search size={14} />} className="!w-40 !h-8" />
+                icon={<Search size={14} />} className="!w-full sm:!w-40 !h-8 min-w-0" />
 
               {doctors.length > 1 && (
                 <Select value={selectedDoctorFilter} onChange={e => setSelectedDoctorFilter(e.target.value)}
                   options={[{ value: 'all', label: 'Все врачи' }, ...doctors.map(d => ({ value: d.id, label: d.name }))]}
-                  className="!w-40 !h-8" />
+                  className="!w-full sm:!w-44 !h-8 min-w-0" />
               )}
 
               {roleInfo?.canSeeSuperAdmin !== false && (
-                <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
+                <div className="flex rounded-lg border border-bdr-subtle overflow-x-auto max-w-full">
                   {([
-                    { key: 'doctors' as const, label: 'По врачам' },
-                    { key: 'chairs' as const, label: 'По креслам' },
-                    { key: 'single' as const, label: 'Общий' },
+                    { key: 'doctors' as const, label: 'Врачи', labelFull: 'По врачам' },
+                    { key: 'chairs' as const, label: 'Кресла', labelFull: 'По креслам' },
+                    { key: 'single' as const, label: 'Общий', labelFull: 'Общий' },
                   ]).map(m => (
                     <button key={m.key} onClick={() => setViewMode(m.key)}
-                      className={cn('px-3 py-1.5 text-xs font-semibold transition-colors',
+                      className={cn('px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap',
                         viewMode === m.key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
-                      {m.label}
+                      <span className="sm:hidden">{m.label}</span>
+                      <span className="hidden sm:inline">{m.labelFull}</span>
                     </button>
                   ))}
                 </div>
@@ -828,8 +839,8 @@ export default function Schedule() {
           </motion.div>
 
           {periodMode === 'week' ? (
-            <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-              <div className="grid grid-cols-7 gap-2 min-w-[700px]">
+            <motion.div variants={fadeUp} className="overflow-x-auto overscroll-x-contain rounded-xl">
+              <div className="grid grid-cols-7 gap-2 min-w-[640px] md:min-w-[700px]">
                 {weekDates.map((d, i) => {
                   const appts = weekApptsByDate[d] || []
                   const [, mo, dd] = d.split('-')
@@ -862,13 +873,13 @@ export default function Schedule() {
           ) : (
             <>
               {/* Stats */}
-              <motion.div variants={fadeUp} className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+              <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
                 {stats.map((s) => (
-                  <div key={s.label} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
+                  <div key={s.label} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-surface-raised border border-bdr-subtle min-w-0">
                     <Badge variant={s.variant as any} size="md">{s.value}</Badge>
-                    <div>
-                      <p className="text-lg font-bold text-txt-primary leading-none">{s.value}</p>
-                      <p className="text-2xs text-txt-muted mt-0.5">{s.label}</p>
+                    <div className="min-w-0">
+                      <p className="text-base sm:text-lg font-bold text-txt-primary leading-none">{s.value}</p>
+                      <p className="text-2xs text-txt-muted mt-0.5 truncate">{s.label}</p>
                     </div>
                   </div>
                 ))}
@@ -877,8 +888,16 @@ export default function Schedule() {
               {/* Doctor / chair columns */}
               {viewMode === 'chairs' ? (
                 chairs.length > 0 ? (
-                  <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-                    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(chairs.length, 4)}, minmax(260px, 1fr))` }}>
+                  <motion.div variants={fadeUp} className="overflow-x-auto overscroll-x-contain">
+                    <div
+                      className="grid gap-3"
+                      style={{
+                        gridTemplateColumns: chairs.length === 1
+                          ? 'minmax(0, 1fr)'
+                          : `repeat(${Math.min(chairs.length, 4)}, minmax(min(100%, 260px), 1fr))`,
+                        minWidth: chairs.length > 1 ? `${Math.min(chairs.length, 4) * 260}px` : undefined,
+                      }}
+                    >
                       {chairs.map((chair) => {
                         const chairAppts = dayAppts.filter((a) => a.chairId === chair.id)
                         return (
@@ -947,8 +966,20 @@ export default function Schedule() {
                   <EmptyState icon={<Stethoscope size={32} />} title="Нет кресел" description="Кресла появятся автоматически после первого открытия расписания" />
                 )
               ) : doctorColumns.length > 0 ? (
-                <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-                  <div className="grid gap-3" style={{ gridTemplateColumns: viewMode === 'doctors' ? `repeat(${Math.min(doctorColumns.length, 4)}, minmax(260px, 1fr))` : '1fr' }}>
+                <motion.div variants={fadeUp} className="overflow-x-auto overscroll-x-contain">
+                  <div
+                    className="grid gap-3"
+                    style={{
+                      gridTemplateColumns: viewMode === 'doctors'
+                        ? (doctorColumns.length === 1
+                          ? 'minmax(0, 1fr)'
+                          : `repeat(${Math.min(doctorColumns.length, 4)}, minmax(min(100%, 260px), 1fr))`)
+                        : '1fr',
+                      minWidth: viewMode === 'doctors' && doctorColumns.length > 1
+                        ? `${Math.min(doctorColumns.length, 4) * 260}px`
+                        : undefined,
+                    }}
+                  >
                   {doctorColumns.map(doc => {
                     const docAppts = dayAppts.filter(a => a.doctorId === doc.id)
                     return (
