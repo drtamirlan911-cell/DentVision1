@@ -19,7 +19,7 @@ import {
   readCachedDayAppointments,
   startSyncQueueListener,
 } from '@/lib/syncQueue'
-import { useAuth } from '@/store/auth.store'
+import { useAuth, canAcceptPayment } from '@/store/auth.store'
 import { cn, today } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card'
@@ -72,13 +72,15 @@ const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function Schedule() {
   const outlet = useOutletContext<{ clinic?: Clinic; user?: UserType; roleInfo?: RoleInfo }>() || {}
-  const { user, roleInfo, clinic: authClinic } = useAuth()
+  const { user, roleInfo, clinic: authClinic, role } = useAuth()
   // Match Staff / IntelligenceLayout: prefer outlet + auth clinic over JWT claim alone.
   // Appointments API is JWT-scoped (works even with a stale user.clinicId), but
   // getClinicStaff(clinicId) needs the real clinic id — otherwise the grid is empty
   // while Staff still shows the roster.
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = clinicId ? { id: clinicId } : null
+  // Payment: admin / owner (руководитель) only — not doctors
+  const canTakePayment = canAcceptPayment(role) || !!roleInfo?.canManageClinicSettings
   const {
     appointments: liveAppointments, patients, doctors: allStaff, waitingList, bookings, receipts,
     upsertAppointment: upsertAppointmentApi, deleteAppointment,
@@ -422,6 +424,10 @@ export default function Schedule() {
   }
 
   const openAcceptPayment = (appt: Appointment, opts?: { closeVisit?: boolean }) => {
+    if (!canTakePayment) {
+      showToast('Приём оплаты доступен администратору или руководителю', 'warning')
+      return
+    }
     setPayAppt(appt)
     setPayDefaultClose(!!opts?.closeVisit)
     setPayOpen(true)
@@ -430,6 +436,10 @@ export default function Schedule() {
 
   const handleAcceptPayment = async (payload: AcceptPaymentPayload) => {
     if (!payAppt || !clinicId) return
+    if (!canTakePayment) {
+      showToast('Приём оплаты доступен администратору или руководителю', 'warning')
+      return
+    }
     setPaySaving(true)
     try {
       const patient = patients.find((p) => p.id === payAppt.patientId)
@@ -650,7 +660,7 @@ export default function Schedule() {
             <div className="flex items-center gap-1">
               {appt.paymentStatus === 'paid' ? (
                 <Badge variant="success" size="xs">Оплачено</Badge>
-              ) : (
+              ) : canTakePayment ? (
                 <button
                   type="button"
                   title="Принять оплату"
@@ -663,6 +673,8 @@ export default function Schedule() {
                   <Wallet size={10} />
                   Оплатить
                 </button>
+              ) : (
+                <Badge variant="warning" size="xs">Не оплачено</Badge>
               )}
               <button
                 type="button"
@@ -1199,7 +1211,7 @@ export default function Schedule() {
 
           <Input label="Заметки" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Дополнительная информация" />
 
-          {editAppt && (
+          {editAppt && (canTakePayment || editAppt.paymentStatus === 'paid') && (
             <div className={cn(
               'rounded-xl border p-3 flex items-center justify-between gap-3',
               editAppt.paymentStatus === 'paid'
@@ -1211,12 +1223,14 @@ export default function Schedule() {
                   {editAppt.paymentStatus === 'paid' ? 'Оплата получена' : 'Оплата по записи'}
                 </p>
                 <p className="text-[11px] text-txt-muted truncate">
-                  {suggestedPayAmount(editAppt) > 0
-                    ? `Сумма: ${Number(suggestedPayAmount(editAppt)).toLocaleString('ru-RU')} ₸`
-                    : 'Укажите услугу или введите сумму в кассе'}
+                  {editAppt.paymentStatus === 'paid'
+                    ? 'Чек принят администратором или руководителем'
+                    : suggestedPayAmount(editAppt) > 0
+                      ? `Сумма: ${Number(suggestedPayAmount(editAppt)).toLocaleString('ru-RU')} ₸`
+                      : 'Укажите услугу или введите сумму'}
                 </p>
               </div>
-              {editAppt.paymentStatus !== 'paid' && (
+              {editAppt.paymentStatus !== 'paid' && canTakePayment && (
                 <Button
                   type="button"
                   size="sm"
@@ -1309,24 +1323,26 @@ export default function Schedule() {
               </p>
             </div>
             <div className="flex flex-col gap-2">
-              <Button
-                className="w-full"
-                disabled={closeSaving}
-                icon={<Wallet size={16} />}
-                onClick={() => {
-                  const total = closeServices.reduce((s, x) => s + Number(x.price || 0), 0)
-                  openAcceptPayment(
-                    { ...closeAppt, servicePrice: total || closeAppt.servicePrice },
-                    { closeVisit: true },
-                  )
-                  setCloseOpen(false)
-                }}
-              >
-                Принять оплату и завершить
-              </Button>
+              {canTakePayment && (
+                <Button
+                  className="w-full"
+                  disabled={closeSaving}
+                  icon={<Wallet size={16} />}
+                  onClick={() => {
+                    const total = closeServices.reduce((s, x) => s + Number(x.price || 0), 0)
+                    openAcceptPayment(
+                      { ...closeAppt, servicePrice: total || closeAppt.servicePrice },
+                      { closeVisit: true },
+                    )
+                    setCloseOpen(false)
+                  }}
+                >
+                  Принять оплату и завершить
+                </Button>
+              )}
               <div className="flex gap-2">
-                <Button className="flex-1" variant="secondary" disabled={closeSaving} onClick={handleCloseVisit}>
-                  {closeSaving ? 'Сохранение…' : 'Завершить без оплаты'}
+                <Button className="flex-1" variant={canTakePayment ? 'secondary' : undefined} disabled={closeSaving} onClick={handleCloseVisit}>
+                  {closeSaving ? 'Сохранение…' : canTakePayment ? 'Завершить без оплаты' : 'Завершить приём'}
                 </Button>
                 <Button variant="ghost" onClick={() => setCloseOpen(false)}>Отмена</Button>
               </div>
