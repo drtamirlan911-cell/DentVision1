@@ -307,6 +307,11 @@ export const supplierWs = {
   deleteProduct: (t: string, id: string) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'DELETE' }),
   wallet: (t: string) => supplierFetch('/api/supplier/wallet', t),
   analytics: (t: string) => supplierFetch('/api/supplier/analytics', t),
+  dashboard: (t: string) => supplierFetch('/api/supplier/dashboard', t),
+  insights: (t: string) => supplierFetch('/api/supplier/insights', t),
+  orders: (t: string) => supplierFetch('/api/supplier/orders', t),
+  updateOrderStatus: (t: string, id: string, status: string) => supplierFetch(`/api/supplier/orders/${id}/status`, t, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  createPromotion: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/promotions', t, { method: 'POST', body: JSON.stringify(b) }),
   requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
 };
 
@@ -1035,14 +1040,19 @@ export async function deleteWaitingListItem(id: string): Promise<any> {
 }
 
 // ─── Shop ───
-export async function getShopCategories(): Promise<any> { return Promise.resolve([]); }
+export async function getShopCategories(): Promise<any> {
+  return collection(await apiRequest('/api/shop/categories'));
+}
 export async function getShopProducts(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
-  return apiRequest(`/api/shop/products?${q}`);
+  const qs = q.toString();
+  return collection(await apiRequest(`/api/shop/products${qs ? `?${qs}` : ''}`));
 }
 export async function getShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`); }
-export async function getShopSuppliers(): Promise<any> { return Promise.resolve([]); }
+export async function getShopSuppliers(): Promise<any> {
+  return collection(await apiRequest('/api/shop/suppliers'));
+}
 export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getShopOrders(clinicId: string): Promise<any> { return collection(await apiRequest('/api/shop/orders')); }
 export async function createShopReview(data: any): Promise<any> { return Promise.resolve({ ok: true }); }

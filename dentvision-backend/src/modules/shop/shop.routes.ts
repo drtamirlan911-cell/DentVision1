@@ -45,12 +45,33 @@ shopRouter.get('/products', async (req, res) => {
     }
 
     const [products, total] = await Promise.all([
-      prisma.product.findMany({ where, orderBy, skip, take }),
+      prisma.product.findMany({
+        where,
+        orderBy,
+        skip,
+        take,
+        include: {
+          supplier: { select: { id: true, name: true, status: true } },
+        },
+      }),
       prisma.product.count({ where }),
     ]);
 
+    const mapped = products.map((p) => ({
+      ...p,
+      supplier_name: p.supplier?.name || null,
+      supplier_status: p.supplier?.status || null,
+      category_name: p.category || 'Прочее',
+      category_id: p.category || 'other',
+      brand: p.brand || '',
+      rating: p.rating ?? 4.5,
+      review_count: 0,
+      min_stock: 5,
+      old_price: null,
+    }));
+
     // Always return plain array for frontend compatibility
-    res.json({ ok: true, data: products });
+    res.json({ ok: true, data: mapped });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch products' });
   }
@@ -188,6 +209,55 @@ shopRouter.get('/favorites', authenticate, async (req: AuthRequest, res) => {
     res.json({ ok: true, data: favorites });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch favorites' });
+  }
+});
+
+shopRouter.get('/categories', async (_req, res) => {
+  try {
+    const rows = await prisma.product.findMany({
+      where: { category: { not: null } },
+      select: { category: true },
+      distinct: ['category'],
+    });
+    const categories = rows
+      .map((r) => r.category)
+      .filter(Boolean)
+      .map((name) => ({ id: String(name), name: String(name), icon: 'package' }));
+    res.json({ ok: true, data: categories });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to fetch categories' });
+  }
+});
+
+shopRouter.get('/suppliers', async (_req, res) => {
+  try {
+    const suppliers = await prisma.supplier.findMany({
+      where: { status: { in: ['VERIFIED', 'OFFICIAL_PARTNER', 'PENDING'] } },
+      include: {
+        _count: { select: { products: true } },
+        products: { select: { rating: true }, take: 50 },
+      },
+      orderBy: { name: 'asc' },
+      take: 100,
+    });
+    const data = suppliers.map((s) => {
+      const ratings = s.products.map((p) => p.rating).filter((r): r is number => r != null);
+      const rating = ratings.length
+        ? Number((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1))
+        : 4.8;
+      return {
+        id: s.id,
+        name: s.name,
+        status: s.status,
+        rating,
+        product_count: s._count.products,
+        city: null,
+        delivery_days: 2,
+      };
+    });
+    res.json({ ok: true, data });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to fetch suppliers' });
   }
 });
 
