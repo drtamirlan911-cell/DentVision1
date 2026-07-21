@@ -25,6 +25,11 @@ const STATUS_LABEL: Record<string, string> = {
   SUSPENDED: 'Стоп',
 }
 
+function isSuperAdminUser(user: { role?: string; platformRole?: string } | null | undefined): boolean {
+  const r = String(user?.role || user?.platformRole || '').toLowerCase()
+  return r === 'superadmin'
+}
+
 /**
  * Hidden supplier governance console.
  * - Not linked from sidebar / sitemap
@@ -33,9 +38,10 @@ const STATUS_LABEL: Record<string, string> = {
  * - Unauthorized users see a blank not-found style page (no hint)
  */
 export default function HiddenSupplierOps() {
-  const role = useAuth((s) => String(s.user?.role || s.user?.platformRole || '').toUpperCase())
+  // useAuth() returns the full auth object (not a zustand selector).
+  const { user } = useAuth()
   const toast = useToast()
-  const isSuper = role === 'SUPERADMIN'
+  const isSuper = isSuperAdminUser(user)
 
   const [gateKey, setGateKey] = useState('')
   const [unlocked, setUnlocked] = useState(false)
@@ -43,6 +49,41 @@ export default function HiddenSupplierOps() {
   const [loading, setLoading] = useState(false)
   const [memberEmail, setMemberEmail] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
+
+  const lock = useCallback(() => {
+    try { sessionStorage.removeItem(OPS_KEY_SESSION) } catch { /* ignore */ }
+    setUnlocked(false)
+    setRows([])
+    setGateKey('')
+  }, [])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await api.opsListSuppliers()
+      const list = Array.isArray(data) ? data : (data?.data || [])
+      setRows(Array.isArray(list) ? list : [])
+    } catch {
+      toast.error('Нет доступа')
+      lock()
+    } finally {
+      setLoading(false)
+    }
+  }, [toast, lock])
+
+  useEffect(() => {
+    try {
+      const existing = sessionStorage.getItem(OPS_KEY_SESSION)
+      if (existing) {
+        setUnlocked(true)
+        setGateKey(existing)
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    if (isSuper && unlocked) void load()
+  }, [isSuper, unlocked, load])
 
   // Stealth: do not reveal this page exists to non-superadmins.
   if (!isSuper) {
@@ -62,43 +103,6 @@ export default function HiddenSupplierOps() {
     try { sessionStorage.setItem(OPS_KEY_SESSION, key) } catch { /* ignore */ }
     setUnlocked(true)
   }
-
-  const lock = () => {
-    try { sessionStorage.removeItem(OPS_KEY_SESSION) } catch { /* ignore */ }
-    setUnlocked(false)
-    setRows([])
-    setGateKey('')
-  }
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const data = await api.opsListSuppliers()
-      // Envelope unwrap → { data: Supplier[], pagination }
-      const list = Array.isArray(data) ? data : (data?.data || [])
-      setRows(Array.isArray(list) ? list : [])
-    } catch {
-      // Wrong key / misconfigured → look like 404
-      toast.error('Нет доступа')
-      lock()
-    } finally {
-      setLoading(false)
-    }
-  }, [toast])
-
-  useEffect(() => {
-    try {
-      const existing = sessionStorage.getItem(OPS_KEY_SESSION)
-      if (existing) {
-        setUnlocked(true)
-        setGateKey(existing)
-      }
-    } catch { /* ignore */ }
-  }, [])
-
-  useEffect(() => {
-    if (unlocked) void load()
-  }, [unlocked, load])
 
   const setStatus = async (id: string, status: string) => {
     setBusyId(id)
