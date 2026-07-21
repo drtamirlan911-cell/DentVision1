@@ -1185,6 +1185,55 @@ export async function addSupplierMember(supplierId: string, body: { email?: stri
   return apiRequest(`/api/suppliers/${supplierId}/members`, { method: 'POST', body: JSON.stringify(body) });
 }
 
+// ─── Hidden platform ops (SUPERADMIN + X-Platform-Ops-Key) ───
+const OPS_KEY_SESSION = 'dv_ops_key';
+
+function getOpsKey(): string {
+  try { return sessionStorage.getItem(OPS_KEY_SESSION) || ''; } catch { return ''; }
+}
+
+async function opsRequest(path: string, options: RequestInit = {}): Promise<any> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  const opsKey = getOpsKey();
+  if (opsKey) headers['X-Platform-Ops-Key'] = opsKey;
+  if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) return data.data;
+  return data;
+}
+
+export async function opsListSuppliers(params: { status?: string; search?: string; page?: number } = {}): Promise<any> {
+  const q = new URLSearchParams();
+  if (params.status) q.set('status', params.status);
+  if (params.search) q.set('search', params.search);
+  if (params.page) q.set('page', String(params.page));
+  const qs = q.toString();
+  return opsRequest(`/api/ops/suppliers${qs ? `?${qs}` : ''}`);
+}
+
+export async function opsSetSupplierStatus(id: string, status: string): Promise<any> {
+  return opsRequest(`/api/ops/suppliers/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function opsAddSupplierMember(
+  id: string,
+  body: { email?: string; userId?: string; role?: string },
+): Promise<any> {
+  return opsRequest(`/api/ops/suppliers/${id}/members`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 // ─── AI Intelligence ───
 export interface AIChatResponse {
   reply: string;
