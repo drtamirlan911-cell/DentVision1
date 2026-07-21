@@ -99,6 +99,7 @@ opsSuppliersRouter.post('/:id/status', async (req: AuthRequest, res) => {
       supplierId: supplier.id,
       from: existing.status,
       to: target,
+      status: target,
       userId: req.user?.id,
     });
     return res.json({ ok: true, data: supplier } satisfies ApiResponse);

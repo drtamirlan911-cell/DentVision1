@@ -96,6 +96,7 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
 
     publish('supplier.status_changed', {
       supplierId: supplier.id,
+      status: 'PENDING',
       from: 'PENDING',
       to: 'PENDING',
       userId: req.user?.id,
@@ -204,6 +205,7 @@ suppliersRouter.post('/:id/status', requirePermission('supplier.manage'), requir
     });
     publish('supplier.status_changed', {
       supplierId: supplier.id,
+      status: target,
       from: existing.status,
       to: target,
       userId: req.user?.id,

@@ -5,11 +5,14 @@ import { generateTokens } from '../../lib/jwt.js';
 import { permissionsForRole } from '../../lib/permissions.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
-// IAM: permissions + multi-context memberships (CLINIC / SUPPLIER / LECTURER).
+// IAM module (Phase 1). Exposes the server-side permission model to clients so
+// the frontend can drive UI from real, enforced permissions instead of a
+// hard-coded role→pages map. See docs/DENTVISION_V2_INTEGRATION_PLAN.md §4.5.
 export const iamRouter = Router();
 
 iamRouter.use(authenticate);
 
+// Effective permissions of the current user in the active context (token role).
 iamRouter.get('/permissions', (req: AuthRequest, res) => {
   const role = req.user?.role;
   return res.json({
@@ -18,30 +21,43 @@ iamRouter.get('/permissions', (req: AuthRequest, res) => {
   } satisfies ApiResponse);
 });
 
-// All contexts the user can switch into.
+// All contexts (memberships) the user belongs to.
 iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
   try {
-    const memberships = await prisma.clinicMember.findMany({
-      where: { userId: req.user!.id },
-      select: {
-        id: true,
-        role: true,
-        clinicId: true,
-        joinedAt: true,
-        clinic: { select: { id: true, name: true, plan: true, logo: true } },
-      },
-      orderBy: { joinedAt: 'asc' },
-    });
+    const userId = req.user!.id;
 
-    const supplierMemberships = await prisma.supplierMember.findMany({
-      where: { userId: req.user!.id },
-      include: { supplier: { select: { id: true, name: true, status: true } } },
-    });
-
-    const lecturerProfiles = await prisma.lecturer.findMany({
-      where: { userId: req.user!.id },
-      include: { academy: { select: { id: true, name: true } } },
-    });
+    const [memberships, supplierMemberships, lecturer] = await Promise.all([
+      prisma.clinicMember.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          role: true,
+          clinicId: true,
+          joinedAt: true,
+          clinic: { select: { id: true, name: true, plan: true, logo: true } },
+        },
+        orderBy: { joinedAt: 'asc' },
+      }),
+      prisma.supplierMember.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          role: true,
+          supplierId: true,
+          createdAt: true,
+          supplier: { select: { id: true, name: true, status: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.lecturer.findUnique({
+        where: { userId },
+        select: {
+          id: true,
+          level: true,
+          academy: { select: { id: true, name: true } },
+        },
+      }),
+    ]);
 
     const contexts = [
       ...memberships.map((m) => ({
@@ -50,6 +66,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         scopeId: m.clinicId,
         roleKey: `clinic.${m.role.toLowerCase()}`,
         role: m.role,
+        joinedAt: m.joinedAt,
         clinic: m.clinic,
       })),
       ...supplierMemberships.map((m) => ({
@@ -58,17 +75,20 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         scopeId: m.supplierId,
         roleKey: `supplier.${m.role}`,
         role: m.role,
+        joinedAt: m.createdAt,
         supplier: m.supplier,
       })),
-      ...lecturerProfiles.map((l) => ({
-        id: l.id,
-        scopeType: 'LECTURER' as const,
-        scopeId: l.id,
-        roleKey: 'lecturer',
-        role: 'lecturer',
-        level: l.level,
-        academy: l.academy,
-      })),
+      ...(lecturer
+        ? [{
+            id: lecturer.id,
+            scopeType: 'LECTURER' as const,
+            scopeId: lecturer.id,
+            roleKey: 'lecturer',
+            role: lecturer.level,
+            level: lecturer.level,
+            academy: lecturer.academy,
+          }]
+        : []),
     ];
 
     return res.json({ ok: true, data: { contexts } } satisfies ApiResponse);
@@ -78,46 +98,55 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
   }
 });
 
-// Switch active context → new JWT scoped to clinic / supplier / lecturer / personal.
+// Switch active workspace context (clinic, supplier, or lecturer).
 iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
   try {
-    const { scopeType, scopeId } = req.body || {};
-    const base = { sub: req.user!.id, email: req.user!.email, role: req.user!.role };
+    const { scopeType, scopeId } = req.body as { scopeType: string; scopeId?: string };
+    const user = req.user!;
 
-    if (scopeType === 'PERSONAL' || !scopeType) {
-      const tokens = generateTokens(base);
-      return res.json({ ok: true, data: { ...tokens, context: { scopeType: 'PERSONAL' } } } satisfies ApiResponse);
+    if (!scopeType || !scopeId) {
+      return res.status(400).json({ ok: false, error: 'scopeType и scopeId обязательны' } satisfies ApiResponse);
     }
 
+    const base = { sub: user.id, email: user.email, role: user.role };
+
     if (scopeType === 'CLINIC') {
-      const m = await prisma.clinicMember.findUnique({
-        where: { userId_clinicId: { userId: req.user!.id, clinicId: scopeId } },
+      const membership = await prisma.clinicMember.findUnique({
+        where: { userId_clinicId: { userId: user.id, clinicId: scopeId } },
       });
-      if (!m) return res.status(403).json({ ok: false, error: 'Вы не участник этой клиники' } satisfies ApiResponse);
-      const tokens = generateTokens({ ...base, clinicId: scopeId });
-      return res.json({ ok: true, data: { ...tokens, context: { scopeType, scopeId, role: m.role } } } satisfies ApiResponse);
+      if (!membership) {
+        return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' } satisfies ApiResponse);
+      }
+      const tokens = generateTokens({ ...base, role: membership.role, clinicId: scopeId });
+      return res.json({ ok: true, data: tokens } satisfies ApiResponse);
     }
 
     if (scopeType === 'SUPPLIER') {
-      const m = await prisma.supplierMember.findUnique({
-        where: { userId_supplierId: { userId: req.user!.id, supplierId: scopeId } },
+      const member = await prisma.supplierMember.findUnique({
+        where: { userId_supplierId: { userId: user.id, supplierId: scopeId } },
       });
-      if (!m) return res.status(403).json({ ok: false, error: 'Вы не участник этого поставщика' } satisfies ApiResponse);
-      const tokens = generateTokens({ ...base, supplierId: scopeId, supplierRole: m.role });
-      return res.json({ ok: true, data: { ...tokens, context: { scopeType, scopeId, role: m.role } } } satisfies ApiResponse);
+      if (!member) {
+        return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этого поставщика' } satisfies ApiResponse);
+      }
+      const tokens = generateTokens({ ...base, supplierId: scopeId, supplierRole: member.role });
+      return res.json({ ok: true, data: tokens } satisfies ApiResponse);
     }
 
     if (scopeType === 'LECTURER') {
-      const lecturer = await prisma.lecturer.findFirst({ where: { id: scopeId, userId: req.user!.id } });
-      if (!lecturer) return res.status(403).json({ ok: false, error: 'Вы не являетесь этим лектором' } satisfies ApiResponse);
-      const tokens = generateTokens({ ...base, lecturerId: lecturer.id });
-      return res.json({ ok: true, data: { ...tokens, context: { scopeType, scopeId, role: 'lecturer' } } } satisfies ApiResponse);
+      const lecturer = await prisma.lecturer.findFirst({
+        where: { id: scopeId, userId: user.id },
+      });
+      if (!lecturer) {
+        return res.status(403).json({ ok: false, error: 'Лекторский профиль не найден' } satisfies ApiResponse);
+      }
+      const tokens = generateTokens({ ...base, lecturerId: scopeId });
+      return res.json({ ok: true, data: tokens } satisfies ApiResponse);
     }
 
-    return res.status(400).json({ ok: false, error: 'Неизвестный scopeType' } satisfies ApiResponse);
+    return res.status(400).json({ ok: false, error: 'Неизвестный тип контекста' } satisfies ApiResponse);
   } catch (error) {
-    console.error('switch-context error:', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось переключить контекст' } satisfies ApiResponse);
+    console.error('IAM switch-context error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при переключении контекста' } satisfies ApiResponse);
   }
 });
 

@@ -11,7 +11,6 @@ export interface AuthUser {
   // Active SUPPLIER context (set when the user switched into a supplier workspace).
   supplierId?: string;
   supplierRole?: string;
-  // Active LECTURER context (school self-service cabinet).
   lecturerId?: string;
   isGuest?: boolean;
 }

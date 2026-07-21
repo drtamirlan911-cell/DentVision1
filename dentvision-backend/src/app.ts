@@ -14,13 +14,10 @@ import { medicalRouter } from './modules/medical/medical.routes.js';
 import { billingRouter } from './modules/billing/billing.routes.js';
 import { inventoryRouter } from './modules/inventory/inventory.routes.js';
 import { shopRouter } from './modules/shop/shop.routes.js';
-import { suppliersRouter } from './modules/suppliers/suppliers.routes.js';
 import { schoolRouter } from './modules/school/school.routes.js';
 import { aiRouter } from './modules/ai/ai.routes.js';
 import { guestRouter } from './modules/guest/guest.routes.js';
 import { analyticsRouter } from './modules/analytics/analytics.routes.js';
-import { ecosystemRouter } from './modules/analytics/ecosystem.routes.js';
-import { complianceRouter } from './modules/compliance/compliance.routes.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
 import { filesRouter } from './modules/files/files.routes.js';
 import { auditRouter } from './modules/audit/audit.routes.js';
@@ -31,7 +28,6 @@ import { remindersRouter } from './modules/crm/reminders.routes.js';
 import { chairsRouter } from './modules/crm/chairs.routes.js';
 import { labRouter } from './modules/lab/lab.routes.js';
 import { communityRouter } from './modules/community/community.routes.js';
-import { publicRouter } from './modules/public/public.routes.js';
 import { iamRouter } from './modules/iam/iam.routes.js';
 import { academiesRouter, lecturersRouter } from './modules/academy/academy.routes.js';
 import { financeRouter } from './modules/finance/finance.routes.js';
@@ -51,13 +47,9 @@ import { jobsRouter } from './modules/jobs/jobs.routes.js';
 import { opsSuppliersRouter } from './modules/ops/ops.suppliers.routes.js';
 import { opsHubRouter } from './modules/ops/ops.hub.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
-import { registerWebhookDispatcher } from './modules/developer/webhook.dispatcher.js';
-import { registerWorkflowEngine } from './modules/workflow/workflow.engine.js';
 
-// Wire up domain-event subscribers (audit, webhooks, workflow triggers) at import time.
+// Wire up domain-event subscribers (audit, etc.) once at import time.
 registerSubscribers();
-registerWebhookDispatcher();
-registerWorkflowEngine();
 
 const app = express();
 
@@ -78,14 +70,12 @@ app.use('/api/auth/register', authLimiter);
 
 // ─── Health ───
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'dentvision-backend', version: '1.0.0', timestamp: new Date().toISOString() });
+  res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString() });
 });
 
 // ─── Routes ───
 app.use('/api/auth', authRouter);
 app.use('/api/iam', iamRouter);
-app.use('/api/profile', profileRouter);
-app.use('/api/jobs', jobsRouter);
 app.use('/api/clinics', clinicsRouter);
 app.use('/api/patients', patientsRouter);
 app.use('/api/appointments', appointmentsRouter);
@@ -94,26 +84,14 @@ app.use('/api/billing', billingRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/shop', shopRouter);
 app.use('/api/suppliers', suppliersRouter);
-app.use('/api/academies', academiesRouter);
-app.use('/api/lecturers', lecturersRouter);
-app.use('/api/finance', financeRouter);
-app.use('/api/payments', paymentsRouter);
-app.use('/api/subscriptions', subscriptionsRouter);
-app.use('/api/disputes', disputesRouter);
-app.use('/api/developer', developerRouter);
-app.use('/api/v1', v1Router);
+app.use('/api/supplier', supplierWorkspaceRouter);
+app.use('/api/lecturer', lecturerRouter);
 app.use('/api/school', schoolRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/guest', guestRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/analytics', ecosystemRouter);
 app.use('/api/compliance', complianceRouter);
-app.use('/api/partners', partnersRouter);
-app.use('/api/workflows', workflowRouter);
-app.use('/api/data', dataRouter);
-app.use('/api/ai-governance', aiGovernanceRouter);
-app.use('/api/supplier', supplierWorkspaceRouter);
-app.use('/api/lecturer', lecturerRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/documents', filesRouter);

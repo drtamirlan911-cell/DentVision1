@@ -44,9 +44,9 @@ export function ProactiveAlertsDisplay({
   onResolve, 
   maxVisible = 4 
 }: ProactiveAlertsDisplayProps) {
-  if (!alerts.length) return null
-
   const { executeAction } = useAIExecutor()
+
+  if (!alerts.length) return null
   const sortedAlerts = [...alerts].sort((a, b) => b.priority - a.priority)
   const visibleAlerts = sortedAlerts.slice(0, maxVisible)
 

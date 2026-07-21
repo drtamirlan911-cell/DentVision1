@@ -38,7 +38,7 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
     const transactions = await prisma.transaction.findMany({
       take: limit,
       orderBy: { createdAt: 'desc' },
-      include: { entries: true },
+      include: { ledgerEntries: true },
     });
     return res.json({ ok: true, data: serializeBigInt(transactions) } satisfies ApiResponse);
   } catch (error) {

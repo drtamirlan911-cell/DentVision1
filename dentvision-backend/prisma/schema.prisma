@@ -64,9 +64,8 @@ model User {
   avatar    String?
   phone     String?
   spec      String?
-  role      UserRole @default(DOCTOR)
-  /// LinkedIn-style professional profile extras (headline, bio, skills, …).
   profileMeta Json?
+  role      UserRole @default(DOCTOR)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -589,12 +588,11 @@ model Supplier {
 }
 
 model SupplierMember {
-  id         String @id @default(uuid())
+  id         String   @id @default(uuid())
   userId     String
   supplierId String
-  role       String @default("owner") // owner | manager | warehouse
-
-  createdAt DateTime @default(now())
+  role       String   @default("owner")
+  createdAt  DateTime @default(now())
 
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
@@ -903,10 +901,7 @@ model CommunityLike {
   @@map("community_likes")
 }
 
-// ─── FINANCE CORE (Phase 4) ───
-// Double-entry ledger. All monetary amounts are stored in MINOR units (тиын);
-// every Transaction is balanced (sum debit == sum credit), so the sum of all
-// wallet balances is always zero.
+// ─── FINANCE (Phase 4) ───
 
 enum WalletOwnerType {
   CLINIC
@@ -931,29 +926,27 @@ model Wallet {
   ownerId   String
   currency  String          @default("KZT")
   balance   BigInt          @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  entries LedgerEntry[]
+  ledgerEntries LedgerEntry[]
 
   @@unique([ownerType, ownerId, currency])
   @@map("wallets")
 }
 
 model Transaction {
-  id       String   @id @default(uuid())
-  type     String
-  status   TxStatus @default(COMPLETED)
-  amount   BigInt
-  currency String   @default("KZT")
-  refType  String?
-  refId    String?
-  meta     Json?
-
+  id        String   @id @default(uuid())
+  type      String
+  status    TxStatus @default(COMPLETED)
+  amount    BigInt
+  currency  String   @default("KZT")
+  refType   String?
+  refId     String?
+  meta      Json?
   createdAt DateTime @default(now())
 
-  entries LedgerEntry[]
+  ledgerEntries LedgerEntry[]
 
   @@index([refType, refId])
   @@map("transactions")
@@ -963,7 +956,7 @@ model LedgerEntry {
   id            String @id @default(uuid())
   transactionId String
   walletId      String
-  direction     String // "debit" | "credit"
+  direction     String
   amount        BigInt
 
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
@@ -975,14 +968,13 @@ model LedgerEntry {
 }
 
 model CommissionRule {
-  id         String  @id @default(uuid())
-  domain     String // shop | school | academy
-  scopeId    String? // null = global default; else per-supplier/academy override
-  percentBps Int // basis points: 1000 = 10%
+  id         String   @id @default(uuid())
+  domain     String
+  scopeId    String?
+  percentBps Int
   splitJson  Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([domain, scopeId])
   @@map("commission_rules")
@@ -996,16 +988,15 @@ model Payment {
   externalId String?  @unique
   amount     BigInt
   currency   String   @default("KZT")
-  status     String   @default("created") // created | pending | paid | failed | expired
-  refType    String? // sale | subscription | enrollment | order
+  status     String   @default("created")
+  refType    String?
   refId      String?
   domain     String?
   sellerType String?
   sellerId   String?
   meta       Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([refType, refId])
   @@map("payments")
@@ -1015,23 +1006,21 @@ model Subscription {
   id        String          @id @default(uuid())
   ownerType WalletOwnerType
   ownerId   String
-  plan      String          @default("free") // free | starter | professional | enterprise
+  plan      String          @default("free")
   status    String          @default("active")
   periodEnd DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   @@unique([ownerType, ownerId])
   @@map("subscriptions")
 }
 
 model Payout {
-  id       String @id @default(uuid())
-  walletId String
-  amount   BigInt
-  status   String @default("requested") // requested | approved | paid | rejected
-
+  id        String   @id @default(uuid())
+  walletId  String
+  amount    BigInt
+  status    String   @default("requested")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1040,17 +1029,30 @@ model Payout {
 }
 
 model Dispute {
-  id      String @id @default(uuid())
-  refType String // order | enrollment
-  refId   String
-  reason  String
-  status  String @default("open") // open | review | resolved | rejected
-
+  id        String   @id @default(uuid())
+  refType   String
+  refId     String
+  reason    String
+  status    String   @default("open")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([refType, refId])
   @@map("disputes")
+}
+
+// ─── COMPLIANCE (Phase 7) ───
+
+model ComplianceCheck {
+  id         String   @id @default(uuid())
+  entityType String
+  entityId   String
+  status     String   @default("needs_review")
+  findings   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("compliance_checks")
 }
 
 // ─── DEVELOPER PLATFORM (Phase 8) ───
@@ -1059,13 +1061,12 @@ model DeveloperApp {
   id          String   @id @default(uuid())
   ownerUserId String
   name        String
-  environment String   @default("sandbox") // sandbox | production
+  environment String   @default("sandbox")
   scopes      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  keys     ApiKey[]
+  apiKeys  ApiKey[]
   webhooks Webhook[]
 
   @@index([ownerUserId])
@@ -1080,8 +1081,7 @@ model ApiKey {
   scopes    String[]
   rateLimit Int       @default(200)
   revokedAt DateTime?
-
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   app DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
 
@@ -1089,16 +1089,15 @@ model ApiKey {
 }
 
 model Webhook {
-  id     String   @id @default(uuid())
-  appId  String
-  url    String
-  events String[]
-  secret String
-  active Boolean  @default(true)
-
+  id        String   @id @default(uuid())
+  appId     String
+  url       String
+  events    String[]
+  secret    String
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  app       DeveloperApp      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  app        DeveloperApp      @relation(fields: [appId], references: [id], onDelete: Cascade)
   deliveries WebhookDelivery[]
 
   @@map("webhooks")
@@ -1109,10 +1108,9 @@ model WebhookDelivery {
   webhookId String
   event     String
   payload   Json
-  status    String   @default("pending") // pending | delivered | failed
+  status    String   @default("pending")
   attempts  Int      @default(0)
   lastError String?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1122,48 +1120,17 @@ model WebhookDelivery {
   @@map("webhook_deliveries")
 }
 
-// ─── DATA INTELLIGENCE (Phase 10) ───
-
-model Metric {
-  id         String @id @default(uuid())
-  key        String @unique
-  domain     String
-  title      String
-  definition Json // { type: "patient_count" | "revenue_month" | ... }
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("metrics")
-}
-
-model Dashboard {
-  id        String @id @default(uuid())
-  scopeType String @default("CLINIC")
-  scopeId   String
-  name      String
-  layout    Json // widgets referencing metric keys
-  createdBy String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([scopeType, scopeId])
-  @@map("dashboards")
-}
-
-// ─── WORKFLOW STUDIO (Phase 9) ───
+// ─── WORKFLOW (Phase 9) ───
 
 model Workflow {
-  id        String @id @default(uuid())
-  scopeType String @default("CLINIC")
+  id        String   @id @default(uuid())
+  scopeType String   @default("CLINIC")
   scopeId   String
   name      String
-  status    String @default("active") // draft | active | disabled
-  trigger   Json // { event: "patient.created" } | { type: "manual" }
-  graph     Json // { nodes: [...] }
+  status    String   @default("active")
+  trigger   Json
+  graph     Json
   createdBy String?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1176,7 +1143,7 @@ model Workflow {
 model WorkflowRun {
   id          String    @id @default(uuid())
   workflowId  String
-  status      String    @default("running") // running | success | failed
+  status      String    @default("running")
   triggerData Json?
   steps       Json?
   startedAt   DateTime  @default(now())
@@ -1188,7 +1155,35 @@ model WorkflowRun {
   @@map("workflow_runs")
 }
 
-// ─── PARTNER PROGRAM (Phase 11) ───
+// ─── DATA INTELLIGENCE (Phase 10) ───
+
+model Metric {
+  id         String   @id @default(uuid())
+  key        String   @unique
+  domain     String
+  title      String
+  definition Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("metrics")
+}
+
+model Dashboard {
+  id        String   @id @default(uuid())
+  scopeType String   @default("CLINIC")
+  scopeId   String
+  name      String
+  layout    Json
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scopeType, scopeId])
+  @@map("dashboards")
+}
+
+// ─── PARTNERS (Phase 11) ───
 
 enum PartnerType {
   MANUFACTURER
@@ -1201,15 +1196,14 @@ enum PartnerType {
 model Partner {
   id        String      @id @default(uuid())
   type      PartnerType
-  refType   String // supplier | academy | lab
+  refType   String
   refId     String
   tierId    String?
   status    String      @default("active")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tier      PartnerTier?        @relation(fields: [tierId], references: [id])
+  tier      PartnerTier?        @relation(fields: [tierId], references: [id], onDelete: SetNull)
   kpis      PartnerKPI[]
   slas      PartnerSLA[]
   campaigns MarketingCampaign[]
@@ -1219,13 +1213,12 @@ model Partner {
 }
 
 model PartnerTier {
-  id            String @id @default(uuid())
-  name          String @unique
+  id            String   @id @default(uuid())
+  name          String   @unique
   commissionBps Int
   minKpiJson    Json?
   benefitsJson  Json?
-
-  createdAt DateTime @default(now())
+  createdAt     DateTime @default(now())
 
   partners Partner[]
 
@@ -1238,8 +1231,7 @@ model PartnerKPI {
   period      String
   metricsJson Json?
   score       Float    @default(0)
-
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
@@ -1248,13 +1240,12 @@ model PartnerKPI {
 }
 
 model PartnerSLA {
-  id        String  @id @default(uuid())
+  id        String   @id @default(uuid())
   partnerId String
   metric    String
   target    Float
   actual    Float?
-  breached  Boolean @default(false)
-
+  breached  Boolean  @default(false)
   createdAt DateTime @default(now())
 
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
@@ -1272,52 +1263,34 @@ model MarketingCampaign {
   status    String    @default("draft")
   startsAt  DateTime?
   endsAt    DateTime?
-
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@map("marketing_campaigns")
 }
 
-// ─── COMPLIANCE (Phase 7) ───
-// Rule-based gate for marketplace/education content (KZ requirements).
-
-model ComplianceCheck {
-  id         String @id @default(uuid())
-  entityType String // product | course | supplier
-  entityId   String
-  status     String @default("needs_review") // approved | blocked | needs_review
-  findings   Json?
-
-  createdAt DateTime @default(now())
-
-  @@index([entityType, entityId])
-  @@map("compliance_checks")
-}
-
-
-
-// ─── JOBS (HH-class vacancies) ───
+// ─── PROFILE & JOBS (Phase 12) ───
 
 model JobVacancy {
-  id             String   @id @default(uuid())
-  title          String
-  clinicName     String   @default("")
-  city           String   @default("")
-  salary         String   @default("")
-  employmentType String   @default("Полная занятость")
-  description    String   @default("")
-  tags           Json?
-  status         String   @default("open") // open | closed
-  kind           String   @default("vacancy") // vacancy | resume
-  userId         String?
-  clinicId       String?
+  id              String   @id @default(uuid())
+  title           String
+  clinicName      String   @default("")
+  city            String   @default("")
+  salary          String   @default("")
+  employmentType  String   @default("Полная занятость")
+  description     String   @default("")
+  tags            Json?
+  status          String   @default("open")
+  kind            String   @default("vacancy")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  userId   String?
+  clinicId String?
 
   applications JobApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 
   @@index([status, city])
   @@index([userId])
@@ -1325,18 +1298,20 @@ model JobVacancy {
 }
 
 model JobApplication {
-  id        String @id @default(uuid())
+  id        String   @id @default(uuid())
   vacancyId String
   userId    String
-  userName  String @default("")
-  coverNote String @default("")
-  status    String @default("new")
 
-  createdAt DateTime @default(now())
+  userName  String   @default("")
+  coverNote String   @default("")
+  status    String   @default("new")
 
   vacancy JobVacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([vacancyId, userId])
   @@map("job_applications")
 }
+

@@ -67,7 +67,7 @@ export async function recordSale(input: SaleInput) {
         refType: input.refType || input.domain,
         refId: input.refId || null,
         meta: { bps, commission: commission.toString(), net: net.toString() } as Prisma.InputJsonValue,
-        entries: {
+        ledgerEntries: {
           create: [
             { walletId: gateway.id, direction: 'debit', amount: input.amountMinor },
             { walletId: seller.id, direction: 'credit', amount: net },
@@ -75,7 +75,7 @@ export async function recordSale(input: SaleInput) {
           ],
         },
       },
-      include: { entries: true },
+      include: { ledgerEntries: true },
     });
 
     await tx.wallet.update({ where: { id: gateway.id }, data: { balance: { decrement: input.amountMinor } } });

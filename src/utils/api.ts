@@ -273,18 +273,6 @@ async function supplierFetch(path: string, token: string, options: RequestInit =
   return data.data !== undefined ? data.data : data;
 }
 
-export const lecturerWs = {
-  me: (t: string) => supplierFetch('/api/lecturer/me', t),
-  updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/lecturer/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
-  courses: (t: string) => supplierFetch('/api/lecturer/courses', t),
-  createCourse: (t: string, b: Record<string, unknown>) => supplierFetch('/api/lecturer/courses', t, { method: 'POST', body: JSON.stringify(b) }),
-  updateCourse: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/lecturer/courses/${id}`, t, { method: 'PATCH', body: JSON.stringify(b) }),
-  deleteCourse: (t: string, id: string) => supplierFetch(`/api/lecturer/courses/${id}`, t, { method: 'DELETE' }),
-  wallet: (t: string) => supplierFetch('/api/lecturer/wallet', t),
-  analytics: (t: string) => supplierFetch('/api/lecturer/analytics', t),
-  requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/lecturer/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
-};
-
 export const supplierWs = {
   me: (t: string) => supplierFetch('/api/supplier/me', t),
   updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
@@ -296,6 +284,32 @@ export const supplierWs = {
   wallet: (t: string) => supplierFetch('/api/supplier/wallet', t),
   analytics: (t: string) => supplierFetch('/api/supplier/analytics', t),
   requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
+};
+
+async function lecturerFetch(path: string, token: string, options: RequestInit = {}): Promise<any> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(options.headers as Record<string, string>),
+    },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.data !== undefined ? data.data : data;
+}
+
+export const lecturerWs = {
+  me: (t: string) => lecturerFetch('/api/lecturer/me', t),
+  updateMe: (t: string, b: Record<string, unknown>) => lecturerFetch('/api/lecturer/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
+  courses: (t: string) => lecturerFetch('/api/lecturer/courses', t),
+  createCourse: (t: string, b: Record<string, unknown>) => lecturerFetch('/api/lecturer/courses', t, { method: 'POST', body: JSON.stringify(b) }),
+  updateCourse: (t: string, id: string, b: Record<string, unknown>) => lecturerFetch(`/api/lecturer/courses/${id}`, t, { method: 'PATCH', body: JSON.stringify(b) }),
+  deleteCourse: (t: string, id: string) => lecturerFetch(`/api/lecturer/courses/${id}`, t, { method: 'DELETE' }),
+  wallet: (t: string) => lecturerFetch('/api/lecturer/wallet', t),
+  analytics: (t: string) => lecturerFetch('/api/lecturer/analytics', t),
+  requestPayout: (t: string, b: Record<string, unknown>) => lecturerFetch('/api/lecturer/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
 };
 
 export async function saveClinicSettings(
