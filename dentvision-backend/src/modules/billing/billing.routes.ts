@@ -3,6 +3,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
+import { buildDoctorPayroll } from '../crm/payroll.js';
 
 const billingRouter = Router();
 
@@ -216,6 +217,65 @@ billingRouter.get('/summary', async (req: AuthRequest, res) => {
   }
 });
 
+billingRouter.get('/my-payroll', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    const userId = req.user?.id;
+    if (!clinicId || !userId) {
+      return res.status(400).json({ ok: false, error: 'Clinic ID not found' } satisfies ApiResponse);
+    }
+
+    const now = new Date();
+    const from = req.query.from
+      ? new Date(String(req.query.from))
+      : new Date(now.getFullYear(), now.getMonth(), 1);
+    const to = req.query.to
+      ? new Date(String(req.query.to))
+      : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    const member = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId, clinicId } },
+      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+    });
+    if (!member) {
+      return res.status(404).json({ ok: false, error: 'Участник клиники не найден' } satisfies ApiResponse);
+    }
+
+    const completedAppts = await prisma.appointment.findMany({
+      where: {
+        clinicId,
+        doctorId: userId,
+        status: 'COMPLETED',
+        date: { gte: from, lte: to },
+      },
+      include: {
+        patient: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: [{ date: 'desc' }, { time: 'desc' }],
+    });
+
+    const payroll = buildDoctorPayroll({
+      userId,
+      name: `${member.user.firstName} ${member.user.lastName}`.trim(),
+      role: member.role,
+      percent: member.commissionPercent ?? 30,
+      appointments: completedAppts,
+    });
+
+    return res.json({
+      ok: true,
+      data: {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        payroll,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('My payroll error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить начисления' } satisfies ApiResponse);
+  }
+});
+
 billingRouter.get('/reports', async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
@@ -278,42 +338,30 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
       byMethod[method].count += 1;
     }
 
-    // Payroll from completed appointments in range (KazDent analytics/pro)
     const completedAppts = await prisma.appointment.findMany({
       where: {
         clinicId,
         status: 'COMPLETED',
         date: { gte: from, lte: to },
       },
+      include: {
+        patient: { select: { firstName: true, lastName: true } },
+      },
     });
     const members = await prisma.clinicMember.findMany({
       where: { clinicId },
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
     });
-    const payroll = members.map((m) => {
-      const pct = m.commissionPercent ?? 30;
-      const doctorAppts = completedAppts.filter((a) => a.doctorId === m.userId);
-      let gross = 0;
-      let mat = 0;
-      for (const a of doctorAppts) {
-        const meta = (a.meta && typeof a.meta === 'object' ? a.meta : {}) as Record<string, number>;
-        gross += Number(meta.servicePrice || 0);
-        mat += Number(meta.matCost || 0);
-      }
-      const net = Math.max(0, gross - mat);
-      const earned = Math.round(net * (pct / 100));
-      return {
+    const payroll = members
+      .map((m) => buildDoctorPayroll({
         userId: m.userId,
         name: `${m.user.firstName} ${m.user.lastName}`.trim(),
         role: m.role,
-        percent: pct,
-        visits: doctorAppts.length,
-        gross,
-        matCost: mat,
-        net,
-        earned,
-      };
-    }).filter((r) => r.visits > 0 || r.earned > 0);
+        percent: m.commissionPercent ?? 30,
+        appointments: completedAppts.filter((a) => a.doctorId === m.userId),
+      }))
+      .filter((r) => r.visits > 0 || r.earned > 0)
+      .map(({ visitDetails, ...row }) => row);
 
     res.json({
       ok: true,

@@ -62,7 +62,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
     canManageClinicSettings: true,
     canManageFinance: true,
   },
-  doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'ai', 'reminders', 'school', 'treatment-plans', 'dental-chart'], canSeeSalary: false, ownDataOnly: true },
+  doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'ai', 'reminders', 'school', 'treatment-plans', 'dental-chart'], canSeeSalary: false, canSeeOwnSalary: true, ownDataOnly: true },
   assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
   reception: { label: 'Регистратор', icon: '📋', pages: ['schedule', 'patients', 'documents', 'reminders', 'shop'], canAddStaff: false, readOnly: true },
   accountant: { label: 'Бухгалтер', icon: '📊', pages: ['analytics', 'finance', 'cashier', 'pricelist', 'dashboard'], canSeeSalary: true, canSeeExpenses: true, canManageFinance: true },
