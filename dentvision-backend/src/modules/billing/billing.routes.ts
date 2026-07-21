@@ -50,15 +50,16 @@ billingRouter.get('/invoices', async (req: AuthRequest, res) => {
 billingRouter.post('/invoices', async (req: AuthRequest, res) => {
   try {
     const user = req.user;
-    const { patientId, amount, items, notes } = req.body;
+    const { patientId, amount, total, items, notes } = req.body;
     const clinicId = user?.clinicId;
+    const amountValue = amount !== undefined ? Number(amount) : total !== undefined ? Number(total) : NaN;
 
     if (!clinicId) {
       res.status(400).json({ ok: false, error: 'Clinic ID not found' });
       return;
     }
 
-    if (!patientId || amount === undefined) {
+    if (!patientId || !Number.isFinite(amountValue)) {
       res.status(400).json({ ok: false, error: 'patientId and amount are required' });
       return;
     }
@@ -68,7 +69,7 @@ billingRouter.post('/invoices', async (req: AuthRequest, res) => {
         id: uid(),
         patientId,
         clinicId,
-        amount,
+        amount: amountValue,
         items: items || undefined,
         notes: [
           req.body?.payMethod ? `[payMethod:${req.body.payMethod}]` : '',
@@ -80,6 +81,7 @@ billingRouter.post('/invoices', async (req: AuthRequest, res) => {
 
     res.status(201).json({ ok: true, data: invoice });
   } catch (error) {
+    console.error('[billing] create invoice', error);
     res.status(500).json({ ok: false, error: 'Failed to create invoice' });
   }
 });

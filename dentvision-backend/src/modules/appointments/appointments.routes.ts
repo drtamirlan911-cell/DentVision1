@@ -127,9 +127,9 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), async (req:
     const body = req.body || {};
     const {
       id,
-      patientId,
-      doctorId,
-      date,
+      patientId: bodyPatientId,
+      doctorId: bodyDoctorId,
+      date: bodyDate,
       time,
       duration,
       type,
@@ -138,6 +138,15 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), async (req:
       force,
       chairId,
     } = body;
+
+    const existing = id
+      ? await prisma.appointment.findFirst({ where: { id, clinicId } })
+      : null;
+
+    // Partial updates (e.g. paymentStatus only) must reuse existing core fields.
+    const patientId = bodyPatientId || existing?.patientId;
+    const doctorId = bodyDoctorId || existing?.doctorId;
+    const date = bodyDate || (existing?.date ? existing.date.toISOString().slice(0, 10) : undefined);
 
     if (!patientId || !doctorId || !date) {
       return res.status(400).json({ ok: false, error: 'Пациент, врач и дата обязательны' } satisfies ApiResponse);
@@ -151,13 +160,18 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), async (req:
       return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
     }
 
-    const apptTime = time || '09:00';
-    const apptDuration = duration || 30;
+    const apptTime = time || existing?.time || '09:00';
+    const apptDuration = duration || existing?.duration || 30;
     const dayStart = new Date(date);
     const dayEnd = new Date(date);
     dayEnd.setHours(23, 59, 59, 999);
 
-    if (!force) {
+    // Skip conflict scan for meta-only patches (paymentStatus etc.) that keep slot fields.
+    const slotChanged = Boolean(
+      bodyPatientId || bodyDoctorId || bodyDate || time !== undefined || duration !== undefined || chairId !== undefined,
+    );
+
+    if (!force && slotChanged) {
       const candidates = await prisma.appointment.findMany({
         where: {
           clinicId,
@@ -183,10 +197,6 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), async (req:
         });
       }
     }
-
-    const existing = id
-      ? await prisma.appointment.findFirst({ where: { id, clinicId } })
-      : null;
 
     const meta = buildMeta(body, parseMeta(existing?.meta));
     const serviceLabel = meta.serviceName || type || existing?.type || null;
