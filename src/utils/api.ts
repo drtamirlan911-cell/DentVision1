@@ -1059,27 +1059,53 @@ export async function createShopReview(data: any): Promise<any> { return Promise
 export async function toggleShopFavorite(data: any): Promise<any> { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getShopFavorites(clinicId: string): Promise<any> { return apiRequest('/api/shop/favorites'); }
 
-// ─── School ───
+// ─── School / Academy OS ───
+export async function getAcademyHub(): Promise<any> {
+  return apiRequest('/api/school/hub');
+}
 export async function getSchoolCourses(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
-  return apiRequest(`/api/school/courses?${q}`);
+  const qs = q.toString();
+  return collection(await apiRequest(`/api/school/courses${qs ? `?${qs}` : ''}`));
 }
 export async function getSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`); }
 export async function enrollCourse(data: any): Promise<any> { return apiRequest('/api/school/enrollments', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getEnrollments(userId: string): Promise<any> { return apiRequest('/api/school/enrollments'); }
 export async function updateEnrollment(id: string, data: any): Promise<any> { return apiRequest(`/api/school/enrollments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
-export async function getSchoolClinicalCases(category: string): Promise<any> {
+export async function getSchoolClinicalCases(category?: string): Promise<any> {
   const q = category ? `?category=${encodeURIComponent(category)}` : '';
-  return apiRequest(`/api/school/clinical-cases${q}`);
+  return collection(await apiRequest(`/api/school/clinical-cases${q}`));
 }
 export async function getSchoolLibrary(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
-  return apiRequest(`/api/school/library?${q}`);
+  const qs = q.toString();
+  return collection(await apiRequest(`/api/school/library${qs ? `?${qs}` : ''}`));
+}
+export async function getSchoolLive(): Promise<any> {
+  return collection(await apiRequest('/api/school/live'));
 }
 export async function getSchoolCertificates(userId: string): Promise<any> {
-  return apiRequest('/api/school/certificates');
+  return collection(await apiRequest('/api/school/certificates'));
+}
+export async function getAcademies(): Promise<any> {
+  return collection(await apiRequest('/api/academies'));
+}
+export async function getLecturers(params: Record<string, string> = {}): Promise<any> {
+  const q = new URLSearchParams(params).toString();
+  return collection(await apiRequest(`/api/lecturers${q ? `?${q}` : ''}`));
+}
+export async function reviewSchoolHomework(payload: {
+  title?: string;
+  notes?: string;
+  category?: string;
+  imageCount?: number;
+}): Promise<any> {
+  return apiRequest('/api/school/homework/review', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getLessonExam(lessonId: string): Promise<any> {
