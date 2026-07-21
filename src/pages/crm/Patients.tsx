@@ -755,6 +755,30 @@ export default function Patients() {
                         Внести
                       </Button>
                     </div>
+                    <div className="mt-4 pt-4 border-t border-bdr-subtle flex items-end gap-3 flex-wrap">
+                      <div className="flex-1 min-w-[140px]">
+                        <p className="text-xs text-txt-muted mb-1">Предоплата / баланс</p>
+                        <p className="text-lg font-bold text-dv-gold">{tg(Number(selected.prepaidBalance || 0))}</p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={async () => {
+                          const raw = window.prompt('Сумма пополнения баланса (₸)', '10000')
+                          const amount = Number(raw)
+                          if (!amount || Number.isNaN(amount)) return
+                          try {
+                            const updated = await api.depositPatient(selected.id, amount)
+                            setSelected({ ...selected, prepaidBalance: updated?.prepaidBalance ?? (Number(selected.prepaidBalance || 0) + amount) })
+                            showToast('Баланс пополнен', 'success')
+                          } catch (err: any) {
+                            showToast(err?.message || 'Не удалось пополнить', 'error')
+                          }
+                        }}
+                      >
+                        Пополнить баланс
+                      </Button>
+                    </div>
                   </div>
 
                   <p className="text-sm font-semibold text-txt-primary mb-3">История платежей</p>
