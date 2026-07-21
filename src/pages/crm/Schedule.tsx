@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
-  WifiOff, CloudOff,
+  WifiOff, CloudOff, Printer, ClipboardCheck, Globe,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -71,7 +71,7 @@ export default function Schedule() {
   const { user, roleInfo, clinic: activeClinic } = useAuth()
   const clinic = user?.clinicId ? { id: user.clinicId } : null
   const {
-    appointments: liveAppointments, patients, doctors, waitingList, receipts,
+    appointments: liveAppointments, patients, doctors, waitingList, bookings, receipts,
     upsertAppointment: upsertAppointmentApi, deleteAppointment,
     upsertPatient, upsertReceipt,
     upsertWaitingListItem, deleteWaitingListItem,
