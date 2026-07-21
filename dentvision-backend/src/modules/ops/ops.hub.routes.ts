@@ -24,6 +24,25 @@ const UI_TO_CLINIC_PLAN: Record<string, ClinicPlan> = {
   enterprise: 'ENTERPRISE',
 };
 
+/** Attach display name/email from User — Lecturer has no name fields of its own. */
+async function withLecturerUsers<T extends { userId: string }>(rows: T[]) {
+  if (!rows.length) return [] as Array<T & { name: string; email: string | null }>;
+  const users = await prisma.user.findMany({
+    where: { id: { in: rows.map((r) => r.userId) } },
+    select: { id: true, firstName: true, lastName: true, email: true },
+  });
+  const byId = Object.fromEntries(users.map((u) => [u.id, u]));
+  return rows.map((row) => {
+    const u = byId[row.userId];
+    const name = u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : '';
+    return {
+      ...row,
+      name: name || 'Лектор',
+      email: u?.email || null,
+    };
+  });
+}
+
 const CLINIC_TO_SAAS: Record<string, string> = {
   DEMO: 'free',
   STANDARD: 'starter',
@@ -154,7 +173,7 @@ opsHubRouter.get('/overview', async (_req: AuthRequest, res) => {
         },
         queues: {
           suppliersPending: pendingSupplierRows,
-          lecturersNew: newLecturerRows,
+          lecturersNew: await withLecturerUsers(newLecturerRows),
           clinicsExpiring: expiringClinicRows.map((s) => ({
             ...s,
             clinic: clinicMap[s.ownerId] || null,
@@ -295,7 +314,11 @@ opsHubRouter.get('/school', async (_req: AuthRequest, res) => {
     ]);
     return res.json({
       ok: true,
-      data: { academies, lecturers, courseCount: courses },
+      data: {
+        academies,
+        lecturers: await withLecturerUsers(lecturers),
+        courseCount: courses,
+      },
     } satisfies ApiResponse);
   } catch (error) {
     console.error('[ops/school]', error);
