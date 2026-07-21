@@ -3,6 +3,8 @@ import type { AppointmentStatus } from '@prisma/client';
 export interface AppointmentMeta {
   serviceName?: string;
   servicePrice?: number;
+  matCost?: number;
+  discount?: number;
   paymentStatus?: 'unpaid' | 'paid' | string;
   diagnosis?: string;
   toothNumber?: string | number;
@@ -12,6 +14,9 @@ export interface AppointmentMeta {
   flowStatus?: string;
   chairId?: string;
   chairName?: string;
+  /** Idempotent flag after KazDent-style auto inventory deduct */
+  inventoryDeducted?: boolean;
+  services?: Array<{ name: string; price: number; matCost?: number }>;
 }
 
 const TO_DB: Record<string, AppointmentStatus> = {
@@ -60,8 +65,8 @@ export function parseMeta(raw: unknown): AppointmentMeta {
 export function buildMeta(body: Record<string, unknown>, existing?: AppointmentMeta): AppointmentMeta {
   const base = { ...(existing || {}) };
   const keys: (keyof AppointmentMeta)[] = [
-    'serviceName', 'servicePrice', 'paymentStatus', 'diagnosis', 'toothNumber', 'receiptId', 'reason', 'flowStatus',
-    'chairId', 'chairName',
+    'serviceName', 'servicePrice', 'matCost', 'discount', 'paymentStatus', 'diagnosis', 'toothNumber',
+    'receiptId', 'reason', 'flowStatus', 'chairId', 'chairName', 'inventoryDeducted', 'services',
   ];
   for (const key of keys) {
     if (body[key] !== undefined) (base as any)[key] = body[key];
@@ -120,6 +125,8 @@ export function serializeAppointment(row: {
     service: meta.serviceName || row.type || '',
     serviceName: meta.serviceName || row.type || '',
     servicePrice: meta.servicePrice ?? 0,
+    matCost: meta.matCost ?? 0,
+    discount: meta.discount ?? 0,
     paymentStatus: meta.paymentStatus || 'unpaid',
     diagnosis: meta.diagnosis || '',
     toothNumber: meta.toothNumber ?? '',
@@ -127,6 +134,8 @@ export function serializeAppointment(row: {
     reason: meta.reason || meta.serviceName || row.type || '',
     chairId: meta.chairId || '',
     chairName: meta.chairName || '',
+    services: meta.services || [],
+    inventoryDeducted: !!meta.inventoryDeducted,
     patientName,
     patientPhone: row.patient?.phone || undefined,
     createdAt: row.createdAt,
