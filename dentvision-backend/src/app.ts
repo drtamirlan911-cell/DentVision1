@@ -84,6 +84,7 @@ app.use('/api/crm', remindersRouter);
 app.use('/api/crm', chairsRouter);
 app.use('/api/lab-orders', labRouter);
 app.use('/api/community', communityRouter);
+app.use('/api/public', publicRouter);
 
 // ─── Error Handling ───
 app.use(notFound);

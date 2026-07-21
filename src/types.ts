@@ -311,13 +311,17 @@ export interface Booking {
   clinicId?: string
   patientName?: string
   patientPhone?: string
+  phone?: string
   patientEmail?: string
+  email?: string
   doctorId?: string
+  doctorName?: string
   serviceName?: string
   date?: string
   time?: string
   notes?: string
   status?: BookingStatus
+  source?: string
   createdAt?: string
 }
 

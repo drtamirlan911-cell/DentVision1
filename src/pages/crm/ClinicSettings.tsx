@@ -98,6 +98,12 @@ export default function ClinicSettingsPage() {
   const [inviteCode, setInviteCode] = useState<string | null>(null)
   const [inviteSaving, setInviteSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+
+  const bookingUrl = useMemo(() => {
+    if (!clinicId || typeof window === 'undefined') return ''
+    return `${window.location.origin}/book/${clinicId}`
+  }, [clinicId])
 
   const clinicQ = useQuery({
     queryKey: ['clinic-settings', clinicId],
@@ -242,6 +248,18 @@ export default function ClinicSettingsPage() {
       setCopied(true)
       showToast('Код скопирован', 'success')
       setTimeout(() => setCopied(false), 2000)
+    } catch {
+      showToast('Не удалось скопировать', 'warning')
+    }
+  }
+
+  const copyBookingLink = async () => {
+    if (!bookingUrl) return
+    try {
+      await navigator.clipboard.writeText(bookingUrl)
+      setCopiedLink(true)
+      showToast('Ссылка скопирована', 'success')
+      setTimeout(() => setCopiedLink(false), 2000)
     } catch {
       showToast('Не удалось скопировать', 'warning')
     }
