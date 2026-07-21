@@ -433,6 +433,7 @@ export async function buildProactiveAlerts(opts: {
     sub,
     unreadNotifs,
     inProgressCourses,
+    dentCashWallet,
   ] = await Promise.all([
     prisma.invoice.count({ where: { clinicId, status: { in: ['UNPAID', 'PARTIAL'] } } }),
     prisma.invoice.count({ where: { clinicId, status: 'OVERDUE' } }),
@@ -468,6 +469,9 @@ export async function buildProactiveAlerts(opts: {
     prisma.schoolEnrollment.count({
       where: { userId: opts.userId, completed: false, progress: { lt: 100 } },
     }),
+    prisma.wallet.findUnique({
+      where: { ownerType_ownerId: { ownerType: 'USER', ownerId: opts.userId } },
+    }).catch(() => null),
   ]);
 
   if (overdue > 0) {
@@ -551,6 +555,20 @@ export async function buildProactiveAlerts(opts: {
       message: `Непрочитанных уведомлений: ${unreadNotifs}`,
       priority: 4,
       action: { type: 'OpenNotifications' },
+    });
+  }
+
+  const dentCashTenge = dentCashWallet?.balance != null
+    ? Number(dentCashWallet.balance) / 100
+    : 0;
+  if (dentCashTenge >= 5000) {
+    alerts.push({
+      type: 'dentcash',
+      category: 'wallet',
+      text: `На Dent Wallet ${Math.round(dentCashTenge).toLocaleString('ru-KZ')} ₸ — можно списать в магазине или на курс`,
+      message: `На Dent Wallet ${Math.round(dentCashTenge).toLocaleString('ru-KZ')} ₸ — можно списать в магазине или на курс`,
+      priority: 3,
+      action: { type: 'OpenShop' },
     });
   }
 

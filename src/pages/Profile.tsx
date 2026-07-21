@@ -16,6 +16,7 @@ import { Input, Textarea } from '@/components/ui/ds/Input'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { useToast } from '@/components/ui/ds/Toast'
 import { DoctorPayrollCard } from '@/components/crm/DoctorPayrollCard'
+import { DentWalletCard } from '@/components/wallet/DentWalletCard'
 import * as api from '@/utils/api'
 import { gid } from '@/utils/constants'
 
@@ -212,6 +213,9 @@ export default function Profile() {
           <div className="flex items-center gap-2 text-sm text-txt-secondary"><Phone size={14} className="text-txt-muted" /> {profile?.phone || '—'}</div>
         </div>
       </Section>
+
+      {/* ─── Dent Wallet ─── */}
+      <DentWalletCard />
 
       {/* ─── Skills ─── */}
       <Section icon={<Sparkles size={16} />} title="Навыки" onAdd={() => { setForm({}); setModal('skill') }}>

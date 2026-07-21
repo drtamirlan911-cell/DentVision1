@@ -39,7 +39,7 @@ async function settlePaidPayment(payment: {
   }
 
   if (payment.refType === 'subscription' && payment.refId) {
-    const meta = (payment.meta || {}) as { saasPlan?: string; months?: number };
+    const meta = (payment.meta || {}) as { saasPlan?: string; months?: number; userId?: string };
     const planRaw = String(meta.saasPlan || 'professional').toLowerCase();
     const saasPlan = (planRaw === 'pro' ? 'professional' : planRaw) as
       'starter' | 'professional' | 'enterprise';
@@ -53,6 +53,15 @@ async function settlePaidPayment(payment: {
         months: meta.months || 1,
         paymentId: payment.id,
       });
+      if (meta.userId) {
+        const { accrueSaasCashback } = await import('../dentcash/cashback.engine.js');
+        await accrueSaasCashback({
+          userId: meta.userId,
+          paymentId: payment.id,
+          amountMinor: payment.amount,
+          clinicId: payment.refId,
+        }).catch((err) => console.error('[dentcash saas]', err));
+      }
       settled = true;
     }
   }

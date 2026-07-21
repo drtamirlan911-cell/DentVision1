@@ -312,6 +312,9 @@ export const supplierWs = {
   orders: (t: string) => supplierFetch('/api/supplier/orders', t),
   updateOrderStatus: (t: string, id: string, status: string) => supplierFetch(`/api/supplier/orders/${id}/status`, t, { method: 'PATCH', body: JSON.stringify({ status }) }),
   createPromotion: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/promotions', t, { method: 'POST', body: JSON.stringify(b) }),
+  cashbackRules: (t: string) => supplierFetch('/api/supplier/cashback-rules', t),
+  upsertCashbackRule: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/cashback-rules', t, { method: 'PUT', body: JSON.stringify(b) }),
+  deleteCashbackRule: (t: string, id: string) => supplierFetch(`/api/supplier/cashback-rules/${id}`, t, { method: 'DELETE' }),
   requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
 };
 
@@ -1059,6 +1062,20 @@ export async function getShopOrders(clinicId: string): Promise<any> { return col
 export async function createShopReview(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
 export async function toggleShopFavorite(data: any): Promise<any> { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getShopFavorites(clinicId: string): Promise<any> { return apiRequest('/api/shop/favorites'); }
+
+// ─── DentCash / Dent Wallet ───
+export async function getDentCashWallet(): Promise<any> {
+  return apiRequest('/api/dentcash/wallet');
+}
+export async function getDentCashTransactions(limit = 50): Promise<any> {
+  return apiRequest(`/api/dentcash/transactions?limit=${limit}`);
+}
+export async function quoteDentCash(body: {
+  lines: Array<Record<string, unknown>>;
+  spendTenge?: number;
+}): Promise<any> {
+  return apiRequest('/api/dentcash/quote', { method: 'POST', body: JSON.stringify(body) });
+}
 
 // ─── School / Academy OS ───
 export async function getAcademyHub(): Promise<any> {

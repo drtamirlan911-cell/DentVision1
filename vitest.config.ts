@@ -16,7 +16,7 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'dentvision-backend/src/modules/dentcash/**/*.test.ts'],
     exclude: ['node_modules', 'dist', 'server'],
   },
 })

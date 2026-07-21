@@ -1,7 +1,7 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShoppingBag, Truck, CreditCard, Check, ArrowLeft, Building2 } from 'lucide-react';
+import { ShoppingBag, Truck, CreditCard, ArrowLeft, Building2, Wallet } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
@@ -16,12 +16,22 @@ import { EmptyState } from '../../components/ui/ds/EmptyState';
 const DELIVERY_FREE_FROM = 50000;
 const DELIVERY_COST = 2500;
 
+function money(n: number) {
+  try {
+    return tg(n, 'KZT');
+  } catch {
+    return `${Math.round(n).toLocaleString('ru-RU')} ₸`;
+  }
+}
+
 export default function ShopCheckout() {
   const navigate = useNavigate();
   const { cart, cartTotal, clearCart } = useCart();
   const { user, activeClinic } = useAuth();
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [useDentCash, setUseDentCash] = useState(false);
+  const [quote, setQuote] = useState<any>(null);
   const [form, setForm] = useState({
     contactName: user?.name || '',
     phone: user?.phone || '',
@@ -31,6 +41,29 @@ export default function ShopCheckout() {
     buyFor: 'self' as 'self' | 'clinic',
     notes: '',
   });
+
+  useEffect(() => {
+    if (!user || cart.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.quoteDentCash({
+          lines: cart.map((i) => ({
+            productId: i.id,
+            name: i.name,
+            priceTenge: i.price,
+            qty: i.qty,
+            supplierId: (i as any).supplierId || (i as any).supplier_id,
+            category: (i as any).category,
+          })),
+        });
+        if (!cancelled) setQuote(data);
+      } catch {
+        if (!cancelled) setQuote(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, cart]);
 
   if (cart.length === 0) {
     return (
@@ -46,8 +79,12 @@ export default function ShopCheckout() {
   }
 
   const deliveryCost = cartTotal >= DELIVERY_FREE_FROM ? 0 : DELIVERY_COST;
-  const total = cartTotal + deliveryCost;
+  const payable = cartTotal + deliveryCost;
+  const maxSpend = Math.min(Number(quote?.balanceTenge || 0), payable);
+  const spendTenge = useDentCash ? maxSpend : 0;
+  const total = Math.max(0, payable - spendTenge);
   const canBuyForClinic = !!activeClinic;
+  const earnPreview = Number(quote?.earnTenge || 0);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }));
@@ -55,23 +92,32 @@ export default function ShopCheckout() {
   const handleSubmit = async () => {
     if (!user) { toast.error('Необходимо войти в систему'); return; }
     if (!form.delivery_address.trim()) { toast.error('Укажите адрес доставки'); return; }
-    // "for" = clinicId when buying for the workspace, else null (personal)
-    const clinicId = form.buyFor === 'clinic' && activeClinic ? activeClinic.id : null;
+    if (!activeClinic?.id && form.buyFor === 'clinic') {
+      toast.error('Выберите клинику для заказа');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await api.createShopOrder({
-        clinic_id: clinicId,
+        clinic_id: activeClinic?.id || null,
         items: cart.map(i => ({ product_id: i.id, quantity: i.qty })),
         delivery_address: form.delivery_address,
         delivery_method: form.delivery_method,
         payment_method: form.payment_method,
         notes: form.notes,
+        dentCashTenge: spendTenge > 0 ? spendTenge : undefined,
+        total,
       });
       clearCart();
-      toast.success('Заказ оформлен!');
+      const earn = res?.dentCashEarnPendingTenge;
+      toast.success(
+        earn
+          ? `Заказ оформлен! Кэшбэк ~${Math.round(earn).toLocaleString('ru-RU')} ₸ после доставки`
+          : 'Заказ оформлен!',
+      );
       navigate('/shop/orders', { state: { successOrderId: res.id, total: res.total } });
-    } catch {
-      toast.error('Не удалось оформить заказ');
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось оформить заказ');
     } finally {
       setSubmitting(false);
     }
@@ -125,9 +171,6 @@ export default function ShopCheckout() {
                     <Building2 size={15} /> {activeClinic ? activeClinic.name : 'Для клиники'}
                   </button>
                 </div>
-                {!canBuyForClinic && (
-                  <p className="text-[11px] text-[var(--slate)] mt-1.5">Чтобы купить для клиники, выберите рабочее пространство в шапке</p>
-                )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2.5">
                 <div>
@@ -164,15 +207,41 @@ export default function ShopCheckout() {
                   {cart.map(i => (
                     <div key={i.id} className="flex justify-between gap-2 text-xs">
                       <span className="text-[var(--slate-light)] truncate">{i.name} <span className="text-[var(--slate)]">×{i.qty}</span></span>
-                      <span className="text-white font-semibold shrink-0">{tg(i.price * i.qty)}</span>
+                      <span className="text-white font-semibold shrink-0">{money(i.price * i.qty)}</span>
                     </div>
                   ))}
                 </div>
                 <div className="border-t border-[var(--border-subtle)] mt-3 pt-3 space-y-1.5 text-xs">
-                  <div className="flex justify-between"><span className="text-[var(--slate)]">Товары:</span><span className="text-white">{tg(cartTotal)}</span></div>
-                  <div className="flex justify-between"><span className="text-[var(--slate)]">Доставка:</span><span className="text-white">{deliveryCost === 0 ? 'Бесплатно' : tg(deliveryCost)}</span></div>
+                  <div className="flex justify-between"><span className="text-[var(--slate)]">Товары:</span><span className="text-white">{money(cartTotal)}</span></div>
+                  <div className="flex justify-between"><span className="text-[var(--slate)]">Доставка:</span><span className="text-white">{deliveryCost === 0 ? 'Бесплатно' : money(deliveryCost)}</span></div>
+                  {earnPreview > 0 && (
+                    <div className="flex justify-between text-emerald-300/90">
+                      <span>Кэшбэк после доставки:</span>
+                      <span>+{money(earnPreview)}</span>
+                    </div>
+                  )}
+                  {maxSpend > 0 && (
+                    <label className="flex items-center justify-between gap-2 pt-1 cursor-pointer">
+                      <span className="text-[var(--slate)] flex items-center gap-1.5">
+                        <Wallet size={12} className="text-[#C9A96E]" />
+                        Списать DentCash
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={useDentCash}
+                        onChange={(e) => setUseDentCash(e.target.checked)}
+                        className="accent-[#C9A96E]"
+                      />
+                    </label>
+                  )}
+                  {useDentCash && spendTenge > 0 && (
+                    <div className="flex justify-between text-[#C9A96E]">
+                      <span>DentCash:</span>
+                      <span>−{money(spendTenge)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-[var(--border-subtle)]">
-                    <span className="text-white">Итого:</span><span className="text-[#C9A96E]">{tg(total)}</span>
+                    <span className="text-white">Итого:</span><span className="text-[#C9A96E]">{money(total)}</span>
                   </div>
                 </div>
                 <Button variant="primary" size="lg" className="w-full mt-4 flex items-center justify-center gap-2" disabled={submitting} onClick={handleSubmit}>

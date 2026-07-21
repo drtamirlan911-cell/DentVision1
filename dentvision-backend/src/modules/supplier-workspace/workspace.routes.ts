@@ -116,6 +116,17 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
       where: { id: owned.id },
       data: { status },
     });
+
+    if (status === 'delivered' || status === 'completed') {
+      const { releaseOrderCashback } = await import('../dentcash/cashback.engine.js');
+      await releaseOrderCashback(order.id).catch((err) => console.error('[dentcash release]', err));
+    }
+    if (status === 'cancelled') {
+      const { reverseCashback } = await import('../dentcash/refund.service.js');
+      await reverseCashback({ refType: 'order', refId: order.id, reason: 'cancelled' })
+        .catch((err) => console.error('[dentcash reverse]', err));
+    }
+
     return res.json({ ok: true, data: order } satisfies ApiResponse);
   } catch (error) {
     console.error('Supplier order status error:', error);
@@ -125,7 +136,7 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
 
 supplierWorkspaceRouter.post('/promotions', requireSupplierWrite, async (req: AuthRequest, res) => {
   try {
-    const { productId, title, discountPercent } = req.body || {};
+    const { productId, title, discountPercent, cashbackPercent, startsAt, endsAt } = req.body || {};
     if (!productId) {
       return res.status(400).json({ ok: false, error: 'productId обязателен' } satisfies ApiResponse);
     }
@@ -141,13 +152,120 @@ supplierWorkspaceRouter.post('/promotions', requireSupplierWrite, async (req: Au
       where: { id: product.id },
       data: { description: desc },
     });
+
+    const cbPct = Number(cashbackPercent ?? discountPercent ?? 10);
+    const rateBps = Math.max(0, Math.min(1500, Math.round(cbPct * 100)));
+    const rule = await prisma.cashbackRule.create({
+      data: {
+        id: uid(),
+        ownerType: 'SUPPLIER',
+        ownerId: req.user!.supplierId!,
+        scope: 'PRODUCT',
+        scopeKey: product.id,
+        rateBps,
+        active: true,
+        startsAt: startsAt ? new Date(startsAt) : null,
+        endsAt: endsAt ? new Date(endsAt) : null,
+      },
+    });
+
     return res.status(201).json({
       ok: true,
-      data: { id: `promo-${updated.id}`, productId: updated.id, title: label, active: true },
+      data: {
+        id: rule.id,
+        productId: updated.id,
+        title: label,
+        cashbackPercent: rateBps / 100,
+        active: true,
+      },
     } satisfies ApiResponse);
   } catch (error) {
     console.error('Supplier promotion error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось создать акцию' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.get('/cashback-rules', async (req: AuthRequest, res) => {
+  try {
+    const rules = await prisma.cashbackRule.findMany({
+      where: { ownerType: 'SUPPLIER', ownerId: req.user!.supplierId! },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return res.json({ ok: true, data: serializeBigInt(rules) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Cashback rules list error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить правила кэшбэка' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.put('/cashback-rules', requireSupplierWrite, async (req: AuthRequest, res) => {
+  try {
+    const b = req.body || {};
+    const rateBps = Math.max(0, Math.min(1500, Math.round(Number(b.rateBps ?? (b.percent != null ? Number(b.percent) * 100 : 0)))));
+    if (rateBps <= 0 && !b.id) {
+      return res.status(400).json({ ok: false, error: 'Укажите percent или rateBps' } satisfies ApiResponse);
+    }
+    const scope = String(b.scope || 'ALL').toUpperCase();
+    const allowed = ['ALL', 'CATEGORY', 'PRODUCT', 'OWN_BRAND'];
+    if (!allowed.includes(scope)) {
+      return res.status(400).json({ ok: false, error: 'Некорректный scope' } satisfies ApiResponse);
+    }
+
+    let rule;
+    if (b.id) {
+      const existing = await prisma.cashbackRule.findFirst({
+        where: { id: b.id, ownerType: 'SUPPLIER', ownerId: req.user!.supplierId! },
+      });
+      if (!existing) {
+        return res.status(404).json({ ok: false, error: 'Правило не найдено' } satisfies ApiResponse);
+      }
+      rule = await prisma.cashbackRule.update({
+        where: { id: existing.id },
+        data: {
+          ...(b.scope !== undefined && { scope: scope as any }),
+          ...(b.scopeKey !== undefined && { scopeKey: b.scopeKey || null }),
+          ...(rateBps > 0 && { rateBps }),
+          ...(b.active !== undefined && { active: !!b.active }),
+          ...(b.startsAt !== undefined && { startsAt: b.startsAt ? new Date(b.startsAt) : null }),
+          ...(b.endsAt !== undefined && { endsAt: b.endsAt ? new Date(b.endsAt) : null }),
+          ...(b.capTenge !== undefined && { capMinor: b.capTenge != null ? tengeToMinor(Number(b.capTenge)) : null }),
+        },
+      });
+    } else {
+      rule = await prisma.cashbackRule.create({
+        data: {
+          id: uid(),
+          ownerType: 'SUPPLIER',
+          ownerId: req.user!.supplierId!,
+          scope: scope as any,
+          scopeKey: b.scopeKey || null,
+          rateBps,
+          capMinor: b.capTenge != null ? tengeToMinor(Number(b.capTenge)) : null,
+          active: b.active !== false,
+          startsAt: b.startsAt ? new Date(b.startsAt) : null,
+          endsAt: b.endsAt ? new Date(b.endsAt) : null,
+        },
+      });
+    }
+    return res.json({ ok: true, data: serializeBigInt(rule) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Cashback rules upsert error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось сохранить правило' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.delete('/cashback-rules/:id', requireSupplierWrite, async (req: AuthRequest, res) => {
+  try {
+    const existing = await prisma.cashbackRule.findFirst({
+      where: { id: req.params.id as string, ownerType: 'SUPPLIER', ownerId: req.user!.supplierId! },
+    });
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Правило не найдено' } satisfies ApiResponse);
+    }
+    await prisma.cashbackRule.delete({ where: { id: existing.id } });
+    return res.json({ ok: true, data: { id: existing.id } } satisfies ApiResponse);
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Не удалось удалить правило' } satisfies ApiResponse);
   }
 });
 
@@ -177,6 +295,7 @@ supplierWorkspaceRouter.post('/products', requireSupplierWrite, async (req: Auth
         manufacturer: b.manufacturer || null,
         country: b.country || null,
         compatibility: b.compatibility || null,
+        ownBrand: !!b.ownBrand,
         supplierId: req.user!.supplierId,
       },
     });
@@ -203,6 +322,8 @@ supplierWorkspaceRouter.patch('/products/:id', requireSupplierWrite, async (req:
       ...(b.stock !== undefined && { stock: Number(b.stock) }),
       ...(b.description !== undefined && { description: b.description || null }),
       ...(b.category !== undefined && { category: b.category || null }),
+      ...(b.ownBrand !== undefined && { ownBrand: !!b.ownBrand }),
+      ...(b.brand !== undefined && { brand: b.brand || null }),
     },
   });
   return res.json({ ok: true, data: product } satisfies ApiResponse);
