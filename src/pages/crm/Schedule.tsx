@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
-  Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
+  Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User as UserIcon, Stethoscope,
   WifiOff, CloudOff, Printer, ClipboardCheck, Globe,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -553,7 +553,7 @@ export default function Schedule() {
     { label: 'Всего', value: dayStats.total, icon: <Calendar size={14} />, variant: 'info' },
     { label: 'Запись', value: dayStats.scheduled, icon: <Clock size={14} />, variant: 'warning' },
     { label: 'Подтверждено', value: dayStats.confirmed, icon: <CheckCircle size={14} />, variant: 'success' },
-    { label: 'Пришёл', value: dayStats.arrived, icon: <User size={14} />, variant: 'warning' },
+    { label: 'Пришёл', value: dayStats.arrived, icon: <UserIcon size={14} />, variant: 'warning' },
     { label: 'В кресле', value: dayStats.inChair, icon: <Stethoscope size={14} />, variant: 'gold' },
     { label: 'Готово', value: dayStats.done, icon: <CheckCircle size={14} />, variant: 'success' },
   ]
