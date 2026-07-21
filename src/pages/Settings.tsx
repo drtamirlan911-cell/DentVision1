@@ -7,7 +7,6 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
 import { Switch } from '@/components/ui/ds/Misc'
 import { useAuth, canManageClinicSettings } from '@/store/auth.store'
-import * as api from '@/utils/api'
 
 const container = {
   hidden: { opacity: 0 },
@@ -36,7 +35,7 @@ const SERVICE_TOGGLES: ServiceToggle[] = [
 
 export default function SettingsPage() {
   const navigate = useNavigate()
-  const { user, clinic, roleInfo, role, activeMembership } = useAuth()
+  const { user, clinic, roleInfo, role, activeMembership, logout } = useAuth()
   const [notifications, setNotifications] = React.useState<boolean>(true)
   const [darkMode, setDarkMode] = React.useState<boolean>(true)
   const [autoSave, setAutoSave] = React.useState<boolean>(true)
@@ -49,34 +48,6 @@ export default function SettingsPage() {
     !!roleInfo?.pages?.includes('clinic-settings')
   const clinicId = clinic?.id || activeMembership?.clinicId || user?.clinicId || ''
   const clinicName = clinic?.name || 'вашей клиники'
-  const [accessMap, setAccessMap] = React.useState<Record<string, boolean> | null>(null)
-  const [saving, setSaving] = React.useState<boolean>(false)
-  const [saved, setSaved] = React.useState<boolean>(false)
-
-  React.useEffect(() => {
-    if (canManageServices && clinic?.id) {
-      api.getServiceAccess(clinic.id)
-        .then(setAccessMap)
-        .catch(() => setAccessMap(null))
-    }
-  }, [canManageServices, clinic?.id])
-
-  const toggleService = (key: string, value: boolean) => {
-    if (!accessMap) return
-    setAccessMap({ ...accessMap, [key]: value })
-    setSaved(false)
-  }
-
-  const saveServices = async () => {
-    if (!accessMap || !clinic?.id) return
-    setSaving(true)
-    try {
-      await api.setServiceAccessBulk(clinic.id, accessMap)
-      setSaved(true)
-    } finally {
-      setSaving(false)
-    }
-  }
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="max-w-3xl mx-auto space-y-6">
@@ -121,28 +92,21 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-2xs text-txt-muted mb-4">
-                Включите или отключите сервисы для вашей клиники. Отключённые сервисы не будут видны сотрудникам.
+                Управление доступом к сервисам появится в следующем обновлении. Сейчас все модули включены для вашего тарифа.
               </p>
               <div className="space-y-4">
                 {SERVICE_TOGGLES.map((s) => (
-                  <div key={s.key} className="flex items-center justify-between">
+                  <div key={s.key} className="flex items-center justify-between opacity-80">
                     <div>
                       <p className="text-sm font-medium text-txt-primary">{s.name}</p>
                       <p className="text-2xs text-txt-muted">{s.desc}</p>
                     </div>
                     <Switch
-                      checked={accessMap ? accessMap[s.key] !== false : true}
-                      disabled={s.locked || !accessMap}
-                      onCheckedChange={(v: boolean) => toggleService(s.key, v)}
+                      checked
+                      disabled
                     />
                   </div>
                 ))}
-              </div>
-              <div className="mt-5 flex items-center gap-3">
-                <Button size="sm" onClick={saveServices} disabled={saving}>
-                  {saving ? 'Сохранение…' : 'Сохранить'}
-                </Button>
-                {saved && <span className="text-2xs text-dv-gold">Сохранено</span>}
               </div>
             </CardContent>
           </Card>
@@ -225,8 +189,17 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <Button variant="secondary" size="sm">Изменить пароль</Button>
-              <Button variant="ghost" size="sm" className="text-error hover:bg-error/10">Выйти из всех устройств</Button>
+              <Button variant="secondary" size="sm" onClick={() => navigate('/forgot-password')}>
+                Изменить пароль
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-error hover:bg-error/10"
+                onClick={() => { logout(); navigate('/login') }}
+              >
+                Выйти из аккаунта
+              </Button>
             </div>
           </CardContent>
         </Card>

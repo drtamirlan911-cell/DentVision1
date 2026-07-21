@@ -538,6 +538,10 @@ export async function uploadPhoto(data: Partial<Photo>): Promise<any> {
   return apiRequest('/api/medical/images', { method: 'POST', body: JSON.stringify(data) });
 }
 
+export async function getPatientImages(patientId: string): Promise<any[]> {
+  return collection(await apiRequest(`/api/medical/images/${patientId}`));
+}
+
 export async function upsertPromotion(data: Partial<Promotion>): Promise<any> {
   return apiRequest('/api/crm/promotions', { method: 'POST', body: JSON.stringify(data) });
 }
@@ -715,7 +719,7 @@ export async function updateClinicStaff(
 }
 
 export async function deletePhoto(id: string): Promise<any> {
-  return apiRequest(`/api/files/${id}`, { method: 'DELETE' });
+  return apiRequest(`/api/medical/images/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteInventoryItem(id: string): Promise<any> {

@@ -100,9 +100,13 @@ export default function MedicalCard() {
       user_id: user?.id,
       user_name: user?.name,
     };
-    await upsertMedicalCard(data as any);
-    toast.success('Медицинская карта сохранена');
-    setEditing(false);
+    try {
+      await upsertMedicalCard(data as any);
+      toast.success('Медицинская карта сохранена');
+      setEditing(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Не удалось сохранить медкарту');
+    }
   };
 
   const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (

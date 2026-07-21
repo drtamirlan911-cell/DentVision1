@@ -20,7 +20,7 @@ const ITEMS: BottomNavItem[] = [
   { id: 'shop', label: 'Маркет', icon: <ShoppingCart size={18} />, path: '/shop', color: '#8E44AD', requiresAuth: false },
   { id: 'ai', label: 'AI', icon: <Bot size={18} />, path: '/', color: '#D4AF37', requiresAuth: false },
   { id: 'school', label: 'Учёба', icon: <GraduationCap size={18} />, path: '/school', color: '#16A085', requiresAuth: false },
-  { id: 'analytics', label: 'Анализа', icon: <BarChart3 size={18} />, path: '/analytics', color: '#F39C12', requiresAuth: true },
+  { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={18} />, path: '/analytics', color: '#F39C12', requiresAuth: true },
 ];
 
 export function BottomNav() {
