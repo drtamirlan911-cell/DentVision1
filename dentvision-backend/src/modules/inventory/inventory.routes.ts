@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 
@@ -43,7 +44,7 @@ inventoryRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
-inventoryRouter.post('/', async (req: AuthRequest, res) => {
+inventoryRouter.post('/', requirePermission('inventory.write'), async (req: AuthRequest, res) => {
   try {
     const user = req.user;
     const { name, category, quantity, minimum, price, unit, supplier } = req.body;
@@ -79,7 +80,7 @@ inventoryRouter.post('/', async (req: AuthRequest, res) => {
   }
 });
 
-inventoryRouter.patch('/:id', async (req: AuthRequest, res) => {
+inventoryRouter.patch('/:id', requirePermission('inventory.write'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const { name, category, quantity, minimum, price, unit, supplier } = req.body;
@@ -103,7 +104,7 @@ inventoryRouter.patch('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-inventoryRouter.delete('/:id', async (req: AuthRequest, res) => {
+inventoryRouter.delete('/:id', requirePermission('inventory.delete'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
 

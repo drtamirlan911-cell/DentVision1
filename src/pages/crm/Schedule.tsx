@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
-  WifiOff, CloudOff, Printer, ClipboardCheck,
+  WifiOff, CloudOff,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'

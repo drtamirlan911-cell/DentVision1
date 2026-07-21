@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
+import { publish } from '../../lib/events.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
@@ -140,7 +142,7 @@ patientsRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
-patientsRouter.post('/', async (req: AuthRequest, res) => {
+patientsRouter.post('/', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -205,6 +207,15 @@ patientsRouter.post('/', async (req: AuthRequest, res) => {
       where: { id: patient.id },
       include: { teeth: true },
     });
+
+    if (!existing) {
+      publish('patient.created', {
+        clinicId,
+        patientId: patient.id,
+        userId: req.user?.id,
+        name: `${firstName} ${lastName}`.trim(),
+      });
+    }
 
     return res.status(existing ? 200 : 201).json({
       ok: true,
@@ -316,7 +327,7 @@ patientsRouter.get('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-patientsRouter.patch('/:id', async (req: AuthRequest, res) => {
+patientsRouter.patch('/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -379,7 +390,7 @@ patientsRouter.patch('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-patientsRouter.delete('/:id', async (req: AuthRequest, res) => {
+patientsRouter.delete('/:id', requirePermission('patient.delete'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -392,6 +403,7 @@ patientsRouter.delete('/:id', async (req: AuthRequest, res) => {
       return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
     }
     await prisma.patient.delete({ where: { id: existing.id } });
+    publish('patient.deleted', { clinicId, patientId: existing.id, userId: req.user?.id });
     return res.json({ ok: true, data: { id: existing.id } } satisfies ApiResponse);
   } catch (error) {
     console.error('Delete patient error:', error);

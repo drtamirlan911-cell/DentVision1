@@ -520,6 +520,58 @@ model AIAlert {
 
 // ─── MARKETPLACE ───
 
+// ─── ECOSYSTEM: SUPPLIERS (Phase 2) ───
+
+enum SupplierStatus {
+  PENDING
+  DOCUMENTS_REVIEW
+  VERIFIED
+  OFFICIAL_PARTNER
+  SUSPENDED
+}
+
+enum SupplierKind {
+  MANUFACTURER
+  DISTRIBUTOR
+  SUPPLIER
+  BRAND_REPRESENTATIVE
+}
+
+model Supplier {
+  id            String         @id @default(uuid())
+  name          String
+  kind          SupplierKind   @default(SUPPLIER)
+  bin           String?
+  legalAddress  String?
+  contactPerson String?
+  phone         String?
+  email         String?
+  status        SupplierStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products  Product[]
+  documents SupplierDocument[]
+
+  @@map("suppliers")
+}
+
+model SupplierDocument {
+  id         String   @id @default(uuid())
+  supplierId String
+  type       String
+  url        String
+  verified   Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@map("supplier_documents")
+}
+
 model Product {
   id          String @id @default("")
   name        String
@@ -532,11 +584,19 @@ model Product {
   rating      Float?
   supplierId  String?
 
+  // Rich product-card fields (Phase 2)
+  manufacturer  String?
+  country       String?
+  expiryDate    DateTime?
+  compatibility String?
+
   favorites Favorite[]
+  supplier  Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([supplierId])
   @@map("products")
 }
 
