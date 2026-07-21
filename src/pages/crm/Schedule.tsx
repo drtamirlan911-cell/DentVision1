@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
-  WifiOff, CloudOff, Printer, ClipboardCheck, Globe,
+  WifiOff, CloudOff,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -71,7 +71,7 @@ export default function Schedule() {
   const { user, roleInfo, clinic: activeClinic } = useAuth()
   const clinic = user?.clinicId ? { id: user.clinicId } : null
   const {
-    appointments: liveAppointments, patients, doctors, waitingList, bookings, receipts,
+    appointments: liveAppointments, patients, doctors, waitingList, receipts,
     upsertAppointment: upsertAppointmentApi, deleteAppointment,
     upsertPatient, upsertReceipt,
     upsertWaitingListItem, deleteWaitingListItem,
@@ -571,7 +571,7 @@ export default function Schedule() {
 
       {/* Header */}
       <motion.div variants={fadeUp} className="flex items-center justify-between gap-3">
-        <PageHeader title="Расписание" subtitle="Записи, лист ожидания и онлайн-заявки" icon={<Calendar size={20} />} />
+        <PageHeader title="Расписание" subtitle="Управление записями и лист ожидания" icon={<Calendar size={20} />} />
         <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
           <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
             <span className="hidden sm:inline">Печать дня</span>

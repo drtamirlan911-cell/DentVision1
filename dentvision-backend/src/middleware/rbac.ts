@@ -1,6 +1,7 @@
 import type { Response, NextFunction } from 'express';
 import type { AuthRequest } from '../types/index.js';
 import type { UserRole } from '@prisma/client';
+import { roleHasPermission, type PermissionKey } from '../lib/permissions.js';
 
 const ROLE_HIERARCHY: Record<string, number> = {
   SUPERADMIN: 5,
@@ -33,6 +34,23 @@ export function requireMinRole(minRole: UserRole) {
     const userLevel = ROLE_HIERARCHY[req.user.role] || 0;
     const requiredLevel = ROLE_HIERARCHY[minRole] || 0;
     if (userLevel < requiredLevel) {
+      return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
+    }
+    next();
+  };
+}
+
+/**
+ * Requires the authenticated user's role to grant ALL of the given permissions.
+ * Deny-by-default: unknown roles/permissions are rejected.
+ */
+export function requirePermission(...keys: PermissionKey[]) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
+    }
+    const allowed = keys.every((k) => roleHasPermission(req.user!.role, k));
+    if (!allowed) {
       return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
     }
     next();

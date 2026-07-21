@@ -35,8 +35,6 @@ export interface ClinicSettingsPayload {
   autoDeductItems?: string;
   /** Public online booking link (Instagram / 2GIS) */
   bookingLink?: string;
-  /** Allow patients to book via /book/:clinicId */
-  onlineBookingEnabled?: boolean;
 }
 
 export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
@@ -62,7 +60,6 @@ export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
   requireChair: false,
   autoDeductItems: '',
   bookingLink: '',
-  onlineBookingEnabled: true,
 };
 
 export function mergeClinicSettings(raw: unknown): ClinicSettingsPayload {

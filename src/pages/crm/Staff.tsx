@@ -214,8 +214,7 @@ export default function Staff() {
           role: form.role,
           spec: form.spec || undefined,
           password: form.password && form.password.length >= 6 ? form.password : undefined,
-          commissionPercent: Number(form.commissionPercent) || 30,
-        } as any)
+        })
         showToast('Сотрудник обновлён', 'success')
         setModalOpen(false)
         setForm(EMPTY_FORM)
@@ -244,8 +243,7 @@ export default function Staff() {
         phone: form.phone || undefined,
         role: form.role,
         spec: form.spec || undefined,
-        commissionPercent: Number(form.commissionPercent) || 30,
-      } as any)
+      })
       showToast(`${ROLE_LABELS[form.role] || 'Сотрудник'} добавлен`, 'success')
       setModalOpen(false)
       setForm(EMPTY_FORM)

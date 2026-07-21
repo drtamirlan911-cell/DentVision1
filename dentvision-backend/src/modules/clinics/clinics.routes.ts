@@ -433,7 +433,6 @@ clinicsRouter.post('/:id/staff', authenticate, async (req: AuthRequest, res) => 
         userId: user.id,
         clinicId,
         role,
-        commissionPercent: Number(body.commissionPercent ?? body.percent ?? 30) || 30,
       },
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, spec: true, avatar: true } },
@@ -484,16 +483,9 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest,
     let role = member.role;
     if (body.role != null) {
       role = normalizeStaffRole(body.role);
-    }
-    const memberData: Record<string, unknown> = {};
-    if (body.role != null) memberData.role = role;
-    if (body.commissionPercent != null || body.percent != null) {
-      memberData.commissionPercent = Number(body.commissionPercent ?? body.percent) || 30;
-    }
-    if (Object.keys(memberData).length) {
       await prisma.clinicMember.update({
         where: { userId_clinicId: { userId, clinicId } },
-        data: memberData as any,
+        data: { role },
       });
     }
 

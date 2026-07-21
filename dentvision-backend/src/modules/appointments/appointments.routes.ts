@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
+import { publish } from '../../lib/events.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import {
@@ -114,7 +116,7 @@ appointmentsRouter.get('/conflicts', async (req: AuthRequest, res) => {
   }
 });
 
-appointmentsRouter.post('/', async (req: AuthRequest, res) => {
+appointmentsRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -221,6 +223,14 @@ appointmentsRouter.post('/', async (req: AuthRequest, res) => {
           include: { patient: { select: patientSelect } },
         });
 
+    if (!existing) {
+      publish('appointment.created', {
+        clinicId,
+        appointmentId: appointment.id,
+        userId: req.user?.id,
+      });
+    }
+
     return res.status(existing ? 200 : 201).json({
       ok: true,
       data: serializeAppointment(appointment),
@@ -231,7 +241,7 @@ appointmentsRouter.post('/', async (req: AuthRequest, res) => {
   }
 });
 
-appointmentsRouter.patch('/:id/status', async (req: AuthRequest, res) => {
+appointmentsRouter.patch('/:id/status', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -264,102 +274,7 @@ appointmentsRouter.patch('/:id/status', async (req: AuthRequest, res) => {
   }
 });
 
-/**
- * KazDent donor: close visit — attach services/prices, complete status, optional auto stock deduct.
- * POST /api/appointments/:id/close
- */
-appointmentsRouter.post('/:id/close', async (req: AuthRequest, res) => {
-  try {
-    const clinicId = req.user?.clinicId;
-    if (!clinicId) {
-      return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
-    }
-
-    const existing = await prisma.appointment.findFirst({
-      where: { id: req.params.id as string, clinicId },
-      include: { patient: { select: patientSelect } },
-    });
-    if (!existing) {
-      return res.status(404).json({ ok: false, error: 'Запись не найдена' } satisfies ApiResponse);
-    }
-
-    const body = req.body || {};
-    const services = Array.isArray(body.services) ? body.services : [];
-    const servicePrice = services.reduce((s: number, x: any) => s + Number(x.price || 0), 0)
-      || Number(body.servicePrice || 0);
-    const matCost = services.reduce((s: number, x: any) => s + Number(x.matCost || 0), 0)
-      || Number(body.matCost || 0);
-    const serviceName = services.map((x: any) => x.name).filter(Boolean).join(', ')
-      || body.serviceName
-      || existing.type
-      || 'Приём';
-    const notes = body.notes != null ? String(body.notes) : (existing.notes || '');
-    const paymentStatus = body.paymentStatus || parseMeta(existing.meta).paymentStatus || 'unpaid';
-
-    let meta = buildMeta({
-      serviceName,
-      servicePrice,
-      matCost,
-      discount: Number(body.discount || 0),
-      paymentStatus,
-      services,
-      diagnosis: body.diagnosis,
-      toothNumber: body.toothNumber,
-    }, parseMeta(existing.meta));
-
-    // Auto-deduct inventory (KazDent auto_deduct_items)
-    const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
-    const settings = (clinic?.settings && typeof clinic.settings === 'object' ? clinic.settings : {}) as Record<string, unknown>;
-    const autoDeduct = String(settings.autoDeductItems || '').trim();
-    const deductedLines: string[] = [];
-    if (autoDeduct && !meta.inventoryDeducted) {
-      const parts = autoDeduct.split(/[,;]+/).map((p) => p.trim()).filter(Boolean);
-      for (const part of parts) {
-        const [rawName, rawQty] = part.split(':').map((s) => s.trim());
-        if (!rawName) continue;
-        const qty = Math.max(1, parseInt(rawQty || '1', 10) || 1);
-        const item = await prisma.inventoryItem.findFirst({
-          where: { clinicId, name: { equals: rawName, mode: 'insensitive' } },
-        });
-        if (!item) continue;
-        const nextQty = Math.max(0, (item.quantity || 0) - qty);
-        await prisma.inventoryItem.update({
-          where: { id: item.id },
-          data: { quantity: nextQty },
-        });
-        deductedLines.push(`${item.name} −${qty}`);
-      }
-      meta = { ...meta, inventoryDeducted: true };
-    }
-
-    const notesExtra = deductedLines.length
-      ? `\n[Склад] ${deductedLines.join(', ')}`
-      : '';
-    const appointment = await prisma.appointment.update({
-      where: { id: existing.id },
-      data: {
-        status: 'COMPLETED',
-        notes: (notes + notesExtra).trim(),
-        type: serviceName,
-        meta: meta as any,
-      },
-      include: { patient: { select: patientSelect } },
-    });
-
-    return res.json({
-      ok: true,
-      data: {
-        ...serializeAppointment(appointment),
-        deducted: deductedLines,
-      },
-    } satisfies ApiResponse);
-  } catch (error) {
-    console.error('Close appointment error:', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось закрыть приём' } satisfies ApiResponse);
-  }
-});
-
-appointmentsRouter.delete('/:id', async (req: AuthRequest, res) => {
+appointmentsRouter.delete('/:id', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {

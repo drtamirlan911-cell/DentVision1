@@ -70,7 +70,6 @@ const DEFAULT_SETTINGS: ClinicSettings = {
   requireChair: false,
   autoDeductItems: '',
   bookingLink: '',
-  onlineBookingEnabled: true,
 }
 
 interface OutletCtx {
@@ -479,37 +478,11 @@ export default function ClinicSettingsPage() {
             <p className="text-2xs text-txt-muted -mt-2">
               При закрытии приёма эти позиции спишутся со склада (имя должно совпадать со складом).
             </p>
-            <div className="rounded-xl border border-dv-gold/20 bg-dv-gold/5 p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-txt-primary flex items-center gap-2">
-                    <Link2 size={14} className="text-dv-gold" />
-                    Онлайн-запись для пациентов
-                  </p>
-                  <p className="text-2xs text-txt-muted mt-0.5">Публичная страница в стиле DentVision</p>
-                </div>
-                <Switch
-                  checked={settings.onlineBookingEnabled !== false}
-                  onCheckedChange={(v: boolean) => setSettings({ ...settings, onlineBookingEnabled: v })}
-                />
-              </div>
-              {bookingUrl && (
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Input value={bookingUrl} readOnly className="flex-1 font-mono text-xs" />
-                  <Button variant="secondary" onClick={copyBookingLink} icon={copiedLink ? <Check size={14} /> : <Copy size={14} />}>
-                    {copiedLink ? 'Скопировано' : 'Копировать'}
-                  </Button>
-                  <Button variant="outline" onClick={() => window.open(bookingUrl, '_blank')}>
-                    Открыть
-                  </Button>
-                </div>
-              )}
-            </div>
             <Input
-              label="Внешняя ссылка (Instagram / 2GIS)"
+              label="Ссылка онлайн-записи"
               value={settings.bookingLink || ''}
               onChange={(e) => setSettings({ ...settings, bookingLink: e.target.value })}
-              placeholder="https://instagram.com/…"
+              placeholder="https://instagram.com/… или 2GIS"
             />
           </CardContent>
         </Card>

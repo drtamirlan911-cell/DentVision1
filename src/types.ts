@@ -85,7 +85,6 @@ export interface ClinicSettings {
   requireChair?: boolean
   autoDeductItems?: string
   bookingLink?: string
-  onlineBookingEnabled?: boolean
 }
 
 // ─── Patients ───────────────────────────────────────────────────

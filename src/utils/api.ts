@@ -614,6 +614,22 @@ export async function deleteReceipt(id: string): Promise<any> {
   return apiRequest(`/api/billing/invoices/${id}`, { method: 'DELETE' });
 }
 
+export async function upsertClinicStaff(clinicId: string, data: {
+  email: string;
+  password?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  phone?: string;
+  role?: string;
+  spec?: string;
+}): Promise<any> {
+  return apiRequest(`/api/clinics/${clinicId}/staff`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function updateClinicStaff(
   clinicId: string,
   userId: string,
@@ -625,28 +641,10 @@ export async function updateClinicStaff(
     role?: string;
     spec?: string;
     password?: string;
-    commissionPercent?: number;
   },
 ): Promise<any> {
   return apiRequest(`/api/clinics/${clinicId}/staff/${userId}`, {
     method: 'PATCH',
-    body: JSON.stringify(data),
-  });
-}
-
-export async function upsertClinicStaff(clinicId: string, data: {
-  email: string;
-  password?: string;
-  firstName?: string;
-  lastName?: string;
-  name?: string;
-  phone?: string;
-  role?: string;
-  spec?: string;
-  commissionPercent?: number;
-}): Promise<any> {
-  return apiRequest(`/api/clinics/${clinicId}/staff`, {
-    method: 'POST',
     body: JSON.stringify(data),
   });
 }
