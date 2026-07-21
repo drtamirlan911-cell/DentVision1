@@ -6,6 +6,7 @@ import {
   AlertTriangle, CreditCard, History, Smile, Star, User, Send, Trash2, Receipt, RefreshCw,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
+import { useAuth } from '@/store/auth.store'
 import { useDataQuery } from '../../queries/useDataQuery'
 import * as api from '@/utils/api'
 import { getRecallCandidates, findDuplicatePatients } from '@/utils/recall'
@@ -83,9 +84,12 @@ interface OutletContext {
 }
 
 export default function Patients() {
-  const { clinic } = useOutletContext<OutletContext>()
+  const outlet = useOutletContext<OutletContext>() || ({} as OutletContext)
+  const { user, clinic: authClinic } = useAuth()
+  const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
+  const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
   const navigate = useNavigate()
-  const { patients, appointments, receipts, upsertPatient, deletePatient, upsertReceipt } = useDataQuery(clinic?.id)
+  const { patients, appointments, receipts, upsertPatient, deletePatient, upsertReceipt } = useDataQuery(clinicId || undefined)
   const { toast, showToast, clearToast } = useToast()
   const [params] = useSearchParams()
 
@@ -538,7 +542,9 @@ export default function Patients() {
               const cat = CAT_CFG[catKey] || CAT_CFG.regular
               const age = calculateAge(p.dob)
               const pAppts = appointments.filter(a => a.patientId === p.id)
-              const lastAppt = pAppts.sort((a, b) => b.date.localeCompare(a.date))[0]
+              const lastAppt = [...pAppts]
+                .filter((a) => a?.date)
+                .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]
 
               return (
                 <motion.div key={p.id} variants={fadeUp}>

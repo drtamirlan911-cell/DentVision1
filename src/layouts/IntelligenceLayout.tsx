@@ -366,18 +366,20 @@ export const IntelligenceLayout: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto bg-surface-0 relative min-h-0 pb-16 md:pb-0">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="h-full"
-            >
-              <Outlet context={{ user, clinic, roleInfo }} />
-            </motion.div>
-          </AnimatePresence>
+          {/*
+            No AnimatePresence/exit around Outlet: mode="wait" + opacity exit
+            can leave the main pane at opacity:0 while the shell stays clickable
+            (sidebar works, CRM body looks "frozen"/blank). Enter-only fade is enough.
+          */}
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.12 }}
+            className="h-full"
+          >
+            <Outlet context={{ user, clinic, roleInfo }} />
+          </motion.div>
         </div>
       </div>
 
