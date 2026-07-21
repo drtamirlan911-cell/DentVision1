@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
-  WifiOff, CloudOff, Printer, ClipboardCheck, Globe,
+  WifiOff, CloudOff, Printer, ClipboardCheck, Globe, Wallet,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -34,6 +34,7 @@ import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
 import { DoctorPayrollCard } from '@/components/crm/DoctorPayrollCard'
+import { AcceptPaymentModal, type AcceptPaymentPayload } from '@/components/crm/AcceptPaymentModal'
 import type { Appointment, Patient, WaitingListItem, User, Booking } from '@/types'
 
 const STATUS_CFG = APPOINTMENT_STATUS
@@ -118,6 +119,10 @@ export default function Schedule() {
   const [closeServices, setCloseServices] = useState<Array<{ name: string; price: number; matCost: number }>>([])
   const [priceOptions, setPriceOptions] = useState<Array<{ name: string; price: number; matCost: number }>>([])
   const [closeSaving, setCloseSaving] = useState(false)
+  const [payOpen, setPayOpen] = useState(false)
+  const [payAppt, setPayAppt] = useState<Appointment | null>(null)
+  const [paySaving, setPaySaving] = useState(false)
+  const [payDefaultClose, setPayDefaultClose] = useState(false)
   const [waitForm, setWaitForm] = useState(EMPTY_WAIT)
   const [editWaitId, setEditWaitId] = useState<string | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
@@ -404,6 +409,91 @@ export default function Schedule() {
     }
   }
 
+  const suggestedPayAmount = (appt: Appointment | null, services?: Array<{ price: number }>) => {
+    if (services?.length) {
+      const sum = services.reduce((s, x) => s + Number(x.price || 0), 0)
+      if (sum > 0) return sum
+    }
+    if (!appt) return 0
+    const price = Number(appt.servicePrice || 0)
+    if (price > 0) return price
+    const fromCatalog = ALL_SERVICES.find((s) => s.id === appt.service || s.name === appt.service || s.name === appt.serviceName)
+    return Number(fromCatalog?.price || 0)
+  }
+
+  const openAcceptPayment = (appt: Appointment, opts?: { closeVisit?: boolean }) => {
+    setPayAppt(appt)
+    setPayDefaultClose(!!opts?.closeVisit)
+    setPayOpen(true)
+    setModalOpen(false)
+  }
+
+  const handleAcceptPayment = async (payload: AcceptPaymentPayload) => {
+    if (!payAppt || !clinicId) return
+    setPaySaving(true)
+    try {
+      const patient = patients.find((p) => p.id === payAppt.patientId)
+      const serviceName = String(payAppt.serviceName || payAppt.service || payAppt.reason || 'Услуга')
+      const status = payload.paymentType === 'credit'
+        ? 'debt'
+        : payload.paymentType === 'prepayment'
+          ? 'partial'
+          : 'paid'
+
+      await upsertReceipt({
+        id: gid(),
+        clinicId,
+        date: today(),
+        status,
+        total: payload.amount,
+        payMethod: payload.method,
+        paymentType: payload.paymentType,
+        notes: payload.notes || '',
+        patientId: payAppt.patientId || undefined,
+        patientName: patient?.name || payAppt.patientName || '',
+        service: serviceName,
+        appointmentId: payAppt.id,
+        diagnosis: payAppt.diagnosis || '',
+        toothNumber: payAppt.toothNumber || '',
+        items: [{ name: serviceName, price: payload.amount, qty: 1 }],
+      })
+
+      if (status === 'paid') {
+        await upsertAppointment({ id: payAppt.id, paymentStatus: 'paid' })
+      } else if (status === 'partial') {
+        await upsertAppointment({ id: payAppt.id, paymentStatus: 'partial' })
+      }
+
+      if (payload.closeVisit && !['done', 'completed', 'cancelled'].includes(String(payAppt.status))) {
+        const services = closeServices.length
+          ? closeServices
+          : [{ name: serviceName, price: payload.amount, matCost: 0 }]
+        await api.closeAppointment(payAppt.id, {
+          notes: closeNotes || payAppt.notes || '',
+          services,
+          paymentStatus: status === 'paid' ? 'paid' : payAppt.paymentStatus || 'unpaid',
+        })
+        setPayrollRefresh((n) => n + 1)
+        await queryClient.invalidateQueries({ queryKey: queryKeys.inventory })
+      }
+
+      await queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.receipts })
+      showToast(
+        status === 'debt' ? 'Долг оформлен' : status === 'partial' ? 'Частичная оплата принята' : 'Оплата принята',
+        'success',
+      )
+      setPayOpen(false)
+      setPayAppt(null)
+      setCloseOpen(false)
+      setCloseAppt(null)
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось принять оплату', 'error')
+    } finally {
+      setPaySaving(false)
+    }
+  }
+
   const printDaySchedule = () => {
     const rows = dayAppts.map((a) => {
       const p = patients.find((x) => x.id === a.patientId)
@@ -561,7 +651,18 @@ export default function Schedule() {
               {appt.paymentStatus === 'paid' ? (
                 <Badge variant="success" size="xs">Оплачено</Badge>
               ) : (
-                <Badge variant="warning" size="xs">Не оплачено</Badge>
+                <button
+                  type="button"
+                  title="Принять оплату"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openAcceptPayment(appt, { closeVisit: false })
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md bg-warning/15 border border-warning/30 px-1.5 py-0.5 text-[10px] font-semibold text-warning hover:bg-warning/25 transition-colors"
+                >
+                  <Wallet size={10} />
+                  Оплатить
+                </button>
               )}
               <button
                 type="button"
@@ -1098,6 +1199,39 @@ export default function Schedule() {
 
           <Input label="Заметки" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Дополнительная информация" />
 
+          {editAppt && (
+            <div className={cn(
+              'rounded-xl border p-3 flex items-center justify-between gap-3',
+              editAppt.paymentStatus === 'paid'
+                ? 'border-emerald-400/30 bg-emerald-400/5'
+                : 'border-warning/30 bg-warning/5',
+            )}>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-txt-primary">
+                  {editAppt.paymentStatus === 'paid' ? 'Оплата получена' : 'Оплата по записи'}
+                </p>
+                <p className="text-[11px] text-txt-muted truncate">
+                  {suggestedPayAmount(editAppt) > 0
+                    ? `Сумма: ${Number(suggestedPayAmount(editAppt)).toLocaleString('ru-RU')} ₸`
+                    : 'Укажите услугу или введите сумму в кассе'}
+                </p>
+              </div>
+              {editAppt.paymentStatus !== 'paid' && (
+                <Button
+                  type="button"
+                  size="sm"
+                  icon={<Wallet size={14} />}
+                  onClick={() => openAcceptPayment(editAppt, { closeVisit: false })}
+                >
+                  Принять оплату
+                </Button>
+              )}
+              {editAppt.paymentStatus === 'paid' && (
+                <Badge variant="success" size="sm">Оплачено</Badge>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2 flex-wrap">
             <Button type="submit" className="flex-1">{editAppt ? 'Сохранить' : 'Сохранить'}</Button>
             {editAppt && !['done', 'completed', 'cancelled'].includes(editAppt.status) && (
@@ -1174,15 +1308,51 @@ export default function Schedule() {
                 Итого: {closeServices.reduce((s, x) => s + Number(x.price || 0), 0).toLocaleString('ru-RU')} ₸
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button className="flex-1" disabled={closeSaving} onClick={handleCloseVisit}>
-                {closeSaving ? 'Сохранение…' : 'Завершить приём'}
+            <div className="flex flex-col gap-2">
+              <Button
+                className="w-full"
+                disabled={closeSaving}
+                icon={<Wallet size={16} />}
+                onClick={() => {
+                  const total = closeServices.reduce((s, x) => s + Number(x.price || 0), 0)
+                  openAcceptPayment(
+                    { ...closeAppt, servicePrice: total || closeAppt.servicePrice },
+                    { closeVisit: true },
+                  )
+                  setCloseOpen(false)
+                }}
+              >
+                Принять оплату и завершить
               </Button>
-              <Button variant="ghost" onClick={() => setCloseOpen(false)}>Отмена</Button>
+              <div className="flex gap-2">
+                <Button className="flex-1" variant="secondary" disabled={closeSaving} onClick={handleCloseVisit}>
+                  {closeSaving ? 'Сохранение…' : 'Завершить без оплаты'}
+                </Button>
+                <Button variant="ghost" onClick={() => setCloseOpen(false)}>Отмена</Button>
+              </div>
             </div>
           </div>
         )}
       </Modal>
+
+      <AcceptPaymentModal
+        open={payOpen}
+        onClose={() => { setPayOpen(false); setPayAppt(null) }}
+        patientName={
+          patients.find((p) => p.id === payAppt?.patientId)?.name
+          || payAppt?.patientName
+          || 'Пациент'
+        }
+        serviceLabel={String(payAppt?.serviceName || payAppt?.service || payAppt?.reason || '')}
+        diagnosis={payAppt?.diagnosis || ''}
+        toothNumber={payAppt?.toothNumber || ''}
+        suggestedAmount={suggestedPayAmount(payAppt, payDefaultClose ? closeServices : undefined)}
+        defaultMethod={PAY_METHODS[1] || PAY_METHODS[0]}
+        allowCloseVisit={payDefaultClose || !!(payAppt && !['done', 'completed', 'cancelled'].includes(String(payAppt.status)))}
+        defaultCloseVisit={payDefaultClose}
+        saving={paySaving}
+        onConfirm={handleAcceptPayment}
+      />
 
       {/* Waiting List Modal */}
       <Modal open={waitModalOpen} onClose={() => setWaitModalOpen(false)} title={editWaitId ? 'Редактировать запись' : 'Добавить в лист ожидания'} className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2">
