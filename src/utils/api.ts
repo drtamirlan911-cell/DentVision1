@@ -247,6 +247,45 @@ export async function getClinicSettings(clinicId: string): Promise<{
   return apiRequest(`/api/clinics/${clinicId}/settings`);
 }
 
+// ─── IAM contexts / context switching ───
+export async function getMyContexts(): Promise<{ contexts: any[] }> {
+  return apiRequest('/api/iam/me/contexts');
+}
+export async function switchContext(scopeType: string, scopeId?: string): Promise<any> {
+  return apiRequest('/api/iam/switch-context', {
+    method: 'POST',
+    body: JSON.stringify({ scopeType, scopeId }),
+  });
+}
+
+// ─── Supplier Workspace (self-service; uses a SUPPLIER-scoped token) ───
+async function supplierFetch(path: string, token: string, options: RequestInit = {}): Promise<any> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(options.headers as Record<string, string>),
+    },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.data !== undefined ? data.data : data;
+}
+
+export const supplierWs = {
+  me: (t: string) => supplierFetch('/api/supplier/me', t),
+  updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
+  addDocument: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/documents', t, { method: 'POST', body: JSON.stringify(b) }),
+  products: (t: string) => supplierFetch('/api/supplier/products', t),
+  createProduct: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/products', t, { method: 'POST', body: JSON.stringify(b) }),
+  updateProduct: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'PATCH', body: JSON.stringify(b) }),
+  deleteProduct: (t: string, id: string) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'DELETE' }),
+  wallet: (t: string) => supplierFetch('/api/supplier/wallet', t),
+  analytics: (t: string) => supplierFetch('/api/supplier/analytics', t),
+  requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
+};
+
 export async function saveClinicSettings(
   clinicId: string,
   settings: import('../types').ClinicSettings,

@@ -51,6 +51,7 @@ const AUTH_REQUIRED_ROUTES = [
   '/ai',
   '/profile',
   '/my-clinics',
+  '/supplier',
 ];
 
 export const useGuestStore = create<GuestState>((set, get) => ({
