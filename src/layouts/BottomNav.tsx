@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Stethoscope, ShoppingCart, GraduationCap, BarChart3, Bot, UserPlus, LogIn } from 'lucide-react';
+import { Stethoscope, ShoppingCart, GraduationCap, Users, Bot, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useGuestStore } from '@/store/guest.store';
@@ -20,7 +20,7 @@ const ITEMS: BottomNavItem[] = [
   { id: 'shop', label: 'Маркет', icon: <ShoppingCart size={18} />, path: '/shop', color: '#8E44AD', requiresAuth: false },
   { id: 'ai', label: 'AI', icon: <Bot size={18} />, path: '/', color: '#D4AF37', requiresAuth: false },
   { id: 'school', label: 'Academy', icon: <GraduationCap size={18} />, path: '/school', color: '#16A085', requiresAuth: false },
-  { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={18} />, path: '/analytics', color: '#F39C12', requiresAuth: true },
+  { id: 'community', label: 'Сеть', icon: <Users size={18} />, path: '/community', color: '#00BCD4', requiresAuth: false },
 ];
 
 export function BottomNav() {

@@ -887,7 +887,9 @@ model CommunityPost {
   commentsCount Int      @default(0)
   createdAt     DateTime @default(now())
 
-  likes CommunityLike[]
+  likes     CommunityLike[]
+  comments  CommunityComment[]
+  saves     CommunitySave[]
 
   @@index([createdAt])
   @@map("community_posts")
@@ -903,6 +905,75 @@ model CommunityLike {
 
   @@unique([postId, userId])
   @@map("community_likes")
+}
+
+model CommunityComment {
+  id         String   @id @default("")
+  postId     String
+  authorId   String
+  authorName String
+  content    String
+  createdAt  DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("community_comments")
+}
+
+model CommunitySave {
+  id        String   @id @default("")
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+  @@map("community_saves")
+}
+
+/// 1:1 direct message thread (Instagram/Telegram-style).
+model DmConversation {
+  id        String   @id @default("")
+  /// Sorted "userIdA:userIdB" for unique pairwise lookup
+  pairKey   String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants DmParticipant[]
+  messages     DmMessage[]
+
+  @@index([updatedAt])
+  @@map("dm_conversations")
+}
+
+model DmParticipant {
+  id             String    @id @default("")
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("dm_participants")
+}
+
+model DmMessage {
+  id             String   @id @default("")
+  conversationId String
+  senderId       String
+  body           String
+  createdAt      DateTime @default(now())
+
+  conversation DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("dm_messages")
 }
 
 // ─── FINANCE (Phase 4) ───
