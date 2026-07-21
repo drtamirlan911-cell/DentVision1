@@ -33,7 +33,6 @@ import { labRouter } from './modules/lab/lab.routes.js';
 import { communityRouter } from './modules/community/community.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
 import { iamRouter } from './modules/iam/iam.routes.js';
-import { suppliersRouter } from './modules/suppliers/suppliers.routes.js';
 import { academiesRouter, lecturersRouter } from './modules/academy/academy.routes.js';
 import { financeRouter } from './modules/finance/finance.routes.js';
 import { paymentsRouter } from './modules/payments/payments.routes.js';
@@ -41,18 +40,16 @@ import { subscriptionsRouter } from './modules/billing/subscriptions.routes.js';
 import { disputesRouter } from './modules/finance/disputes.routes.js';
 import { developerRouter } from './modules/developer/developer.routes.js';
 import { v1Router } from './modules/developer/v1.routes.js';
-import { complianceRouter } from './modules/compliance/compliance.routes.js';
-import { ecosystemRouter } from './modules/analytics/ecosystem.routes.js';
 import { partnersRouter } from './modules/partners/partners.routes.js';
 import { workflowRouter } from './modules/workflow/workflow.routes.js';
 import { dataRouter } from './modules/data/data.routes.js';
 import { aiGovernanceRouter } from './modules/ai-governance/ai-governance.routes.js';
 import { supplierWorkspaceRouter } from './modules/supplier-workspace/workspace.routes.js';
 import { lecturerRouter } from './modules/school-workspace/lecturer.routes.js';
-import { publicRouter } from './modules/public/public.routes.js';
 import { profileRouter } from './modules/profile/profile.routes.js';
 import { jobsRouter } from './modules/jobs/jobs.routes.js';
 import { opsSuppliersRouter } from './modules/ops/ops.suppliers.routes.js';
+import { opsHubRouter } from './modules/ops/ops.hub.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 import { registerWebhookDispatcher } from './modules/developer/webhook.dispatcher.js';
 import { registerWorkflowEngine } from './modules/workflow/workflow.engine.js';
@@ -131,6 +128,7 @@ app.use('/api/community', communityRouter);
 app.use('/api/public', publicRouter);
 // Hidden platform ops (no UI nav). SUPERADMIN + X-Platform-Ops-Key required; else 404.
 app.use('/api/ops/suppliers', opsSuppliersRouter);
+app.use('/api/ops', opsHubRouter);
 
 // ─── Error Handling ───
 app.use(notFound);
