@@ -273,18 +273,6 @@ async function supplierFetch(path: string, token: string, options: RequestInit =
   return data.data !== undefined ? data.data : data;
 }
 
-export const lecturerWs = {
-  me: (t: string) => supplierFetch('/api/lecturer/me', t),
-  updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/lecturer/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
-  courses: (t: string) => supplierFetch('/api/lecturer/courses', t),
-  createCourse: (t: string, b: Record<string, unknown>) => supplierFetch('/api/lecturer/courses', t, { method: 'POST', body: JSON.stringify(b) }),
-  updateCourse: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/lecturer/courses/${id}`, t, { method: 'PATCH', body: JSON.stringify(b) }),
-  deleteCourse: (t: string, id: string) => supplierFetch(`/api/lecturer/courses/${id}`, t, { method: 'DELETE' }),
-  wallet: (t: string) => supplierFetch('/api/lecturer/wallet', t),
-  analytics: (t: string) => supplierFetch('/api/lecturer/analytics', t),
-  requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/lecturer/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
-};
-
 export const supplierWs = {
   me: (t: string) => supplierFetch('/api/supplier/me', t),
   updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
