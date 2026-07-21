@@ -491,16 +491,14 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
   }
 });
 
-aiRouter.get('/proactive', async (req: AuthRequest, res) => {
+aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
   try {
-    const alerts = await aiService.getProactiveAlerts({
+    const { buildProactiveAlerts } = await import('./core/digitalTwin.js');
+    const alerts = await buildProactiveAlerts({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
+      clinicId: req.user?.clinicId || null,
       role: req.user?.role || 'guest',
-      sessionId: crypto.randomUUID(),
-      metadata: {},
     });
-
     res.json({ ok: true, data: { alerts } });
   } catch (error) {
     console.error('[AI Proactive Error]', error);
@@ -553,17 +551,14 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-aiRouter.get('/digital-twin', async (req: AuthRequest, res) => {
+aiRouter.get('/digital-twin', authenticate, async (req: AuthRequest, res) => {
   try {
-    // Return digital twin state for user
-    res.json({
-      ok: true,
-      data: {
-        preferences: {},
-        frequentActions: [],
-        learningProgress: {},
-      },
-    });
+    const { buildDigitalTwin } = await import('./core/digitalTwin.js');
+    const twin = await buildDigitalTwin(req.user!.id, req.user?.clinicId || null);
+    if (!twin) {
+      return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
+    }
+    res.json({ ok: true, data: { twin } });
   } catch (error) {
     console.error('[AI Digital Twin Error]', error);
     res.status(500).json({ ok: false, error: 'Digital twin failed' });

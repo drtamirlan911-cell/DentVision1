@@ -9,7 +9,7 @@ import { useGuestStore } from '@/store/guest.store';
 import { useAIWorkspaceStore } from '@/store/workspace.store';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
-import { aiProactive } from '@/utils/api';
+import { useAIStore } from '@/store/ai.store';
 import { trackProductEvent } from '@/utils/analytics';
 import { Sidebar } from './Sidebar';
 import { AlertDropdown } from './AlertDropdown';
@@ -82,7 +82,8 @@ export const IntelligenceLayout: React.FC = () => {
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
   const isAIHome = location.pathname === '/';
 
-  const [proactiveAlerts, setProactiveAlerts] = useState<Array<{ type: string; text: string; priority: number }>>([]);
+  const proactiveAlerts = useAIStore((s) => s.proactiveAlerts);
+  const loadProactiveAlerts = useAIStore((s) => s.loadProactiveAlerts);
   const [isMobile, setIsMobile] = useState(false);
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
   const [guestCRMOpen, setGuestCRMOpen] = useState(false);
@@ -119,16 +120,9 @@ export const IntelligenceLayout: React.FC = () => {
   }, [isMobile, setContextSheetOpen]);
 
   useEffect(() => {
-    const t = setTimeout(() => fetchProactiveAlerts(), 500);
+    const t = setTimeout(() => { void loadProactiveAlerts() }, 500);
     return () => clearTimeout(t);
-  }, []);
-
-  const fetchProactiveAlerts = useCallback(async () => {
-    try {
-      const data = await aiProactive();
-      if (data?.alerts?.length) setProactiveAlerts(data.alerts);
-    } catch { /* ignore */ }
-  }, []);
+  }, [loadProactiveAlerts]);
 
   // ── First-run: greeting → functional sidebar dock → 15s collapse ──
   useEffect(() => {

@@ -42,7 +42,6 @@ export function ContextTab() {
   const navigate = useNavigate()
   const patientData = usePatientStore((s) => s.patientData)
   const selectedPatientId = usePatientStore((s) => s.selectedPatient)
-  const { executeAction } = useAIExecutor()
 
   const path = location.pathname
   const isCrm = path.startsWith('/crm')
@@ -108,10 +107,10 @@ export function ContextTab() {
   const stageIndex = TREATMENT_STAGES.findIndex((s) => s.id === currentStage.id)
 
   const quickActions = [
-    { label: 'Карта', action: () => executeAction({ type: 'OpenMedicalCard', params: { patientId: patient.id } }) },
-    { label: 'План', action: () => executeAction({ type: 'OpenTreatmentPlans', params: { patientId: patient.id } }) },
-    { label: 'Оплата', action: () => executeAction({ type: 'OpenCashier', params: { patientId: patient.id } }) },
-    { label: 'Запись', action: () => executeAction({ type: 'OpenSchedule', params: { patientId: patient.id } }) },
+    { label: 'Карта', path: '/crm/medical-card' },
+    { label: 'План', path: '/crm/treatment-plans' },
+    { label: 'Оплата', path: '/crm/finance' },
+    { label: 'Запись', path: '/crm/schedule' },
   ]
 
   return (
@@ -182,7 +181,7 @@ export function ContextTab() {
         <h4 className="text-xs font-semibold text-txt-primary mb-2">Быстрые действия</h4>
         <div className="grid grid-cols-2 gap-2">
           {quickActions.map((a) => (
-            <Button key={a.label} size="sm" variant="secondary" className="w-full" onClick={a.action}>
+            <Button key={a.label} size="sm" variant="secondary" className="w-full" onClick={() => navigate(a.path)}>
               {a.label}
             </Button>
           ))}
