@@ -15,6 +15,7 @@ export interface DomainEventMap {
   'patient.deleted': { clinicId: string; patientId: string; userId?: string };
   'appointment.created': { clinicId: string; appointmentId: string; userId?: string };
   'supplier.status_changed': { supplierId: string; status: string; from?: string; to?: string; userId?: string };
+  'lecturer.registered': { lecturerId: string; userId?: string; level?: string };
   'lecturer.level_changed': { lecturerId: string; level: string; from?: string; to?: string; userId?: string };
 }
 

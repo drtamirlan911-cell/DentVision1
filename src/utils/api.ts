@@ -1310,6 +1310,18 @@ export async function registerAsSupplier(data: {
   return apiRequest('/api/suppliers/register', { method: 'POST', body: JSON.stringify(data) });
 }
 
+/** Self-serve: open lecturer cabinet (Academy OS). */
+export async function registerAsLecturer(data: {
+  specialty: string;
+  bio?: string;
+  phone?: string;
+  city?: string;
+  academyId?: string;
+  credentialsUrl?: string;
+}): Promise<any> {
+  return apiRequest('/api/lecturers/register', { method: 'POST', body: JSON.stringify(data) });
+}
+
 /** Platform: link a user to a supplier by email or userId. */
 export async function addSupplierMember(supplierId: string, body: { email?: string; userId?: string; role?: string }): Promise<any> {
   return apiRequest(`/api/suppliers/${supplierId}/members`, { method: 'POST', body: JSON.stringify(body) });

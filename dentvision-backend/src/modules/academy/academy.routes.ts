@@ -95,6 +95,76 @@ lecturersRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/lecturers/register — self-serve: create lecturer profile for current user.
+// Must be registered BEFORE /:id routes.
+lecturersRouter.post('/register', async (req: AuthRequest, res) => {
+  try {
+    const { bio, specialty, phone, city, academyId, credentialsUrl } = req.body || {};
+    const specialtyText = specialty ? String(specialty).trim() : '';
+    if (!specialtyText) {
+      return res.status(400).json({ ok: false, error: 'Укажите специализацию' } satisfies ApiResponse);
+    }
+
+    const existing = await prisma.lecturer.findUnique({ where: { userId: req.user!.id } });
+    if (existing) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Профиль лектора уже существует. Откройте кабинет лектора.',
+        data: { lecturerId: existing.id },
+      } satisfies ApiResponse);
+    }
+
+    if (academyId) {
+      const academy = await prisma.academy.findUnique({ where: { id: String(academyId) }, select: { id: true } });
+      if (!academy) {
+        return res.status(404).json({ ok: false, error: 'Академия не найдена' } satisfies ApiResponse);
+      }
+    }
+
+    const bioParts = [
+      specialtyText ? `Специализация: ${specialtyText}` : '',
+      city ? `Город: ${String(city).trim()}` : '',
+      phone ? `Телефон: ${String(phone).trim()}` : '',
+      bio ? String(bio).trim() : '',
+    ].filter(Boolean);
+
+    const lecturer = await prisma.lecturer.create({
+      data: {
+        userId: req.user!.id,
+        level: 'NEW',
+        bio: bioParts.join('\n') || null,
+        academyId: academyId ? String(academyId) : null,
+        ...(credentialsUrl
+          ? {
+              verifications: {
+                create: {
+                  type: 'credentials',
+                  url: String(credentialsUrl).trim(),
+                  verified: false,
+                },
+              },
+            }
+          : {}),
+      },
+      include: {
+        academy: { select: { id: true, name: true } },
+        verifications: true,
+      },
+    });
+
+    publish('lecturer.registered', {
+      lecturerId: lecturer.id,
+      userId: req.user?.id,
+      level: lecturer.level,
+    });
+
+    return res.status(201).json({ ok: true, data: lecturer } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Lecturer register error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать лектора' } satisfies ApiResponse);
+  }
+});
+
 lecturersRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
     const lecturer = await prisma.lecturer.findUnique({

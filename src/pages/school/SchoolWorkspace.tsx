@@ -37,6 +37,17 @@ export default function SchoolWorkspace() {
   const [saving, setSaving] = useState(false);
   const [bio, setBio] = useState('');
 
+  const [academies, setAcademies] = useState<Array<{ id: string; name: string; city?: string | null }>>([]);
+  const [regSaving, setRegSaving] = useState(false);
+  const [regForm, setRegForm] = useState({
+    specialty: '',
+    bio: '',
+    phone: '',
+    city: '',
+    academyId: '',
+    credentialsUrl: '',
+  });
+
   const loadAll = useCallback(async (t: string) => {
     const [meRes, cRes, aRes] = await Promise.all([
       api.lecturerWs.me(t).catch(() => null),
@@ -59,12 +70,23 @@ export default function SchoolWorkspace() {
     }
   }, [loadAll, toast]);
 
+  const reloadContexts = useCallback(async () => {
+    const res = await api.getMyContexts();
+    const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER');
+    setContexts(lec);
+    if (lec.length > 0) await enter(lec[0].scopeId);
+  }, [enter]);
+
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.getMyContexts();
-        const lec = (res.contexts || []).filter((c: any) => c.scopeType === 'LECTURER');
+        const [ctxRes, academyList] = await Promise.all([
+          api.getMyContexts(),
+          api.getAcademies().catch(() => []),
+        ]);
+        const lec = (ctxRes.contexts || []).filter((c: any) => c.scopeType === 'LECTURER');
         setContexts(lec);
+        setAcademies(Array.isArray(academyList) ? academyList : []);
         if (lec.length > 0) await enter(lec[0].scopeId);
       } catch { /* ignore */ } finally {
         setLoading(false);
@@ -72,6 +94,28 @@ export default function SchoolWorkspace() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleRegister = async () => {
+    if (!regForm.specialty.trim()) { toast.error('Укажите специализацию'); return; }
+    setRegSaving(true);
+    try {
+      const lecturer = await api.registerAsLecturer({
+        specialty: regForm.specialty.trim(),
+        bio: regForm.bio || undefined,
+        phone: regForm.phone || undefined,
+        city: regForm.city || undefined,
+        academyId: regForm.academyId || undefined,
+        credentialsUrl: regForm.credentialsUrl || undefined,
+      });
+      toast.success('Кабинет создан. Статус: новый лектор (на проверке)');
+      await reloadContexts();
+      if (lecturer?.id) await enter(lecturer.id);
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось зарегистрировать профиль лектора');
+    } finally {
+      setRegSaving(false);
+    }
+  };
 
   const handleAdd = async () => {
     if (!token) return;
@@ -137,13 +181,75 @@ export default function SchoolWorkspace() {
 
   if (contexts.length === 0) {
     return (
-      <div className="p-6 max-w-[900px] mx-auto">
-        <PageHeader title="Кабинет лектора · Academy OS" subtitle="Продажа вебинаров и офис-курсов · аналитика" icon={<GraduationCap size={22} />} />
+      <div className="p-6 max-w-[900px] mx-auto space-y-4">
+        <PageHeader
+          title="Кабинет лектора · Academy OS"
+          subtitle="Вебинары и офис-курсы · сертификация · аналитика"
+          icon={<GraduationCap size={22} />}
+        />
         <EmptyState
           icon={<GraduationCap size={36} />}
-          title="Вы не являетесь лектором"
-          description="Кабинет лектора доступен пользователям с профилем преподавателя. Обратитесь к администратору платформы или академии."
+          title="Откройте кабинет лектора"
+          description="Зарегистрируйте профиль преподавателя и продавайте вебинары и офис-курсы на Academy OS."
         />
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <p className="text-sm font-medium text-white">Заявка преподавателя</p>
+            <Input
+              label="Специализация *"
+              value={regForm.specialty}
+              onChange={(e) => setRegForm({ ...regForm, specialty: e.target.value })}
+              placeholder="Эндодонтия, имплантация, ортопедия…"
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Город"
+                value={regForm.city}
+                onChange={(e) => setRegForm({ ...regForm, city: e.target.value })}
+                placeholder="Алматы"
+              />
+              <Input
+                label="Телефон"
+                value={regForm.phone}
+                onChange={(e) => setRegForm({ ...regForm, phone: e.target.value })}
+                placeholder="+7…"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[#B0BEC5] mb-1.5 block">Академия (необязательно)</label>
+              <select
+                className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-white"
+                value={regForm.academyId}
+                onChange={(e) => setRegForm({ ...regForm, academyId: e.target.value })}
+              >
+                <option value="">Независимый лектор</option>
+                {academies.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}{a.city ? ` · ${a.city}` : ''}</option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label="Ссылка на диплом / сертификат"
+              value={regForm.credentialsUrl}
+              onChange={(e) => setRegForm({ ...regForm, credentialsUrl: e.target.value })}
+              placeholder="https://…"
+            />
+            <Input
+              label="О себе"
+              value={regForm.bio}
+              onChange={(e) => setRegForm({ ...regForm, bio: e.target.value })}
+              placeholder="Опыт, форматы (вебинары / офис-курсы), темы"
+            />
+            <p className="text-xs text-[#7A8899]">
+              После создания кабинет откроется сразу. Уровень «Новый лектор» — платформа может повысить после проверки.
+            </p>
+            <div className="flex justify-end pt-1">
+              <Button onClick={handleRegister} disabled={regSaving}>
+                {regSaving ? 'Создание…' : 'Создать кабинет'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
