@@ -51,6 +51,7 @@ import { suppliersRouter } from './modules/suppliers/suppliers.routes.js';
 import { ecosystemRouter } from './modules/analytics/ecosystem.routes.js';
 import { complianceRouter } from './modules/compliance/compliance.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
+import { dentcashRouter } from './modules/dentcash/dentcash.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 
 // Wire up domain-event subscribers (audit, etc.) once at import time.
@@ -161,6 +162,7 @@ app.use('/api/suppliers', suppliersRouter);
 app.use('/api/supplier', supplierWorkspaceRouter);
 app.use('/api/lecturer', lecturerRouter);
 app.use('/api/school', schoolRouter);
+app.use('/api/dentcash', dentcashRouter);
 app.use('/api/academies', academiesRouter);
 app.use('/api/lecturers', lecturersRouter);
 app.use('/api/ai', aiRouter);

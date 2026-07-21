@@ -111,6 +111,7 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
           saasPlan: planId,
           months,
           clinicId,
+          userId: req.user!.id,
         },
       },
     });

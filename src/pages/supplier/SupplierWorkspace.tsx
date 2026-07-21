@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Store, Package, Wallet, BarChart3, Plus, Trash2, CheckCircle2, Clock,
   ShieldCheck, Building2, Sparkles, TrendingUp, AlertTriangle, RotateCcw,
-  Megaphone, Tag, Star, Truck, ArrowRight, Box,
+  Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent,
 } from 'lucide-react'
 import * as api from '@/utils/api'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -82,19 +82,27 @@ export default function SupplierWorkspace() {
   const [addOpen, setAddOpen] = useState(false)
   const [promoOpen, setPromoOpen] = useState(false)
   const [form, setForm] = useState({ name: '', price: '', stock: '', category: '', description: '' })
-  const [promoForm, setPromoForm] = useState({ productId: '', title: '', discountPercent: '10' })
+  const [promoForm, setPromoForm] = useState({ productId: '', title: '', discountPercent: '10', cashbackPercent: '10' })
   const [saving, setSaving] = useState(false)
+  const [cashbackRules, setCashbackRules] = useState<any[]>([])
+  const [defaultCb, setDefaultCb] = useState('1')
+  const [cbSaving, setCbSaving] = useState(false)
 
   const [regForm, setRegForm] = useState({ name: '', bin: '', phone: '', email: '', contactPerson: '', legalAddress: '' })
   const [regSaving, setRegSaving] = useState(false)
 
   const loadAll = useCallback(async (t: string) => {
-    const [meRes, dashRes] = await Promise.all([
+    const [meRes, dashRes, rulesRes] = await Promise.all([
       api.supplierWs.me(t).catch(() => null),
       api.supplierWs.dashboard(t).catch(() => null),
+      api.supplierWs.cashbackRules(t).catch(() => ({ rules: [] })),
     ])
     setMe(meRes)
     setDash(dashRes)
+    const rules = Array.isArray(rulesRes?.rules) ? rulesRes.rules : []
+    setCashbackRules(rules)
+    const allRule = rules.find((r: any) => r.scope === 'ALL' && r.active)
+    if (allRule) setDefaultCb(String((allRule.rateBps / 100).toFixed(1)).replace(/\.0$/, ''))
   }, [])
 
   const enterSupplier = useCallback(async (scopeId: string) => {
@@ -218,14 +226,63 @@ export default function SupplierWorkspace() {
         productId: promoForm.productId,
         title: promoForm.title || undefined,
         discountPercent: Number(promoForm.discountPercent) || 10,
+        cashbackPercent: Number(promoForm.cashbackPercent) || 10,
       })
-      toast.success('Акция запущена')
+      toast.success('Акция и правило кэшбэка созданы')
       setPromoOpen(false)
+      setPromoForm({ productId: '', title: '', discountPercent: '10', cashbackPercent: '10' })
       await loadAll(token)
     } catch (e: any) {
       toast.error(e?.message || 'Не удалось создать акцию')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const saveDefaultCashback = async () => {
+    if (!token) return
+    setCbSaving(true)
+    try {
+      const pct = Math.min(15, Math.max(0, Number(defaultCb) || 0))
+      await api.supplierWs.upsertCashbackRule(token, {
+        scope: 'ALL',
+        rateBps: Math.round(pct * 100),
+        active: true,
+      })
+      toast.success('Базовый кэшбэк сохранён')
+      await loadAll(token)
+    } catch (e: any) {
+      toast.error(e?.message || 'Ошибка')
+    } finally {
+      setCbSaving(false)
+    }
+  }
+
+  const toggleOwnBrand = async (productId: string, ownBrand: boolean) => {
+    if (!token) return
+    try {
+      await api.supplierWs.updateProduct(token, productId, { ownBrand })
+      toast.success(ownBrand ? 'Свой бренд' : 'Обычный товар')
+      await loadAll(token)
+    } catch (e: any) {
+      toast.error(e?.message || 'Ошибка')
+    }
+  }
+
+  const setProductCashback = async (productId: string, percentStr: string) => {
+    if (!token) return
+    const pct = Math.min(15, Math.max(0, Number(percentStr) || 0))
+    try {
+      await api.supplierWs.upsertCashbackRule(token, {
+        scope: 'PRODUCT',
+        productId,
+        rateBps: Math.round(pct * 100),
+        active: pct > 0,
+      })
+      toast.success('Кэшбэк товара обновлён')
+      await loadAll(token)
+    } catch (e: any) {
+      toast.error(e?.message || 'Ошибка')
     }
   }
 
@@ -532,35 +589,112 @@ export default function SupplierWorkspace() {
 
           {tab === 'ads' && (
             <div className="space-y-4">
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Percent size={16} className="text-[#C9A96E] mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-white">DentCash — кэшбэк покупателям</p>
+                      <p className="text-xs text-[#7A8899] mt-0.5">
+                        1 DentCash = 1 ₸. Списывается с вашего кошелька при начислении. Свой бренд — повышенный % по умолчанию платформы.
+                      </p>
+                    </div>
+                  </div>
+                  {canWrite && (
+                    <div className="flex flex-wrap items-end gap-3">
+                      <Input
+                        label="Базовый кэшбэк %"
+                        type="number"
+                        value={defaultCb}
+                        onChange={(e) => setDefaultCb(e.target.value)}
+                        className="w-28"
+                      />
+                      <Button size="sm" loading={cbSaving} onClick={() => void saveDefaultCashback()}>
+                        Сохранить
+                      </Button>
+                    </div>
+                  )}
+                  {cashbackRules.filter((r) => r.active && r.scope !== 'ALL').length > 0 && (
+                    <div className="text-xs text-[#7A8899] space-y-1 pt-2 border-t border-white/10">
+                      <p className="font-medium text-white/60">Переопределения</p>
+                      {cashbackRules.filter((r) => r.active && r.scope !== 'ALL').map((r) => (
+                        <p key={r.id}>
+                          {r.scope}
+                          {r.productId ? ` · ${String(r.productId).slice(0, 8)}…` : ''}
+                          {r.category ? ` · ${r.category}` : ''}
+                          {' — '}
+                          {(r.rateBps / 100).toFixed(1)}%
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               <div className="flex items-center justify-between">
-                <p className="text-sm text-[#7A8899]">Реклама и акции на витрине DentVision</p>
+                <p className="text-sm text-[#7A8899]">Акции с повышенным кэшбэком (до 15%)</p>
                 {canWrite && <Button size="sm" onClick={() => setPromoOpen(true)} icon={<Tag size={14} />}>Создать акцию</Button>}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {(dash?.ads || []).map((ad: any) => (
-                  <Card key={ad.id}>
-                    <CardContent className="p-4 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-white">{ad.title}</p>
-                        <Badge size="xs" variant={ad.status === 'recommended' ? 'gold' : 'default'}>
-                          {ad.status === 'recommended' ? 'Рекомендуем' : ad.status === 'locked' ? 'Закрыто' : 'Доступно'}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-[#7A8899]">{ad.description}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-              {(dash?.promotions || []).length > 0 && (
+              {(dash?.promotions || []).length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-wide text-[#7A8899]">Активные акции</p>
-                  {(dash.promotions as any[]).map((p) => (
+                  {(dash.promotions as any[]).map((p: any) => (
                     <div key={p.id} className="rounded-lg border border-[#C9A96E]/20 bg-[#C9A96E]/5 px-3 py-2 text-sm text-white">
                       {p.title} · {p.productName}
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-sm text-[#7A8899]">Пока нет активных акций</p>
               )}
+
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-wide text-[#7A8899]">Товары: свой бренд и % кэшбэка</p>
+                {products.length === 0 ? (
+                  <p className="text-sm text-[#7A8899]">Добавьте товары во вкладке «Каталог»</p>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {products.slice(0, 40).map((p: any) => {
+                      const rule = cashbackRules.find((r) => r.scope === 'PRODUCT' && r.productId === p.id && r.active)
+                      return (
+                        <Card key={p.id}>
+                          <CardContent className="p-3 flex flex-wrap items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-white truncate">{p.name}</p>
+                              <p className="text-xs text-[#7A8899]">{p.category || '—'}</p>
+                            </div>
+                            {canWrite && (
+                              <>
+                                <label className="flex items-center gap-1.5 text-xs text-white/70 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(p.ownBrand)}
+                                    onChange={(e) => void toggleOwnBrand(p.id, e.target.checked)}
+                                    className="rounded border-white/20"
+                                  />
+                                  Свой бренд
+                                </label>
+                                <Input
+                                  label=""
+                                  type="number"
+                                  defaultValue={rule ? String(rule.rateBps / 100) : ''}
+                                  placeholder="%"
+                                  className="w-20"
+                                  onBlur={(e) => {
+                                    if (e.target.value !== '') void setProductCashback(p.id, e.target.value)
+                                  }}
+                                />
+                              </>
+                            )}
+                            {!canWrite && rule && (
+                              <span className="text-xs text-[#C9A96E]">{(rule.rateBps / 100).toFixed(1)}%</span>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -673,6 +807,13 @@ export default function SupplierWorkspace() {
           </select>
           <Input label="Название акции" value={promoForm.title} onChange={(e) => setPromoForm((f) => ({ ...f, title: e.target.value }))} placeholder="−10% на расходники" />
           <Input label="Скидка %" type="number" value={promoForm.discountPercent} onChange={(e) => setPromoForm((f) => ({ ...f, discountPercent: e.target.value }))} />
+          <Input
+            label="Кэшбэк DentCash %"
+            type="number"
+            value={promoForm.cashbackPercent}
+            onChange={(e) => setPromoForm((f) => ({ ...f, cashbackPercent: e.target.value }))}
+            placeholder="до 15%"
+          />
           <div className="flex gap-3 pt-2">
             <Button variant="ghost" onClick={() => setPromoOpen(false)}>Отмена</Button>
             <Button loading={saving} onClick={handlePromo} icon={<Tag size={15} />}>Запустить</Button>

@@ -377,6 +377,7 @@ export async function buildSupplierDashboard(supplierId: string) {
       rating: p.rating,
       brand: p.brand,
       description: p.description,
+      ownBrand: Boolean((p as { ownBrand?: boolean }).ownBrand),
     })),
   };
 }
