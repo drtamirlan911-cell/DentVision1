@@ -207,10 +207,10 @@ export function AIInputArea({
             exit={{ opacity: 0, y: 8 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             className={cn(
-              'relative rounded-2xl transition-all duration-300',
+              'relative rounded-[1.35rem] transition-all duration-300',
               focused
-                ? 'shadow-[0_0_30px_rgba(201,169,110,0.08)] ring-1 ring-dv-gold/20'
-                : 'shadow-none ring-1 ring-white/[0.06]'
+                ? 'shadow-[0_0_40px_rgba(201,169,110,0.12)] ring-1 ring-dv-gold/30'
+                : 'shadow-[0_8px_32px_rgba(0,0,0,0.25)] ring-1 ring-white/[0.08]'
             )}
           >
             <div className="relative bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/[0.06] overflow-hidden">

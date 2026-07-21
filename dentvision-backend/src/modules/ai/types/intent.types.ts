@@ -16,6 +16,7 @@ export enum Intent {
   OPEN_IMAGING = 'OPEN_IMAGING',
   RECOMMEND_PRODUCT = 'RECOMMEND_PRODUCT',
   GET_DEBTORS = 'GET_DEBTORS',
+  MORNING_BRIEFING = 'MORNING_BRIEFING',
   OPEN_CRM = 'OPEN_CRM',
   OPEN_SCHEDULE = 'OPEN_SCHEDULE',
   OPEN_PATIENTS = 'OPEN_PATIENTS',
@@ -32,7 +33,19 @@ export enum Intent {
   UNKNOWN = 'UNKNOWN',
 }
 
+/** Patterns are scored by source string length — longer / more specific wins. */
 export const INTENT_PATTERNS: Record<string, RegExp[]> = {
+  [Intent.MORNING_BRIEFING]: [
+    /что\s+важно/,
+    /что\s+важного/,
+    /сводка\s+(на\s+)?сегодня/,
+    /брифинг/,
+    /резюме\s+дня/,
+    /утро\s+клиники/,
+    /что\s+сегодня\s+важно/,
+    /обзор\s+дня/,
+    /сводка\s+дня/,
+  ],
   [Intent.CREATE_APPOINTMENT]: [
     /записать\s+пациента/,
     /запиши\s+пациента/,
@@ -44,6 +57,8 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /запланируй\s+визит/,
     /новая\s+запись/,
     /запись\s+на\s+/,
+    /запиши\s+пациент/,
+    /запиши\s+.+\s+на\s+/,
   ],
   [Intent.SEARCH_PATIENT]: [
     /найти\s+пациента/,
@@ -85,12 +100,14 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /открой\s+счет/,
   ],
   [Intent.CHECK_DEBTS]: [
+    /проверь\s+долг/,
+    /проверить\s+долг/,
+    /покажи\s+долг/,
     /долги/,
     /должники/,
     /кто\s+не\s+заплатил/,
     /проверь\s+оплату/,
-    /задолженности/,
-    /покажи\s+задолженности/,
+    /задолженност/,
   ],
   [Intent.ORDER_PRODUCT]: [
     /закажи\s+товар/,
@@ -105,18 +122,13 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /подбери\s+курс/,
     /курс\s+для/,
     /обучение/,
-    /школа/,
     /найди\s+курс/,
     /курсы\s+по\s+/,
   ],
   [Intent.GENERATE_REPORT]: [
-    /отчет/,
-    /аналитика/,
-    /kpi/,
-    /показатели/,
-    /статистика/,
-    /доход\s+за/,
-    /мой\s+доход/,
+    /сгенерируй\s+отчет/,
+    /создай\s+отчет/,
+    /отчет\s+по/,
   ],
   [Intent.SEARCH_DOCUMENT]: [
     /документ/,
@@ -125,20 +137,32 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /найти\s+файл/,
   ],
   [Intent.GET_ANALYTICS]: [
-    /аналитика/,
+    /выручк/,
+    /доход/,
+    /финанс/,
+    /покажи\s+деньги/,
+    /аналитик/,
     /kpi/,
     /показатели/,
     /статистика/,
-    /открой\s+аналитику/,
+    /открой\s+аналитик/,
+    /открыть\s+аналитик/,
+    /мой\s+доход/,
   ],
   [Intent.VIEW_SCHEDULE]: [
+    /покажи\s+расписание/,
+    /показать\s+расписание/,
+    /открой\s+расписание/,
+    /открыть\s+расписание/,
+    /расписание\s+на\s+сегодня/,
+    /расписание\s+на\s+завтра/,
     /расписание/,
     /кто\s+на\s+приеме/,
-    /завтра/,
-    /сегодня/,
-    /кто\s+работает/,
+    /кто\s+сегодня\s+на\s+приеме/,
+    /записи\s+на\s+сегодня/,
+    /записи\s+на\s+завтра/,
     /мое\s+расписание/,
-    /покажи\s+расписание/,
+    /кто\s+работает/,
   ],
   [Intent.GET_MEDICAL_CARD]: [
     /медицинская\s+карта/,
@@ -148,7 +172,6 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /покажи\s+снимок/,
     /открой\s+рентген/,
     /cbct/,
-    /кт/,
     /открой\s+кт/,
   ],
   [Intent.RECOMMEND_PRODUCT]: [
@@ -165,7 +188,6 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /открой\s+crm/,
     /открыть\s+crm/,
     /перейти\s+в\s+crm/,
-    /crm/,
   ],
   [Intent.OPEN_SCHEDULE]: [
     /открой\s+расписание/,
@@ -187,18 +209,20 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
   [Intent.OPEN_SHOP]: [
     /открой\s+магазин/,
     /открыть\s+магазин/,
+    /маркетплейс/,
     /шоп/,
     /shop/,
   ],
   [Intent.OPEN_FINANCE]: [
     /открой\s+финанс/,
     /открыть\s+финанс/,
-    /финансы/,
+    /покажи\s+финанс/,
+    /показать\s+финанс/,
+    /касса/,
   ],
   [Intent.OPEN_LABORATORY]: [
     /открой\s+лаборатор/,
     /открыть\s+лаборатор/,
-    /лабор?\s*работ/,
     /лабораторные\s+работы/,
   ],
   [Intent.OPEN_ANALYTICS]: [
@@ -208,6 +232,7 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
   [Intent.OPEN_INVENTORY]: [
     /открой\s+склад/,
     /открыть\s+склад/,
+    /что\s+на\s+складе/,
     /инвентарь/,
     /материалы\s+заканчив/,
     /что\s+заканчивается/,
@@ -238,16 +263,75 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
   ],
 };
 
+/** Prefer specific intents when several patterns match. */
+const INTENT_PRIORITY: Partial<Record<Intent, number>> = {
+  [Intent.MORNING_BRIEFING]: 100,
+  [Intent.CREATE_APPOINTMENT]: 90,
+  [Intent.CHECK_DEBTS]: 85,
+  [Intent.GET_DEBTORS]: 85,
+  [Intent.GET_ANALYTICS]: 80,
+  [Intent.OPEN_FINANCE]: 78,
+  [Intent.OPEN_INVENTORY]: 78,
+  [Intent.OPEN_ANALYTICS]: 78,
+  [Intent.VIEW_SCHEDULE]: 70,
+  [Intent.OPEN_SCHEDULE]: 72,
+  [Intent.GENERATE_REPORT]: 75,
+};
+
+export function normalizeAiText(text: string): string {
+  return text.toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+}
+
 export function classifyIntent(text: string): { intent: Intent; confidence: number } {
-  const lowerText = text.toLowerCase();
+  const lowerText = normalizeAiText(text);
+  if (!lowerText) return { intent: Intent.UNKNOWN, confidence: 0 };
+
+  let best: { intent: Intent; score: number } | null = null;
+
   for (const [intent, patterns] of Object.entries(INTENT_PATTERNS)) {
     for (const pattern of patterns) {
-      if (pattern.test(lowerText)) {
-        return { intent: intent as Intent, confidence: 0.9 };
+      const match = lowerText.match(pattern);
+      if (!match) continue;
+      const priority = INTENT_PRIORITY[intent as Intent] ?? 50;
+      const score = priority * 1000 + match[0].length;
+      if (!best || score > best.score) {
+        best = { intent: intent as Intent, score };
       }
     }
   }
-  return { intent: Intent.UNKNOWN, confidence: 0 };
+
+  if (!best) return { intent: Intent.UNKNOWN, confidence: 0 };
+  return { intent: best.intent, confidence: 0.9 };
+}
+
+/** Light param extraction for owner/doctor demos without an LLM. */
+export function extractIntentParams(text: string, intent: Intent): Record<string, unknown> {
+  const lower = normalizeAiText(text);
+  const params: Record<string, unknown> = {};
+
+  if (intent === Intent.GET_ANALYTICS || intent === Intent.GENERATE_REPORT) {
+    if (/выручк|доход|финанс/.test(lower)) params.type = 'revenue';
+    else if (/врач|загрузк/.test(lower)) params.type = 'doctors';
+    else params.type = 'overview';
+  }
+
+  if (intent === Intent.VIEW_SCHEDULE) {
+    if (/завтра/.test(lower)) {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      params.date = d.toISOString().split('T')[0];
+    } else {
+      params.date = new Date().toISOString().split('T')[0];
+    }
+  }
+
+  if (intent === Intent.CREATE_APPOINTMENT && /завтра/.test(lower)) {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    params.date = d.toISOString().split('T')[0];
+  }
+
+  return params;
 }
 
 export type IntentResult = {

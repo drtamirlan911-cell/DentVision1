@@ -1,5 +1,5 @@
 import { AIContext, AIResponse, AIMessage } from '../types/ai.types.js';
-import { classifyIntent, Intent } from '../types/intent.types.js';
+import { classifyIntent, extractIntentParams, Intent } from '../types/intent.types.js';
 import { agentRouter } from './agent.router.js';
 import { DoctorAgent } from '../agents/doctor.agent.js';
 import { OwnerAgent } from '../agents/owner.agent.js';
@@ -30,6 +30,8 @@ export class AIService {
     agentRouter.register('GET_DEBTORS', new OwnerAgent());
     agentRouter.register('GET_ANALYTICS', new OwnerAgent());
     agentRouter.register('GENERATE_INVOICE', new OwnerAgent());
+    agentRouter.register('MORNING_BRIEFING', new OwnerAgent());
+    agentRouter.register('VIEW_SCHEDULE', new OwnerAgent());
 
     agentRouter.register('SEARCH_PATIENT', new AdminAgent());
     agentRouter.register('CREATE_APPOINTMENT', new AdminAgent());
@@ -47,6 +49,7 @@ export class AIService {
     // Classify intent
     const intentResult = classifyIntent(text);
     const intent = intentResult.intent;
+    const params = extractIntentParams(text, intent);
 
     // Save user message
     await this.saveMessage(sessionId, 'user', text);
@@ -55,23 +58,32 @@ export class AIService {
     const navAction = this.mapNavigationAction(intent);
     if (navAction) {
       const label = this.navigationLabel(intent);
-      return {
-        message: `Открываю: ${label}`,
+      const response: AIResponse = {
+        message: `Открываю: **${label}**`,
         intent,
         action: { type: navAction, payload: {} },
-        suggestions: ['Записать пациента', 'Показать расписание', 'Создать счет'],
+        suggestions: ['Показать расписание', 'Проверить долги', 'Показать выручку'],
       };
+      await this.saveMessage(sessionId, 'assistant', response.message);
+      return response;
     }
 
     // The classifier could not recognize the request. This is not a
     // permissions problem, so it must never reach hasPermission() below —
     // otherwise every unrecognized message reports "no permission".
     if (intent === Intent.UNKNOWN) {
-      await this.saveMessage(sessionId, 'assistant', 'Не совсем понял запрос. Уточните или выберите действие из меню.');
+      const message =
+        'Могу помочь с расписанием, выручкой, долгами, складом или записью пациента.\n\n' +
+        'Попробуйте, например:\n' +
+        '• Покажи расписание на сегодня\n' +
+        '• Что важно сегодня?\n' +
+        '• Покажи выручку\n' +
+        '• Проверь долги';
+      await this.saveMessage(sessionId, 'assistant', message);
       return {
-        message: 'Не совсем понял запрос. Уточните или выберите действие из меню.',
+        message,
         intent,
-        suggestions: ['Показать расписание', 'Найти пациента', 'Проверить долги', 'Найти курс'],
+        suggestions: ['Показать расписание', 'Что важно сегодня?', 'Показать выручку', 'Проверить долги'],
       };
     }
 
@@ -79,10 +91,10 @@ export class AIService {
     const GUEST_ALLOWED = new Set([
       'SEARCH_PATIENT', 'VIEW_SCHEDULE', 'GET_ANALYTICS', 'VIEW_CBCT',
       'CHECK_DEBTS', 'FIND_COURSE', 'GENERATE_REPORT', 'LOW_STOCK',
-      'VIEW_PATIENT', 'OPEN_MEDICAL_CARD_NAV', 'SHOW_CBCT',
+      'VIEW_PATIENT', 'OPEN_MEDICAL_CARD_NAV', 'SHOW_CBCT', 'MORNING_BRIEFING',
     ]);
     if (context.isGuest && GUEST_ALLOWED.has(intent)) {
-      const response = await agentRouter.route(context, intent, {});
+      const response = await agentRouter.route(context, intent, params);
       await this.saveMessage(sessionId, 'assistant', response.message);
       return response;
     }
@@ -94,7 +106,7 @@ export class AIService {
     }
 
     // Route to agent
-    const response = await agentRouter.route(context, intent, {});
+    const response = await agentRouter.route(context, intent, params);
 
     // Save assistant message
     await this.saveMessage(sessionId, 'assistant', response.message);
@@ -144,8 +156,27 @@ export class AIService {
 
   private hasPermission(permissions: string[], intent: string): boolean {
     if (permissions.includes('*')) return true;
-    const intentModule = intent.split('_')[0].toLowerCase();
-    return permissions.some(p => p === '*' || p.startsWith(`${intentModule}:`));
+    const modulesByIntent: Record<string, string[]> = {
+      CREATE_APPOINTMENT: ['appointments'],
+      VIEW_SCHEDULE: ['appointments'],
+      SEARCH_PATIENT: ['patients'],
+      OPEN_MEDICAL_CARD: ['patients', 'medical'],
+      GET_MEDICAL_CARD: ['patients', 'medical'],
+      CREATE_TREATMENT_PLAN: ['treatment-plans', 'medical'],
+      CHECK_DEBTS: ['billing', 'reports'],
+      GET_DEBTORS: ['billing', 'reports'],
+      GET_ANALYTICS: ['reports', 'billing'],
+      GENERATE_REPORT: ['reports'],
+      GENERATE_INVOICE: ['billing'],
+      MORNING_BRIEFING: ['reports', 'appointments', 'billing'],
+      SHOW_CBCT: ['medical'],
+      VIEW_CBCT: ['medical'],
+      LOW_STOCK: ['inventory'],
+    };
+    const modules = modulesByIntent[intent] || [intent.split('_')[0].toLowerCase()];
+    return permissions.some(
+      (p) => p === '*' || modules.some((m) => p === m || p.startsWith(`${m}:`))
+    );
   }
 
   private permissionDenied(intent: string): AIResponse {

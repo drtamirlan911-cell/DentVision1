@@ -97,7 +97,7 @@ export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', stiffness: 400, damping: 15, delay: 0.1 }}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-dv-gold/20 to-dv-gold/5 border border-dv-gold/10 shadow-lg shadow-dv-gold/5"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-dv-gold/25 to-dv-gold/5 border border-dv-gold/20 shadow-[0_0_20px_rgba(201,169,110,0.12)]"
         >
           <Bot size={17} className="text-dv-gold" />
         </motion.div>
@@ -129,10 +129,10 @@ export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query
         <motion.div
           layout
           className={cn(
-            'rounded-3xl px-5 py-3 text-[13px] leading-relaxed whitespace-pre-wrap max-w-full',
+            'rounded-[1.35rem] px-5 py-3.5 text-[13.5px] leading-[1.55] whitespace-pre-wrap max-w-full',
             isUser
-              ? 'bg-gradient-to-br from-dv-gold to-dv-gold/80 text-white rounded-br-xl shadow-lg shadow-dv-gold/10'
-              : 'bg-white/[0.03] border border-white/[0.06] text-txt-primary rounded-bl-xl backdrop-blur-sm'
+              ? 'bg-gradient-to-br from-[#D4B57A] to-dv-gold/85 text-[#0B1220] font-medium rounded-br-lg shadow-[0_8px_28px_rgba(201,169,110,0.18)]'
+              : 'bg-gradient-to-b from-white/[0.055] to-white/[0.025] border border-white/[0.08] text-txt-primary rounded-bl-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-md'
           )}
         >
           {renderContent(msg.content)}
