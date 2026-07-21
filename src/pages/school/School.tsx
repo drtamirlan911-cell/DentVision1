@@ -10,6 +10,7 @@ import * as api from '../../utils/api';
 import { Card } from '../../components/ui/ds/Card';
 import { Input } from '../../components/ui/ds/Input';
 import { Badge } from '../../components/ui/ds/Badge';
+import { Button } from '../../components/ui/ds/Button';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard';
 import { Tabs } from '../../components/ui/ds/Misc';
@@ -159,6 +160,11 @@ export default function School() {
             icon={<GraduationCap size={22} />}
             title="DentVision School"
             subtitle="Образовательная платформа для стоматологов. Курсы, клинические случаи, библиотека и AI-тьютор."
+            actions={
+              <Button size="sm" variant="secondary" onClick={() => navigate('/school-workspace')}>
+                Кабинет школы
+              </Button>
+            }
           />
           <div className="flex gap-5 mt-4 flex-wrap">
             <StatCard label="Курсов" value={stats.courses} icon={<BookOpen size={18} />} />

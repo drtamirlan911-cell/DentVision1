@@ -120,8 +120,8 @@ function EmptyState() {
         <Bell size={28} className="text-txt-muted/50" />
       </div>
       <h3 className="text-base font-semibold text-txt-primary mb-1">Нет оповещений</h3>
-      <p className="text-sm text-txt-muted">
-        AI уведомит вас о важных событиях
+      <p className="text-sm text-txt-muted max-w-[240px] leading-relaxed">
+        AI присылает сюда важные события клиники: просрочки, риск no-show, истечение подписки, задачи на сегодня.
       </p>
     </motion.div>
   )

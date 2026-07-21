@@ -38,6 +38,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   supplier: 'Кабинет продавца',
   shop: 'Маркетплейс',
   school: 'Академия',
+  'school-workspace': 'Кабинет школы',
   analytics: 'Аналитика',
   jobs: 'Вакансии',
   community: 'Сообщество',
