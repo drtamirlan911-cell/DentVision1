@@ -234,7 +234,7 @@ export class OwnerAgent implements Agent {
     });
 
     return {
-      message: `Счет ${invoice.id.slice(0, 8)} на ${Number(amount).toLocaleString()} ₽ создан`,
+      message: `Счет ${invoice.id.slice(0, 8)} на ${Number(amount).toLocaleString('ru-KZ')} ₸ создан`,
       intent: 'GENERATE_INVOICE',
       action: { type: 'OPEN_INVOICE', payload: { invoiceId: invoice.id } },
       suggestions: ['Отправить пациенту', 'Отметить оплаченным', 'Создать следующий'],

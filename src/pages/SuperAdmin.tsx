@@ -20,9 +20,9 @@ import { queryKeys } from '@/queries/keys';
 import { useAuth } from '@/store/auth.store';
 
 const PLANS: Record<string, { name: string; price: string }> = {
-  starter: { name: 'Starter', price: '15 000 ₽' },
-  pro: { name: 'Pro', price: '35 000 ₽' },
-  enterprise: { name: 'Enterprise', price: '150 000 ₽' },
+  starter: { name: 'Starter', price: '15 000 ₸' },
+  pro: { name: 'Pro', price: '35 000 ₸' },
+  enterprise: { name: 'Enterprise', price: '150 000 ₸' },
 };
 
 const PLAN_BADGE: Record<string, string> = {

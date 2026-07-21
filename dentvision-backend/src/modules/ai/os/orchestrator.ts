@@ -21,6 +21,7 @@ import { env } from '../../../config.js';
 import prisma from '../../../lib/prisma.js';
 import { agentsForRole, toolsForRole } from './registry.js';
 import { executeTool, toolSchemasFor, type ToolContext } from './tools.js';
+import { preferTengeCurrency } from '../lib/currency.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_TOOL_ROUNDS = 6;
@@ -68,7 +69,8 @@ ${mandates}
 4. Клинические выводы — всегда черновик для врача, не диагноз.
 5. Если инструмент вернул ошибку — скажи об этом честно и предложи следующий шаг.
 6. Если просят открыть раздел — используй navigate.
-7. Не упоминай внутренние названия инструментов и агентов в ответе.`;
+7. Не упоминай внутренние названия инструментов и агентов в ответе.
+8. Валюта — тенге (KZT, символ ₸). Никогда не пиши суммы в рублях / ₽ / RUB.`;
 }
 
 interface ResponsesAPIOutputItem {
@@ -157,10 +159,11 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
           .trim() ||
         'Готово.';
 
-      await saveMessage(input.sessionId, 'assistant', message);
+      const safeMessage = preferTengeCurrency(message);
+      await saveMessage(input.sessionId, 'assistant', safeMessage);
 
       return {
-        message,
+        message: safeMessage,
         intent: toolsUsed[0] ? `TOOL_${toolsUsed[0].toUpperCase()}` : 'CHAT',
         action: navigateAction,
         suggestions: defaultSuggestions(input.role),

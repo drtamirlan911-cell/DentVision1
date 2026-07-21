@@ -1,5 +1,6 @@
 import { env } from '../../../config.js';
 import { SYSTEM_PROMPT, ROLE_PROMPTS } from '../prompts/system.prompts.js';
+import { preferTengeCurrency } from '../lib/currency.js';
 import type { AIContext, AIResponse } from '../types/ai.types.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
@@ -28,6 +29,7 @@ export async function improveResponseWithLLM(
     'Не добавляй факты, пациентов, диагнозы, цены или выполненные действия, которых нет в проверенном ответе.',
     'Не утверждай медицинский диагноз; при клинических вопросах укажи, что требуется оценка врача.',
     'Не описывай JSON, инструменты или внутреннюю логику.',
+    'Все денежные суммы — только в тенге (₸ / KZT). Не заменяй на рубли или ₽.',
   ].join('\n\n');
 
   const input = [
@@ -61,7 +63,7 @@ export async function improveResponseWithLLM(
 
     const payload = await result.json() as { output_text?: unknown };
     const text = typeof payload.output_text === 'string' ? payload.output_text.trim() : '';
-    return text || null;
+    return text ? preferTengeCurrency(text) : null;
   } catch (error) {
     console.warn('[AI] OpenAI request failed; using deterministic response', error);
     return null;
