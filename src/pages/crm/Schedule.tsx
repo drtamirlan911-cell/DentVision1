@@ -1,5 +1,5 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
@@ -28,6 +28,7 @@ import { Badge, StatusBadge } from '@/components/ui/ds/Badge'
 import { Modal } from '@/components/ui/ds/Modal'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
+import type { Clinic, User as UserType, RoleInfo } from '@/types'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
@@ -69,22 +70,35 @@ const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { stag
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function Schedule() {
-  const { user, roleInfo, clinic: activeClinic } = useAuth()
-  const clinic = user?.clinicId ? { id: user.clinicId } : null
+  const outlet = useOutletContext<{ clinic?: Clinic; user?: UserType; roleInfo?: RoleInfo }>() || {}
+  const { user, roleInfo, clinic: authClinic } = useAuth()
+  // Match Staff / IntelligenceLayout: prefer outlet + auth clinic over JWT claim alone.
+  // Appointments API is JWT-scoped (works even with a stale user.clinicId), but
+  // getClinicStaff(clinicId) needs the real clinic id — otherwise the grid is empty
+  // while Staff still shows the roster.
+  const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
+  const clinic = clinicId ? { id: clinicId } : null
   const {
-    appointments: liveAppointments, patients, doctors, waitingList, bookings, receipts,
+    appointments: liveAppointments, patients, doctors: allStaff, waitingList, bookings, receipts,
     upsertAppointment: upsertAppointmentApi, deleteAppointment,
     upsertPatient, upsertReceipt,
     upsertWaitingListItem, deleteWaitingListItem,
-  } = useDataQuery(clinic?.id)
+  } = useDataQuery(clinicId)
 
   const queryClient = useQueryClient()
   const chairsQ = useQuery({
     queryKey: queryKeys.chairs,
-    queryFn: () => api.getChairs(clinic?.id),
-    enabled: !!clinic?.id,
+    queryFn: () => api.getChairs(clinicId),
+    enabled: !!clinicId,
   })
   const chairs = chairsQ.data || []
+
+  // Prefer role=doctor columns; fall back to full roster so schedule still renders.
+  const doctors = useMemo(() => {
+    const withId = (allStaff || []).filter((d) => d?.id)
+    const onlyDoctors = withId.filter((d) => String(d.role || '').toLowerCase() === 'doctor')
+    return onlyDoctors.length > 0 ? onlyDoctors : withId
+  }, [allStaff])
 
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -864,7 +878,16 @@ export default function Schedule() {
                   </div>
                 </motion.div>
               ) : (
-                <EmptyState icon={<Calendar size={32} />} title="Нет врачей" description="Добавьте сотрудников для отображения расписания" />
+                <EmptyState
+                  icon={<Calendar size={32} />}
+                  title="Нет врачей"
+                  description="Добавьте сотрудников с ролью «Врач», чтобы отобразить расписание"
+                  action={
+                    <Button size="sm" onClick={() => navigate('/crm/staff')} icon={<Plus size={14} />}>
+                      Перейти к сотрудникам
+                    </Button>
+                  }
+                />
               )}
             </>
           )}
