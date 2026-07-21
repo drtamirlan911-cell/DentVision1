@@ -11,6 +11,8 @@ export interface AuthUser {
   // Active SUPPLIER context (set when the user switched into a supplier workspace).
   supplierId?: string;
   supplierRole?: string;
+  // Active LECTURER context (school/education self-service cabinet).
+  lecturerId?: string;
   isGuest?: boolean;
 }
 
@@ -32,6 +34,7 @@ export interface JwtPayload {
   clinicId?: string;
   supplierId?: string;
   supplierRole?: string;
+  lecturerId?: string;
   isGuest?: boolean;
 }
 

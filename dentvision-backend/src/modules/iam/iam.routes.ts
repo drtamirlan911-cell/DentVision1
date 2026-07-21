@@ -42,6 +42,11 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       include: { supplier: { select: { id: true, name: true, status: true } } },
     });
 
+    const lecturerProfiles = await prisma.lecturer.findMany({
+      where: { userId: req.user!.id },
+      include: { academy: { select: { id: true, name: true } } },
+    });
+
     const contexts = [
       ...memberships.map((m) => ({
         id: m.id,
@@ -58,6 +63,15 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         roleKey: `supplier.${m.role}`,
         role: m.role,
         supplier: m.supplier,
+      })),
+      ...lecturerProfiles.map((l) => ({
+        id: l.id,
+        scopeType: 'LECTURER' as const,
+        scopeId: l.id,
+        roleKey: 'lecturer',
+        role: 'lecturer',
+        level: l.level,
+        academy: l.academy,
       })),
     ];
 
@@ -96,6 +110,13 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
       if (!m) return res.status(403).json({ ok: false, error: 'Вы не участник этого поставщика' } satisfies ApiResponse);
       const tokens = generateTokens({ ...base, supplierId: scopeId, supplierRole: m.role });
       return res.json({ ok: true, data: { ...tokens, context: { scopeType, scopeId, role: m.role } } } satisfies ApiResponse);
+    }
+
+    if (scopeType === 'LECTURER') {
+      const lecturer = await prisma.lecturer.findFirst({ where: { id: scopeId, userId: req.user!.id } });
+      if (!lecturer) return res.status(403).json({ ok: false, error: 'Вы не являетесь этим лектором' } satisfies ApiResponse);
+      const tokens = generateTokens({ ...base, lecturerId: lecturer.id });
+      return res.json({ ok: true, data: { ...tokens, context: { scopeType, scopeId, role: 'lecturer' } } } satisfies ApiResponse);
     }
 
     return res.status(400).json({ ok: false, error: 'Неизвестный scopeType' } satisfies ApiResponse);
