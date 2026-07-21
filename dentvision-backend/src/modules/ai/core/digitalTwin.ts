@@ -564,7 +564,13 @@ export async function buildProactiveAlerts(opts: {
       where: { userId: opts.userId, completed: false, progress: { lt: 100 } },
     }),
     prisma.wallet.findUnique({
-      where: { ownerType_ownerId: { ownerType: 'USER', ownerId: opts.userId } },
+      where: {
+        ownerType_ownerId_currency: {
+          ownerType: 'USER',
+          ownerId: opts.userId,
+          currency: 'KZT',
+        },
+      },
     }).catch(() => null),
   ]);
 

@@ -16,6 +16,7 @@ import { AlertDropdown } from './AlertDropdown';
 import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
 import GuestCRMModal from '@/components/guest/GuestCRMModal';
+import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   crm: 'CRM',
@@ -362,6 +363,7 @@ export const IntelligenceLayout: React.FC = () => {
                 <span className="text-[10px] font-semibold">Гость</span>
               </motion.button>
             )}
+            <DentCashHeaderChip />
             <button
               onClick={() => setCmdOpen(true)}
               className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-dv-gold/30 transition-colors text-xs"
