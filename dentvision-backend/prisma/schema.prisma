@@ -645,6 +645,63 @@ model ICD10Code {
 
 // ─── SCHOOL ───
 
+// ─── SCHOOL GOVERNANCE: LECTURERS & ACADEMIES (Phase 3) ───
+
+enum ExpertLevel {
+  NEW
+  VERIFIED
+  EXPERT
+  INTERNATIONAL_SPEAKER
+}
+
+model Academy {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String?
+  city      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lecturers Lecturer[]
+  courses   Course[]
+
+  @@map("academies")
+}
+
+model Lecturer {
+  id        String      @id @default(uuid())
+  userId    String      @unique
+  level     ExpertLevel @default(NEW)
+  bio       String?
+  academyId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  academy       Academy?             @relation(fields: [academyId], references: [id], onDelete: SetNull)
+  verifications ExpertVerification[]
+  courses       Course[]
+
+  @@index([academyId])
+  @@map("lecturers")
+}
+
+model ExpertVerification {
+  id         String  @id @default(uuid())
+  lecturerId String
+  type       String
+  url        String?
+  verified   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  lecturer Lecturer @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+
+  @@index([lecturerId])
+  @@map("expert_verifications")
+}
+
 model Course {
   id          String @id @default("")
   title       String
@@ -655,12 +712,19 @@ model Course {
   category    String?
   duration    String?
 
+  // Phase 3: structured authorship (gradually replaces the string `author`)
+  lecturerId String?
+  academyId  String?
+
   lessons    Lesson[]
   enrollments SchoolEnrollment[]
+  lecturer   Lecturer? @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
+  academy    Academy?  @relation(fields: [academyId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([lecturerId])
   @@map("courses")
 }
 
