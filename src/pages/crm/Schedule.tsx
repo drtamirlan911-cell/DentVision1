@@ -660,6 +660,8 @@ export default function Schedule() {
             <div className="flex items-center gap-1">
               {appt.paymentStatus === 'paid' ? (
                 <Badge variant="success" size="xs">Оплачено</Badge>
+              ) : appt.paymentStatus === 'partial' ? (
+                <Badge variant="warning" size="xs">Частично</Badge>
               ) : canTakePayment ? (
                 <button
                   type="button"
