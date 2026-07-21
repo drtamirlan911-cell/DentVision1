@@ -446,11 +446,11 @@ const result = await executeAction(
         className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-white/[0.04] bg-surface-0/50 backdrop-blur-xl flex-shrink-0 sticky top-0 z-10"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-dv-gold/15 to-dv-gold/5 border border-dv-gold/10">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-dv-gold/25 to-dv-gold/5 border border-dv-gold/20 shadow-[0_0_24px_rgba(201,169,110,0.12)]">
             <Bot size={18} className="text-dv-gold" />
           </div>
           <div>
-            <h1 className="text-sm font-bold text-txt-primary tracking-tight">DentVision Intelligence</h1>
+            <h1 className="font-serif text-[15px] font-semibold text-txt-primary tracking-tight">DentVision Intelligence</h1>
             <p className="text-[11px] text-txt-muted">
               {status === 'idle' ? 'AI Operating System · стоматология' :
                status === 'thinking' ? 'AI анализирует...' :
@@ -509,20 +509,32 @@ const result = await executeAction(
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5">
           {showEmpty && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-              className="flex flex-col items-center justify-center py-16 text-center"
+              transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
+              className="relative flex flex-col items-center justify-center py-20 text-center overflow-hidden"
             >
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 -z-0"
+                style={{
+                  background:
+                    'radial-gradient(ellipse 70% 55% at 50% 35%, rgba(201,169,110,0.14), transparent 70%)',
+                }}
+              />
               <motion.div
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-dv-gold/15 to-dv-gold/5 border border-dv-gold/10 mb-5 shadow-xl shadow-dv-gold/5"
+                animate={{ scale: [1, 1.04, 1], opacity: [0.9, 1, 0.9] }}
+                transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+                className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-dv-gold/25 via-dv-gold/10 to-transparent border border-dv-gold/20 mb-6 shadow-[0_0_48px_rgba(201,169,110,0.18)]"
               >
-                <Bot size={28} className="text-dv-gold" />
+                <Bot size={30} className="text-dv-gold" />
               </motion.div>
-              <h2 className="text-xl font-bold text-txt-primary mb-1">DentVision Intelligence</h2>
-              <p className="text-sm text-txt-muted max-w-xs">Ваш AI-ассистент для стоматологии. Задайте вопрос или выберите действие.</p>
+              <h2 className="relative font-serif text-2xl md:text-[1.75rem] font-semibold tracking-tight text-txt-primary mb-2">
+                DentVision Intelligence
+              </h2>
+              <p className="relative text-sm text-txt-muted max-w-sm leading-relaxed">
+                AI-операционка клиники. Спросите о расписании, выручке или долгах — или выберите действие ниже.
+              </p>
             </motion.div>
           )}
 
@@ -590,7 +602,7 @@ const result = await executeAction(
             status={status === 'confirmation' ? 'result' : status}
             progress={progress}
             suggestions={suggestions.map(s => s.label)}
-            placeholder="Чем помочь? Например: открой расписание, найди пациента…"
+            placeholder="Спросите: что важно сегодня, покажи выручку, проверь долги…"
             voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
           />
         </div>
@@ -693,7 +705,7 @@ function buildGreeting(u: any, c: any, alerts: any[]) {
 
   const roleLine =
     role === 'owner' || role === 'руководитель'
-      ? 'Могу показать выручку, долги, загрузку и закупки.'
+      ? 'Могу показать выручку, долги, загрузку и закупки — или собрать сводку дня.'
       : role === 'admin' || role === 'администратор'
         ? 'Могу подтвердить записи, открыть кассу и документы.'
         : role === 'buyer'
@@ -719,15 +731,15 @@ function getDefaultSuggestions(u: any, focusType: string) {
     return ['Показать расписание', 'Открыть зубную карту', 'Создать план лечения']
   }
   if (role === 'owner' || role === 'руководитель' || role === 'manager') {
-    return ['Показать финансы', 'Что на складе', 'Открыть аналитику']
+    return ['Что важно сегодня?', 'Показать выручку', 'Проверить долги']
   }
   if (role === 'admin' || role === 'администратор') {
     return ['Записать пациента', 'Показать расписание', 'Открыть кассу']
   }
   if (role === 'buyer') {
-    return ['Что купить на склад', 'Открыть маркетплейс', 'Показать заказы']
+    return ['Что на складе', 'Открыть маркетплейс', 'Показать заказы']
   }
-  return ['Показать расписание', 'Найти пациента', 'Купить материал']
+  return ['Показать расписание', 'Что важно сегодня?', 'Проверить долги']
 }
 
 const NAV_ACTIONS: Record<string, string> = {

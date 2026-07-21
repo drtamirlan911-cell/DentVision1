@@ -13,13 +13,12 @@ export class OwnerAgent implements Agent {
       'GET_ANALYTICS',
       'GENERATE_INVOICE',
       'VIEW_SCHEDULE',
+      'MORNING_BRIEFING',
     ];
     return ownerIntents.includes(intent);
   }
 
   async handle(context: AIContext, intent: string, params: Record<string, unknown>): Promise<AIResponse> {
-    const lower = intent.toLowerCase();
-
     switch (intent) {
       case 'GENERATE_REPORT':
         return this.generateReport(context, params);
@@ -32,25 +31,96 @@ export class OwnerAgent implements Agent {
         return this.createInvoice(context, params);
       case 'VIEW_SCHEDULE':
         return this.viewSchedule(context, params);
+      case 'MORNING_BRIEFING':
+        return this.morningBriefing(context);
       default:
         return { message: `Неподдерживаемое действие: ${intent}`, intent, suggestions: [] };
     }
   }
 
-  private async getAnalytics(context: AIContext, params: Record<string, unknown>) {
-    const type = params.type as string || 'overview';
+  private async morningBriefing(context: AIContext): Promise<AIResponse> {
+    const today = new Date();
+    const start = new Date(today);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(today);
+    end.setHours(23, 59, 59, 999);
 
-    if (type === 'revenue') {
+    const yesterdayStart = new Date(start);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(end);
+    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+
+    const [appointmentsToday, unpaid, paidYesterday] = await Promise.all([
+      prisma.appointment.count({
+        where: { clinicId: context.clinicId, date: { gte: start, lte: end } },
+      }),
+      prisma.invoice.findMany({
+        where: { clinicId: context.clinicId, status: { in: ['UNPAID', 'PARTIAL'] } },
+        select: { amount: true },
+        take: 100,
+      }),
+      prisma.invoice.findMany({
+        where: {
+          clinicId: context.clinicId,
+          status: 'PAID',
+          createdAt: { gte: yesterdayStart, lte: yesterdayEnd },
+        },
+        select: { amount: true },
+      }),
+    ]);
+
+    const debtTotal = unpaid.reduce((s, i) => s + i.amount, 0);
+    const revenueYesterday = paidYesterday.reduce((s, i) => s + i.amount, 0);
+    const dateLabel = today.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
+    const message = [
+      `**Сводка на ${dateLabel}**`,
+      '',
+      `• Записей сегодня: **${appointmentsToday}**`,
+      `• Выручка вчера: **${revenueYesterday.toLocaleString('ru-RU')} ₸**`,
+      `• Должников: **${unpaid.length}** · сумма **${debtTotal.toLocaleString('ru-RU')} ₸**`,
+      '',
+      'Чем заняться дальше?',
+    ].join('\n');
+
+    return {
+      message,
+      intent: 'MORNING_BRIEFING',
+      action: {
+        type: 'SHOW_BRIEFING',
+        payload: { appointmentsToday, debtTotal, debtors: unpaid.length, revenueYesterday },
+      },
+      suggestions: ['Показать расписание', 'Проверить долги', 'Показать выручку'],
+    };
+  }
+
+  private async getAnalytics(context: AIContext, params: Record<string, unknown>) {
+    const type = (params.type as string) || 'overview';
+
+    if (type === 'revenue' || type === 'overview') {
       const invoices = await prisma.invoice.findMany({
         where: { clinicId: context.clinicId, status: 'PAID' },
         select: { amount: true, createdAt: true },
       });
       const total = invoices.reduce((sum, i) => sum + i.amount, 0);
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const monthTotal = invoices
+        .filter((i) => i.createdAt >= monthStart)
+        .reduce((sum, i) => sum + i.amount, 0);
+
       return {
-        message: `Выручка: ${total.toLocaleString()} ₽`,
+        message: [
+          '**Финансы клиники**',
+          '',
+          `• Выручка всего: **${total.toLocaleString('ru-RU')} ₸**`,
+          `• За текущий месяц: **${monthTotal.toLocaleString('ru-RU')} ₸**`,
+          `• Оплаченных счетов: **${invoices.length}**`,
+        ].join('\n'),
         intent: 'GET_ANALYTICS',
-        action: { type: 'SHOW_REVENUE', payload: { total, byMonth: this.groupByMonth(invoices) } },
-        suggestions: ['Выручка по врачам', 'Выручка по услугам', 'Сравнить с прошлым месяцем'],
+        action: { type: 'SHOW_REVENUE', payload: { total, monthTotal, byMonth: this.groupByMonth(invoices) } },
+        suggestions: ['Проверить долги', 'Что важно сегодня?', 'Открыть аналитику'],
       };
     }
 
@@ -71,7 +141,7 @@ export class OwnerAgent implements Agent {
       });
 
       return {
-        message: 'Загрузка врачей (мин/мес):',
+        message: 'Загрузка врачей (мин):',
         intent: 'GET_ANALYTICS',
         action: {
           type: 'SHOW_UTILIZATION',
@@ -81,7 +151,11 @@ export class OwnerAgent implements Agent {
       };
     }
 
-    return { message: 'Доступные отчеты: revenue, doctors, debtors, patients', intent: 'GET_ANALYTICS', suggestions: ['Выручка', 'Врачи', 'Должники'] };
+    return {
+      message: 'Доступно: выручка, загрузка врачей, должники.',
+      intent: 'GET_ANALYTICS',
+      suggestions: ['Показать выручку', 'Проверить долги', 'Что важно сегодня?'],
+    };
   }
 
   private async getDebtors(context: AIContext) {
@@ -97,8 +171,24 @@ export class OwnerAgent implements Agent {
     });
     const patientMap = new Map(patients.map(p => [p.id, p]));
     const total = invoices.reduce((sum, i) => sum + i.amount, 0);
+
+    const lines = [
+      '**Долги клиники**',
+      '',
+      `• Должников: **${invoices.length}**`,
+      `• Сумма: **${total.toLocaleString('ru-RU')} ₸**`,
+    ];
+    if (invoices.length > 0) {
+      lines.push('', 'Ближайшие:');
+      for (const inv of invoices.slice(0, 3)) {
+        const p = inv.patientId ? patientMap.get(inv.patientId) : undefined;
+        const name = p ? `${p.firstName} ${p.lastName}` : 'Пациент';
+        lines.push(`• ${name} — ${inv.amount.toLocaleString('ru-RU')} ₸`);
+      }
+    }
+
     return {
-      message: `Должников: ${invoices.length}, сумма: ${total.toLocaleString()} ₽`,
+      message: lines.join('\n'),
       intent: 'CHECK_DEBTS',
       action: {
         type: 'SHOW_DEBTORS',
@@ -111,7 +201,7 @@ export class OwnerAgent implements Agent {
           };
         }),
       },
-      suggestions: ['Позвонить должникам', 'Отправить напоминания', 'Детальный отчет'],
+      suggestions: ['Отправить напоминания', 'Показать выручку', 'Что важно сегодня?'],
     };
   }
 
