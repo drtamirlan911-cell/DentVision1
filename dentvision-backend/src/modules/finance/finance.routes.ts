@@ -4,7 +4,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { serializeBigInt, tengeToMinor } from '../../lib/money.js';
-import { getOrCreateWallet, recordSale, recordPayout, ledgerNetBalance } from './finance.service.js';
+import { getOrCreateWallet, recordSale, ledgerNetBalance } from './finance.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // Finance Core (Phase 4, DENTVISION_V2_INTEGRATION_PLAN.md §6). Wallets, ledger,
@@ -102,56 +102,6 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
   } catch (error) {
     console.error('Record sale error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при проведении продажи' } satisfies ApiResponse);
-  }
-});
-
-// ─── Payouts (Phase 5) ───
-
-// Request a payout for a wallet (platform-managed for now).
-financeRouter.post('/payouts', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
-  try {
-    const { walletId, amount, amountMinor } = req.body || {};
-    if (!walletId || (amount === undefined && amountMinor === undefined)) {
-      return res.status(400).json({ ok: false, error: 'walletId и amount обязательны' } satisfies ApiResponse);
-    }
-    const minor = amountMinor !== undefined ? BigInt(amountMinor) : tengeToMinor(Number(amount));
-    const wallet = await prisma.wallet.findUnique({ where: { id: walletId } });
-    if (!wallet) {
-      return res.status(404).json({ ok: false, error: 'Кошелёк не найден' } satisfies ApiResponse);
-    }
-    const payout = await prisma.payout.create({
-      data: { walletId, amount: minor, status: 'requested' },
-    });
-    return res.status(201).json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
-  } catch (error) {
-    console.error('Create payout error:', error);
-    return res.status(500).json({ ok: false, error: 'Ошибка при создании выплаты' } satisfies ApiResponse);
-  }
-});
-
-// Approve & execute a payout (debits the wallet via a balanced transaction).
-financeRouter.post('/payouts/:id/approve', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
-  try {
-    const payout = await prisma.payout.findUnique({ where: { id: req.params.id as string } });
-    if (!payout) {
-      return res.status(404).json({ ok: false, error: 'Выплата не найдена' } satisfies ApiResponse);
-    }
-    if (payout.status === 'paid') {
-      return res.json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
-    }
-    if (payout.status !== 'requested' && payout.status !== 'approved') {
-      return res.status(409).json({ ok: false, error: `Нельзя одобрить в статусе ${payout.status}` } satisfies ApiResponse);
-    }
-    try {
-      await recordPayout(payout.walletId, payout.amount);
-    } catch (e: any) {
-      return res.status(409).json({ ok: false, error: e?.message || 'Недостаточно средств' } satisfies ApiResponse);
-    }
-    const updated = await prisma.payout.update({ where: { id: payout.id }, data: { status: 'paid' } });
-    return res.json({ ok: true, data: serializeBigInt(updated) } satisfies ApiResponse);
-  } catch (error) {
-    console.error('Approve payout error:', error);
-    return res.status(500).json({ ok: false, error: 'Ошибка при одобрении выплаты' } satisfies ApiResponse);
   }
 });
 
