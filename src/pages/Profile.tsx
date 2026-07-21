@@ -15,6 +15,7 @@ import { Modal } from '@/components/ui/ds/Modal'
 import { Input, Textarea } from '@/components/ui/ds/Input'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { useToast } from '@/components/ui/ds/Toast'
+import { DoctorPayrollCard } from '@/components/crm/DoctorPayrollCard'
 import * as api from '@/utils/api'
 import { gid } from '@/utils/constants'
 
@@ -47,6 +48,8 @@ export default function Profile() {
   const { user, clinic, activeClinic, logout } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
+  const roleKey = String(user?.role || '').toLowerCase()
+  const showPayroll = roleKey === 'doctor' || roleKey === 'врач'
 
   const [profile, setProfile] = useState<any>(null)
   const [skills, setSkills] = useState<any[]>([])
@@ -328,6 +331,11 @@ export default function Profile() {
             ))}
           </div>
         </Section>
+      )}
+
+      {/* ─── Private payroll (doctors only, collapsed) ─── */}
+      {showPayroll && (
+        <DoctorPayrollCard discreet />
       )}
 
       {/* ─── Security ─── */}

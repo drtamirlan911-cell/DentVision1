@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2 } from 'lucide-react';
 import * as api from '@/utils/api';
@@ -22,6 +23,7 @@ function fmtMoney(minor: string | number | undefined): string {
 }
 
 export default function SchoolWorkspace() {
+  const navigate = useNavigate();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [contexts, setContexts] = useState<LecturerCtx[]>([]);
@@ -36,6 +38,7 @@ export default function SchoolWorkspace() {
   const [form, setForm] = useState({ title: '', price: '', category: '', duration: '', description: '' });
   const [saving, setSaving] = useState(false);
   const [bio, setBio] = useState('');
+  const [registering, setRegistering] = useState(false);
 
   const loadAll = useCallback(async (t: string) => {
     const [meRes, cRes, aRes] = await Promise.all([
@@ -72,6 +75,22 @@ export default function SchoolWorkspace() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const becomeLecturer = async () => {
+    setRegistering(true);
+    try {
+      const created = await api.lecturerWs.register({});
+      const scopeId = created?.id || created?.lecturer?.id;
+      if (!scopeId) throw new Error('Профиль создан, но id не получен');
+      setContexts([{ scopeId, level: created.level || 'NEW', academy: created.academy || null }]);
+      await enter(scopeId);
+      toast.success('Профиль лектора создан');
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось создать профиль лектора');
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   const handleAdd = async () => {
     if (!token) return;
@@ -141,8 +160,23 @@ export default function SchoolWorkspace() {
         <PageHeader title="Кабинет лектора · Academy OS" subtitle="Продажа вебинаров и офис-курсов · аналитика" icon={<GraduationCap size={22} />} />
         <EmptyState
           icon={<GraduationCap size={36} />}
-          title="Вы не являетесь лектором"
-          description="Кабинет лектора доступен пользователям с профилем преподавателя. Обратитесь к администратору платформы или академии."
+          title="Станьте лектором Academy OS"
+          description="Создайте профиль преподавателя, чтобы публиковать курсы, смотреть аналитику и запрашивать выплаты. Обучение сотрудников клиники — в разделе Academy OS."
+          action={
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Button
+                size="sm"
+                icon={<GraduationCap size={14} />}
+                disabled={registering}
+                onClick={() => void becomeLecturer()}
+              >
+                {registering ? 'Создание…' : 'Стать лектором'}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => navigate('/school')}>
+                Перейти в Academy OS
+              </Button>
+            </div>
+          }
         />
       </div>
     );

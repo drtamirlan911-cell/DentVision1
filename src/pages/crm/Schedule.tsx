@@ -33,7 +33,6 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
-import { DoctorPayrollCard } from '@/components/crm/DoctorPayrollCard'
 import { AcceptPaymentModal, type AcceptPaymentPayload } from '@/components/crm/AcceptPaymentModal'
 import type { Appointment, Patient, WaitingListItem, User, Booking } from '@/types'
 
@@ -131,7 +130,6 @@ export default function Schedule() {
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
   const [pendingSync, setPendingSync] = useState(0)
-  const [payrollRefresh, setPayrollRefresh] = useState(0)
 
   const showToast = (msg: string, type: string = 'info'): void => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
 
@@ -401,7 +399,6 @@ export default function Schedule() {
       )
       setCloseOpen(false)
       setCloseAppt(null)
-      setPayrollRefresh((n) => n + 1)
     } catch (err: any) {
       showToast(err?.message || 'Не удалось закрыть приём', 'error')
     } finally {
@@ -473,7 +470,6 @@ export default function Schedule() {
           services,
           paymentStatus: status === 'paid' ? 'paid' : payAppt.paymentStatus || 'unpaid',
         })
-        setPayrollRefresh((n) => n + 1)
         await queryClient.invalidateQueries({ queryKey: queryKeys.inventory })
       }
 
@@ -743,12 +739,6 @@ export default function Schedule() {
               Синхронизировать
             </Button>
           )}
-        </motion.div>
-      )}
-
-      {ownDataOnly && (
-        <motion.div variants={fadeUp}>
-          <DoctorPayrollCard refreshKey={payrollRefresh} />
         </motion.div>
       )}
 
