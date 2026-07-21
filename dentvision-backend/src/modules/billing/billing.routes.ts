@@ -69,7 +69,10 @@ billingRouter.post('/invoices', async (req: AuthRequest, res) => {
         clinicId,
         amount,
         items: items || undefined,
-        notes: notes || null,
+        notes: [
+          req.body?.payMethod ? `[payMethod:${req.body.payMethod}]` : '',
+          notes || '',
+        ].filter(Boolean).join(' ').trim() || null,
         status: 'PENDING',
       },
     });
@@ -261,6 +264,57 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
       }
     }
 
+    const byMethod: Record<string, { revenue: number; count: number }> = {};
+    for (const inv of paid) {
+      const method = (() => {
+        const notes = String(inv.notes || '');
+        const m = notes.match(/\[payMethod:([^\]]+)\]/i);
+        if (m) return m[1].trim();
+        const items = Array.isArray(inv.items) ? inv.items as any[] : [];
+        return items[0]?.payMethod || items[0]?.method || 'Прочее';
+      })();
+      if (!byMethod[method]) byMethod[method] = { revenue: 0, count: 0 };
+      byMethod[method].revenue += inv.amount || 0;
+      byMethod[method].count += 1;
+    }
+
+    // Payroll from completed appointments in range (KazDent analytics/pro)
+    const completedAppts = await prisma.appointment.findMany({
+      where: {
+        clinicId,
+        status: 'COMPLETED',
+        date: { gte: from, lte: to },
+      },
+    });
+    const members = await prisma.clinicMember.findMany({
+      where: { clinicId },
+      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+    });
+    const payroll = members.map((m) => {
+      const pct = m.commissionPercent ?? 30;
+      const doctorAppts = completedAppts.filter((a) => a.doctorId === m.userId);
+      let gross = 0;
+      let mat = 0;
+      for (const a of doctorAppts) {
+        const meta = (a.meta && typeof a.meta === 'object' ? a.meta : {}) as Record<string, number>;
+        gross += Number(meta.servicePrice || 0);
+        mat += Number(meta.matCost || 0);
+      }
+      const net = Math.max(0, gross - mat);
+      const earned = Math.round(net * (pct / 100));
+      return {
+        userId: m.userId,
+        name: `${m.user.firstName} ${m.user.lastName}`.trim(),
+        role: m.role,
+        percent: pct,
+        visits: doctorAppts.length,
+        gross,
+        matCost: mat,
+        net,
+        earned,
+      };
+    }).filter((r) => r.visits > 0 || r.earned > 0);
+
     res.json({
       ok: true,
       data: {
@@ -278,6 +332,10 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
         byService: Object.entries(byService)
           .map(([name, v]) => ({ name, ...v }))
           .sort((a, b) => b.revenue - a.revenue),
+        byMethod: Object.entries(byMethod)
+          .map(([method, v]) => ({ method, ...v }))
+          .sort((a, b) => b.revenue - a.revenue),
+        payroll,
       },
     });
   } catch (error) {
