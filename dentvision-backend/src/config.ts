@@ -26,6 +26,10 @@ const envSchema = z.object({
   CRON_SECRET: z.string().optional(),
   /** Shared secret for hidden platform-ops surface (supplier verify, etc.). Min 24 chars in production. */
   PLATFORM_OPS_SECRET: z.string().min(24).optional(),
+  /** Kaspi / payment webhook shared secret (min 16). Required to accept paid callbacks. */
+  KASPI_CALLBACK_SECRET: z.string().min(16).optional(),
+  /** Optional Kaspi pay base URL for QR deeplinks. */
+  KASPI_PAY_BASE_URL: z.string().url().optional(),
   REMINDER_CRON_MS: z.coerce.number().default(900000),
 });
 

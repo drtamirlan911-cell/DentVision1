@@ -32,3 +32,5 @@ services:
         value: 10000
       - key: CORS_ORIGIN
         value: "https://dent-vision1.vercel.app,http://localhost:5173"
+      - key: KASPI_CALLBACK_SECRET
+        sync: false
