@@ -187,6 +187,26 @@ export async function lookupInvitation(code: string): Promise<any> {
 export async function createDemoClinic(): Promise<any> {
   return apiRequest('/api/auth/demo-clinic', { method: 'POST' });
 }
+
+// ─── Clinic SaaS billing ───
+export async function getClinicBilling(): Promise<any> {
+  return apiRequest('/api/clinic-billing/me');
+}
+
+export async function checkoutClinicBilling(plan: string, months = 1): Promise<any> {
+  return apiRequest('/api/clinic-billing/checkout', {
+    method: 'POST',
+    body: JSON.stringify({ plan, months }),
+  });
+}
+
+export async function confirmClinicBilling(paymentId: string): Promise<any> {
+  return apiRequest('/api/clinic-billing/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ paymentId }),
+  });
+}
+
 /** Map frontend role labels to backend UserRole enum values. */
 export function toBackendInviteRole(role?: string): string {
   const raw = String(role || 'doctor').toLowerCase();

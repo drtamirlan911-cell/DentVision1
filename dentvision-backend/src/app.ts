@@ -33,6 +33,7 @@ import { academiesRouter, lecturersRouter } from './modules/academy/academy.rout
 import { financeRouter } from './modules/finance/finance.routes.js';
 import { paymentsRouter } from './modules/payments/payments.routes.js';
 import { subscriptionsRouter } from './modules/billing/subscriptions.routes.js';
+import { clinicBillingRouter } from './modules/billing/clinicBilling.routes.js';
 import { disputesRouter } from './modules/finance/disputes.routes.js';
 import { developerRouter } from './modules/developer/developer.routes.js';
 import { v1Router } from './modules/developer/v1.routes.js';
@@ -85,6 +86,9 @@ app.use('/api/patients', patientsRouter);
 app.use('/api/appointments', appointmentsRouter);
 app.use('/api/medical', medicalRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/payments', paymentsRouter);
+app.use('/api/subscriptions', subscriptionsRouter);
+app.use('/api/clinic-billing', clinicBillingRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/shop', shopRouter);
 app.use('/api/suppliers', suppliersRouter);

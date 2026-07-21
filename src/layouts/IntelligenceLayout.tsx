@@ -44,6 +44,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   ai: 'AI Команда',
   profile: 'Профиль',
   'clinic-settings': 'Настройки клиники',
+  billing: 'Тариф и оплата',
   settings: 'Настройки',
   admin: 'Администрирование',
   audit: 'Аудит',

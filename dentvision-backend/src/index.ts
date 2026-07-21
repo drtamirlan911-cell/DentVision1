@@ -2,6 +2,7 @@ import app from './app.js';
 import { env } from './config.js';
 import prisma from './lib/prisma.js';
 import { startReminderCronInterval } from './jobs/reminderCron.js';
+import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
 
 async function main() {
   try {
@@ -17,6 +18,7 @@ async function main() {
     console.log(`[ENV] ${env.NODE_ENV}`);
     if (env.REMINDER_CRON_MS > 0) {
       startReminderCronInterval(env.REMINDER_CRON_MS);
+      startSubscriptionCronInterval(env.REMINDER_CRON_MS);
     }
   });
 }

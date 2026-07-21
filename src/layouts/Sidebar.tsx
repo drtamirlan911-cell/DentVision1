@@ -76,6 +76,7 @@ const CRM_SUBNAV = [
   { id: 'medical-card', label: 'Медкарта', path: '/crm/medical-card' },
   { id: 'finance', label: 'Финансы', path: '/crm/finance' },
   { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', adminOnly: true },
+  { id: 'billing', label: 'Тариф и оплата', path: '/crm/billing', adminOnly: true },
   { id: 'visits', label: 'Визиты', path: '/crm/visits' },
   { id: 'dental-chart', label: 'Зубная карта', path: '/crm/dental-chart' },
   { id: 'treatment-plans', label: 'Планы лечения', path: '/crm/treatment-plans' },
