@@ -7,6 +7,9 @@ export interface CartItem {
   price: number
   qty: number
   imageUrl?: string | null
+  supplierId?: string | null
+  category?: string | null
+  ownBrand?: boolean
 }
 
 export interface FavItem {
@@ -50,7 +53,15 @@ export const useCartStore = create<CartState>((set, get) => ({
     set((prev) => {
       const ex = prev.cart.find(i => i.id === product.id)
       const cart = ex
-        ? prev.cart.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
+        ? prev.cart.map(i => i.id === product.id
+          ? {
+              ...i,
+              qty: i.qty + 1,
+              supplierId: i.supplierId || product.supplierId || null,
+              category: i.category || product.category || null,
+              ownBrand: i.ownBrand || product.ownBrand,
+            }
+          : i)
         : [...prev.cart, { ...product, qty: 1 }]
       const cartCount = cart.reduce((s, i) => s + i.qty, 0)
       const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)

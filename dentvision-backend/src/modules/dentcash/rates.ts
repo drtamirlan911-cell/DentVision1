@@ -42,6 +42,23 @@ export function cashbackMinor(amountMinor: bigint, rateBps: number, capMinor?: b
   return earned < 0n ? 0n : earned;
 }
 
+/**
+ * Scale cashback when DentCash was spent on the order.
+ * Earn applies to the cash portion of goods only (delivery excluded from base).
+ */
+export function scaleEarnAfterSpend(opts: {
+  earnMinor: bigint;
+  goodsMinor: bigint;
+  spendMinor: bigint;
+}): bigint {
+  if (opts.earnMinor <= 0n || opts.goodsMinor <= 0n) return 0n;
+  const spendOnGoods = opts.spendMinor > opts.goodsMinor ? opts.goodsMinor : opts.spendMinor < 0n ? 0n : opts.spendMinor;
+  const paidCash = opts.goodsMinor - spendOnGoods;
+  if (paidCash <= 0n) return 0n;
+  if (paidCash >= opts.goodsMinor) return opts.earnMinor;
+  return (opts.earnMinor * paidCash) / opts.goodsMinor;
+}
+
 export type RuleLike = {
   scope: string;
   scopeKey?: string | null;

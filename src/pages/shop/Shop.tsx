@@ -31,8 +31,10 @@ interface ShopProductItem {
   category_name: string;
   description?: string;
   tags?: string;
+  supplier_id?: string;
   supplier_name?: string;
   supplier_status?: string;
+  own_brand?: boolean;
   created_at?: string;
 }
 
@@ -493,7 +495,18 @@ export default function Shop() {
                     <motion.button
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
-                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); addToCart(product); }}
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        addToCart({
+                          id: product.id,
+                          name: product.name,
+                          brand: product.brand,
+                          price: product.price,
+                          supplierId: product.supplier_id || null,
+                          category: product.category_name || null,
+                          ownBrand: !!product.own_brand,
+                        });
+                      }}
                       disabled={product.stock <= 0}
                       className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border-none transition-all ${
                         product.stock > 0

@@ -32,6 +32,7 @@ export default function ShopCheckout() {
   const [submitting, setSubmitting] = useState(false);
   const [useDentCash, setUseDentCash] = useState(false);
   const [quote, setQuote] = useState<any>(null);
+  const [quoteFailed, setQuoteFailed] = useState(false);
   const [form, setForm] = useState({
     contactName: user?.name || '',
     phone: user?.phone || '',
@@ -53,8 +54,9 @@ export default function ShopCheckout() {
             name: i.name,
             priceTenge: i.price,
             qty: i.qty,
-            supplierId: (i as any).supplierId || (i as any).supplier_id,
-            category: (i as any).category,
+            supplierId: i.supplierId || undefined,
+            category: i.category || undefined,
+            ownBrand: i.ownBrand,
           })),
         });
         if (!cancelled) setQuote(data);

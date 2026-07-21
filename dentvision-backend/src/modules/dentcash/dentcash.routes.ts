@@ -5,12 +5,18 @@ import { tengeToMinor, serializeBigInt } from '../../lib/money.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { getWalletSummary, listTransactions } from './wallet.service.js';
-import { quoteCartCashback } from './cashback.engine.js';
+import { quoteCartCashback, resolveQuoteLinesFromProducts } from './cashback.engine.js';
 import { clampRateBps } from './fraud.js';
 
 export const dentcashRouter = Router();
 
 dentcashRouter.use(authenticate);
+dentcashRouter.use((req: AuthRequest, res, next) => {
+  if (req.user?.isGuest) {
+    return res.status(403).json({ ok: false, error: 'Войдите в аккаунт, чтобы пользоваться DentCash' } satisfies ApiResponse);
+  }
+  return next();
+});
 
 dentcashRouter.get('/wallet', async (req: AuthRequest, res) => {
   try {
@@ -36,17 +42,9 @@ dentcashRouter.get('/transactions', async (req: AuthRequest, res) => {
 /** Preview earn for cart lines + current balance for spend. */
 dentcashRouter.post('/quote', async (req: AuthRequest, res) => {
   try {
-    const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
-    const normalized = lines.map((l: any) => ({
-      productId: l.productId || l.product_id || l.id,
-      name: l.name,
-      category: l.category,
-      priceTenge: Number(l.priceTenge ?? l.price ?? 0),
-      qty: Number(l.qty ?? l.quantity ?? 1),
-      supplierId: l.supplierId || l.supplier_id || null,
-      ownBrand: !!l.ownBrand,
-      promo: !!l.promo,
-    }));
+    const rawLines = Array.isArray(req.body?.lines) ? req.body.lines : [];
+    // Always resolve products from DB so quote matches settle-time rates.
+    const normalized = await resolveQuoteLinesFromProducts(rawLines);
     const data = await quoteCartCashback(req.user!.id, normalized);
     const spendWanted = req.body?.spendTenge != null
       ? tengeToMinor(Number(req.body.spendTenge))
@@ -78,7 +76,7 @@ dentcashRouter.post('/platform-rules', async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Только SUPERADMIN' } satisfies ApiResponse);
     }
     const b = req.body || {};
-    const rateBps = clampRateBps(Number(b.rateBps ?? b.percent * 100 ?? 0));
+    const rateBps = clampRateBps(Number(b.rateBps != null ? b.rateBps : (Number(b.percent) || 0) * 100));
     if (rateBps <= 0) {
       return res.status(400).json({ ok: false, error: 'rateBps обязателен' } satisfies ApiResponse);
     }

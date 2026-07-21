@@ -5,6 +5,7 @@ import {
   defaultShopRateBps,
   isEquipmentCategory,
   pickBestRule,
+  scaleEarnAfterSpend,
 } from './rates'
 
 function clampRateBps(rateBps: number): number {
@@ -80,17 +81,17 @@ describe('clampRateBps / fraud helpers', () => {
   })
 })
 
-/** Proportional refund remaining after partial spend (pure math used by refund path). */
-describe('refund proportional remaining', () => {
-  function remainingAfterSpend(earned: bigint, spentFromEarn: bigint): bigint {
-    const left = earned - spentFromEarn
-    return left < 0n ? 0n : left
-  }
-
-  it('reverses unused portion', () => {
-    expect(remainingAfterSpend(10_000n, 3_000n)).toBe(7_000n)
+describe('scaleEarnAfterSpend', () => {
+  it('keeps full earn when no DentCash spent', () => {
+    expect(scaleEarnAfterSpend({ earnMinor: 10_000n, goodsMinor: 1_000_000n, spendMinor: 0n })).toBe(10_000n)
   })
-  it('zero when fully spent', () => {
-    expect(remainingAfterSpend(10_000n, 10_000n)).toBe(0n)
+  it('halves earn when half paid with DentCash', () => {
+    expect(scaleEarnAfterSpend({ earnMinor: 10_000n, goodsMinor: 1_000_000n, spendMinor: 500_000n })).toBe(5_000n)
+  })
+  it('zeroes earn when fully paid with DentCash', () => {
+    expect(scaleEarnAfterSpend({ earnMinor: 10_000n, goodsMinor: 1_000_000n, spendMinor: 1_000_000n })).toBe(0n)
+  })
+  it('caps spend to goods (delivery spend ignored beyond goods)', () => {
+    expect(scaleEarnAfterSpend({ earnMinor: 10_000n, goodsMinor: 1_000_000n, spendMinor: 2_000_000n })).toBe(0n)
   })
 })
