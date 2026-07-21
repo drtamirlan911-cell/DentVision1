@@ -207,6 +207,10 @@ export async function confirmClinicBilling(paymentId: string): Promise<any> {
   });
 }
 
+export async function getClinicBillingPayment(paymentId: string): Promise<any> {
+  return apiRequest(`/api/clinic-billing/payments/${paymentId}`);
+}
+
 /** Map frontend role labels to backend UserRole enum values. */
 export function toBackendInviteRole(role?: string): string {
   const raw = String(role || 'doctor').toLowerCase();
