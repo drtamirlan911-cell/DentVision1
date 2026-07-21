@@ -460,6 +460,43 @@ export async function getFinanceReport(params: { from?: string; to?: string } = 
   return apiRequest(`/api/billing/reports${qs ? `?${qs}` : ''}`);
 }
 
+export interface DoctorPayrollVisit {
+  appointmentId: string;
+  date: string;
+  time?: string | null;
+  patientName?: string;
+  services: Array<{ name: string; price: number; matCost: number }>;
+  gross: number;
+  matCost: number;
+  net: number;
+  earned: number;
+}
+
+export interface DoctorPayrollPayload {
+  from: string;
+  to: string;
+  payroll: {
+    userId: string;
+    name: string;
+    role: string;
+    percent: number;
+    visits: number;
+    gross: number;
+    matCost: number;
+    net: number;
+    earned: number;
+    visitDetails: DoctorPayrollVisit[];
+  };
+}
+
+export async function getMyPayroll(params: { from?: string; to?: string } = {}): Promise<DoctorPayrollPayload> {
+  const q = new URLSearchParams();
+  if (params.from) q.set('from', params.from);
+  if (params.to) q.set('to', params.to);
+  const qs = q.toString();
+  return apiRequest(`/api/billing/my-payroll${qs ? `?${qs}` : ''}`);
+}
+
 export async function getLabOrders(clinicId: string): Promise<LabOrder[]> {
   return collection<LabOrder>(await apiRequest('/api/lab-orders'));
 }

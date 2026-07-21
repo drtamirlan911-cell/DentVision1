@@ -32,6 +32,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
+import { DoctorPayrollCard } from '@/components/crm/DoctorPayrollCard'
 import type { Appointment, Patient, WaitingListItem, User, Booking } from '@/types'
 
 const STATUS_CFG = APPOINTMENT_STATUS
@@ -111,6 +112,7 @@ export default function Schedule() {
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
   const [pendingSync, setPendingSync] = useState(0)
+  const [payrollRefresh, setPayrollRefresh] = useState(0)
 
   const showToast = (msg: string, type: string = 'info'): void => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
 
@@ -380,6 +382,7 @@ export default function Schedule() {
       )
       setCloseOpen(false)
       setCloseAppt(null)
+      setPayrollRefresh((n) => n + 1)
     } catch (err: any) {
       showToast(err?.message || 'Не удалось закрыть приём', 'error')
     } finally {
@@ -591,7 +594,9 @@ export default function Schedule() {
           <Button variant="secondary" onClick={printZReport} icon={<ClipboardCheck size={14} />}>
             <span className="hidden sm:inline">Z-отчёт</span>
           </Button>
-          <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>Касса</Button>
+          {!ownDataOnly && (
+            <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>Касса</Button>
+          )}
           <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
           <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
           {roleInfo?.canSeeSuperAdmin !== false && (
@@ -623,6 +628,12 @@ export default function Schedule() {
               Синхронизировать
             </Button>
           )}
+        </motion.div>
+      )}
+
+      {ownDataOnly && (
+        <motion.div variants={fadeUp}>
+          <DoctorPayrollCard refreshKey={payrollRefresh} />
         </motion.div>
       )}
 
