@@ -65,6 +65,8 @@ model User {
   phone     String?
   spec      String?
   role      UserRole @default(DOCTOR)
+  /// LinkedIn-style professional profile extras (headline, bio, skills, …).
+  profileMeta Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1293,3 +1295,46 @@ model ComplianceCheck {
 }
 
 
+
+// ─── JOBS (HH-class vacancies) ───
+
+model JobVacancy {
+  id             String   @id @default(uuid())
+  title          String
+  clinicName     String   @default("")
+  city           String   @default("")
+  salary         String   @default("")
+  employmentType String   @default("Полная занятость")
+  description    String   @default("")
+  tags           Json?
+  status         String   @default("open") // open | closed
+  kind           String   @default("vacancy") // vacancy | resume
+  userId         String?
+  clinicId       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  applications JobApplication[]
+
+  @@index([status, city])
+  @@index([userId])
+  @@map("job_vacancies")
+}
+
+model JobApplication {
+  id        String @id @default(uuid())
+  vacancyId String
+  userId    String
+  userName  String @default("")
+  coverNote String @default("")
+  status    String @default("new")
+
+  createdAt DateTime @default(now())
+
+  vacancy JobVacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vacancyId, userId])
+  @@map("job_applications")
+}

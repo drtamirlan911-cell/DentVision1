@@ -67,7 +67,7 @@ export default function Profile() {
   const load = useCallback(async () => {
     try {
       const data = await api.getMyProfile()
-      setProfile(data.user)
+      setProfile(data.user || data)
       setSkills(data.skills || [])
       setCertificates(data.certificates || [])
       setAchievements(data.achievements || [])
@@ -82,7 +82,7 @@ export default function Profile() {
     }
   }, [toast])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { void load() }, [load])
 
   const openEdit = () => {
     setEditForm({
@@ -164,7 +164,19 @@ export default function Profile() {
           <div className="flex items-end gap-4">
             <div className="relative">
               <Avatar name={fullName || '?'} size="xl" src={profile?.photoUrl} />
-              <button className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-dv-gold text-surface-0 shadow-lg hover:bg-dv-gold-light transition-colors" title="Сменить фото (введите URL)">
+              <button
+                type="button"
+                onClick={() => {
+                  openEdit()
+                  // Focus photo URL field after modal opens
+                  setTimeout(() => {
+                    const el = document.querySelector<HTMLInputElement>('input[placeholder="https://..."]')
+                    el?.focus()
+                  }, 50)
+                }}
+                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-dv-gold text-surface-0 shadow-lg hover:bg-dv-gold-light transition-colors"
+                title="Сменить фото (URL)"
+              >
                 <Camera size={14} />
               </button>
             </div>
@@ -338,7 +350,7 @@ export default function Profile() {
             <Input label="Страна" value={editForm.country} onChange={e => setEditForm({ ...editForm, country: e.target.value })} />
             <Input label="Телефон" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
             <Input label="Email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
-            <Input label="URL фото" value={editForm.photoUrl} onChange={e => setEditForm({ ...editForm, photoUrl: e.target.value })} />
+            <Input label="URL фото" value={editForm.photoUrl} onChange={e => setEditForm({ ...editForm, photoUrl: e.target.value })} placeholder="https://..." />
             <Input label="Опыт (лет)" type="number" value={editForm.experienceYears} onChange={e => setEditForm({ ...editForm, experienceYears: Number(e.target.value) })} />
           </div>
           <Input label="Заголовок (headline)" value={editForm.headline} onChange={e => setEditForm({ ...editForm, headline: e.target.value })} placeholder="Напр.: Врач-ортопед, имплантолог" />

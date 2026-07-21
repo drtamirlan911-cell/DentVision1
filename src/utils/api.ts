@@ -1122,24 +1122,68 @@ export async function createSchoolLibraryItem(data: any): Promise<any> { return 
 export async function deleteSchoolLibraryItem(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
 
 // ─── User Professional Profile (LinkedIn-style) ───
-export async function getMyProfile(): Promise<any> { return Promise.resolve({}); }
-export async function getPublicProfile(identifier: string): Promise<any> { return Promise.resolve({}); }
-export async function updateMyProfile(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function getMyProfile(): Promise<any> {
+  return apiRequest('/api/profile');
+}
+export async function getPublicProfile(identifier: string): Promise<any> {
+  return apiRequest(`/api/profile/${encodeURIComponent(identifier)}`);
+}
+export async function updateMyProfile(data: any): Promise<any> {
+  return apiRequest('/api/profile', { method: 'PUT', body: JSON.stringify(data) });
+}
 
-export async function addSkill(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteSkill(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addSkill(data: any): Promise<any> {
+  return apiRequest('/api/profile/skills', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deleteSkill(id: string): Promise<any> {
+  return apiRequest(`/api/profile/skills/${id}`, { method: 'DELETE' });
+}
 
-export async function addCertificate(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteCertificate(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addCertificate(data: any): Promise<any> {
+  return apiRequest('/api/profile/certificates', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deleteCertificate(id: string): Promise<any> {
+  return apiRequest(`/api/profile/certificates/${id}`, { method: 'DELETE' });
+}
 
-export async function addAchievement(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteAchievement(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addAchievement(data: any): Promise<any> {
+  return apiRequest('/api/profile/achievements', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deleteAchievement(id: string): Promise<any> {
+  return apiRequest(`/api/profile/achievements/${id}`, { method: 'DELETE' });
+}
 
-export async function addPortfolioItem(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deletePortfolioItem(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addPortfolioItem(data: any): Promise<any> {
+  return apiRequest('/api/profile/portfolio', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deletePortfolioItem(id: string): Promise<any> {
+  return apiRequest(`/api/profile/portfolio/${id}`, { method: 'DELETE' });
+}
 
-export async function addCase(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteCase(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function addCase(data: any): Promise<any> {
+  return apiRequest('/api/profile/cases', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deleteCase(id: string): Promise<any> {
+  return apiRequest(`/api/profile/cases/${id}`, { method: 'DELETE' });
+}
+
+/** Self-serve: register as a supplier company and become owner. */
+export async function registerAsSupplier(data: {
+  name: string;
+  kind?: string;
+  bin?: string;
+  legalAddress?: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+}): Promise<any> {
+  return apiRequest('/api/suppliers/register', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Platform: link a user to a supplier by email or userId. */
+export async function addSupplierMember(supplierId: string, body: { email?: string; userId?: string; role?: string }): Promise<any> {
+  return apiRequest(`/api/suppliers/${supplierId}/members`, { method: 'POST', body: JSON.stringify(body) });
+}
 
 // ─── AI Intelligence ───
 export interface AIChatResponse {

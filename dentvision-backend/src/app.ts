@@ -46,6 +46,8 @@ import { aiGovernanceRouter } from './modules/ai-governance/ai-governance.routes
 import { supplierWorkspaceRouter } from './modules/supplier-workspace/workspace.routes.js';
 import { lecturerRouter } from './modules/school-workspace/lecturer.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
+import { profileRouter } from './modules/profile/profile.routes.js';
+import { jobsRouter } from './modules/jobs/jobs.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 import { registerWebhookDispatcher } from './modules/developer/webhook.dispatcher.js';
 import { registerWorkflowEngine } from './modules/workflow/workflow.engine.js';
@@ -80,6 +82,8 @@ app.get('/api/health', (_req, res) => {
 // ─── Routes ───
 app.use('/api/auth', authRouter);
 app.use('/api/iam', iamRouter);
+app.use('/api/profile', profileRouter);
+app.use('/api/jobs', jobsRouter);
 app.use('/api/clinics', clinicsRouter);
 app.use('/api/patients', patientsRouter);
 app.use('/api/appointments', appointmentsRouter);

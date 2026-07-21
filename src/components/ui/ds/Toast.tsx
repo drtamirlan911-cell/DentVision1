@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // DDS Toast — notification system with auto-dismiss
 // ═══════════════════════════════════════════════════════════════
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle, AlertCircle, AlertTriangle, Info, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -61,8 +61,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [dismiss]
   )
 
+  const value = useMemo(() => ({ toast, dismiss, dismissAll }), [toast, dismiss, dismissAll])
+
   return (
-    <ToastContext.Provider value={{ toast, dismiss, dismissAll }}>
+    <ToastContext.Provider value={value}>
       {children}
       {/* Toast container */}
       <div className="fixed bottom-20 md:bottom-6 right-4 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
@@ -104,7 +106,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 export function useToast() {
   const ctx = useContext(ToastContext)
   if (!ctx) throw new Error('useToast must be used inside ToastProvider')
-  return {
+  // Stable helpers — avoid new object identity every render (breaks useCallback/useEffect deps).
+  return React.useMemo(() => ({
     ...ctx,
     showToast: (msg: string, type: ToastType = 'info') => { ctx.toast({ title: msg, type }); return () => {} },
     success: (msg: string) => ctx.toast({ title: msg, type: 'success' }),
@@ -112,5 +115,5 @@ export function useToast() {
     warn: (msg: string) => ctx.toast({ title: msg, type: 'warning' }),
     info: (msg: string) => ctx.toast({ title: msg, type: 'info' }),
     clearToast: () => ctx.dismissAll(),
-  }
+  }), [ctx])
 }
