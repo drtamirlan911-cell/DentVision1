@@ -69,6 +69,7 @@ function serializePatient(p: {
     gender: p.gender || '',
     address: p.address || '',
     notes: p.notes || '',
+    prepaidBalance: Number((p as any).prepaidBalance || 0),
     category: (history.category as string) || 'regular',
     source: (history.source as string) || '',
     allergies: (history.allergies as string) || '',
@@ -493,5 +494,35 @@ patientsRouter.get('/:id/treatment-plan', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Get patient treatment plans error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при получении планов лечения' } satisfies ApiResponse);
+  }
+});
+
+/** KazDent donor: prepaid deposit / credit balance */
+patientsRouter.post('/:id/deposit', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    }
+    const amount = Number(req.body?.amount || 0);
+    if (!amount || Number.isNaN(amount)) {
+      return res.status(400).json({ ok: false, error: 'Укажите сумму' } satisfies ApiResponse);
+    }
+    const patient = await prisma.patient.findFirst({
+      where: { id: req.params.id as string, clinicId },
+    });
+    if (!patient) {
+      return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
+    }
+    const next = Math.max(0, Number(patient.prepaidBalance || 0) + amount);
+    const updated = await prisma.patient.update({
+      where: { id: patient.id },
+      data: { prepaidBalance: next },
+      include: { teeth: true },
+    });
+    return res.json({ ok: true, data: serializePatient(updated) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Patient deposit error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось пополнить баланс' } satisfies ApiResponse);
   }
 });
