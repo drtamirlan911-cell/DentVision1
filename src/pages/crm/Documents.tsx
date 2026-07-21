@@ -617,7 +617,7 @@ export default function Documents() {
   };
 
   const handleInlineSignSave = async (signatureData: string) => {
-    if (!signInlineName.trim()) { toast.warning('Введите имя'); return; }
+    if (!signInlineName.trim()) { toast.warn('Введите имя'); return; }
     try {
       await api.signDocument(signInlineDoc!.id, {
         signatureData,

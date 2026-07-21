@@ -1,5 +1,5 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   CreditCard, TrendingUp, TrendingDown, Wallet, AlertTriangle, Plus,
@@ -91,6 +91,7 @@ export default function Cashier() {
   const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useDataQuery(clinic?.id)
   const queryClient = useQueryClient()
   const { toast, showToast, clearToast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const voidReceipt = async (id: string) => {
     if (!window.confirm('Удалить эту операцию из кассы?')) return
@@ -131,6 +132,29 @@ export default function Cashier() {
     })()
     return () => { cancelled = true }
   }, [activeTab, clinic?.id])
+
+  useEffect(() => {
+    const patientId = searchParams.get('patient')
+    if (!patientId || !patients.length) return
+    const patient = patients.find((p) => p.id === patientId)
+    if (!patient) return
+    const planId = searchParams.get('plan')
+    const stageId = searchParams.get('stage')
+    const noteParts = [
+      planId ? `План лечения: ${planId}` : '',
+      stageId ? `этап ${stageId}` : '',
+    ].filter(Boolean)
+    setForm((f) => ({
+      ...f,
+      type: 'income',
+      patientId,
+      patientName: patient.name,
+      notes: noteParts.join(' · ') || f.notes,
+    }))
+    setActiveTab('transactions')
+    setModalOpen(true)
+    setSearchParams({}, { replace: true })
+  }, [searchParams, patients, setSearchParams])
 
   const todayKey = today()
   const todayReceipts = receipts.filter((r) => (r.date || todayKey) === todayKey && (r.status === 'paid' || r.status === 'completed'))

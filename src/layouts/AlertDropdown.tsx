@@ -55,7 +55,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
             className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl border border-bdr-subtle bg-surface-raised backdrop-blur-xl shadow-xl overflow-hidden"
           >
             <div className="flex items-center justify-between px-3 py-2 border-b border-bdr-subtle">
-              <span className="text-xs font-semibold text-txt-primary">Proactive Alerts</span>
+              <span className="text-xs font-semibold text-txt-primary">Уведомления</span>
               <button
                 onClick={() => setIsOpen(false)}
                 className="p-0.5 rounded text-txt-muted hover:text-txt-primary transition-colors"

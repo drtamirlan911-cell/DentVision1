@@ -81,15 +81,19 @@ export default function Visits() {
 
   const saveVisit = async () => {
     if (!form.patient_id) { toast.error('Выберите пациента'); return; }
-    await upsertVisit({
-      ...(editingId ? { id: editingId } : {}),
-      ...form,
-      clinic_id: clinic.id,
-      user_id: user?.id,
-      user_name: user?.name,
-    } as any);
-    toast.success(editingId ? 'Посещение обновлено' : 'Посещение добавлено');
-    resetForm();
+    try {
+      await upsertVisit({
+        ...(editingId ? { id: editingId } : {}),
+        ...form,
+        clinic_id: clinic.id,
+        user_id: user?.id,
+        user_name: user?.name,
+      } as any);
+      toast.success(editingId ? 'Посещение обновлено' : 'Посещение добавлено');
+      resetForm();
+    } catch (err: any) {
+      toast.error(err?.message || 'Не удалось сохранить посещение');
+    }
   };
 
   return (

@@ -291,7 +291,7 @@ export default function TreatmentPlans() {
                               <Button
                                 size="xs"
                                 variant="ghost"
-                                onClick={() => navigate(`/crm/finance?patient=${p.patientId}&plan=${p.id}&stage=${s.id || i}`)}
+                                onClick={() => navigate(`/crm/cashier?patient=${p.patientId}&plan=${p.id}&stage=${s.id || i}`)}
                               >
                                 Счёт
                               </Button>

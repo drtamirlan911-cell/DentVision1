@@ -51,20 +51,24 @@ export default function Promotions() {
     return promotions
   }, [promotions, filter])
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!form.title.trim()) { showToast('Введите название акции', 'warning'); return }
-    upsertPromotion({
-      ...form,
-      id: editing?.id || gid(),
-      clinicId: clinic?.id,
-      discountPercent: Number(form.discountPercent) || 0,
-      serviceIds: form.serviceIds || [],
-    })
-    showToast(editing ? 'Акция обновлена' : 'Акция создана', 'success')
-    setModalOpen(false)
-    setForm(EMPTY_FORM)
-    setEditing(null)
+    try {
+      await upsertPromotion({
+        ...form,
+        id: editing?.id || gid(),
+        clinicId: clinic?.id,
+        discountPercent: Number(form.discountPercent) || 0,
+        serviceIds: form.serviceIds || [],
+      })
+      showToast(editing ? 'Акция обновлена' : 'Акция создана', 'success')
+      setModalOpen(false)
+      setForm(EMPTY_FORM)
+      setEditing(null)
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось сохранить акцию', 'error')
+    }
   }
 
   const openEdit = (promo: Promotion) => {

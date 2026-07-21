@@ -1,5 +1,5 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
@@ -86,6 +86,7 @@ export default function Schedule() {
   const chairs = chairsQ.data || []
 
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [selDate, setSelDate] = useState(today())
   const [modalOpen, setModalOpen] = useState(false)
   const [editAppt, setEditAppt] = useState<Appointment | null>(null)
@@ -129,6 +130,17 @@ export default function Schedule() {
       stop()
     }
   }, [])
+
+  useEffect(() => {
+    const patientId = searchParams.get('patient')
+    if (!patientId || !patients.length) return
+    const patient = patients.find((p) => p.id === patientId)
+    if (!patient) return
+    setForm((f) => ({ ...f, patientId }))
+    setShowNewPatient(false)
+    setModalOpen(true)
+    setSearchParams({}, { replace: true })
+  }, [searchParams, patients, setSearchParams])
 
   useEffect(() => {
     if (clinic?.id && liveAppointments.length) {

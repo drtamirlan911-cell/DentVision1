@@ -85,21 +85,25 @@ export default function Inventory() {
     return items
   }, [inventory, search, filter, sortBy])
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.name.trim()) { showToast('Введите название', 'warning'); return }
-    upsertInventoryItem({
-      ...form,
-      id: editing?.id || gid(),
-      clinicId: clinic?.id,
-      quantity: Number(form.quantity) || 0,
-      minQuantity: Number(form.minQuantity) || 0,
-      cost: Number(form.cost) || 0,
-    } as any)
-    showToast(editing ? 'Товар обновлён' : 'Товар добавлен', 'success')
-    setModalOpen(false)
-    setForm(EMPTY_FORM)
-    setEditing(null)
+    try {
+      await upsertInventoryItem({
+        ...form,
+        id: editing?.id || gid(),
+        clinicId: clinic?.id,
+        quantity: Number(form.quantity) || 0,
+        minQuantity: Number(form.minQuantity) || 0,
+        cost: Number(form.cost) || 0,
+      } as any)
+      showToast(editing ? 'Товар обновлён' : 'Товар добавлен', 'success')
+      setModalOpen(false)
+      setForm(EMPTY_FORM)
+      setEditing(null)
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось сохранить', 'error')
+    }
   }
 
   const openEdit = (item: InventoryItem) => {
