@@ -214,26 +214,42 @@ export default function ShopCheckout() {
                 <div className="border-t border-[var(--border-subtle)] mt-3 pt-3 space-y-1.5 text-xs">
                   <div className="flex justify-between"><span className="text-[var(--slate)]">Товары:</span><span className="text-white">{money(cartTotal)}</span></div>
                   <div className="flex justify-between"><span className="text-[var(--slate)]">Доставка:</span><span className="text-white">{deliveryCost === 0 ? 'Бесплатно' : money(deliveryCost)}</span></div>
-                  {earnPreview > 0 && (
-                    <div className="flex justify-between text-emerald-300/90">
-                      <span>Кэшбэк после доставки:</span>
-                      <span>+{money(earnPreview)}</span>
-                    </div>
-                  )}
-                  {maxSpend > 0 && (
-                    <label className="flex items-center justify-between gap-2 pt-1 cursor-pointer">
-                      <span className="text-[var(--slate)] flex items-center gap-1.5">
-                        <Wallet size={12} className="text-[#C9A96E]" />
-                        Списать DentCash
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={useDentCash}
-                        onChange={(e) => setUseDentCash(e.target.checked)}
-                        className="accent-[#C9A96E]"
-                      />
-                    </label>
-                  )}
+                  <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-2 space-y-1">
+                    {!user ? (
+                      <p className="text-emerald-200/90">Войдите, чтобы копить и списывать кэшбэк DentCash</p>
+                    ) : quote ? (
+                      <>
+                        <div className="flex justify-between text-emerald-300">
+                          <span>Кэшбэк после доставки:</span>
+                          <span>+{money(earnPreview)}</span>
+                        </div>
+                        <div className="flex justify-between text-[var(--slate-light)]">
+                          <span>Баланс DentCash:</span>
+                          <span>{money(Number(quote.balanceTenge || 0))}</span>
+                        </div>
+                        {maxSpend > 0 ? (
+                          <label className="flex items-center justify-between gap-2 pt-1 cursor-pointer">
+                            <span className="text-[var(--slate)] flex items-center gap-1.5">
+                              <Wallet size={12} className="text-[#C9A96E]" />
+                              Списать DentCash ({money(maxSpend)})
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={useDentCash}
+                              onChange={(e) => setUseDentCash(e.target.checked)}
+                              className="accent-[#C9A96E]"
+                            />
+                          </label>
+                        ) : (
+                          <p className="text-[10px] text-[var(--slate)]">
+                            Баланс 0 — кэшбэк появится после первой доставки.
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-[var(--slate)]">Считаем кэшбэк…</p>
+                    )}
+                  </div>
                   {useDentCash && spendTenge > 0 && (
                     <div className="flex justify-between text-[#C9A96E]">
                       <span>DentCash:</span>

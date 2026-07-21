@@ -159,7 +159,7 @@ export default function Profile() {
 
   return (
     <div className="fade-in space-y-5 max-w-3xl mx-auto pb-10">
-      <PageHeader title="Мой профиль" subtitle="Ваша профессиональная визитная карточка" icon={<UserIcon size={22} className="text-dv-gold" />} />
+      <PageHeader title="Мой профиль" subtitle="Визитка, кэшбэк DentCash и профессиональные данные" icon={<UserIcon size={22} className="text-dv-gold" />} />
 
       {/* ─── Header card ─── */}
       <Card className="overflow-hidden">
@@ -205,6 +205,9 @@ export default function Profile() {
         </CardContent>
       </Card>
 
+      {/* ─── Кэшбэк DentCash — сразу под шапкой ─── */}
+      <DentWalletCard />
+
       {/* ─── About ─── */}
       <Section icon={<UserIcon size={16} />} title="О себе">
         {profile?.bio ? <p className="text-sm text-txt-secondary leading-relaxed whitespace-pre-line">{profile.bio}</p> : <Empty text="Добавьте информацию о себе — нажмите «Редактировать»" />}
@@ -213,9 +216,6 @@ export default function Profile() {
           <div className="flex items-center gap-2 text-sm text-txt-secondary"><Phone size={14} className="text-txt-muted" /> {profile?.phone || '—'}</div>
         </div>
       </Section>
-
-      {/* ─── Dent Wallet ─── */}
-      <DentWalletCard />
 
       {/* ─── Skills ─── */}
       <Section icon={<Sparkles size={16} />} title="Навыки" onAdd={() => { setForm({}); setModal('skill') }}>

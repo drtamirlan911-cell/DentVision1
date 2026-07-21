@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Badge } from '../../components/ui/ds/Badge';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
+import { estimateCashbackTenge, formatCashbackPercent } from '@/lib/dentcash';
 
 interface ProductReview {
   user_name?: string;
@@ -163,6 +164,24 @@ export default function ShopProduct() {
               <span className="text-base text-[#7A8899] line-through">{tg(product.old_price)}</span>
             )}
           </div>
+
+          {(() => {
+            const cb = estimateCashbackTenge(product.price, {
+              category: product.category_name,
+              name: product.name,
+              promo: !!product.old_price,
+            })
+            return (
+              <div className="mb-4 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3.5 py-2.5">
+                <p className="text-sm font-semibold text-emerald-300">
+                  Кэшбэк DentCash ~{formatCashbackPercent(cb.bps)} · ≈ {Math.round(cb.tenge).toLocaleString('ru-RU')} ₸
+                </p>
+                <p className="text-[11px] text-[#7A8899] mt-0.5">
+                  Начислится после доставки. Списать можно в корзине или на курсы Academy.
+                </p>
+              </div>
+            )
+          })()}
 
           <div className="flex items-center gap-1.5 mb-4">
             <div className={`w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-[#27AE60]' : 'bg-[#E74C3C]'}`} />

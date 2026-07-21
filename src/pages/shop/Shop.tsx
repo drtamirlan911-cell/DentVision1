@@ -15,6 +15,7 @@ import { Input } from '../../components/ui/ds/Input';
 import { Badge } from '../../components/ui/ds/Badge';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard';
+import { estimateCashbackBps, formatCashbackPercent } from '@/lib/dentcash';
 
 interface ShopProductItem {
   id: string;
@@ -130,10 +131,17 @@ export default function Shop() {
     <div className="p-6 min-h-screen">
       <PageHeader
         title="Маркетплейс"
-        subtitle="Kaspi для стоматологии — закупка у проверенных поставщиков"
+        subtitle="Kaspi для стоматологии — закупка с кэшбэком DentCash (1–7%)"
         icon={<ShoppingBag size={22} />}
         actions={
           <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/profile')}
+            >
+              Мой кэшбэк
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -423,6 +431,19 @@ export default function Shop() {
                       -{Math.round((1 - product.price / product.old_price) * 100)}%
                     </div>
                   )}
+                  <div
+                    className={
+                      product.old_price
+                        ? 'absolute top-2.5 left-2.5 mt-6 bg-emerald-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md'
+                        : 'absolute top-2.5 left-2.5 bg-emerald-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md'
+                    }
+                  >
+                    Кэшбэк {formatCashbackPercent(estimateCashbackBps({
+                      category: product.category_name,
+                      name: product.name,
+                      promo: !!product.old_price || (product.description || '').includes('[АКЦИЯ]'),
+                    }))}
+                  </div>
                   <motion.button
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
