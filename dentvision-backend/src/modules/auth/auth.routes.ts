@@ -298,6 +298,8 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
           city: city || null,
           address: address || null,
           phone: phone || null,
+          plan: 'ENTERPRISE',
+          active: true,
         },
       }),
       prisma.clinicMember.create({
@@ -310,6 +312,16 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
       }),
     ]);
 
+    const { startClinicTrial, notifyClinicOwners, TRIAL_DAYS } = await import(
+      '../billing/clinicSubscription.service.js'
+    );
+    const subscription = await startClinicTrial(clinicId, TRIAL_DAYS);
+    await notifyClinicOwners(
+      clinicId,
+      'Пробный период активирован',
+      `Enterprise бесплатно на ${TRIAL_DAYS} дней (до ${subscription.periodEnd?.toISOString().slice(0, 10)}). Выберите тариф в разделе «Тариф и оплата».`,
+    );
+
     const tokens = generateTokens({
       sub: req.user!.id,
       email: req.user!.email,
@@ -319,11 +331,12 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
 
     const response: ApiResponse = {
       ok: true,
-      data: { clinic, tokens },
+      data: { clinic, tokens, subscription },
     };
 
     res.status(201).json(response);
   } catch (error) {
+    console.error('[auth/clinics]', error);
     res.status(500).json({ ok: false, error: 'Ошибка при создании клиники' });
   }
 });
@@ -342,13 +355,17 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
           city: 'Алматы',
           address: 'ул. Абая 150, офис 301',
           phone: '+7 727 123 45 67',
-          plan: 'DEMO',
+          plan: 'ENTERPRISE',
+          active: true,
         },
       }),
       prisma.clinicMember.create({
         data: { id: uid(), userId, clinicId, role: 'OWNER' },
       }),
     ]);
+
+    const { startClinicTrial, TRIAL_DAYS } = await import('../billing/clinicSubscription.service.js');
+    await startClinicTrial(clinicId, TRIAL_DAYS);
 
     const [p1, p2, p3, p4, p5] = await prisma.$transaction([
       prisma.patient.create({

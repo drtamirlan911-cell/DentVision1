@@ -1,7 +1,7 @@
 ﻿import React from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, LayoutGrid, Building2 } from 'lucide-react'
+import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, LayoutGrid, Building2, CreditCard } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
@@ -73,6 +73,27 @@ export default function SettingsPage() {
                 Профиль клиники, часы работы, напоминания и кресла — индивидуально для «{clinicName}».
               </p>
               <Button size="sm" onClick={() => navigate('/crm/clinic-settings')}>
+                Открыть
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {showClinicSettings && clinicId && (
+        <motion.div variants={item}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard size={16} className="text-dv-gold" />
+                Тариф и оплата
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm text-txt-muted">
+                Пробный период, смена тарифа и оплата подписки клиники через Kaspi.
+              </p>
+              <Button size="sm" onClick={() => navigate('/crm/billing')}>
                 Открыть
               </Button>
             </CardContent>

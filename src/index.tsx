@@ -46,6 +46,7 @@ const Reminders = lazy(() => import('./pages/crm/Reminders'));
 const DentalChart = lazy(() => import('./pages/crm/DentalChart'));
 const TreatmentPlans = lazy(() => import('./pages/crm/TreatmentPlans'));
 const ClinicSettings = lazy(() => import('./pages/crm/ClinicSettings'));
+const ClinicBilling = lazy(() => import('./pages/crm/ClinicBilling'));
 
 // Shop sub-app pages
 const Shop = lazy(() => import('./pages/shop/Shop'));
@@ -135,6 +136,7 @@ if (container) {
                   <Route path="crm/treatment-plans" element={<Suspense fallback={<PageLoader />}><TreatmentPlans /></Suspense>} />
                   <Route path="crm/finance" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
                   <Route path="crm/clinic-settings" element={<Suspense fallback={<PageLoader />}><ClinicSettings /></Suspense>} />
+                  <Route path="crm/billing" element={<Suspense fallback={<PageLoader />}><ClinicBilling /></Suspense>} />
 
                   {/* Shop sub-app — under IntelligenceLayout sidebar */}
                   <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />

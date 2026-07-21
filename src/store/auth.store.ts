@@ -29,7 +29,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   owner: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'treatment-plans', 'dental-chart'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
     canSeeSalary: true,
     canSeeSuperAdmin: true,
     canAddStaff: true,
@@ -41,7 +41,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   director: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'treatment-plans', 'dental-chart'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
     canSeeSalary: true,
     canSeeReports: true,
     canAddStaff: true,
@@ -55,7 +55,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
     label: 'Администратор',
     icon: '💼',
     // Касса / финансы выполняет Администратор (роль кассира убрана)
-    pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'treatment-plans', 'dental-chart'],
+    pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
     canSeeSalary: false,
     canSeeExpenses: false,
     canAddStaff: true,
@@ -76,7 +76,7 @@ export const PLATFORM_ROLES: Record<string, RoleConfig> = {
   superadmin: {
     label: 'Super Admin',
     icon: '⚙️',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'admin', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'staff', 'treatment-plans', 'dental-chart'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'admin', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'staff', 'treatment-plans', 'dental-chart'],
     canSeeSalary: true,
     canSeeSuperAdmin: true,
     canAddStaff: true,

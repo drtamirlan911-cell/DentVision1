@@ -99,6 +99,26 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
       settled = true;
     }
 
+    // SaaS clinic subscription renewal
+    if (newStatus === 'paid' && payment.refType === 'subscription' && payment.refId) {
+      const meta = (payment.meta || {}) as { saasPlan?: string; months?: number };
+      const planRaw = String(meta.saasPlan || 'professional').toLowerCase();
+      const saasPlan = (planRaw === 'pro' ? 'professional' : planRaw) as
+        'starter' | 'professional' | 'enterprise';
+      const { activateClinicSubscriptionFromPayment, isSaasPlanId } = await import(
+        '../billing/clinicSubscription.service.js'
+      );
+      if (isSaasPlanId(saasPlan)) {
+        await activateClinicSubscriptionFromPayment({
+          clinicId: payment.refId,
+          saasPlan,
+          months: meta.months || 1,
+          paymentId: payment.id,
+        });
+        settled = true;
+      }
+    }
+
     return res.json({ ok: true, data: { id: updated.id, status: updated.status, settled } } satisfies ApiResponse);
   } catch (error) {
     console.error('Kaspi callback error:', error);
