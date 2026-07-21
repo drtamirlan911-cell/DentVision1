@@ -100,6 +100,7 @@ export default function Patients() {
   const [filterCat, setFilterCat] = useState('all')
   const [photos, setPhotos] = useState<Array<{ id: string; url: string; category: string; date: string; name: string }>>([])
   const [photoCategory, setPhotoCategory] = useState('smile')
+  const [photosLoading, setPhotosLoading] = useState(false)
   const [payment, setPayment] = useState(EMPTY_PAYMENT)
   const [patientSummary, setPatientSummary] = useState<{
     balance?: number
@@ -158,6 +159,46 @@ export default function Patients() {
       }
     })()
     return () => { cancelled = true }
+  }, [selected?.id])
+
+  const mapPatientImageToUi = (img: any) => {
+    const meta = img?.metadata && typeof img.metadata === 'object' ? img.metadata : null
+    const fromMetaCategory = meta?.category ? String(meta.category) : null
+    const derivedCategory =
+      fromMetaCategory ||
+      (img?.type === 'X_RAY' ? 'xray' : 'smile')
+
+    const createdAt = img?.createdAt ? String(img.createdAt) : null
+    const date = createdAt ? new Date(createdAt).toISOString().slice(0, 10) : today()
+
+    return {
+      id: String(img.id),
+      url: String(img.url || ''),
+      category: derivedCategory,
+      date,
+      name: String(img.name || ''),
+    }
+  }
+
+  const loadPhotos = async (patientId: string) => {
+    setPhotosLoading(true)
+    try {
+      const list = await api.getPatientImages(patientId)
+      setPhotos((list || []).map(mapPatientImageToUi))
+    } catch {
+      setPhotos([])
+    } finally {
+      setPhotosLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!selected?.id) {
+      setPhotos([])
+      return
+    }
+    loadPhotos(selected.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id])
 
   const filtered = patients.filter(p => {
@@ -234,16 +275,53 @@ export default function Patients() {
     }
   }
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || ''))
+      reader.onerror = () => reject(new Error('Не удалось прочитать файл'))
+      reader.readAsDataURL(file)
+    })
+
+  const mapUiCategoryToBackendType = (cat: string): string => {
+    if (cat === 'xray') return 'X_RAY'
+    return 'PHOTO'
+  }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    const newPhotos = files.map(file => ({
-      id: gid(),
-      url: URL.createObjectURL(file),
-      category: photoCategory,
-      date: today(),
-      name: file.name,
-    }))
-    setPhotos(prev => [...prev, ...newPhotos])
+    if (!files.length) return
+    if (!selected?.id) {
+      showToast('Выберите пациента', 'warning')
+      return
+    }
+    if (photosLoading) return
+
+    setPhotosLoading(true)
+    try {
+      for (const file of files) {
+        const url = await fileToDataUrl(file)
+        await api.uploadPhoto({
+          patientId: selected.id,
+          type: mapUiCategoryToBackendType(photoCategory),
+          url,
+          metadata: {
+            category: photoCategory,
+            originalName: file.name,
+            mimeType: file.type,
+            size: file.size,
+          },
+        } as any)
+      }
+      await loadPhotos(selected.id)
+      showToast('Фото сохранены', 'success')
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось сохранить фото', 'error')
+    } finally {
+      setPhotosLoading(false)
+      // allow uploading the same file again
+      if (e.target) e.target.value = ''
+    }
   }
 
   const patientAppts = selected
@@ -853,7 +931,14 @@ export default function Patients() {
                           <div className="flex items-center justify-between p-2 text-xs text-txt-muted">
                             <span>{fd(photo.date)}</span>
                             <button
-                              onClick={() => setPhotos(prev => prev.filter(p => p.id !== photo.id))}
+                              onClick={async () => {
+                                try {
+                                  await api.deletePhoto(photo.id)
+                                  setPhotos(prev => prev.filter(p => p.id !== photo.id))
+                                } catch {
+                                  showToast('Не удалось удалить фото', 'error')
+                                }
+                              }}
                               className="text-error/60 hover:text-error transition-colors"
                             >
                               <Trash2 size={14} />

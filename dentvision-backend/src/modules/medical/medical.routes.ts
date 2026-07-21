@@ -262,6 +262,28 @@ medicalRouter.get('/images/:patientId', async (req: AuthRequest, res) => {
   }
 });
 
+medicalRouter.delete('/images/:id', async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const image = await prisma.patientImage.findUnique({
+      where: { id },
+      include: { patient: { select: { clinicId: true } } },
+    });
+    if (!image) {
+      return res.status(404).json({ ok: false, error: 'Изображение не найдено' });
+    }
+    // RBAC: ensure image belongs to current user's clinic
+    if (image.patient?.clinicId && image.patient.clinicId !== req.user?.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    }
+    await prisma.patientImage.delete({ where: { id } });
+    return res.json({ ok: true, data: { deleted: true, id } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete patient image';
+    return res.status(500).json({ ok: false, error: message });
+  }
+});
+
 medicalRouter.get('/icd10', async (req: AuthRequest, res) => {
   try {
     const { q } = req.query;
