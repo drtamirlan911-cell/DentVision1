@@ -274,8 +274,9 @@ export default function PlatformOpsCommandCenter() {
             <QueueCard title="Новые лекторы" icon={<GraduationCap size={14} />}
               onOpen={() => setTab('school')}
               items={(queues.lecturersNew || []).map((l: any) => ({
-                id: l.id, title: l.academy?.name || l.id.slice(0, 8),
-                meta: `verifications ${l._count?.verifications || 0} · courses ${l._count?.courses || 0}`,
+                id: l.id,
+                title: l.name || 'Лектор',
+                meta: `${l.academy?.name || 'Без академии'} · docs ${l._count?.verifications || 0} · courses ${l._count?.courses || 0}`,
               }))} />
             <QueueCard title="Подписки истекают" icon={<AlertTriangle size={14} />}
               onOpen={() => setTab('clinics')}
@@ -357,8 +358,13 @@ export default function PlatformOpsCommandCenter() {
                 <CardContent className="p-4 space-y-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold text-txt-primary">{l.academy?.name || 'Без академии'}</p>
-                      <p className="text-xs text-txt-muted">courses {l._count?.courses || 0} · docs {l._count?.verifications || 0}</p>
+                      <p className="text-sm font-semibold text-txt-primary">{l.name || 'Лектор'}</p>
+                      <p className="text-xs text-txt-muted">
+                        {l.email || '—'} · {l.academy?.name || 'Без академии'}
+                      </p>
+                      <p className="text-xs text-txt-muted mt-0.5">
+                        courses {l._count?.courses || 0} · docs {l._count?.verifications || 0}
+                      </p>
                     </div>
                     <Badge variant={l.level === 'NEW' ? 'gold' : 'success'}>{LEVEL_LABEL[l.level] || l.level}</Badge>
                   </div>
