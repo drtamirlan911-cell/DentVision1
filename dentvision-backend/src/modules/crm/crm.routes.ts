@@ -9,12 +9,77 @@ export const crmRouter = Router();
 
 crmRouter.use(authenticate);
 
+interface TreatmentPlanLineItem {
+  id?: string;
+  serviceId?: string;
+  serviceName?: string;
+  name?: string;
+  price?: number;
+  teeth?: number[];
+  qty?: number;
+}
+
+interface TreatmentPlanStage {
+  id?: string;
+  title: string;
+  status?: string;
+  sortOrder?: number;
+  cost?: number | null;
+  items?: TreatmentPlanLineItem[];
+  notes?: string;
+}
+
 interface TreatmentPlanItems {
   diagnosis?: string | null;
   totalBudget?: number | null;
   teeth?: number[];
-  stages?: Array<{ id?: string; title: string; status?: string; sortOrder?: number; cost?: number | null }>;
+  stages?: TreatmentPlanStage[];
   doctorId?: string | null;
+}
+
+function lineItemTotal(item: TreatmentPlanLineItem): number {
+  const teeth = Array.isArray(item.teeth) ? item.teeth : [];
+  const units = teeth.length > 0 ? teeth.length : (Number(item.qty) || 1);
+  return Math.round((Number(item.price) || 0) * units);
+}
+
+function stageTotal(stage: TreatmentPlanStage): number {
+  if (Array.isArray(stage.items) && stage.items.length > 0) {
+    return stage.items.reduce((sum, item) => sum + lineItemTotal(item), 0);
+  }
+  return Number(stage.cost) || 0;
+}
+
+function enrichStages(stages: TreatmentPlanStage[] = []): TreatmentPlanStage[] {
+  return stages.map((stage, index) => ({
+    ...stage,
+    id: stage.id || uid(),
+    sortOrder: stage.sortOrder ?? index + 1,
+    items: Array.isArray(stage.items)
+      ? stage.items.map((item) => ({
+          ...item,
+          id: item.id || uid(),
+          serviceName: item.serviceName || item.name || 'Услуга',
+          teeth: Array.isArray(item.teeth) ? item.teeth : [],
+          qty: Number(item.qty) || 1,
+          price: Number(item.price) || 0,
+        }))
+      : [],
+    cost: stageTotal({
+      ...stage,
+      items: Array.isArray(stage.items) ? stage.items : [],
+    }),
+  }));
+}
+
+function collectPlanTeeth(stages: TreatmentPlanStage[]): number[] {
+  const set = new Set<number>();
+  for (const stage of stages) {
+    for (const item of stage.items || []) {
+      for (const tooth of item.teeth || []) set.add(tooth);
+    }
+  }
+  return [...set].sort((a, b) => a - b);
 }
 
 function serializePlan(plan: {
@@ -29,22 +94,24 @@ function serializePlan(plan: {
   updatedAt: Date;
   patient?: { firstName: string; lastName: string } | null;
 }) {
-  const items = (plan.items as TreatmentPlanItems) || {};
-  return {
-    id: plan.id,
-    patientId: plan.patientId,
-    patientName: plan.patient ? `${plan.patient.firstName} ${plan.patient.lastName}`.trim() : undefined,
-    title: plan.title,
-    status: plan.status,
-    diagnosis: items.diagnosis ?? plan.notes ?? null,
-    notes: plan.notes,
-    totalBudget: plan.price ?? items.totalBudget ?? null,
-    teeth: items.teeth || [],
-    stages: items.stages || [],
-    doctorId: items.doctorId || null,
-    createdAt: plan.createdAt,
-    updatedAt: plan.updatedAt,
-  };
+    const items = (plan.items as TreatmentPlanItems) || {};
+    const stages = enrichStages(items.stages || []);
+    const computedTotal = stages.reduce((sum, stage) => sum + stageTotal(stage), 0);
+    return {
+      id: plan.id,
+      patientId: plan.patientId,
+      patientName: plan.patient ? `${plan.patient.firstName} ${plan.patient.lastName}`.trim() : undefined,
+      title: plan.title,
+      status: plan.status,
+      diagnosis: items.diagnosis ?? plan.notes ?? null,
+      notes: plan.notes,
+      totalBudget: computedTotal > 0 ? computedTotal : (plan.price ?? items.totalBudget ?? null),
+      teeth: collectPlanTeeth(stages).length ? collectPlanTeeth(stages) : (items.teeth || []),
+      stages,
+      doctorId: items.doctorId || null,
+      createdAt: plan.createdAt,
+      updatedAt: plan.updatedAt,
+    };
 }
 
 // Mandatory CRM section: Treatment Plans (Spec §05). Persists to the existing
@@ -106,11 +173,15 @@ crmRouter.post('/treatment-plans', async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Пациент принадлежит другой клинике' } satisfies ApiResponse);
     }
 
+    const normalizedStages = enrichStages(stages || []);
+    const computedTotal = normalizedStages.reduce((sum, stage) => sum + stageTotal(stage), 0);
+    const resolvedBudget = totalBudget ?? (computedTotal > 0 ? computedTotal : null);
+
     const items = {
       diagnosis: diagnosis ?? null,
-      totalBudget: totalBudget ?? null,
-      teeth: teeth || [],
-      stages: stages || [],
+      totalBudget: resolvedBudget,
+      teeth: collectPlanTeeth(normalizedStages).length ? collectPlanTeeth(normalizedStages) : (teeth || []),
+      stages: normalizedStages,
       doctorId: doctorId ?? null,
     } satisfies Prisma.InputJsonObject as unknown as TreatmentPlanItems & Prisma.InputJsonValue;
 
@@ -121,7 +192,7 @@ crmRouter.post('/treatment-plans', async (req: AuthRequest, res) => {
             title: title || undefined,
             status: status || undefined,
             items,
-            price: totalBudget ?? undefined,
+            price: resolvedBudget ?? undefined,
             notes: notes ?? diagnosis ?? undefined,
           },
           include: { patient: { select: { firstName: true, lastName: true } } },
@@ -133,7 +204,7 @@ crmRouter.post('/treatment-plans', async (req: AuthRequest, res) => {
             title: title || 'План лечения',
             status: status || 'proposed',
             items,
-            price: totalBudget ?? null,
+            price: resolvedBudget ?? null,
             notes: notes ?? diagnosis ?? null,
           },
           include: { patient: { select: { firstName: true, lastName: true } } },
@@ -182,7 +253,7 @@ crmRouter.patch('/treatment-plans/:id/stages/:stageId', async (req: AuthRequest,
     }
 
     const items = ((plan.items as TreatmentPlanItems) || {}) as TreatmentPlanItems;
-    const stages = Array.isArray(items.stages) ? [...items.stages] : [];
+    const stages = enrichStages(Array.isArray(items.stages) ? [...items.stages] : []);
     const idx = stages.findIndex((s) => s.id === stageId || String(s.sortOrder) === stageId);
     if (idx < 0) {
       return res.status(404).json({ ok: false, error: 'Этап не найден' } satisfies ApiResponse);
@@ -196,16 +267,24 @@ crmRouter.patch('/treatment-plans/:id/stages/:stageId', async (req: AuthRequest,
       ...(appointmentId !== undefined && { appointmentId: appointmentId as any }),
       ...(invoiceId !== undefined && { invoiceId: invoiceId as any }),
     };
+    stages[idx].cost = stageTotal(stages[idx]);
 
     const allDone = stages.length > 0 && stages.every((s) => s.status === 'done' || s.status === 'completed');
     const anyActive = stages.some((s) => s.status === 'in_progress' || s.status === 'active');
     const nextPlanStatus = allDone ? 'completed' : anyActive ? 'in_progress' : plan.status;
+    const computedTotal = stages.reduce((sum, stage) => sum + stageTotal(stage), 0);
 
     const updated = await prisma.treatmentPlan.update({
       where: { id },
       data: {
-        items: { ...items, stages } as unknown as Prisma.InputJsonValue,
+        items: {
+          ...items,
+          stages,
+          totalBudget: computedTotal || items.totalBudget || null,
+          teeth: collectPlanTeeth(stages),
+        } as unknown as Prisma.InputJsonValue,
         status: nextPlanStatus,
+        price: computedTotal || plan.price,
       },
       include: { patient: { select: { firstName: true, lastName: true } } },
     });
