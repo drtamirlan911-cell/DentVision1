@@ -44,7 +44,65 @@ function isClinicOps(role: TwinRole): boolean {
   return role === 'OWNER' || role === 'ADMIN' || role === 'MANAGER' || role === 'SUPERADMIN';
 }
 
-export async function buildDigitalTwin(userId: string, clinicId?: string | null) {
+/** Product guide twin for anonymous guests — not an empty clinic CRM profile. */
+function sanitizeGuestDisplayName(raw?: string | null): string {
+  const v = String(raw || '').trim();
+  if (!v || /Р.|Ð.|Ñ./.test(v) || !/[А-Яа-яA-Za-z]/.test(v)) return 'Гость';
+  if (/^gost/i.test(v)) return 'Гость';
+  return v;
+}
+
+export function buildGuestPlatformTwin(user?: {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+} | null) {
+  const rawName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+    || (user?.email?.endsWith('@guest.local') ? 'Гость' : null)
+    || 'Гость';
+  const name = sanitizeGuestDisplayName(rawName);
+
+  return {
+    role: 'GUEST',
+    roleLabel: 'Гость',
+    profileKind: 'platform' as const,
+    name: sanitizeGuestDisplayName(name),
+    title: 'Гид по DentVision',
+    specialty: 'Платформенный гид',
+    clinic: null,
+    skills: [
+      { name: 'CRM клиники', level: 72 },
+      { name: 'Маркетплейс', level: 68 },
+      { name: 'Academy OS', level: 65 },
+      { name: 'ИИ-ассистент', level: 80 },
+    ],
+    completedCourses: 0,
+    inProgressCourses: 0,
+    equipment: [] as string[],
+    learningPath: [
+      'Открыть демо-клинику и посмотреть CRM',
+      'Заглянуть в Academy OS — курсы и вебинары',
+      'Зарегистрироваться и подключить свою клинику',
+    ],
+    recommendations: [
+      'Спросите ИИ: «Чем полезен DentVision?»',
+      'Откройте демо, чтобы увидеть расписание и кассу в деле',
+      'После входа двойник станет живым профилем вашей роли',
+    ],
+    activityLevel: 'exploring',
+    kpis: [
+      { label: 'Модули платформы', value: 'CRM · Shop · School', change: '' },
+      { label: 'ИИ для гостя', value: 'Гид', change: '' },
+      { label: 'Демо клиника', value: 'Доступно', change: '' },
+      { label: 'Регистрация', value: 'Бесплатно', change: '' },
+    ],
+    aiAdvice:
+      'Я гид по DentVision: помогу разобраться в CRM, маркетплейсе и Academy. Данные вашей клиники появятся после входа — пока могу рассказать о возможностях или открыть демо.',
+    recentCourses: [] as Array<{ title: string; progress: number; completed: boolean }>,
+  };
+}
+
+export async function buildDigitalTwin(userId: string, clinicId?: string | null, opts?: { isGuest?: boolean }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -60,6 +118,11 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null)
     },
   });
   if (!user) return null;
+
+  const guestByEmail = String(user.email || '').endsWith('@guest.local');
+  if (opts?.isGuest || guestByEmail) {
+    return buildGuestPlatformTwin(user);
+  }
 
   const meta = (user.profileMeta && typeof user.profileMeta === 'object')
     ? (user.profileMeta as Record<string, unknown>)
@@ -386,6 +449,7 @@ export async function buildProactiveAlerts(opts: {
   userId: string;
   clinicId?: string | null;
   role?: string;
+  isGuest?: boolean;
 }): Promise<Array<{
   type: string;
   category: string;
@@ -403,8 +467,38 @@ export async function buildProactiveAlerts(opts: {
     action?: { type: string };
   }> = [];
 
+  const guestRole = String(opts.role || '').toUpperCase() === 'GUEST' || opts.isGuest;
   const clinicId = opts.clinicId;
   if (!clinicId) {
+    if (guestRole) {
+      alerts.push(
+        {
+          type: 'platform',
+          category: 'product',
+          text: 'Откройте демо-клинику — посмотрите CRM без регистрации',
+          message: 'Откройте демо-клинику — посмотрите CRM без регистрации',
+          priority: 5,
+          action: { type: 'OpenDemo' },
+        },
+        {
+          type: 'platform',
+          category: 'product',
+          text: 'Academy OS: курсы и вебинары для стоматологов',
+          message: 'Academy OS: курсы и вебинары для стоматологов',
+          priority: 4,
+          action: { type: 'OpenSchool' },
+        },
+        {
+          type: 'platform',
+          category: 'product',
+          text: 'Маркетплейс — закупки у поставщиков в одном месте',
+          message: 'Маркетплейс — закупки у поставщиков в одном месте',
+          priority: 3,
+          action: { type: 'OpenShop' },
+        },
+      );
+      return alerts;
+    }
     alerts.push({
       type: 'clinic',
       category: 'setup',

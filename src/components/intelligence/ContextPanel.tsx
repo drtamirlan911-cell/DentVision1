@@ -6,6 +6,8 @@ import { ContextTab } from '@/components/ai/ContextTab'
 import { DigitalTwin } from '@/components/ai/DigitalTwin'
 import { AlertsTab } from '@/components/ai/AlertsTab'
 import { useAIStore } from '@/store/ai.store'
+import { useAuth } from '@/store/auth.store'
+import { useGuestStore } from '@/store/guest.store'
 
 type TabId = 'context' | 'digital-twin' | 'alerts'
 
@@ -16,15 +18,32 @@ interface ContextPanelProps {
   role?: any
 }
 
-const TABS: { id: TabId; label: string; hint: string; icon: React.ElementType }[] = [
-  { id: 'context', label: 'Контекст', hint: 'Текущий объект работы', icon: User },
-  { id: 'digital-twin', label: 'Двойник', hint: 'Профиль врача для AI', icon: Brain },
-  { id: 'alerts', label: 'Оповещения', hint: 'AI-сигналы клиники', icon: Bell },
-]
-
 export function ContextPanel({ onClose }: ContextPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('context')
+  const { user } = useAuth()
+  const isGuest = useGuestStore((s) => s.isGuest) && !user
+  const [activeTab, setActiveTab] = useState<TabId>(isGuest ? 'digital-twin' : 'context')
   const alertCount = useAIStore((s) => s.proactiveAlerts.length)
+
+  const tabs: { id: TabId; label: string; hint: string; icon: React.ElementType }[] = [
+    {
+      id: 'context',
+      label: 'Контекст',
+      hint: isGuest ? 'Что открыто сейчас' : 'Текущий объект работы',
+      icon: User,
+    },
+    {
+      id: 'digital-twin',
+      label: 'Двойник',
+      hint: isGuest ? 'Гид по платформе' : 'Профиль для AI',
+      icon: Brain,
+    },
+    {
+      id: 'alerts',
+      label: 'Оповещения',
+      hint: isGuest ? 'Подсказки для гостя' : 'AI-сигналы клиники',
+      icon: Bell,
+    },
+  ]
 
   return (
     <motion.div
@@ -36,7 +55,7 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
     >
       <div className="flex items-center justify-between h-12 px-3 border-b border-bdr-subtle flex-shrink-0">
         <div className="flex items-center gap-0.5" role="tablist">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
             return (
@@ -79,7 +98,7 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <AnimatePresence mode="wait">
           {activeTab === 'context' && (
             <motion.div

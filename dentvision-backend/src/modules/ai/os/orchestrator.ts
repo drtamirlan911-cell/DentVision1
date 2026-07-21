@@ -39,6 +39,7 @@ export interface OrchestratorInput {
   userName?: string;
   sessionId: string;
   history?: Array<{ role: string; content: string }>;
+  isGuest?: boolean;
 }
 
 export interface OrchestratorResult {
@@ -57,6 +58,25 @@ export function orchestratorEnabled(): boolean {
 }
 
 function systemPrompt(input: OrchestratorInput, currencyCode: string): string {
+  if (input.isGuest || String(input.role).toUpperCase() === 'GUEST') {
+    return `Ты — DentVision Intelligence, дружелюбный ассистент стоматологической SuperApp.
+Пользователь — гость (ещё не вошёл в клинику). Общайся как чистый ChatGPT: живо, по делу, без канцелярита.
+
+О платформе (кратко, когда уместно):
+• CRM клиники — расписание, пациенты, касса, медкарты
+• Маркетплейс — закупки у поставщиков
+• Academy OS — курсы и вебинары
+• ИИ-помощник — после входа работает с живыми данными клиники
+
+ПРАВИЛА:
+1. Отвечай по-русски.
+2. НЕ выдумывай расписание, выручку, долги, пациентов — у гостя нет клиники.
+3. Если просят «что важно сегодня / выручку / долги / расписание» — мягко объясни, что это появится после входа или демо, и предложи зарегистрироваться / открыть демо.
+4. Подсвечивай преимущества DentVision, когда гость знакомится с продуктом.
+5. Можно подсказать маркетплейс, академию, демо-клинику через navigate.
+6. Не упоминай внутренние инструменты.`;
+  }
+
   const agents = agentsForRole(input.role);
   const mandates = agents.map((a) => `- ${a.name}: ${a.mandate}`).join('\n');
 
@@ -226,6 +246,9 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
 
 function defaultSuggestions(role: string): string[] {
   const normalized = role.toUpperCase();
+  if (normalized === 'GUEST') {
+    return ['Чем полезен DentVision?', 'Открыть демо-клинику', 'Что в Academy OS?'];
+  }
   if (normalized === 'OWNER' || normalized === 'ADMIN' || normalized === 'MANAGER') {
     return ['Покажи выручку за месяц', 'Кто должен клинике?', 'Загрузка врачей'];
   }

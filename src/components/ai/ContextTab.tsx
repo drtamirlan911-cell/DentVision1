@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import type { ReactNode } from 'react'
 import {
   User, Phone, CalendarDays, CreditCard, FilePlus, Search,
-  Stethoscope, Heart, Shield, AlertCircle, CheckCircle, GraduationCap, Store,
+  Stethoscope, Heart, Shield, AlertCircle, CheckCircle, GraduationCap, Store, Sparkles,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { cn, formatDate } from '@/lib/utils'
@@ -10,6 +10,8 @@ import { GlassCard } from '@/components/ui/ds/GlassCard'
 import { Badge } from '@/components/ui/ds/Badge'
 import { Button } from '@/components/ui/ds/Button'
 import { usePatientStore } from '@/store/patient.store'
+import { useAuth } from '@/store/auth.store'
+import { useGuestStore } from '@/store/guest.store'
 
 const TREATMENT_STAGES = [
   { id: 'diagnosis', label: 'Диагностика', icon: Search, color: 'text-blue-400' },
@@ -40,6 +42,8 @@ interface PatientContextData {
 export function ContextTab() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isGuest = useGuestStore((s) => s.isGuest) && !user
   const patientData = usePatientStore((s) => s.patientData)
   const selectedPatientId = usePatientStore((s) => s.selectedPatient)
 
@@ -48,13 +52,22 @@ export function ContextTab() {
   const isSchool = path.startsWith('/school')
   const isShop = path.startsWith('/shop') || path === '/supplier'
 
+  if (isGuest && !isCrm && !isSchool && !isShop) {
+    return (
+      <ScopeHint
+        icon={<Sparkles size={28} className="text-dv-gold" />}
+        title="Вы в режиме гостя"
+        body="Свободно смотрите маркетплейс, Academy и демо-клинику. После входа контекст станет живым: пациенты, записи и касса вашей клиники."
+        actionLabel="Открыть демо"
+        onAction={() => navigate('/demo')}
+      />
+    )
+  }
+
   const patient: PatientContextData | null = patientData
     ? {
         id: String(patientData.id || selectedPatientId || ''),
-        name:
-          [patientData.lastName, patientData.firstName, patientData.middleName].filter(Boolean).join(' ')
-          || patientData.name
-          || 'Пациент',
+        name: patientData.name || 'Пациент',
         phone: patientData.phone,
         nextVisit: patientData.nextVisit,
         treatmentStage: patientData.treatmentStage || 'treatment',
@@ -62,7 +75,7 @@ export function ContextTab() {
         allergies: Array.isArray(patientData.allergies) ? patientData.allergies : undefined,
         insurance: patientData.insurance,
         notes: patientData.notes,
-        avatar: patientData.avatar || patientData.photoUrl,
+        avatar: patientData.avatar,
       }
     : null
 

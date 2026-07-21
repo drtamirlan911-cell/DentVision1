@@ -48,12 +48,11 @@ const ADMIN_ITEMS: NavItem[] = [
 ];
 
 const GUEST_NAV_ITEMS: NavItem[] = [
-  { id: 'crm', label: 'CRM', icon: <Stethoscope size={16} />, path: '/crm/schedule', color: '#C9A96E', section: 'services' },
+  { id: 'demo', label: 'Демо клиника', icon: <FlaskConical size={16} />, path: '/demo', color: '#C9A96E', section: 'services' },
   { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={16} />, path: '/shop', color: '#8E44AD', section: 'services' },
   { id: 'school', label: 'Academy OS', icon: <GraduationCap size={16} />, path: '/school', color: '#16A085', section: 'services' },
   { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={16} />, path: '/jobs', color: '#E67E22', section: 'services' },
   { id: 'community', label: 'Сообщество', icon: <Users size={16} />, path: '/community', color: '#00BCD4', section: 'services' },
-  { id: 'demo', label: 'Демо клиника', icon: <FlaskConical size={16} />, path: '/demo', color: '#C9A96E', section: 'platform' },
   { id: 'pricing', label: 'Тарифы', icon: <Star size={16} />, path: '/pricing', color: '#F39C12', section: 'platform' },
 ];
 
@@ -289,13 +288,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </div>
-        <button
-          onClick={() => (onToggleCollapsed ? onToggleCollapsed() : setCollapsed(!collapsed))}
-          className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
-          aria-label={collapsed ? 'Развернуть сайдбар' : 'Свернуть сайдбар'}
-        >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
+        {!isGuest && (
+          <button
+            onClick={() => (onToggleCollapsed ? onToggleCollapsed() : setCollapsed(!collapsed))}
+            className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+            aria-label={collapsed ? 'Развернуть сайдбар' : 'Свернуть сайдбар'}
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        )}
       </div>
 
       {!collapsed && (
@@ -332,9 +333,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </motion.button>
       </div>
 
+      {!collapsed && isGuest && (
+        <div className="px-3 pt-2 pb-1 flex-shrink-0">
+          <div className="rounded-xl border border-dv-gold/20 bg-gradient-to-br from-dv-gold/10 via-dv-gold/5 to-transparent p-3 space-y-2">
+            <p className="text-xs font-semibold text-txt-primary">Знакомство с DentVision</p>
+            <p className="text-[11px] text-txt-muted leading-relaxed">
+              CRM, маркетплейс и Academy в одной SuperApp. Откройте демо или спросите ИИ.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleNavClick('/demo')}
+              className="w-full rounded-lg bg-dv-gold px-3 py-1.5 text-xs font-semibold text-surface-0 hover:bg-dv-gold/90 transition-colors"
+            >
+              Открыть демо
+            </button>
+          </div>
+        </div>
+      )}
+
       {!collapsed && (
         <div className="px-3 pt-4 pb-1 flex-shrink-0">
-          <p className="text-2xs font-semibold text-txt-ghost uppercase tracking-wider">Сервисы</p>
+          <p className="text-2xs font-semibold text-txt-ghost uppercase tracking-wider">
+            {isGuest ? 'Открыть' : 'Сервисы'}
+          </p>
         </div>
       )}
 
