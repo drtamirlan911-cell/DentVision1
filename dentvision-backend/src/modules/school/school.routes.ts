@@ -70,7 +70,7 @@ function mapCourseDetail(course: any) {
   });
 
   // Every Academy OS course ends with certification exam if none tagged.
-  if (!lessons.some((l) => l.type === 'exam' || l.type === 'test')) {
+  if (!lessons.some((l: { type: string }) => l.type === 'exam' || l.type === 'test')) {
     lessons.push({
       id: `exam-${course.id}`,
       title: 'Итоговый экзамен · сертификация',

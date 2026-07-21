@@ -17,6 +17,8 @@ interface Lesson {
   is_free?: boolean;
   videoUrl?: string;
   video_url?: string;
+  fileUrl?: string;
+  file_url?: string;
 }
 
 interface CourseModule {
@@ -40,7 +42,7 @@ interface CourseDetail {
 
 const DIFF_COLORS: Record<string, string> = { beginner: '#27AE60', intermediate: '#C9A96E', advanced: '#E74C3C' };
 const DIFF_LABELS: Record<string, string> = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
-const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = { video: Video, text: FileText, test: HelpCircle, exam: Award, quiz: HelpCircle, homework: FileText, pdf: FileText };
+const TYPE_ICONS: Record<string, any> = { video: Video, text: FileText, test: HelpCircle, exam: Award, quiz: HelpCircle, homework: FileText, pdf: FileText };
 const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест', exam: 'Экзамен', quiz: 'Квиз', pdf: 'PDF', homework: 'ДЗ' };
 
 function parseLessons(raw: any): string[] {
@@ -80,6 +82,7 @@ export default function SchoolCourse() {
   ]);
 
   useEffect(() => {
+    if (!id) return;
     Promise.all([
       api.getSchoolCourse(id),
       user ? api.getEnrollments(user.id) : Promise.resolve([]),
