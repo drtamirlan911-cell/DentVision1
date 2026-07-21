@@ -12,6 +12,7 @@ import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { PageHeader } from '../../components/ui/ds/StatCard';
 import { Tabs } from '../../components/ui/ds/Misc';
 import type { Patient, MedicalCard as MedicalCardType, Visit, Clinic, User as UserType, RoleInfo } from '../../types';
+import { usePatientStore } from '@/store/patient.store';
 
 const CARD_SECTIONS = [
   { id: 'personal', label: 'Личные данные', icon: <User size={16} /> },
@@ -52,8 +53,15 @@ export default function MedicalCard() {
 
   useEffect(() => {
     const pid = params.get('patient');
-    if (pid) setSelectedPatientId(pid);
+    if (pid) {
+      setSelectedPatientId(pid);
+      void usePatientStore.getState().openPatient(pid);
+    }
   }, [params]);
+
+  useEffect(() => {
+    if (selectedPatientId) void usePatientStore.getState().openPatient(selectedPatientId);
+  }, [selectedPatientId]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [editing, setEditing] = useState(false);
@@ -140,7 +148,7 @@ export default function MedicalCard() {
             {filteredPatients.map(p => (
               <button
                 key={p.id}
-                onClick={() => { setSelectedPatientId(p.id); setEditing(false); setActiveSection('personal'); }}
+                onClick={() => { setSelectedPatientId(p.id); setEditing(false); setActiveSection('personal'); void usePatientStore.getState().openPatient(p.id); }}
                 className={`w-full rounded-lg px-3 py-2.5 text-left transition-all ${
                   selectedPatientId === p.id
                     ? 'border border-dv-gold/30 bg-dv-gold/10 text-dv-gold'

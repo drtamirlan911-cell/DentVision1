@@ -22,6 +22,7 @@ import { Odontogram3D, SurfaceEditor, AutoTreatmentPlan, ToothLegend } from '../
 import { T, PATIENT_CATEGORY, calculateAge, formatPhone, fd, tg, gid, today } from '../../utils/constants'
 import { cn, formatMoney } from '../../lib/utils'
 import type { Patient, Appointment, Clinic, User as UserType, RoleInfo } from '../../types'
+import { usePatientStore } from '@/store/patient.store'
 
 const CAT_CFG = PATIENT_CATEGORY
 
@@ -142,6 +143,7 @@ export default function Patients() {
       if (p) {
         setSelected(p)
         setTeethState((p as any).teeth || {})
+        void usePatientStore.getState().openPatient(p.id)
       }
     }
     if (tab) setActiveTab(tab)
@@ -543,7 +545,12 @@ export default function Patients() {
                   <Card
                     hover
                     className="cursor-pointer group"
-                    onClick={() => { setSelected(p); setTeethState(p.teeth || {}); setActiveTab('info') }}
+                    onClick={() => {
+                      setSelected(p)
+                      setTeethState(p.teeth || {})
+                      setActiveTab('info')
+                      void usePatientStore.getState().openPatient(p.id)
+                    }}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
@@ -614,7 +621,10 @@ export default function Patients() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => setSelected(null)}>
+        <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => {
+          setSelected(null)
+          usePatientStore.getState().closePatient()
+        }}>
           К списку
         </Button>
         <div className="flex gap-2 flex-wrap justify-end">
