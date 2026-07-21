@@ -8,6 +8,9 @@ export interface AuthUser {
   lastName: string;
   role: UserRole;
   clinicId?: string;
+  // Active SUPPLIER context (set when the user switched into a supplier workspace).
+  supplierId?: string;
+  supplierRole?: string;
   isGuest?: boolean;
 }
 
@@ -27,6 +30,8 @@ export interface JwtPayload {
   email: string;
   role: UserRole;
   clinicId?: string;
+  supplierId?: string;
+  supplierRole?: string;
   isGuest?: boolean;
 }
 
