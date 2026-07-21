@@ -1,8 +1,8 @@
 /** DentVision money is KZT. Soft-correct LLM slips into rubles. */
 export function preferTengeCurrency(text: string): string {
   if (!text) return text;
-  // Amount may include spaced thousands and compact suffixes (2.4М, 450К).
-  const amount = String.raw`(\d[\d\s.,]*(?:\s*[KkКкMmМм])?)`;
+  // Digits with internal spaces/separators, optional compact suffix (2.4М / 450К).
+  const amount = String.raw`(\d+(?:[\s.,]\d+)*(?:[KkКкMmМм])?)`;
   return text
     .replace(new RegExp(`${amount}\\s*₽`, 'g'), '$1 ₸')
     .replace(new RegExp(`${amount}\\s*RUB\\b`, 'gi'), '$1 ₸')
