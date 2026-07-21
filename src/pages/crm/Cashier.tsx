@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/ds/Toast'
+import { useAuth } from '@/store/auth.store'
 import { useDataQuery } from '../../queries/useDataQuery'
 import { queryKeys } from '../../queries/keys'
 import * as api from '@/utils/api'
@@ -87,8 +88,11 @@ interface ExpenseForm {
 }
 
 export default function Cashier() {
-  const { clinic } = useOutletContext<OutletContext>()
-  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useDataQuery(clinic?.id)
+  const outlet = useOutletContext<OutletContext>() || ({} as OutletContext)
+  const { user, clinic: authClinic } = useAuth()
+  const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
+  const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
+  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useDataQuery(clinicId || undefined)
   const queryClient = useQueryClient()
   const { toast, showToast, clearToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
