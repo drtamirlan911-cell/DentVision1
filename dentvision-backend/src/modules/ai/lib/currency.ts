@@ -4,7 +4,8 @@ export function preferTengeCurrency(text: string): string {
   return text
     .replace(/(\d[\d\s.,]*)\s*₽/g, '$1 ₸')
     .replace(/(\d[\d\s.,]*)\s*RUB\b/gi, '$1 ₸')
-    .replace(/(\d[\d\s.,]*)\s*руб(?:л(?:ей|я|ь)?)?\b/gi, '$1 ₸')
-    .replace(/\bв рублях\b/gi, 'в тенге')
-    .replace(/\bрубл(?:ей|я|ь)\b/gi, 'тенге');
+    // Avoid \b with Cyrillic — JS word boundaries are ASCII-only.
+    .replace(/(\d[\d\s.,]*)\s*руб(?:л(?:ей|я|ь))?\.?/gi, '$1 ₸')
+    .replace(/в рублях/gi, 'в тенге')
+    .replace(/рубл(?:ей|я|ь)/gi, 'тенге');
 }
