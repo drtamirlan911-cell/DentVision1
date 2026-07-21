@@ -125,7 +125,7 @@ export default function MedicalCard() {
   );
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
       <PageHeader
         title="Электронная медицинская карта"
         subtitle="Полная медицинская информация пациента (МКБ-10, аллергии, история)"

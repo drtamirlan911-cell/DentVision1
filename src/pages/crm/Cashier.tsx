@@ -310,7 +310,7 @@ export default function Cashier() {
   })
 
   return (
-    <div className="p-6">
+    <div className="dv-page py-4 md:py-6">
       <PageHeader
         title="Касса"
         subtitle="Оплата из расписания, операции, расходы"

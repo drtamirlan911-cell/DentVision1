@@ -202,7 +202,7 @@ export default function Reminders() {
       initial="hidden"
       animate="show"
       variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }}
-      className="p-6 space-y-6"
+      className="dv-page space-y-6 py-4 md:py-6"
     >
       {/* Header */}
       <PageHeader

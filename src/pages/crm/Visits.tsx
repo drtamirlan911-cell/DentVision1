@@ -97,7 +97,7 @@ export default function Visits() {
   };
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
       <PageHeader
         title="Журнал посещений"
         subtitle="Все визиты пациентов с диагнозами и МКБ-10"

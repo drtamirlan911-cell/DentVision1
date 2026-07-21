@@ -430,7 +430,7 @@ export default function Patients() {
   // ── List View ──────────────────────────────────────────────
   if (!selected) {
     return (
-      <div className="p-6">
+      <div className="dv-page py-4 md:py-6">
         <PageHeader
           title="Пациенты"
           subtitle={`База пациентов клиники · ${patients.length} чел.`}
@@ -625,7 +625,7 @@ export default function Patients() {
   ]
 
   return (
-    <div className="p-6">
+    <div className="dv-page py-4 md:py-6">
       <div className="flex items-center justify-between mb-6">
         <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => {
           setSelected(null)

@@ -104,7 +104,7 @@ export default function DentalChart() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-6xl mx-auto space-y-6 p-4 md:p-6"
+      className="dv-page max-w-6xl mx-auto space-y-6 py-4 md:py-6"
     >
       <PageHeader
         title="Зубная карта"

@@ -19,6 +19,7 @@ import { DoctorPayrollCard } from '@/components/crm/DoctorPayrollCard'
 import { DentWalletCard } from '@/components/wallet/DentWalletCard'
 import * as api from '@/utils/api'
 import { gid } from '@/utils/constants'
+import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 
 function Section({ icon, title, onAdd, children }: { icon: React.ReactNode; title: string; onAdd?: () => void; children: React.ReactNode }) {
   return (
@@ -70,27 +71,11 @@ export default function Profile() {
   const [photoUploading, setPhotoUploading] = useState(false)
   const photoInputRef = React.useRef<HTMLInputElement>(null)
 
-  const fileToDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(String(reader.result || ''))
-      reader.onerror = () => reject(new Error('Не удалось прочитать файл'))
-      reader.readAsDataURL(file)
-    })
-
   const handlePhotoFile = async (file: File | null) => {
     if (!file) return
-    if (!file.type.startsWith('image/')) {
-      toast.error('Выберите изображение (JPG, PNG, WEBP)')
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Файл больше 5 МБ — сожмите фото и попробуйте снова')
-      return
-    }
     setPhotoUploading(true)
     try {
-      const dataUrl = await fileToDataUrl(file)
+      const dataUrl = await readImageAsDataUrl(file)
       setEditForm((prev: any) => ({ ...prev, photoUrl: dataUrl }))
       toast.success('Фото загружено — нажмите «Сохранить»')
     } catch (e: any) {
@@ -394,7 +379,7 @@ export default function Profile() {
             <input
               ref={photoInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept={PROFILE_PHOTO_ACCEPT}
               className="hidden"
               onChange={(e) => {
                 void handlePhotoFile(e.target.files?.[0] || null)

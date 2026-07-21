@@ -75,6 +75,18 @@
     }
   }
 
+  /* Contained horizontal scroll regions on mobile */
+  .overflow-x-auto {
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prefer tap without accidental double-tap zoom on controls */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+
   img, video, canvas, svg {
     max-width: 100%;
   }
