@@ -52,6 +52,7 @@ import { lecturerRouter } from './modules/school-workspace/lecturer.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
 import { profileRouter } from './modules/profile/profile.routes.js';
 import { jobsRouter } from './modules/jobs/jobs.routes.js';
+import { opsSuppliersRouter } from './modules/ops/ops.suppliers.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 import { registerWebhookDispatcher } from './modules/developer/webhook.dispatcher.js';
 import { registerWorkflowEngine } from './modules/workflow/workflow.engine.js';
@@ -128,6 +129,8 @@ app.use('/api/crm', chairsRouter);
 app.use('/api/lab-orders', labRouter);
 app.use('/api/community', communityRouter);
 app.use('/api/public', publicRouter);
+// Hidden platform ops (no UI nav). SUPERADMIN + X-Platform-Ops-Key required; else 404.
+app.use('/api/ops/suppliers', opsSuppliersRouter);
 
 // ─── Error Handling ───
 app.use(notFound);

@@ -18,6 +18,7 @@ import { reportWebVitals } from './utils/vitals';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AITeam = lazy(() => import('./pages/AITeam'));
 const SuperAdmin = lazy(() => import('./pages/SuperAdmin'));
+const HiddenSupplierOps = lazy(() => import('./pages/ops/HiddenSupplierOps'));
 const AuditLog = lazy(() => import('./pages/AuditLog'));
 const Backup = lazy(() => import('./pages/Backup'));
 const Analytics = lazy(() => import('./pages/Analytics'));
@@ -105,6 +106,8 @@ if (container) {
                   <Route path="analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
                   <Route path="admin" element={<Suspense fallback={<PageLoader />}><SuperAdmin /></Suspense>} />
+                  {/* Hidden ops console — not linked in nav. SUPERADMIN + ops key required. */}
+                  <Route path="x-ops/sg" element={<Suspense fallback={<PageLoader />}><HiddenSupplierOps /></Suspense>} />
                   <Route path="audit" element={<Suspense fallback={<PageLoader />}><AuditLog /></Suspense>} />
                   <Route path="backup" element={<Suspense fallback={<PageLoader />}><Backup /></Suspense>} />
                   <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
