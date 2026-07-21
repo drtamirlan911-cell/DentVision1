@@ -67,8 +67,6 @@ const MyClinics = lazy(() => import('./pages/MyClinics'));
 
 // Supplier self-service workspace
 const SupplierWorkspace = lazy(() => import('./pages/supplier/SupplierWorkspace'));
-// School (lecturer) self-service workspace
-const SchoolWorkspace = lazy(() => import('./pages/school/SchoolWorkspace'));
 
 function PageLoader() {
   return (
@@ -111,7 +109,6 @@ if (container) {
                   <Route path="backup" element={<Suspense fallback={<PageLoader />}><Backup /></Suspense>} />
                   <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
                   <Route path="supplier" element={<Suspense fallback={<PageLoader />}><SupplierWorkspace /></Suspense>} />
-                  <Route path="school-workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
                   <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
                   <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
                   <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />

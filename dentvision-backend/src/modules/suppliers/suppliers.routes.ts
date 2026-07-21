@@ -164,39 +164,6 @@ suppliersRouter.post('/:id/status', requirePermission('supplier.manage'), async 
   }
 });
 
-// GET /api/suppliers/:id/members — list members (platform).
-suppliersRouter.get('/:id/members', requirePermission('supplier.manage'), async (req: AuthRequest, res) => {
-  const members = await prisma.supplierMember.findMany({ where: { supplierId: req.params.id as string } });
-  return res.json({ ok: true, data: members } satisfies ApiResponse);
-});
-
-// POST /api/suppliers/:id/members — link a user to the supplier (platform).
-suppliersRouter.post('/:id/members', requirePermission('supplier.manage'), async (req: AuthRequest, res) => {
-  try {
-    const { userId, role } = req.body || {};
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: 'userId обязателен' } satisfies ApiResponse);
-    }
-    const supplier = await prisma.supplier.findUnique({ where: { id: req.params.id as string } });
-    if (!supplier) {
-      return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
-    }
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
-    if (!user) {
-      return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
-    }
-    const member = await prisma.supplierMember.upsert({
-      where: { userId_supplierId: { userId, supplierId: supplier.id } },
-      create: { userId, supplierId: supplier.id, role: role || 'owner' },
-      update: { role: role || 'owner' },
-    });
-    return res.status(201).json({ ok: true, data: member } satisfies ApiResponse);
-  } catch (error) {
-    console.error('Add supplier member error:', error);
-    return res.status(500).json({ ok: false, error: 'Ошибка при добавлении участника' } satisfies ApiResponse);
-  }
-});
-
 // POST /api/suppliers/:id/documents — attach a document (platform).
 suppliersRouter.post('/:id/documents', requirePermission('supplier.manage'), async (req: AuthRequest, res) => {
   try {

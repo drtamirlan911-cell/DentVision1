@@ -83,6 +83,8 @@ export interface ClinicSettings {
   taxPercent?: number
   notifyNoShow?: boolean
   requireChair?: boolean
+  autoDeductItems?: string
+  bookingLink?: string
 }
 
 // ─── Patients ───────────────────────────────────────────────────
@@ -97,6 +99,7 @@ export interface Patient {
   address?: string
   gender?: string
   notes?: string
+  prepaidBalance?: number
   category?: 'new' | 'regular' | 'vip' | 'debt'
   teeth?: Record<number, string>
   createdAt?: string
@@ -308,13 +311,17 @@ export interface Booking {
   clinicId?: string
   patientName?: string
   patientPhone?: string
+  phone?: string
   patientEmail?: string
+  email?: string
   doctorId?: string
+  doctorName?: string
   serviceName?: string
   date?: string
   time?: string
   notes?: string
   status?: BookingStatus
+  source?: string
   createdAt?: string
 }
 
