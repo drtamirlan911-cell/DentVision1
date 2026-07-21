@@ -191,7 +191,7 @@ export default function Cashier() {
       patientId: appt.patientId || '',
       patientName: patient?.name || '',
       service: appt.serviceName || '',
-      amount: appt.servicePrice || '',
+      amount: appt.servicePrice != null ? String(appt.servicePrice) : '',
       paymentMethod: cashSettings.defaultMethod,
       appointmentId: appt.id,
       diagnosis: appt.diagnosis || '',
@@ -209,7 +209,11 @@ export default function Cashier() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!form.amount || isNaN(Number(form.amount))) {
+    if (!form.patientId) {
+      showToast('Выберите пациента', 'warning')
+      return
+    }
+    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
       showToast('Введите корректную сумму', 'warning')
       return
     }
@@ -226,10 +230,11 @@ export default function Cashier() {
         date: today(),
         status,
         total: Number(form.amount),
+        amount: Number(form.amount),
         payMethod: form.paymentMethod,
         paymentType: form.paymentType,
         notes: form.notes,
-        patientId: form.patientId || undefined,
+        patientId: form.patientId,
         patientName: form.patientName || patients.find((p) => p.id === form.patientId)?.name || '',
         service: form.service,
         appointmentId: form.appointmentId || undefined,
@@ -238,14 +243,23 @@ export default function Cashier() {
         items: form.service ? [{ name: form.service, price: Number(form.amount), qty: 1 }] : [],
       })
 
-      if (form.appointmentId && status === 'paid') {
-        await upsertAppointment({ id: form.appointmentId, paymentStatus: 'paid' })
+      if (form.appointmentId && (status === 'paid' || status === 'partial')) {
+        const appt = appointments.find((a) => a.id === form.appointmentId)
+        await upsertAppointment({
+          id: form.appointmentId,
+          patientId: appt?.patientId || form.patientId,
+          doctorId: appt?.doctorId,
+          date: appt?.date,
+          time: appt?.time,
+          duration: appt?.duration,
+          paymentStatus: status === 'paid' ? 'paid' : 'partial',
+        })
       }
 
       showToast('Оплата принята', 'success')
       setModalOpen(false)
-    } catch {
-      showToast('Ошибка сохранения', 'error')
+    } catch (err: any) {
+      showToast(err?.message || 'Ошибка сохранения', 'error')
     }
   }
 

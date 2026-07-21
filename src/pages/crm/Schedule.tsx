@@ -469,10 +469,16 @@ export default function Schedule() {
         items: [{ name: serviceName, price: payload.amount, qty: 1 }],
       })
 
-      if (status === 'paid') {
-        await upsertAppointment({ id: payAppt.id, paymentStatus: 'paid' })
-      } else if (status === 'partial') {
-        await upsertAppointment({ id: payAppt.id, paymentStatus: 'partial' })
+      if (status === 'paid' || status === 'partial') {
+        await upsertAppointment({
+          id: payAppt.id,
+          patientId: payAppt.patientId,
+          doctorId: payAppt.doctorId,
+          date: payAppt.date,
+          time: payAppt.time,
+          duration: payAppt.duration,
+          paymentStatus: status === 'paid' ? 'paid' : 'partial',
+        })
       }
 
       if (payload.closeVisit && !['done', 'completed', 'cancelled'].includes(String(payAppt.status))) {
