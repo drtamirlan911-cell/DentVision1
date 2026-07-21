@@ -71,6 +71,8 @@ app.use('/api/school', schoolRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/guest', guestRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/analytics', ecosystemRouter);
+app.use('/api/compliance', complianceRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/documents', filesRouter);
