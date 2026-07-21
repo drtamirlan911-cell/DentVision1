@@ -57,21 +57,35 @@ export class AIService {
     // Navigation intents → return an action the frontend can execute (allowed for all roles)
     const navAction = this.mapNavigationAction(intent);
     if (navAction) {
+      if (context.isGuest && ['OpenSchedule', 'OpenCashier', 'OpenFinance', 'OpenPatients'].includes(navAction)) {
+        const message = guestProductPitch('Для расписания и кассы нужна клиника — войдите или откройте демо.');
+        await this.saveMessage(sessionId, 'assistant', message);
+        return {
+          message,
+          intent,
+          suggestions: guestSuggestions(),
+        };
+      }
       const label = this.navigationLabel(intent);
       const response: AIResponse = {
         message: `Открываю: **${label}**`,
         intent,
         action: { type: navAction, payload: {} },
-        suggestions: ['Показать расписание', 'Проверить долги', 'Показать выручку'],
+        suggestions: context.isGuest
+          ? guestSuggestions()
+          : ['Показать расписание', 'Проверить долги', 'Показать выручку'],
       };
       await this.saveMessage(sessionId, 'assistant', response.message);
       return response;
     }
 
-    // The classifier could not recognize the request. This is not a
-    // permissions problem, so it must never reach hasPermission() below —
-    // otherwise every unrecognized message reports "no permission".
-    if (intent === Intent.UNKNOWN) {
+    // Greeting / unknown: guests get a product concierge, not CRM help.
+    if (intent === Intent.UNKNOWN || isGreetingText(text)) {
+      if (context.isGuest) {
+        const message = guestWelcomeMessage();
+        await this.saveMessage(sessionId, 'assistant', message);
+        return { message, intent: 'GUEST_WELCOME', suggestions: guestSuggestions() };
+      }
       const message =
         'Могу помочь с расписанием, выручкой, долгами, складом или записью пациента.\n\n' +
         'Попробуйте, например:\n' +
@@ -87,16 +101,26 @@ export class AIService {
       };
     }
 
-    // Guests (anonymous/demo) may use read-only and demo intents
-    const GUEST_ALLOWED = new Set([
+    // Guests never run clinic CRM agents (empty clinic → zeros / confusing UX).
+    const GUEST_CRM = new Set([
       'SEARCH_PATIENT', 'VIEW_SCHEDULE', 'GET_ANALYTICS', 'VIEW_CBCT',
-      'CHECK_DEBTS', 'FIND_COURSE', 'GENERATE_REPORT', 'LOW_STOCK',
+      'CHECK_DEBTS', 'GENERATE_REPORT', 'LOW_STOCK',
       'VIEW_PATIENT', 'OPEN_MEDICAL_CARD_NAV', 'SHOW_CBCT', 'MORNING_BRIEFING',
+      'GET_DEBTORS', 'GENERATE_INVOICE',
     ]);
-    if (context.isGuest && GUEST_ALLOWED.has(intent)) {
+    if (context.isGuest && GUEST_CRM.has(intent)) {
+      const message = guestProductPitch(
+        'Сводка клиники, расписание и долги доступны после входа. Пока могу рассказать о возможностях DentVision или открыть демо.',
+      );
+      await this.saveMessage(sessionId, 'assistant', message);
+      return { message, intent: 'GUEST_GATE', suggestions: guestSuggestions() };
+    }
+
+    if (context.isGuest) {
+      // Allow marketplace / school style intents via agents if any remain
       const response = await agentRouter.route(context, intent, params);
       await this.saveMessage(sessionId, 'assistant', response.message);
-      return response;
+      return { ...response, suggestions: response.suggestions?.length ? response.suggestions : guestSuggestions() };
     }
 
     // Check permissions
@@ -257,6 +281,44 @@ export class AIService {
 
     return alerts;
   }
+}
+
+function isGreetingText(text: string): boolean {
+  const t = String(text || '').trim().toLowerCase();
+  return /^(привет|здравствуй|добрый|hello|hi|приветствие)\b/i.test(t) || t === 'приветствие';
+}
+
+function guestSuggestions(): string[] {
+  return ['Чем полезен DentVision?', 'Открыть демо-клинику', 'Что в Academy OS?'];
+}
+
+function guestWelcomeMessage(): string {
+  const h = new Date().getHours();
+  const greeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
+  return [
+    `${greeting}! Я DentVision Intelligence — ваш гид по стоматологической SuperApp.`,
+    '',
+    'Здесь можно:',
+    '• **CRM клиники** — расписание, пациенты, касса и медкарты в одном месте',
+    '• **Маркетплейс** — закупки у проверенных поставщиков',
+    '• **Academy OS** — курсы и вебинары для врачей',
+    '• **ИИ-ассистент** — после входа работает с живыми данными вашей клиники',
+    '',
+    'Спросите что угодно о платформе — или откройте демо, чтобы посмотреть CRM в деле.',
+  ].join('\n');
+}
+
+function guestProductPitch(lead: string): string {
+  return [
+    lead,
+    '',
+    'DentVision объединяет клинику, закупки и обучение:',
+    '• единый ИИ-рабочий стол',
+    '• CRM без разрозненных таблиц',
+    '• маркетплейс и Academy OS рядом',
+    '',
+    'Войдите или откройте демо — и я смогу работать с вашими данными.',
+  ].join('\n');
 }
 
 export const aiService = new AIService();

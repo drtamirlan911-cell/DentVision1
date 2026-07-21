@@ -143,16 +143,20 @@ async function processQuery(
 ): Promise<ProcessedResponse> {
   const isGuest = !req.user || req.user.isGuest === true;
 
-  if (!isGuest && orchestratorEnabled()) {
+  // Guests get a product concierge (LLM) — not the clinic CRM intent router.
+  if (orchestratorEnabled()) {
     try {
       const result = await orchestrate({
         text,
-        userId: req.user!.id,
-        clinicId: req.user!.clinicId || null,
-        role: req.user!.role,
-        userName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
+        userId: req.user?.id || 'guest',
+        clinicId: isGuest ? null : (req.user!.clinicId || null),
+        role: isGuest ? 'GUEST' : req.user!.role,
+        userName: isGuest
+          ? 'Гость'
+          : [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
         sessionId,
         history,
+        isGuest,
       });
       return {
         message: result.message,
@@ -170,8 +174,8 @@ async function processQuery(
 
   const context = {
     userId: req.user?.id || 'guest',
-    clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
-    role: req.user?.role || 'guest',
+    clinicId: isGuest ? '' : (req.user?.clinicId || DEMO_CLINIC_ID),
+    role: isGuest ? 'guest' : (req.user?.role || 'guest'),
     isGuest,
     sessionId,
     metadata: {},
