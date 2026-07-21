@@ -1,27 +1,38 @@
 import prisma from '../../lib/prisma.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
 import { balancedTransfer, getOrCreateUserDentWallet } from './wallet.service.js';
+import { refundDentCashSpend } from './spend.service.js';
 
 /**
- * Reverse earn entries for a ref (order/payment).
- * - pending: credit funder back (obligation cancelled), mark reversed
- * - available: debit USER → credit funder
- * - spent: create clawback pending note for remaining
+ * Reverse earn (+ spend) for a ref (order/payment).
+ * - pending earn: mark reversed (no wallet move — pending never debited funder)
+ * - available earn: debit USER → credit funder
+ * - spent earn: clawback note
+ * - spend: refund PLATFORM → USER
  */
 export async function reverseCashback(opts: {
   refType: string;
   refId: string;
   reason?: string;
+  /** When set, only reverse earn rows funded by this seller (spend still refunded). */
+  sellerId?: string | null;
 }) {
+  const spendRefund = await refundDentCashSpend({
+    refType: opts.refType,
+    refId: opts.refId,
+    reason: opts.reason || 'refund',
+  });
+
   const earns = await prisma.dentCashLedger.findMany({
     where: {
       refType: opts.refType,
       refId: opts.refId,
       type: 'earn',
       status: { in: ['pending', 'available', 'spent'] },
+      ...(opts.sellerId ? { sellerId: opts.sellerId } : {}),
     },
   });
-  if (!earns.length) return { reversed: 0n };
+  if (!earns.length) return { reversed: 0n, spendRefunded: spendRefund.refunded };
 
   let reversed = 0n;
   for (const row of earns) {
@@ -30,10 +41,7 @@ export async function reverseCashback(opts: {
     const funder = await getOrCreateWallet(funderType, funderId);
 
     if (row.status === 'pending') {
-      await prisma.wallet.update({
-        where: { id: funder.id },
-        data: { balance: { increment: row.amountMinor } },
-      });
+      // Pending earns are obligations only — no wallet movement to undo.
     } else if (row.status === 'available') {
       const userWallet = await getOrCreateUserDentWallet(row.userId);
       const claw = row.amountMinor > userWallet.balance ? userWallet.balance : row.amountMinor;
@@ -93,5 +101,5 @@ export async function reverseCashback(opts: {
     reversed += row.amountMinor;
   }
 
-  return { reversed };
+  return { reversed, spendRefunded: spendRefund.refunded };
 }

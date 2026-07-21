@@ -59,8 +59,10 @@ shopRouter.get('/products', async (req, res) => {
 
     const mapped = products.map((p) => ({
       ...p,
+      supplier_id: p.supplierId || p.supplier?.id || null,
       supplier_name: p.supplier?.name || null,
       supplier_status: p.supplier?.status || null,
+      own_brand: !!(p as any).ownBrand,
       category_name: p.category || 'Прочее',
       category_id: p.category || 'other',
       brand: p.brand || '',
@@ -81,14 +83,34 @@ shopRouter.get('/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const product = await prisma.product.findUnique({ where: { id } });
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        supplier: { select: { id: true, name: true, status: true } },
+      },
+    });
 
     if (!product) {
       res.status(404).json({ ok: false, error: 'Product not found' });
       return;
     }
 
-    res.json({ ok: true, data: product });
+    res.json({
+      ok: true,
+      data: {
+        ...product,
+        supplier_id: product.supplierId || product.supplier?.id || null,
+        supplier_name: product.supplier?.name || null,
+        supplier_status: product.supplier?.status || null,
+        supplier_country: product.country || null,
+        own_brand: !!product.ownBrand,
+        category_name: product.category || 'Прочее',
+        brand: product.brand || '',
+        rating: product.rating ?? 4.5,
+        review_count: 0,
+        delivery_days: 3,
+      },
+    });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch product' });
   }
@@ -96,11 +118,34 @@ shopRouter.get('/products/:id', async (req, res) => {
 
 shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { items, total, dentCashMinor, dentCashTenge, delivery_address, delivery_method, payment_method, notes } = req.body;
-    const clinicId = req.user?.clinicId;
+    if (req.user?.isGuest) {
+      res.status(403).json({ ok: false, error: 'Войдите в аккаунт, чтобы оформить заказ' });
+      return;
+    }
 
+    const { items, total, dentCashMinor, dentCashTenge, delivery_address, delivery_method, payment_method, notes, clinic_id, clinicId: bodyClinicId } = req.body;
+
+    // Resolve clinic: JWT → body (membership-checked) → first membership
+    let clinicId = req.user?.clinicId || null;
+    const requestedClinic = clinic_id || bodyClinicId || null;
+    if (!clinicId && requestedClinic) {
+      const member = await prisma.clinicMember.findFirst({
+        where: { userId: req.user!.id, clinicId: String(requestedClinic) },
+      });
+      if (member) clinicId = member.clinicId;
+    }
     if (!clinicId) {
-      res.status(400).json({ ok: false, error: 'Clinic context is required' });
+      const first = await prisma.clinicMember.findFirst({
+        where: { userId: req.user!.id },
+        orderBy: { joinedAt: 'asc' },
+      });
+      clinicId = first?.clinicId || null;
+    }
+    if (!clinicId) {
+      res.status(400).json({
+        ok: false,
+        error: 'Нужна клиника: вступите в клинику или выберите её в профиле, затем оформите заказ',
+      });
       return;
     }
 
@@ -159,20 +204,9 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     if (dentCashMinor != null) spendWanted = BigInt(dentCashMinor);
     else if (dentCashTenge != null) spendWanted = tengeToMinor(Number(dentCashTenge));
 
-    const spent = await spendDentCash({
-      userId: req.user!.id,
-      amountMinor: spendWanted,
-      payableMinor: tengeToMinor(payableBeforeCash),
-      refType: 'order',
-      refId: orderId,
-    });
-
-    const finalTotal = Math.max(0, payableBeforeCash - Number(spent) / 100);
-
-    // Client total is informational; server total wins
+    // Create order first so spend always has a durable ref (no orphaned debit).
     void total;
-
-    const order = await prisma.order.create({
+    let order = await prisma.order.create({
       data: {
         id: orderId,
         clinicId,
@@ -184,8 +218,45 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
           price: l.priceTenge,
           supplier_id: l.supplierId,
         })),
-        total: finalTotal,
+        total: payableBeforeCash,
         status: 'pending',
+        meta: {
+          delivery_address,
+          delivery_method,
+          payment_method,
+          notes,
+          goodsTotal,
+          deliveryCost,
+          dentCashMinor: '0',
+          dentCashTenge: 0,
+        },
+      },
+    });
+
+    let spent = 0n;
+    try {
+      spent = await spendDentCash({
+        userId: req.user!.id,
+        amountMinor: spendWanted,
+        payableMinor: tengeToMinor(payableBeforeCash),
+        refType: 'order',
+        refId: orderId,
+      });
+    } catch (err) {
+      console.error('[dentcash spend order]', err);
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'cancelled', meta: { ...(order.meta as object || {}), cancelReason: 'dentcash_spend_failed' } },
+      }).catch(() => null);
+      res.status(500).json({ ok: false, error: 'Не удалось списать DentCash' });
+      return;
+    }
+
+    const finalTotal = Math.max(0, payableBeforeCash - Number(spent) / 100);
+    order = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        total: finalTotal,
         meta: {
           delivery_address,
           delivery_method,
@@ -204,17 +275,27 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       userId: req.user!.id,
       lines,
       immediate: false,
-    }).catch((err) => {
+      spendMinor: spent,
+    }).catch(async (err) => {
       console.error('[dentcash accrue order]', err);
+      // Order + spend already committed; surface zero earn (retryable via ops).
       return null;
     });
+
+    // If velocity skipped entire earn, still return a clear hint.
+    const earnTenge = cashback && !cashback.skipped
+      ? Number(cashback.totalMinor) / 100
+      : cashback?.skipped && cashback.reason === 'already_accrued'
+        ? Number(cashback.totalMinor) / 100
+        : 0;
 
     res.status(201).json({
       ok: true,
       data: {
         ...order,
         dentCashSpentTenge: Number(spent) / 100,
-        dentCashEarnPendingTenge: cashback ? Number(cashback.totalMinor) / 100 : 0,
+        dentCashEarnPendingTenge: earnTenge,
+        dentCashEarnSkipped: cashback?.skipped ? cashback.reason : null,
       },
     });
   } catch (error) {

@@ -1,7 +1,7 @@
-import type { Prisma, WalletOwnerType } from '@prisma/client';
+import type { WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
-import { cashbackMinor, defaultShopRateBps, pickBestRule, RATE_BPS } from './rates.js';
+import { cashbackMinor, defaultShopRateBps, pickBestRule, RATE_BPS, scaleEarnAfterSpend } from './rates.js';
 import { clampRateBps, exceedsEarnVelocity, isSelfDeal } from './fraud.js';
 import { balancedTransfer, getOrCreateUserDentWallet } from './wallet.service.js';
 
@@ -80,124 +80,141 @@ export async function resolveLineCashback(line: LineInput): Promise<{
 /**
  * Accrue DentCash for a shop order. Status starts as `pending` until delivery,
  * unless `immediate` is true.
+ *
+ * Pending = obligation only (no wallet move). Release does funder → USER.
+ * `spendMinor` reduces earn proportionally (cash portion of goods only).
  */
 export async function accrueShopOrderCashback(opts: {
   orderId: string;
   userId: string;
   lines: LineInput[];
   immediate?: boolean;
+  spendMinor?: bigint;
 }) {
   if (await exceedsEarnVelocity(opts.userId)) {
     return { skipped: true, reason: 'velocity', totalMinor: 0n, entries: [] as string[] };
   }
 
-  const existing = await prisma.dentCashLedger.findFirst({
+  const existingRows = await prisma.dentCashLedger.findMany({
     where: { userId: opts.userId, refType: 'order', refId: opts.orderId, type: 'earn' },
   });
-  if (existing) {
-    return { skipped: true, reason: 'already_accrued', totalMinor: existing.amountMinor, entries: [existing.id] };
+  const doneProducts = new Set(
+    existingRows
+      .map((r) => String((r.meta as any)?.productId || ''))
+      .filter(Boolean),
+  );
+  // Legacy single aggregated row without productId — treat whole order as done.
+  if (existingRows.some((r) => !(r.meta as any)?.productId)) {
+    const total = existingRows.reduce((s, r) => s + r.amountMinor, 0n);
+    return { skipped: true, reason: 'already_accrued', totalMinor: total, entries: existingRows.map((r) => r.id) };
   }
 
+  const goodsMinor = opts.lines.reduce(
+    (s, l) => s + BigInt(Math.round(l.priceTenge * 100)) * BigInt(Math.max(1, l.qty)),
+    0n,
+  );
+  const spendMinor = opts.spendMinor && opts.spendMinor > 0n ? opts.spendMinor : 0n;
+
   const userWallet = await getOrCreateUserDentWallet(opts.userId);
-  let totalMinor = 0n;
-  const entryIds: string[] = [];
+  let totalMinor = existingRows.reduce((s, r) => s + r.amountMinor, 0n);
+  const entryIds: string[] = existingRows.map((r) => r.id);
   const status = opts.immediate ? 'available' : 'pending';
 
   for (const line of opts.lines) {
+    const pid = line.productId || '';
+    if (pid && doneProducts.has(pid)) continue;
     if (await isSelfDeal(opts.userId, line.supplierId)) continue;
-    const resolved = await resolveLineCashback(line);
-    if (resolved.amountMinor <= 0n) continue;
 
-    const funderWallet = await getOrCreateWallet(resolved.fundedBy, resolved.funderId);
+    const resolved = await resolveLineCashback(line);
+    const earn = scaleEarnAfterSpend({
+      earnMinor: resolved.amountMinor,
+      goodsMinor,
+      spendMinor,
+    });
+    if (earn <= 0n) continue;
 
     if (status === 'available') {
+      let fromWallet = await getOrCreateWallet(resolved.fundedBy, resolved.funderId);
+      if (fromWallet.balance < earn && resolved.fundedBy !== 'PLATFORM') {
+        fromWallet = await getOrCreateWallet('PLATFORM', 'system');
+      }
       await balancedTransfer({
         type: 'dentcash_earn',
-        amountMinor: resolved.amountMinor,
-        fromWalletId: funderWallet.id,
+        amountMinor: earn,
+        fromWalletId: fromWallet.id,
         toWalletId: userWallet.id,
         refType: 'order',
         refId: opts.orderId,
         meta: { rateBps: resolved.rateBps, productId: line.productId || null },
       });
-    } else {
-      // Pending: record seller obligation only (USER credited on release).
-      await prisma.wallet.update({
-        where: { id: funderWallet.id },
-        data: { balance: { decrement: resolved.amountMinor } },
-      });
-      await prisma.transaction.create({
-        data: {
-          type: 'dentcash_earn_pending',
-          status: 'PENDING',
-          amount: resolved.amountMinor,
-          refType: 'order',
-          refId: opts.orderId,
-          meta: { rateBps: resolved.rateBps, funderId: resolved.funderId, fundedBy: resolved.fundedBy },
-          ledgerEntries: {
-            create: [
-              { walletId: funderWallet.id, direction: 'debit', amount: resolved.amountMinor },
-            ],
-          },
-        },
-      });
     }
+    // Pending: ledger obligation only — wallets move on release.
 
     const row = await prisma.dentCashLedger.create({
       data: {
         userId: opts.userId,
         type: 'earn',
         status,
-        amountMinor: resolved.amountMinor,
+        amountMinor: earn,
         refType: 'order',
         refId: opts.orderId,
         sellerType: resolved.fundedBy,
         sellerId: resolved.funderId,
         availableAt: status === 'available' ? new Date() : null,
-        meta: { rateBps: resolved.rateBps, productId: line.productId, name: line.name },
+        meta: {
+          rateBps: resolved.rateBps,
+          productId: line.productId,
+          name: line.name,
+          spendMinor: spendMinor.toString(),
+          goodsMinor: goodsMinor.toString(),
+        },
       },
     });
     entryIds.push(row.id);
-    totalMinor += resolved.amountMinor;
+    totalMinor += earn;
+    if (pid) doneProducts.add(pid);
   }
 
   return { skipped: false, totalMinor, entries: entryIds };
 }
 
-/** Move pending earn → available and credit USER wallet. */
-export async function releaseOrderCashback(orderId: string) {
+/** Move pending earn → available: funder → USER via balanced transfer. */
+export async function releaseOrderCashback(orderId: string, opts?: { sellerId?: string | null }) {
   const pending = await prisma.dentCashLedger.findMany({
-    where: { refType: 'order', refId: orderId, type: 'earn', status: 'pending' },
+    where: {
+      refType: 'order',
+      refId: orderId,
+      type: 'earn',
+      status: 'pending',
+      ...(opts?.sellerId ? { sellerId: opts.sellerId } : {}),
+    },
   });
   if (!pending.length) return { released: 0n };
 
   let released = 0n;
   for (const row of pending) {
     const userWallet = await getOrCreateUserDentWallet(row.userId);
-    await prisma.$transaction(async (tx) => {
-      await tx.dentCashLedger.update({
-        where: { id: row.id },
-        data: { status: 'available', availableAt: new Date() },
-      });
-      await tx.wallet.update({
-        where: { id: userWallet.id },
-        data: { balance: { increment: row.amountMinor } },
-      });
-      const txn = await tx.transaction.create({
-        data: {
-          type: 'dentcash_release',
-          status: 'COMPLETED',
-          amount: row.amountMinor,
-          refType: 'order',
-          refId: orderId,
-          ledgerEntries: {
-            create: [
-              { walletId: userWallet.id, direction: 'credit', amount: row.amountMinor },
-            ],
-          },
-        },
-      });
-      void txn;
+    const funderType = (row.sellerType || 'PLATFORM') as WalletOwnerType;
+    const funderId = row.sellerId || 'system';
+    let funderWallet = await getOrCreateWallet(funderType, funderId);
+
+    if (funderWallet.balance < row.amountMinor && funderType !== 'PLATFORM') {
+      funderWallet = await getOrCreateWallet('PLATFORM', 'system');
+    }
+
+    await balancedTransfer({
+      type: 'dentcash_release',
+      amountMinor: row.amountMinor,
+      fromWalletId: funderWallet.id,
+      toWalletId: userWallet.id,
+      refType: 'order',
+      refId: orderId,
+      meta: { ledgerId: row.id },
+    });
+
+    await prisma.dentCashLedger.update({
+      where: { id: row.id },
+      data: { status: 'available', availableAt: new Date() },
     });
     released += row.amountMinor;
   }
@@ -323,4 +340,45 @@ export async function quoteCartCashback(userId: string, lines: LineInput[]) {
     balanceTenge: Number(wallet.balance) / 100,
     details,
   };
+}
+
+/** Resolve cart product IDs from DB for accurate quote (supplier/ownBrand/category). */
+export async function resolveQuoteLinesFromProducts(
+  rawLines: Array<Record<string, unknown>>,
+): Promise<LineInput[]> {
+  const ids = rawLines
+    .map((l) => String(l.productId || l.product_id || l.id || ''))
+    .filter(Boolean);
+  const products = ids.length
+    ? await prisma.product.findMany({ where: { id: { in: ids } } })
+    : [];
+  const byId = new Map(products.map((p) => [p.id, p]));
+
+  return rawLines.map((raw) => {
+    const pid = String(raw.productId || raw.product_id || raw.id || '');
+    const p = byId.get(pid);
+    const qty = Math.max(1, Number(raw.qty ?? raw.quantity ?? 1));
+    if (p) {
+      return {
+        productId: p.id,
+        name: p.name,
+        category: p.category,
+        priceTenge: Number(p.price),
+        qty,
+        supplierId: p.supplierId,
+        ownBrand: !!(p as any).ownBrand,
+        promo: String(p.description || '').includes('[АКЦИЯ]') || !!(raw.promo),
+      };
+    }
+    return {
+      productId: pid || undefined,
+      name: String(raw.name || ''),
+      category: (raw.category as string) || null,
+      priceTenge: Number(raw.priceTenge ?? raw.price ?? 0),
+      qty,
+      supplierId: (raw.supplierId || raw.supplier_id || null) as string | null,
+      ownBrand: !!raw.ownBrand,
+      promo: !!raw.promo,
+    };
+  });
 }
