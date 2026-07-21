@@ -8,6 +8,8 @@ import { authenticate } from '../../middleware/auth.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
+import { splitPatientName } from '../public/bookingSlots.js';
+
 export const crmOpsRouter = Router();
 crmOpsRouter.use(authenticate);
 
@@ -296,11 +298,13 @@ crmOpsRouter.post('/price-list', async (req: AuthRequest, res) => {
         serviceCode: String(b.serviceCode),
         name: b.name || null,
         price: Number(b.price),
+        matCost: Number(b.matCost || 0),
         active: b.active !== false,
       },
       update: {
         name: b.name ?? undefined,
         price: Number(b.price),
+        matCost: b.matCost !== undefined ? Number(b.matCost) : undefined,
         active: b.active !== false,
       },
     });
@@ -308,5 +312,200 @@ crmOpsRouter.post('/price-list', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('[CRM ops] price-list upsert', error);
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить цену' } satisfies ApiResponse);
+  }
+});
+
+// ─── Online bookings ───
+
+function mapBookingRow(r: {
+  id: string;
+  clinicId: string;
+  patientName: string;
+  phone: string;
+  email: string | null;
+  doctorId: string | null;
+  doctorName: string | null;
+  serviceName: string | null;
+  date: Date;
+  time: string;
+  notes: string | null;
+  status: string;
+  source: string;
+  createdAt: Date;
+}) {
+  return {
+    id: r.id,
+    clinicId: r.clinicId,
+    patientName: r.patientName,
+    patientPhone: r.phone,
+    phone: r.phone,
+    patientEmail: r.email,
+    email: r.email,
+    doctorId: r.doctorId,
+    doctorName: r.doctorName,
+    serviceName: r.serviceName,
+    date: r.date.toISOString().slice(0, 10),
+    time: r.time,
+    notes: r.notes,
+    status: r.status,
+    source: r.source,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+crmOpsRouter.get('/bookings', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = requireClinic(req, res);
+    if (!clinicId) return;
+
+    const status = (req.query.status as string) || undefined;
+    const rows = await prisma.booking.findMany({
+      where: {
+        clinicId,
+        ...(status ? { status } : {}),
+      },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      take: 300,
+    });
+
+    return res.json({ ok: true, data: rows.map(mapBookingRow) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[CRM ops] bookings list', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить заявки' } satisfies ApiResponse);
+  }
+});
+
+crmOpsRouter.post('/bookings', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = requireClinic(req, res);
+    if (!clinicId) return;
+
+    const b = req.body || {};
+    const id = b.id || uid();
+    const dateStr = b.date;
+    if (!dateStr || !b.time || !b.patientName) {
+      return res.status(400).json({ ok: false, error: 'Имя, дата и время обязательны' } satisfies ApiResponse);
+    }
+
+    const data = {
+      clinicId,
+      patientName: String(b.patientName).trim(),
+      phone: String(b.phone || b.patientPhone || '').replace(/\D/g, ''),
+      email: b.email || b.patientEmail || null,
+      doctorId: b.doctorId || null,
+      doctorName: b.doctorName || null,
+      serviceName: b.serviceName || null,
+      date: new Date(`${dateStr}T00:00:00.000Z`),
+      time: String(b.time),
+      notes: b.notes || null,
+      status: b.status || 'pending',
+      source: b.source || 'manual',
+    };
+
+    const existing = await prisma.booking.findFirst({ where: { id, clinicId } });
+    const row = existing
+      ? await prisma.booking.update({ where: { id }, data })
+      : await prisma.booking.create({ data: { id, ...data } });
+
+    return res.status(existing ? 200 : 201).json({ ok: true, data: mapBookingRow(row) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[CRM ops] bookings upsert', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось сохранить заявку' } satisfies ApiResponse);
+  }
+});
+
+crmOpsRouter.post('/bookings/:id/confirm', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = requireClinic(req, res);
+    if (!clinicId) return;
+    const id = req.params.id as string;
+
+    const booking = await prisma.booking.findFirst({ where: { id, clinicId } });
+    if (!booking) {
+      return res.status(404).json({ ok: false, error: 'Заявка не найдена' } satisfies ApiResponse);
+    }
+    if (booking.status === 'confirmed') {
+      return res.json({ ok: true, data: mapBookingRow(booking), message: 'Уже подтверждена' } satisfies ApiResponse);
+    }
+
+    const phone = booking.phone.replace(/\D/g, '');
+    let patient = phone
+      ? await prisma.patient.findFirst({ where: { clinicId, phone: { contains: phone.slice(-10) } } })
+      : null;
+
+    if (!patient) {
+      const { firstName, lastName } = splitPatientName(booking.patientName);
+      patient = await prisma.patient.create({
+        data: {
+          id: uid(),
+          clinicId,
+          firstName,
+          lastName,
+          phone: booking.phone,
+          email: booking.email,
+        },
+      });
+    }
+
+    const doctorId = booking.doctorId || req.user?.id;
+    if (!doctorId) {
+      return res.status(400).json({ ok: false, error: 'Укажите врача для записи' } satisfies ApiResponse);
+    }
+
+    const dateStr = booking.date.toISOString().slice(0, 10);
+    const appointment = await prisma.appointment.create({
+      data: {
+        id: uid(),
+        clinicId,
+        patientId: patient.id,
+        doctorId,
+        date: new Date(`${dateStr}T12:00:00.000Z`),
+        time: booking.time,
+        status: 'CONFIRMED',
+        type: booking.serviceName || 'Приём',
+        notes: booking.notes || `Онлайн-запись: ${booking.patientName}`,
+        meta: {
+          serviceName: booking.serviceName || undefined,
+          reason: 'online_booking',
+          bookingId: booking.id,
+        },
+      },
+    });
+
+    const updated = await prisma.booking.update({
+      where: { id },
+      data: { status: 'confirmed' },
+    });
+
+    return res.json({
+      ok: true,
+      data: {
+        booking: mapBookingRow(updated),
+        appointmentId: appointment.id,
+        patientId: patient.id,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[CRM ops] bookings confirm', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось подтвердить заявку' } satisfies ApiResponse);
+  }
+});
+
+crmOpsRouter.delete('/bookings/:id', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = requireClinic(req, res);
+    if (!clinicId) return;
+    const id = req.params.id as string;
+    const existing = await prisma.booking.findFirst({ where: { id, clinicId } });
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
+    }
+    await prisma.booking.update({
+      where: { id },
+      data: { status: 'cancelled' },
+    });
+    return res.json({ ok: true, data: { id } } satisfies ApiResponse);
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Не удалось отменить заявку' } satisfies ApiResponse);
   }
 });

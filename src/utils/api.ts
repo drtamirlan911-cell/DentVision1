@@ -281,6 +281,9 @@ export async function getClinicStaff(clinicId: string): Promise<ClinicStaffMembe
         : String(m.role || '').toLowerCase(),
     spec: m.user?.spec || null,
     avatar: m.user?.avatar || null,
+    email: m.user?.email || null,
+    phone: m.user?.phone || null,
+    commissionPercent: m.commissionPercent ?? 30,
     joinedAt: m.joinedAt,
   }));
 }
@@ -392,7 +395,11 @@ export async function getPromotions(clinicId: string): Promise<Promotion[]> {
 }
 
 export async function getBookings(clinicId: string): Promise<Booking[]> {
-  return Promise.resolve([]);
+  return collection<Booking>(await apiRequest('/api/crm/bookings'));
+}
+
+export async function confirmBooking(id: string): Promise<any> {
+  return apiRequest(`/api/crm/bookings/${id}/confirm`, { method: 'POST', body: '{}' });
 }
 
 // ─── Upserts (resource endpoints) ───
@@ -471,7 +478,7 @@ export async function upsertPromotion(data: Partial<Promotion>): Promise<any> {
 }
 
 export async function upsertBooking(data: Partial<Booking>): Promise<any> {
-  return Promise.resolve({ ok: true });
+  return apiRequest('/api/crm/bookings', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function deletePromotion(id: string): Promise<any> {
@@ -486,6 +493,7 @@ export async function upsertPriceListItem(data: {
   serviceCode: string;
   price: number;
   name?: string;
+  matCost?: number;
   active?: boolean;
 }): Promise<any> {
   return apiRequest('/api/crm/price-list', { method: 'POST', body: JSON.stringify(data) });
@@ -496,6 +504,7 @@ export async function addPriceListService(data: {
   name: string;
   price: number;
   category?: string;
+  matCost?: number;
 }): Promise<any> {
   const slug = String(data.name || 'service')
     .toLowerCase()
@@ -506,7 +515,40 @@ export async function addPriceListService(data: {
   const name = data.category
     ? `${data.category} · ${data.name}`
     : data.name;
-  return upsertPriceListItem({ serviceCode, price: Number(data.price), name, active: true });
+  return upsertPriceListItem({
+    serviceCode,
+    price: Number(data.price),
+    name,
+    matCost: Number(data.matCost || 0),
+    active: true,
+  });
+}
+
+export async function closeAppointment(
+  id: string,
+  data: {
+    notes?: string;
+    services?: Array<{ name: string; price: number; matCost?: number }>;
+    serviceName?: string;
+    servicePrice?: number;
+    matCost?: number;
+    discount?: number;
+    paymentStatus?: string;
+    diagnosis?: string;
+    toothNumber?: string;
+  },
+): Promise<any> {
+  return apiRequest(`/api/appointments/${id}/close`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function depositPatient(patientId: string, amount: number): Promise<any> {
+  return apiRequest(`/api/patients/${patientId}/deposit`, {
+    method: 'POST',
+    body: JSON.stringify({ amount }),
+  });
 }
 
 export async function markReminderSent(reminderKey: string, channel = 'whatsapp'): Promise<any> {
@@ -628,16 +670,83 @@ export async function deleteSubscription(id: string): Promise<any> {
 }
 
 export async function deleteBooking(id: string): Promise<any> {
-  return Promise.resolve({ ok: true });
+  return apiRequest(`/api/crm/bookings/${id}`, { method: 'DELETE' });
 }
 
 // ─── Public Booking ───
-export async function getPublicClinic(clinicId: string): Promise<Clinic> {
-  return apiRequest(`/api/public/clinic/${clinicId}`);
+export interface PublicClinicPayload {
+  clinic: {
+    id: string;
+    name: string;
+    city?: string;
+    address?: string;
+    phone?: string;
+    logo?: string;
+  };
+  doctors: Array<{ id: string; name: string; spec?: string; avatar?: string }>;
+  services: Array<{ id: string; name: string; price: number; category: string }>;
+  settings: {
+    workStart?: string;
+    workEnd?: string;
+    workDays?: number[];
+    bookingSlotMinutes?: number;
+    currency?: string;
+  };
 }
 
-export async function submitBooking(data: Partial<Booking>): Promise<any> {
-  return apiRequest('/api/public/booking', { method: 'POST', body: JSON.stringify(data) });
+export async function getPublicClinic(clinicId: string): Promise<PublicClinicPayload> {
+  const res = await fetch(`${API_URL}/api/public/clinic/${clinicId}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Клиника не найдена');
+  }
+  const raw = await res.json();
+  return raw.data || raw;
+}
+
+export async function getPublicSlots(
+  clinicId: string,
+  date: string,
+  doctorId?: string,
+): Promise<{ slots: string[]; workingDay: boolean }> {
+  const q = new URLSearchParams({ date });
+  if (doctorId) q.set('doctorId', doctorId);
+  const res = await fetch(`${API_URL}/api/public/clinic/${clinicId}/slots?${q}`);
+  if (!res.ok) throw new Error('Не удалось загрузить слоты');
+  const raw = await res.json();
+  const data = raw.data || raw;
+  return { slots: data.slots || [], workingDay: data.workingDay !== false };
+}
+
+export async function submitBooking(data: {
+  clinicId: string;
+  patientName: string;
+  phone: string;
+  email?: string;
+  doctorId?: string;
+  serviceName?: string;
+  date: string;
+  time: string;
+  notes?: string;
+}): Promise<any> {
+  const res = await fetch(`${API_URL}/api/public/booking`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      clinic_id: data.clinicId,
+      patient_name: data.patientName,
+      phone: data.phone,
+      email: data.email,
+      doctor_id: data.doctorId,
+      service_name: data.serviceName,
+      date: data.date,
+      time: data.time,
+      notes: data.notes,
+    }),
+  });
+  const raw = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(raw.error || 'Ошибка при отправке');
+  return raw.data || raw;
 }
 
 // ─── Medical Cards ───
