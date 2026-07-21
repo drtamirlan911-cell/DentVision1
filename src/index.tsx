@@ -59,6 +59,7 @@ const ShopSuppliers = lazy(() => import('./pages/shop/ShopSuppliers'));
 // School sub-app pages
 const School = lazy(() => import('./pages/school/School'));
 const SchoolCourse = lazy(() => import('./pages/school/SchoolCourse'));
+const SchoolWorkspace = lazy(() => import('./pages/school/SchoolWorkspace'));
 
 // Platform content-management (superadmin) pages
 const ShopAdmin = lazy(() => import('./pages/admin/ShopAdmin'));
@@ -149,6 +150,7 @@ if (container) {
                   {/* School sub-app — under IntelligenceLayout sidebar */}
                   <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
                   <Route path="school/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
+                  <Route path="school-workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
 
                   {/* Superadmin content management */}
                   <Route path="shop/admin" element={<Suspense fallback={<PageLoader />}><ShopAdmin /></Suspense>} />

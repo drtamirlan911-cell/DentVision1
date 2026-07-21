@@ -37,8 +37,12 @@ const MOCK_TWIN = {
 
 export function DigitalTwin() {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-3">
       <GlassCard padding="md">
+        <p className="text-[11px] text-txt-muted leading-relaxed mb-3">
+          <strong className="text-txt-secondary">Двойник</strong> — профиль врача для AI:
+          навыки, курсы и рекомендации. Ниже демо-данные; живая аналитика подключится к вашей практике.
+        </p>
         <div className="flex items-center gap-3 mb-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-dv-gold/20 to-dv-gold/5">
             <Brain size={24} className="text-dv-gold" />
@@ -52,7 +56,7 @@ export function DigitalTwin() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="gold" size="xs">{MOCK_TWIN.expertiseLevel}</Badge>
-          <Badge variant="info" size="xs">Активность: {MOCK_TWIN.activityLevel}</Badge>
+          <Badge variant="info" size="xs">Демо</Badge>
         </div>
       </GlassCard>
 

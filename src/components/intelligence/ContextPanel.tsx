@@ -16,10 +16,10 @@ interface ContextPanelProps {
   role?: any
 }
 
-const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'context', label: 'Контекст', icon: User },
-  { id: 'digital-twin', label: 'Двойник', icon: Brain },
-  { id: 'alerts', label: 'Оповещения', icon: Bell },
+const TABS: { id: TabId; label: string; hint: string; icon: React.ElementType }[] = [
+  { id: 'context', label: 'Контекст', hint: 'Текущий объект работы', icon: User },
+  { id: 'digital-twin', label: 'Двойник', hint: 'Профиль врача для AI', icon: Brain },
+  { id: 'alerts', label: 'Оповещения', hint: 'AI-сигналы клиники', icon: Bell },
 ]
 
 export function ContextPanel({ onClose }: ContextPanelProps) {
@@ -51,6 +51,7 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
                     ? 'bg-dv-gold/10 text-dv-gold shadow-sm'
                     : 'text-txt-muted hover:text-txt-secondary hover:bg-white/[0.03]'
                 )}
+                title={tab.hint}
               >
                 <Icon size={15} />
                 <span className="text-xs">{tab.label}</span>
