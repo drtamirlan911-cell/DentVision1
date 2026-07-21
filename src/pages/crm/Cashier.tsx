@@ -235,14 +235,26 @@ export default function Cashier() {
     { name: 'Имплантация', price: 650000 },
   ]
 
-  const payrollRows = doctors
-    .filter((doctor) => Number(doctor.salary || 0) > 0 || Number(doctor.paid || 0) > 0)
-    .map((doctor) => ({
-      name: doctor.name,
-      role: doctor.spec || 'Врач',
-      salary: Number(doctor.salary || 0),
-      paid: Number(doctor.paid || 0),
-    }))
+  const payrollRows = (financeReport?.payroll || []).length
+    ? (financeReport.payroll as any[]).map((row) => ({
+        name: row.name,
+        role: `${row.role || 'DOCTOR'} · ${row.percent || 30}%`,
+        salary: Number(row.earned || 0),
+        paid: 0,
+        visits: row.visits,
+        gross: row.gross,
+        matCost: row.matCost,
+        net: row.net,
+        percent: row.percent,
+      }))
+    : doctors
+      .filter((doctor: any) => Number(doctor.salary || 0) > 0 || Number(doctor.commissionPercent || 0) > 0)
+      .map((doctor: any) => ({
+        name: doctor.name,
+        role: doctor.spec || `Врач · ${doctor.commissionPercent ?? 30}%`,
+        salary: Number(doctor.salary || 0),
+        paid: Number(doctor.paid || 0),
+      }))
 
   const debtRows = debts.map((debt) => {
     const patient = patients.find((p) => p.id === debt.patientId)
@@ -572,38 +584,44 @@ export default function Cashier() {
 
           {activeTab === 'payroll' && (
             <div>
-              <p className="text-sm font-bold text-txt-primary mb-4">Зарплата сотрудников</p>
+              <p className="text-sm font-bold text-txt-primary mb-4">Зарплата по % (как в KazDent)</p>
+              <p className="text-xs text-txt-muted mb-4">
+                Начисление = (сумма услуг − себестоимость материалов) × % врача за выбранный период отчёта.
+              </p>
               {payrollRows.length === 0 && (
                 <EmptyState
                   icon={<Wallet size={32} />}
                   title="Нет начислений"
-                  description="Зарплатные данные для этой клиники пока не внесены"
+                  description="Закройте приёмы с услугами и укажите % сотрудникам"
                 />
               )}
               <div className="space-y-3">
-                {payrollRows.map((emp, i) => {
-                  const pct = emp.salary > 0 ? Math.round((emp.paid / emp.salary) * 100) : 0
-                  const remaining = emp.salary - emp.paid
+                {payrollRows.map((emp: any, i) => {
+                  const pct = emp.salary > 0 && emp.paid != null && emp.paid > 0
+                    ? Math.round((emp.paid / emp.salary) * 100)
+                    : emp.percent || 0
                   return (
                     <div key={i} className="p-4 rounded-xl border border-bdr-subtle bg-white/[0.02]">
-                      <div className="flex justify-between items-start mb-3">
+                      <div className="flex justify-between items-start mb-2">
                         <div>
                           <p className="text-sm font-semibold text-txt-primary">{emp.name}</p>
                           <p className="text-xs text-txt-muted">{emp.role}</p>
+                          {emp.visits != null && (
+                            <p className="text-2xs text-txt-muted mt-1">
+                              Приёмов: {emp.visits} · Валово: {money(emp.gross || 0)} · Материалы: {money(emp.matCost || 0)}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-txt-secondary">Начислено: <span className="font-semibold text-txt-primary">{money(emp.salary)}</span></p>
-                          <p className="text-xs text-success">Выплачено: {money(emp.paid)}</p>
-                          {remaining > 0 && <p className="text-xs text-error">Остаток: {money(remaining)}</p>}
+                          <p className="text-sm font-bold text-dv-gold">{money(emp.salary)}</p>
+                          <p className="text-2xs text-txt-muted">к выплате</p>
                         </div>
                       </div>
-                      <div className="h-1.5 bg-white/[0.07] rounded-full overflow-hidden">
-                        <div
-                          className={cn('h-full rounded-full transition-all duration-1000', pct >= 100 ? 'bg-success' : 'bg-warning')}
-                          style={{ width: `${Math.min(pct, 100)}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-txt-muted mt-1 text-right">{pct}% выплачено</p>
+                      {pct > 0 && emp.paid > 0 && (
+                        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                          <div className="h-full bg-dv-gold/60" style={{ width: `${Math.min(100, pct)}%` }} />
+                        </div>
+                      )}
                     </div>
                   )
                 })}

@@ -113,10 +113,12 @@ model Clinic {
 }
 
 model ClinicMember {
-  id        String   @id @default("")
-  userId    String
-  clinicId  String
-  role      UserRole @default(DOCTOR)
+  id                 String   @id @default("")
+  userId             String
+  clinicId           String
+  role               UserRole @default(DOCTOR)
+  /// Doctor commission % (KazDent donor: User.percent)
+  commissionPercent  Int      @default(30)
 
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -159,6 +161,8 @@ model Patient {
   address   String?
   notes     String?
   medicalHistory Json?
+  /// Prepaid clinic credit (KazDent donor: Patient.balance)
+  prepaidBalance Float @default(0)
 
   clinic      Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   visits      Visit[]
@@ -272,6 +276,8 @@ model PriceListItem {
   serviceCode String
   name        String?
   price       Float
+  /// Material / consumable cost for payroll net (KazDent: mat_cost)
+  matCost     Float   @default(0)
   active      Boolean @default(true)
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)

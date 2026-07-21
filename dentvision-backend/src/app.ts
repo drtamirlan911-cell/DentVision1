@@ -29,8 +29,6 @@ import { chairsRouter } from './modules/crm/chairs.routes.js';
 import { labRouter } from './modules/lab/lab.routes.js';
 import { communityRouter } from './modules/community/community.routes.js';
 import { iamRouter } from './modules/iam/iam.routes.js';
-import { suppliersRouter } from './modules/suppliers/suppliers.routes.js';
-import { academiesRouter, lecturersRouter } from './modules/academy/academy.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 
 // Wire up domain-event subscribers (audit, etc.) once at import time.
@@ -69,8 +67,6 @@ app.use('/api/billing', billingRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/shop', shopRouter);
 app.use('/api/suppliers', suppliersRouter);
-app.use('/api/academies', academiesRouter);
-app.use('/api/lecturers', lecturersRouter);
 app.use('/api/school', schoolRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/guest', guestRouter);
