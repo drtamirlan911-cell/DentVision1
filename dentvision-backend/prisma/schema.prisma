@@ -89,6 +89,8 @@ model Clinic {
   phone   String?
   logo    String?
   plan    ClinicPlan  @default(DEMO)
+  /// Platform ops: false = suspended / blocked from service.
+  active  Boolean     @default(true)
   /// Per-clinic CRM settings: hours, reminders, currency, etc.
   settings Json?
 
