@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery';
-import { getAppointmentReminders, getUrgentReminders, getHygieneReminders, markSent } from '../../utils/reminders';
+import { getAppointmentReminders, getUrgentReminders, getHygieneReminders, markSent, buildWaLink } from '../../utils/reminders';
+import { buildFollowUps } from '../../utils/followUps';
 import * as api from '../../utils/api';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Badge } from '../../components/ui/ds/Badge';
@@ -121,10 +122,16 @@ export default function Reminders() {
     }
   };
 
+  const followUps = useMemo(
+    () => buildFollowUps(scopedAppointments as any, scopedPatients as any),
+    [scopedAppointments, scopedPatients],
+  );
+
   const tabs = [
     { id: 'urgent', label: 'Срочно (2ч)', icon: <AlertTriangle size={15} />, count: pendingUrgent },
     { id: 'appointments', label: 'Приёмы (24ч)', icon: <Calendar size={15} />, count: pendingAppt },
     { id: 'hygiene', label: 'Проф. гигиена (6+ мес)', icon: <Smile size={15} />, count: pendingHyg },
+    { id: 'followups', label: 'Контроль (хирургия)', icon: <Stethoscope size={15} />, count: followUps.length },
   ];
 
   const renderReminderList = (reminders: typeof appointmentReminders, emptyTitle: string, emptyDesc: string) => {
@@ -316,6 +323,56 @@ export default function Reminders() {
                             </Button>
                           )}
                         </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {tab === 'followups' && (
+        <motion.div variants={fadeUp}>
+          {followUps.length === 0 ? (
+            <EmptyState
+              icon={<Stethoscope size={28} />}
+              title="Нет контрольных звонков"
+              description="Появятся после закрытия приёмов с пометками: имплант, удаление, хирургия, швы…"
+            />
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {followUps.map((f) => (
+                <Card key={f.id}>
+                  <CardContent>
+                    <div className="flex items-center justify-between gap-3.5 flex-wrap">
+                      <div className="flex-1 min-w-[220px]">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-sm font-bold text-white">{f.patientName}</span>
+                          <Badge variant="warning" size="sm">{f.reason}</Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-txt-secondary">
+                          <span className="inline-flex items-center gap-1"><Phone size={12} /> {f.phone || '—'}</span>
+                          <span className="inline-flex items-center gap-1"><Calendar size={12} /> {fd(f.date)}</span>
+                        </div>
+                        {f.notes && <p className="text-xs text-txt-muted mt-2 line-clamp-2">{f.notes}</p>}
+                      </div>
+                      {!readOnly && f.phone && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          icon={<MessageSquare size={14} />}
+                          onClick={() => {
+                            const link = buildWaLink(
+                              f.phone,
+                              `Здравствуйте, ${f.patientName}! Это клиника ${clinic?.name || ''}. Как самочувствие после приёма ${fd(f.date)}? Если есть вопросы — напишите нам.`,
+                            )
+                            window.open(link, '_blank', 'noopener,noreferrer')
+                          }}
+                        >
+                          WhatsApp
+                        </Button>
                       )}
                     </div>
                   </CardContent>

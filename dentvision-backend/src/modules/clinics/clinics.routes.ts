@@ -103,8 +103,9 @@ clinicsRouter.get('/:id', authenticate, async (req, res) => {
             id: true,
             role: true,
             joinedAt: true,
+            commissionPercent: true,
             user: {
-              select: { id: true, firstName: true, lastName: true, avatar: true, spec: true },
+              select: { id: true, firstName: true, lastName: true, avatar: true, spec: true, email: true, phone: true },
             },
           },
           orderBy: { joinedAt: 'asc' },

@@ -296,11 +296,13 @@ crmOpsRouter.post('/price-list', async (req: AuthRequest, res) => {
         serviceCode: String(b.serviceCode),
         name: b.name || null,
         price: Number(b.price),
+        matCost: Number(b.matCost || 0),
         active: b.active !== false,
       },
       update: {
         name: b.name ?? undefined,
         price: Number(b.price),
+        matCost: b.matCost !== undefined ? Number(b.matCost) : undefined,
         active: b.active !== false,
       },
     });
