@@ -21,10 +21,6 @@ export const PERMISSIONS = {
   INVENTORY_READ: 'inventory.read',
   INVENTORY_WRITE: 'inventory.write',
   INVENTORY_DELETE: 'inventory.delete',
-  // Ecosystem / marketplace governance (Phase 2). supplier.manage is a
-  // platform-level capability — granted to no clinic role, so only SUPERADMIN
-  // (wildcard) passes today; scoped SUPPLIER memberships arrive in a later phase.
-  SUPPLIER_MANAGE: 'supplier.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
