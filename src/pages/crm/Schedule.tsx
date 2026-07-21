@@ -1213,26 +1213,36 @@ export default function Schedule() {
 
           <Input label="Заметки" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Дополнительная информация" />
 
-          {editAppt && (canTakePayment || editAppt.paymentStatus === 'paid') && (
+          {editAppt && (
             <div className={cn(
               'rounded-xl border p-3 flex items-center justify-between gap-3',
               editAppt.paymentStatus === 'paid'
                 ? 'border-emerald-400/30 bg-emerald-400/5'
-                : 'border-warning/30 bg-warning/5',
+                : editAppt.paymentStatus === 'partial'
+                  ? 'border-amber-400/30 bg-amber-400/5'
+                  : 'border-warning/30 bg-warning/5',
             )}>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-txt-primary">
-                  {editAppt.paymentStatus === 'paid' ? 'Оплата получена' : 'Оплата по записи'}
+                  {editAppt.paymentStatus === 'paid'
+                    ? 'Оплачено'
+                    : editAppt.paymentStatus === 'partial'
+                      ? 'Частичная оплата'
+                      : 'Не оплачено'}
                 </p>
                 <p className="text-[11px] text-txt-muted truncate">
-                  {editAppt.paymentStatus === 'paid'
-                    ? 'Чек принят администратором или руководителем'
-                    : suggestedPayAmount(editAppt) > 0
+                  {canTakePayment
+                    ? (suggestedPayAmount(editAppt) > 0
                       ? `Сумма: ${Number(suggestedPayAmount(editAppt)).toLocaleString('ru-RU')} ₸`
-                      : 'Укажите услугу или введите сумму'}
+                      : 'Укажите услугу или введите сумму')
+                    : 'Статус оплаты · приём оплаты — у администратора'}
                 </p>
               </div>
-              {editAppt.paymentStatus !== 'paid' && canTakePayment && (
+              {editAppt.paymentStatus === 'paid' ? (
+                <Badge variant="success" size="sm">Оплачено</Badge>
+              ) : editAppt.paymentStatus === 'partial' ? (
+                <Badge variant="warning" size="sm">Частично</Badge>
+              ) : canTakePayment ? (
                 <Button
                   type="button"
                   size="sm"
@@ -1241,9 +1251,8 @@ export default function Schedule() {
                 >
                   Принять оплату
                 </Button>
-              )}
-              {editAppt.paymentStatus === 'paid' && (
-                <Badge variant="success" size="sm">Оплачено</Badge>
+              ) : (
+                <Badge variant="warning" size="sm">Не оплачено</Badge>
               )}
             </div>
           )}
