@@ -37,6 +37,9 @@ export default function SupplierWorkspace() {
   const [form, setForm] = useState({ name: '', price: '', stock: '', category: '', description: '' });
   const [saving, setSaving] = useState(false);
 
+  const [regForm, setRegForm] = useState({ name: '', bin: '', phone: '', email: '', contactPerson: '', legalAddress: '' });
+  const [regSaving, setRegSaving] = useState(false);
+
   const loadAll = useCallback(async (t: string) => {
     const [meRes, prodRes, anRes] = await Promise.all([
       api.supplierWs.me(t).catch(() => null),
@@ -73,6 +76,35 @@ export default function SupplierWorkspace() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const reloadContexts = async () => {
+    const res = await api.getMyContexts();
+    const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER');
+    setContexts(sup);
+    if (sup.length > 0) await enterSupplier(sup[0].scopeId);
+  };
+
+  const handleRegister = async () => {
+    if (!regForm.name.trim()) { toast.error('Укажите название компании'); return; }
+    setRegSaving(true);
+    try {
+      const supplier = await api.registerAsSupplier({
+        name: regForm.name.trim(),
+        bin: regForm.bin || undefined,
+        phone: regForm.phone || undefined,
+        email: regForm.email || undefined,
+        contactPerson: regForm.contactPerson || undefined,
+        legalAddress: regForm.legalAddress || undefined,
+      });
+      toast.success('Кабинет создан. Статус: на проверке');
+      await reloadContexts();
+      if (supplier?.id) await enterSupplier(supplier.id);
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось зарегистрировать компанию');
+    } finally {
+      setRegSaving(false);
+    }
+  };
 
   const canWrite = me?.myRole === 'owner' || me?.myRole === 'manager';
 
@@ -129,13 +161,40 @@ export default function SupplierWorkspace() {
 
   if (contexts.length === 0) {
     return (
-      <div className="p-6 max-w-[900px] mx-auto">
+      <div className="p-6 max-w-[900px] mx-auto space-y-4">
         <PageHeader title="Кабинет продавца" subtitle="Управление магазином поставщика" icon={<Store size={22} />} />
         <EmptyState
           icon={<Store size={36} />}
-          title="Вы не привязаны к поставщику"
-          description="Кабинет продавца доступен пользователям, добавленным в компанию-поставщика. Обратитесь к администратору платформы для привязки."
+          title="Откройте кабинет продавца"
+          description="Зарегистрируйте компанию-поставщика — вы станете её владельцем. Или попросите администратора платформы привязать ваш аккаунт к уже существующему поставщику (по email)."
         />
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <p className="text-sm font-medium text-white">Регистрация компании</p>
+            <Input
+              label="Название компании *"
+              value={regForm.name}
+              onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
+              placeholder="ТОО DentSupply"
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input label="БИН" value={regForm.bin} onChange={(e) => setRegForm({ ...regForm, bin: e.target.value })} />
+              <Input label="Телефон" value={regForm.phone} onChange={(e) => setRegForm({ ...regForm, phone: e.target.value })} />
+              <Input label="Email" value={regForm.email} onChange={(e) => setRegForm({ ...regForm, email: e.target.value })} />
+              <Input label="Контактное лицо" value={regForm.contactPerson} onChange={(e) => setRegForm({ ...regForm, contactPerson: e.target.value })} />
+            </div>
+            <Input
+              label="Юр. адрес"
+              value={regForm.legalAddress}
+              onChange={(e) => setRegForm({ ...regForm, legalAddress: e.target.value })}
+            />
+            <div className="flex justify-end pt-1">
+              <Button onClick={handleRegister} disabled={regSaving}>
+                {regSaving ? 'Создание…' : 'Создать кабинет'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
