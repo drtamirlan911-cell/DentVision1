@@ -96,6 +96,11 @@ export function canManageClinicSettings(role: string | null | undefined): boolea
   return r === 'owner' || r === 'director' || r === 'admin' || r === 'superadmin'
 }
 
+/** Приём оплаты в CRM: только руководитель и администратор. */
+export function canAcceptPayment(role: string | null | undefined): boolean {
+  return canManageClinicSettings(role)
+}
+
 function normalizeRole(role: string | undefined | null): string {
   const raw = String(role || 'user').toLowerCase()
   // Retired role: cashier duties belong to admin
