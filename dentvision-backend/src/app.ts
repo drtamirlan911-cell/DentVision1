@@ -60,15 +60,81 @@ const app = express();
 
 // ─── Global Middleware ───
 app.set('trust proxy', 1);
-app.use(helmet());
-const corsOrigins = env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(',').map(s => s.trim());
-app.use(cors({ origin: corsOrigins, credentials: true }));
+
+// Helmet: keep security headers, but allow cross-origin browser fetches from Vercel.
+// Default CORP "same-origin" makes Chromium report failed API calls as CORS errors.
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+}));
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://dent-vision1.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+];
+
+function parseCorsOrigins(raw: string): true | string[] {
+  const value = (raw || '').trim();
+  if (!value || value === '*') return true; // reflect request Origin (safe with credentials)
+  return [...new Set([...value.split(',').map((s) => s.trim()).filter(Boolean), ...DEFAULT_ALLOWED_ORIGINS])];
+}
+
+const corsOrigins = parseCorsOrigins(env.CORS_ORIGIN);
+
+function isOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (corsOrigins === true) return true;
+  if (corsOrigins.includes(origin)) return true;
+  // Vercel preview deployments: https://dent-vision1-*.vercel.app
+  try {
+    const host = new URL(origin).hostname;
+    if (host === 'dent-vision1.vercel.app') return true;
+    if (host.endsWith('.vercel.app') && host.includes('dent-vision')) return true;
+  } catch { /* ignore */ }
+  return false;
+}
+
+app.use(cors({
+  origin(origin, cb) {
+    if (isOriginAllowed(origin)) return cb(null, true);
+    return cb(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Platform-Ops-Key', 'X-Cron-Secret', 'X-Requested-With'],
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
+}));
+
+// Explicit preflight catch-all (Express 4) before body parsers / rate limit
+app.options('*', cors({
+  origin(origin, cb) {
+    if (isOriginAllowed(origin)) return cb(null, true);
+    return cb(null, false);
+  },
+  credentials: true,
+}));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+// Rate limiting — never throttle CORS preflight
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
+});
 app.use('/api/', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
