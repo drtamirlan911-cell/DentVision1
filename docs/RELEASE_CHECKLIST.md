@@ -36,7 +36,7 @@ CI runs all of the above on push/PR (`.github/workflows/ci.yml`).
 | `DATABASE_URL` | Yes | Neon PostgreSQL pooler |
 | `JWT_SECRET` | Yes | Strong random string |
 | `JWT_REFRESH_SECRET` | Yes | Strong random string |
-| `CORS_ORIGIN` | Yes | Set to frontend domain(s), not `*` in production |
+| `CORS_ORIGIN` | Yes | `https://dent-vision1.vercel.app` (comma-separated). Backend also always allows Vercel preview hosts matching `dent-vision`. Do not rely on `*` alone. |
 | `NODE_ENV` | Yes | `production` |
 | `PORT` | Auto | Render sets to 10000 |
 
