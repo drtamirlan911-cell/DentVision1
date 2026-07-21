@@ -1086,6 +1086,21 @@ export async function getSchoolLibrary(params: Record<string, string> = {}): Pro
 export async function getSchoolLive(): Promise<any> {
   return collection(await apiRequest('/api/school/live'));
 }
+export async function getSchoolWebinars(): Promise<any> {
+  return collection(await apiRequest('/api/school/webinars'));
+}
+export async function getSchoolOfficeCourses(): Promise<any> {
+  return collection(await apiRequest('/api/school/office-courses'));
+}
+export async function registerAcademyProduct(payload: {
+  productId: string;
+  format: 'webinar' | 'office' | 'live';
+}): Promise<any> {
+  return apiRequest('/api/school/commerce/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
 export async function getSchoolCertificates(userId: string): Promise<any> {
   return collection(await apiRequest('/api/school/certificates'));
 }

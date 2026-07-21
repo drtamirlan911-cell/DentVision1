@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   GraduationCap, Search, Star, Users, Clock, BookOpen, Play, Brain,
   Stethoscope, Award, Building2, Radio, Briefcase, Sparkles, CheckCircle2,
-  Microscope, FileText, ArrowRight,
+  Microscope, FileText, ArrowRight, MapPin, Calendar,
 } from 'lucide-react'
 import * as api from '@/utils/api'
 import { useAuth } from '@/store/auth.store'
@@ -17,15 +17,16 @@ import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
 import { Modal } from '@/components/ui/ds/Modal'
 import { useToast } from '@/components/ui/ds/Toast'
 
-type TabId = 'overview' | 'courses' | 'teachers' | 'academies' | 'cases' | 'live' | 'certs' | 'portfolio' | 'homework'
+type TabId = 'overview' | 'webinars' | 'office' | 'courses' | 'teachers' | 'academies' | 'cases' | 'certs' | 'portfolio' | 'homework'
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
   { id: 'overview', label: 'Обзор', icon: <Sparkles size={14} /> },
-  { id: 'courses', label: 'Курсы', icon: <BookOpen size={14} /> },
+  { id: 'webinars', label: 'Вебинары', icon: <Radio size={14} /> },
+  { id: 'office', label: 'Офис-курсы', icon: <MapPin size={14} /> },
+  { id: 'courses', label: 'Онлайн-треки', icon: <BookOpen size={14} /> },
   { id: 'teachers', label: 'Преподаватели', icon: <Users size={14} /> },
   { id: 'academies', label: 'Академии', icon: <Building2 size={14} /> },
   { id: 'cases', label: 'Кейсы', icon: <Stethoscope size={14} /> },
-  { id: 'live', label: 'Эфиры', icon: <Radio size={14} /> },
   { id: 'certs', label: 'Сертификация', icon: <Award size={14} /> },
   { id: 'portfolio', label: 'Портфолио', icon: <Briefcase size={14} /> },
   { id: 'homework', label: 'AI-проверка', icon: <Brain size={14} /> },
@@ -40,6 +41,11 @@ const LEVEL_LABEL: Record<string, string> = {
 
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
+function fmtPrice(price?: number, currency = 'KZT') {
+  if (price == null) return '—'
+  return `${Number(price).toLocaleString('ru-RU')} ${currency === 'KZT' ? '₸' : currency}`
+}
+
 export default function School() {
   const navigate = useNavigate()
   const { user, isAuthenticated } = useAuth()
@@ -50,6 +56,7 @@ export default function School() {
   const [hub, setHub] = useState<any>(null)
   const [certs, setCerts] = useState<any[]>([])
   const [portfolio, setPortfolio] = useState<any>(null)
+  const [buyingId, setBuyingId] = useState<string | null>(null)
 
   const [hwOpen, setHwOpen] = useState(false)
   const [hwForm, setHwForm] = useState({ title: '', notes: '', category: 'Эндодонтия', imageCount: '3' })
@@ -70,17 +77,30 @@ export default function School() {
         setPortfolio(p)
       }
     } catch {
-      // fallback to courses-only
       try {
-        const courses = await api.getSchoolCourses()
+        const [webinars, officeCourses, courses] = await Promise.all([
+          api.getSchoolWebinars().catch(() => []),
+          api.getSchoolOfficeCourses().catch(() => []),
+          api.getSchoolCourses().catch(() => []),
+        ])
         setHub({
-          kpis: { courses: (courses || []).length, academies: 0, lecturers: 0, cases: 0, live: 0, certificates: 0 },
+          kpis: {
+            webinars: webinars.length,
+            officeCourses: officeCourses.length,
+            courses: courses.length,
+            academies: 0,
+            lecturers: 0,
+            cases: 0,
+            certificates: 0,
+          },
+          webinars,
+          officeCourses,
           courses: Array.isArray(courses) ? courses : [],
           academies: [],
           lecturers: [],
           cases: [],
           library: [],
-          live: [],
+          live: webinars,
           certificates: [],
         })
       } catch {
@@ -97,7 +117,8 @@ export default function School() {
   const lecturers = hub?.lecturers || []
   const academies = hub?.academies || []
   const cases = hub?.cases || []
-  const live = hub?.live || []
+  const webinars = hub?.webinars || hub?.live || []
+  const officeCourses = hub?.officeCourses || []
   const kpis = hub?.kpis || {}
 
   const filteredCourses = useMemo(() => {
@@ -110,6 +131,45 @@ export default function School() {
       || c.category?.toLowerCase().includes(q),
     )
   }, [courses, search])
+
+  const filteredWebinars = useMemo(() => {
+    if (!search) return webinars
+    const q = search.toLowerCase()
+    return webinars.filter((w: any) =>
+      w.title?.toLowerCase().includes(q)
+      || w.lecturer?.toLowerCase().includes(q)
+      || w.category?.toLowerCase().includes(q)
+      || w.city?.toLowerCase().includes(q),
+    )
+  }, [webinars, search])
+
+  const filteredOffice = useMemo(() => {
+    if (!search) return officeCourses
+    const q = search.toLowerCase()
+    return officeCourses.filter((o: any) =>
+      o.title?.toLowerCase().includes(q)
+      || o.lecturer?.toLowerCase().includes(q)
+      || o.category?.toLowerCase().includes(q)
+      || o.city?.toLowerCase().includes(q),
+    )
+  }, [officeCourses, search])
+
+  const buy = async (productId: string, format: 'webinar' | 'office') => {
+    if (!isAuthenticated) {
+      toast.error('Войдите, чтобы купить место')
+      navigate('/login')
+      return
+    }
+    setBuyingId(productId)
+    try {
+      const res = await api.registerAcademyProduct({ productId, format })
+      toast.success(res.message || 'Место забронировано')
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось забронировать')
+    } finally {
+      setBuyingId(null)
+    }
+  }
 
   const submitHomework = async () => {
     if (!hwForm.notes.trim()) { toast.error('Опишите кейс'); return }
@@ -134,35 +194,35 @@ export default function School() {
     <div className="p-4 md:p-6 max-w-[1100px] mx-auto space-y-5">
       <PageHeader
         title="Academy OS"
-        subtitle="Преподаватели · академии · экзамены · эфиры · AI-проверка · портфолио врача"
+        subtitle="Вебинары и офис-курсы · сертификация · портфолио врача"
         icon={<GraduationCap size={22} />}
         actions={
           <div className="flex gap-2 flex-wrap justify-end">
             <Button size="sm" variant="secondary" onClick={() => navigate('/school-workspace')}>
               Кабинет лектора
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => navigate('/profile')}>
-              Портфолио
+            <Button size="sm" onClick={() => setTab('webinars')} icon={<Radio size={14} />}>
+              Купить вебинар
             </Button>
-            <Button size="sm" onClick={() => { setTab('homework'); setHwOpen(true) }} icon={<Brain size={14} />}>
-              AI-проверка ДЗ
+            <Button size="sm" variant="secondary" onClick={() => setTab('office')} icon={<MapPin size={14} />}>
+              Офис-курсы
             </Button>
           </div>
         }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard label="Курсы" value={kpis.courses || courses.length} icon={<BookOpen size={16} />} />
+        <StatCard label="Вебинары" value={kpis.webinars || webinars.length} icon={<Radio size={16} />} />
+        <StatCard label="Офис-курсы" value={kpis.officeCourses || officeCourses.length} icon={<MapPin size={16} />} />
         <StatCard label="Преподаватели" value={kpis.lecturers || lecturers.length} icon={<Users size={16} />} />
         <StatCard label="Академии" value={kpis.academies || academies.length} icon={<Building2 size={16} />} />
-        <StatCard label="Кейсы" value={kpis.cases || cases.length} icon={<Stethoscope size={16} />} />
-        <StatCard label="Эфиры" value={kpis.live || live.length} icon={<Radio size={16} />} />
+        <StatCard label="Онлайн-треки" value={kpis.courses || courses.length} icon={<BookOpen size={16} />} />
         <StatCard label="Сертификаты" value={certs.length || kpis.certificates || 0} icon={<Award size={16} />} />
       </div>
 
       <div className="relative max-w-md">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск курсов, лекторов, кейсов…" className="pl-9" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск вебинаров, офис-курсов, городов…" className="pl-9" />
       </div>
 
       <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
@@ -191,77 +251,99 @@ export default function School() {
                 <Card className="border-[#C9A96E]/20 bg-gradient-to-br from-[#C9A96E]/10 to-transparent">
                   <CardContent className="p-5 space-y-3">
                     <div className="flex items-start gap-3">
-                      <Brain className="text-[#C9A96E] shrink-0" size={20} />
+                      <Radio className="text-[#C9A96E] shrink-0" size={20} />
                       <div>
-                        <p className="text-sm font-semibold text-white">Это не LMS — это Academy OS</p>
+                        <p className="text-sm font-semibold text-white">Главный продукт — вебинары и офис-курсы</p>
                         <p className="text-sm text-[#A8B4C0] mt-1">
-                          Обучение → практика на кейсах → экзамен → сертификат → портфолио врача.
-                          AI проверяет домашние работы и помогает разобрать ошибки.
+                          Онлайн-треки и кейсы поддерживают обучение. Деньги и спрос — в вебинарах и очных hands-on.
                         </p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => setTab('courses')}>Смотреть курсы</Button>
-                      <Button size="sm" variant="secondary" onClick={() => setTab('live')}>Ближайшие эфиры</Button>
-                      <Button size="sm" variant="secondary" onClick={() => setTab('homework')}>Проверить ДЗ</Button>
+                      <Button size="sm" onClick={() => setTab('webinars')}>Вебинары</Button>
+                      <Button size="sm" variant="secondary" onClick={() => setTab('office')}>Офис-курсы</Button>
+                      <Button size="sm" variant="secondary" onClick={() => { setTab('homework'); setHwOpen(true) }}>AI-проверка ДЗ</Button>
                     </div>
                   </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card>
-                    <CardContent className="p-4 space-y-2">
-                      <p className="text-xs uppercase tracking-wide text-[#7A8899]">Ближайшие эфиры</p>
-                      {live.slice(0, 3).map((s: any) => (
-                        <div key={s.id} className="flex justify-between gap-2 text-sm">
-                          <span className="text-white truncate">{s.title}</span>
-                          <span className="text-[#C9A96E] shrink-0">{new Date(s.startsAt).toLocaleDateString('ru-RU')}</span>
-                        </div>
-                      ))}
-                      {live.length === 0 && <p className="text-sm text-[#7A8899]">Эфиры появятся здесь</p>}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 space-y-2">
-                      <p className="text-xs uppercase tracking-wide text-[#7A8899]">Клинические кейсы</p>
-                      {cases.slice(0, 3).map((c: any) => (
-                        <div key={c.id} className="text-sm">
-                          <p className="text-white truncate">{c.title}</p>
-                          <p className="text-xs text-[#7A8899]">{c.category} · {c.author}</p>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold text-white">Ближайшие вебинары</p>
+                    <button className="text-xs text-[#C9A96E] bg-transparent border-none cursor-pointer" onClick={() => setTab('webinars')}>
+                      Все <ArrowRight size={10} className="inline" />
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {webinars.slice(0, 3).map((w: any) => (
+                      <CommerceCard
+                        key={w.id}
+                        item={w}
+                        kind="webinar"
+                        buying={buyingId === w.id}
+                        onBuy={() => buy(w.id, 'webinar')}
+                      />
+                    ))}
+                    {webinars.length === 0 && <p className="text-sm text-[#7A8899]">Вебинары появятся здесь</p>}
+                  </div>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold text-white">Рекомендуемые курсы</p>
-                    <button className="text-xs text-[#C9A96E] bg-transparent border-none cursor-pointer" onClick={() => setTab('courses')}>
+                    <p className="text-sm font-semibold text-white">Офис-курсы (hands-on)</p>
+                    <button className="text-xs text-[#C9A96E] bg-transparent border-none cursor-pointer" onClick={() => setTab('office')}>
                       Все <ArrowRight size={10} className="inline" />
                     </button>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {courses.slice(0, 6).map((c: any) => (
-                      <CourseCard key={c.id} course={c} onOpen={() => navigate(`/school/${c.id}`)} />
+                  <div className="space-y-3">
+                    {officeCourses.slice(0, 3).map((o: any) => (
+                      <CommerceCard
+                        key={o.id}
+                        item={o}
+                        kind="office"
+                        buying={buyingId === o.id}
+                        onBuy={() => buy(o.id, 'office')}
+                      />
                     ))}
                   </div>
-                  {courses.length === 0 && (
-                    <EmptyState icon={<BookOpen size={28} />} title="Курсов пока нет" description="Преподаватели добавят программы в кабинете лектора." />
-                  )}
                 </div>
               </>
             )}
 
-            {tab === 'courses' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filteredCourses.map((c: any) => (
-                  <CourseCard key={c.id} course={c} onOpen={() => navigate(`/school/${c.id}`)} />
+            {tab === 'webinars' && (
+              <div className="space-y-3">
+                <p className="text-sm text-[#7A8899]">Платные live-вебинары с записью и материалами. Основной онлайн-формат продаж.</p>
+                {filteredWebinars.map((w: any) => (
+                  <CommerceCard key={w.id} item={w} kind="webinar" buying={buyingId === w.id} onBuy={() => buy(w.id, 'webinar')} />
                 ))}
+                {filteredWebinars.length === 0 && (
+                  <EmptyState icon={<Radio size={28} />} title="Вебинаров не найдено" description="Измените поиск или дату." />
+                )}
+              </div>
+            )}
+
+            {tab === 'office' && (
+              <div className="space-y-3">
+                <p className="text-sm text-[#7A8899]">Очные hands-on: место, материалы, сертификат. Основной офлайн-формат продаж.</p>
+                {filteredOffice.map((o: any) => (
+                  <CommerceCard key={o.id} item={o} kind="office" buying={buyingId === o.id} onBuy={() => buy(o.id, 'office')} />
+                ))}
+                {filteredOffice.length === 0 && (
+                  <EmptyState icon={<MapPin size={28} />} title="Офис-курсов не найдено" description="Попробуйте другой город или категорию." />
+                )}
+              </div>
+            )}
+
+            {tab === 'courses' && (
+              <div className="space-y-3">
+                <p className="text-sm text-[#7A8899]">Онлайн-треки дополняют вебинары и офис-курсы: модули, экзамен, сертификат.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredCourses.map((c: any) => (
+                    <CourseCard key={c.id} course={c} onOpen={() => navigate(`/school/${c.id}`)} />
+                  ))}
+                </div>
                 {filteredCourses.length === 0 && (
-                  <div className="col-span-full">
-                    <EmptyState icon={<BookOpen size={28} />} title="Ничего не найдено" description="Измените поиск или категорию." />
-                  </div>
+                  <EmptyState icon={<BookOpen size={28} />} title="Треков пока нет" description="Преподаватели добавят программы в кабинете лектора." />
                 )}
               </div>
             )}
@@ -273,7 +355,7 @@ export default function School() {
                     <EmptyState
                       icon={<Users size={28} />}
                       title="Преподаватели подключаются"
-                      description="Откройте кабинет лектора, чтобы зарегистрироваться как преподаватель."
+                      description="Лекторы продают вебинары и офис-курсы через кабинет."
                       action={<Button size="sm" onClick={() => navigate('/school-workspace')}>Кабинет лектора</Button>}
                     />
                   </div>
@@ -288,7 +370,7 @@ export default function School() {
                         <Badge size="xs" variant="gold">{LEVEL_LABEL[l.level] || l.level}</Badge>
                       </div>
                       {l.bio && <p className="text-xs text-[#A8B4C0] line-clamp-3">{l.bio}</p>}
-                      <p className="text-xs text-[#7A8899]">{l.courses} курсов</p>
+                      <p className="text-xs text-[#7A8899]">{l.courses} программ</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -299,13 +381,13 @@ export default function School() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {academies.length === 0 ? (
                   <div className="col-span-full">
-                    <EmptyState icon={<Building2 size={28} />} title="Академии скоро появятся" description="Платформа регистрирует учебные центры и школы." />
+                    <EmptyState icon={<Building2 size={28} />} title="Академии скоро появятся" description="Учебные центры публикуют офис-курсы и вебинары." />
                   </div>
                 ) : academies.map((a: any) => (
                   <Card key={a.id}>
                     <CardContent className="p-4">
                       <p className="text-sm font-semibold text-white">{a.name}</p>
-                      <p className="text-xs text-[#7A8899] mt-1">{a.city || 'Онлайн'} · {a.lecturers} лекторов · {a.courses} курсов</p>
+                      <p className="text-xs text-[#7A8899] mt-1">{a.city || 'Онлайн'} · {a.lecturers} лекторов · {a.courses} программ</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -330,44 +412,17 @@ export default function School() {
               </div>
             )}
 
-            {tab === 'live' && (
-              <div className="space-y-3">
-                {live.map((s: any) => (
-                  <Card key={s.id}>
-                    <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Radio size={14} className="text-[#C9A96E]" />
-                          <Badge size="xs" variant="gold">Live</Badge>
-                        </div>
-                        <p className="text-sm font-semibold text-white">{s.title}</p>
-                        <p className="text-xs text-[#7A8899] mt-1">
-                          {s.lecturer} · {new Date(s.startsAt).toLocaleString('ru-RU')} · {s.durationMin} мин
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-[#7A8899]">{s.enrolled}/{s.seats} мест</p>
-                        <Button size="sm" className="mt-2" onClick={() => toast.success('Вы записаны на эфир')}>
-                          Записаться
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-
             {tab === 'certs' && (
               <div className="space-y-3">
                 <p className="text-sm text-[#7A8899]">
-                  Сертификат выдаётся после сдачи экзамена курса. Он попадает в портфолио врача.
+                  Сертификат — после офис-курса или экзамена трека. Попадает в портфолио врача.
                 </p>
                 {(certs.length ? certs : hub?.certificates || []).length === 0 ? (
                   <EmptyState
                     icon={<Award size={28} />}
                     title="Сертификатов пока нет"
-                    description="Пройдите курс и сдайте экзамен — сертификат появится здесь."
-                    action={<Button size="sm" onClick={() => setTab('courses')}>К курсам</Button>}
+                    description="Пройдите офис-курс или сдайте экзамен онлайн-трека."
+                    action={<Button size="sm" onClick={() => setTab('office')}>К офис-курсам</Button>}
                   />
                 ) : (certs.length ? certs : hub.certificates).map((c: any) => (
                   <Card key={c.id}>
@@ -394,13 +449,12 @@ export default function School() {
                   <CardContent className="p-5 space-y-3">
                     <p className="text-sm font-semibold text-white">Портфолио врача</p>
                     <p className="text-sm text-[#A8B4C0]">
-                      Academy OS собирает сертификаты, кейсы и навыки в ваш профессиональный профиль —
-                      его видят клиники и раздел Вакансии.
+                      Сертификаты с офис-курсов и экзаменов собираются в профиль — его видят клиники и Вакансии.
                     </p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <MiniStat icon={<Award size={14} />} label="Сертификаты" value={String(certs.length)} />
-                      <MiniStat icon={<Stethoscope size={14} />} label="Кейсы OS" value={String(cases.length)} />
-                      <MiniStat icon={<BookOpen size={14} />} label="Курсы" value={String(courses.length)} />
+                      <MiniStat icon={<Radio size={14} />} label="Вебинары" value={String(webinars.length)} />
+                      <MiniStat icon={<MapPin size={14} />} label="Офис" value={String(officeCourses.length)} />
                       <MiniStat icon={<Microscope size={14} />} label="Навыки" value={String(portfolio?.skills?.length || '—')} />
                     </div>
                     <Button onClick={() => navigate('/profile')} icon={<Briefcase size={14} />}>
@@ -420,7 +474,7 @@ export default function School() {
                       <p className="text-sm font-semibold text-white">AI-проверка домашних работ</p>
                     </div>
                     <p className="text-sm text-[#A8B4C0]">
-                      Опишите клинический кейс — AI оценит полноту протокола, диагноз и фотопротокол.
+                      После вебинара или офис-курса опишите кейс — AI оценит протокол и фотопротокол.
                     </p>
                     <Input label="Название работы" value={hwForm.title} onChange={(e) => setHwForm({ ...hwForm, title: e.target.value })} placeholder="Ревизия 16 зуба" />
                     <Input label="Категория" value={hwForm.category} onChange={(e) => setHwForm({ ...hwForm, category: e.target.value })} />
@@ -469,6 +523,69 @@ export default function School() {
   )
 }
 
+function CommerceCard({
+  item,
+  kind,
+  buying,
+  onBuy,
+}: {
+  item: any
+  kind: 'webinar' | 'office'
+  buying?: boolean
+  onBuy: () => void
+}) {
+  const seatsLeft = Math.max(0, (item.seats || 0) - (item.enrolled || 0))
+  return (
+    <Card>
+      <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {kind === 'webinar' ? (
+              <Badge size="xs" variant="gold">Вебинар</Badge>
+            ) : (
+              <Badge size="xs" variant="gold">Офис-курс</Badge>
+            )}
+            <Badge size="xs">{item.category}</Badge>
+            {item.certificate && <Badge size="xs" variant="success">Сертификат</Badge>}
+          </div>
+          <p className="text-sm font-semibold text-white">{item.title}</p>
+          <p className="text-xs text-[#7A8899]">
+            {item.lecturer}
+            {item.academy ? ` · ${item.academy}` : ''}
+          </p>
+          <div className="flex flex-wrap gap-3 text-[11px] text-[#7A8899]">
+            <span className="flex items-center gap-1">
+              <Calendar size={11} />
+              {new Date(item.startsAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {kind === 'webinar' ? (
+              <span className="flex items-center gap-1"><Clock size={11} /> {item.durationMin} мин</span>
+            ) : (
+              <>
+                <span className="flex items-center gap-1"><MapPin size={11} /> {item.city}</span>
+                <span className="flex items-center gap-1"><Clock size={11} /> {item.durationDays} дн.</span>
+              </>
+            )}
+            <span>{item.enrolled}/{item.seats} мест · осталось {seatsLeft}</span>
+          </div>
+          {kind === 'office' && item.venue && (
+            <p className="text-[11px] text-[#7A8899] truncate">{item.venue}</p>
+          )}
+          {Array.isArray(item.includes) && item.includes.length > 0 && (
+            <p className="text-[11px] text-[#A8B4C0]">{item.includes.slice(0, 3).join(' · ')}</p>
+          )}
+        </div>
+        <div className="shrink-0 text-left sm:text-right space-y-2">
+          <p className="text-lg font-bold text-[#C9A96E]">{fmtPrice(item.price, item.currency)}</p>
+          <Button size="sm" loading={buying} disabled={seatsLeft <= 0} onClick={onBuy}>
+            {seatsLeft <= 0 ? 'Нет мест' : kind === 'office' ? 'Забронировать' : 'Купить место'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function CourseCard({ course, onOpen }: { course: any; onOpen: () => void }) {
   return (
     <motion.div variants={fadeUp} initial="hidden" animate="show">
@@ -477,7 +594,7 @@ function CourseCard({ course, onOpen }: { course: any; onOpen: () => void }) {
           <div className="h-24 rounded-lg bg-gradient-to-br from-[#C9A96E]/20 to-[#1a2a40] flex items-center justify-center">
             <Play size={22} className="text-[#C9A96E]/70" />
           </div>
-          <Badge size="xs">{course.category || 'Курс'}</Badge>
+          <Badge size="xs">{course.category || 'Трек'}</Badge>
           <p className="text-sm font-semibold text-white line-clamp-2">{course.title}</p>
           <p className="text-xs text-[#7A8899] truncate">{course.instructor || course.academyName || 'Academy OS'}</p>
           <div className="flex items-center gap-3 text-[11px] text-[#7A8899]">

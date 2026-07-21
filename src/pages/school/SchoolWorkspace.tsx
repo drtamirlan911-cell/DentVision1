@@ -138,7 +138,7 @@ export default function SchoolWorkspace() {
   if (contexts.length === 0) {
     return (
       <div className="p-6 max-w-[900px] mx-auto">
-        <PageHeader title="Кабинет лектора · Academy OS" subtitle="Курсы, эфиры, сертификация и аналитика преподавателя" icon={<GraduationCap size={22} />} />
+        <PageHeader title="Кабинет лектора · Academy OS" subtitle="Продажа вебинаров и офис-курсов · аналитика" icon={<GraduationCap size={22} />} />
         <EmptyState
           icon={<GraduationCap size={36} />}
           title="Вы не являетесь лектором"
@@ -158,7 +158,7 @@ export default function SchoolWorkspace() {
     <div className="p-6 max-w-[1000px] mx-auto">
       <PageHeader
         title="Кабинет лектора · Academy OS"
-        subtitle={me?.academy?.name ? `Академия: ${me.academy.name}` : 'Независимый преподаватель'}
+        subtitle={me?.academy?.name ? `Академия: ${me.academy.name} · вебинары и офис-курсы` : 'Вебинары · офис-курсы · независимый преподаватель'}
         icon={<GraduationCap size={22} />}
         actions={me && (
           <Badge variant={me.level === 'EXPERT' || me.level === 'INTERNATIONAL_SPEAKER' ? 'success' : 'gold'}>

@@ -1,4 +1,4 @@
-/** Curated Academy OS content (cases, library, live) — no schema migration required. */
+/** Curated Academy OS commerce content — webinars & office courses first. */
 
 export const CLINICAL_CASES = [
   {
@@ -62,42 +62,175 @@ export const LIBRARY_ITEMS = [
   { id: 'lib-6', title: 'Шаблоны плана лечения для пациента', type: 'Шаблон', category: 'Менеджмент', author: 'Academy OS', pages: 4 },
 ];
 
-export function upcomingLiveSessions() {
+/** Paid webinars — primary online commerce format. */
+export function upcomingWebinars() {
   const now = Date.now();
   const day = 24 * 60 * 60 * 1000;
   return [
     {
-      id: 'live-1',
-      title: 'Прямой эфир: ревизия каналов под микроскопом',
+      id: 'wb-1',
+      format: 'webinar' as const,
+      title: 'Ревизия каналов под микроскопом — live demo',
       lecturer: 'Dr. Айгерим Нурланова',
+      academy: 'EndoLab Academy',
       category: 'Эндодонтия',
       startsAt: new Date(now + 2 * day).toISOString(),
       durationMin: 90,
       seats: 120,
       enrolled: 86,
+      price: 25000,
+      currency: 'KZT',
+      includes: ['Запись 30 дней', 'PDF-протокол', 'Q&A'],
+      certificate: false,
       status: 'scheduled',
     },
     {
-      id: 'live-2',
-      title: 'Q&A: цифровой Wax-Up и коммуникация с лабораторией',
+      id: 'wb-2',
+      format: 'webinar' as const,
+      title: 'Цифровой Wax-Up и коммуникация с лабораторией',
       lecturer: 'Dr. Алексей Петров',
+      academy: 'Prostho Hub',
       category: 'Ортопедия',
       startsAt: new Date(now + 5 * day).toISOString(),
       durationMin: 60,
       seats: 80,
       enrolled: 41,
+      price: 18000,
+      currency: 'KZT',
+      includes: ['Чек-лист лаборатории', 'Шаблоны ТЗ', 'Запись'],
+      certificate: false,
       status: 'scheduled',
     },
     {
-      id: 'live-3',
-      title: 'International Live: Soft tissue around implants',
+      id: 'wb-3',
+      format: 'webinar' as const,
+      title: 'Soft tissue around implants (International)',
       lecturer: 'Dr. Sara Kim',
+      academy: 'Global Implant Forum',
       category: 'Имплантация',
       startsAt: new Date(now + 9 * day).toISOString(),
       durationMin: 75,
       seats: 200,
       enrolled: 153,
+      price: 35000,
+      currency: 'KZT',
+      includes: ['EN + RU субтитры', 'Case pack', 'Запись 60 дней'],
+      certificate: true,
       status: 'scheduled',
+    },
+    {
+      id: 'wb-4',
+      format: 'webinar' as const,
+      title: 'Фотопротокол улыбки за 45 минут',
+      lecturer: 'Dr. Ольга Смирнова',
+      academy: 'Smile Media Lab',
+      category: 'Фотография',
+      startsAt: new Date(now + 12 * day).toISOString(),
+      durationMin: 45,
+      seats: 150,
+      enrolled: 62,
+      price: 12000,
+      currency: 'KZT',
+      includes: ['12 ракурсов', 'Пресеты', 'Запись'],
+      certificate: false,
+      status: 'scheduled',
+    },
+  ];
+}
+
+/** @deprecated use upcomingWebinars — kept for hub/live alias */
+export function upcomingLiveSessions() {
+  return upcomingWebinars();
+}
+
+/** Hands-on office courses — primary offline commerce format. */
+export function upcomingOfficeCourses() {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  return [
+    {
+      id: 'off-1',
+      format: 'office' as const,
+      title: 'Hands-on: эндодонтия под микроскопом (2 дня)',
+      lecturer: 'Dr. Айгерим Нурланова',
+      academy: 'EndoLab Academy',
+      category: 'Эндодонтия',
+      city: 'Алматы',
+      venue: 'Учебный центр EndoLab, пр. Достык 89',
+      startsAt: new Date(now + 14 * day).toISOString(),
+      endsAt: new Date(now + 15 * day).toISOString(),
+      durationDays: 2,
+      seats: 12,
+      enrolled: 9,
+      price: 280000,
+      currency: 'KZT',
+      includes: ['Материалы и расходники', 'Микроскоп 1:1', 'Сертификат', 'Обед'],
+      certificate: true,
+      level: 'advanced',
+      status: 'open',
+    },
+    {
+      id: 'off-2',
+      format: 'office' as const,
+      title: 'Офис-курс: имплантация в эстетической зоне',
+      lecturer: 'Dr. Timur Bek',
+      academy: 'Implant Pro',
+      category: 'Имплантация',
+      city: 'Астана',
+      venue: 'Clinic Campus, ул. Сыганак 17',
+      startsAt: new Date(now + 21 * day).toISOString(),
+      endsAt: new Date(now + 22 * day).toISOString(),
+      durationDays: 2,
+      seats: 10,
+      enrolled: 7,
+      price: 450000,
+      currency: 'KZT',
+      includes: ['Модели и импланты для практики', 'Хирургический сет', 'Сертификат', 'Networking dinner'],
+      certificate: true,
+      level: 'advanced',
+      status: 'open',
+    },
+    {
+      id: 'off-3',
+      format: 'office' as const,
+      title: 'Очный воркшоп: циркониевые реставрации',
+      lecturer: 'Dr. Алексей Петров',
+      academy: 'Prostho Hub',
+      category: 'Ортопедия',
+      city: 'Алматы',
+      venue: 'Digital Lab Studio, ул. Жандосова 54',
+      startsAt: new Date(now + 28 * day).toISOString(),
+      endsAt: new Date(now + 28 * day).toISOString(),
+      durationDays: 1,
+      seats: 16,
+      enrolled: 11,
+      price: 195000,
+      currency: 'KZT',
+      includes: ['Wax-up практика', 'Временные коронки', 'Сертификат'],
+      certificate: true,
+      level: 'intermediate',
+      status: 'open',
+    },
+    {
+      id: 'off-4',
+      format: 'office' as const,
+      title: 'Office course: soft tissue grafting around implants',
+      lecturer: 'Dr. Sara Kim',
+      academy: 'Global Implant Forum',
+      category: 'Имплантация',
+      city: 'Алматы',
+      venue: 'Rixos Conference Hall B',
+      startsAt: new Date(now + 40 * day).toISOString(),
+      endsAt: new Date(now + 41 * day).toISOString(),
+      durationDays: 2,
+      seats: 20,
+      enrolled: 14,
+      price: 520000,
+      currency: 'KZT',
+      includes: ['Pig-head hands-on', 'EN/RU', 'International certificate', 'Coffee breaks'],
+      certificate: true,
+      level: 'expert',
+      status: 'open',
     },
   ];
 }

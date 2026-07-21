@@ -8,7 +8,8 @@ import {
   DEFAULT_EXAM,
   LIBRARY_ITEMS,
   reviewHomework,
-  upcomingLiveSessions,
+  upcomingOfficeCourses,
+  upcomingWebinars,
 } from './academyContent.js';
 
 const schoolRouter = Router();
@@ -142,17 +143,29 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
       users.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]),
     );
 
+    const webinars = upcomingWebinars();
+    const officeCourses = upcomingOfficeCourses();
+
     res.json({
       ok: true,
       data: {
+        positioning: {
+          primary: ['webinar', 'office'],
+          headline: 'Academy OS продаёт вебинары и офис-курсы',
+          secondary: ['online_track', 'cases', 'certification', 'portfolio'],
+        },
         kpis: {
+          webinars: webinars.length,
+          officeCourses: officeCourses.length,
           courses: courses.length,
           academies: academies.length,
           lecturers: lecturers.length,
           cases: CLINICAL_CASES.length,
-          live: upcomingLiveSessions().length,
+          live: webinars.length,
           certificates: enrollments.length,
         },
+        webinars,
+        officeCourses,
         courses: courses.map(mapCourse),
         academies: academies.map((a) => ({
           id: a.id,
@@ -171,7 +184,7 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
         })),
         cases: CLINICAL_CASES,
         library: LIBRARY_ITEMS,
-        live: upcomingLiveSessions(),
+        live: webinars,
         certificates: enrollments.map((e: any) => ({
           id: e.id,
           courseId: e.courseId,
@@ -354,7 +367,61 @@ schoolRouter.get('/library', async (req, res) => {
 });
 
 schoolRouter.get('/live', async (_req, res) => {
-  res.json({ ok: true, data: upcomingLiveSessions() });
+  res.json({ ok: true, data: upcomingWebinars() });
+});
+
+schoolRouter.get('/webinars', async (_req, res) => {
+  res.json({ ok: true, data: upcomingWebinars() });
+});
+
+schoolRouter.get('/office-courses', async (_req, res) => {
+  res.json({ ok: true, data: upcomingOfficeCourses() });
+});
+
+/** Soft registration / purchase intent for webinars & office seats (commerce stub). */
+schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { productId, format } = req.body || {};
+    if (!productId || !format) {
+      res.status(400).json({ ok: false, error: 'productId и format обязательны' });
+      return;
+    }
+    const catalog =
+      format === 'office'
+        ? upcomingOfficeCourses()
+        : format === 'webinar' || format === 'live'
+          ? upcomingWebinars()
+          : [];
+    const product = catalog.find((p) => p.id === productId);
+    if (!product) {
+      res.status(404).json({ ok: false, error: 'Продукт не найден' });
+      return;
+    }
+    const seatsLeft = Math.max(0, (product.seats || 0) - (product.enrolled || 0));
+    if (seatsLeft <= 0) {
+      res.status(409).json({ ok: false, error: 'Мест больше нет' });
+      return;
+    }
+    res.status(201).json({
+      ok: true,
+      data: {
+        registrationId: `reg-${productId}-${req.user!.id.slice(0, 8)}`,
+        productId: product.id,
+        format: product.format,
+        title: product.title,
+        price: product.price,
+        currency: product.currency,
+        seatsLeft: seatsLeft - 1,
+        status: 'reserved',
+        message:
+          product.format === 'office'
+            ? 'Место на офис-курсе забронировано. Оплата и чек-ин — у организатора.'
+            : 'Место на вебинаре забронировано. Ссылка придёт перед стартом.',
+      },
+    });
+  } catch {
+    res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать' });
+  }
 });
 
 schoolRouter.get('/certificates', authenticate, async (req: AuthRequest, res) => {
