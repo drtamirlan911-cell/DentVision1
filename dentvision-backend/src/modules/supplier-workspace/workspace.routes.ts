@@ -6,18 +6,16 @@ import { uid } from '../../lib/helpers.js';
 import { serializeBigInt, tengeToMinor } from '../../lib/money.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import { buildSupplierDashboard, buildSupplierInsights, getSupplierOrders } from './supplierDashboard.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supplier Workspace (self-service cabinet). All routes operate strictly on the
-// supplier from the active SUPPLIER context (req.user.supplierId), so a supplier
-// user can only ever see/manage their own data. Switch into this context via
-// POST /api/iam/switch-context { scopeType: "SUPPLIER", scopeId }.
+// supplier from the active SUPPLIER context (req.user.supplierId).
 // ─────────────────────────────────────────────────────────────────────────────
 export const supplierWorkspaceRouter = Router();
 
 supplierWorkspaceRouter.use(authenticate);
 
-// Requires an active SUPPLIER context.
 function requireSupplierContext(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.user?.supplierId) {
     return res.status(403).json({ ok: false, error: 'Требуется контекст поставщика (switch-context)' } satisfies ApiResponse);
@@ -25,7 +23,6 @@ function requireSupplierContext(req: AuthRequest, res: Response, next: NextFunct
   next();
 }
 
-// Requires a write-capable supplier role (owner/manager).
 function requireSupplierWrite(req: AuthRequest, res: Response, next: NextFunction) {
   if (!['owner', 'manager'].includes(req.user?.supplierRole || '')) {
     return res.status(403).json({ ok: false, error: 'Недостаточно прав в кабинете поставщика' } satisfies ApiResponse);
@@ -35,7 +32,6 @@ function requireSupplierWrite(req: AuthRequest, res: Response, next: NextFunctio
 
 supplierWorkspaceRouter.use(requireSupplierContext);
 
-// ─── Profile ───
 supplierWorkspaceRouter.get('/me', async (req: AuthRequest, res) => {
   const supplier = await prisma.supplier.findUnique({
     where: { id: req.user!.supplierId },
@@ -47,7 +43,6 @@ supplierWorkspaceRouter.get('/me', async (req: AuthRequest, res) => {
   return res.json({ ok: true, data: { ...supplier, myRole: req.user!.supplierRole } } satisfies ApiResponse);
 });
 
-// Update own profile. Status/kind stay platform-controlled (verification pipeline).
 supplierWorkspaceRouter.patch('/me', requireSupplierWrite, async (req: AuthRequest, res) => {
   const b = req.body || {};
   const supplier = await prisma.supplier.update({
@@ -64,7 +59,6 @@ supplierWorkspaceRouter.patch('/me', requireSupplierWrite, async (req: AuthReque
   return res.json({ ok: true, data: supplier } satisfies ApiResponse);
 });
 
-// Upload a document toward verification.
 supplierWorkspaceRouter.post('/documents', requireSupplierWrite, async (req: AuthRequest, res) => {
   const { type, url } = req.body || {};
   if (!type || !url) {
@@ -74,7 +68,89 @@ supplierWorkspaceRouter.post('/documents', requireSupplierWrite, async (req: Aut
   return res.status(201).json({ ok: true, data: doc } satisfies ApiResponse);
 });
 
-// ─── Own catalog ───
+supplierWorkspaceRouter.get('/dashboard', async (req: AuthRequest, res) => {
+  try {
+    const data = await buildSupplierDashboard(req.user!.supplierId!);
+    return res.json({ ok: true, data: serializeBigInt(data) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Supplier dashboard error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить кабинет' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.get('/insights', async (req: AuthRequest, res) => {
+  try {
+    const insights = await buildSupplierInsights(req.user!.supplierId!);
+    return res.json({ ok: true, data: insights } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Supplier insights error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить рекомендации' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.get('/orders', async (req: AuthRequest, res) => {
+  try {
+    const orders = await getSupplierOrders(req.user!.supplierId!);
+    return res.json({ ok: true, data: orders } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Supplier orders error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить заказы' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async (req: AuthRequest, res) => {
+  try {
+    const status = String(req.body?.status || '').toLowerCase();
+    const allowed = ['packing', 'shipped', 'delivered', 'cancelled'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ ok: false, error: 'Недопустимый статус' } satisfies ApiResponse);
+    }
+
+    const mine = await getSupplierOrders(req.user!.supplierId!);
+    const owned = (mine as any[]).find((o) => o.id === req.params.id);
+    if (!owned) {
+      return res.status(404).json({ ok: false, error: 'Заказ не найден' } satisfies ApiResponse);
+    }
+
+    const order = await prisma.order.update({
+      where: { id: owned.id },
+      data: { status },
+    });
+    return res.json({ ok: true, data: order } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Supplier order status error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось обновить статус' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.post('/promotions', requireSupplierWrite, async (req: AuthRequest, res) => {
+  try {
+    const { productId, title, discountPercent } = req.body || {};
+    if (!productId) {
+      return res.status(400).json({ ok: false, error: 'productId обязателен' } satisfies ApiResponse);
+    }
+    const product = await prisma.product.findFirst({
+      where: { id: productId, supplierId: req.user!.supplierId },
+    });
+    if (!product) {
+      return res.status(404).json({ ok: false, error: 'Товар не найден' } satisfies ApiResponse);
+    }
+    const label = title || `Акция −${Number(discountPercent) || 10}%`;
+    const desc = `${product.description || ''}\n[АКЦИЯ] ${label}`.trim();
+    const updated = await prisma.product.update({
+      where: { id: product.id },
+      data: { description: desc },
+    });
+    return res.status(201).json({
+      ok: true,
+      data: { id: `promo-${updated.id}`, productId: updated.id, title: label, active: true },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Supplier promotion error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось создать акцию' } satisfies ApiResponse);
+  }
+});
+
 supplierWorkspaceRouter.get('/products', async (req: AuthRequest, res) => {
   const products = await prisma.product.findMany({
     where: { supplierId: req.user!.supplierId },
@@ -101,7 +177,7 @@ supplierWorkspaceRouter.post('/products', requireSupplierWrite, async (req: Auth
         manufacturer: b.manufacturer || null,
         country: b.country || null,
         compatibility: b.compatibility || null,
-        supplierId: req.user!.supplierId, // forced to own supplier
+        supplierId: req.user!.supplierId,
       },
     });
     return res.status(201).json({ ok: true, data: product } satisfies ApiResponse);
@@ -143,13 +219,11 @@ supplierWorkspaceRouter.delete('/products/:id', requireSupplierWrite, async (req
   return res.json({ ok: true, data: { id: existing.id } } satisfies ApiResponse);
 });
 
-// ─── Wallet + payouts ───
 supplierWorkspaceRouter.get('/wallet', async (req: AuthRequest, res) => {
   const wallet = await getOrCreateWallet('SUPPLIER', req.user!.supplierId!);
   return res.json({ ok: true, data: serializeBigInt(wallet) } satisfies ApiResponse);
 });
 
-// Request a payout from own wallet (platform approves it via /api/finance).
 supplierWorkspaceRouter.post('/payouts', requireSupplierWrite, async (req: AuthRequest, res) => {
   const { amount, amountMinor } = req.body || {};
   if (amount === undefined && amountMinor === undefined) {
@@ -164,27 +238,29 @@ supplierWorkspaceRouter.post('/payouts', requireSupplierWrite, async (req: AuthR
   return res.status(201).json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
 });
 
-// ─── Sales analytics (from own wallet ledger) ───
 supplierWorkspaceRouter.get('/analytics', async (req: AuthRequest, res) => {
-  const wallet = await getOrCreateWallet('SUPPLIER', req.user!.supplierId!);
-  const [creditAgg, productCount] = await Promise.all([
-    prisma.ledgerEntry.aggregate({
-      where: { walletId: wallet.id, direction: 'credit' },
-      _sum: { amount: true },
-      _count: true,
-    }),
-    prisma.product.count({ where: { supplierId: req.user!.supplierId } }),
-  ]);
-  return res.json({
-    ok: true,
-    data: {
-      balanceMinor: wallet.balance.toString(),
-      earnedMinor: (creditAgg._sum.amount ?? 0n).toString(),
-      salesCount: creditAgg._count,
-      productCount,
-      currency: wallet.currency,
-    },
-  } satisfies ApiResponse);
+  try {
+    const dash = await buildSupplierDashboard(req.user!.supplierId!);
+    return res.json({
+      ok: true,
+      data: {
+        balanceMinor: dash.kpis.balanceMinor,
+        earnedMinor: dash.kpis.earnedMinor,
+        salesCount: dash.kpis.salesCount,
+        productCount: dash.kpis.productCount,
+        currency: dash.kpis.currency,
+        orders30: dash.kpis.orders30,
+        revenue30: dash.kpis.revenue30,
+        avgRating: dash.kpis.avgRating,
+        lowStockCount: dash.kpis.lowStockCount,
+        openReturns: dash.kpis.openReturns,
+        insights: dash.insights.slice(0, 5),
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Supplier analytics error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка аналитики' } satisfies ApiResponse);
+  }
 });
 
 export default supplierWorkspaceRouter;

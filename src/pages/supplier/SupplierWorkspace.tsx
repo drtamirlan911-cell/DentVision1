@@ -1,92 +1,135 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { Store, Package, Wallet, BarChart3, Plus, Trash2, CheckCircle2, Clock, ShieldCheck, Building2 } from 'lucide-react';
-import * as api from '@/utils/api';
-import { useToast } from '@/components/ui/ds/Toast';
-import { Button } from '@/components/ui/ds/Button';
-import { Input } from '@/components/ui/ds/Input';
-import { Card, CardContent } from '@/components/ui/ds/Card';
-import { Badge } from '@/components/ui/ds/Badge';
-import { Modal } from '@/components/ui/ds/Modal';
-import { EmptyState } from '@/components/ui/ds/EmptyState';
-import { PageHeader } from '@/components/ui/ds/StatCard';
+import React, { useEffect, useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Store, Package, Wallet, BarChart3, Plus, Trash2, CheckCircle2, Clock,
+  ShieldCheck, Building2, Sparkles, TrendingUp, AlertTriangle, RotateCcw,
+  Megaphone, Tag, Star, Truck, ArrowRight, Box,
+} from 'lucide-react'
+import * as api from '@/utils/api'
+import { useToast } from '@/components/ui/ds/Toast'
+import { Button } from '@/components/ui/ds/Button'
+import { Input } from '@/components/ui/ds/Input'
+import { Card, CardContent } from '@/components/ui/ds/Card'
+import { Badge } from '@/components/ui/ds/Badge'
+import { Modal } from '@/components/ui/ds/Modal'
+import { EmptyState } from '@/components/ui/ds/EmptyState'
+import { PageHeader } from '@/components/ui/ds/StatCard'
 
-interface SupplierCtx { scopeId: string; role: string; supplier?: { id: string; name: string; status: string } }
+type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'profile'
+
+interface SupplierCtx {
+  scopeId: string
+  role: string
+  supplier?: { id: string; name: string; status: string }
+}
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Ожидает', DOCUMENTS_REVIEW: 'Проверка документов', VERIFIED: 'Проверен', OFFICIAL_PARTNER: 'Официальный партнёр', SUSPENDED: 'Приостановлен',
-};
+  PENDING: 'На проверке',
+  DOCUMENTS_REVIEW: 'Проверка документов',
+  VERIFIED: 'Проверен',
+  OFFICIAL_PARTNER: 'Официальный партнёр',
+  SUSPENDED: 'Приостановлен',
+}
+
+const ORDER_STATUS: Record<string, string> = {
+  pending: 'Новый',
+  placed: 'Оформлен',
+  paid: 'Оплачен',
+  packing: 'Сборка',
+  shipped: 'В пути',
+  delivered: 'Доставлен',
+  cancelled: 'Отменён',
+  refunded: 'Возврат',
+}
 
 function fmtMoney(minor: string | number | undefined): string {
-  const n = Number(minor || 0) / 100;
-  return n.toLocaleString('ru-RU') + ' ₸';
+  const n = Number(minor || 0) / 100
+  return n.toLocaleString('ru-RU') + ' ₸'
+}
+
+function fmtTenge(value: number): string {
+  return Math.round(value).toLocaleString('ru-RU') + ' ₸'
+}
+
+const insightIcon = (type: string) => {
+  switch (type) {
+    case 'stock': return <AlertTriangle size={16} />
+    case 'demand': return <TrendingUp size={16} />
+    case 'price': return <Tag size={16} />
+    case 'rating': return <Star size={16} />
+    case 'return': return <RotateCcw size={16} />
+    case 'promo': return <Megaphone size={16} />
+    default: return <Sparkles size={16} />
+  }
+}
+
+const severityClass: Record<string, string> = {
+  warning: 'border-amber-500/30 bg-amber-500/10 text-amber-100',
+  success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100',
+  info: 'border-sky-500/30 bg-sky-500/10 text-sky-100',
 }
 
 export default function SupplierWorkspace() {
-  const toast = useToast();
-  const [loading, setLoading] = useState(true);
-  const [contexts, setContexts] = useState<SupplierCtx[]>([]);
-  const [token, setToken] = useState<string | null>(null);
-  const [tab, setTab] = useState<'profile' | 'catalog' | 'analytics'>('catalog');
+  const toast = useToast()
+  const [loading, setLoading] = useState(true)
+  const [contexts, setContexts] = useState<SupplierCtx[]>([])
+  const [token, setToken] = useState<string | null>(null)
+  const [tab, setTab] = useState<TabId>('overview')
 
-  const [me, setMe] = useState<any>(null);
-  const [products, setProducts] = useState<any[]>([]);
-  const [analytics, setAnalytics] = useState<any>(null);
+  const [me, setMe] = useState<any>(null)
+  const [dash, setDash] = useState<any>(null)
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', price: '', stock: '', category: '', description: '' });
-  const [saving, setSaving] = useState(false);
+  const [addOpen, setAddOpen] = useState(false)
+  const [promoOpen, setPromoOpen] = useState(false)
+  const [form, setForm] = useState({ name: '', price: '', stock: '', category: '', description: '' })
+  const [promoForm, setPromoForm] = useState({ productId: '', title: '', discountPercent: '10' })
+  const [saving, setSaving] = useState(false)
 
-  const [regForm, setRegForm] = useState({ name: '', bin: '', phone: '', email: '', contactPerson: '', legalAddress: '' });
-  const [regSaving, setRegSaving] = useState(false);
+  const [regForm, setRegForm] = useState({ name: '', bin: '', phone: '', email: '', contactPerson: '', legalAddress: '' })
+  const [regSaving, setRegSaving] = useState(false)
 
   const loadAll = useCallback(async (t: string) => {
-    const [meRes, prodRes, anRes] = await Promise.all([
+    const [meRes, dashRes] = await Promise.all([
       api.supplierWs.me(t).catch(() => null),
-      api.supplierWs.products(t).catch(() => []),
-      api.supplierWs.analytics(t).catch(() => null),
-    ]);
-    setMe(meRes);
-    setProducts(Array.isArray(prodRes) ? prodRes : []);
-    setAnalytics(anRes);
-  }, []);
+      api.supplierWs.dashboard(t).catch(() => null),
+    ])
+    setMe(meRes)
+    setDash(dashRes)
+  }, [])
 
   const enterSupplier = useCallback(async (scopeId: string) => {
     try {
-      const res = await api.switchContext('SUPPLIER', scopeId);
-      setToken(res.accessToken);
-      await loadAll(res.accessToken);
+      const res = await api.switchContext('SUPPLIER', scopeId)
+      setToken(res.accessToken)
+      await loadAll(res.accessToken)
     } catch {
-      toast.error('Не удалось войти в кабинет поставщика');
+      toast.error('Не удалось войти в кабинет поставщика')
     }
-  }, [loadAll, toast]);
+  }, [loadAll, toast])
 
   useEffect(() => {
-    (async () => {
+    ;(async () => {
       try {
-        const res = await api.getMyContexts();
-        const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER');
-        setContexts(sup);
-        if (sup.length > 0) await enterSupplier(sup[0].scopeId);
-      } catch {
-        /* ignore */
-      } finally {
-        setLoading(false);
+        const res = await api.getMyContexts()
+        const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER')
+        setContexts(sup)
+        if (sup.length > 0) await enterSupplier(sup[0].scopeId)
+      } catch { /* ignore */ } finally {
+        setLoading(false)
       }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    })()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reloadContexts = async () => {
-    const res = await api.getMyContexts();
-    const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER');
-    setContexts(sup);
-    if (sup.length > 0) await enterSupplier(sup[0].scopeId);
-  };
+    const res = await api.getMyContexts()
+    const sup = (res.contexts || []).filter((c: any) => c.scopeType === 'SUPPLIER')
+    setContexts(sup)
+    if (sup.length > 0) await enterSupplier(sup[0].scopeId)
+  }
 
   const handleRegister = async () => {
-    if (!regForm.name.trim()) { toast.error('Укажите название компании'); return; }
-    setRegSaving(true);
+    if (!regForm.name.trim()) { toast.error('Укажите название компании'); return }
+    setRegSaving(true)
     try {
       const supplier = await api.registerAsSupplier({
         name: regForm.name.trim(),
@@ -95,23 +138,26 @@ export default function SupplierWorkspace() {
         email: regForm.email || undefined,
         contactPerson: regForm.contactPerson || undefined,
         legalAddress: regForm.legalAddress || undefined,
-      });
-      toast.success('Кабинет создан. Статус: на проверке');
-      await reloadContexts();
-      if (supplier?.id) await enterSupplier(supplier.id);
+      })
+      toast.success('Кабинет создан. Статус: на проверке')
+      await reloadContexts()
+      if (supplier?.id) await enterSupplier(supplier.id)
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось зарегистрировать компанию');
+      toast.error(e?.message || 'Не удалось зарегистрировать компанию')
     } finally {
-      setRegSaving(false);
+      setRegSaving(false)
     }
-  };
+  }
 
-  const canWrite = me?.myRole === 'owner' || me?.myRole === 'manager';
+  const canWrite = me?.myRole === 'owner' || me?.myRole === 'manager'
+  const products = dash?.products || []
+  const kpis = dash?.kpis || {}
+  const insights = dash?.insights || []
 
   const handleAdd = async () => {
-    if (!token) return;
-    if (!form.name.trim() || !form.price) { toast.error('Введите название и цену'); return; }
-    setSaving(true);
+    if (!token) return
+    if (!form.name.trim() || !form.price) { toast.error('Введите название и цену'); return }
+    setSaving(true)
     try {
       await api.supplierWs.createProduct(token, {
         name: form.name.trim(),
@@ -119,177 +165,482 @@ export default function SupplierWorkspace() {
         stock: Number(form.stock) || 0,
         category: form.category || undefined,
         description: form.description || undefined,
-      });
-      toast.success('Товар добавлен');
-      setAddOpen(false);
-      setForm({ name: '', price: '', stock: '', category: '', description: '' });
-      await loadAll(token);
+      })
+      toast.success('Товар добавлен')
+      setAddOpen(false)
+      setForm({ name: '', price: '', stock: '', category: '', description: '' })
+      await loadAll(token)
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при добавлении');
+      toast.error(e?.message || 'Ошибка при добавлении')
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   const handleDelete = async (id: string) => {
-    if (!token) return;
+    if (!token) return
     try {
-      await api.supplierWs.deleteProduct(token, id);
-      toast.success('Товар удалён');
-      await loadAll(token);
+      await api.supplierWs.deleteProduct(token, id)
+      toast.success('Товар удалён')
+      await loadAll(token)
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при удалении');
+      toast.error(e?.message || 'Ошибка при удалении')
     }
-  };
+  }
+
+  const handleStock = async (id: string, stock: number) => {
+    if (!token) return
+    try {
+      await api.supplierWs.updateProduct(token, id, { stock })
+      await loadAll(token)
+      toast.success('Остаток обновлён')
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось обновить остаток')
+    }
+  }
+
+  const handleOrderStatus = async (id: string, status: string) => {
+    if (!token) return
+    try {
+      await api.supplierWs.updateOrderStatus(token, id, status)
+      toast.success('Статус заказа обновлён')
+      await loadAll(token)
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось обновить заказ')
+    }
+  }
+
+  const handlePromo = async () => {
+    if (!token || !promoForm.productId) { toast.error('Выберите товар'); return }
+    setSaving(true)
+    try {
+      await api.supplierWs.createPromotion(token, {
+        productId: promoForm.productId,
+        title: promoForm.title || undefined,
+        discountPercent: Number(promoForm.discountPercent) || 10,
+      })
+      toast.success('Акция запущена')
+      setPromoOpen(false)
+      await loadAll(token)
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось создать акцию')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handlePayout = async () => {
-    if (!token) return;
-    const balance = Number(analytics?.balanceMinor || 0);
-    if (balance <= 0) { toast.error('Нет средств для вывода'); return; }
+    if (!token) return
+    const balance = Number(kpis.balanceMinor || 0)
+    if (balance <= 0) { toast.error('Нет средств для вывода'); return }
     try {
-      await api.supplierWs.requestPayout(token, { amountMinor: String(balance) });
-      toast.success('Заявка на выплату создана');
-      await loadAll(token);
+      await api.supplierWs.requestPayout(token, { amountMinor: String(balance) })
+      toast.success('Заявка на выплату создана')
+      await loadAll(token)
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при запросе выплаты');
+      toast.error(e?.message || 'Ошибка при запросе выплаты')
     }
-  };
+  }
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="h-9 w-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" /></div>;
+    return (
+      <div className="flex justify-center py-20">
+        <div className="h-9 w-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" />
+      </div>
+    )
   }
 
   if (contexts.length === 0) {
     return (
       <div className="p-6 max-w-[900px] mx-auto space-y-4">
-        <PageHeader title="Кабинет продавца" subtitle="Управление магазином поставщика" icon={<Store size={22} />} />
+        <PageHeader
+          title="Кабинет продавца"
+          subtitle="Kaspi для стоматологии — продажи, остатки, AI и реклама"
+          icon={<Store size={22} />}
+        />
         <EmptyState
           icon={<Store size={36} />}
-          title="Откройте кабинет продавца"
-          description="Зарегистрируйте компанию-поставщика — вы станете её владельцем. Или попросите администратора платформы привязать ваш аккаунт к уже существующему поставщику (по email)."
+          title="Откройте кабинет поставщика"
+          description="Зарегистрируйте компанию и продавайте клиникам расходники, оборудование и материалы на маркетплейсе DentVision."
         />
         <Card>
           <CardContent className="p-5 space-y-3">
             <p className="text-sm font-medium text-white">Регистрация компании</p>
-            <Input
-              label="Название компании *"
-              value={regForm.name}
-              onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
-              placeholder="ТОО DentSupply"
-            />
+            <Input label="Название компании *" value={regForm.name} onChange={(e) => setRegForm({ ...regForm, name: e.target.value })} placeholder="ТОО DentSupply" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input label="БИН" value={regForm.bin} onChange={(e) => setRegForm({ ...regForm, bin: e.target.value })} />
               <Input label="Телефон" value={regForm.phone} onChange={(e) => setRegForm({ ...regForm, phone: e.target.value })} />
               <Input label="Email" value={regForm.email} onChange={(e) => setRegForm({ ...regForm, email: e.target.value })} />
               <Input label="Контактное лицо" value={regForm.contactPerson} onChange={(e) => setRegForm({ ...regForm, contactPerson: e.target.value })} />
             </div>
-            <Input
-              label="Юр. адрес"
-              value={regForm.legalAddress}
-              onChange={(e) => setRegForm({ ...regForm, legalAddress: e.target.value })}
-            />
+            <Input label="Юр. адрес" value={regForm.legalAddress} onChange={(e) => setRegForm({ ...regForm, legalAddress: e.target.value })} />
             <div className="flex justify-end pt-1">
-              <Button onClick={handleRegister} disabled={regSaving}>
-                {regSaving ? 'Создание…' : 'Создать кабинет'}
-              </Button>
+              <Button onClick={handleRegister} disabled={regSaving}>{regSaving ? 'Создание…' : 'Создать кабинет'}</Button>
             </div>
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
-  const TABS: Array<{ id: typeof tab; label: string; icon: React.ReactNode }> = [
+  const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode; count?: number }> = [
+    { id: 'overview', label: 'Обзор', icon: <Sparkles size={15} /> },
+    { id: 'sales', label: 'Продажи', icon: <Truck size={15} />, count: (dash?.orders || []).length },
+    { id: 'stock', label: 'Остатки', icon: <Box size={15} />, count: kpis.lowStockCount },
+    { id: 'returns', label: 'Возвраты', icon: <RotateCcw size={15} />, count: kpis.openReturns },
+    { id: 'ads', label: 'Реклама', icon: <Megaphone size={15} /> },
+    { id: 'analytics', label: 'Спрос', icon: <BarChart3 size={15} /> },
     { id: 'catalog', label: 'Каталог', icon: <Package size={15} /> },
-    { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={15} /> },
     { id: 'profile', label: 'Профиль', icon: <Building2 size={15} /> },
-  ];
+  ]
 
   return (
-    <div className="p-6 max-w-[1000px] mx-auto">
+    <div className="p-4 md:p-6 max-w-[1100px] mx-auto space-y-5">
       <PageHeader
         title="Кабинет продавца"
-        subtitle={me?.name || 'Магазин поставщика'}
+        subtitle={`${me?.name || 'Поставщик'} · Kaspi для стоматологии`}
         icon={<Store size={22} />}
         actions={me && (
           <Badge variant={me.status === 'VERIFIED' || me.status === 'OFFICIAL_PARTNER' ? 'success' : 'gold'}>
-            {me.status === 'VERIFIED' || me.status === 'OFFICIAL_PARTNER' ? <ShieldCheck size={12} className="inline mr-1" /> : <Clock size={12} className="inline mr-1" />}
+            {me.status === 'VERIFIED' || me.status === 'OFFICIAL_PARTNER'
+              ? <ShieldCheck size={12} className="inline mr-1" />
+              : <Clock size={12} className="inline mr-1" />}
             {STATUS_LABEL[me.status] || me.status}
           </Badge>
         )}
       />
 
-      {/* Tabs */}
-      <div className="flex gap-1 mt-4 mb-5 border-b border-white/[0.06]">
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        <StatCell icon={<Wallet size={16} />} label="К выплате" value={fmtMoney(kpis.balanceMinor)} />
+        <StatCell icon={<TrendingUp size={16} />} label="Выручка 30 дн" value={fmtTenge(kpis.revenue30 || 0)} />
+        <StatCell icon={<CheckCircle2 size={16} />} label="Заказов" value={String(kpis.orders30 || 0)} />
+        <StatCell icon={<Star size={16} />} label="Рейтинг" value={kpis.avgRating != null ? String(kpis.avgRating) : '—'} />
+        <StatCell icon={<AlertTriangle size={16} />} label="Низкий остаток" value={String(kpis.lowStockCount || 0)} />
+        <StatCell icon={<RotateCcw size={16} />} label="Возвраты" value={String(kpis.openReturns || 0)} />
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06] pb-px">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.id ? 'border-[#C9A96E] text-[#C9A96E]' : 'border-transparent text-[#7A8899] hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+              tab === t.id ? 'border-[#C9A96E] text-[#C9A96E]' : 'border-transparent text-[#7A8899] hover:text-white'
+            }`}
           >
             {t.icon}{t.label}
+            {t.count != null && t.count > 0 && (
+              <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white/10">{t.count}</span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* Catalog */}
-      {tab === 'catalog' && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-[#7A8899]">Товаров: {products.length}</p>
-            {canWrite && <Button variant="primary" size="sm" icon={<Plus size={15} />} onClick={() => setAddOpen(true)}>Добавить товар</Button>}
-          </div>
-          {products.length === 0 ? (
-            <EmptyState icon={<Package size={32} />} title="Нет товаров" description="Добавьте первый товар в свой каталог." />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {products.map((p, i) => (
-                <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-                  <Card>
-                    <CardContent>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-white truncate">{p.name}</p>
-                          <p className="text-xs text-[#7A8899] mt-0.5">{p.category || 'Без категории'} · остаток {p.stock}</p>
-                          <p className="text-sm text-[#C9A96E] font-semibold mt-1.5">{Number(p.price).toLocaleString('ru-RU')} ₸</p>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.2 }}
+        >
+          {tab === 'overview' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Sparkles size={16} className="text-[#C9A96E]" /> AI-рекомендации
+                </h3>
+                {canWrite && (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => setPromoOpen(true)} icon={<Tag size={14} />}>Акция</Button>
+                    <Button size="sm" onClick={() => setAddOpen(true)} icon={<Plus size={14} />}>Товар</Button>
+                  </div>
+                )}
+              </div>
+
+              {insights.length === 0 ? (
+                <EmptyState
+                  icon={<Sparkles size={28} />}
+                  title="Пока нет сигналов"
+                  description="Добавьте товары и получите первые заказы — AI подскажет по остаткам и спросу."
+                />
+              ) : (
+                <div className="space-y-2">
+                  {insights.map((ins: any) => (
+                    <div key={ins.id} className={`rounded-xl border p-4 ${severityClass[ins.severity] || severityClass.info}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 opacity-90">{insightIcon(ins.type)}</div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold">{ins.title}</p>
+                          <p className="text-sm opacity-90 mt-1">{ins.message}</p>
+                          {ins.productName && (
+                            <button
+                              className="text-xs mt-2 underline underline-offset-2 opacity-80 hover:opacity-100"
+                              onClick={() => setTab('stock')}
+                            >
+                              Открыть «{ins.productName}» <ArrowRight size={10} className="inline" />
+                            </button>
+                          )}
                         </div>
-                        {canWrite && (
-                          <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors shrink-0" aria-label="Удалить">
-                            <Trash2 size={15} />
-                          </button>
+                        {ins.metric != null && (
+                          <Badge size="xs" variant="gold">{ins.metric}{ins.type === 'demand' ? '%' : ''}</Badge>
                         )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Card>
+                  <CardContent className="p-4 space-y-2">
+                    <p className="text-xs text-[#7A8899] uppercase tracking-wide">Последние продажи</p>
+                    {(dash?.orders || []).slice(0, 4).map((o: any) => (
+                      <div key={o.id} className="flex justify-between text-sm gap-2">
+                        <span className="text-white truncate">{o.clinicName}</span>
+                        <span className="text-[#C9A96E] shrink-0">{fmtTenge(o.subtotal)}</span>
+                      </div>
+                    ))}
+                    {(dash?.orders || []).length === 0 && <p className="text-sm text-[#7A8899]">Заказов пока нет</p>}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 space-y-2">
+                    <p className="text-xs text-[#7A8899] uppercase tracking-wide">Критичные остатки</p>
+                    {(dash?.stock?.low || []).slice(0, 4).map((p: any) => (
+                      <div key={p.id} className="flex justify-between text-sm gap-2">
+                        <span className="text-white truncate">{p.name}</span>
+                        <span className="text-amber-300 shrink-0">{p.stock} шт</span>
+                      </div>
+                    ))}
+                    {(dash?.stock?.low || []).length === 0 && <p className="text-sm text-[#7A8899]">Все остатки в норме</p>}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {tab === 'sales' && (
+            <div className="space-y-3">
+              <p className="text-sm text-[#7A8899]">Заказы клиник по вашим товарам</p>
+              {(dash?.orders || []).length === 0 ? (
+                <EmptyState icon={<Truck size={28} />} title="Продаж пока нет" description="Когда клиника оформит заказ с вашим товаром, он появится здесь." />
+              ) : (
+                (dash.orders as any[]).map((o) => (
+                  <Card key={o.id}>
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{o.clinicName}</p>
+                          <p className="text-xs text-[#7A8899]">
+                            {o.buyerName} · {new Date(o.createdAt).toLocaleString('ru-RU')}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <Badge size="xs">{ORDER_STATUS[o.status] || o.status}</Badge>
+                          <p className="text-sm font-bold text-[#C9A96E] mt-1">{fmtTenge(o.subtotal)}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        {o.items.map((it: any, idx: number) => (
+                          <div key={idx} className="flex justify-between text-xs text-[#A8B4C0]">
+                            <span>{it.name} × {it.qty}</span>
+                            <span>{fmtTenge(it.total)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {canWrite && !['delivered', 'cancelled', 'refunded'].includes(o.status) && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {o.status !== 'packing' && (
+                            <Button size="xs" variant="secondary" onClick={() => handleOrderStatus(o.id, 'packing')}>В сборку</Button>
+                          )}
+                          {o.status !== 'shipped' && (
+                            <Button size="xs" variant="secondary" onClick={() => handleOrderStatus(o.id, 'shipped')}>Отправить</Button>
+                          )}
+                          <Button size="xs" onClick={() => handleOrderStatus(o.id, 'delivered')}>Доставлен</Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          )}
+
+          {tab === 'stock' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-[#7A8899]">Управление остатками · низкий порог ≤ 5 шт</p>
+                {canWrite && <Button size="sm" onClick={() => setAddOpen(true)} icon={<Plus size={14} />}>Добавить</Button>}
+              </div>
+              {products.length === 0 ? (
+                <EmptyState icon={<Box size={28} />} title="Нет товаров" description="Добавьте первый SKU в каталог." />
+              ) : (
+                products.map((p: any) => (
+                  <Card key={p.id} className={p.stock <= 5 ? 'ring-1 ring-amber-500/30' : ''}>
+                    <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{p.name}</p>
+                        <p className="text-xs text-[#7A8899]">{p.category || 'Без категории'} · {fmtTenge(p.price)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          className="w-24"
+                          value={String(p.stock)}
+                          onChange={(e) => {
+                            const next = Number(e.target.value)
+                            setDash((d: any) => ({
+                              ...d,
+                              products: d.products.map((x: any) => x.id === p.id ? { ...x, stock: next } : x),
+                            }))
+                          }}
+                          onBlur={(e) => handleStock(p.id, Number(e.target.value) || 0)}
+                          disabled={!canWrite}
+                        />
+                        <span className="text-xs text-[#7A8899]">шт</span>
+                        {p.stock <= 5 && <Badge size="xs" variant="gold">мало</Badge>}
                       </div>
                     </CardContent>
                   </Card>
-                </motion.div>
-              ))}
+                ))
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Analytics */}
-      {tab === 'analytics' && analytics && (
-        <div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCell icon={<Wallet size={16} />} label="Баланс кошелька" value={fmtMoney(analytics.balanceMinor)} />
-            <StatCell icon={<BarChart3 size={16} />} label="Всего заработано" value={fmtMoney(analytics.earnedMinor)} />
-            <StatCell icon={<CheckCircle2 size={16} />} label="Продаж" value={String(analytics.salesCount)} />
-            <StatCell icon={<Package size={16} />} label="Товаров" value={String(analytics.productCount)} />
-          </div>
-          <div className="mt-5">
-            <Button variant="outline" icon={<Wallet size={15} />} disabled={!canWrite || Number(analytics.balanceMinor) <= 0} onClick={handlePayout}>
-              Запросить выплату ({fmtMoney(analytics.balanceMinor)})
-            </Button>
-            <p className="text-xs text-[#7A8899] mt-2">Выплаты подтверждаются платформой.</p>
-          </div>
-        </div>
-      )}
+          {tab === 'returns' && (
+            <div className="space-y-3">
+              <p className="text-sm text-[#7A8899]">Возвраты и споры по вашим заказам</p>
+              {(dash?.returns || []).length === 0 ? (
+                <EmptyState icon={<RotateCcw size={28} />} title="Возвратов нет" description="Открытые споры появятся здесь автоматически." />
+              ) : (
+                (dash.returns as any[]).map((r) => (
+                  <Card key={r.id}>
+                    <CardContent className="p-4 flex justify-between gap-3">
+                      <div>
+                        <p className="text-sm text-white">{r.reason}</p>
+                        <p className="text-xs text-[#7A8899] mt-1">{r.refType} · {r.refId}</p>
+                      </div>
+                      <Badge size="xs">{r.status}</Badge>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          )}
 
-      {/* Profile */}
-      {tab === 'profile' && me && (
-        <ProfileTab me={me} canWrite={canWrite} token={token!} onSaved={() => token && loadAll(token)} />
-      )}
+          {tab === 'ads' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-[#7A8899]">Реклама и акции на витрине DentVision</p>
+                {canWrite && <Button size="sm" onClick={() => setPromoOpen(true)} icon={<Tag size={14} />}>Создать акцию</Button>}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {(dash?.ads || []).map((ad: any) => (
+                  <Card key={ad.id}>
+                    <CardContent className="p-4 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-white">{ad.title}</p>
+                        <Badge size="xs" variant={ad.status === 'recommended' ? 'gold' : 'default'}>
+                          {ad.status === 'recommended' ? 'Рекомендуем' : ad.status === 'locked' ? 'Закрыто' : 'Доступно'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-[#7A8899]">{ad.description}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {(dash?.promotions || []).length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-[#7A8899]">Активные акции</p>
+                  {(dash.promotions as any[]).map((p) => (
+                    <div key={p.id} className="rounded-lg border border-[#C9A96E]/20 bg-[#C9A96E]/5 px-3 py-2 text-sm text-white">
+                      {p.title} · {p.productName}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'analytics' && (
+            <div className="space-y-4">
+              <p className="text-sm text-[#7A8899]">Аналитика спроса по вашему ассортименту</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCell icon={<BarChart3 size={16} />} label="Продаж всего" value={String(kpis.salesCount || 0)} />
+                <StatCell icon={<Wallet size={16} />} label="Заработано" value={fmtMoney(kpis.earnedMinor)} />
+                <StatCell icon={<Package size={16} />} label="SKU" value={String(kpis.productCount || 0)} />
+                <StatCell icon={<Star size={16} />} label="Рейтинг" value={kpis.avgRating != null ? String(kpis.avgRating) : '—'} />
+              </div>
+              {(dash?.demandTop || []).length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-[#7A8899]">Горячий спрос</p>
+                  {(dash.demandTop as any[]).map((d) => (
+                    <div key={d.id} className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                      <p className="text-sm font-semibold text-emerald-100">{d.title}</p>
+                      <p className="text-sm text-emerald-100/90 mt-1">{d.message}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={<TrendingUp size={28} />}
+                  title="Спрос пока стабильный"
+                  description="Когда клиники начнут чаще покупать ваши позиции, здесь появятся сигналы роста."
+                />
+              )}
+              <Button variant="outline" icon={<Wallet size={15} />} disabled={!canWrite || Number(kpis.balanceMinor) <= 0} onClick={handlePayout}>
+                Запросить выплату ({fmtMoney(kpis.balanceMinor)})
+              </Button>
+            </div>
+          )}
+
+          {tab === 'catalog' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-[#7A8899]">Товаров: {products.length}</p>
+                {canWrite && <Button size="sm" icon={<Plus size={15} />} onClick={() => setAddOpen(true)}>Добавить товар</Button>}
+              </div>
+              {products.length === 0 ? (
+                <EmptyState icon={<Package size={32} />} title="Нет товаров" description="Добавьте первый товар в каталог." />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {products.map((p: any, i: number) => (
+                    <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-white truncate">{p.name}</p>
+                              <p className="text-xs text-[#7A8899] mt-0.5">{p.category || 'Без категории'} · остаток {p.stock}</p>
+                              <p className="text-sm text-[#C9A96E] font-semibold mt-1.5">{fmtTenge(p.price)}</p>
+                              {p.rating != null && (
+                                <p className="text-xs text-[#7A8899] mt-1 flex items-center gap-1">
+                                  <Star size={11} className="text-[#C9A96E]" /> {p.rating}
+                                </p>
+                              )}
+                            </div>
+                            {canWrite && (
+                              <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors shrink-0" aria-label="Удалить">
+                                <Trash2 size={15} />
+                              </button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'profile' && me && (
+            <ProfileTab me={me} canWrite={canWrite} token={token!} onSaved={() => token && loadAll(token)} />
+          )}
+        </motion.div>
+      </AnimatePresence>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый товар">
         <div className="space-y-3">
@@ -302,43 +653,65 @@ export default function SupplierWorkspace() {
           <Input label="Описание" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Краткое описание" />
           <div className="flex gap-3 pt-2">
             <Button variant="ghost" onClick={() => setAddOpen(false)}>Отмена</Button>
-            <Button variant="primary" loading={saving} onClick={handleAdd} icon={<Plus size={15} />}>Добавить</Button>
+            <Button loading={saving} onClick={handleAdd} icon={<Plus size={15} />}>Добавить</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={promoOpen} onClose={() => setPromoOpen(false)} title="Запустить акцию">
+        <div className="space-y-3">
+          <label className="text-xs text-[#7A8899] block">Товар</label>
+          <select
+            value={promoForm.productId}
+            onChange={(e) => setPromoForm((f) => ({ ...f, productId: e.target.value }))}
+            className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+          >
+            <option value="">Выберите товар…</option>
+            {products.map((p: any) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <Input label="Название акции" value={promoForm.title} onChange={(e) => setPromoForm((f) => ({ ...f, title: e.target.value }))} placeholder="−10% на расходники" />
+          <Input label="Скидка %" type="number" value={promoForm.discountPercent} onChange={(e) => setPromoForm((f) => ({ ...f, discountPercent: e.target.value }))} />
+          <div className="flex gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setPromoOpen(false)}>Отмена</Button>
+            <Button loading={saving} onClick={handlePromo} icon={<Tag size={15} />}>Запустить</Button>
           </div>
         </div>
       </Modal>
     </div>
-  );
+  )
 }
 
 function StatCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="p-4 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px]">
-      <div className="flex items-center gap-2 text-[#C9A96E] mb-2">{icon}</div>
-      <p className="text-lg font-bold text-white">{value}</p>
-      <p className="text-xs text-[#7A8899] mt-0.5">{label}</p>
+    <div className="p-3.5 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px]">
+      <div className="flex items-center gap-2 text-[#C9A96E] mb-1.5">{icon}</div>
+      <p className="text-lg font-bold text-white leading-tight">{value}</p>
+      <p className="text-[11px] text-[#7A8899] mt-0.5">{label}</p>
     </div>
-  );
+  )
 }
 
 function ProfileTab({ me, canWrite, token, onSaved }: { me: any; canWrite: boolean; token: string; onSaved: () => void }) {
-  const toast = useToast();
+  const toast = useToast()
   const [form, setForm] = useState({
     name: me.name || '', bin: me.bin || '', legalAddress: me.legalAddress || '', contactPerson: me.contactPerson || '', phone: me.phone || '', email: me.email || '',
-  });
-  const [saving, setSaving] = useState(false);
+  })
+  const [saving, setSaving] = useState(false)
 
   const save = async () => {
-    setSaving(true);
+    setSaving(true)
     try {
-      await api.supplierWs.updateMe(token, form);
-      toast.success('Профиль сохранён');
-      onSaved();
+      await api.supplierWs.updateMe(token, form)
+      toast.success('Профиль сохранён')
+      onSaved()
     } catch (e: any) {
-      toast.error(e?.message || 'Ошибка при сохранении');
+      toast.error(e?.message || 'Ошибка при сохранении')
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   return (
     <div className="max-w-[560px] space-y-3">
@@ -352,7 +725,7 @@ function ProfileTab({ me, canWrite, token, onSaved }: { me: any; canWrite: boole
         <Input label="Телефон" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} disabled={!canWrite} />
         <Input label="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} disabled={!canWrite} />
       </div>
-      {canWrite && <Button variant="primary" loading={saving} onClick={save}>Сохранить профиль</Button>}
+      {canWrite && <Button loading={saving} onClick={save}>Сохранить профиль</Button>}
     </div>
-  );
+  )
 }
