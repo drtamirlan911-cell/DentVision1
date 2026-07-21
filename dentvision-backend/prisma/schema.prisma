@@ -547,8 +547,24 @@ model Supplier {
 
   products  Product[]
   documents SupplierDocument[]
+  members   SupplierMember[]
 
   @@map("suppliers")
+}
+
+model SupplierMember {
+  id         String @id @default(uuid())
+  userId     String
+  supplierId String
+  role       String @default("owner") // owner | manager | warehouse
+
+  createdAt DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, supplierId])
+  @@index([userId])
+  @@map("supplier_members")
 }
 
 model SupplierDocument {

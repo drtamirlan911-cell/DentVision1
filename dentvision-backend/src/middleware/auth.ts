@@ -29,6 +29,8 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       lastName: user.lastName,
       role: user.role,
       clinicId: payload.clinicId,
+      supplierId: payload.supplierId,
+      supplierRole: payload.supplierRole,
     };
 
     next();
