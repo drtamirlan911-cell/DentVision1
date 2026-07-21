@@ -25,11 +25,14 @@ function formatMoney(value: number): string {
 interface DoctorPayrollCardProps {
   className?: string
   refreshKey?: number
+  /** Compact collapsed block for Profile (not Schedule). */
+  discreet?: boolean
 }
 
-export function DoctorPayrollCard({ className, refreshKey = 0 }: DoctorPayrollCardProps) {
+export function DoctorPayrollCard({ className, refreshKey = 0, discreet = false }: DoctorPayrollCardProps) {
   const period = useMemo(() => monthRange(), [])
   const [loading, setLoading] = useState(true)
+  const [open, setOpen] = useState(!discreet)
   const [expanded, setExpanded] = useState(false)
   const [payload, setPayload] = useState<api.DoctorPayrollPayload | null>(null)
 
@@ -50,6 +53,92 @@ export function DoctorPayrollCard({ className, refreshKey = 0 }: DoctorPayrollCa
   }, [period.from, period.to, refreshKey])
 
   const payroll = payload?.payroll
+
+  if (discreet) {
+    return (
+      <Card className={cn('border-bdr-subtle bg-white/[0.02]', className)}>
+        <CardContent className="p-0">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Wallet size={14} className="text-txt-muted shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-txt-secondary">Начисления за месяц</p>
+                <p className="text-[11px] text-txt-muted capitalize">{period.label}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {!loading && payroll && (
+                <span className="text-sm font-semibold text-txt-primary">{formatMoney(payroll.earned)}</span>
+              )}
+              {open ? <ChevronUp size={14} className="text-txt-muted" /> : <ChevronDown size={14} className="text-txt-muted" />}
+            </div>
+          </button>
+
+          {open && (
+            <div className="px-4 pb-4 space-y-3 border-t border-bdr-subtle pt-3">
+              {loading ? (
+                <div className="h-12 flex items-center justify-center">
+                  <div className="w-5 h-5 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
+                </div>
+              ) : !payroll ? (
+                <p className="text-sm text-txt-muted">Нет данных по начислениям</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[11px] text-txt-muted">К выплате</p>
+                      <p className="text-lg font-bold text-dv-gold">{formatMoney(payroll.earned)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-txt-muted">Закрытых приёмов</p>
+                      <p className="text-lg font-semibold text-txt-primary">{payroll.visits}</p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-txt-muted">
+                    (услуги − материалы) × {payroll.percent}% · видно только вам
+                  </p>
+                  {payroll.visitDetails.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full justify-between"
+                      onClick={() => setExpanded((v) => !v)}
+                      icon={expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    >
+                      Детализация ({payroll.visitDetails.length})
+                    </Button>
+                  )}
+                  {expanded && (
+                    <div className="space-y-2 max-h-56 overflow-y-auto">
+                      {payroll.visitDetails.map((visit) => (
+                        <div key={visit.appointmentId} className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-1">
+                          <div className="flex justify-between gap-2 text-xs">
+                            <span className="text-txt-secondary flex items-center gap-1">
+                              <Calendar size={12} /> {visit.date}{visit.time ? ` · ${visit.time}` : ''}
+                            </span>
+                            <span className="text-dv-gold font-semibold">{formatMoney(visit.earned)}</span>
+                          </div>
+                          {visit.patientName && (
+                            <p className="text-[11px] text-txt-muted flex items-center gap-1">
+                              <User size={11} /> {visit.patientName}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className={cn('border-dv-gold/20 bg-gradient-to-br from-dv-gold/10 to-transparent', className)}>

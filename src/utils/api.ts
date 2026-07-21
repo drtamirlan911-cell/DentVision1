@@ -330,6 +330,7 @@ async function lecturerFetch(path: string, token: string, options: RequestInit =
 }
 
 export const lecturerWs = {
+  register: (b: Record<string, unknown> = {}) => apiRequest('/api/lecturer/register', { method: 'POST', body: JSON.stringify(b) }),
   me: (t: string) => lecturerFetch('/api/lecturer/me', t),
   updateMe: (t: string, b: Record<string, unknown>) => lecturerFetch('/api/lecturer/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
   courses: (t: string) => lecturerFetch('/api/lecturer/courses', t),
