@@ -25,6 +25,7 @@
 
   * {
     border-color: rgba(201, 169, 110, 0.15);
+    box-sizing: border-box;
   }
 
   html {
@@ -33,16 +34,61 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    /* Prevent accidental page pan/zoom on mobile Chrome */
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
   }
 
   body {
     @apply m-0 p-0 font-sans;
     min-height: 100vh;
+    min-height: 100dvh;
+    width: 100%;
+    max-width: 100%;
     overflow-x: hidden;
+    position: relative;
   }
 
   #root {
     min-height: 100vh;
+    min-height: 100dvh;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Contain horizontal scroll inside components, not the page */
+  .dv-page {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  @media (min-width: 768px) {
+    .dv-page {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  /* Contained horizontal scroll regions on mobile */
+  .overflow-x-auto {
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prefer tap without accidental double-tap zoom on controls */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+
+  img, video, canvas, svg {
+    max-width: 100%;
   }
 
   /* Dark theme form controls */

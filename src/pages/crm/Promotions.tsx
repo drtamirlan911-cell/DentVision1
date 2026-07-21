@@ -98,7 +98,7 @@ export default function Promotions() {
   }), [promotions])
 
   return (
-    <div className="p-6">
+    <div className="dv-page py-4 md:py-6">
       <PageHeader
         title="Акции и промоции"
         subtitle={`${clinic?.name} · ${stats.active} активных`}

@@ -18,40 +18,37 @@ interface TabsProps {
 
 function Tabs({ tabs, active, onChange, className, size = 'md' }: TabsProps) {
   return (
-    <div
-      className={cn(
-        'inline-flex items-center gap-1 rounded-xl bg-surface-2 p-1',
-        className
-      )}
-    >
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          className={cn(
-            'relative flex items-center gap-1.5 rounded-lg font-medium transition-all duration-200',
-            size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm',
-            active === tab.id
-              ? 'bg-surface-raised text-dv-gold shadow-sm'
-              : 'text-txt-muted hover:text-txt-secondary hover:bg-white/[0.03]'
-          )}
-        >
-          {tab.icon}
-          {tab.label}
-          {tab.count !== undefined && (
-            <span
-              className={cn(
-                'rounded-full px-1.5 py-0.5 text-2xs font-bold',
-                active === tab.id
-                  ? 'bg-dv-gold/20 text-dv-gold'
-                  : 'bg-white/5 text-txt-muted'
-              )}
-            >
-              {tab.count}
-            </span>
-          )}
-        </button>
-      ))}
+    <div className={cn('w-full max-w-full overflow-x-auto overscroll-x-contain', className)}>
+      <div className="inline-flex items-center gap-1 rounded-xl bg-surface-2 p-1 min-w-0">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+            className={cn(
+              'relative flex items-center gap-1.5 rounded-lg font-medium transition-all duration-200 whitespace-nowrap shrink-0',
+              size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-3 sm:px-4 py-2 text-xs sm:text-sm',
+              active === tab.id
+                ? 'bg-surface-raised text-dv-gold shadow-sm'
+                : 'text-txt-muted hover:text-txt-secondary hover:bg-white/[0.03]'
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+            {tab.count !== undefined && (
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.5 text-2xs font-bold',
+                  active === tab.id
+                    ? 'bg-dv-gold/20 text-dv-gold'
+                    : 'bg-white/5 text-txt-muted'
+                )}
+              >
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

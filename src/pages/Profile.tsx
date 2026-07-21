@@ -19,6 +19,7 @@ import { DoctorPayrollCard } from '@/components/crm/DoctorPayrollCard'
 import { DentWalletCard } from '@/components/wallet/DentWalletCard'
 import * as api from '@/utils/api'
 import { gid } from '@/utils/constants'
+import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 
 function Section({ icon, title, onAdd, children }: { icon: React.ReactNode; title: string; onAdd?: () => void; children: React.ReactNode }) {
   return (
@@ -67,6 +68,22 @@ export default function Profile() {
 
   const [modal, setModal] = useState<null | 'skill' | 'cert' | 'ach' | 'port' | 'case'>(null)
   const [form, setForm] = useState<any>({})
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const photoInputRef = React.useRef<HTMLInputElement>(null)
+
+  const handlePhotoFile = async (file: File | null) => {
+    if (!file) return
+    setPhotoUploading(true)
+    try {
+      const dataUrl = await readImageAsDataUrl(file)
+      setEditForm((prev: any) => ({ ...prev, photoUrl: dataUrl }))
+      toast.success('Фото загружено — нажмите «Сохранить»')
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось загрузить фото')
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -158,28 +175,24 @@ export default function Profile() {
   }
 
   return (
-    <div className="fade-in space-y-5 max-w-3xl mx-auto pb-10">
+    <div className="dv-page fade-in space-y-5 max-w-3xl mx-auto pb-10 pt-4 md:pt-6">
       <PageHeader title="Мой профиль" subtitle="Визитка, кэшбэк DentCash и профессиональные данные" icon={<UserIcon size={22} className="text-dv-gold" />} />
 
       {/* ─── Header card ─── */}
       <Card className="overflow-hidden">
         <div className="h-24 bg-gradient-to-r from-dv-gold/30 via-dv-gold/10 to-transparent" />
-        <CardContent className="-mt-12 px-6 pb-6">
-          <div className="flex items-end gap-4">
-            <div className="relative">
-              <Avatar name={fullName || '?'} size="xl" src={profile?.photoUrl} />
+        <CardContent className="-mt-12 px-4 sm:px-6 pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+            <div className="relative self-start">
+              <Avatar name={fullName || '?'} size="xl" src={profile?.photoUrl || editForm.photoUrl} />
               <button
                 type="button"
                 onClick={() => {
                   openEdit()
-                  // Focus photo URL field after modal opens
-                  setTimeout(() => {
-                    const el = document.querySelector<HTMLInputElement>('input[placeholder="https://..."]')
-                    el?.focus()
-                  }, 50)
+                  setTimeout(() => photoInputRef.current?.click(), 80)
                 }}
                 className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-dv-gold text-surface-0 shadow-lg hover:bg-dv-gold-light transition-colors"
-                title="Сменить фото (URL)"
+                title="Загрузить фото"
               >
                 <Camera size={14} />
               </button>
@@ -193,7 +206,9 @@ export default function Profile() {
                 {profile?.experienceYears ? <span className="flex items-center gap-1"><Sparkles size={12} /> {profile.experienceYears} лет опыта</span> : null}
               </div>
             </div>
-            <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={openEdit}>Редактировать</Button>
+            <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={openEdit} className="w-full sm:w-auto">
+              Редактировать
+            </Button>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -353,6 +368,48 @@ export default function Profile() {
       {/* ─── Edit modal ─── */}
       <Modal open={editing} onClose={() => setEditing(false)} title="Редактировать профиль" size="lg">
         <div className="space-y-3">
+          <div className="rounded-xl border border-bdr-subtle bg-white/[0.02] p-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <Avatar name={fullName || '?'} size="lg" src={editForm.photoUrl || profile?.photoUrl} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-txt-primary">Фото профиля</p>
+                <p className="text-[11px] text-txt-muted mt-0.5">JPG, PNG или WEBP до 5 МБ</p>
+              </div>
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept={PROFILE_PHOTO_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                void handlePhotoFile(e.target.files?.[0] || null)
+                e.target.value = ''
+              }}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={<Camera size={14} />}
+                loading={photoUploading}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                Загрузить фото
+              </Button>
+              {editForm.photoUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditForm({ ...editForm, photoUrl: '' })}
+                >
+                  Убрать
+                </Button>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Имя" value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
             <Input label="Фамилия" value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
@@ -362,7 +419,6 @@ export default function Profile() {
             <Input label="Страна" value={editForm.country} onChange={e => setEditForm({ ...editForm, country: e.target.value })} />
             <Input label="Телефон" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
             <Input label="Email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
-            <Input label="URL фото" value={editForm.photoUrl} onChange={e => setEditForm({ ...editForm, photoUrl: e.target.value })} placeholder="https://..." />
             <Input label="Опыт (лет)" type="number" value={editForm.experienceYears} onChange={e => setEditForm({ ...editForm, experienceYears: Number(e.target.value) })} />
           </div>
           <Input label="Заголовок (headline)" value={editForm.headline} onChange={e => setEditForm({ ...editForm, headline: e.target.value })} placeholder="Напр.: Врач-ортопед, имплантолог" />
@@ -374,9 +430,9 @@ export default function Profile() {
               <option value="private">Скрытый</option>
             </select>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setEditing(false)}>Отмена</Button>
-            <Button variant="primary" icon={<Pencil size={14} />} onClick={saveProfile}>Сохранить</Button>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setEditing(false)} className="w-full sm:w-auto">Отмена</Button>
+            <Button variant="primary" icon={<Pencil size={14} />} onClick={saveProfile} className="w-full sm:w-auto">Сохранить</Button>
           </div>
         </div>
       </Modal>

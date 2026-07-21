@@ -34,7 +34,7 @@ export default function ICD10() {
   }, [codes, selectedCategory]);
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
       <PageHeader
         title="Справочник МКБ-10"
         subtitle="Международная классификация болезней (стоматология)"

@@ -159,22 +159,24 @@ export default function TreatmentPlans() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-5xl mx-auto space-y-6 p-4 md:p-6"
+      className="dv-page max-w-5xl mx-auto space-y-6 py-4 md:py-6"
     >
       <PageHeader
         title="Планы лечения"
         subtitle="Услуги, зубы, этапы и автоматический расчёт стоимости"
         icon={<ClipboardList size={20} />}
         actions={
-          <motion.div className="flex gap-2">
+          <>
             <Button size="sm" variant="secondary" onClick={() => navigate('/crm/dental-chart')}>
-              Зубная карта
+              <span className="hidden sm:inline">Зубная карта</span>
+              <span className="sm:hidden">Карта</span>
               <ArrowRight size={14} className="ml-1.5" />
             </Button>
             <Button size="sm" onClick={openNew} icon={<Plus size={14} />}>
-              Новый план
+              <span className="hidden sm:inline">Новый план</span>
+              <span className="sm:hidden">Новый</span>
             </Button>
-          </motion.div>
+          </>
         }
       />
 
