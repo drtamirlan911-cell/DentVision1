@@ -1,6 +1,7 @@
 import { Agent } from '../core/agent.router.js';
 import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
+import { formatClinicMoney, resolveClinicCurrency } from '../lib/currency.js';
 
 export class OwnerAgent implements Agent {
   name = 'owner';
@@ -72,13 +73,15 @@ export class OwnerAgent implements Agent {
     const debtTotal = unpaid.reduce((s, i) => s + i.amount, 0);
     const revenueYesterday = paidYesterday.reduce((s, i) => s + i.amount, 0);
     const dateLabel = today.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    const money = await resolveClinicCurrency(context.clinicId);
+    const fmt = (n: number) => formatClinicMoney(n, money);
 
     const message = [
       `**Сводка на ${dateLabel}**`,
       '',
       `• Записей сегодня: **${appointmentsToday}**`,
-      `• Выручка вчера: **${revenueYesterday.toLocaleString('ru-RU')} ₸**`,
-      `• Должников: **${unpaid.length}** · сумма **${debtTotal.toLocaleString('ru-RU')} ₸**`,
+      `• Выручка вчера: **${fmt(revenueYesterday)}**`,
+      `• Должников: **${unpaid.length}** · сумма **${fmt(debtTotal)}**`,
       '',
       'Чем заняться дальше?',
     ].join('\n');
@@ -109,13 +112,15 @@ export class OwnerAgent implements Agent {
       const monthTotal = invoices
         .filter((i) => i.createdAt >= monthStart)
         .reduce((sum, i) => sum + i.amount, 0);
+      const money = await resolveClinicCurrency(context.clinicId);
+      const fmt = (n: number) => formatClinicMoney(n, money);
 
       return {
         message: [
           '**Финансы клиники**',
           '',
-          `• Выручка всего: **${total.toLocaleString('ru-RU')} ₸**`,
-          `• За текущий месяц: **${monthTotal.toLocaleString('ru-RU')} ₸**`,
+          `• Выручка всего: **${fmt(total)}**`,
+          `• За текущий месяц: **${fmt(monthTotal)}**`,
           `• Оплаченных счетов: **${invoices.length}**`,
         ].join('\n'),
         intent: 'GET_ANALYTICS',
@@ -171,19 +176,21 @@ export class OwnerAgent implements Agent {
     });
     const patientMap = new Map(patients.map(p => [p.id, p]));
     const total = invoices.reduce((sum, i) => sum + i.amount, 0);
+    const money = await resolveClinicCurrency(context.clinicId);
+    const fmt = (n: number) => formatClinicMoney(n, money);
 
     const lines = [
       '**Долги клиники**',
       '',
       `• Должников: **${invoices.length}**`,
-      `• Сумма: **${total.toLocaleString('ru-RU')} ₸**`,
+      `• Сумма: **${fmt(total)}**`,
     ];
     if (invoices.length > 0) {
       lines.push('', 'Ближайшие:');
       for (const inv of invoices.slice(0, 3)) {
         const p = inv.patientId ? patientMap.get(inv.patientId) : undefined;
         const name = p ? `${p.firstName} ${p.lastName}` : 'Пациент';
-        lines.push(`• ${name} — ${inv.amount.toLocaleString('ru-RU')} ₸`);
+        lines.push(`• ${name} — ${fmt(inv.amount)}`);
       }
     }
 
@@ -234,7 +241,7 @@ export class OwnerAgent implements Agent {
     });
 
     return {
-      message: `Счет ${invoice.id.slice(0, 8)} на ${Number(amount).toLocaleString()} ₽ создан`,
+      message: `Счет ${invoice.id.slice(0, 8)} на ${formatClinicMoney(Number(amount), await resolveClinicCurrency(context.clinicId))} создан`,
       intent: 'GENERATE_INVOICE',
       action: { type: 'OPEN_INVOICE', payload: { invoiceId: invoice.id } },
       suggestions: ['Отправить пациенту', 'Отметить оплаченным', 'Создать следующий'],
