@@ -179,4 +179,50 @@ schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, re
   }
 });
 
+// Catalog extras used by School UI — return curated demo content for promo/empty states
+schoolRouter.get('/clinical-cases', async (req, res) => {
+  const category = typeof req.query.category === 'string' ? req.query.category : '';
+  const cases = [
+    {
+      id: 'case-impl-1',
+      title: 'Имплант в эстетической зоне после травмы',
+      description: 'Немедленная имплантация 11 с временной коронкой. Фотопротокол до/после.',
+      category: 'Имплантация',
+      difficulty: 'advanced',
+      diagnosis: 'Травматическая утрата 11',
+      author: 'Др. Айдар Нурланов',
+    },
+    {
+      id: 'case-endo-1',
+      title: 'Ретечение каналов 26 под микроскопом',
+      description: 'Удаление сломанного инструмента, обтурация 4 каналов.',
+      category: 'Эндодонтия',
+      difficulty: 'advanced',
+      diagnosis: 'Периодонтит хронический 26',
+      author: 'Др. Иванов',
+    },
+    {
+      id: 'case-therapy-1',
+      title: 'Прямая композитная реставрация 21–22',
+      description: 'Стратификация Filtek Ultimate, полировка до зеркала.',
+      category: 'Терапия',
+      difficulty: 'intermediate',
+      diagnosis: 'Кариес эмали/дентина',
+      author: 'Др. Иванова',
+    },
+  ].filter((c) => !category || c.category === category);
+  res.json({ ok: true, data: cases });
+});
+
+schoolRouter.get('/library', async (_req, res) => {
+  res.json({
+    ok: true,
+    data: [
+      { id: 'lib-1', title: 'Чек-лист подготовки к имплантации', type: 'PDF', category: 'Имплантация', author: 'DentVision Academy' },
+      { id: 'lib-2', title: 'Протокол ирригации каналов 2026', type: 'PDF', category: 'Эндодонтия', author: 'Др. Иванов' },
+      { id: 'lib-3', title: 'AI Operating System: гайд для клиник', type: 'Guide', category: 'AI', author: 'DentVision' },
+    ],
+  });
+});
+
 export { schoolRouter };

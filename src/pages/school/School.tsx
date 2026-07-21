@@ -91,13 +91,17 @@ export default function School() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      api.getSchoolCourses(),
-      api.getSchoolClinicalCases(),
-      api.getSchoolLibrary(),
-    ])
-      .then(([c, cc, lib]) => {
-        const normalized = (Array.isArray(c) ? c : []).map((course: any) => ({
+    let cancelled = false;
+    (async () => {
+      try {
+        const [c, cc, lib] = await Promise.all([
+          api.getSchoolCourses().catch(() => []),
+          api.getSchoolClinicalCases('').catch(() => []),
+          api.getSchoolLibrary().catch(() => []),
+        ]);
+        if (cancelled) return;
+        const courseRows = Array.isArray(c) ? c : (c?.data ?? []);
+        const normalized = courseRows.map((course: any) => ({
           ...course,
           instructor: course.instructor ?? course.author ?? 'Лектор DentVision',
           lesson_count: course.lesson_count ?? course.lessonCount ?? course._count?.lessons ?? 0,
@@ -107,11 +111,13 @@ export default function School() {
           image_url: course.image_url ?? course.imageUrl,
         }));
         setCourses(normalized);
-        setClinicalCases(Array.isArray(cc) ? cc : []);
-        setLibraryItems(Array.isArray(lib) ? lib : []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+        setClinicalCases(Array.isArray(cc) ? cc : (cc?.data ?? []));
+        setLibraryItems(Array.isArray(lib) ? lib : (lib?.data ?? []));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const filteredCourses = useMemo(() => {
