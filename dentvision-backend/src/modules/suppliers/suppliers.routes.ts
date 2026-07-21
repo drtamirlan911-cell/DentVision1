@@ -153,6 +153,7 @@ suppliersRouter.post('/:id/status', requirePermission('supplier.manage'), async 
     });
     publish('supplier.status_changed', {
       supplierId: supplier.id,
+      status: target,
       from: existing.status,
       to: target,
       userId: req.user?.id,

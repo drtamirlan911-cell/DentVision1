@@ -145,7 +145,7 @@ export const useGuestStore = create<GuestState>((set, get) => ({
   },
 
   clearGuest: () => {
-    try { localStorage.removeItem(GUEST_STORAGE_KEY); } catch {}
+    try { localStorage.removeItem(GUEST_STORAGE_KEY); } catch { /* storage may be unavailable */ }
     set({ guestId: null, guestToken: null, isGuest: false, showRegistrationModal: false, pendingAction: null });
   },
 }));

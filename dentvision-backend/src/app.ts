@@ -29,6 +29,12 @@ import { chairsRouter } from './modules/crm/chairs.routes.js';
 import { labRouter } from './modules/lab/lab.routes.js';
 import { communityRouter } from './modules/community/community.routes.js';
 import { iamRouter } from './modules/iam/iam.routes.js';
+import { suppliersRouter } from './modules/suppliers/suppliers.routes.js';
+import { ecosystemRouter } from './modules/analytics/ecosystem.routes.js';
+import { complianceRouter } from './modules/compliance/compliance.routes.js';
+import { publicRouter } from './modules/public/public.routes.js';
+import { supplierWorkspaceRouter } from './modules/supplier-workspace/workspace.routes.js';
+import { lecturerRouter } from './modules/school-workspace/lecturer.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 
 // Wire up domain-event subscribers (audit, etc.) once at import time.
@@ -53,7 +59,7 @@ app.use('/api/auth/register', authLimiter);
 
 // ─── Health ───
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'dentvision-backend', version: '1.0.0', timestamp: new Date().toISOString() });
+  res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString() });
 });
 
 // ─── Routes ───
@@ -67,6 +73,8 @@ app.use('/api/billing', billingRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/shop', shopRouter);
 app.use('/api/suppliers', suppliersRouter);
+app.use('/api/supplier', supplierWorkspaceRouter);
+app.use('/api/lecturer', lecturerRouter);
 app.use('/api/school', schoolRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/guest', guestRouter);

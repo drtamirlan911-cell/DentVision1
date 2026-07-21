@@ -15,7 +15,7 @@ developerRouter.use(authenticate);
 developerRouter.get('/apps', async (req: AuthRequest, res) => {
   const apps = await prisma.developerApp.findMany({
     where: { ownerUserId: req.user!.id },
-    include: { _count: { select: { keys: true, webhooks: true } } },
+    include: { _count: { select: { apiKeys: true, webhooks: true } } },
     orderBy: { createdAt: 'desc' },
   });
   return res.json({ ok: true, data: apps } satisfies ApiResponse);

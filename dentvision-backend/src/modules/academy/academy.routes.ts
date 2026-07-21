@@ -161,6 +161,7 @@ lecturersRouter.post('/:id/level', requirePermission('academy.manage'), async (r
     });
     publish('lecturer.level_changed', {
       lecturerId: lecturer.id,
+      level: target,
       from: existing.level,
       to: target,
       userId: req.user?.id,

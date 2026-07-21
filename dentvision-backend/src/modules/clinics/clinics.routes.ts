@@ -92,7 +92,7 @@ clinicsRouter.get('/', authenticate, async (req, res) => {
 
 clinicsRouter.get('/:id', authenticate, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const clinic = await prisma.clinic.findUnique({
       where: { id },

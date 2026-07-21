@@ -21,6 +21,13 @@ export const PERMISSIONS = {
   INVENTORY_READ: 'inventory.read',
   INVENTORY_WRITE: 'inventory.write',
   INVENTORY_DELETE: 'inventory.delete',
+  ACADEMY_MANAGE: 'academy.manage',
+  SUPPLIER_MANAGE: 'supplier.manage',
+  COMPLIANCE_MANAGE: 'compliance.manage',
+  PLATFORM_ANALYTICS: 'platform.analytics',
+  FINANCE_MANAGE: 'finance.manage',
+  PARTNER_MANAGE: 'partner.manage',
+  WORKFLOW_MANAGE: 'workflow.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -34,11 +41,13 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
+    'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
   ],
   ADMIN: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
+    'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
   ],
   MANAGER: [
     'patient.read', 'patient.write',
@@ -59,6 +68,9 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
 export function roleHasPermission(role: UserRole | string | undefined | null, key: PermissionKey): boolean {
   if (!role) return false;
   if (role === 'SUPERADMIN') return true;
+  if (key === 'platform.analytics' || key === 'compliance.manage' || key === 'partner.manage') {
+    return role === 'SUPERADMIN';
+  }
   return (ROLE_PERMISSIONS[role] || []).includes(key);
 }
 
