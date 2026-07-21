@@ -1,7 +1,48 @@
 /**
  * Build a live digital twin for the authenticated user from clinic + school data.
+ * Profile title, skills, KPIs and advice follow clinic membership role —
+ * admins are not treated as dentists.
  */
 import prisma from '../../../lib/prisma.js';
+
+type TwinRole =
+  | 'OWNER'
+  | 'ADMIN'
+  | 'DOCTOR'
+  | 'ASSISTANT'
+  | 'MANAGER'
+  | 'LAB'
+  | 'STUDENT'
+  | 'SUPERADMIN'
+  | string;
+
+const ROLE_LABEL_RU: Record<string, string> = {
+  OWNER: 'Руководитель',
+  DIRECTOR: 'Руководитель',
+  ADMIN: 'Администратор',
+  DOCTOR: 'Врач',
+  ASSISTANT: 'Ассистент',
+  MANAGER: 'Менеджер',
+  LAB: 'Лаборатория',
+  STUDENT: 'Студент',
+  SUPERADMIN: 'Платформа',
+  CASHIER: 'Администратор',
+};
+
+function normalizeRole(raw?: string | null): TwinRole {
+  const r = String(raw || '').toUpperCase();
+  if (r === 'DIRECTOR') return 'OWNER';
+  if (r === 'CASHIER') return 'ADMIN';
+  return r || 'DOCTOR';
+}
+
+function isClinicalDoctor(role: TwinRole): boolean {
+  return role === 'DOCTOR';
+}
+
+function isClinicOps(role: TwinRole): boolean {
+  return role === 'OWNER' || role === 'ADMIN' || role === 'MANAGER' || role === 'SUPERADMIN';
+}
 
 export async function buildDigitalTwin(userId: string, clinicId?: string | null) {
   const user = await prisma.user.findUnique({
@@ -35,16 +76,26 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null)
       });
 
   const activeClinicId = clinicId || membership?.clinicId || null;
+  const role = normalizeRole(membership?.role || user.role);
+  const roleLabel = ROLE_LABEL_RU[role] || String(role);
 
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
+
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
 
   const [
     enrollments,
     monthAppts,
     completedAppts,
     unpaidInvoices,
+    todayAppts,
+    staffCount,
+    patientCount,
   ] = await Promise.all([
     prisma.schoolEnrollment.findMany({
       where: { userId },
@@ -55,7 +106,7 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null)
       ? prisma.appointment.count({
           where: {
             clinicId: activeClinicId,
-            doctorId: userId,
+            ...(isClinicalDoctor(role) ? { doctorId: userId } : {}),
             date: { gte: monthStart },
             status: { notIn: ['CANCELLED'] },
           },
@@ -65,7 +116,7 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null)
       ? prisma.appointment.count({
           where: {
             clinicId: activeClinicId,
-            doctorId: userId,
+            ...(isClinicalDoctor(role) ? { doctorId: userId } : {}),
             status: 'COMPLETED',
             date: { gte: monthStart },
           },
@@ -76,20 +127,40 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null)
           where: { clinicId: activeClinicId, status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
         }).catch(() => 0)
       : Promise.resolve(0),
+    activeClinicId
+      ? prisma.appointment.count({
+          where: {
+            clinicId: activeClinicId,
+            date: { gte: dayStart, lt: dayEnd },
+            status: { notIn: ['CANCELLED'] },
+          },
+        }).catch(() => 0)
+      : Promise.resolve(0),
+    activeClinicId && isClinicOps(role)
+      ? prisma.clinicMember.count({ where: { clinicId: activeClinicId } }).catch(() => 0)
+      : Promise.resolve(0),
+    activeClinicId && isClinicOps(role)
+      ? prisma.patient.count({ where: { clinicId: activeClinicId } }).catch(() => 0)
+      : Promise.resolve(0),
   ]);
 
   const completedCourses = enrollments.filter((e) => e.completed || e.progress >= 100);
   const inProgressCourses = enrollments.filter((e) => !e.completed && e.progress < 100);
   const categories = [...new Set(enrollments.map((e) => e.course?.category).filter(Boolean))] as string[];
 
-  const specialty = String(user.spec || meta.specialty || meta.spec || 'Стоматолог');
+  // Doctors may keep clinical specialty; others use role title — never force «Стоматолог».
+  const clinicalSpec = String(user.spec || meta.specialty || meta.spec || '').trim();
+  const specialty = isClinicalDoctor(role)
+    ? (clinicalSpec || 'Стоматолог')
+    : (clinicalSpec && !looksLikeGenericDentist(clinicalSpec) ? clinicalSpec : roleLabel);
+
   const skillsRaw = Array.isArray(meta.skills) ? meta.skills : [];
   const skills = skillsRaw.length
     ? skillsRaw.map((s: any) => ({
         name: String(s.name || s),
         level: typeof s.level === 'number' ? s.level : Number(s.level) || 50,
       }))
-    : defaultSkillsForSpec(specialty).map((name) => ({ name, level: 60 }));
+    : defaultSkillsForRole(role, specialty).map((name) => ({ name, level: 60 }));
 
   const activityScore = monthAppts + completedCourses.length * 2 + inProgressCourses.length;
   const activityLevel =
@@ -98,13 +169,26 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null)
         : activityScore >= 8 ? 'moderate'
           : 'low';
 
-  const learningPath = buildLearningPath(specialty, categories);
+  const learningPath = buildLearningPath(role, specialty, categories);
+  const kpis = buildKpis({
+    role,
+    monthAppts,
+    completedAppts,
+    completedCourses: completedCourses.length,
+    unpaidInvoices,
+    todayAppts,
+    staffCount,
+    patientCount,
+  });
 
   return {
     userId: user.id,
     name: `${user.firstName} ${user.lastName}`.trim(),
     specialty,
-    role: membership?.role || user.role,
+    title: specialty,
+    role,
+    roleLabel,
+    profileKind: isClinicalDoctor(role) ? 'doctor' : isClinicOps(role) ? 'ops' : 'staff',
     clinic: membership?.clinic || null,
     skills,
     completedCourses: completedCourses.length,
@@ -113,14 +197,17 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null)
     equipment: Array.isArray(meta.equipment) ? meta.equipment.map(String) : [],
     learningPath,
     activityLevel,
-    kpis: [
-      { label: 'Приёмов в месяце', value: String(monthAppts), change: '' },
-      { label: 'Завершено', value: String(completedAppts), change: '' },
-      { label: 'Курсов пройдено', value: String(completedCourses.length), change: '' },
-      { label: 'Неоплаченных счетов клиники', value: String(unpaidInvoices), change: '' },
-    ],
+    kpis,
     recommendations: learningPath.slice(0, 3),
-    aiAdvice: buildAdvice(specialty, activityLevel, inProgressCourses.length, unpaidInvoices),
+    aiAdvice: buildAdvice({
+      role,
+      roleLabel,
+      specialty,
+      activity: activityLevel,
+      inProgress: inProgressCourses.length,
+      unpaid: unpaidInvoices,
+      todayAppts,
+    }),
     recentCourses: enrollments.slice(0, 5).map((e) => ({
       id: e.courseId,
       title: e.course?.title || e.courseId,
@@ -131,6 +218,30 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null)
   };
 }
 
+function looksLikeGenericDentist(spec: string): boolean {
+  const s = spec.toLowerCase();
+  return s === 'стоматолог' || s === 'dentist' || s === 'врач' || s === 'doctor';
+}
+
+function defaultSkillsForRole(role: TwinRole, specialty: string): string[] {
+  if (role === 'OWNER' || role === 'SUPERADMIN') {
+    return ['Управление клиникой', 'Финансы', 'Команда', 'Качество сервиса'];
+  }
+  if (role === 'ADMIN' || role === 'MANAGER') {
+    return ['Расписание', 'Регистрация пациентов', 'Касса', 'Коммуникация'];
+  }
+  if (role === 'ASSISTANT') {
+    return ['Ассистирование', 'Стерилизация', 'Подготовка кабинета', 'Коммуникация'];
+  }
+  if (role === 'LAB') {
+    return ['Зуботехника', 'Материалы', 'Качество работы', 'Сроки заказов'];
+  }
+  if (role === 'STUDENT') {
+    return ['Теория', 'Практика', 'Диагностика', 'Гигиена'];
+  }
+  return defaultSkillsForSpec(specialty);
+}
+
 function defaultSkillsForSpec(spec: string): string[] {
   const s = spec.toLowerCase();
   if (s.includes('хирург')) return ['Хирургия', 'Имплантация', 'Анестезия', 'Диагностика'];
@@ -139,8 +250,83 @@ function defaultSkillsForSpec(spec: string): string[] {
   return ['Терапия', 'Эндодонтия', 'Диагностика', 'Гигиена'];
 }
 
-function buildLearningPath(specialty: string, categories: string[]): string[] {
+function buildKpis(opts: {
+  role: TwinRole;
+  monthAppts: number;
+  completedAppts: number;
+  completedCourses: number;
+  unpaidInvoices: number;
+  todayAppts: number;
+  staffCount: number;
+  patientCount: number;
+}): Array<{ label: string; value: string; change: string }> {
+  const {
+    role, monthAppts, completedAppts, completedCourses,
+    unpaidInvoices, todayAppts, staffCount, patientCount,
+  } = opts;
+
+  if (isClinicOps(role)) {
+    return [
+      { label: 'Записей сегодня', value: String(todayAppts), change: '' },
+      { label: 'Записей в месяце', value: String(monthAppts), change: '' },
+      { label: 'Пациентов в базе', value: String(patientCount), change: '' },
+      { label: 'Сотрудников', value: String(staffCount), change: '' },
+      { label: 'Курсов пройдено', value: String(completedCourses), change: '' },
+      { label: 'Неоплаченных счетов', value: String(unpaidInvoices), change: '' },
+    ];
+  }
+
+  if (role === 'ASSISTANT' || role === 'LAB' || role === 'STUDENT') {
+    return [
+      { label: 'Сменных задач / записей (мес.)', value: String(monthAppts), change: '' },
+      { label: 'Завершено', value: String(completedAppts), change: '' },
+      { label: 'Курсов пройдено', value: String(completedCourses), change: '' },
+      { label: 'Неоплаченных счетов клиники', value: String(unpaidInvoices), change: '' },
+    ];
+  }
+
+  // Doctor
+  return [
+    { label: 'Приёмов в месяце', value: String(monthAppts), change: '' },
+    { label: 'Завершено', value: String(completedAppts), change: '' },
+    { label: 'Курсов пройдено', value: String(completedCourses), change: '' },
+    { label: 'Неоплаченных счетов клиники', value: String(unpaidInvoices), change: '' },
+  ];
+}
+
+function buildLearningPath(role: TwinRole, specialty: string, categories: string[]): string[] {
   const path: string[] = [];
+
+  if (isClinicOps(role)) {
+    if (!categories.includes('Управление')) path.push('Курс «Управление стоматологической клиникой»');
+    if (!categories.includes('Финансы')) path.push('Вебинар «Касса и контроль дебиторки»');
+    if (!categories.includes('Сервис')) path.push('Курс «Сервис и работа с пациентами»');
+    path.push(`Развитие роли: ${ROLE_LABEL_RU[role] || specialty}`);
+    return path;
+  }
+
+  if (role === 'ASSISTANT') {
+    if (!categories.includes('Ассистирование')) path.push('Курс «Ассистент стоматолога: базовый протокол»');
+    if (!categories.includes('Стерилизация')) path.push('Вебинар «Стерилизация и инфекционный контроль»');
+    path.push('Курс «Коммуникация с пациентом на ресепшене»');
+    return path;
+  }
+
+  if (role === 'LAB') {
+    path.push('Курс «Цифровая зуботехника»');
+    path.push('Вебинар «Материалы и качество протезов»');
+    path.push(`Углубление: ${specialty}`);
+    return path;
+  }
+
+  if (role === 'STUDENT') {
+    path.push('Курс «Основы терапевтической стоматологии»');
+    path.push('Вебинар «Диагностика для начинающих»');
+    path.push('Курс «Гигиена и профилактика»');
+    return path;
+  }
+
+  // Doctor clinical path
   if (!categories.includes('Хирургия')) path.push('Курс «Хирургическая стоматология для терапевтов»');
   if (!categories.includes('Эндодонтия')) path.push('Вебинар «Микроскопная эндодонтия»');
   if (!categories.includes('Имплантация')) path.push('Курс «Основы имплантации»');
@@ -148,13 +334,51 @@ function buildLearningPath(specialty: string, categories: string[]): string[] {
   return path;
 }
 
-function buildAdvice(specialty: string, activity: string, inProgress: number, unpaid: number): string {
+function buildAdvice(opts: {
+  role: TwinRole;
+  roleLabel: string;
+  specialty: string;
+  activity: string;
+  inProgress: number;
+  unpaid: number;
+  todayAppts: number;
+}): string {
+  const { role, roleLabel, specialty, activity, inProgress, unpaid, todayAppts } = opts;
   const parts: string[] = [];
-  parts.push(`Ваш профиль: ${specialty}.`);
-  if (activity === 'low') parts.push('Активность низкая — запланируйте приёмы или продолжите обучение.');
-  if (inProgress > 0) parts.push(`У вас ${inProgress} курс(ов) в процессе — закройте прогресс для сертификата.`);
-  if (unpaid > 0) parts.push(`В клинике ${unpaid} неоплаченных счетов — стоит проверить кассу.`);
-  if (parts.length === 1) parts.push('Продолжайте в том же темпе — AI подскажет следующие шаги по обучению и расписанию.');
+
+  if (isClinicalDoctor(role)) {
+    parts.push(`Ваш профиль: ${specialty} (${roleLabel}).`);
+  } else {
+    parts.push(`Ваш профиль: ${roleLabel}${specialty !== roleLabel ? ` · ${specialty}` : ''}.`);
+  }
+
+  if (isClinicOps(role)) {
+    if (activity === 'low') {
+      parts.push('Активность низкая — проверьте расписание на сегодня и загрузку команды.');
+    }
+    if (todayAppts > 0) {
+      parts.push(`Сегодня в клинике ${todayAppts} записей.`);
+    }
+    if (unpaid > 0) {
+      parts.push(`В клинике ${unpaid} неоплаченных счетов — стоит проверить кассу.`);
+    }
+  } else if (isClinicalDoctor(role)) {
+    if (activity === 'low') {
+      parts.push('Активность низкая — запланируйте приёмы или продолжите обучение.');
+    }
+    if (unpaid > 0) {
+      parts.push(`В клинике ${unpaid} неоплаченных счетов — уточните у администратора.`);
+    }
+  } else if (activity === 'low') {
+    parts.push('Активность низкая — продолжите обучение или уточните задачи у руководителя.');
+  }
+
+  if (inProgress > 0) {
+    parts.push(`У вас ${inProgress} курс(ов) в процессе — закройте прогресс для сертификата.`);
+  }
+  if (parts.length === 1) {
+    parts.push('Продолжайте в том же темпе — AI подскажет следующие шаги по роли и обучению.');
+  }
   return parts.join(' ');
 }
 

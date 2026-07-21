@@ -12,7 +12,10 @@ import * as api from '@/utils/api'
 type Twin = {
   name?: string
   specialty?: string
+  title?: string
   role?: string
+  roleLabel?: string
+  profileKind?: 'doctor' | 'ops' | 'staff' | string
   clinic?: { name?: string } | null
   skills?: Array<{ name: string; level: number }>
   completedCourses?: number
@@ -31,6 +34,35 @@ const ACTIVITY_LABEL: Record<string, string> = {
   active: 'Высокая',
   moderate: 'Средняя',
   low: 'Низкая',
+}
+
+const ROLE_LABEL_FALLBACK: Record<string, string> = {
+  OWNER: 'Руководитель',
+  DIRECTOR: 'Руководитель',
+  ADMIN: 'Администратор',
+  DOCTOR: 'Врач',
+  ASSISTANT: 'Ассистент',
+  MANAGER: 'Менеджер',
+  LAB: 'Лаборатория',
+  STUDENT: 'Студент',
+  SUPERADMIN: 'Платформа',
+  CASHIER: 'Администратор',
+}
+
+function roleLabelOf(twin: Twin): string {
+  if (twin.roleLabel) return twin.roleLabel
+  const key = String(twin.role || '').toUpperCase()
+  return ROLE_LABEL_FALLBACK[key] || twin.role || 'Сотрудник'
+}
+
+function introBody(twin: Twin): string {
+  if (twin.profileKind === 'ops' || ['OWNER', 'ADMIN', 'MANAGER', 'SUPERADMIN'].includes(String(twin.role || '').toUpperCase())) {
+    return 'живой AI-профиль администратора клиники: операционные навыки, обучение и KPI. Обновляется по вашим данным.'
+  }
+  if (twin.profileKind === 'doctor' || String(twin.role || '').toUpperCase() === 'DOCTOR') {
+    return 'живой AI-профиль врача: навыки, обучение и KPI клиники. Обновляется по вашим данным.'
+  }
+  return 'живой AI-профиль сотрудника: навыки, обучение и KPI. Обновляется по вашим данным.'
 }
 
 export function DigitalTwin() {
@@ -71,28 +103,31 @@ export function DigitalTwin() {
   const skills = twin.skills || []
   const kpis = twin.kpis || []
   const recommendations = twin.recommendations || twin.learningPath || []
+  const roleLabel = roleLabelOf(twin)
+  const title = twin.title || twin.specialty || roleLabel
 
   return (
     <div className="space-y-3 p-3">
       <GlassCard padding="md">
         <p className="text-[11px] text-txt-muted leading-relaxed mb-3">
-          <strong className="text-txt-secondary">Двойник</strong> — живой AI-профиль врача:
-          навыки, обучение и KPI клиники. Обновляется по вашим данным.
+          <strong className="text-txt-secondary">Двойник</strong>
+          {' — '}
+          {introBody(twin)}
         </p>
         <div className="flex items-center gap-3 mb-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-dv-gold/20 to-dv-gold/5">
             <Brain size={24} className="text-dv-gold" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-txt-primary truncate">{twin.name || 'Врач'}</h3>
+            <h3 className="text-sm font-semibold text-txt-primary truncate">{twin.name || roleLabel}</h3>
             <p className="text-xs text-txt-muted mt-0.5 truncate">
-              {twin.specialty || 'Стоматолог'}
+              {title}
               {twin.clinic?.name ? ` · ${twin.clinic.name}` : ''}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {twin.role && <Badge variant="outline" size="xs">{String(twin.role)}</Badge>}
+          <Badge variant="outline" size="xs">{roleLabel}</Badge>
           {twin.activityLevel && (
             <Badge variant="gold" size="xs">
               Активность: {ACTIVITY_LABEL[twin.activityLevel] || twin.activityLevel}
