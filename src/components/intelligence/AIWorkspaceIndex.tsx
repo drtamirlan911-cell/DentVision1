@@ -167,6 +167,24 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           data_complete: true,
         })
         setSuggestionsFromStrings(getDefaultSuggestions(null, 'workspace', true).slice(0, 3))
+        // Prefetch platform twin + guest tips into context (non-blocking).
+        void Promise.all([
+          aiDigitalTwin().catch(() => null),
+          aiProactive().catch(() => ({ alerts: [] })),
+        ]).then(([twinRes, proactiveData]) => {
+          const twin = twinRes?.twin || twinRes
+          if (twin) setContextFocus('workspace', null, { digitalTwin: twin })
+          if (proactiveData?.alerts?.length) {
+            setProactiveAlerts(proactiveData.alerts.map((a: any) => ({
+              id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              type: a.type || 'info',
+              category: a.category || 'general',
+              text: a.text || a.message || '',
+              priority: a.priority || 0,
+              action: a.action,
+            })))
+          }
+        })
         return
       }
 
@@ -835,6 +853,8 @@ const NAV_ACTIONS: Record<string, string> = {
   OpenTreatmentPlans: '/crm/treatment-plans',
   OpenJobs: '/jobs',
   OpenCommunity: '/community',
+  OpenDemo: '/demo',
+  OpenPricing: '/pricing',
 }
 
 export type { AIWorkspaceIndexProps }

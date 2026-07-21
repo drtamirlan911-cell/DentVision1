@@ -32,6 +32,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       supplierId: payload.supplierId,
       supplierRole: payload.supplierRole,
       lecturerId: payload.lecturerId,
+      isGuest: payload.isGuest === true || String(user.email || '').endsWith('@guest.local'),
     };
 
     next();

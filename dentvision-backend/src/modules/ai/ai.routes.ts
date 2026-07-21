@@ -500,8 +500,9 @@ aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
     const { buildProactiveAlerts } = await import('./core/digitalTwin.js');
     const alerts = await buildProactiveAlerts({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || null,
-      role: req.user?.role || 'guest',
+      clinicId: req.user?.isGuest ? null : (req.user?.clinicId || null),
+      role: req.user?.isGuest ? 'GUEST' : (req.user?.role || 'guest'),
+      isGuest: req.user?.isGuest === true,
     });
     res.json({ ok: true, data: { alerts } });
   } catch (error) {
@@ -558,7 +559,9 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
 aiRouter.get('/digital-twin', authenticate, async (req: AuthRequest, res) => {
   try {
     const { buildDigitalTwin } = await import('./core/digitalTwin.js');
-    const twin = await buildDigitalTwin(req.user!.id, req.user?.clinicId || null);
+    const twin = await buildDigitalTwin(req.user!.id, req.user?.clinicId || null, {
+      isGuest: req.user?.isGuest === true,
+    });
     if (!twin) {
       return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
     }

@@ -34,6 +34,7 @@ const ACTIVITY_LABEL: Record<string, string> = {
   active: 'Высокая',
   moderate: 'Средняя',
   low: 'Низкая',
+  exploring: 'Знакомство',
 }
 
 const ROLE_LABEL_FALLBACK: Record<string, string> = {
@@ -47,6 +48,7 @@ const ROLE_LABEL_FALLBACK: Record<string, string> = {
   STUDENT: 'Студент',
   SUPERADMIN: 'Платформа',
   CASHIER: 'Администратор',
+  GUEST: 'Гость',
 }
 
 function roleLabelOf(twin: Twin): string {
@@ -56,6 +58,9 @@ function roleLabelOf(twin: Twin): string {
 }
 
 function introBody(twin: Twin): string {
+  if (twin.profileKind === 'platform' || String(twin.role || '').toUpperCase() === 'GUEST') {
+    return 'гид по платформе DentVision: CRM, маркетплейс, Academy и ИИ. После входа станет живым профилем вашей роли.'
+  }
   if (twin.profileKind === 'ops' || ['OWNER', 'ADMIN', 'MANAGER', 'SUPERADMIN'].includes(String(twin.role || '').toUpperCase())) {
     return 'живой AI-профиль администратора клиники: операционные навыки, обучение и KPI. Обновляется по вашим данным.'
   }
@@ -173,7 +178,9 @@ export function DigitalTwin() {
         <GlassCard padding="md">
           <div className="flex items-center gap-1.5 mb-3">
             <BarChart3 size={14} className="text-dv-gold" />
-            <h4 className="text-sm font-semibold text-txt-primary">KPI</h4>
+            <h4 className="text-sm font-semibold text-txt-primary">
+              {twin.profileKind === 'platform' ? 'Платформа' : 'KPI'}
+            </h4>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {kpis.map((k) => (
@@ -189,18 +196,33 @@ export function DigitalTwin() {
       <GlassCard padding="md">
         <div className="flex items-center gap-1.5 mb-2">
           <BookOpen size={14} className="text-dv-gold" />
-          <h4 className="text-sm font-semibold text-txt-primary">Обучение</h4>
+          <h4 className="text-sm font-semibold text-txt-primary">
+            {twin.profileKind === 'platform' ? 'С чего начать' : 'Обучение'}
+          </h4>
         </div>
-        <p className="text-xs text-txt-muted">
-          Пройдено: <span className="text-txt-primary">{twin.completedCourses || 0}</span>
-          {' · '}в процессе: <span className="text-txt-primary">{twin.inProgressCourses || 0}</span>
-        </p>
-        {(twin.recentCourses || []).slice(0, 3).map((c) => (
-          <div key={c.title} className="mt-2 text-[11px] flex justify-between gap-2">
-            <span className="text-txt-secondary truncate">{c.title}</span>
-            <span className="text-txt-muted shrink-0">{c.completed ? '✓' : `${c.progress}%`}</span>
-          </div>
-        ))}
+        {twin.profileKind === 'platform' ? (
+          <ul className="space-y-1.5">
+            {(twin.learningPath || []).slice(0, 4).map((r) => (
+              <li key={r} className="text-xs text-txt-secondary flex gap-1.5">
+                <Lightbulb size={12} className="text-dv-gold shrink-0 mt-0.5" />
+                {r}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <>
+            <p className="text-xs text-txt-muted">
+              Пройдено: <span className="text-txt-primary">{twin.completedCourses || 0}</span>
+              {' · '}в процессе: <span className="text-txt-primary">{twin.inProgressCourses || 0}</span>
+            </p>
+            {(twin.recentCourses || []).slice(0, 3).map((c) => (
+              <div key={c.title} className="mt-2 text-[11px] flex justify-between gap-2">
+                <span className="text-txt-secondary truncate">{c.title}</span>
+                <span className="text-txt-muted shrink-0">{c.completed ? '✓' : `${c.progress}%`}</span>
+              </div>
+            ))}
+          </>
+        )}
       </GlassCard>
 
       {recommendations.length > 0 && (

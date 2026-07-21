@@ -56,6 +56,10 @@ const NAVIGATION_ACTIONS: Record<string, string> = {
   OpenProfile: '/profile',
   OpenSettings: '/settings',
   OpenMyClinics: '/my-clinics',
+  OpenDemo: '/demo',
+  OpenPricing: '/pricing',
+  OpenJobs: '/jobs',
+  OpenCommunity: '/community',
 };
 
 export function useAIExecutor() {
