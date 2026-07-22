@@ -9,6 +9,7 @@ import { runSubscriptionCron } from '../../jobs/subscriptionCron.js';
 import {
   activateClinicSubscriptionFromPayment,
   assertClinicBillingAccess,
+  assertClinicMemberAccess,
   getClinicBillingSnapshot,
   isSaasPlanId,
   CLINIC_SAAS_PLANS,
@@ -51,7 +52,7 @@ function clinicIdFrom(req: AuthRequest): string {
 clinicBillingRouter.get('/me', async (req: AuthRequest, res) => {
   try {
     const clinicId = clinicIdFrom(req);
-    await assertClinicBillingAccess(req.user!.id, clinicId);
+    await assertClinicMemberAccess(req.user!.id, clinicId);
     const snap = await getClinicBillingSnapshot(clinicId);
     if (!snap) return res.status(404).json({ ok: false, error: 'Клиника не найдена' } satisfies ApiResponse);
     return res.json({ ok: true, data: snap } satisfies ApiResponse);

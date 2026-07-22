@@ -3,10 +3,13 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 
 const medicalRouter = Router();
 
 medicalRouter.use(authenticate);
+medicalRouter.use(loadClinicAccess);
+medicalRouter.use(blockClinicWrites);
 
 medicalRouter.post('/visits', async (req: AuthRequest, res) => {
   try {

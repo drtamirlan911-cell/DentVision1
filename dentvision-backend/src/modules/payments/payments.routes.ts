@@ -12,6 +12,11 @@ import {
   verifyKaspiCallbackAuth,
 } from './kaspi.provider.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import {
+  resolveClinicAccess,
+  assertClinicWritable,
+  PlanGateError,
+} from '../billing/planEntitlements.js';
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
@@ -255,6 +260,15 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       refId,
       meta,
     } = req.body || {};
+
+    // CRM cashier QR depends on clinic SaaS being writable (not expired).
+    // Academy / Shop / SaaS checkouts are platform-scoped and skip this gate.
+    const domainNorm = String(domain || '').toLowerCase();
+    if (domainNorm === 'crm' && req.user?.role !== 'SUPERADMIN' && req.user?.clinicId) {
+      const access = await resolveClinicAccess(req.user.clinicId);
+      if (access) assertClinicWritable(access);
+    }
+
     const gateway = providers[provider];
     if (!gateway) {
       return res.status(400).json({ ok: false, error: 'Неизвестный провайдер' } satisfies ApiResponse);
@@ -292,6 +306,14 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       data: { ...serializeBigInt(payment), qr: created.qr },
     } satisfies ApiResponse);
   } catch (error) {
+    if (error instanceof PlanGateError) {
+      return res.status(error.status).json({
+        ok: false,
+        error: error.message,
+        code: error.code,
+        data: error.data,
+      } satisfies ApiResponse);
+    }
     console.error('Create payment error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при создании платежа' } satisfies ApiResponse);
   }

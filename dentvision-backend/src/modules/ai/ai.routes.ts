@@ -8,12 +8,14 @@ import { improveResponseWithLLM } from './core/llm.service.js';
 import { orchestrate, orchestratorEnabled } from './os/orchestrator.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
+import { guardAiAccess } from '../../middleware/planGate.js';
 
 const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
 
 export const aiRouter = Router();
 
 aiRouter.use(optionalAuth);
+aiRouter.use(guardAiAccess);
 
 const querySchema = z.object({
   body: z.object({

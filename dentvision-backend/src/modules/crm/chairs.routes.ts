@@ -6,9 +6,12 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 
 export const chairsRouter = Router();
 chairsRouter.use(authenticate);
+chairsRouter.use(loadClinicAccess);
+chairsRouter.use(blockClinicWrites);
 
 function requireClinic(req: AuthRequest, res: any): string | null {
   const clinicId = req.user?.clinicId;

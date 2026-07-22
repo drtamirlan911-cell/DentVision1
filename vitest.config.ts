@@ -20,6 +20,7 @@ export default defineConfig({
       'src/**/*.test.{ts,tsx}',
       'dentvision-backend/src/modules/dentcash/**/*.test.ts',
       'dentvision-backend/src/modules/ai/lib/**/*.test.ts',
+      'dentvision-backend/src/modules/billing/planEntitlements.test.ts',
     ],
     exclude: ['node_modules', 'dist', 'server'],
   },
