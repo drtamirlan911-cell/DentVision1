@@ -20,13 +20,15 @@ import { queryKeys } from '@/queries/keys';
 import { useAuth } from '@/store/auth.store';
 
 const PLANS: Record<string, { name: string; price: string }> = {
-  starter: { name: 'Starter', price: '15 000 ₸' },
-  pro: { name: 'Pro', price: '35 000 ₸' },
-  enterprise: { name: 'Enterprise', price: '150 000 ₸' },
+  starter: { name: 'Starter', price: '0 ₸' },
+  professional: { name: 'Professional', price: '49 900 ₸' },
+  pro: { name: 'Professional', price: '49 900 ₸' },
+  enterprise: { name: 'Enterprise', price: '149 900 ₸' },
 };
 
 const PLAN_BADGE: Record<string, string> = {
   starter: 'bg-[#4e8cff]/10 text-[#4e8cff] border-[#4e8cff]/20',
+  professional: 'bg-dv-gold/10 text-dv-gold border-dv-gold/20',
   pro: 'bg-dv-gold/10 text-dv-gold border-dv-gold/20',
   enterprise: 'bg-[#9b5de5]/10 text-[#9b5de5] border-[#9b5de5]/20',
 };

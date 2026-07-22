@@ -24,6 +24,8 @@ export interface ApiKeyContext {
 export interface AuthRequest extends Request {
   user?: AuthUser;
   apiKey?: ApiKeyContext;
+  /** Resolved SaaS access for active clinic (planGate middleware). */
+  clinicAccess?: import('../modules/billing/planEntitlements.js').ClinicAccessState;
 }
 
 export interface JwtPayload {
@@ -50,5 +52,6 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   message?: string;
+  /** Machine-readable error code (e.g. SUBSCRIPTION_EXPIRED, PLAN_FEATURE_REQUIRED). */
   code?: string;
 }

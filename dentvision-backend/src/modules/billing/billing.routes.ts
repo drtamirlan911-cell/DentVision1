@@ -4,10 +4,13 @@ import { authenticate } from '../../middleware/auth.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import { buildDoctorPayroll } from '../crm/payroll.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 
 const billingRouter = Router();
 
 billingRouter.use(authenticate);
+billingRouter.use(loadClinicAccess);
+billingRouter.use(blockClinicWrites);
 
 billingRouter.get('/invoices', async (req: AuthRequest, res) => {
   try {

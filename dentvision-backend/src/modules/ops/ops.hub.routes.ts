@@ -118,7 +118,7 @@ opsHubRouter.get('/overview', async (_req: AuthRequest, res) => {
       where: { ownerType: 'CLINIC', status: 'active' },
       select: { plan: true },
     });
-    const PRICE: Record<string, number> = { free: 0, starter: 15000, professional: 35000, enterprise: 150000 };
+    const PRICE: Record<string, number> = { free: 0, starter: 0, professional: 49900, enterprise: 149900 };
     const mrr = activeSubs.reduce((s, x) => s + (PRICE[x.plan] || 0), 0);
 
     const [pendingSupplierRows, newLecturerRows, expiringClinicRows] = await Promise.all([

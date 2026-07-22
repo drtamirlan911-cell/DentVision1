@@ -39,6 +39,8 @@ const envSchema = z.object({
   KASPI_CALLBACK_SECRET: z.string().min(16).optional(),
   /** Optional Kaspi pay base URL for QR deeplinks. */
   KASPI_PAY_BASE_URL: z.string().url().optional(),
+  /** Public API origin for webhook URLs shown in clinic settings. */
+  PUBLIC_API_URL: z.string().url().optional(),
   REMINDER_CRON_MS: z.coerce.number().default(900000),
 });
 

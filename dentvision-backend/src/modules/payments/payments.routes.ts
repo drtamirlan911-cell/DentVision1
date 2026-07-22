@@ -10,8 +10,21 @@ import {
   providers,
   markMockPaymentStatus,
   verifyKaspiCallbackAuth,
+  withPaymentQr,
 } from './kaspi.provider.js';
+import {
+  ClinicPaymentsError,
+  createClinicKaspiPayment,
+  getClinicGatewayStatus,
+  loadClinicPaymentsConfig,
+} from './clinicPayments.js';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import {
+  resolveClinicAccess,
+  assertClinicWritable,
+  PlanGateError,
+} from '../billing/planEntitlements.js';
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
@@ -232,13 +245,51 @@ async function settlePaidPayment(payment: {
 }
 
 async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; refType: string | null; refId: string | null }) {
-  const meta = (payment.meta || {}) as { userId?: string };
+  const meta = (payment.meta || {}) as { userId?: string; clinicId?: string; merchantScope?: string };
   if (meta.userId && meta.userId === req.user!.id) return true;
   if (payment.refType === 'order' && payment.refId) {
     const order = await prisma.order.findUnique({ where: { id: payment.refId }, select: { userId: true } });
     if (order?.userId === req.user!.id) return true;
   }
+  // Clinic cashier payments: any active member of that clinic may confirm.
+  if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
+    const membership = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId: req.user!.id, clinicId: meta.clinicId } },
+    });
+    if (membership) return true;
+  }
   return false;
+}
+
+function verifyClinicCallbackAuth(input: {
+  secret: string;
+  headers: Record<string, string | string[] | undefined>;
+  body: { externalId?: string; status?: string; signature?: string };
+}): { ok: true } | { ok: false; error: string } {
+  if (!input.secret || input.secret.length < 16) {
+    return { ok: false, error: 'Webhook secret клиники не настроен' };
+  }
+  const headerRaw =
+    input.headers['x-kaspi-signature'] ||
+    input.headers['x-callback-secret'] ||
+    input.headers['x-webhook-secret'];
+  const header = Array.isArray(headerRaw) ? headerRaw[0] : headerRaw;
+  const externalId = String(input.body?.externalId || '');
+  const status = String(input.body?.status || '');
+  const bodySig = String(input.body?.signature || '');
+  const provided = String(header || bodySig || '');
+  if (!provided) return { ok: false, error: 'Подпись callback обязательна' };
+
+  const expectedHmac = createHmac('sha256', input.secret)
+    .update(`${externalId}:${status}`)
+    .digest('hex');
+  const a = Buffer.from(provided);
+  const bSecret = Buffer.from(input.secret);
+  const bHmac = Buffer.from(expectedHmac);
+  const matchSecret = a.length === bSecret.length && timingSafeEqual(a, bSecret);
+  const matchHmac = a.length === bHmac.length && timingSafeEqual(a, bHmac);
+  if (!matchSecret && !matchHmac) return { ok: false, error: 'Неверная подпись callback' };
+  return { ok: true };
 }
 
 // Create a payment (returns provider QR/deeplink). Requires auth.
@@ -255,16 +306,76 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       refId,
       meta,
     } = req.body || {};
-    const gateway = providers[provider];
-    if (!gateway) {
-      return res.status(400).json({ ok: false, error: 'Неизвестный провайдер' } satisfies ApiResponse);
-    }
     if (amount === undefined && amountMinor === undefined) {
       return res.status(400).json({ ok: false, error: 'amount обязателен' } satisfies ApiResponse);
     }
     const minor = amountMinor !== undefined ? BigInt(amountMinor) : tengeToMinor(Number(amount));
     if (minor <= 0n) {
       return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
+    }
+
+    const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
+    const clinicId = String(metaObj.clinicId || req.body?.clinicId || '');
+    const isClinicCashier =
+      domain === 'crm' ||
+      refType === 'appointment' ||
+      refType === 'crm_invoice' ||
+      Boolean(clinicId && (domain === 'crm' || metaObj.merchantScope === 'clinic'));
+
+    // CRM cashier → clinic's own Kaspi/bank (never platform merchant).
+    if (isClinicCashier) {
+      if (!clinicId) {
+        return res.status(400).json({
+          ok: false,
+          error: 'clinicId обязателен для оплаты на кассе клиники',
+        } satisfies ApiResponse);
+      }
+      const membership = await prisma.clinicMember.findUnique({
+        where: { userId_clinicId: { userId: req.user!.id, clinicId } },
+      });
+      if (!membership) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
+      }
+
+      const created = await createClinicKaspiPayment({
+        clinicId,
+        amountMinor: minor,
+        refId: refId || null,
+        comment: String(metaObj.title || metaObj.service || 'Оплата в клинике'),
+      });
+
+      const payment = await prisma.payment.create({
+        data: {
+          provider: created.provider,
+          externalId: created.externalId,
+          amount: minor,
+          status: 'pending',
+          refType: refType || 'crm_invoice',
+          refId: refId || null,
+          domain: 'crm',
+          sellerType: sellerType || 'CLINIC',
+          sellerId: sellerId || clinicId,
+          meta: {
+            qr: created.qr,
+            userId: req.user!.id,
+            clinicId,
+            merchantScope: 'clinic',
+            clinicPayMode: created.mode,
+            ...metaObj,
+          },
+        },
+      });
+
+      return res.status(201).json({
+        ok: true,
+        data: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
+      } satisfies ApiResponse);
+    }
+
+    // Platform Kaspi (Academy / Shop / SaaS) — DentVision merchant.
+    const gateway = providers[provider];
+    if (!gateway) {
+      return res.status(400).json({ ok: false, error: 'Неизвестный провайдер' } satisfies ApiResponse);
     }
 
     const created = await gateway.createPayment({ amountMinor: minor, refId });
@@ -282,6 +393,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         meta: {
           qr: created.qr,
           userId: req.user!.id,
+          merchantScope: 'platform',
           ...(meta && typeof meta === 'object' ? meta : {}),
         },
       },
@@ -289,9 +401,15 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 
     return res.status(201).json({
       ok: true,
-      data: { ...serializeBigInt(payment), qr: created.qr },
+      data: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
     } satisfies ApiResponse);
-  } catch (error) {
+  } catch (error: any) {
+    if (error instanceof ClinicPaymentsError) {
+      return res.status(error.status).json({
+        ok: false,
+        error: error.message,
+      } satisfies ApiResponse);
+    }
     console.error('Create payment error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при создании платежа' } satisfies ApiResponse);
   }
@@ -306,22 +424,29 @@ paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
   if (!owned) {
     return res.status(403).json({ ok: false, error: 'Нет доступа к платежу' } satisfies ApiResponse);
   }
-  const meta = (payment.meta || {}) as { qr?: string };
+  const meta = (payment.meta || {}) as { qr?: string; clinicId?: string; merchantScope?: string };
   let providerStatus: string | null = null;
   if (payment.externalId) {
-    const gateway = providers[payment.provider] || providers.kaspi_qr;
-    providerStatus = await gateway.getPaymentStatus(payment.externalId);
+    if (meta.merchantScope === 'clinic' && meta.clinicId) {
+      providerStatus = await getClinicGatewayStatus(meta.clinicId, payment.externalId);
+    } else {
+      const gateway = providers[payment.provider] || providers.kaspi_qr;
+      providerStatus = await gateway.getPaymentStatus(payment.externalId);
+    }
   }
   return res.json({
     ok: true,
-    data: { ...serializeBigInt(payment), qr: meta.qr || null, providerStatus },
+    data: {
+      ...withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, meta.qr || null),
+      providerStatus,
+    },
   } satisfies ApiResponse);
 });
 
 /**
- * Buyer-side confirm / sync.
- * - Production: settles only if provider already reports paid (webhook).
- * - Development/test: allows sandbox completion of mock Kaspi so shop/school UX works.
+ * Buyer-side / cashier confirm.
+ * - Clinic cashier (merchantScope=clinic): staff may confirm after seeing pay in clinic Kaspi.
+ * - Platform: production waits for provider paid unless mock secret unset.
  */
 paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) => {
   try {
@@ -341,13 +466,23 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       } satisfies ApiResponse);
     }
 
+    const meta = (payment.meta || {}) as { clinicId?: string; merchantScope?: string; clinicPayMode?: string };
+    const isClinic = meta.merchantScope === 'clinic' || payment.provider === 'clinic_kaspi';
+
     let providerStatus: 'pending' | 'paid' | 'failed' | 'expired' = 'pending';
     if (payment.externalId) {
-      const gateway = providers[payment.provider] || providers.kaspi_qr;
-      providerStatus = await gateway.getPaymentStatus(payment.externalId);
+      if (isClinic && meta.clinicId) {
+        providerStatus = await getClinicGatewayStatus(meta.clinicId, payment.externalId);
+      } else {
+        const gateway = providers[payment.provider] || providers.kaspi_qr;
+        providerStatus = await gateway.getPaymentStatus(payment.externalId);
+      }
     }
 
-    const sandbox = env.NODE_ENV !== 'production';
+    const sandbox =
+      env.NODE_ENV !== 'production' ||
+      !env.KASPI_CALLBACK_SECRET ||
+      env.KASPI_CALLBACK_SECRET.length < 16;
     const canComplete = providerStatus === 'paid' || sandbox;
 
     if (!canComplete) {
@@ -358,7 +493,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       } satisfies ApiResponse);
     }
 
-    if (payment.externalId) {
+    if (payment.externalId && !isClinic) {
       markMockPaymentStatus(payment.externalId, 'paid');
     }
 
@@ -368,15 +503,16 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
     });
 
     const settled = await settlePaidPayment({ ...payment, status: 'paid' } as typeof payment);
-    const meta = (updated.meta || {}) as { qr?: string };
+    const qrMeta = (updated.meta || {}) as { qr?: string };
 
     return res.json({
       ok: true,
       data: {
         ...serializeBigInt(updated),
-        qr: meta.qr || null,
+        qr: qrMeta.qr || null,
         settled,
-        sandbox: sandbox && providerStatus !== 'paid',
+        sandbox: !isClinic && platformSandbox && providerStatus !== 'paid',
+        clinicStaffConfirm: isClinic && providerStatus !== 'paid',
       },
     } satisfies ApiResponse);
   } catch (error) {
@@ -385,8 +521,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
   }
 });
 
-// Provider callback — MUST present valid KASPI_CALLBACK_SECRET / HMAC.
-// Idempotent: a payment is settled at most once.
+// Platform Kaspi callback
 paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
   try {
     const auth = verifyKaspiCallbackAuth({
@@ -429,6 +564,69 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
   } catch (error) {
     console.error('Kaspi callback error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка обработки callback' } satisfies ApiResponse);
+  }
+});
+
+/** Per-clinic Kaspi / gateway webhook — money belongs to that clinic. */
+paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
+  try {
+    const clinicId = req.params.clinicId as string;
+    const { clinic, cfg } = await loadClinicPaymentsConfig(clinicId);
+    void clinic;
+    const auth = verifyClinicCallbackAuth({
+      secret: cfg.webhookSecret || '',
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      body: req.body || {},
+    });
+    if (!auth.ok) {
+      return res.status(401).json({ ok: false, error: auth.error } satisfies ApiResponse);
+    }
+
+    const externalId = String(req.body?.externalId || req.body?.id || req.body?.operation_id || '');
+    const statusRaw = String(req.body?.status || req.body?.payment_status || '').toLowerCase();
+    if (!externalId) {
+      return res.status(400).json({ ok: false, error: 'externalId обязателен' } satisfies ApiResponse);
+    }
+
+    const payment = await prisma.payment.findUnique({ where: { externalId } });
+    if (!payment) {
+      return res.status(404).json({ ok: false, error: 'Платёж не найден' } satisfies ApiResponse);
+    }
+    const pMeta = (payment.meta || {}) as { clinicId?: string };
+    if (pMeta.clinicId && pMeta.clinicId !== clinicId) {
+      return res.status(403).json({ ok: false, error: 'Платёж другой клиники' } satisfies ApiResponse);
+    }
+
+    if (payment.status === 'paid') {
+      return res.json({ ok: true, data: { id: payment.id, status: payment.status, settled: false } } satisfies ApiResponse);
+    }
+
+    const newStatus =
+      ['paid', 'success', 'processed', 'completed'].includes(statusRaw)
+        ? 'paid'
+        : ['failed', 'error', 'cancelled', 'canceled'].includes(statusRaw)
+          ? 'failed'
+          : ['expired', 'timeout'].includes(statusRaw)
+            ? 'expired'
+            : 'pending';
+
+    const updated = await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: newStatus },
+    });
+
+    let settled = false;
+    if (newStatus === 'paid') {
+      settled = await settlePaidPayment(payment);
+    }
+
+    return res.json({ ok: true, data: { id: updated.id, status: updated.status, settled } } satisfies ApiResponse);
+  } catch (error: any) {
+    if (error instanceof ClinicPaymentsError) {
+      return res.status(error.status).json({ ok: false, error: error.message } satisfies ApiResponse);
+    }
+    console.error('Clinic Kaspi callback error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка обработки callback клиники' } satisfies ApiResponse);
   }
 });
 

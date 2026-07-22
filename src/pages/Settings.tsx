@@ -101,6 +101,27 @@ export default function SettingsPage() {
         </motion.div>
       )}
 
+      {showClinicSettings && clinicId && (
+        <motion.div variants={item}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard size={16} className="text-dv-gold" />
+                Kaspi кассы клиники
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm text-txt-muted">
+                QR на кассе идёт на ваш Kaspi/банк, не на DentVision. Инструкция внутри настроек клиники.
+              </p>
+              <Button size="sm" onClick={() => navigate('/crm/settings')}>
+                Подключить
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Services */}
       {canManageServices && (
         <motion.div variants={item}>

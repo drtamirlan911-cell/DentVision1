@@ -74,9 +74,10 @@ export const ALL_SERVICES: Service[] = [
 export const PAY_METHODS = ["Наличные", "QR-оплата", "Рассрочка", "Банковская карта", "Перевод"] as const;
 
 export const PLANS = {
-  starter: { name: "Starter", price: "15 000 ₸/мес", maxDoctors: 2, color: T.sapphire, features: ["До 2 врачей", "Расписание", "Пациенты", "Касса"] },
-  pro: { name: "Pro", price: "35 000 ₸/мес", maxDoctors: 10, color: T.gold, features: ["До 10 врачей", "AI-команда", "Аналитика", "Фотопротокол", "3D Odontogram"] },
-  enterprise: { name: "Enterprise", price: "По запросу", maxDoctors: 999, color: T.purple, features: ["Безлимит врачей", "API доступ", "White label", "Персональный менеджер"] }
+  starter: { name: "Starter", price: "0 ₸", maxDoctors: 1, color: T.sapphire, features: ["До 100 пациентов", "1 пользователь", "Расписание", "Без AI"] },
+  professional: { name: "Professional", price: "49 900 ₸/мес", maxDoctors: 10, color: T.gold, features: ["Безлимит пациентов", "До 10 пользователей", "AI 100/мес", "Аналитика"] },
+  pro: { name: "Professional", price: "49 900 ₸/мес", maxDoctors: 10, color: T.gold, features: ["Безлимит пациентов", "До 10 пользователей", "AI 100/мес", "Аналитика"] },
+  enterprise: { name: "Enterprise", price: "149 900 ₸/мес", maxDoctors: 999, color: T.purple, features: ["Безлимит AI", "Мульти-клиника", "Приоритетная поддержка", "SLA"] }
 } as const;
 
 export const HOURS = ["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00"] as const;
