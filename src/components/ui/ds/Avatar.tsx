@@ -53,14 +53,21 @@ function getColorFromName(name: string): string {
 function Avatar({ src, name, size = 'md', status, className, ...props }: AvatarProps) {
   const sizeClass = sizeMap[size]
   const safeName = name || '?'
+  const [broken, setBroken] = React.useState(false)
+  const showImg = !!src && !broken
+
+  React.useEffect(() => {
+    setBroken(false)
+  }, [src])
 
   return (
     <div className={cn('relative inline-flex shrink-0', className)} {...props}>
-      {src ? (
+      {showImg ? (
         <img
           src={src}
           alt={safeName}
           className={cn('rounded-full object-cover', sizeClass)}
+          onError={() => setBroken(true)}
         />
       ) : (
         <div

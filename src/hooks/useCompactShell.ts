@@ -7,7 +7,11 @@ import { useEffect, useState } from 'react'
 export function useCompactShell(): boolean {
   const [compact, setCompact] = useState(() => {
     if (typeof window === 'undefined') return false
-    return window.innerWidth < 768 || window.innerHeight < 520
+    const next = window.innerWidth < 768 || window.innerHeight < 520
+    try {
+      document.documentElement.dataset.shell = next ? 'compact' : 'wide'
+    } catch { /* ignore */ }
+    return next
   })
 
   useEffect(() => {

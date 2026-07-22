@@ -66,7 +66,7 @@ export function ClinicSwitcher({ className }: { className?: string }) {
         type="button"
         onClick={() => (multi ? setOpen((v) => !v) : navigate('/my-clinics'))}
         className={cn(
-          'flex items-center gap-1.5 max-w-[9.5rem] sm:max-w-[14rem] px-2 py-1 rounded-lg',
+          'flex items-center gap-1.5 max-w-[7.25rem] xs:max-w-[8.5rem] sm:max-w-[14rem] px-2 py-1 rounded-lg',
           'bg-surface-2 border border-bdr-subtle text-txt-secondary hover:text-txt-primary hover:border-dv-gold/30 transition-colors',
         )}
         aria-label={multi ? 'Переключить клинику' : 'Мои клиники'}
