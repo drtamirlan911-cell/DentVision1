@@ -9,7 +9,7 @@ export interface ChatMsg {
   content: string;
   timestamp: Date;
   skill?: string;
-  actions?: Array<{ action: string; label: string; confidence: number; params?: Record<string, unknown> }>;
+  actions?: Array<{ action?: string; type?: string; label: string; confidence: number; params?: Record<string, unknown> }>;
   proactive?: Array<{ type: string; text: string; priority: number }>;
   source?: 'crm' | 'shop' | 'school' | 'knowledge' | 'external' | 'market';
   data?: Record<string, unknown>;
@@ -28,6 +28,73 @@ const SKILL_ICONS: Record<string, React.ReactNode> = {
   patient: <Users size={10} />,
 };
 
+/** Map backend intents / skill ids to short Russian chips — never show SCREAMING_SNAKE. */
+const SKILL_LABELS: Record<string, string> = {
+  clinical: 'Клиника',
+  practice: 'Практика',
+  analytics: 'Аналитика',
+  shopping: 'Магазин',
+  learning: 'Обучение',
+  research: 'Исследования',
+  automation: 'Автоматизация',
+  patient: 'Пациент',
+  general: 'Ассистент',
+  MORNING_BRIEFING: 'Сводка',
+  GET_ANALYTICS: 'Финансы',
+  CHECK_DEBTS: 'Долги',
+  VIEW_SCHEDULE: 'Расписание',
+  GENERATE_REPORT: 'Отчёт',
+  GENERATE_INVOICE: 'Счёт',
+  CREATE_APPOINTMENT: 'Запись',
+  LOW_STOCK: 'Склад',
+  OPEN_INVENTORY: 'Склад',
+  OPEN_SCHEDULE: 'Расписание',
+  OPEN_SHOP: 'Магазин',
+  OPEN_SCHOOL: 'Школа',
+  OPEN_CRM: 'CRM',
+  OPEN_ANALYTICS: 'Аналитика',
+  UNKNOWN: 'Ассистент',
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  OPEN_SCHEDULE: 'Открыть расписание',
+  OpenSchedule: 'Открыть расписание',
+  OPEN_INVENTORY: 'Открыть склад',
+  OpenInventory: 'Открыть склад',
+  OPEN_CRM: 'Открыть CRM',
+  OpenCRM: 'Открыть CRM',
+  OPEN_SHOP: 'Открыть магазин',
+  OpenShop: 'Открыть магазин',
+  OPEN_SCHOOL: 'Открыть школу',
+  OpenSchool: 'Открыть школу',
+  OPEN_ANALYTICS: 'Открыть аналитику',
+  OpenAnalytics: 'Открыть аналитику',
+  OPEN_FINANCE: 'Открыть финансы',
+  OpenFinance: 'Открыть финансы',
+  OPEN_PATIENTS: 'Открыть пациентов',
+  OpenPatients: 'Открыть пациентов',
+};
+
+function skillLabel(skill?: string): string | null {
+  if (!skill) return null;
+  if (SKILL_LABELS[skill]) return SKILL_LABELS[skill];
+  if (/^[A-Z0-9_]+$/.test(skill)) {
+    return skill
+      .toLowerCase()
+      .split('_')
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  }
+  return skill;
+}
+
+function actionLabel(a: { action?: string; type?: string; label?: string }): string {
+  const key = a.action || a.type || '';
+  if (a.label && !/^[A-Z][A-Z0-9_]+$/.test(a.label) && a.label !== key) return a.label;
+  return ACTION_LABELS[key] || ACTION_LABELS[a.label || ''] || a.label || key || 'Действие';
+}
+
 const SOURCE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   crm: { label: 'CRM', icon: <Database size={10} /> },
   shop: { label: 'Shop', icon: <ShoppingCart size={10} /> },
@@ -37,16 +104,30 @@ const SOURCE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = 
   market: { label: 'Рынок', icon: <BarChart3 size={10} /> },
 };
 
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return (
+        <span key={i} className="font-semibold text-dv-gold">
+          {part.slice(2, -2)}
+        </span>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+}
+
 function renderContent(content: string) {
   const blocks = content.split('\n\n');
   return blocks.map((block, i) => {
-    if (block.startsWith('•') || block.startsWith('-')) {
+    if (block.startsWith('•') || block.startsWith('-') || block.includes('\n•') || block.includes('\n-')) {
       return (
         <div key={i} className="space-y-1 my-2">
-          {block.split('\n').map((line, j) => (
+          {block.split('\n').filter(Boolean).map((line, j) => (
             <div key={j} className="flex gap-2.5 text-[13px] leading-relaxed">
               <span className="text-dv-gold/60 mt-0.5 shrink-0">•</span>
-              <span className="text-txt-primary/90">{line.replace(/^[•-]\s*/, '')}</span>
+              <span className="text-txt-primary/90">{renderInlineMarkdown(line.replace(/^[•-]\s*/, ''))}</span>
             </div>
           ))}
         </div>
@@ -62,23 +143,30 @@ function renderContent(content: string) {
                 <p key={j} className="text-[13px] leading-relaxed mb-0.5">
                   <span className="font-semibold text-dv-gold">{parts[1]}</span>
                   {parts[2] && <span className="text-txt-muted"> — </span>}
-                  {parts[2] && <span className="text-txt-primary/80">{parts[2]}</span>}
+                  {parts[2] && <span className="text-txt-primary/80">{renderInlineMarkdown(parts[2])}</span>}
                 </p>
               );
             }
-            return <p key={j} className="text-[13px] leading-relaxed">{line}</p>;
+            return <p key={j} className="text-[13px] leading-relaxed">{renderInlineMarkdown(line)}</p>;
           })}
         </div>
       );
     }
-    return <p key={i} className="my-1.5 text-[13px] leading-relaxed text-txt-primary/90">{block}</p>;
+    return <p key={i} className="my-1.5 text-[13px] leading-relaxed text-txt-primary/90">{renderInlineMarkdown(block)}</p>;
   });
 }
 
-export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query: string) => void }) {
-  const isUser = msg.role === 'user'
-  const [copied, setCopied] = useState(false)
-
+export function ChatMessage({
+  msg,
+  onAction,
+  onExecuteAction,
+}: {
+  msg: ChatMsg;
+  onAction?: (query: string) => void;
+  onExecuteAction?: (action: { action?: string; type?: string; label: string; params?: Record<string, unknown> }) => void;
+}) {
+  const isUser = msg.role === 'user';
+  const [copied, setCopied] = useState(false);
   const handleCopy = () => {
     navigator.clipboard?.writeText(msg.content)
     setCopied(true)
@@ -120,10 +208,10 @@ export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query
             transition={{ delay: 0.15, duration: 0.2 }}
             className="flex items-center gap-1.5 flex-wrap"
           >
-            {msg.skill && (
+            {msg.skill && skillLabel(msg.skill) && (
               <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/8 text-dv-gold/80 text-[10px] font-medium backdrop-blur-sm">
                 {SKILL_ICONS[msg.skill] || <Sparkles size={10} />}
-                <span className="capitalize">{msg.skill}</span>
+                <span>{skillLabel(msg.skill)}</span>
               </div>
             )}
             {msg.source && (
@@ -229,24 +317,29 @@ export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query
 
         {msg.actions && msg.actions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {msg.actions.map((a, i) => (
-              <motion.button
-                key={i}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 + i * 0.05, type: 'spring', stiffness: 400, damping: 20 }}
-                onClick={() => onAction?.(a.label)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-dv-gold/8 text-dv-gold border border-dv-gold/15 hover:bg-dv-gold/15 hover:border-dv-gold/30 transition-all"
-                whileHover={{ scale: 1.03, y: -1 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                <Zap size={10} />
-                {a.label}
-                {a.confidence > 0 && (
-                  <span className="text-[9px] opacity-50">{(a.confidence * 100).toFixed(0)}%</span>
-                )}
-              </motion.button>
-            ))}
+            {msg.actions
+              .filter((a) => !String(a.action || a.type || '').startsWith('SHOW_'))
+              .map((a, i) => {
+                const label = actionLabel(a);
+                return (
+                  <motion.button
+                    key={i}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.2 + i * 0.05, type: 'spring', stiffness: 400, damping: 20 }}
+                    onClick={() => {
+                      if (onExecuteAction) onExecuteAction(a);
+                      else onAction?.(label);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-dv-gold/8 text-dv-gold border border-dv-gold/15 hover:bg-dv-gold/15 hover:border-dv-gold/30 transition-all"
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <Zap size={10} />
+                    {label}
+                  </motion.button>
+                );
+              })}
           </div>
         )}
 

@@ -77,7 +77,9 @@ export class OwnerAgent implements Agent {
         type: 'SHOW_BRIEFING',
         payload: briefing.payload,
       },
-      suggestions: briefing.suggestions,
+      suggestions: briefing.suggestions?.length
+        ? briefing.suggestions
+        : ['Показать расписание', 'Проверить долги', 'Показать выручку'],
     };
   }
 
@@ -192,7 +194,7 @@ export class OwnerAgent implements Agent {
           };
         }),
       },
-      suggestions: ['Отправить напоминания', 'Показать выручку', 'Что важно сегодня?'],
+      suggestions: ['Показать расписание', 'Показать выручку', 'Что важно сегодня?'],
     };
   }
 
@@ -224,8 +226,9 @@ export class OwnerAgent implements Agent {
       },
     });
 
+    const money = await resolveClinicCurrency(context.clinicId);
     return {
-      message: `Счет ${invoice.id.slice(0, 8)} на ${formatClinicMoney(Number(amount), await resolveClinicCurrency(context.clinicId))} создан`,
+      message: `Счет ${invoice.id.slice(0, 8)} на ${formatClinicMoney(Number(amount), money)} создан`,
       intent: 'GENERATE_INVOICE',
       action: { type: 'OPEN_INVOICE', payload: { invoiceId: invoice.id } },
       suggestions: ['Отправить пациенту', 'Отметить оплаченным', 'Создать следующий'],

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
-  Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User, Stethoscope,
+  Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User as UserIcon, Stethoscope,
   WifiOff, CloudOff, Printer, ClipboardCheck, Globe, Wallet,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -82,6 +82,7 @@ export default function Schedule() {
   // while Staff still shows the roster.
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = clinicId ? { id: clinicId } : null
+  const activeClinic = outlet.clinic || authClinic || (clinicId ? { id: clinicId } : null)
   // Payment: admin / owner (руководитель) only — not doctors
   const canTakePayment = canAcceptPayment(role) || !!roleInfo?.canManageClinicSettings
   const {
@@ -253,12 +254,33 @@ export default function Schedule() {
   }, [appointments, weekDates, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts])
 
   const doctorColumns = useMemo(() => {
-    if (selectedDoctorFilter !== 'all') {
-      const doc = doctors.find(d => d.id === selectedDoctorFilter)
-      return doc ? [doc] : []
+    let list =
+      selectedDoctorFilter !== 'all'
+        ? doctors.filter((d) => d.id === selectedDoctorFilter)
+        : doctors
+
+    // If staff roster failed to load, still render columns from appointment doctorIds
+    // so a seeded schedule is never an empty «Нет врачей» wall in demos.
+    if (list.length === 0) {
+      const ids = Array.from(
+        new Set(
+          appointments
+            .map((a) => a.doctorId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      )
+      list = ids.map(
+        (id) =>
+          ({
+            id,
+            name: id === user?.id ? user.name || 'Я' : 'Врач',
+            role: 'doctor',
+            clinicId: clinic?.id,
+          }) as any,
+      )
     }
-    return doctors
-  }, [doctors, selectedDoctorFilter])
+    return list
+  }, [doctors, selectedDoctorFilter, appointments, user, clinic?.id])
 
   const serviceOptions = [{ value: '', label: '— Выберите услугу —' }, ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${tg(s.price)}` }))]
   const selectedService = ALL_SERVICES.find(s => s.id === form.service)
@@ -703,7 +725,7 @@ export default function Schedule() {
     { label: 'Всего', value: dayStats.total, icon: <Calendar size={14} />, variant: 'info' },
     { label: 'Запись', value: dayStats.scheduled, icon: <Clock size={14} />, variant: 'warning' },
     { label: 'Подтверждено', value: dayStats.confirmed, icon: <CheckCircle size={14} />, variant: 'success' },
-    { label: 'Пришёл', value: dayStats.arrived, icon: <User size={14} />, variant: 'warning' },
+    { label: 'Пришёл', value: dayStats.arrived, icon: <UserIcon size={14} />, variant: 'warning' },
     { label: 'В кресле', value: dayStats.inChair, icon: <Stethoscope size={14} />, variant: 'gold' },
     { label: 'Готово', value: dayStats.done, icon: <CheckCircle size={14} />, variant: 'success' },
   ]
