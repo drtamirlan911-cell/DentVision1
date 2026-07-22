@@ -99,6 +99,7 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
 
 interface ProcessedResponse extends AIResponse {
   toolsUsed?: string[];
+  actions?: Array<{ type: string; label: string; params?: Record<string, unknown>; confidence?: number }>;
 }
 
 /**
@@ -193,6 +194,18 @@ function responseActions(response: ProcessedResponse): Array<Record<string, unkn
       requiresConfirmation: false,
     });
   }
+  if (Array.isArray(response.actions)) {
+    for (const extra of response.actions) {
+      if (!extra?.type || DISPLAY_ONLY_ACTIONS.has(extra.type)) continue;
+      actions.push({
+        type: extra.type,
+        label: extra.label || (extra.type === 'NAVIGATE' ? navigateActionLabel(extra.params) : extra.type),
+        params: extra.params || {},
+        confidence: extra.confidence ?? 1,
+        requiresConfirmation: false,
+      });
+    }
+  }
   const confirm = response.confirmData as { action?: string; params?: Record<string, unknown>; summary?: string } | undefined;
   if (confirm?.action) {
     actions.push({
@@ -246,6 +259,7 @@ async function processQuery(
         message: result.message,
         intent: result.intent,
         action: result.action,
+        actions: result.actions,
         suggestions: result.suggestions,
         needsConfirmation: result.needsConfirmation,
         confirmData: result.confirmData,

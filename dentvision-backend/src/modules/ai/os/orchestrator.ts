@@ -54,6 +54,8 @@ export interface OrchestratorResult {
   message: string;
   intent: string;
   action?: { type: string; payload: unknown };
+  /** Extra clickable nav choices (e.g. after unknown section). */
+  actions?: Array<{ type: string; label: string; params?: Record<string, unknown>; confidence?: number }>;
   suggestions: string[];
   needsConfirmation?: boolean;
   confirmData?: Record<string, unknown>;
@@ -94,7 +96,13 @@ function systemPrompt(input: OrchestratorInput, currencyCode: string): string {
 4. Подсвечивай преимущества DentVision, когда гость знакомится с продуктом.
 5. Можно подсказать маркетплейс, академию, демо-клинику, тарифы через navigate.
 6. Не упоминай внутренние инструменты и не перечисляй английские ключи разделов (schedule, patients…). Только русские названия: «Расписание», «Маркетплейс», «Academy OS», «Демо-клиника» и т.п.
-7. Если неясно куда открыть — спроси коротко и предложи 3–5 пунктов по-русски, без сырого списка ключей.`;
+7. Если неясно куда открыть — коротко спроси и дай список разделов СТРОГО в формате:
+Куда открыть? Доступные разделы:
+• Демо-клиника
+• Маркетплейс
+• Academy OS
+• Тарифы
+(по одному на строку с «•», без запятых в одну строку — так пользователь сможет нажать и перейти).`;
   }
 
   const agents = agentsForRole(input.role);
@@ -115,6 +123,7 @@ ${mandates}
 4. Клинические выводы — черновик для врача, не диагноз.
 5. Ошибки инструментов признавай прямо и предлагай следующий шаг.
 6. Раздел открывай через navigate. В тексте пользователю — только русские названия разделов, никогда английские ключи (schedule, patients, finance…).
+   Если нужно предложить выбор раздела — список с «•» по одному на строку (Расписание, Пациенты, Финансы…), чтобы их можно было нажать.
 7. Не свети внутренние имена инструментов/агентов.
 8. Если пользователь только вошёл или просит «что важно» — приоритет: расписание сегодня, подтверждения, долги, склад, ближайшие 2 часа — по роли.
 9. ${clinicCurrencyPromptRule(currencyCode)}`;
@@ -234,6 +243,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   const toolsUsed: string[] = [];
   let pendingConfirmation: OrchestratorResult['confirmData'] | undefined;
   let navigateAction: { type: string; payload: unknown } | undefined;
+  let sectionChoiceActions: OrchestratorResult['actions'] = [];
 
   // PLAN → SELECT TOOLS → EXECUTE → VERIFY loop.
   // Cheap-first: mini by default; escalate once if the first mini pass is empty.
@@ -319,6 +329,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
         message: safeMessage,
         intent: toolsUsed[0] ? `TOOL_${toolsUsed[0].toUpperCase()}` : 'CHAT',
         action: navigateAction,
+        actions: sectionChoiceActions?.length ? sectionChoiceActions : undefined,
         suggestions: defaultSuggestions(input.role),
         needsConfirmation: Boolean(pendingConfirmation),
         confirmData: pendingConfirmation,
@@ -350,6 +361,16 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
       }
       if (result.navigate) {
         navigateAction = { type: 'NAVIGATE', payload: { path: result.navigate } };
+      }
+      const available = (result.data as { availableSections?: Array<{ key: string; label: string; path: string }> } | undefined)
+        ?.availableSections;
+      if (call.name === 'navigate' && !result.ok && Array.isArray(available) && available.length) {
+        sectionChoiceActions = available.slice(0, 12).map((s) => ({
+          type: 'NAVIGATE',
+          label: s.label,
+          params: { path: s.path, section: s.key },
+          confidence: 1,
+        }));
       }
 
       conversation.push({

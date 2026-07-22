@@ -143,11 +143,24 @@ function normalizeNavSection(raw: unknown): string {
   return key;
 }
 
+function availableSectionKeys(guestFriendly = false): string[] {
+  return guestFriendly
+    ? ['demo', 'shop', 'school', 'pricing', 'jobs', 'community']
+    : Object.keys(NAV_SECTION_LABELS);
+}
+
 function availableSectionsRu(guestFriendly = false): string {
-  const keys = guestFriendly
-    ? (['demo', 'shop', 'school', 'pricing', 'jobs', 'community'] as const)
-    : (Object.keys(NAV_SECTION_LABELS) as Array<keyof typeof NAV_SECTION_LABELS>);
-  return keys.map((k) => NAV_SECTION_LABELS[k]).join(', ');
+  return availableSectionKeys(guestFriendly)
+    .map((k) => `• ${NAV_SECTION_LABELS[k]}`)
+    .join('\n');
+}
+
+function availableSectionsData(guestFriendly = false): Array<{ key: string; label: string; path: string }> {
+  return availableSectionKeys(guestFriendly).map((key) => ({
+    key,
+    label: NAV_SECTION_LABELS[key],
+    path: NAV_PATHS[key],
+  }));
 }
 
 /** Replace English nav keys in model text so users never see schedule/patients dumps. */
@@ -164,8 +177,8 @@ export function localizeNavKeysInMessage(text: string): string {
   );
   out = out.replace(
     /(раздел(?:ы)?\s*:\s*)([a-z0-9_,\-\s]+)/gi,
-    (_m, prefix: string, list: string) =>
-      prefix +
+    (_m, _prefix: string, list: string) =>
+      'разделы: ' +
       list
         .split(/[,\n]/)
         .map((part) => {
@@ -925,7 +938,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       if (!path) {
         return {
           ok: false,
-          error: `Неизвестный раздел. Доступные: ${availableSectionsRu(isGuest)}.`,
+          error: `Неизвестный раздел. Доступные разделы:\n${availableSectionsRu(isGuest)}`,
+          data: { availableSections: availableSectionsData(isGuest) },
         };
       }
       const label = NAV_SECTION_LABELS[section] || section;
