@@ -222,6 +222,9 @@ export interface InventoryItem {
   lastOrder?: string
   minQuantity?: number
   expiryDate?: string
+  category?: string
+  supplier?: string
+  cost?: number
 }
 
 // ─── Lab Orders ─────────────────────────────────────────────────

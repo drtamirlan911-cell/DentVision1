@@ -79,9 +79,11 @@ export function resolveNavigationPath(
   type: string,
   params?: Record<string, unknown>,
 ): string | null {
+  if (params && typeof params.path === 'string' && params.path) {
+    return params.path;
+  }
   if (type === 'NAVIGATE') {
-    const path = params && typeof params.path === 'string' ? params.path : '';
-    return path || null;
+    return null;
   }
   const mapped = NAVIGATION_ACTIONS[type];
   return mapped || null;

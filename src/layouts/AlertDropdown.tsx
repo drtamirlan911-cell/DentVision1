@@ -30,7 +30,7 @@ interface AlertDropdownProps {
     message?: string;
     text?: string;
     priority: 'high' | 'medium' | 'low' | number;
-    action?: { type: string };
+    action?: { type: string; path?: string };
   }>;
   isOpen: boolean;
   setIsOpen: (v: boolean) => void;
@@ -116,7 +116,8 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
                 {alerts.map((alert, i) => {
                   const pr = normalizePriority(alert.priority);
                   const text = alert.message || alert.text || '';
-                  const path = alert.action?.type ? ACTION_PATHS[alert.action.type] : undefined;
+                  const path = alert.action?.path
+                    || (alert.action?.type ? ACTION_PATHS[alert.action.type] : undefined);
                   return (
                     <button
                       key={i}

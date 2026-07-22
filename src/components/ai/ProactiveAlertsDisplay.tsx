@@ -12,7 +12,7 @@ interface Alert {
   category: string
   text: string
   priority: number
-  action?: { type: string; params?: Record<string, unknown> }
+  action?: { type: string; path?: string; params?: Record<string, unknown> }
   acknowledged?: boolean
   resolved?: boolean
   timestamp?: Date
@@ -104,13 +104,17 @@ export function ProactiveAlertsDisplay({
     const actionType = alert.action?.type
     if (!actionType) return
 
-    const path = resolveNavigationPath(actionType, alert.action?.params)
+    const params = {
+      ...(alert.action?.params || {}),
+      ...(alert.action?.path ? { path: alert.action.path } : {}),
+    }
+    const path = resolveNavigationPath(actionType, params)
     const result = await executeAction({
       id: `alert-${alert.id}`,
       type: actionType,
       label: ACTION_LABELS[actionType] || actionType,
       confidence: 1,
-      params: alert.action?.params || (path ? { path } : {}),
+      params: Object.keys(params).length ? params : (path ? { path } : {}),
       requiresConfirmation: false,
     })
 

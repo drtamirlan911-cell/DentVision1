@@ -26,11 +26,20 @@ function mapProactiveAlerts(raw: any[]): Array<{
   category: string
   text: string
   priority: number
-  action?: { type: string; params?: Record<string, unknown> }
+  action?: { type: string; path?: string; params?: Record<string, unknown> }
 }> {
   const mapped = (Array.isArray(raw) ? raw : []).map((a: any, i: number) => {
     const text = a.text || a.message || ''
-    const action = a.action
+    const rawAction = a.action
+    const action = rawAction
+      ? {
+          ...rawAction,
+          params: {
+            ...(rawAction.params || {}),
+            ...(rawAction.path ? { path: rawAction.path } : {}),
+          },
+        }
+      : undefined
     const stable = alertDismissKey({ action, text, message: text, id: a.id })
     return {
       id: a.id || `${stable}-${i}`,

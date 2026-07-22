@@ -456,7 +456,7 @@ export async function buildProactiveAlerts(opts: {
   text: string;
   message: string;
   priority: number;
-  action?: { type: string };
+  action?: { type: string; path?: string };
 }>> {
   const alerts: Array<{
     type: string;
@@ -464,7 +464,7 @@ export async function buildProactiveAlerts(opts: {
     text: string;
     message: string;
     priority: number;
-    action?: { type: string };
+    action?: { type: string; path?: string };
   }> = [];
 
   const guestRole = String(opts.role || '').toUpperCase() === 'GUEST' || opts.isGuest;
@@ -523,7 +523,7 @@ export async function buildProactiveAlerts(opts: {
     overdue,
     upcomingSoon,
     todayPending,
-    lowStock,
+    inventoryRows,
     sub,
     unreadNotifs,
     inProgressCourses,
@@ -545,15 +545,11 @@ export async function buildProactiveAlerts(opts: {
         status: 'PENDING',
       },
     }),
-    prisma.inventoryItem.count({
-      where: {
-        clinicId,
-        OR: [
-          { quantity: { lte: 5 } },
-          // Prisma can't compare two columns easily; low stock via quantity threshold
-        ],
-      },
-    }).catch(() => 0),
+    prisma.inventoryItem.findMany({
+      where: { clinicId },
+      select: { id: true, name: true, quantity: true, minimum: true, category: true },
+      take: 300,
+    }).catch(() => [] as Array<{ id: string; name: string; quantity: number; minimum: number | null; category: string | null }>),
     prisma.subscription.findUnique({
       where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
     }).catch(() => null),
@@ -573,6 +569,11 @@ export async function buildProactiveAlerts(opts: {
       },
     }).catch(() => null),
   ]);
+
+  const lowStockItems = (inventoryRows || []).filter(
+    (i) => (i.minimum ?? 0) > 0 && i.quantity <= (i.minimum ?? 0),
+  );
+  const lowStock = lowStockItems.length;
 
   if (overdue > 0) {
     alerts.push({
@@ -611,13 +612,59 @@ export async function buildProactiveAlerts(opts: {
     });
   }
   if (lowStock > 0) {
-    alerts.push({
-      type: 'inventory', category: 'stock',
-      text: `Позиций с низким остатком: ${lowStock}`,
-      message: `Позиций с низким остатком: ${lowStock}`,
-      priority: 5,
-      action: { type: 'OpenInventory' },
-    });
+    const sample = lowStockItems.slice(0, 3).map((i) => i.name).filter(Boolean);
+    const sampleText = sample.length ? `: ${sample.join(', ')}${lowStock > sample.length ? '…' : ''}` : '';
+
+    // Prefer marketplace when we can match clinic items to shop products / analogs.
+    let shopHitName: string | null = null;
+    let shopQuery = sample[0] || '';
+    try {
+      for (const item of lowStockItems.slice(0, 5)) {
+        const token = String(item.name || '').trim().split(/\s+/)[0];
+        if (!token || token.length < 3) continue;
+        const hit = await prisma.product.findFirst({
+          where: {
+            stock: { gt: 0 },
+            OR: [
+              { name: { contains: item.name, mode: 'insensitive' } },
+              { name: { contains: token, mode: 'insensitive' } },
+              ...(item.category
+                ? [{ category: { contains: item.category, mode: 'insensitive' as const } }]
+                : []),
+            ],
+          },
+          select: { id: true, name: true },
+          orderBy: { rating: 'desc' },
+        });
+        if (hit) {
+          shopHitName = hit.name;
+          shopQuery = item.name;
+          break;
+        }
+      }
+    } catch {
+      /* shop catalog optional */
+    }
+
+    if (shopHitName) {
+      alerts.push({
+        type: 'inventory',
+        category: 'stock',
+        text: `Склад клиники: мало ${lowStock} поз.${sampleText}. В маркете есть «${shopHitName}» (или аналог)`,
+        message: `Склад клиники: мало ${lowStock} поз.${sampleText}. В маркете есть «${shopHitName}» (или аналог)`,
+        priority: 7,
+        action: { type: 'OpenShop', path: `/shop?q=${encodeURIComponent(shopQuery)}` },
+      });
+    } else {
+      alerts.push({
+        type: 'inventory',
+        category: 'stock',
+        text: `На складе клиники заканчивается ${lowStock} позици${lowStock === 1 ? 'я' : lowStock < 5 ? 'и' : 'й'}${sampleText}`,
+        message: `На складе клиники заканчивается ${lowStock} позици${lowStock === 1 ? 'я' : lowStock < 5 ? 'и' : 'й'}${sampleText}`,
+        priority: 6,
+        action: { type: 'OpenInventory' },
+      });
+    }
   }
   if (sub?.periodEnd) {
     const days = Math.ceil((sub.periodEnd.getTime() - now.getTime()) / 86400000);
