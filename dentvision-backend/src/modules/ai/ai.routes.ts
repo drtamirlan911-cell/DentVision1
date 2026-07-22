@@ -9,6 +9,7 @@ import { orchestrate, orchestratorEnabled } from './os/orchestrator.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
+import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
 
 const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
 
@@ -16,6 +17,34 @@ export const aiRouter = Router();
 
 aiRouter.use(optionalAuth);
 aiRouter.use(guardAiAccess);
+
+/** Enforce guest daily AI quota before burning OpenAI credits. */
+function enforceGuestAiQuota(req: AuthRequest, res: import('express').Response): boolean {
+  const isGuest = !req.user || req.user.isGuest === true;
+  if (!isGuest) return true;
+  const userId = req.user?.id;
+  if (!userId) {
+    // Anonymous without guest JWT — treat as guest bucket by IP-ish fallback id
+    res.status(401).json({
+      ok: false,
+      error: 'Создайте гостевую сессию',
+      code: 'GUEST_SESSION_REQUIRED',
+    });
+    return false;
+  }
+  const remaining = consumeGuestAi(userId);
+  if (remaining < 0) {
+    res.status(429).json({
+      ok: false,
+      error: 'Лимит бесплатных AI-запросов исчерпан. Зарегистрируйтесь для продолжения.',
+      code: 'GUEST_AI_LIMIT',
+      data: { aiRequestsLeft: 0 },
+    });
+    return false;
+  }
+  res.setHeader('X-Guest-AI-Remaining', String(remaining));
+  return true;
+}
 
 const querySchema = z.object({
   body: z.object({
@@ -338,6 +367,7 @@ async function processQuery(
 
 aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {
   try {
+    if (!enforceGuestAiQuota(req, res)) return;
     const { text, message, sessionId: rawSession, history = [] } = req.body;
     const prompt = String(text || message || '').trim();
     const sessionId = await resolveUserSessionId(req, rawSession);
@@ -353,6 +383,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
         messageId: response.messageId,
         learnedHint: response.learnedHint,
         learnedLabels: response.learnedLabels,
+        aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
       },
     });
   } catch (error) {
@@ -366,6 +397,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
 // response rather than provider-level token events.
 aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
   try {
+    if (!enforceGuestAiQuota(req, res)) return;
     const text = req.body.text || req.body.message;
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ ok: false, error: 'Text is required' });

@@ -65,7 +65,8 @@ adminRouter.post('/reset-demo', async (req, res) => {
     res.json({
       ok: true,
       message: 'Database reset. Test users, one demo clinic, and sample patients.',
-      password: TEST_USER_PASSWORD,
+      // Only echo password when explicitly configured via env (never a baked-in default in prod).
+      password: process.env.DEMO_USER_PASSWORD ? TEST_USER_PASSWORD : undefined,
       clinic: { id: clinic.id, name: clinic.name, city: clinic.city },
       patientCount: patients.length,
       patients: patients.map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, phone: p.phone })),
@@ -78,13 +79,20 @@ adminRouter.post('/reset-demo', async (req, res) => {
   }
 });
 
-adminRouter.get('/test-accounts', (_req, res) => {
+adminRouter.get('/test-accounts', (req, res) => {
+  // Never expose demo passwords publicly in production.
+  if (process.env.NODE_ENV === 'production' || process.env.LOCK_DEMO_ACCOUNTS === '1') {
+    if (!checkSeedSecret(req, res)) return;
+  }
   res.json({
     ok: true,
-    password: TEST_USER_PASSWORD,
+    password: process.env.NODE_ENV === 'production' ? undefined : TEST_USER_PASSWORD,
+    passwordHint: process.env.NODE_ENV === 'production'
+      ? 'Password only returned with valid X-Seed-Secret header'
+      : undefined,
     clinic: DEMO_CLINIC,
     patients: DEMO_PATIENTS.map((p) => `${p.firstName} ${p.lastName}`),
-    note: 'Login as owner@dentvision.kz — demo clinic is already attached.',
+    note: 'Demo accounts are for staging only. Rotate DEMO_USER_PASSWORD after seed.',
     accounts: TEST_USERS.map((u) => ({
       email: u.email,
       role: u.role,

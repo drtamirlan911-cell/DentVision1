@@ -3,7 +3,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
-import { hashPassword } from '../../lib/password.js';
+import { hashPassword, assertPasswordPolicy } from '../../lib/password.js';
 import {
   canManageClinicSettings,
   mergeClinicSettings,
@@ -396,8 +396,9 @@ clinicsRouter.post('/:id/staff', authenticate, guardUserCreate, async (req: Auth
     if (!email) {
       return res.status(400).json({ ok: false, error: 'Email или логин обязателен' });
     }
-    if (!password || password.length < 6) {
-      return res.status(400).json({ ok: false, error: 'Пароль не менее 6 символов' });
+    const passwordError = assertPasswordPolicy(password || '');
+    if (passwordError) {
+      return res.status(400).json({ ok: false, error: passwordError });
     }
 
     let user = await prisma.user.findUnique({ where: { email } });
