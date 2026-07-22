@@ -18,6 +18,7 @@ import RegistrationModal from '@/components/guest/RegistrationModal';
 import GuestCRMModal from '@/components/guest/GuestCRMModal';
 import { ClinicSwitcher } from '@/components/ClinicSwitcher';
 import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner';
+import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '@/utils/api';
 
