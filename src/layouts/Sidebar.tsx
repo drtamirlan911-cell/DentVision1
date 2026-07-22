@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Stethoscope, ChevronLeft, ChevronRight, LogOut, Brain,
   ShoppingCart, GraduationCap, Briefcase, BarChart3, Users, User,
-  Shield, FileText, Database, Settings, Bot, FlaskConical, Star, LogIn, Store,
+  Shield, FileText, Database, Settings, FlaskConical, Star, LogIn, Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/ds/Avatar';
@@ -35,7 +35,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={16} />, path: '/analytics', color: '#F39C12', section: 'services' },
   { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={16} />, path: '/jobs', color: '#E67E22', section: 'services' },
   { id: 'community', label: 'Сообщество', icon: <Users size={16} />, path: '/community', color: '#00BCD4', section: 'services' },
-  { id: 'ai', label: 'AI Команда', icon: <Bot size={16} />, path: '/ai', color: '#8E44AD', section: 'platform' },
   { id: 'supplier', label: 'Кабинет продавца', icon: <Store size={16} />, path: '/supplier', color: '#16A085', section: 'platform' },
   { id: 'school-workspace', label: 'Кабинет лектора', icon: <GraduationCap size={16} />, path: '/school-workspace', color: '#16A085', section: 'platform' },
   { id: 'profile', label: 'Профиль', icon: <User size={16} />, path: '/profile', color: '#2980B9', section: 'platform' },
@@ -141,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const serviceItems = isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.id === 'crm') return true;
-    if (item.id === 'ai' || item.id === 'profile' || item.id === 'settings') return true;
+    if (item.id === 'profile' || item.id === 'settings') return true;
     if (item.id === 'supplier' || item.id === 'school-workspace') return true;
     if (item.id === 'jobs' || item.id === 'community') return true;
     if (item.id === 'shop') return allowedPages.length === 0 || canAccessPage(allowedPages, 'shop');

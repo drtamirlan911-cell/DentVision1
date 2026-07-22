@@ -21,7 +21,6 @@ export const AI_SERVICES: ServiceCardDef[] = [
   { id: 'analytics', name: 'Analytics', description: 'Отчёты и метрики', icon: <AnalyticsIcon size={20} />, path: '/analytics', color: '#F39C12', gradient: 'from-[#F39C12]/20 to-[#F39C12]/5', category: 'platform' },
   { id: 'finance', name: 'Finance', description: 'Финансы и отчёты', icon: <FinanceIcon size={20} />, path: '/crm/cashier', color: '#27AE60', gradient: 'from-[#27AE60]/20 to-[#27AE60]/5', category: 'platform' },
   { id: 'laboratory', name: 'Laboratory', description: 'Лабораторные заказы', icon: <LaboratoryIcon size={20} />, path: '/crm/lab', color: '#00BCD4', gradient: 'from-[#00BCD4]/20 to-[#00BCD4]/5', category: 'crm' },
-  { id: 'ai', name: 'AI', description: 'Интеллектуальные агенты', icon: <AIIcon size={20} />, path: '/ai', color: '#8E44AD', gradient: 'from-[#8E44AD]/20 to-[#8E44AD]/5', category: 'platform' },
   { id: 'marketplace', name: 'Marketplace', description: 'B2B площадка', icon: <MarketplaceIcon size={20} />, path: '/shop/suppliers', color: '#E74C3C', gradient: 'from-[#E74C3C]/20 to-[#E74C3C]/5', category: 'platform' },
   { id: 'settings', name: 'Settings', description: 'Настройки системы', icon: <SettingsIcon size={20} />, path: '/settings', color: '#5DADE2', gradient: 'from-[#5DADE2]/20 to-[#5DADE2]/5', category: 'platform' },
 ];
@@ -117,17 +116,6 @@ function MarketplaceIcon({ size = 20 }: { size?: number }) {
       <path d="M2 9h20" />
       <path d="M12 9v12" />
       <path d="M6 9V6a6 6 0 0 1 12 0v3" />
-    </svg>
-  );
-}
-
-function AIIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="11" width="18" height="10" rx="2" />
-      <circle cx="12" cy="5" r="2" />
-      <path d="M12 7v4" />
-      <path d="M8 16h8" />
     </svg>
   );
 }

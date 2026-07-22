@@ -48,7 +48,6 @@ const AUTH_REQUIRED_ROUTES = [
   '/admin',
   '/audit',
   '/backup',
-  '/ai',
   '/profile',
   '/my-clinics',
   '/supplier',

@@ -13,7 +13,7 @@ describe('roleAccess', () => {
   })
 
   it('allows doctor clinical pages only', () => {
-    const doctor = ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'ai', 'reminders', 'school', 'treatment-plans', 'dental-chart']
+    const doctor = ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'reminders', 'school', 'treatment-plans', 'dental-chart']
     expect(canAccessPage(doctor, 'schedule')).toBe(true)
     expect(canAccessPage(doctor, 'finance')).toBe(false)
     expect(canAccessPage(doctor, 'staff')).toBe(false)

@@ -29,7 +29,6 @@ export const PATH_PAGE_ID: Record<string, string> = {
   '/backup': 'backup',
   '/shop': 'shop',
   '/school': 'school',
-  '/ai': 'ai',
   '/settings': 'settings',
 }
 
