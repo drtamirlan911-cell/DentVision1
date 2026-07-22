@@ -17,7 +17,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { trackProductEvent } from '@/utils/analytics'
 import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 import { alertDismissKey, filterDismissedAlerts } from '@/utils/dismissedAlerts'
-import { answerJobsSearchQuery } from '@/lib/jobsAiQuery'
+import { buildLiveClinicGreeting, isStaticRadarGreeting } from '@/lib/liveGreeting'
 
 import type { Message, Action } from '@/store/workspace.store'
 
@@ -27,11 +27,20 @@ function mapProactiveAlerts(raw: any[]): Array<{
   category: string
   text: string
   priority: number
-  action?: { type: string; params?: Record<string, unknown> }
+  action?: { type: string; path?: string; params?: Record<string, unknown> }
 }> {
   const mapped = (Array.isArray(raw) ? raw : []).map((a: any, i: number) => {
     const text = a.text || a.message || ''
-    const action = a.action
+    const rawAction = a.action
+    const action = rawAction
+      ? {
+          ...rawAction,
+          params: {
+            ...(rawAction.params || {}),
+            ...(rawAction.path ? { path: rawAction.path } : {}),
+          },
+        }
+      : undefined
     const stable = alertDismissKey({ action, text, message: text, id: a.id })
     return {
       id: a.id || `${stable}-${i}`,
@@ -105,7 +114,20 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const pushDailyJarvisBriefing = useCallback(async () => {
     if (isGuest || !user?.id) return
     try {
-      const brief = await aiBriefing()
+      let brief = await aiBriefing().catch(() => null)
+      if (!brief?.reply) {
+        const live = await buildLiveClinicGreeting({ user, clinic }).catch(() => null)
+        if (live?.reply) {
+          brief = {
+            reply: live.reply,
+            suggestions: live.suggestions,
+            skill: 'practice',
+            actions: [],
+            proactive: [],
+            conversationContext: { turnCount: 0, entities: {} },
+          }
+        }
+      }
       if (!brief?.reply) return
       const msg = {
         id: `jarvis-${Date.now()}`,
@@ -122,11 +144,11 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       try {
         sessionStorage.setItem('dv_jarvis_briefed_day', new Date().toISOString().slice(0, 10))
       } catch { /* ignore */ }
-      trackProductEvent('ai_jarvis_daily_briefing', { role: user?.role || 'unknown' })
+      trackProductEvent('ai_jarvis_daily_briefing', { role: user?.role || 'unknown', live_fallback: !!(brief as any) })
     } catch {
       /* non-blocking */
     }
-  }, [isGuest, user?.id, user?.role, addMessage, setSuggestionsFromStrings])
+  }, [isGuest, user, clinic, addMessage, setSuggestionsFromStrings])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -178,7 +200,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
               persistThread(user.id, clinicId, restored)
               trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
               setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
-              if (shouldRefreshDailyBriefing(restored)) {
+              if (shouldRefreshDailyBriefing(restored) || restored.some((m) => m.role === 'assistant' && isStaticRadarGreeting(m.content))) {
                 void pushDailyJarvisBriefing()
               }
               return
@@ -209,7 +231,10 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
           trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
           setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
-          if (!isGuest && user?.id && shouldRefreshDailyBriefing(localMsgs)) {
+          if (!isGuest && user?.id && (
+            shouldRefreshDailyBriefing(localMsgs)
+            || localMsgs.some((m) => m.role === 'assistant' && isStaticRadarGreeting(m.content))
+          )) {
             void pushDailyJarvisBriefing()
           }
           return
@@ -284,7 +309,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         return
       }
 
-      // Jarvis entry: live role briefing first; chat/LLM only as fallback.
+      // Jarvis entry: live role briefing first; CRM client snapshot as fallback (never static fluff).
       const [briefRes, proactiveData, twinData] = await Promise.all([
         aiBriefing().catch(() => null),
         aiProactive().catch(() => ({ alerts: [] })),
@@ -298,11 +323,29 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       }
       if (!stillCurrent()) return
 
-      let reply = chatRes?.reply || buildGreeting(user, clinic, proactiveData?.alerts || [])
+      let reply = chatRes?.reply || ''
+      let suggestions = (chatRes?.suggestions || []) as string[]
+      let usedLiveFallback = false
 
-      if (proactiveData?.alerts?.length && !chatRes?.reply) {
-        const alertLines = proactiveData.alerts.slice(0, 3).map((a: any) => `• ${a.text}`).join('\n')
-        reply = `${buildGreeting(user, clinic, [])}\n\nНа радаре:\n${alertLines}`
+      if (!reply || isStaticRadarGreeting(reply)) {
+        const live = await buildLiveClinicGreeting({
+          user,
+          clinic,
+          proactiveAlerts: proactiveData?.alerts || [],
+        }).catch(() => null)
+        if (live?.reply) {
+          reply = live.reply
+          suggestions = live.suggestions
+          usedLiveFallback = true
+        }
+      }
+
+      if (!reply) {
+        reply = buildGreeting(user, clinic, proactiveData?.alerts || [])
+        if (proactiveData?.alerts?.length) {
+          const alertLines = proactiveData.alerts.slice(0, 3).map((a: any) => `• ${a.text || a.message}`).filter(Boolean).join('\n')
+          if (alertLines) reply = `${reply}\n\nСейчас важно:\n${alertLines}`
+        }
       }
 
       setMessages([{
@@ -318,11 +361,12 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       trackProductEvent('ai_greeting_rendered', {
         role: user?.role || 'guest',
         latency_ms: Date.now() - started,
-        data_complete: !!(proactiveData?.alerts?.length || chatRes?.reply),
+        data_complete: !!(usedLiveFallback || proactiveData?.alerts?.length || chatRes?.reply),
         jarvis: true,
+        live_fallback: usedLiveFallback,
       })
       setSuggestionsFromStrings(
-        (chatRes?.suggestions || getDefaultSuggestions(user, 'workspace', false)).slice(0, 3)
+        (suggestions.length ? suggestions : getDefaultSuggestions(user, 'workspace', false)).slice(0, 3)
       )
       if (proactiveData?.alerts?.length) {
         setProactiveAlerts(mapProactiveAlerts(proactiveData.alerts))
@@ -333,10 +377,21 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       historyRef.current = [{ role: 'assistant', content: reply }]
     } catch {
       if (!stillCurrent()) return
-      const fallback = isGuest ? buildGuestGreeting() : buildGreeting(user, clinic, [])
+      let fallback = isGuest ? buildGuestGreeting() : ''
+      let catchSuggestions = getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3)
+      if (!fallback && !isGuest) {
+        const live = await buildLiveClinicGreeting({ user, clinic }).catch(() => null)
+        if (live?.reply) {
+          fallback = live.reply
+          catchSuggestions = live.suggestions.slice(0, 3)
+        } else {
+          fallback = buildGreeting(user, clinic, [])
+        }
+      }
+      if (!fallback) fallback = buildGuestGreeting()
       setMessages([{ id: 'greeting', role: 'assistant', content: fallback, timestamp: new Date() }])
       historyRef.current = [{ role: 'assistant', content: fallback }]
-      setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
+      setSuggestionsFromStrings(catchSuggestions)
       trackProductEvent('ai_greeting_rendered', {
         role: user?.role || 'guest',
         latency_ms: Date.now() - started,

@@ -141,7 +141,7 @@ export async function buildJarvisBriefing(opts: {
     pendingConfirm,
     unpaidInvoices,
     paidYesterday,
-    lowStock,
+    lowStockItems,
     unreadNotifs,
     courses,
     dentCashWallet,
@@ -189,8 +189,13 @@ export async function buildJarvisBriefing(opts: {
       select: { amount: true },
     }),
     prisma.inventoryItem
-      .count({ where: { clinicId, quantity: { lte: 5 } } })
-      .catch(() => 0),
+      .findMany({
+        where: { clinicId },
+        select: { quantity: true, minimum: true, name: true },
+        take: 300,
+      })
+      .then((rows) => rows.filter((i) => (i.minimum ?? 0) > 0 && i.quantity <= (i.minimum ?? 0)))
+      .catch(() => [] as Array<{ quantity: number; minimum: number | null; name: string }>),
     prisma.notification.count({ where: { userId: opts.userId, read: false } }),
     prisma.schoolEnrollment.count({
       where: { userId: opts.userId, completed: false, progress: { lt: 100 } },
@@ -220,6 +225,10 @@ export async function buildJarvisBriefing(opts: {
       : Promise.resolve(null),
   ]);
   const inChair = 0;
+  const lowStock = Array.isArray(lowStockItems) ? lowStockItems.length : 0;
+  const lowStockNames = Array.isArray(lowStockItems)
+    ? lowStockItems.slice(0, 3).map((i) => i.name).filter(Boolean)
+    : [];
 
   const debtTotal = unpaidInvoices.reduce((s, i) => s + Number(i.amount || 0), 0);
   const overdueCount = unpaidInvoices.filter((i) => i.status === 'OVERDUE').length;
@@ -259,7 +268,11 @@ export async function buildJarvisBriefing(opts: {
         ? `• Дебиторка: **${unpaidInvoices.length}** счетов · **${fmt(debtTotal)}**${overdueCount ? ` (просрочено ${overdueCount})` : ''}`
         : '• Дебиторка: чисто — должников нет',
     );
-    if (lowStock > 0) lines.push(`• Склад: **${lowStock}** позиций с низким остатком`);
+    if (lowStock > 0) {
+      const names = lowStockNames.length ? ` (${lowStockNames.join(', ')}${lowStock > lowStockNames.length ? '…' : ''})` : '';
+      lines.push(`• Склад клиники: **${lowStock}** ниже минимума${names}`);
+      suggestions.push('Открыть маркетплейс', 'Что на складе');
+    }
     if (dentCash >= 1000) {
       lines.push(`• DentCash: **${Math.round(dentCash).toLocaleString('ru-KZ')} ₸** к списанию`);
     }
@@ -285,6 +298,11 @@ export async function buildJarvisBriefing(opts: {
       lines.push(`• Касса: **${unpaidInvoices.length}** неоплаченных · **${fmt(debtTotal)}**`);
     }
     if (unreadNotifs > 0) lines.push(`• Уведомлений: **${unreadNotifs}**`);
+    if (lowStock > 0) {
+      const names = lowStockNames.length ? `: ${lowStockNames.join(', ')}` : '';
+      lines.push(`• Склад клиники заканчивается (**${lowStock}**)${names} — подберём в маркете`);
+      suggestions.push('Открыть маркетплейс');
+    }
     if (loadSignals?.briefingLines?.length) {
       lines.push('');
       lines.push('**Что сделать для загрузки (без запроса):**');
@@ -316,7 +334,7 @@ export async function buildJarvisBriefing(opts: {
     suggestions.push('Показать расписание', 'Открыть зубную карту', 'Создать план лечения');
   } else if (role === 'buyer') {
     lines.push(lowStock > 0
-      ? `• Склад требует внимания: **${lowStock}** позиций ≤5 ед.`
+      ? `• Склад клиники: **${lowStock}** ниже минимума${lowStockNames.length ? ` (${lowStockNames.join(', ')})` : ''} — откройте маркет`
       : '• Склад в норме — критичных остатков нет');
     if (dentCash >= 1000) {
       lines.push(`• DentCash: **${Math.round(dentCash).toLocaleString('ru-KZ')} ₸** — можно списать в маркете`);

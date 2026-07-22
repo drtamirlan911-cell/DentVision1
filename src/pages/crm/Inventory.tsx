@@ -1,10 +1,11 @@
-﻿import React, { useState, useMemo } from 'react'
-import { useOutletContext } from 'react-router-dom'
+﻿import React, { useState, useMemo, useEffect } from 'react'
+import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign, ShoppingCart } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useNavigate } from 'react-router-dom'
 import { useDataQuery } from '../../queries/useDataQuery'
+import * as api from '../../utils/api'
 import { Button } from '../../components/ui/ds/Button'
 import { Card } from '../../components/ui/ds/Card'
 import { Input, Select } from '../../components/ui/ds/Input'
@@ -14,6 +15,7 @@ import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
 import { gid, today, INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../../utils/constants'
 import { cn, formatMoney } from '../../lib/utils'
+import { buildClinicRestockSuggestions, findShopMatches } from '@/lib/inventory-shop-match'
 import type { InventoryItem, Clinic, User as UserType, RoleInfo } from '../../types'
 
 const EMPTY_FORM = {
@@ -44,20 +46,40 @@ interface InventoryForm {
 export default function Inventory() {
   const { clinic } = useOutletContext<OutletContext>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { showToast, toast, clearToast } = useToast()
   const { inventory, upsertInventoryItem } = useDataQuery(clinic?.id)
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<InventoryForm>(EMPTY_FORM)
   const [editing, setEditing] = useState<InventoryItem | null>(null)
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState(() => searchParams.get('filter') || 'all')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('name')
+  const [shopProducts, setShopProducts] = useState<any[]>([])
+
+  useEffect(() => {
+    const f = searchParams.get('filter')
+    if (f) setFilter(f)
+  }, [searchParams])
+
+  useEffect(() => {
+    let cancelled = false
+    api.getShopProducts()
+      .then((rows) => { if (!cancelled) setShopProducts(Array.isArray(rows) ? rows : []) })
+      .catch(() => { if (!cancelled) setShopProducts([]) })
+    return () => { cancelled = true }
+  }, [])
 
   const stats = useMemo(() => ({
     total: inventory.length,
     lowStock: inventory.filter(i => i.quantity <= (i.minQuantity || i.min || 0) && (i.minQuantity || i.min || 0) > 0).length,
     totalValue: inventory.reduce((sum, i) => sum + ((i.cost || 0) * (i.quantity || 0)), 0),
   }), [inventory])
+
+  const restockSuggestions = useMemo(
+    () => buildClinicRestockSuggestions(inventory, shopProducts, { onlyWithMatches: true, limit: 6 }),
+    [inventory, shopProducts],
+  )
 
   const filtered = useMemo(() => {
     let items = [...inventory]
@@ -158,6 +180,45 @@ export default function Inventory() {
         </motion.div>
       </motion.div>
 
+      {restockSuggestions.length > 0 && (
+        <div className="mb-5 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-xs font-semibold text-txt-primary m-0">
+                Заканчивается на складе — есть в маркетплейсе
+              </p>
+              <p className="text-[11px] text-txt-muted m-0">
+                Подобрали тот же товар или аналог у продавцов. Можно заказать сразу.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {restockSuggestions.slice(0, 4).map((row) => {
+                  const best = row.matches[0]
+                  return (
+                    <div key={row.item.id || row.query} className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-txt-primary font-medium truncate max-w-[220px]">{row.item.name}</span>
+                      <span className="text-txt-muted">{row.item.quantity ?? 0}/{row.min}</span>
+                      {best && (
+                        <span className="text-txt-muted truncate max-w-[200px]">
+                          → {best.kind === 'exact' ? 'есть' : 'аналог'}: {best.name}
+                        </span>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigate(`/shop?q=${encodeURIComponent(row.query)}`)}
+                      >
+                        В маркет
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex gap-2 mb-5 flex-wrap items-center">
         <div className="relative flex-1 min-w-[200px] max-w-[300px]">
@@ -169,7 +230,13 @@ export default function Inventory() {
           { key: 'expiring', label: 'Истекает' },
         ].map(f => (
           <Button key={f.key} variant={filter === f.key ? 'outline' : 'ghost'} size="sm"
-            onClick={() => setFilter(f.key)}
+            onClick={() => {
+              setFilter(f.key)
+              const next = new URLSearchParams(searchParams)
+              if (f.key === 'all') next.delete('filter')
+              else next.set('filter', f.key)
+              setSearchParams(next, { replace: true })
+            }}
             className={filter === f.key ? 'border-dv-gold/50 text-dv-gold' : ''}>
             {f.label}
           </Button>
@@ -199,6 +266,7 @@ export default function Inventory() {
             const min = item.minQuantity || item.min || 0
             const isLow = min > 0 && item.quantity <= min
             const stockVariant = getStockVariant(item)
+            const shopMatch = isLow ? findShopMatches(item, shopProducts, 1)[0] : undefined
             return (
               <motion.div key={item.id} variants={fadeUp}>
                 <Card hover padding="none" className="overflow-hidden cursor-pointer group" onClick={() => openEdit(item)}>
@@ -226,6 +294,12 @@ export default function Inventory() {
                       {min > 0 && <p className="text-2xs text-txt-muted mt-0.5">Мин: {min} {item.unit || 'шт'}</p>}
                     </div>
 
+                    {shopMatch && (
+                      <p className="text-[11px] text-txt-muted mb-2 m-0 truncate">
+                        {shopMatch.kind === 'exact' ? 'В маркете' : 'Аналог'}: {shopMatch.name}
+                      </p>
+                    )}
+
                     <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
                       <Button variant="danger" size="icon-xs" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} />
                       <Button variant="primary" size="icon-xs" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} />
@@ -234,9 +308,13 @@ export default function Inventory() {
                         <Button
                           variant="secondary"
                           size="icon-xs"
-                          title="Заказать в Маркетплейсе"
+                          title={shopMatch ? `Заказать: ${shopMatch.name}` : 'Заказать в Маркетплейсе'}
                           icon={<ShoppingCart size={12} />}
-                          onClick={() => navigate(`/shop?q=${encodeURIComponent(item.name || '')}`)}
+                          onClick={() => navigate(
+                            shopMatch?.id
+                              ? `/shop/${shopMatch.id}`
+                              : `/shop?q=${encodeURIComponent(item.name || '')}`,
+                          )}
                         />
                       )}
                     </div>
