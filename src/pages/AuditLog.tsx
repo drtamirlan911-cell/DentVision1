@@ -107,7 +107,7 @@ export default function AuditLog() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input placeholder="Поиск по пользователю, типу..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
-        <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="w-full md:w-56">
+        <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="dv-select w-full md:w-56">
           {actionTypes.map(a => (
             <option key={a} value={a}>{a === 'all' ? 'Все действия' : (getActionInfo(a).l || a)}</option>
           ))}

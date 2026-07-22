@@ -97,7 +97,7 @@ export default function Visits() {
   };
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
       <PageHeader
         title="Журнал посещений"
         subtitle="Все визиты пациентов с диагнозами и МКБ-10"
@@ -126,14 +126,14 @@ export default function Visits() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Пациент *</label>
-                    <select value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))}>
+                    <select className="dv-select" value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))}>
                       <option value="">Выберите...</option>
                       {(patients || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Врач</label>
-                    <select value={form.doctor_id} onChange={e => setForm(f => ({ ...f, doctor_id: e.target.value }))}>
+                    <select className="dv-select" value={form.doctor_id} onChange={e => setForm(f => ({ ...f, doctor_id: e.target.value }))}>
                       <option value="">Выберите...</option>
                       {(doctors || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>

@@ -183,7 +183,7 @@ export default function PriceList() {
   ]
 
   return (
-    <div className="p-6">
+    <div className="dv-page py-4 md:py-6">
       <PageHeader
         title="Прайс-лист"
         subtitle={`${clinic?.name} · Индивидуальные цены для клиники`}

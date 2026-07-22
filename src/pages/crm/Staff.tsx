@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Users, UserPlus, Shield, Stethoscope, Briefcase, Crown, Phone, Mail,
-  Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings, Copy, Check, Link2,
+  Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings, Copy, Check, Link2, Camera,
 } from 'lucide-react'
 import { useAuth, ORG_ROLES, canManageClinicSettings } from '@/store/auth.store'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -21,6 +21,7 @@ import { PageHeader } from '../../components/ui/ds/StatCard'
 import { Avatar } from '../../components/ui/ds/Avatar'
 import { VISIBILITY_OPTIONS } from '../../utils/constants'
 import { cn } from '../../lib/utils'
+import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 import type { User as UserType, Clinic, RoleInfo } from '../../types'
 
 const ROLE_OPTIONS = [
@@ -137,6 +138,22 @@ export default function Staff() {
   const [copied, setCopied] = useState(false)
   const [profileModal, setProfileModal] = useState<UserType | null>(null)
   const [form, setForm] = useState<StaffForm>(EMPTY_FORM)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const photoInputRef = React.useRef<HTMLInputElement>(null)
+
+  const handleStaffPhoto = async (file: File | null) => {
+    if (!file) return
+    setPhotoUploading(true)
+    try {
+      const dataUrl = await readImageAsDataUrl(file)
+      setForm((prev) => ({ ...prev, photoUrl: dataUrl }))
+      showToast('Фото загружено', 'success')
+    } catch (e: any) {
+      showToast(e?.message || 'Не удалось загрузить фото', 'error')
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
   const [filter, setFilter] = useState('all')
   const [editingStaff, setEditingStaff] = useState<UserType | null>(null)
   const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter)
@@ -377,7 +394,7 @@ export default function Staff() {
           onChange={e => setForm({ ...form, commissionPercent: e.target.value })}
           placeholder="30"
         />
-        <p className="text-2xs text-txt-muted -mt-2">Как в KazDent: врач получает % от (цена − материалы)</p>
+        <p className="text-2xs text-txt-muted -mt-2">Врач получает % от (цена − материалы)</p>
 
         <div className={cn(
           'p-3 rounded-lg border text-xs text-txt-secondary',
@@ -445,12 +462,47 @@ export default function Staff() {
         )}
 
         {form.role === 'doctor' && (
-          <Input
-            label="Фото URL"
-            value={form.photoUrl}
-            onChange={e => setForm({ ...form, photoUrl: e.target.value })}
-            placeholder="https://example.com/photo.jpg"
-          />
+          <div className="rounded-xl border border-bdr-subtle bg-white/[0.02] p-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <Avatar name={form.name || '?'} size="lg" src={form.photoUrl || undefined} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-txt-primary">Фото</p>
+                <p className="text-[11px] text-txt-muted mt-0.5">JPG, PNG или WEBP до 5 МБ</p>
+              </div>
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept={PROFILE_PHOTO_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                void handleStaffPhoto(e.target.files?.[0] || null)
+                e.target.value = ''
+              }}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={<Camera size={14} />}
+                loading={photoUploading}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                Загрузить фото
+              </Button>
+              {form.photoUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setForm({ ...form, photoUrl: '' })}
+                >
+                  Убрать
+                </Button>
+              )}
+            </div>
+          </div>
         )}
 
         {form.role === 'doctor' && (
@@ -609,7 +661,7 @@ export default function Staff() {
   )
 
   return (
-    <div className="p-6">
+    <div className="dv-page py-4 md:py-6">
       <PageHeader
         title="Сотрудники"
         subtitle={`${clinic?.name} · ${staff.length} чел.`}

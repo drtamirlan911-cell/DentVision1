@@ -11,12 +11,12 @@ import {
   assertClinicBillingAccess,
   getClinicBillingSnapshot,
   isSaasPlanId,
-  type SaasPlanId,
   CLINIC_SAAS_PLANS,
 } from './clinicSubscription.service.js';
 
 /**
- * Clinic self-serve billing — tariff selection + Kaspi checkout + mock confirm.
+ * Clinic self-serve billing — tariff selection + Kaspi checkout.
+ * Paid plans activate ONLY after authenticated provider webhook marks payment paid.
  * Mounted at /api/clinic-billing
  */
 export const clinicBillingRouter = Router();
@@ -111,6 +111,7 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
           saasPlan: planId,
           months,
           clinicId,
+          userId: req.user!.id,
         },
       },
     });
@@ -133,8 +134,9 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
 });
 
 /**
- * Sandbox / mock confirm — marks Kaspi payment as paid and activates subscription.
- * In production this is done by the Kaspi webhook; kept for demo UX.
+ * Sync payment status with provider / DB.
+ * Does NOT mark unpaid invoices as paid. Activates subscription only if already paid
+ * (via authenticated Kaspi webhook) or provider reports paid.
  */
 clinicBillingRouter.post('/confirm', async (req: AuthRequest, res) => {
   try {
@@ -151,34 +153,80 @@ clinicBillingRouter.post('/confirm', async (req: AuthRequest, res) => {
       return res.status(404).json({ ok: false, error: 'Платёж не найден' } satisfies ApiResponse);
     }
 
+    // Ask provider for latest status (never trust the client).
+    let providerStatus: 'pending' | 'paid' | 'failed' | 'expired' = 'pending';
+    if (payment.externalId) {
+      const gateway = providers[payment.provider] || providers.kaspi_qr;
+      providerStatus = await gateway.getPaymentStatus(payment.externalId);
+    }
+
+    // Only the authenticated webhook may flip DB → paid. Here we only read / report.
     if (payment.status === 'paid') {
       const snap = await getClinicBillingSnapshot(clinicId);
-      return res.json({ ok: true, data: { alreadyPaid: true, ...snap } } satisfies ApiResponse);
+      return res.json({
+        ok: true,
+        data: {
+          activated: true,
+          alreadyPaid: true,
+          paymentStatus: 'paid',
+          providerStatus,
+          ...snap,
+        },
+      } satisfies ApiResponse);
     }
 
-    const meta = (payment.meta || {}) as { saasPlan?: string; months?: number };
-    const planRaw = String(meta.saasPlan || 'professional');
-    const saasPlan = (planRaw === 'pro' ? 'professional' : planRaw) as SaasPlanId;
-    if (!isSaasPlanId(saasPlan)) {
-      return res.status(400).json({ ok: false, error: 'Некорректный план в платеже' } satisfies ApiResponse);
+    if (providerStatus === 'failed' || providerStatus === 'expired') {
+      if (payment.status !== providerStatus) {
+        await prisma.payment.update({ where: { id: payment.id }, data: { status: providerStatus } });
+      }
+      return res.status(402).json({
+        ok: false,
+        error: 'Оплата не прошла',
+        data: { activated: false, paymentStatus: providerStatus, providerStatus },
+      } satisfies ApiResponse);
     }
 
-    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'paid' } });
-    const result = await activateClinicSubscriptionFromPayment({
-      clinicId,
-      saasPlan,
-      months: meta.months || 1,
-      paymentId: payment.id,
-    });
-
-    return res.json({
-      ok: true,
-      data: { activated: true, clinic: result.clinic, subscription: result.subscription },
+    return res.status(402).json({
+      ok: false,
+      error: 'Оплата ещё не подтверждена провайдером. Оплатите по QR и дождитесь подтверждения.',
+      data: {
+        activated: false,
+        paymentStatus: payment.status,
+        providerStatus,
+      },
     } satisfies ApiResponse);
   } catch (error: any) {
     console.error('[clinic-billing/confirm]', error);
     const status = error?.status || 500;
     return res.status(status).json({ ok: false, error: error?.message || 'Ошибка подтверждения' } satisfies ApiResponse);
+  }
+});
+
+/** Read-only payment status for polling UI. */
+clinicBillingRouter.get('/payments/:id', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = clinicIdFrom(req);
+    await assertClinicBillingAccess(req.user!.id, clinicId);
+    const payment = await prisma.payment.findUnique({ where: { id: req.params.id as string } });
+    if (!payment || payment.refType !== 'subscription' || payment.refId !== clinicId) {
+      return res.status(404).json({ ok: false, error: 'Платёж не найден' } satisfies ApiResponse);
+    }
+    let providerStatus: string | null = null;
+    if (payment.externalId) {
+      const gateway = providers[payment.provider] || providers.kaspi_qr;
+      providerStatus = await gateway.getPaymentStatus(payment.externalId);
+    }
+    return res.json({
+      ok: true,
+      data: {
+        ...serializeBigInt(payment),
+        providerStatus,
+        activated: payment.status === 'paid',
+      },
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    const status = error?.status || 500;
+    return res.status(status).json({ ok: false, error: error?.message || 'Ошибка' } satisfies ApiResponse);
   }
 });
 

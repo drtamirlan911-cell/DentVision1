@@ -470,7 +470,7 @@ export default function ClinicSettingsPage() {
               />
             </div>
             <Input
-              label="Авто-списание со склада (KazDent)"
+              label="Авто-списание со склада"
               value={settings.autoDeductItems || ''}
               onChange={(e) => setSettings({ ...settings, autoDeductItems: e.target.value })}
               placeholder="Перчатки:1, Маска:1, Слюноотсос:1"

@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, AlertTriangle, Info, CheckCircle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/ds/Card';
+import { normalizeAlertTone, type AlertTone } from '@/utils/alertTone';
 
 interface Alert {
-  type: 'info' | 'warning' | 'success' | 'error';
+  type: string;
   category: string;
   text: string;
   priority: number;
@@ -20,7 +21,7 @@ interface ProactiveAlertsProps {
   compact?: boolean;
 }
 
-function AlertIcon({ type }: { type: Alert['type'] }) {
+function AlertIcon({ type }: { type: AlertTone }) {
   const icons = {
     info: <Info size={14} />,
     warning: <AlertTriangle size={14} />,
@@ -30,7 +31,7 @@ function AlertIcon({ type }: { type: Alert['type'] }) {
   return icons[type];
 }
 
-function CompactAlertIcon({ type }: { type: Alert['type'] }) {
+function CompactAlertIcon({ type }: { type: AlertTone }) {
   const icons = {
     info: <Info size={12} />,
     warning: <AlertTriangle size={12} />,
@@ -55,7 +56,9 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
   if (compact) {
     return (
       <AnimatePresence>
-        {sortedAlerts.slice(0, 3).map((alert, i) => (
+        {sortedAlerts.slice(0, 3).map((alert, i) => {
+          const tone = normalizeAlertTone(alert.type);
+          return (
           <motion.div
             key={alert.text + i}
             initial={{ opacity: 0, x: 20, scale: 0.95 }}
@@ -64,11 +67,11 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
             transition={{ type: 'spring', stiffness: 300, damping: 25, delay: i * 0.1 }}
             className={cn(
               'flex items-start gap-2.5 px-3 py-2 rounded-xl border transition-all',
-              COLORS[alert.type]
+              COLORS[tone]
             )}
           >
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg">
-              <CompactAlertIcon type={alert.type} className={cn('text-' + alert.type + '-400')} />
+              <CompactAlertIcon type={tone} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-txt-primary">{alert.text}</p>
@@ -93,7 +96,8 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
               </button>
             )}
           </motion.div>
-        ))}
+          );
+        })}
       </AnimatePresence>
     );
   }
@@ -109,7 +113,9 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
       </div>
       <div className="p-3 space-y-2 max-h-[40vh] overflow-y-auto">
         <AnimatePresence>
-          {sortedAlerts.map((alert, i) => (
+          {sortedAlerts.map((alert, i) => {
+            const tone = normalizeAlertTone(alert.type);
+            return (
             <motion.div
               key={alert.text}
               initial={{ opacity: 0, y: 10, x: -20 }}
@@ -118,11 +124,11 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
               transition={{ delay: i * 0.08, type: 'spring', stiffness: 300, damping: 25 }}
               className={cn(
                 'relative flex gap-3 p-3 rounded-xl border transition-all',
-                COLORS[alert.type]
+                COLORS[tone]
               )}
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-                <AlertIcon type={alert.type} />
+                <AlertIcon type={tone} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
@@ -158,7 +164,8 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
                 </div>
               </div>
             </motion.div>
-          ))}
+            );
+          })}
         </AnimatePresence>
         {!alerts.length && (
           <div className="flex flex-col items-center justify-center py-8 text-center">

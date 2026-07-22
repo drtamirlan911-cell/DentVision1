@@ -134,7 +134,7 @@ export interface Appointment {
   notes?: string
   diagnosis?: string
   toothNumber?: string | number
-  paymentStatus?: 'unpaid' | 'paid'
+  paymentStatus?: 'unpaid' | 'paid' | 'partial'
   receiptId?: string
   chairId?: string
   chairName?: string

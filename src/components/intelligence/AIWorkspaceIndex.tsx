@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX } from 'lucide-react'
 import { isVoiceRepliesEnabled, setVoiceRepliesEnabled, speak, stopSpeaking, voiceOutputSupported } from '@/utils/voice'
 import { useAuth } from '@/store/auth.store'
-import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, getActiveAiThread, getAiSessionId } from '@/utils/api'
+import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, aiBriefing, getActiveAiThread, getAiSessionId } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
@@ -15,6 +15,7 @@ import { ContextPanel } from '@/components/intelligence/ContextPanel'
 import { ActionConfirm } from '@/components/intelligence/ActionConfirm'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { trackProductEvent } from '@/utils/analytics'
+import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 
 import type { Message, Action } from '@/store/workspace.store'
 
@@ -25,7 +26,10 @@ interface AIWorkspaceIndexProps {
 export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, clinic } = useAuth()
+  const { user, clinic, isAuthenticated } = useAuth()
+  // Anonymous / guest: no signed-in user. Don't wait for guest-store hydrate
+  // (that race previously showed a clinic "коллега" greeting to guests).
+  const isGuest = !user || !isAuthenticated
   const initializedForUser = useRef<string | null>(null)
   const historyRef = useRef<Array<{ role: string; content: string }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -70,13 +74,39 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const unacknowledgedCount = proactiveAlerts.filter(a => !a.acknowledged).length
   const isProcessing = status !== 'idle' && status !== 'result' && status !== 'confirmation'
 
+  const pushDailyJarvisBriefing = useCallback(async () => {
+    if (isGuest || !user?.id) return
+    try {
+      const brief = await aiBriefing()
+      if (!brief?.reply) return
+      const msg = {
+        id: `jarvis-${Date.now()}`,
+        role: 'assistant' as const,
+        content: brief.reply,
+        timestamp: new Date(),
+        skill: brief.skill || 'practice',
+      }
+      addMessage(msg)
+      historyRef.current = [...historyRef.current, { role: 'assistant', content: brief.reply }]
+      if (brief.suggestions?.length) {
+        setSuggestionsFromStrings(brief.suggestions.slice(0, 3))
+      }
+      try {
+        sessionStorage.setItem('dv_jarvis_briefed_day', new Date().toISOString().slice(0, 10))
+      } catch { /* ignore */ }
+      trackProductEvent('ai_jarvis_daily_briefing', { role: user?.role || 'unknown' })
+    } catch {
+      /* non-blocking */
+    }
+  }, [isGuest, user?.id, user?.role, addMessage, setSuggestionsFromStrings])
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, status])
 
   // Bind chat to the signed-in user — reset + reload when identity changes.
   useEffect(() => {
-    const userKey = user?.id || 'guest'
+    const userKey = user?.id ? `user:${user.id}` : 'guest'
     if (initializedForUser.current === userKey) return
     initializedForUser.current = userKey
     firstMessageTracked.current = false
@@ -87,7 +117,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
     ;(async () => {
       try {
-        if (user?.id) {
+        if (user?.id && !isGuest) {
           const active = await getActiveAiThread()
           if (active?.sessionId || active?.threadId) {
             try {
@@ -106,7 +136,11 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
             historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
             persistThread(user.id, restored)
             trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
-            setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
+            setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
+            // New calendar day → Jarvis posts a fresh role briefing on top of history.
+            if (shouldRefreshDailyBriefing(restored)) {
+              void pushDailyJarvisBriefing()
+            }
             return
           }
         }
@@ -114,16 +148,30 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
       const restored = restoreThread(user?.id)
       if (restored?.length) {
-        setMessages(restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })))
-        historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
-        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
-        setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
-      } else {
-        await initializeWorkspace()
-        trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
+        // Guests must never reopen stale CRM briefings/chips from a previous session.
+        const looksLikeClinicCrm = isGuest && restored.some((m) =>
+          m.role === 'assistant' &&
+          (/расписан|выручк|долг|запис(и|ей)|briefing|важн(о|ые) сегодня|CRM|Системы на связи|На радаре|планы лечения|коллега/i.test(m.content) ||
+            /Показать расписание|Проверить долги|Показать выручку/.test(m.content)),
+        )
+        if (looksLikeClinicCrm) {
+          try { localStorage.removeItem('dv_ai_thread_guest') } catch { /* ignore */ }
+        } else {
+          const localMsgs = restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }))
+          setMessages(localMsgs)
+          historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
+          trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
+          setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
+          if (!isGuest && user?.id && shouldRefreshDailyBriefing(localMsgs)) {
+            void pushDailyJarvisBriefing()
+          }
+          return
+        }
       }
+      await initializeWorkspace()
+      trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
     })()
-  }, [user?.id])
+  }, [user?.id, isGuest])
 
   useEffect(() => {
     // Only persist for the user who currently owns the in-memory thread.
@@ -142,24 +190,68 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
   useEffect(() => {
     if (status === 'idle' || status === 'result' || status === 'confirmation') {
-      setSuggestionsFromStrings(getDefaultSuggestions(user, contextFocus.focusType).slice(0, 3))
+      setSuggestionsFromStrings(getDefaultSuggestions(user, contextFocus.focusType, isGuest).slice(0, 3))
     }
-  }, [contextFocus.focusType, user])
+  }, [contextFocus.focusType, user, isGuest])
 
   const initializeWorkspace = async () => {
     const started = Date.now()
     try {
-      const [chatRes, proactiveData, twinData] = await Promise.all([
-        aiChat('Приветствие', [], { userId: user?.id }).catch(() => null),
+      // Guests / anonymous: product guide only — never clinic Jarvis briefing.
+      if (isGuest || !user?.id) {
+        const reply = buildGuestGreeting()
+        setMessages([{
+          id: 'greeting',
+          role: 'assistant',
+          content: reply,
+          timestamp: new Date(),
+          skill: 'practice',
+        }])
+        historyRef.current = [{ role: 'assistant', content: reply }]
+        trackProductEvent('ai_greeting_rendered', {
+          role: 'guest',
+          latency_ms: Date.now() - started,
+          data_complete: true,
+        })
+        setSuggestionsFromStrings(getDefaultSuggestions(null, 'workspace', true).slice(0, 3))
+        // Prefetch platform twin + guest tips into context (non-blocking).
+        void Promise.all([
+          aiDigitalTwin().catch(() => null),
+          aiProactive().catch(() => ({ alerts: [] })),
+        ]).then(([twinRes, proactiveData]) => {
+          const twin = twinRes?.twin || twinRes
+          if (twin) setContextFocus('workspace', null, { digitalTwin: twin })
+          if (proactiveData?.alerts?.length) {
+            setProactiveAlerts(proactiveData.alerts.map((a: any) => ({
+              id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              type: a.type || 'info',
+              category: a.category || 'general',
+              text: a.text || a.message || '',
+              priority: a.priority || 0,
+              action: a.action,
+            })))
+          }
+        })
+        return
+      }
+
+      // Jarvis entry: live role briefing first; chat/LLM only as fallback.
+      const [briefRes, proactiveData, twinData] = await Promise.all([
+        aiBriefing().catch(() => null),
         aiProactive().catch(() => ({ alerts: [] })),
         aiDigitalTwin().catch(() => ({ twin: null })),
       ])
+
+      let chatRes = briefRes
+      if (!chatRes?.reply) {
+        chatRes = await aiChat('Сводка при входе', [], { userId: user?.id }).catch(() => null)
+      }
 
       let reply = chatRes?.reply || buildGreeting(user, clinic, proactiveData?.alerts || [])
 
       if (proactiveData?.alerts?.length && !chatRes?.reply) {
         const alertLines = proactiveData.alerts.slice(0, 3).map((a: any) => `• ${a.text}`).join('\n')
-        reply = `${buildGreeting(user, clinic, [])}\n\nАктуальное:\n${alertLines}`
+        reply = `${buildGreeting(user, clinic, [])}\n\nНа радаре:\n${alertLines}`
       }
 
       setMessages([{
@@ -169,20 +261,24 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         timestamp: new Date(),
         skill: chatRes?.skill || 'practice',
       }])
+      try {
+        sessionStorage.setItem('dv_jarvis_briefed_day', new Date().toISOString().slice(0, 10))
+      } catch { /* ignore */ }
       trackProductEvent('ai_greeting_rendered', {
         role: user?.role || 'guest',
         latency_ms: Date.now() - started,
         data_complete: !!(proactiveData?.alerts?.length || chatRes?.reply),
+        jarvis: true,
       })
       setSuggestionsFromStrings(
-        (chatRes?.suggestions || getDefaultSuggestions(user, 'workspace')).slice(0, 3)
+        (chatRes?.suggestions || getDefaultSuggestions(user, 'workspace', false)).slice(0, 3)
       )
       if (proactiveData?.alerts?.length) {
         setProactiveAlerts(proactiveData.alerts.map((a: any) => ({
           id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           type: a.type || 'info',
           category: a.category || 'general',
-          text: a.text,
+          text: a.text || a.message || '',
           priority: a.priority || 0,
           action: a.action,
         })))
@@ -192,9 +288,10 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       }
       historyRef.current = [{ role: 'assistant', content: reply }]
     } catch {
-      const fallback = buildGreeting(user, clinic, [])
+      const fallback = isGuest ? buildGuestGreeting() : buildGreeting(user, clinic, [])
       setMessages([{ id: 'greeting', role: 'assistant', content: fallback, timestamp: new Date() }])
-      setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace').slice(0, 3))
+      historyRef.current = [{ role: 'assistant', content: fallback }]
+      setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
       trackProductEvent('ai_greeting_rendered', {
         role: user?.role || 'guest',
         latency_ms: Date.now() - started,
@@ -222,24 +319,49 @@ const handleSend = useCallback(async (text: string) => {
     historyRef.current.push({ role: 'user', content: text })
 
     const assistantId = `a-${Date.now()}`
-    addMessage({
-      id: assistantId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-    })
+    let assistantCreated = false
 
-    try {
-      const res = await aiChatStream(text, historyRef.current.slice(-20), (partial, done) => {
-        useAIWorkspaceStore.setState((state) => ({
+    const upsertAssistant = (patch: Record<string, unknown>) => {
+      useAIWorkspaceStore.setState((state) => {
+        const exists = state.ai.messages.some((m) => m.id === assistantId)
+        if (!exists) {
+          assistantCreated = true
+          return {
+            ai: {
+              ...state.ai,
+              messages: [
+                ...state.ai.messages,
+                {
+                  id: assistantId,
+                  role: 'assistant' as const,
+                  content: '',
+                  timestamp: new Date(),
+                  ...patch,
+                },
+              ],
+            },
+          }
+        }
+        return {
           ai: {
             ...state.ai,
             messages: state.ai.messages.map((m) =>
-              m.id === assistantId ? { ...m, content: partial } : m
+              m.id === assistantId ? { ...m, ...patch } : m
             ),
-            status: done ? state.ai.status : 'thinking',
           },
-        }))
+        }
+      })
+    }
+
+    try {
+      const res = await aiChatStream(text, historyRef.current.slice(-20), (partial, done) => {
+        // Create the assistant bubble only when the first non-empty token arrives —
+        // otherwise the UI shows an empty grey bubble + thumbs/copy while thinking.
+        if (!partial?.trim() && !done) return
+        upsertAssistant({
+          content: partial,
+        })
+        if (!done) setAIStatus('thinking')
       }, { userId: user?.id })
 
       if (res.conversationContext?.entities) {
@@ -258,34 +380,44 @@ const handleSend = useCallback(async (text: string) => {
         }
       }
 
-      useAIWorkspaceStore.setState((state) => ({
-        ai: {
-          ...state.ai,
-          messages: state.ai.messages.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content: res.reply || m.content,
-                  skill: res.skill,
-                  source: res.source,
-                  actions: res.actions?.map((a: any) => ({
-                    id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                    type: a.type || a.action,
-                    label: a.label,
-                    confidence: a.confidence || 1,
-                    params: a.params || {},
-                    requiresConfirmation: a.requiresConfirmation,
-                  })),
-                  data: res.data,
-                  recommendations: res.recommendations,
-                }
-              : m
-          ),
-        },
-      }))
+      const finalContent = String(res.reply || '').trim()
+      const hasExtras = !!(res.data || res.actions?.length || res.recommendations?.length)
+      if (finalContent || hasExtras) {
+        upsertAssistant({
+          content: finalContent,
+          skill: res.skill,
+          source: res.source,
+          actions: res.actions?.map((a: any) => ({
+            id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: a.type || a.action,
+            label: a.label,
+            confidence: a.confidence || 1,
+            params: a.params || {},
+            requiresConfirmation: a.requiresConfirmation,
+          })),
+          data: res.data,
+          recommendations: res.recommendations,
+        })
+      } else if (assistantCreated) {
+        // Drop placeholder if the model returned nothing usable
+        useAIWorkspaceStore.setState((state) => ({
+          ai: {
+            ...state.ai,
+            messages: state.ai.messages.filter((m) => m.id !== assistantId),
+          },
+        }))
+      }
 
-      setSuggestionsFromStrings((res.suggestions || []).slice(0, 4))
-      historyRef.current.push({ role: 'assistant', content: res.reply })
+      const nextSuggestions = (res.suggestions || []).slice(0, 4)
+      const crmChip = /расписан|долг|выручк|касс|что важно/i
+      setSuggestionsFromStrings(
+        isGuest
+          ? (nextSuggestions.filter((s: string) => !crmChip.test(s)).length
+              ? nextSuggestions.filter((s: string) => !crmChip.test(s))
+              : getDefaultSuggestions(null, 'workspace', true)).slice(0, 3)
+          : nextSuggestions,
+      )
+      historyRef.current.push({ role: 'assistant', content: res.reply || '' })
 
       if (voiceReplies && res.reply) {
         speak(res.reply, {
@@ -366,21 +498,14 @@ const handleSend = useCallback(async (text: string) => {
         setAIStatus('idle')
       }
     } catch {
-      useAIWorkspaceStore.setState((state) => ({
-        ai: {
-          ...state.ai,
-          messages: state.ai.messages.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: 'Извините, произошла ошибка. Попробуйте ещё раз.' }
-              : m
-          ),
-        },
-      }))
+      upsertAssistant({
+        content: 'Извините, произошла ошибка. Попробуйте ещё раз.',
+      })
       setAIStatus('idle')
     } finally {
       setProgress(0)
     }
-  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, executeAction, navigate, voiceReplies])
+  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, executeAction, navigate, voiceReplies, isGuest])
 
   const handleActionConfirm = useCallback(async (confirmed: boolean) => {
     const action = pendingConfirm
@@ -616,8 +741,9 @@ const result = await executeAction(
             status={status === 'confirmation' ? 'result' : status}
             progress={progress}
             suggestions={suggestions.map(s => s.label)}
-            placeholder="Спросите: что важно сегодня, покажи выручку, проверь долги…"
-            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
+            placeholder={isGuest
+              ? 'Спросите о DentVision, демо, Academy или маркетплейсе…'
+              : 'Спросите: что важно сегодня, покажи выручку, проверь долги…'}            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
           />
         </div>
       </div>
@@ -710,50 +836,82 @@ function restoreThread(userId: string | undefined): Message[] | null {
   }
 }
 
+function buildGuestGreeting() {
+  const greeting = timeGreetingInTz(new Date(), detectUserTimeZone())
+  return [
+    `${greeting}. Я DentVision Intelligence — гид по платформе.`,
+    '',
+    'Сейчас вы в гостевом режиме: могу провести по CRM, маркету и Academy.',
+    'Данные клиники (расписание, касса, карты) появятся после входа.',
+    '',
+    '• **CRM** — расписание, пациенты, касса',
+    '• **Маркет** — закупки у поставщиков',
+    '• **Academy** — курсы и вебинары',
+    '',
+    'С чего начнём — или откройте демо-клинику.',
+  ].join('\n')
+}
+
 function buildGreeting(u: any, c: any, alerts: any[]) {
-  const h = new Date().getHours()
-  const greeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
-  const name = u?.name?.split(' ')[0] || u?.login || 'коллега'
+  const greeting = timeGreetingInTz(new Date(), detectUserTimeZone())
+  const name = u?.name?.split(' ')[0] || u?.firstName || u?.login || 'коллега'
   const role = (u?.role || '').toLowerCase()
   const clinicName = c?.name || ''
 
   const roleLine =
-    role === 'owner' || role === 'руководитель'
-      ? 'Могу показать выручку, долги, загрузку и закупки — или собрать сводку дня.'
-      : role === 'admin' || role === 'администратор'
-        ? 'Могу подтвердить записи, открыть кассу и документы.'
+    role === 'owner' || role === 'руководитель' || role === 'director'
+      ? 'На радаре: выручка, долги, загрузка и склад. Могу собрать сводку дня.'
+      : role === 'admin' || role === 'администратор' || role === 'reception'
+        ? 'На радаре: подтверждения записей, ближайшие приёмы и касса.'
         : role === 'buyer'
-          ? 'Могу собрать закупку по складу и предложениям поставщиков.'
-          : 'Могу открыть расписание, зубную карту, план лечения или курс.'
-
+          ? 'На радаре: остатки склада и закупки.'
+          : 'На радаре: ваше расписание, карта и планы лечения.'
   const lines = [
-    `${greeting}, ${name}.`,
-    clinicName ? `Клиника: ${clinicName}.` : '',
+    `${greeting}, ${name}. Системы на связи.`,
+    clinicName ? `Клиника: **${clinicName}**.` : '',
     roleLine,
-    alerts?.length ? '' : 'Чем помочь?',
+    alerts?.length ? '' : 'С чего начнём?',
   ].filter(Boolean)
 
   return lines.join('\n')
 }
 
-function getDefaultSuggestions(u: any, focusType: string) {
+function dayKey(d: Date | string = new Date()) {
+  const x = typeof d === 'string' ? new Date(d) : d
+  return x.toISOString().slice(0, 10)
+}
+
+function shouldRefreshDailyBriefing(messages: Array<{ role: string; timestamp?: Date | string }>) {
+  try {
+    const marked = sessionStorage.getItem('dv_jarvis_briefed_day')
+    if (marked === dayKey()) return false
+  } catch { /* ignore */ }
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  if (!lastAssistant?.timestamp) return true
+  return dayKey(lastAssistant.timestamp) !== dayKey()
+}
+
+function getDefaultSuggestions(u: any, focusType: string, guest = false) {
+  if (guest || !u) {
+    return ['Чем полезен DentVision?', 'Открыть демо-клинику', 'Что в Academy OS?']
+  }
   const role = (u?.role || '').toLowerCase()
   if (focusType === 'patient') {
     return ['История лечения', 'План лечения', 'Зубная карта']
   }
-  if (role === 'doctor') {
+  if (role === 'doctor' || role === 'assistant') {
     return ['Показать расписание', 'Открыть зубную карту', 'Создать план лечения']
   }
-  if (role === 'owner' || role === 'руководитель' || role === 'manager') {
+  if (role === 'owner' || role === 'руководитель' || role === 'director' || role === 'manager') {
     return ['Что важно сегодня?', 'Показать выручку', 'Проверить долги', 'Показать расписание']
   }
-  if (role === 'admin' || role === 'администратор') {
-    return ['Записать пациента', 'Показать расписание', 'Открыть кассу']
+  if (role === 'admin' || role === 'администратор' || role === 'reception') {
+    return ['Показать расписание', 'Записать пациента', 'Открыть кассу']
   }
   if (role === 'buyer') {
     return ['Что на складе', 'Открыть маркетплейс', 'Показать заказы']
   }
-  return ['Показать расписание', 'Что важно сегодня?', 'Проверить долги']
+  return ['Что важно сегодня?', 'Показать расписание', 'Проверить долги']
 }
 
 const NAV_ACTIONS: Record<string, string> = {
@@ -790,6 +948,8 @@ const NAV_ACTIONS: Record<string, string> = {
   OpenCommunity: '/community',
   OpenCRM: '/crm',
   OPEN_CRM: '/crm',
+  OpenDemo: '/demo',
+  OpenPricing: '/pricing',
 }
 
 export type { AIWorkspaceIndexProps }

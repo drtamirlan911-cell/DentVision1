@@ -12,6 +12,7 @@ import {
   serializeAppointment,
   toDbStatus,
 } from '../crm/appointmentMeta.js';
+import { metaFromClosedVisit } from '../crm/payroll.js';
 
 export const appointmentsRouter = Router();
 
@@ -126,9 +127,9 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), async (req:
     const body = req.body || {};
     const {
       id,
-      patientId,
-      doctorId,
-      date,
+      patientId: bodyPatientId,
+      doctorId: bodyDoctorId,
+      date: bodyDate,
       time,
       duration,
       type,
@@ -137,6 +138,15 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), async (req:
       force,
       chairId,
     } = body;
+
+    const existing = id
+      ? await prisma.appointment.findFirst({ where: { id, clinicId } })
+      : null;
+
+    // Partial updates (e.g. paymentStatus only) must reuse existing core fields.
+    const patientId = bodyPatientId || existing?.patientId;
+    const doctorId = bodyDoctorId || existing?.doctorId;
+    const date = bodyDate || (existing?.date ? existing.date.toISOString().slice(0, 10) : undefined);
 
     if (!patientId || !doctorId || !date) {
       return res.status(400).json({ ok: false, error: 'Пациент, врач и дата обязательны' } satisfies ApiResponse);
@@ -150,13 +160,18 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), async (req:
       return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
     }
 
-    const apptTime = time || '09:00';
-    const apptDuration = duration || 30;
+    const apptTime = time || existing?.time || '09:00';
+    const apptDuration = duration || existing?.duration || 30;
     const dayStart = new Date(date);
     const dayEnd = new Date(date);
     dayEnd.setHours(23, 59, 59, 999);
 
-    if (!force) {
+    // Skip conflict scan for meta-only patches (paymentStatus etc.) that keep slot fields.
+    const slotChanged = Boolean(
+      bodyPatientId || bodyDoctorId || bodyDate || time !== undefined || duration !== undefined || chairId !== undefined,
+    );
+
+    if (!force && slotChanged) {
       const candidates = await prisma.appointment.findMany({
         where: {
           clinicId,
@@ -182,10 +197,6 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), async (req:
         });
       }
     }
-
-    const existing = id
-      ? await prisma.appointment.findFirst({ where: { id, clinicId } })
-      : null;
 
     const meta = buildMeta(body, parseMeta(existing?.meta));
     const serviceLabel = meta.serviceName || type || existing?.type || null;
@@ -271,6 +282,85 @@ appointmentsRouter.patch('/:id/status', requirePermission('appointment.write'), 
   } catch (error) {
     console.error('Update appointment status error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при обновлении статуса записи' } satisfies ApiResponse);
+  }
+});
+
+appointmentsRouter.post('/:id/close', async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    const userId = req.user?.id;
+    if (!clinicId || !userId) {
+      return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    }
+
+    const existing = await prisma.appointment.findFirst({
+      where: { id: req.params.id as string, clinicId },
+      include: { patient: { select: patientSelect } },
+    });
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Запись не найдена' } satisfies ApiResponse);
+    }
+
+    const role = String(req.user?.role || '').toUpperCase();
+    const isPrivileged = ['OWNER', 'ADMIN', 'MANAGER', 'SUPERADMIN'].includes(role);
+    if (!isPrivileged && existing.doctorId !== userId) {
+      return res.status(403).json({ ok: false, error: 'Можно закрыть только свои приёмы' } satisfies ApiResponse);
+    }
+
+    const body = (req.body || {}) as Record<string, unknown>;
+    const prevMeta = parseMeta(existing.meta);
+    const meta = metaFromClosedVisit(prevMeta, body);
+    const deducted: string[] = [];
+
+    if (!prevMeta.inventoryDeducted) {
+      const clinic = await prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { settings: true },
+      });
+      const settings = (clinic?.settings && typeof clinic.settings === 'object'
+        ? clinic.settings
+        : {}) as Record<string, unknown>;
+      const autoItems = String(settings.autoDeductItems || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      for (const itemName of autoItems) {
+        const item = await prisma.inventoryItem.findFirst({
+          where: { clinicId, name: { equals: itemName, mode: 'insensitive' } },
+        });
+        if (item && item.quantity > 0) {
+          await prisma.inventoryItem.update({
+            where: { id: item.id },
+            data: { quantity: { decrement: 1 } },
+          });
+          deducted.push(item.name);
+        }
+      }
+      if (deducted.length > 0) meta.inventoryDeducted = true;
+    }
+
+    const appointment = await prisma.appointment.update({
+      where: { id: existing.id },
+      data: {
+        status: 'COMPLETED',
+        notes: body.notes !== undefined ? String(body.notes) : existing.notes,
+        type: meta.serviceName || existing.type,
+        meta: meta as any,
+      },
+      include: { patient: { select: patientSelect } },
+    });
+
+    return res.json({
+      ok: true,
+      data: {
+        appointment: serializeAppointment(appointment),
+        deducted,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Close appointment error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось закрыть приём' } satisfies ApiResponse);
   }
 });
 

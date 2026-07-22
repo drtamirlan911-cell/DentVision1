@@ -17,6 +17,31 @@ export const lecturerRouter = Router();
 
 lecturerRouter.use(authenticate);
 
+/** Self-serve: create lecturer profile for the current user (no prior context needed). */
+lecturerRouter.post('/register', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const existing = await prisma.lecturer.findUnique({ where: { userId } });
+    if (existing) {
+      return res.json({ ok: true, data: existing } satisfies ApiResponse);
+    }
+    const lecturer = await prisma.lecturer.create({
+      data: {
+        id: uid(),
+        userId,
+        level: 'NEW',
+        bio: typeof req.body?.bio === 'string' ? req.body.bio : null,
+        academyId: typeof req.body?.academyId === 'string' ? req.body.academyId : null,
+      },
+    });
+    await getOrCreateWallet('LECTURER', lecturer.id).catch(() => null);
+    return res.status(201).json({ ok: true, data: lecturer } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Lecturer register error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось создать профиль лектора' } satisfies ApiResponse);
+  }
+});
+
 function requireLecturerContext(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.user?.lecturerId) {
     return res.status(403).json({ ok: false, error: 'Требуется контекст лектора (switch-context)' } satisfies ApiResponse);
@@ -73,6 +98,7 @@ lecturerRouter.post('/courses', async (req: AuthRequest, res) => {
         category: b.category || null,
         price: b.price !== undefined ? Number(b.price) : null,
         duration: b.duration || null,
+        imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
         lecturerId: req.user!.lecturerId, // forced to own lecturer
         academyId: lecturer?.academyId || null,
       },
@@ -100,6 +126,9 @@ lecturerRouter.patch('/courses/:id', async (req: AuthRequest, res) => {
       ...(b.category !== undefined && { category: b.category || null }),
       ...(b.price !== undefined && { price: Number(b.price) }),
       ...(b.duration !== undefined && { duration: b.duration || null }),
+      ...(b.imageUrl !== undefined && {
+        imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
+      }),
     },
   });
   return res.json({ ok: true, data: course } satisfies ApiResponse);

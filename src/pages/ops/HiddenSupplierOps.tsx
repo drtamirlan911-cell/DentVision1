@@ -49,7 +49,7 @@ function fmtDate(d: string | Date | null | undefined): string {
 }
 
 /**
- * Platform Ops Command Center — Kaspi/Apple-style inbox + domain control.
+ * Platform Ops Command Center — inbox + domain control.
  * Hidden URL /x-ops/sg · SUPERADMIN + PLATFORM_OPS_SECRET
  */
 export default function PlatformOpsCommandCenter() {
@@ -274,8 +274,9 @@ export default function PlatformOpsCommandCenter() {
             <QueueCard title="Новые лекторы" icon={<GraduationCap size={14} />}
               onOpen={() => setTab('school')}
               items={(queues.lecturersNew || []).map((l: any) => ({
-                id: l.id, title: l.academy?.name || l.id.slice(0, 8),
-                meta: `verifications ${l._count?.verifications || 0} · courses ${l._count?.courses || 0}`,
+                id: l.id,
+                title: l.name || 'Лектор',
+                meta: `${l.academy?.name || 'Без академии'} · docs ${l._count?.verifications || 0} · courses ${l._count?.courses || 0}`,
               }))} />
             <QueueCard title="Подписки истекают" icon={<AlertTriangle size={14} />}
               onOpen={() => setTab('clinics')}
@@ -309,7 +310,7 @@ export default function PlatformOpsCommandCenter() {
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
                   <select
-                    className="h-8 rounded-lg border border-bdr-subtle bg-white/[0.03] px-2 text-xs text-txt-primary"
+                    className="dv-select !w-auto h-8 px-2 text-xs"
                     value={String(c.plan || 'DEMO').toLowerCase() === 'standard' ? 'starter' : String(c.plan || 'demo').toLowerCase()}
                     onChange={(e) => run(`plan-${c.id}`, async () => { await api.opsClinicPlan(c.id, e.target.value) }, 'План обновлён')}
                   >
@@ -357,8 +358,13 @@ export default function PlatformOpsCommandCenter() {
                 <CardContent className="p-4 space-y-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold text-txt-primary">{l.academy?.name || 'Без академии'}</p>
-                      <p className="text-xs text-txt-muted">courses {l._count?.courses || 0} · docs {l._count?.verifications || 0}</p>
+                      <p className="text-sm font-semibold text-txt-primary">{l.name || 'Лектор'}</p>
+                      <p className="text-xs text-txt-muted">
+                        {l.email || '—'} · {l.academy?.name || 'Без академии'}
+                      </p>
+                      <p className="text-xs text-txt-muted mt-0.5">
+                        courses {l._count?.courses || 0} · docs {l._count?.verifications || 0}
+                      </p>
                     </div>
                     <Badge variant={l.level === 'NEW' ? 'gold' : 'success'}>{LEVEL_LABEL[l.level] || l.level}</Badge>
                   </div>

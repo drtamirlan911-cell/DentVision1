@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2, Sparkles, Send } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2, Sparkles, Send, QrCode, CreditCard } from 'lucide-react';
 import { Button, Badge, EmptyState, Card, ProgressBar } from '../../components/ui/ds';
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '../../components/ui/ds/Toast';
@@ -17,6 +17,8 @@ interface Lesson {
   is_free?: boolean;
   videoUrl?: string;
   video_url?: string;
+  fileUrl?: string;
+  file_url?: string;
 }
 
 interface CourseModule {
@@ -35,13 +37,16 @@ interface CourseDetail {
   lesson_count: number;
   enrolled_count: number;
   rating: number;
+  price?: number | null;
+  image_url?: string | null;
+  imageUrl?: string | null;
   modules?: CourseModule[];
 }
 
 const DIFF_COLORS: Record<string, string> = { beginner: '#27AE60', intermediate: '#C9A96E', advanced: '#E74C3C' };
 const DIFF_LABELS: Record<string, string> = { beginner: 'Начинающий', intermediate: 'Продвинутый', advanced: 'Эксперт' };
-const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = { video: Video, text: FileText, test: HelpCircle };
-const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест', exam: 'Экзамен', quiz: 'Квиз', pdf: 'PDF' };
+const TYPE_ICONS: Record<string, any> = { video: Video, text: FileText, test: HelpCircle, exam: Award, quiz: HelpCircle, homework: FileText, pdf: FileText };
+const TYPE_LABELS: Record<string, string> = { video: 'Видео', text: 'Статья', test: 'Тест', exam: 'Экзамен', quiz: 'Квиз', pdf: 'PDF', homework: 'ДЗ' };
 
 function parseLessons(raw: any): string[] {
   if (!raw) return [];
@@ -78,14 +83,18 @@ export default function SchoolCourse() {
     'Свяжи с клиническим кейсом',
     'Подготовь к тесту',
   ]);
+  const [pendingPay, setPendingPay] = useState<any>(null);
+  const [payBusy, setPayBusy] = useState(false);
 
   useEffect(() => {
+    if (!id) return;
     Promise.all([
       api.getSchoolCourse(id),
       user ? api.getEnrollments(user.id) : Promise.resolve([]),
-    ]).then(([c, enr]: [CourseDetail, any[]]) => {
+    ]).then(([c, enr]: [CourseDetail, any]) => {
       setCourse(c);
-      const e = enr?.find(x => x.courseId === id);
+      const list = Array.isArray(enr) ? enr : (enr?.data || []);
+      const e = list.find((x: any) => x.courseId === id);
       if (e) {
         setEnrolled(true);
         setEnrollmentId(e.id);
@@ -105,7 +114,7 @@ export default function SchoolCourse() {
     if (!enrolled) return;
     setExamLoading(true);
     api.getLessonExam(activeLesson.id)
-      .then((payload) => setExam(payload?.exam || null))
+      .then((payload) => setExam(payload || null))
       .catch(() => setExam(null))
       .finally(() => setExamLoading(false));
   }, [activeLesson?.id, enrolled]);
@@ -113,12 +122,51 @@ export default function SchoolCourse() {
   const allLessons = course?.modules?.flatMap(m => m.lessons || []) || [];
   const totalLessons = allLessons.length;
 
+  const reloadEnrollment = async () => {
+    if (!user || !id) return;
+    const enr = await api.getEnrollments(user.id).catch(() => []);
+    const list = Array.isArray(enr) ? enr : (enr?.data || []);
+    const e = list.find((x: any) => x.courseId === id);
+    if (e) {
+      setEnrolled(true);
+      setEnrollmentId(e.id);
+      setProgress(e.progress || 0);
+      setCompletedLessons(parseLessons(e.completedLessons));
+    }
+  };
+
   const handleEnroll = async () => {
+    if (!user) { toast.showToast('Войдите, чтобы записаться', 'error'); return; }
     try {
-      const res = await api.enrollCourse({ course_id: id, clinic_id: activeClinic?.id || null });
+      const res = await api.enrollCourse({ courseId: id, course_id: id, clinic_id: activeClinic?.id || null });
+      if (res?.requiresPayment && res?.payment?.id) {
+        setPendingPay(res.payment);
+        toast.showToast('Оплатите по QR, чтобы открыть курс', 'info');
+        return;
+      }
       setEnrolled(true);
       setEnrollmentId(res.id);
+      toast.showToast('Вы записаны на курс', 'success');
     } catch { toast.showToast('Не удалось записаться', 'error'); }
+  };
+
+  const confirmCoursePay = async () => {
+    if (!pendingPay?.id) return;
+    setPayBusy(true);
+    try {
+      const res = await api.confirmPayment(pendingPay.id);
+      if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
+        setPendingPay(null);
+        await reloadEnrollment();
+        toast.showToast('Оплата прошла — курс открыт', 'success');
+      } else {
+        toast.showToast('Оплата ещё не подтверждена', 'info');
+      }
+    } catch (e: any) {
+      toast.showToast(e?.message || 'Оплата не подтверждена', 'error');
+    } finally {
+      setPayBusy(false);
+    }
   };
 
   const markComplete = async (lessonId: string) => {
@@ -154,7 +202,7 @@ export default function SchoolCourse() {
         if (result.certificate) setCertificate(result.certificate);
         toast.showToast(`Сдано: ${result.score}%`, 'success');
       } else {
-        toast.showToast(`Не сдано: ${result.score}% (нужно ${result.passingScore}%)`, 'warning');
+        toast.showToast(`Не сдано: ${result.score}% (нужно ${result.passingScore || result.passScore || 70}%)`, 'warning');
       }
     } catch {
       toast.showToast('Не удалось отправить экзамен', 'error');
@@ -210,7 +258,7 @@ export default function SchoolCourse() {
             onClick={() => navigate('/school')}
             className="flex items-center gap-1 bg-transparent border-none text-[#C9A96E] cursor-pointer font-inherit text-xs"
           >
-            <ArrowLeft size={14} /> School
+            <ArrowLeft size={14} /> Academy OS
           </button>
           <ChevronRight size={12} />
           <span>{course.category}</span>
@@ -255,17 +303,39 @@ export default function SchoolCourse() {
 
             {!enrolled ? (
               <>
+                {course.price != null && Number(course.price) > 0 && (
+                  <p className="text-lg font-extrabold text-[#C9A96E] m-0 mb-2">
+                    {Number(course.price).toLocaleString('ru-RU')} ₸
+                  </p>
+                )}
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleEnroll}
                   className="w-full py-2.5 px-4 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit"
                 >
-                  Записаться бесплатно
+                  {course.price != null && Number(course.price) > 0
+                    ? `Купить · ${Number(course.price).toLocaleString('ru-RU')} ₸`
+                    : 'Записаться бесплатно'}
                 </motion.button>
                 <p className="text-[11px] text-[var(--slate)] mt-1.5 text-center">
                   {activeClinic ? `Запись для «${activeClinic.name}»` : 'Запись для личного обучения'}
                 </p>
+                {pendingPay && (
+                  <div className="mt-3 rounded-lg border border-[#C9A96E]/30 bg-[#C9A96E]/10 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[#C9A96E] text-xs font-semibold">
+                      <QrCode size={14} /> Оплата по QR
+                    </div>
+                    {pendingPay.qr && (
+                      <a href={pendingPay.qr} target="_blank" rel="noreferrer" className="text-[11px] text-[#C9A96E] underline break-all">
+                        {pendingPay.qr}
+                      </a>
+                    )}
+                    <Button size="sm" icon={<CreditCard size={13} />} loading={payBusy} onClick={confirmCoursePay}>
+                      Проверить оплату
+                    </Button>
+                  </div>
+                )}
               </>
             ) : (
               <div className="flex items-center gap-1.5 text-[#27AE60] text-[13px] font-semibold">
@@ -387,7 +457,7 @@ export default function SchoolCourse() {
                       </h3>
                       <p className="text-sm text-txt-secondary">
                         Результат: <span className="text-dv-gold font-semibold">{examResult.score}%</span>
-                        {' '}· порог {examResult.passingScore}% · верно {examResult.correct}/{examResult.total}
+                        {' '}· порог {examResult.passingScore || examResult.passScore || 70}% · верно {examResult.correct}/{examResult.total}
                       </p>
                       {examResult.certificate && (
                         <div className="rounded-xl border border-dv-gold/30 bg-dv-gold/10 p-3 text-sm text-dv-gold">
@@ -408,7 +478,7 @@ export default function SchoolCourse() {
                       <div>
                         <h3 className="text-base font-bold text-white">{exam.title || activeLesson.title}</h3>
                         <p className="text-xs text-txt-muted mt-1">
-                          {exam.questionCount || exam.questions?.length || 0} вопросов · проходной балл {exam.passingScore}%
+                          {exam.questionCount || exam.questions?.length || 0} вопросов · проходной балл {exam.passingScore || exam.passScore || 70}%
                         </p>
                       </div>
                       {(exam.questions || []).map((q: any, qi: number) => (

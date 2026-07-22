@@ -80,7 +80,7 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
       {open && (
         <motion.div
           ref={overlayRef}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -95,24 +95,26 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
             ref={contentRef}
             tabIndex={-1}
             className={cn(
-              'relative w-full rounded-2xl border border-bdr-subtle bg-surface-1 shadow-modal outline-none',
+              'relative w-full rounded-t-2xl sm:rounded-2xl border border-bdr-subtle bg-surface-1 shadow-modal outline-none',
+              'max-h-[92dvh] sm:max-h-[90vh] flex flex-col',
+              'max-w-full sm:mx-auto',
               sizeMap[size],
               className
             )}
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.98, y: 24 }}
             animate={{
               opacity: 1,
               scale: 1,
               y: 0,
-              transition: { type: 'spring', damping: 25, stiffness: 300 },
+              transition: { type: 'spring', damping: 28, stiffness: 320 },
             }}
-            exit={{ opacity: 0, scale: 0.95, y: 20, transition: { duration: 0.15 } }}
+            exit={{ opacity: 0, scale: 0.98, y: 24, transition: { duration: 0.15 } }}
           >
             {(title || description) && (
-              <div className="flex items-start justify-between px-6 pt-6 pb-2">
-                <div>
+              <div className="flex items-start justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-2 flex-shrink-0">
+                <div className="min-w-0 pr-2">
                   {title && (
-                    <h2 className="text-lg font-semibold text-txt-primary">{title}</h2>
+                    <h2 className="text-base sm:text-lg font-semibold text-txt-primary">{title}</h2>
                   )}
                   {description && (
                     <p className="text-sm text-txt-secondary mt-1">{description}</p>
@@ -120,14 +122,14 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
                 </div>
                 <button
                   onClick={onClose}
-                  className="rounded-lg p-1.5 text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+                  className="rounded-lg p-1.5 text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors shrink-0"
                 >
                   <X size={18} />
                 </button>
               </div>
             )}
 
-            <div className="px-6 py-4 max-h-[75vh] overflow-y-auto">
+            <div className="px-4 sm:px-6 py-4 overflow-y-auto overscroll-contain flex-1 min-h-0">
               {children}
             </div>
           </motion.div>

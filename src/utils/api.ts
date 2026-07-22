@@ -23,6 +23,7 @@ import type {
   ICD10Code,
   LoginResponse,
 } from '../types';
+import { normalizeAlertTone } from './alertTone';
 
 const API_URL: string = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
@@ -92,6 +93,15 @@ async function refreshAccessToken(): Promise<string> {
 }
 
 // ─── Core API Request ───
+function clientTimezoneHeader(): string | null {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz && typeof tz === 'string' ? tz : null;
+  } catch {
+    return null;
+  }
+}
+
 async function apiRequest(path: string, options: RequestInit = {}): Promise<any> {
   const headers: Record<string, string> = { ...options.headers as Record<string, string> };
 
@@ -107,6 +117,9 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
       }
     } catch { /* ignore */ }
   }
+
+  const tz = clientTimezoneHeader();
+  if (tz) headers['X-Client-Timezone'] = tz;
 
   const finalOptions: RequestInit = { ...options, headers };
   headers['Content-Type'] = 'application/json';
@@ -207,6 +220,10 @@ export async function confirmClinicBilling(paymentId: string): Promise<any> {
   });
 }
 
+export async function getClinicBillingPayment(paymentId: string): Promise<any> {
+  return apiRequest(`/api/clinic-billing/payments/${paymentId}`);
+}
+
 /** Map frontend role labels to backend UserRole enum values. */
 export function toBackendInviteRole(role?: string): string {
   const raw = String(role || 'doctor').toLowerCase();
@@ -303,6 +320,14 @@ export const supplierWs = {
   deleteProduct: (t: string, id: string) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'DELETE' }),
   wallet: (t: string) => supplierFetch('/api/supplier/wallet', t),
   analytics: (t: string) => supplierFetch('/api/supplier/analytics', t),
+  dashboard: (t: string) => supplierFetch('/api/supplier/dashboard', t),
+  insights: (t: string) => supplierFetch('/api/supplier/insights', t),
+  orders: (t: string) => supplierFetch('/api/supplier/orders', t),
+  updateOrderStatus: (t: string, id: string, status: string) => supplierFetch(`/api/supplier/orders/${id}/status`, t, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  createPromotion: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/promotions', t, { method: 'POST', body: JSON.stringify(b) }),
+  cashbackRules: (t: string) => supplierFetch('/api/supplier/cashback-rules', t),
+  upsertCashbackRule: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/cashback-rules', t, { method: 'PUT', body: JSON.stringify(b) }),
+  deleteCashbackRule: (t: string, id: string) => supplierFetch(`/api/supplier/cashback-rules/${id}`, t, { method: 'DELETE' }),
   requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
 };
 
@@ -321,6 +346,7 @@ async function lecturerFetch(path: string, token: string, options: RequestInit =
 }
 
 export const lecturerWs = {
+  register: (b: Record<string, unknown> = {}) => apiRequest('/api/lecturer/register', { method: 'POST', body: JSON.stringify(b) }),
   me: (t: string) => lecturerFetch('/api/lecturer/me', t),
   updateMe: (t: string, b: Record<string, unknown>) => lecturerFetch('/api/lecturer/me', t, { method: 'PATCH', body: JSON.stringify(b) }),
   courses: (t: string) => lecturerFetch('/api/lecturer/courses', t),
@@ -456,6 +482,43 @@ export async function getFinanceReport(params: { from?: string; to?: string } = 
   if (params.to) q.set('to', params.to);
   const qs = q.toString();
   return apiRequest(`/api/billing/reports${qs ? `?${qs}` : ''}`);
+}
+
+export interface DoctorPayrollVisit {
+  appointmentId: string;
+  date: string;
+  time?: string | null;
+  patientName?: string;
+  services: Array<{ name: string; price: number; matCost: number }>;
+  gross: number;
+  matCost: number;
+  net: number;
+  earned: number;
+}
+
+export interface DoctorPayrollPayload {
+  from: string;
+  to: string;
+  payroll: {
+    userId: string;
+    name: string;
+    role: string;
+    percent: number;
+    visits: number;
+    gross: number;
+    matCost: number;
+    net: number;
+    earned: number;
+    visitDetails: DoctorPayrollVisit[];
+  };
+}
+
+export async function getMyPayroll(params: { from?: string; to?: string } = {}): Promise<DoctorPayrollPayload> {
+  const q = new URLSearchParams();
+  if (params.from) q.set('from', params.from);
+  if (params.to) q.set('to', params.to);
+  const qs = q.toString();
+  return apiRequest(`/api/billing/my-payroll${qs ? `?${qs}` : ''}`);
 }
 
 export async function getLabOrders(clinicId: string): Promise<LabOrder[]> {
@@ -1067,32 +1130,93 @@ export async function getShopSuppliers(): Promise<any> {
   }
 }
 export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getPayment(paymentId: string): Promise<any> {
+  return apiRequest(`/api/payments/${paymentId}`);
+}
+export async function confirmPayment(paymentId: string): Promise<any> {
+  return apiRequest(`/api/payments/${paymentId}/confirm`, { method: 'POST', body: JSON.stringify({}) });
+}
 export async function getShopOrders(clinicId: string): Promise<any> { return collection(await apiRequest('/api/shop/orders')); }
 export async function createShopReview(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
 export async function toggleShopFavorite(data: any): Promise<any> { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getShopFavorites(clinicId: string): Promise<any> { return apiRequest('/api/shop/favorites'); }
 
-// ─── School ───
+// ─── DentCash / Dent Wallet ───
+export async function getDentCashWallet(): Promise<any> {
+  return apiRequest('/api/dentcash/wallet');
+}
+export async function getDentCashTransactions(limit = 50): Promise<any> {
+  return apiRequest(`/api/dentcash/transactions?limit=${limit}`);
+}
+export async function quoteDentCash(body: {
+  lines: Array<Record<string, unknown>>;
+  spendTenge?: number;
+}): Promise<any> {
+  return apiRequest('/api/dentcash/quote', { method: 'POST', body: JSON.stringify(body) });
+}
+
+// ─── School / Academy OS ───
+export async function getAcademyHub(): Promise<any> {
+  return apiRequest('/api/school/hub');
+}
 export async function getSchoolCourses(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
-  return apiRequest(`/api/school/courses?${q}`);
+  const qs = q.toString();
+  return collection(await apiRequest(`/api/school/courses${qs ? `?${qs}` : ''}`));
 }
 export async function getSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`); }
 export async function enrollCourse(data: any): Promise<any> { return apiRequest('/api/school/enrollments', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getEnrollments(userId: string): Promise<any> { return apiRequest('/api/school/enrollments'); }
 export async function updateEnrollment(id: string, data: any): Promise<any> { return apiRequest(`/api/school/enrollments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
-export async function getSchoolClinicalCases(category: string): Promise<any> {
+export async function getSchoolClinicalCases(category?: string): Promise<any> {
   const q = category ? `?category=${encodeURIComponent(category)}` : '';
-  return apiRequest(`/api/school/clinical-cases${q}`);
+  return collection(await apiRequest(`/api/school/clinical-cases${q}`));
 }
 export async function getSchoolLibrary(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
-  return apiRequest(`/api/school/library?${q}`);
+  const qs = q.toString();
+  return collection(await apiRequest(`/api/school/library${qs ? `?${qs}` : ''}`));
+}
+export async function getSchoolLive(): Promise<any> {
+  return collection(await apiRequest('/api/school/live'));
+}
+export async function getSchoolWebinars(): Promise<any> {
+  return collection(await apiRequest('/api/school/webinars'));
+}
+export async function getSchoolOfficeCourses(): Promise<any> {
+  return collection(await apiRequest('/api/school/office-courses'));
+}
+export async function registerAcademyProduct(payload: {
+  productId: string;
+  format: 'webinar' | 'office' | 'live';
+}): Promise<any> {
+  return apiRequest('/api/school/commerce/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 export async function getSchoolCertificates(userId: string): Promise<any> {
-  return apiRequest('/api/school/certificates');
+  return collection(await apiRequest('/api/school/certificates'));
+}
+export async function getAcademies(): Promise<any> {
+  return collection(await apiRequest('/api/academies'));
+}
+export async function getLecturers(params: Record<string, string> = {}): Promise<any> {
+  const q = new URLSearchParams(params).toString();
+  return collection(await apiRequest(`/api/lecturers${q ? `?${q}` : ''}`));
+}
+export async function reviewSchoolHomework(payload: {
+  title?: string;
+  notes?: string;
+  category?: string;
+  imageCount?: number;
+}): Promise<any> {
+  return apiRequest('/api/school/homework/review', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getLessonExam(lessonId: string): Promise<any> {
@@ -1444,6 +1568,7 @@ export async function aiChat(
       message,
       history: history.slice(-20),
       sessionId,
+      timezone: clientTimezoneHeader(),
     }),
   });
 
@@ -1533,12 +1658,20 @@ async function aiChatSSE(
       }
     } catch { /* ignore */ }
   }
+  const tz = clientTimezoneHeader();
+  if (tz) headers['X-Client-Timezone'] = tz;
 
   const sessionId = opts?.sessionId || getAiSessionId(opts?.userId);
   const res = await fetch(`${API_URL}/api/ai/query/stream`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ text: message, message, history: history.slice(-20), sessionId }),
+    body: JSON.stringify({
+      text: message,
+      message,
+      history: history.slice(-20),
+      sessionId,
+      timezone: tz,
+    }),
   });
   if (!res.ok || !res.body) return null;
 
@@ -1606,7 +1739,7 @@ export async function aiProactive(): Promise<{ alerts: Array<{ type: string; cat
   const res = await apiRequest('/api/ai/proactive');
   const raw = res?.alerts || res?.data?.alerts || [];
   const alerts = raw.map((a: any) => ({
-    type: a.type || 'info',
+    type: normalizeAlertTone(a.type),
     category: a.category || a.type || 'general',
     text: a.text || a.message || '',
     priority: typeof a.priority === 'number' ? a.priority : a.priority === 'high' ? 2 : a.priority === 'medium' ? 1 : 0,
@@ -1622,6 +1755,30 @@ export async function aiAction(action: string, params: Record<string, unknown> =
 }
 export async function aiDigitalTwin(): Promise<any> {
   return apiRequest('/api/ai/digital-twin');
+}
+
+/** Jarvis role briefing on login / «Что важно сегодня?» */
+export async function aiBriefing(): Promise<AIChatResponse> {
+  const tz = clientTimezone();
+  const qs = tz ? `?timezone=${encodeURIComponent(tz)}` : '';
+  const res = await apiRequest(`/api/ai/briefing${qs}`);
+  const data = res?.data || res || {};
+  return {
+    reply: data.reply || data.message || '',
+    skill: data.skill || data.intent || 'practice',
+    suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+    actions: data.action
+      ? [{
+          type: data.action.type,
+          label: data.action.type,
+          params: data.action.payload || {},
+          confidence: 1,
+          requiresConfirmation: false,
+        }]
+      : [],
+    proactive: [],
+    conversationContext: { turnCount: 0, entities: {} },
+  };
 }
 
 // ─── Jobs (HH-class) ───
@@ -1641,8 +1798,11 @@ export async function getMyJobApplications(): Promise<any[]> {
 }
 
 // ─── Community (IG + Threads) ───
-export async function getCommunityPosts(topic?: string): Promise<any[]> {
-  const q = topic && topic !== 'Все' ? `?topic=${encodeURIComponent(topic)}` : '';
+export async function getCommunityPosts(topic?: string, opts?: { saved?: boolean }): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (topic && topic !== 'Все') params.set('topic', topic);
+  if (opts?.saved) params.set('saved', '1');
+  const q = params.toString() ? `?${params.toString()}` : '';
   return apiRequest(`/api/community/posts${q}`);
 }
 export async function createCommunityPost(data: { content: string; tags?: string[]; kind?: string }): Promise<any> {
@@ -1650,6 +1810,39 @@ export async function createCommunityPost(data: { content: string; tags?: string
 }
 export async function likeCommunityPost(id: string): Promise<any> {
   return apiRequest(`/api/community/posts/${id}/like`, { method: 'POST' });
+}
+export async function saveCommunityPost(id: string): Promise<{ saved: boolean }> {
+  return apiRequest(`/api/community/posts/${id}/save`, { method: 'POST' });
+}
+export async function getCommunityComments(postId: string): Promise<any[]> {
+  return apiRequest(`/api/community/posts/${postId}/comments`);
+}
+export async function addCommunityComment(postId: string, content: string): Promise<any> {
+  return apiRequest(`/api/community/posts/${postId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}
+export async function searchCommunityPeople(q: string): Promise<any[]> {
+  return apiRequest(`/api/community/people?q=${encodeURIComponent(q)}`);
+}
+export async function getDmInbox(): Promise<any[]> {
+  return apiRequest('/api/community/dm');
+}
+export async function getDmUnreadCount(): Promise<{ unread: number }> {
+  return apiRequest('/api/community/dm/unread-count');
+}
+export async function openDm(userId: string): Promise<{ id: string; peer: any }> {
+  return apiRequest('/api/community/dm/open', { method: 'POST', body: JSON.stringify({ userId }) });
+}
+export async function getDmMessages(conversationId: string): Promise<{ messages: any[]; peer: any }> {
+  return apiRequest(`/api/community/dm/${conversationId}/messages`);
+}
+export async function sendDmMessage(conversationId: string, body: string): Promise<any> {
+  return apiRequest(`/api/community/dm/${conversationId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  });
 }
 
 // ─── Admin (SuperAdmin) ───

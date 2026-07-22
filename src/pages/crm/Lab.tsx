@@ -301,7 +301,7 @@ export default function Lab() {
   }
 
   return (
-    <div className="p-6">
+    <div className="dv-page py-4 md:py-6">
       <PageHeader
         title="Лаборатория"
         subtitle="Управление лабораторными заказами"

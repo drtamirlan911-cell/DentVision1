@@ -127,7 +127,7 @@ function renderContent(content: string) {
           {block.split('\n').filter(Boolean).map((line, j) => (
             <div key={j} className="flex gap-2.5 text-[13px] leading-relaxed">
               <span className="text-dv-gold/60 mt-0.5 shrink-0">•</span>
-              <span className="text-txt-primary/90">{renderInlineMarkdown(line.replace(/^[•\-]\s*/, ''))}</span>
+              <span className="text-txt-primary/90">{renderInlineMarkdown(line.replace(/^[•-]\s*/, ''))}</span>
             </div>
           ))}
         </div>
@@ -167,12 +167,20 @@ export function ChatMessage({
 }) {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
-
   const handleCopy = () => {
-    navigator.clipboard?.writeText(msg.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+    navigator.clipboard?.writeText(msg.content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const hasContent = !!String(msg.content || '').trim()
+  const hasExtras = !!(
+    (msg.data && Object.keys(msg.data).length) ||
+    (msg.actions && msg.actions.length) ||
+    (msg.recommendations && msg.recommendations.length)
+  )
+  // Don't render empty assistant placeholders (optimistic stream shell).
+  if (!isUser && !hasContent && !hasExtras) return null
 
   return (
     <motion.div
@@ -335,7 +343,7 @@ export function ChatMessage({
           </div>
         )}
 
-        {!isUser && (
+        {!isUser && !!msg.content?.trim() && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

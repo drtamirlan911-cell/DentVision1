@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Info, AlertTriangle, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { timeGreetingInTz } from '@/lib/clinic-timezone'
 import { useAuthStore } from '@/store/auth.store'
 import * as api from '@/utils/api'
 
@@ -33,13 +34,7 @@ export function GreetingArea() {
   const [alerts, setAlerts] = useState<GreetingData['alerts']>([])
   const [loading, setLoading] = useState(true)
 
-  const getLocalGreeting = () => {
-    const h = new Date().getHours()
-    if (h < 6) return 'Доброй ночи'
-    if (h < 12) return 'Доброе утро'
-    if (h < 18) return 'Добрый день'
-    return 'Добрый вечер'
-  }
+  const getLocalGreeting = () => timeGreetingInTz()
 
   const name = user?.name?.split(' ')[0] || user?.login || 'Пользователь'
 

@@ -20,6 +20,8 @@ const querySchema = z.object({
     text: z.string().min(1),
     message: z.string().optional(),
     sessionId: z.string().min(8).optional(),
+    timezone: z.string().min(1).optional(),
+    timeZone: z.string().min(1).optional(),
     history: z.array(z.object({
       role: z.string(),
       content: z.string(),
@@ -179,17 +181,28 @@ async function processQuery(
   history: Array<{ role: string; content: string }>,
 ): Promise<ProcessedResponse> {
   const isGuest = !req.user || req.user.isGuest === true;
+  const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
+  const timeZone = clientTimeZoneFromRequest({
+    headers: req.headers as Record<string, string | string[] | undefined>,
+    body: (req.body || {}) as Record<string, unknown>,
+    query: (req.query || {}) as Record<string, unknown>,
+  });
 
-  if (!isGuest && orchestratorEnabled()) {
+  // Guests get a product concierge (LLM) — not the clinic CRM intent router.
+  if (orchestratorEnabled()) {
     try {
       const result = await orchestrate({
         text,
-        userId: req.user!.id,
-        clinicId: req.user!.clinicId || null,
-        role: req.user!.role,
-        userName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
+        userId: req.user?.id || 'guest',
+        clinicId: isGuest ? null : (req.user!.clinicId || null),
+        role: isGuest ? 'GUEST' : req.user!.role,
+        userName: isGuest
+          ? 'Гость'
+          : [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
         sessionId,
         history,
+        isGuest,
+        timeZone,
       });
       return {
         message: result.message,
@@ -207,11 +220,11 @@ async function processQuery(
 
   const context = {
     userId: req.user?.id || 'guest',
-    clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
-    role: req.user?.role || 'guest',
+    clinicId: isGuest ? '' : (req.user?.clinicId || DEMO_CLINIC_ID),
+    role: isGuest ? 'guest' : (req.user?.role || 'guest'),
     isGuest,
     sessionId,
-    metadata: {},
+    metadata: { timeZone },
   };
   const response = await aiService.processMessage(text, context, sessionId);
   response.message = (await improveResponseWithLLM(text, response, context)) || response.message;
@@ -500,19 +513,35 @@ aiRouter.post('/session', async (req: AuthRequest, res) => {
 
 aiRouter.post('/greeting', async (req: AuthRequest, res) => {
   try {
-    const hour = new Date().getHours();
-    let greeting = 'Добрый день';
-    if (hour < 6) greeting = 'Доброй ночи';
-    else if (hour < 12) greeting = 'Доброе утро';
-    else if (hour < 18) greeting = 'Добрый день';
-    else greeting = 'Добрый вечер';
+    const {
+      timeGreetingInTz,
+      resolveTimeZone,
+      clientTimeZoneFromRequest,
+      DEFAULT_CLINIC_TZ,
+    } = await import('./lib/timezone.js');
+    const clinicId = req.user?.clinicId || DEMO_CLINIC_ID;
+    let clinicTz: string | null = null;
+    if (clinicId) {
+      const clinic = await prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { settings: true },
+      });
+      const settings = (clinic?.settings || {}) as { timezone?: string };
+      clinicTz = settings.timezone || null;
+    }
+    const clientTz = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      body: (req.body || {}) as Record<string, unknown>,
+    });
+    const timeZone = resolveTimeZone(clientTz, clinicTz, DEFAULT_CLINIC_TZ);
+    const greeting = timeGreetingInTz(new Date(), timeZone);
 
     const alerts = await aiService.getProactiveAlerts({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
+      clinicId,
       role: req.user?.role || 'guest',
       sessionId: crypto.randomUUID(),
-      metadata: {},
+      metadata: { timeZone },
     });
 
     res.json({
@@ -520,6 +549,7 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
       data: {
         greeting: `${greeting}, ${req.user?.firstName || 'Гость'}!`,
         alerts: alerts.slice(0, 3),
+        timeZone,
       },
     });
   } catch (error) {
@@ -528,20 +558,66 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
   }
 });
 
-aiRouter.get('/proactive', async (req: AuthRequest, res) => {
+aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
   try {
-    const alerts = await aiService.getProactiveAlerts({
+    const { buildProactiveAlerts } = await import('./core/digitalTwin.js');
+    const alerts = await buildProactiveAlerts({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
-      role: req.user?.role || 'guest',
-      sessionId: crypto.randomUUID(),
-      metadata: {},
+      clinicId: req.user?.isGuest ? null : (req.user?.clinicId || null),
+      role: req.user?.isGuest ? 'GUEST' : (req.user?.role || 'guest'),
+      isGuest: req.user?.isGuest === true,
     });
-
     res.json({ ok: true, data: { alerts } });
   } catch (error) {
     console.error('[AI Proactive Error]', error);
     res.status(500).json({ ok: false, error: 'Proactive failed' });
+  }
+});
+
+/** Jarvis role briefing — used on login / «Что важно сегодня?» */
+aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (req.user?.isGuest) {
+      return res.status(403).json({ ok: false, error: 'Briefing requires clinic user' });
+    }
+    const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
+    const clinicId = req.user!.clinicId || null;
+    const clinic = clinicId
+      ? await prisma.clinic.findUnique({
+          where: { id: clinicId },
+          select: { name: true },
+        }).catch(() => null)
+      : null;
+    const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
+    const timeZone = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      query: (req.query || {}) as Record<string, unknown>,
+    });
+    const briefing = await buildJarvisBriefing({
+      userId: req.user!.id,
+      clinicId,
+      role: req.user!.role,
+      firstName: req.user!.firstName,
+      clinicName: clinic?.name,
+      isGuest: false,
+      timeZone,
+    });
+    res.json({
+      ok: true,
+      data: {
+        reply: briefing.message,
+        message: briefing.message,
+        suggestions: briefing.suggestions,
+        skill: 'practice',
+        intent: 'MORNING_BRIEFING',
+        action: { type: 'SHOW_BRIEFING', payload: briefing.payload },
+        role: briefing.role,
+        timeZone: briefing.payload?.timeZone || timeZone,
+      },
+    });
+  } catch (error) {
+    console.error('[AI Briefing Error]', error);
+    res.status(500).json({ ok: false, error: 'Briefing failed' });
   }
 });
 
@@ -590,17 +666,16 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-aiRouter.get('/digital-twin', async (req: AuthRequest, res) => {
+aiRouter.get('/digital-twin', authenticate, async (req: AuthRequest, res) => {
   try {
-    // Return digital twin state for user
-    res.json({
-      ok: true,
-      data: {
-        preferences: {},
-        frequentActions: [],
-        learningProgress: {},
-      },
+    const { buildDigitalTwin } = await import('./core/digitalTwin.js');
+    const twin = await buildDigitalTwin(req.user!.id, req.user?.clinicId || null, {
+      isGuest: req.user?.isGuest === true,
     });
+    if (!twin) {
+      return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
+    }
+    res.json({ ok: true, data: { twin } });
   } catch (error) {
     console.error('[AI Digital Twin Error]', error);
     res.status(500).json({ ok: false, error: 'Digital twin failed' });

@@ -627,6 +627,8 @@ model Product {
   imageUrl    String?
   rating      Float?
   supplierId  String?
+  /// Supplier private-label / own brand — higher DentCash rate tier
+  ownBrand    Boolean @default(false)
 
   // Rich product-card fields (Phase 2)
   manufacturer  String?
@@ -651,6 +653,8 @@ model Order {
   items    Json
   status   String @default("pending")
   total    Float
+  /// Checkout extras: dentCashMinor spent, delivery, payment hints
+  meta     Json?
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -883,7 +887,9 @@ model CommunityPost {
   commentsCount Int      @default(0)
   createdAt     DateTime @default(now())
 
-  likes CommunityLike[]
+  likes     CommunityLike[]
+  comments  CommunityComment[]
+  saves     CommunitySave[]
 
   @@index([createdAt])
   @@map("community_posts")
@@ -901,6 +907,75 @@ model CommunityLike {
   @@map("community_likes")
 }
 
+model CommunityComment {
+  id         String   @id @default("")
+  postId     String
+  authorId   String
+  authorName String
+  content    String
+  createdAt  DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("community_comments")
+}
+
+model CommunitySave {
+  id        String   @id @default("")
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+  @@map("community_saves")
+}
+
+/// 1:1 direct message thread (Instagram/Telegram-style).
+model DmConversation {
+  id        String   @id @default("")
+  /// Sorted "userIdA:userIdB" for unique pairwise lookup
+  pairKey   String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants DmParticipant[]
+  messages     DmMessage[]
+
+  @@index([updatedAt])
+  @@map("dm_conversations")
+}
+
+model DmParticipant {
+  id             String    @id @default("")
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("dm_participants")
+}
+
+model DmMessage {
+  id             String   @id @default("")
+  conversationId String
+  senderId       String
+  body           String
+  createdAt      DateTime @default(now())
+
+  conversation DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("dm_messages")
+}
+
 // ─── FINANCE (Phase 4) ───
 
 enum WalletOwnerType {
@@ -911,6 +986,14 @@ enum WalletOwnerType {
   PARTNER
   PLATFORM
   GATEWAY
+  USER
+}
+
+enum CashbackScope {
+  ALL
+  CATEGORY
+  PRODUCT
+  OWN_BRAND
 }
 
 enum TxStatus {
@@ -1039,6 +1122,50 @@ model Dispute {
 
   @@index([refType, refId])
   @@map("disputes")
+}
+
+// ─── DENT CASHBACK (buyer loyalty wallet) ───
+
+model CashbackRule {
+  id        String          @id @default(uuid())
+  ownerType WalletOwnerType
+  ownerId   String
+  scope     CashbackScope   @default(ALL)
+  /// Category name or product id when scope is CATEGORY / PRODUCT
+  scopeKey  String?
+  rateBps   Int
+  capMinor  BigInt?
+  active    Boolean         @default(true)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([ownerType, ownerId, active])
+  @@index([scope, scopeKey])
+  @@map("cashback_rules")
+}
+
+/// Human-readable DentCash history (1 DentCash = 1 ₸ = 100 тиын).
+model DentCashLedger {
+  id          String    @id @default(uuid())
+  userId      String
+  type        String
+  /// pending | available | spent | reversed
+  status      String    @default("pending")
+  amountMinor BigInt
+  currency    String    @default("KZT")
+  refType     String?
+  refId       String?
+  sellerType  String?
+  sellerId    String?
+  meta        Json?
+  availableAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, status])
+  @@index([refType, refId])
+  @@map("dentcash_ledger")
 }
 
 // ─── COMPLIANCE (Phase 7) ───

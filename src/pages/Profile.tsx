@@ -15,8 +15,11 @@ import { Modal } from '@/components/ui/ds/Modal'
 import { Input, Textarea } from '@/components/ui/ds/Input'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { useToast } from '@/components/ui/ds/Toast'
+import { DoctorPayrollCard } from '@/components/crm/DoctorPayrollCard'
+import { DentWalletCard } from '@/components/wallet/DentWalletCard'
 import * as api from '@/utils/api'
 import { gid } from '@/utils/constants'
+import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 
 function Section({ icon, title, onAdd, children }: { icon: React.ReactNode; title: string; onAdd?: () => void; children: React.ReactNode }) {
   return (
@@ -47,6 +50,8 @@ export default function Profile() {
   const { user, clinic, activeClinic, logout } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
+  const roleKey = String(user?.role || '').toLowerCase()
+  const showPayroll = roleKey === 'doctor' || roleKey === 'врач'
 
   const [profile, setProfile] = useState<any>(null)
   const [skills, setSkills] = useState<any[]>([])
@@ -63,6 +68,22 @@ export default function Profile() {
 
   const [modal, setModal] = useState<null | 'skill' | 'cert' | 'ach' | 'port' | 'case'>(null)
   const [form, setForm] = useState<any>({})
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const photoInputRef = React.useRef<HTMLInputElement>(null)
+
+  const handlePhotoFile = async (file: File | null) => {
+    if (!file) return
+    setPhotoUploading(true)
+    try {
+      const dataUrl = await readImageAsDataUrl(file)
+      setEditForm((prev: any) => ({ ...prev, photoUrl: dataUrl }))
+      toast.success('Фото загружено — нажмите «Сохранить»')
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось загрузить фото')
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -154,52 +175,55 @@ export default function Profile() {
   }
 
   return (
-    <div className="fade-in space-y-5 max-w-3xl mx-auto pb-10">
-      <PageHeader title="Мой профиль" subtitle="Ваша профессиональная визитная карточка" icon={<UserIcon size={22} className="text-dv-gold" />} />
+    <div className="dv-page fade-in space-y-4 sm:space-y-5 max-w-3xl mx-auto pb-10 pt-3 sm:pt-6 overflow-x-hidden">
+      <PageHeader title="Мой профиль" subtitle="Визитка, кэшбэк DentCash и профессиональные данные" icon={<UserIcon size={20} className="text-dv-gold" />} />
 
       {/* ─── Header card ─── */}
       <Card className="overflow-hidden">
-        <div className="h-24 bg-gradient-to-r from-dv-gold/30 via-dv-gold/10 to-transparent" />
-        <CardContent className="-mt-12 px-6 pb-6">
-          <div className="flex items-end gap-4">
-            <div className="relative">
-              <Avatar name={fullName || '?'} size="xl" src={profile?.photoUrl} />
-              <button
-                type="button"
-                onClick={() => {
-                  openEdit()
-                  // Focus photo URL field after modal opens
-                  setTimeout(() => {
-                    const el = document.querySelector<HTMLInputElement>('input[placeholder="https://..."]')
-                    el?.focus()
-                  }, 50)
-                }}
-                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-dv-gold text-surface-0 shadow-lg hover:bg-dv-gold-light transition-colors"
-                title="Сменить фото (URL)"
-              >
-                <Camera size={14} />
-              </button>
-            </div>
-            <div className="flex-1 min-w-0 pb-1">
-              <h2 className="text-xl font-bold text-txt-primary truncate">{fullName}</h2>
-              {profile?.headline && <p className="text-sm text-dv-gold truncate">{profile.headline}</p>}
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-txt-muted">
-                {profile?.spec && <span className="flex items-center gap-1"><Briefcase size={12} /> {profile.spec}</span>}
-                {(profile?.city || profile?.country) && <span className="flex items-center gap-1"><MapPin size={12} /> {[profile?.city, profile?.country].filter(Boolean).join(', ')}</span>}
-                {profile?.experienceYears ? <span className="flex items-center gap-1"><Sparkles size={12} /> {profile.experienceYears} лет опыта</span> : null}
+        <div className="h-16 sm:h-24 bg-gradient-to-r from-dv-gold/30 via-dv-gold/10 to-transparent" />
+        <CardContent className="-mt-10 sm:-mt-12 px-3 sm:px-6 pb-5 sm:pb-6">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex items-end gap-3 min-w-0">
+              <div className="relative shrink-0">
+                <Avatar name={fullName || '?'} size="xl" src={profile?.photoUrl || editForm.photoUrl} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    openEdit()
+                    setTimeout(() => photoInputRef.current?.click(), 80)
+                  }}
+                  className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-dv-gold text-surface-0 shadow-lg hover:bg-dv-gold-light transition-colors"
+                  title="Загрузить фото"
+                >
+                  <Camera size={14} />
+                </button>
+              </div>
+              <div className="flex-1 min-w-0 pb-1">
+                <h2 className="text-lg sm:text-xl font-bold text-txt-primary truncate">{fullName}</h2>
+                {profile?.headline && <p className="text-sm text-dv-gold truncate">{profile.headline}</p>}
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-txt-muted">
+                  {profile?.spec && <span className="flex items-center gap-1"><Briefcase size={12} /> {profile.spec}</span>}
+                  {(profile?.city || profile?.country) && <span className="flex items-center gap-1 min-w-0"><MapPin size={12} className="shrink-0" /> <span className="truncate">{[profile?.city, profile?.country].filter(Boolean).join(', ')}</span></span>}
+                  {profile?.experienceYears ? <span className="flex items-center gap-1"><Sparkles size={12} /> {profile.experienceYears} лет опыта</span> : null}
+                </div>
               </div>
             </div>
-            <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={openEdit}>Редактировать</Button>
+            <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={openEdit} className="w-full sm:w-auto sm:self-start">
+              Редактировать
+            </Button>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {clinic && <Badge variant="gold" size="sm"><Building2 size={12} className="mr-1" /> {clinic.name}</Badge>}
-            {activeClinic && activeClinic.id !== clinic?.id && <Badge variant="sky" size="sm"><Building2 size={12} className="mr-1" /> {activeClinic.name}</Badge>}
+          <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-2">
+            {clinic && <Badge variant="gold" size="sm" className="max-w-full"><Building2 size={12} className="mr-1 shrink-0" /> <span className="truncate">{clinic.name}</span></Badge>}
+            {activeClinic && activeClinic.id !== clinic?.id && <Badge variant="sky" size="sm" className="max-w-full"><Building2 size={12} className="mr-1 shrink-0" /> <span className="truncate">{activeClinic.name}</span></Badge>}
             {profile?.visibility === 'private' && <Badge variant="slate" size="sm">Профиль скрыт</Badge>}
             {profile?.username && <Badge variant="outline" size="sm">@{profile.username}</Badge>}
           </div>
         </CardContent>
       </Card>
+
+      {/* ─── Кэшбэк DentCash — сразу под шапкой ─── */}
+      <DentWalletCard />
 
       {/* ─── About ─── */}
       <Section icon={<UserIcon size={16} />} title="О себе">
@@ -330,6 +354,11 @@ export default function Profile() {
         </Section>
       )}
 
+      {/* ─── Private payroll (doctors only, collapsed) ─── */}
+      {showPayroll && (
+        <DoctorPayrollCard discreet />
+      )}
+
       {/* ─── Security ─── */}
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><LogOut size={16} className="text-dv-gold" /> Безопасность</CardTitle></CardHeader>
@@ -341,6 +370,48 @@ export default function Profile() {
       {/* ─── Edit modal ─── */}
       <Modal open={editing} onClose={() => setEditing(false)} title="Редактировать профиль" size="lg">
         <div className="space-y-3">
+          <div className="rounded-xl border border-bdr-subtle bg-white/[0.02] p-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <Avatar name={fullName || '?'} size="lg" src={editForm.photoUrl || profile?.photoUrl} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-txt-primary">Фото профиля</p>
+                <p className="text-[11px] text-txt-muted mt-0.5">JPG, PNG или WEBP до 5 МБ</p>
+              </div>
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept={PROFILE_PHOTO_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                void handlePhotoFile(e.target.files?.[0] || null)
+                e.target.value = ''
+              }}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={<Camera size={14} />}
+                loading={photoUploading}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                Загрузить фото
+              </Button>
+              {editForm.photoUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditForm({ ...editForm, photoUrl: '' })}
+                >
+                  Убрать
+                </Button>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Имя" value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
             <Input label="Фамилия" value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
@@ -350,21 +421,20 @@ export default function Profile() {
             <Input label="Страна" value={editForm.country} onChange={e => setEditForm({ ...editForm, country: e.target.value })} />
             <Input label="Телефон" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
             <Input label="Email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
-            <Input label="URL фото" value={editForm.photoUrl} onChange={e => setEditForm({ ...editForm, photoUrl: e.target.value })} placeholder="https://..." />
             <Input label="Опыт (лет)" type="number" value={editForm.experienceYears} onChange={e => setEditForm({ ...editForm, experienceYears: Number(e.target.value) })} />
           </div>
           <Input label="Заголовок (headline)" value={editForm.headline} onChange={e => setEditForm({ ...editForm, headline: e.target.value })} placeholder="Напр.: Врач-ортопед, имплантолог" />
           <Textarea label="О себе" value={editForm.bio} onChange={e => setEditForm({ ...editForm, bio: e.target.value })} />
           <div>
             <label className="block text-xs font-medium text-txt-secondary mb-1.5">Видимость профиля</label>
-            <select value={editForm.visibility} onChange={e => setEditForm({ ...editForm, visibility: e.target.value })} className="flex h-9 w-full rounded-lg border border-bdr-subtle bg-white/[0.03] px-3 py-2 text-sm text-txt-primary">
+            <select className="dv-select" value={editForm.visibility} onChange={e => setEditForm({ ...editForm, visibility: e.target.value })}>
               <option value="public">Публичный</option>
               <option value="private">Скрытый</option>
             </select>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setEditing(false)}>Отмена</Button>
-            <Button variant="primary" icon={<Pencil size={14} />} onClick={saveProfile}>Сохранить</Button>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setEditing(false)} className="w-full sm:w-auto">Отмена</Button>
+            <Button variant="primary" icon={<Pencil size={14} />} onClick={saveProfile} className="w-full sm:w-auto">Сохранить</Button>
           </div>
         </div>
       </Modal>

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/ds/Input';
 import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
+import { usePatientStore } from '@/store/patient.store';
 
 const TOOTH_STATUSES = [
   { id: 'healthy', label: 'Здоров' },
@@ -64,6 +65,7 @@ export default function DentalChart() {
     setTeeth((selected as any).teeth || (selected as any).dentalChart || {});
     setDirty(false);
     setSelectedTooth(undefined);
+    void usePatientStore.getState().openPatient(selected.id);
   }, [selected?.id]);
 
   const setToothStatus = (status: string) => {
@@ -102,11 +104,11 @@ export default function DentalChart() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-6xl mx-auto space-y-6 p-4 md:p-6"
+      className="dv-page max-w-6xl mx-auto space-y-6 py-4 md:py-6"
     >
       <PageHeader
         title="Зубная карта"
-        subtitle="Одонтограмма FDI · связь с планом лечения и визитом"
+        subtitle="FDI · анатомия корней · импланты · план лечения"
         icon={<Smile size={20} />}
         actions={
           <div className="flex gap-2">
@@ -143,7 +145,10 @@ export default function DentalChart() {
                 list.map((p: any) => (
                   <button
                     key={p.id}
-                    onClick={() => setSelectedId(p.id)}
+                    onClick={() => {
+                      setSelectedId(p.id)
+                      void usePatientStore.getState().openPatient(p.id)
+                    }}
                     className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                       selectedId === p.id
                         ? 'bg-dv-gold/15 text-dv-gold border border-dv-gold/20'

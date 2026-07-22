@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/ds/Toast'
+import { useAuth } from '@/store/auth.store'
 import { useDataQuery } from '../../queries/useDataQuery'
 import { queryKeys } from '../../queries/keys'
 import * as api from '@/utils/api'
@@ -37,14 +38,13 @@ const TABS = [
 
 const EMPTY_FORM = {
   type: 'income', amount: '', patientId: '', patientName: '', service: '',
-  paymentMethod: 'Kaspi QR', paymentType: 'full', notes: '',
+  paymentMethod: 'QR-оплата', paymentType: 'full', notes: '',
 }
 
 const PAY_TYPES = [
   { value: 'full', label: 'Полная оплата' },
   { value: 'prepayment', label: 'Предоплата' },
   { value: 'installment', label: 'Рассрочка' },
-  { value: 'kaspi_installment', label: 'Kaspi Рассрочка' },
   { value: 'credit', label: 'Долг' },
 ]
 
@@ -87,8 +87,11 @@ interface ExpenseForm {
 }
 
 export default function Cashier() {
-  const { clinic } = useOutletContext<OutletContext>()
-  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useDataQuery(clinic?.id)
+  const outlet = useOutletContext<OutletContext>() || ({} as OutletContext)
+  const { user, clinic: authClinic } = useAuth()
+  const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
+  const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
+  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useDataQuery(clinicId || undefined)
   const queryClient = useQueryClient()
   const { toast, showToast, clearToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -108,7 +111,7 @@ export default function Cashier() {
   const [form, setForm] = useState<CashierForm>(EMPTY_FORM)
   const [expenseForm, setExpenseForm] = useState<ExpenseForm>({ category: '', amount: '', notes: '' })
   const [expModalOpen, setExpModalOpen] = useState(false)
-  const [cashSettings, setCashSettings] = useState({ defaultMethod: 'Kaspi QR', autoReceipt: true, reminders: true })
+  const [cashSettings, setCashSettings] = useState({ defaultMethod: 'QR-оплата', autoReceipt: true, reminders: true })
   const [searchUnpaid, setSearchUnpaid] = useState('')
   const [financeReport, setFinanceReport] = useState<any>(null)
   const [reportLoading, setReportLoading] = useState(false)
@@ -187,7 +190,7 @@ export default function Cashier() {
       patientId: appt.patientId || '',
       patientName: patient?.name || '',
       service: appt.serviceName || '',
-      amount: appt.servicePrice || '',
+      amount: appt.servicePrice != null ? String(appt.servicePrice) : '',
       paymentMethod: cashSettings.defaultMethod,
       appointmentId: appt.id,
       diagnosis: appt.diagnosis || '',
@@ -205,14 +208,18 @@ export default function Cashier() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!form.amount || isNaN(Number(form.amount))) {
+    if (!form.patientId) {
+      showToast('Выберите пациента', 'warning')
+      return
+    }
+    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
       showToast('Введите корректную сумму', 'warning')
       return
     }
     try {
       const status = form.paymentType === 'credit'
         ? 'debt'
-        : form.paymentType === 'prepayment' || form.paymentType === 'installment' || form.paymentType === 'kaspi_installment'
+        : form.paymentType === 'prepayment' || form.paymentType === 'installment'
           ? 'partial'
           : 'paid'
 
@@ -222,10 +229,11 @@ export default function Cashier() {
         date: today(),
         status,
         total: Number(form.amount),
+        amount: Number(form.amount),
         payMethod: form.paymentMethod,
         paymentType: form.paymentType,
         notes: form.notes,
-        patientId: form.patientId || undefined,
+        patientId: form.patientId,
         patientName: form.patientName || patients.find((p) => p.id === form.patientId)?.name || '',
         service: form.service,
         appointmentId: form.appointmentId || undefined,
@@ -234,14 +242,23 @@ export default function Cashier() {
         items: form.service ? [{ name: form.service, price: Number(form.amount), qty: 1 }] : [],
       })
 
-      if (form.appointmentId && status === 'paid') {
-        await upsertAppointment({ id: form.appointmentId, paymentStatus: 'paid' })
+      if (form.appointmentId && (status === 'paid' || status === 'partial')) {
+        const appt = appointments.find((a) => a.id === form.appointmentId)
+        await upsertAppointment({
+          id: form.appointmentId,
+          patientId: appt?.patientId || form.patientId,
+          doctorId: appt?.doctorId,
+          date: appt?.date,
+          time: appt?.time,
+          duration: appt?.duration,
+          paymentStatus: status === 'paid' ? 'paid' : 'partial',
+        })
       }
 
       showToast('Оплата принята', 'success')
       setModalOpen(false)
-    } catch {
-      showToast('Ошибка сохранения', 'error')
+    } catch (err: any) {
+      showToast(err?.message || 'Ошибка сохранения', 'error')
     }
   }
 
@@ -292,7 +309,7 @@ export default function Cashier() {
   })
 
   return (
-    <div className="p-6">
+    <div className="dv-page py-4 md:py-6">
       <PageHeader
         title="Касса"
         subtitle="Оплата из расписания, операции, расходы"
@@ -435,7 +452,7 @@ export default function Cashier() {
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             {appt.diagnosis && (
-                              <span className="text-2xs text-dv-gold font-medium">{appt.diagnosis.split(' — ')[0]}</span>
+                              <span className="text-2xs text-dv-gold font-medium">{appt.diagnosis?.split(' — ')[0]}</span>
                             )}
                             {toothLabel && (
                               <span className="text-2xs text-emerald-400 font-medium">{toothLabel}</span>
@@ -608,7 +625,7 @@ export default function Cashier() {
 
           {activeTab === 'payroll' && (
             <div>
-              <p className="text-sm font-bold text-txt-primary mb-4">Зарплата по % (как в KazDent)</p>
+              <p className="text-sm font-bold text-txt-primary mb-4">Зарплата по %</p>
               <p className="text-xs text-txt-muted mb-4">
                 Начисление = (сумма услуг − себестоимость материалов) × % врача за выбранный период отчёта.
               </p>

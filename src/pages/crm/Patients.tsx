@@ -6,6 +6,7 @@ import {
   AlertTriangle, CreditCard, History, Smile, Star, User, Send, Trash2, Receipt, RefreshCw,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
+import { useAuth } from '@/store/auth.store'
 import { useDataQuery } from '../../queries/useDataQuery'
 import * as api from '@/utils/api'
 import { getRecallCandidates, findDuplicatePatients } from '@/utils/recall'
@@ -22,6 +23,7 @@ import { Odontogram3D, SurfaceEditor, AutoTreatmentPlan, ToothLegend } from '../
 import { T, PATIENT_CATEGORY, calculateAge, formatPhone, fd, tg, gid, today } from '../../utils/constants'
 import { cn, formatMoney } from '../../lib/utils'
 import type { Patient, Appointment, Clinic, User as UserType, RoleInfo } from '../../types'
+import { usePatientStore } from '@/store/patient.store'
 
 const CAT_CFG = PATIENT_CATEGORY
 
@@ -82,9 +84,12 @@ interface OutletContext {
 }
 
 export default function Patients() {
-  const { clinic } = useOutletContext<OutletContext>()
+  const outlet = useOutletContext<OutletContext>() || ({} as OutletContext)
+  const { user, clinic: authClinic } = useAuth()
+  const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
+  const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
   const navigate = useNavigate()
-  const { patients, appointments, receipts, upsertPatient, deletePatient, upsertReceipt } = useDataQuery(clinic?.id)
+  const { patients, appointments, receipts, upsertPatient, deletePatient, upsertReceipt } = useDataQuery(clinicId || undefined)
   const { toast, showToast, clearToast } = useToast()
   const [params] = useSearchParams()
 
@@ -142,6 +147,7 @@ export default function Patients() {
       if (p) {
         setSelected(p)
         setTeethState((p as any).teeth || {})
+        void usePatientStore.getState().openPatient(p.id)
       }
     }
     if (tab) setActiveTab(tab)
@@ -424,7 +430,7 @@ export default function Patients() {
   // ── List View ──────────────────────────────────────────────
   if (!selected) {
     return (
-      <div className="p-6">
+      <div className="dv-page py-4 md:py-6">
         <PageHeader
           title="Пациенты"
           subtitle={`База пациентов клиники · ${patients.length} чел.`}
@@ -536,14 +542,21 @@ export default function Patients() {
               const cat = CAT_CFG[catKey] || CAT_CFG.regular
               const age = calculateAge(p.dob)
               const pAppts = appointments.filter(a => a.patientId === p.id)
-              const lastAppt = pAppts.sort((a, b) => b.date.localeCompare(a.date))[0]
+              const lastAppt = [...pAppts]
+                .filter((a) => a?.date)
+                .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]
 
               return (
                 <motion.div key={p.id} variants={fadeUp}>
                   <Card
                     hover
                     className="cursor-pointer group"
-                    onClick={() => { setSelected(p); setTeethState(p.teeth || {}); setActiveTab('info') }}
+                    onClick={() => {
+                      setSelected(p)
+                      setTeethState(p.teeth || {})
+                      setActiveTab('info')
+                      void usePatientStore.getState().openPatient(p.id)
+                    }}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
@@ -612,9 +625,12 @@ export default function Patients() {
   ]
 
   return (
-    <div className="p-6">
+    <div className="dv-page py-4 md:py-6">
       <div className="flex items-center justify-between mb-6">
-        <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => setSelected(null)}>
+        <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => {
+          setSelected(null)
+          usePatientStore.getState().closePatient()
+        }}>
           К списку
         </Button>
         <div className="flex gap-2 flex-wrap justify-end">

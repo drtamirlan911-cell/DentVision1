@@ -631,7 +631,7 @@ export default function Documents() {
   };
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
       <PageHeader
         title="Электронные документы"
         subtitle="Согласия, рецепты, направления, договоры, справки, заключения"
@@ -642,7 +642,8 @@ export default function Documents() {
               Из шаблона
             </Button>
             <Button variant="primary" icon={<Plus size={16} />} onClick={() => { resetForm(); setShowForm(true); }}>
-              Вручную
+              <span className="sm:hidden">+</span>
+              <span className="hidden sm:inline">Вручную</span>
             </Button>
           </>
         }
@@ -697,7 +698,7 @@ export default function Documents() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Тип документа *</label>
-                    <select value={form.doc_type} onChange={e => setForm(f => ({ ...f, doc_type: e.target.value }))}>
+                    <select className="dv-select" value={form.doc_type} onChange={e => setForm(f => ({ ...f, doc_type: e.target.value }))}>
                       <option value="">Выберите...</option>
                       {DOC_TEMPLATES.map(cat => (
                         <optgroup key={cat.category} label={cat.category}>
@@ -708,21 +709,21 @@ export default function Documents() {
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Пациент</label>
-                    <select value={form.patient_id} onChange={e => handlePatientChange(e.target.value)}>
+                    <select className="dv-select" value={form.patient_id} onChange={e => handlePatientChange(e.target.value)}>
                       <option value="">Не выбран</option>
                       {(patients || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Врач</label>
-                    <select value={form.doctor_id} onChange={e => handleDoctorChange(e.target.value)}>
+                    <select className="dv-select" value={form.doctor_id} onChange={e => handleDoctorChange(e.target.value)}>
                       <option value="">Не выбран</option>
                       {(doctors || []).map(d => <option key={d.id} value={d.id}>{d.name}{d.spec ? ` (${d.spec})` : ''}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Статус</label>
-                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                    <select className="dv-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
                       {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}
                     </select>
                   </div>
@@ -752,7 +753,7 @@ export default function Documents() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input placeholder="Поиск по названию, пациенту, содержанию..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
-        <select value={filterType} onChange={e => setFilterType(e.target.value)} className="w-full md:w-56">
+        <select value={filterType} onChange={e => setFilterType(e.target.value)} className="dv-select w-full md:w-56">
           {allTypes.map(t => (
             <option key={t} value={t}>{t === 'all' ? 'Все типы' : t}</option>
           ))}

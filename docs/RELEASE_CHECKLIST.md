@@ -37,6 +37,7 @@ CI runs all of the above on push/PR (`.github/workflows/ci.yml`).
 | `JWT_SECRET` | Yes | Strong random string |
 | `JWT_REFRESH_SECRET` | Yes | Strong random string |
 | `CORS_ORIGIN` | Yes | `https://dent-vision1.vercel.app` (comma-separated). Backend also always allows Vercel preview hosts matching `dent-vision`. Do not rely on `*` alone. |
+| `KASPI_CALLBACK_SECRET` | Yes (for paid SaaS) | Shared secret / HMAC key for `POST /api/payments/callbacks/kaspi`. Without it, paid webhooks are rejected and subscriptions will not auto-extend. |
 | `NODE_ENV` | Yes | `production` |
 | `PORT` | Auto | Render sets to 10000 |
 

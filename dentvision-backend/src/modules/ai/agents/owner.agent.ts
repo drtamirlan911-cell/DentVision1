@@ -1,6 +1,8 @@
 import { Agent } from '../core/agent.router.js';
 import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
+import { formatClinicMoney, resolveClinicCurrency } from '../lib/currency.js';
+// morningBriefing → buildJarvisBriefing (role-aware)
 
 export class OwnerAgent implements Agent {
   name = 'owner';
@@ -39,58 +41,45 @@ export class OwnerAgent implements Agent {
   }
 
   private async morningBriefing(context: AIContext): Promise<AIResponse> {
-    const today = new Date();
-    const start = new Date(today);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(today);
-    end.setHours(23, 59, 59, 999);
+    const { buildJarvisBriefing } = await import('../core/jarvisBriefing.js');
+    const meta = context.metadata || {};
+    let firstName = String(meta.firstName || meta.userName || '').trim() || null;
+    if (!firstName) {
+      const u = await prisma.user.findUnique({
+        where: { id: context.userId },
+        select: { firstName: true },
+      }).catch(() => null);
+      firstName = u?.firstName || null;
+    }
+    let clinicName = String(meta.clinicName || '').trim() || null;
+    if (!clinicName && context.clinicId) {
+      const c = await prisma.clinic.findUnique({
+        where: { id: context.clinicId },
+        select: { name: true },
+      }).catch(() => null);
+      clinicName = c?.name || null;
+    }
 
-    const yesterdayStart = new Date(start);
-    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-    const yesterdayEnd = new Date(end);
-    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
-
-    const [appointmentsToday, unpaid, paidYesterday] = await Promise.all([
-      prisma.appointment.count({
-        where: { clinicId: context.clinicId, date: { gte: start, lte: end } },
-      }),
-      prisma.invoice.findMany({
-        where: { clinicId: context.clinicId, status: { in: ['UNPAID', 'PARTIAL'] } },
-        select: { amount: true },
-        take: 100,
-      }),
-      prisma.invoice.findMany({
-        where: {
-          clinicId: context.clinicId,
-          status: 'PAID',
-          createdAt: { gte: yesterdayStart, lte: yesterdayEnd },
-        },
-        select: { amount: true },
-      }),
-    ]);
-
-    const debtTotal = unpaid.reduce((s, i) => s + i.amount, 0);
-    const revenueYesterday = paidYesterday.reduce((s, i) => s + i.amount, 0);
-    const dateLabel = today.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-
-    const message = [
-      `**Сводка на ${dateLabel}**`,
-      '',
-      `• Записей сегодня: **${appointmentsToday}**`,
-      `• Выручка вчера: **${revenueYesterday.toLocaleString('ru-RU')} ₸**`,
-      `• Должников: **${unpaid.length}** · сумма **${debtTotal.toLocaleString('ru-RU')} ₸**`,
-      '',
-      'Чем заняться дальше?',
-    ].join('\n');
+    const briefing = await buildJarvisBriefing({
+      userId: context.userId,
+      clinicId: context.clinicId || null,
+      role: context.role,
+      firstName,
+      clinicName,
+      isGuest: context.isGuest,
+      timeZone: typeof meta.timeZone === 'string' ? meta.timeZone : null,
+    });
 
     return {
-      message,
+      message: briefing.message,
       intent: 'MORNING_BRIEFING',
       action: {
         type: 'SHOW_BRIEFING',
-        payload: { appointmentsToday, debtTotal, debtors: unpaid.length, revenueYesterday },
+        payload: briefing.payload,
       },
-      suggestions: ['Показать расписание', 'Проверить долги', 'Показать выручку'],
+      suggestions: briefing.suggestions?.length
+        ? briefing.suggestions
+        : ['Показать расписание', 'Проверить долги', 'Показать выручку'],
     };
   }
 
@@ -109,13 +98,15 @@ export class OwnerAgent implements Agent {
       const monthTotal = invoices
         .filter((i) => i.createdAt >= monthStart)
         .reduce((sum, i) => sum + i.amount, 0);
+      const money = await resolveClinicCurrency(context.clinicId);
+      const fmt = (n: number) => formatClinicMoney(n, money);
 
       return {
         message: [
           '**Финансы клиники**',
           '',
-          `• Выручка всего: **${total.toLocaleString('ru-RU')} ₸**`,
-          `• За текущий месяц: **${monthTotal.toLocaleString('ru-RU')} ₸**`,
+          `• Выручка всего: **${fmt(total)}**`,
+          `• За текущий месяц: **${fmt(monthTotal)}**`,
           `• Оплаченных счетов: **${invoices.length}**`,
         ].join('\n'),
         intent: 'GET_ANALYTICS',
@@ -171,19 +162,21 @@ export class OwnerAgent implements Agent {
     });
     const patientMap = new Map(patients.map(p => [p.id, p]));
     const total = invoices.reduce((sum, i) => sum + i.amount, 0);
+    const money = await resolveClinicCurrency(context.clinicId);
+    const fmt = (n: number) => formatClinicMoney(n, money);
 
     const lines = [
       '**Долги клиники**',
       '',
       `• Должников: **${invoices.length}**`,
-      `• Сумма: **${total.toLocaleString('ru-RU')} ₸**`,
+      `• Сумма: **${fmt(total)}**`,
     ];
     if (invoices.length > 0) {
       lines.push('', 'Ближайшие:');
       for (const inv of invoices.slice(0, 3)) {
         const p = inv.patientId ? patientMap.get(inv.patientId) : undefined;
         const name = p ? `${p.firstName} ${p.lastName}` : 'Пациент';
-        lines.push(`• ${name} — ${inv.amount.toLocaleString('ru-RU')} ₸`);
+        lines.push(`• ${name} — ${fmt(inv.amount)}`);
       }
     }
 
@@ -233,8 +226,9 @@ export class OwnerAgent implements Agent {
       },
     });
 
+    const money = await resolveClinicCurrency(context.clinicId);
     return {
-      message: `Счет ${invoice.id.slice(0, 8)} на ${Number(amount).toLocaleString()} ₽ создан`,
+      message: `Счет ${invoice.id.slice(0, 8)} на ${formatClinicMoney(Number(amount), money)} создан`,
       intent: 'GENERATE_INVOICE',
       action: { type: 'OPEN_INVOICE', payload: { invoiceId: invoice.id } },
       suggestions: ['Отправить пациенту', 'Отметить оплаченным', 'Создать следующий'],

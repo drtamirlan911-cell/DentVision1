@@ -1,10 +1,10 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User as UserIcon, Stethoscope,
-  WifiOff, CloudOff, Printer, ClipboardCheck, Globe,
+  WifiOff, CloudOff, Printer, ClipboardCheck, Globe, Wallet,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -19,7 +19,7 @@ import {
   readCachedDayAppointments,
   startSyncQueueListener,
 } from '@/lib/syncQueue'
-import { useAuth } from '@/store/auth.store'
+import { useAuth, canAcceptPayment } from '@/store/auth.store'
 import { cn, today } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card'
@@ -28,10 +28,12 @@ import { Badge, StatusBadge } from '@/components/ui/ds/Badge'
 import { Modal } from '@/components/ui/ds/Modal'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
+import type { Clinic, User as UserType, RoleInfo } from '@/types'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Avatar } from '@/components/ui/ds/Avatar'
 import { T, APPOINTMENT_STATUS, HOURS, ALL_SERVICES, PAY_METHODS, gid, DENTAL_ICD10, UPPER, LOWER, TOOTH_NAMES } from '@/utils/constants'
 import { tg } from '@/utils/constants'
+import { AcceptPaymentModal, type AcceptPaymentPayload } from '@/components/crm/AcceptPaymentModal'
 import type { Appointment, Patient, WaitingListItem, User, Booking } from '@/types'
 
 const STATUS_CFG = APPOINTMENT_STATUS
@@ -47,7 +49,11 @@ const EMPTY_FORM = {
 const EMPTY_PATIENT = { name: '', phone: '', email: '', dob: '', gender: '', notes: '' }
 const EMPTY_WAIT = { patientId: '', patientName: '', patientPhone: '', doctorId: '', preferredDate: '', preferredTime: '', preferredService: '', notes: '' }
 
-function timeToMinutes(t: string): number { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+function timeToMinutes(t?: string | null): number {
+  if (!t) return 0
+  const [h, m] = String(t).split(':').map(Number)
+  return (h || 0) * 60 + (m || 0)
+}
 function minutesToTop(minutes: number): number { return ((minutes - timeToMinutes(WORK_START)) / MIN_PER_SLOT) * (HOUR_HEIGHT / 2) }
 function formatDuration(mins: number): string { if (mins < 60) return `${mins} мин`; const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h} ч ${m} мин` : `${h} ч` }
 function getWeekStart(dateStr: string): string {
@@ -68,23 +74,38 @@ const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { stag
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function Schedule() {
-  const { user, roleInfo, clinic: activeClinic } = useAuth()
-  const clinicId = activeClinic?.id || user?.clinicId || null
+  const outlet = useOutletContext<{ clinic?: Clinic; user?: UserType; roleInfo?: RoleInfo }>() || {}
+  const { user, roleInfo, clinic: authClinic, role } = useAuth()
+  // Match Staff / IntelligenceLayout: prefer outlet + auth clinic over JWT claim alone.
+  // Appointments API is JWT-scoped (works even with a stale user.clinicId), but
+  // getClinicStaff(clinicId) needs the real clinic id — otherwise the grid is empty
+  // while Staff still shows the roster.
+  const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = clinicId ? { id: clinicId } : null
+  const activeClinic = outlet.clinic || authClinic || (clinicId ? { id: clinicId } : null)
+  // Payment: admin / owner (руководитель) only — not doctors
+  const canTakePayment = canAcceptPayment(role) || !!roleInfo?.canManageClinicSettings
   const {
-    appointments: liveAppointments, patients, doctors, waitingList, bookings, receipts,
+    appointments: liveAppointments, patients, doctors: allStaff, waitingList, bookings, receipts,
     upsertAppointment: upsertAppointmentApi, deleteAppointment,
     upsertPatient, upsertReceipt,
     upsertWaitingListItem, deleteWaitingListItem,
-  } = useDataQuery(clinic?.id)
+  } = useDataQuery(clinicId)
 
   const queryClient = useQueryClient()
   const chairsQ = useQuery({
     queryKey: queryKeys.chairs,
-    queryFn: () => api.getChairs(clinic?.id),
-    enabled: !!clinic?.id,
+    queryFn: () => api.getChairs(clinicId),
+    enabled: !!clinicId,
   })
   const chairs = chairsQ.data || []
+
+  // Prefer role=doctor columns; fall back to full roster so schedule still renders.
+  const doctors = useMemo(() => {
+    const withId = (allStaff || []).filter((d) => d?.id)
+    const onlyDoctors = withId.filter((d) => String(d.role || '').toLowerCase() === 'doctor')
+    return onlyDoctors.length > 0 ? onlyDoctors : withId
+  }, [allStaff])
 
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -104,6 +125,10 @@ export default function Schedule() {
   const [closeServices, setCloseServices] = useState<Array<{ name: string; price: number; matCost: number }>>([])
   const [priceOptions, setPriceOptions] = useState<Array<{ name: string; price: number; matCost: number }>>([])
   const [closeSaving, setCloseSaving] = useState(false)
+  const [payOpen, setPayOpen] = useState(false)
+  const [payAppt, setPayAppt] = useState<Appointment | null>(null)
+  const [paySaving, setPaySaving] = useState(false)
+  const [payDefaultClose, setPayDefaultClose] = useState(false)
   const [waitForm, setWaitForm] = useState(EMPTY_WAIT)
   const [editWaitId, setEditWaitId] = useState<string | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
@@ -409,6 +434,104 @@ export default function Schedule() {
     }
   }
 
+  const suggestedPayAmount = (appt: Appointment | null, services?: Array<{ price: number }>) => {
+    if (services?.length) {
+      const sum = services.reduce((s, x) => s + Number(x.price || 0), 0)
+      if (sum > 0) return sum
+    }
+    if (!appt) return 0
+    const price = Number(appt.servicePrice || 0)
+    if (price > 0) return price
+    const fromCatalog = ALL_SERVICES.find((s) => s.id === appt.service || s.name === appt.service || s.name === appt.serviceName)
+    return Number(fromCatalog?.price || 0)
+  }
+
+  const openAcceptPayment = (appt: Appointment, opts?: { closeVisit?: boolean }) => {
+    if (!canTakePayment) {
+      showToast('Приём оплаты доступен администратору или руководителю', 'warning')
+      return
+    }
+    setPayAppt(appt)
+    setPayDefaultClose(!!opts?.closeVisit)
+    setPayOpen(true)
+    setModalOpen(false)
+  }
+
+  const handleAcceptPayment = async (payload: AcceptPaymentPayload) => {
+    if (!payAppt || !clinicId) return
+    if (!canTakePayment) {
+      showToast('Приём оплаты доступен администратору или руководителю', 'warning')
+      return
+    }
+    setPaySaving(true)
+    try {
+      const patient = patients.find((p) => p.id === payAppt.patientId)
+      const serviceName = String(payAppt.serviceName || payAppt.service || payAppt.reason || 'Услуга')
+      const status = payload.paymentType === 'credit'
+        ? 'debt'
+        : payload.paymentType === 'prepayment'
+          ? 'partial'
+          : 'paid'
+
+      await upsertReceipt({
+        id: gid(),
+        clinicId,
+        date: today(),
+        status,
+        total: payload.amount,
+        payMethod: payload.method,
+        paymentType: payload.paymentType,
+        notes: payload.notes || '',
+        patientId: payAppt.patientId || undefined,
+        patientName: patient?.name || payAppt.patientName || '',
+        service: serviceName,
+        appointmentId: payAppt.id,
+        diagnosis: payAppt.diagnosis || '',
+        toothNumber: payAppt.toothNumber || '',
+        items: [{ name: serviceName, price: payload.amount, qty: 1 }],
+      })
+
+      if (status === 'paid' || status === 'partial') {
+        await upsertAppointment({
+          id: payAppt.id,
+          patientId: payAppt.patientId,
+          doctorId: payAppt.doctorId,
+          date: payAppt.date,
+          time: payAppt.time,
+          duration: payAppt.duration,
+          paymentStatus: status === 'paid' ? 'paid' : 'partial',
+        })
+      }
+
+      if (payload.closeVisit && !['done', 'completed', 'cancelled'].includes(String(payAppt.status))) {
+        const services = closeServices.length
+          ? closeServices
+          : [{ name: serviceName, price: payload.amount, matCost: 0 }]
+        await api.closeAppointment(payAppt.id, {
+          notes: closeNotes || payAppt.notes || '',
+          services,
+          paymentStatus: status === 'paid' ? 'paid' : payAppt.paymentStatus || 'unpaid',
+        })
+        await queryClient.invalidateQueries({ queryKey: queryKeys.inventory })
+      }
+
+      await queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.receipts })
+      showToast(
+        status === 'debt' ? 'Долг оформлен' : status === 'partial' ? 'Частичная оплата принята' : 'Оплата принята',
+        'success',
+      )
+      setPayOpen(false)
+      setPayAppt(null)
+      setCloseOpen(false)
+      setCloseAppt(null)
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось принять оплату', 'error')
+    } finally {
+      setPaySaving(false)
+    }
+  }
+
   const printDaySchedule = () => {
     const rows = dayAppts.map((a) => {
       const p = patients.find((x) => x.id === a.patientId)
@@ -565,6 +688,21 @@ export default function Schedule() {
             <div className="flex items-center gap-1">
               {appt.paymentStatus === 'paid' ? (
                 <Badge variant="success" size="xs">Оплачено</Badge>
+              ) : appt.paymentStatus === 'partial' ? (
+                <Badge variant="warning" size="xs">Частично</Badge>
+              ) : canTakePayment ? (
+                <button
+                  type="button"
+                  title="Принять оплату"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openAcceptPayment(appt, { closeVisit: false })
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md bg-warning/15 border border-warning/30 px-1.5 py-0.5 text-[10px] font-semibold text-warning hover:bg-warning/25 transition-colors"
+                >
+                  <Wallet size={10} />
+                  Оплатить
+                </button>
               ) : (
                 <Badge variant="warning" size="xs">Не оплачено</Badge>
               )}
@@ -593,9 +731,9 @@ export default function Schedule() {
   ]
 
   return (
-    <motion.div variants={stagger} initial="hidden" animate="show" className="max-w-7xl mx-auto space-y-4">
+    <motion.div variants={stagger} initial="hidden" animate="show" className="dv-page max-w-7xl mx-auto space-y-4 py-4 md:py-6">
       {toast && (
-        <div className={cn('fixed bottom-20 md:bottom-6 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-fade-up',
+        <div className={cn('fixed bottom-20 md:bottom-6 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-fade-up max-w-[calc(100vw-2rem)]',
           toast.type === 'success' && 'bg-success text-white',
           toast.type === 'error' && 'bg-error text-white',
           toast.type === 'warning' && 'bg-warning text-surface-0',
@@ -604,26 +742,36 @@ export default function Schedule() {
       )}
 
       {/* Header */}
-      <motion.div variants={fadeUp} className="flex items-center justify-between gap-3">
-        <PageHeader title="Расписание" subtitle="Управление записями и лист ожидания" icon={<Calendar size={20} />} />
-        <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-          <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
-            <span className="hidden sm:inline">Печать дня</span>
-          </Button>
-          <Button variant="secondary" onClick={printZReport} icon={<ClipboardCheck size={14} />}>
-            <span className="hidden sm:inline">Z-отчёт</span>
-          </Button>
-          <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>Касса</Button>
-          <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
-          <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
-          {roleInfo?.canSeeSuperAdmin !== false && (
-            <Button variant="secondary" onClick={() => { setWaitForm(EMPTY_WAIT); setEditWaitId(null); setWaitModalOpen(true) }} icon={<ListOrdered size={14} />}>
-              <span className="hidden sm:inline">Лист ожидания</span>
-              <span className="sm:hidden">Ожидание</span>
-              {dayWaitList.length > 0 && <Badge variant="error" size="xs">{dayWaitList.length}</Badge>}
-            </Button>
-          )}
-        </div>
+      <motion.div variants={fadeUp}>
+        <PageHeader
+          title="Расписание"
+          subtitle="Управление записями и лист ожидания"
+          icon={<Calendar size={20} />}
+          actions={
+            <>
+              <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
+                <span className="hidden sm:inline">Печать дня</span>
+              </Button>
+              <Button variant="secondary" onClick={printZReport} icon={<ClipboardCheck size={14} />}>
+                <span className="hidden sm:inline">Z-отчёт</span>
+              </Button>
+              {!ownDataOnly && (
+                <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>
+                  <span className="hidden xs:inline sm:inline">Касса</span>
+                </Button>
+              )}
+              <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
+              <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
+              {roleInfo?.canSeeSuperAdmin !== false && (
+                <Button variant="secondary" onClick={() => { setWaitForm(EMPTY_WAIT); setEditWaitId(null); setWaitModalOpen(true) }} icon={<ListOrdered size={14} />}>
+                  <span className="hidden sm:inline">Лист ожидания</span>
+                  <span className="sm:hidden">Ожидание</span>
+                  {dayWaitList.length > 0 && <Badge variant="error" size="xs">{dayWaitList.length}</Badge>}
+                </Button>
+              )}
+            </>
+          }
+        />
       </motion.div>
 
       {(offline || pendingSync > 0) && (
@@ -664,44 +812,47 @@ export default function Schedule() {
       {activeTab === 'schedule' ? (
         <>
           {/* Controls bar */}
-          <motion.div variants={fadeUp} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle overflow-x-auto">
-            <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(-1)}><ChevronLeft size={16} /></Button>
-            <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
-              className="h-8 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none" />
-            <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(1)}><ChevronRight size={16} /></Button>
-            <Button variant="outline" size="sm" onClick={() => setSelDate(today())}>Сегодня</Button>
+          <motion.div variants={fadeUp} className="flex flex-col gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(-1)}><ChevronLeft size={16} /></Button>
+              <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
+                className="h-8 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none min-w-0" />
+              <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(1)}><ChevronRight size={16} /></Button>
+              <Button variant="outline" size="sm" onClick={() => setSelDate(today())}>Сегодня</Button>
 
-            <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
-              {([['day', 'День'], ['week', 'Неделя']] as const).map(([key, label]) => (
-                <button key={key} onClick={() => setPeriodMode(key)}
-                  className={cn('px-3 py-1.5 text-xs font-semibold transition-colors',
-                    periodMode === key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
-                  {label}
-                </button>
-              ))}
+              <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
+                {([['day', 'День'], ['week', 'Неделя']] as const).map(([key, label]) => (
+                  <button key={key} onClick={() => setPeriodMode(key)}
+                    className={cn('px-3 py-1.5 text-xs font-semibold transition-colors',
+                      periodMode === key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="ml-auto flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <Input placeholder="Поиск..." value={searchAppts} onChange={e => setSearchAppts(e.target.value)}
-                icon={<Search size={14} />} className="!w-40 !h-8" />
+                icon={<Search size={14} />} className="!w-full sm:!w-40 !h-8 min-w-0" />
 
               {doctors.length > 1 && (
                 <Select value={selectedDoctorFilter} onChange={e => setSelectedDoctorFilter(e.target.value)}
                   options={[{ value: 'all', label: 'Все врачи' }, ...doctors.map(d => ({ value: d.id, label: d.name }))]}
-                  className="!w-40 !h-8" />
+                  className="!w-full sm:!w-44 !h-8 min-w-0" />
               )}
 
               {roleInfo?.canSeeSuperAdmin !== false && (
-                <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
+                <div className="flex rounded-lg border border-bdr-subtle overflow-x-auto max-w-full">
                   {([
-                    { key: 'doctors' as const, label: 'По врачам' },
-                    { key: 'chairs' as const, label: 'По креслам' },
-                    { key: 'single' as const, label: 'Общий' },
+                    { key: 'doctors' as const, label: 'Врачи', labelFull: 'По врачам' },
+                    { key: 'chairs' as const, label: 'Кресла', labelFull: 'По креслам' },
+                    { key: 'single' as const, label: 'Общий', labelFull: 'Общий' },
                   ]).map(m => (
                     <button key={m.key} onClick={() => setViewMode(m.key)}
-                      className={cn('px-3 py-1.5 text-xs font-semibold transition-colors',
+                      className={cn('px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap',
                         viewMode === m.key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
-                      {m.label}
+                      <span className="sm:hidden">{m.label}</span>
+                      <span className="hidden sm:inline">{m.labelFull}</span>
                     </button>
                   ))}
                 </div>
@@ -710,8 +861,8 @@ export default function Schedule() {
           </motion.div>
 
           {periodMode === 'week' ? (
-            <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-              <div className="grid grid-cols-7 gap-2 min-w-[700px]">
+            <motion.div variants={fadeUp} className="overflow-x-auto overscroll-x-contain rounded-xl">
+              <div className="grid grid-cols-7 gap-2 min-w-[640px] md:min-w-[700px]">
                 {weekDates.map((d, i) => {
                   const appts = weekApptsByDate[d] || []
                   const [, mo, dd] = d.split('-')
@@ -744,13 +895,13 @@ export default function Schedule() {
           ) : (
             <>
               {/* Stats */}
-              <motion.div variants={fadeUp} className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+              <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
                 {stats.map((s) => (
-                  <div key={s.label} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
+                  <div key={s.label} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-surface-raised border border-bdr-subtle min-w-0">
                     <Badge variant={s.variant as any} size="md">{s.value}</Badge>
-                    <div>
-                      <p className="text-lg font-bold text-txt-primary leading-none">{s.value}</p>
-                      <p className="text-2xs text-txt-muted mt-0.5">{s.label}</p>
+                    <div className="min-w-0">
+                      <p className="text-base sm:text-lg font-bold text-txt-primary leading-none">{s.value}</p>
+                      <p className="text-2xs text-txt-muted mt-0.5 truncate">{s.label}</p>
                     </div>
                   </div>
                 ))}
@@ -759,8 +910,16 @@ export default function Schedule() {
               {/* Doctor / chair columns */}
               {viewMode === 'chairs' ? (
                 chairs.length > 0 ? (
-                  <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-                    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(chairs.length, 4)}, minmax(260px, 1fr))` }}>
+                  <motion.div variants={fadeUp} className="overflow-x-auto overscroll-x-contain">
+                    <div
+                      className="grid gap-3"
+                      style={{
+                        gridTemplateColumns: chairs.length === 1
+                          ? 'minmax(0, 1fr)'
+                          : `repeat(${Math.min(chairs.length, 4)}, minmax(min(100%, 260px), 1fr))`,
+                        minWidth: chairs.length > 1 ? `${Math.min(chairs.length, 4) * 260}px` : undefined,
+                      }}
+                    >
                       {chairs.map((chair) => {
                         const chairAppts = dayAppts.filter((a) => a.chairId === chair.id)
                         return (
@@ -829,8 +988,20 @@ export default function Schedule() {
                   <EmptyState icon={<Stethoscope size={32} />} title="Нет кресел" description="Кресла появятся автоматически после первого открытия расписания" />
                 )
               ) : doctorColumns.length > 0 ? (
-                <motion.div variants={fadeUp} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-                  <div className="grid gap-3" style={{ gridTemplateColumns: viewMode === 'doctors' ? `repeat(${Math.min(doctorColumns.length, 4)}, minmax(260px, 1fr))` : '1fr' }}>
+                <motion.div variants={fadeUp} className="overflow-x-auto overscroll-x-contain">
+                  <div
+                    className="grid gap-3"
+                    style={{
+                      gridTemplateColumns: viewMode === 'doctors'
+                        ? (doctorColumns.length === 1
+                          ? 'minmax(0, 1fr)'
+                          : `repeat(${Math.min(doctorColumns.length, 4)}, minmax(min(100%, 260px), 1fr))`)
+                        : '1fr',
+                      minWidth: viewMode === 'doctors' && doctorColumns.length > 1
+                        ? `${Math.min(doctorColumns.length, 4) * 260}px`
+                        : undefined,
+                    }}
+                  >
                   {doctorColumns.map(doc => {
                     const docAppts = dayAppts.filter(a => a.doctorId === doc.id)
                     return (
@@ -875,7 +1046,16 @@ export default function Schedule() {
                   </div>
                 </motion.div>
               ) : (
-                <EmptyState icon={<Calendar size={32} />} title="Нет врачей" description="Добавьте сотрудников для отображения расписания" />
+                <EmptyState
+                  icon={<Calendar size={32} />}
+                  title="Нет врачей"
+                  description="Добавьте сотрудников с ролью «Врач», чтобы отобразить расписание"
+                  action={
+                    <Button size="sm" onClick={() => navigate('/crm/staff')} icon={<Plus size={14} />}>
+                      Перейти к сотрудникам
+                    </Button>
+                  }
+                />
               )}
             </>
           )}
@@ -1056,6 +1236,7 @@ export default function Schedule() {
           <div className="space-y-1">
             <label className="text-2xs font-semibold text-txt-muted uppercase">Зуб (номер по FDI)</label>
             <select
+              className="dv-select"
               value={form.toothNumber}
               onChange={e => setForm({ ...form, toothNumber: e.target.value })}
             >
@@ -1085,6 +1266,50 @@ export default function Schedule() {
 
           <Input label="Заметки" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Дополнительная информация" />
 
+          {editAppt && (
+            <div className={cn(
+              'rounded-xl border p-3 flex items-center justify-between gap-3',
+              editAppt.paymentStatus === 'paid'
+                ? 'border-emerald-400/30 bg-emerald-400/5'
+                : editAppt.paymentStatus === 'partial'
+                  ? 'border-amber-400/30 bg-amber-400/5'
+                  : 'border-warning/30 bg-warning/5',
+            )}>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-txt-primary">
+                  {editAppt.paymentStatus === 'paid'
+                    ? 'Оплачено'
+                    : editAppt.paymentStatus === 'partial'
+                      ? 'Частичная оплата'
+                      : 'Не оплачено'}
+                </p>
+                <p className="text-[11px] text-txt-muted truncate">
+                  {canTakePayment
+                    ? (suggestedPayAmount(editAppt) > 0
+                      ? `Сумма: ${Number(suggestedPayAmount(editAppt)).toLocaleString('ru-RU')} ₸`
+                      : 'Укажите услугу или введите сумму')
+                    : 'Статус оплаты · приём оплаты — у администратора'}
+                </p>
+              </div>
+              {editAppt.paymentStatus === 'paid' ? (
+                <Badge variant="success" size="sm">Оплачено</Badge>
+              ) : editAppt.paymentStatus === 'partial' ? (
+                <Badge variant="warning" size="sm">Частично</Badge>
+              ) : canTakePayment ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  icon={<Wallet size={14} />}
+                  onClick={() => openAcceptPayment(editAppt, { closeVisit: false })}
+                >
+                  Принять оплату
+                </Button>
+              ) : (
+                <Badge variant="warning" size="sm">Не оплачено</Badge>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2 flex-wrap">
             <Button type="submit" className="flex-1">{editAppt ? 'Сохранить' : 'Сохранить'}</Button>
             {editAppt && !['done', 'completed', 'cancelled'].includes(editAppt.status) && (
@@ -1102,7 +1327,7 @@ export default function Schedule() {
         {closeAppt && (
           <div className="space-y-4">
             <p className="text-sm text-txt-secondary">
-              Укажите выполненные услуги и заметки — как в KazDent. При включённом авто-списании материалы уйдут со склада.
+              Укажите выполненные услуги и заметки. При включённом авто-списании материалы уйдут со склада.
             </p>
             <Input
               label="Заметки врача"
@@ -1161,15 +1386,53 @@ export default function Schedule() {
                 Итого: {closeServices.reduce((s, x) => s + Number(x.price || 0), 0).toLocaleString('ru-RU')} ₸
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button className="flex-1" disabled={closeSaving} onClick={handleCloseVisit}>
-                {closeSaving ? 'Сохранение…' : 'Завершить приём'}
-              </Button>
-              <Button variant="ghost" onClick={() => setCloseOpen(false)}>Отмена</Button>
+            <div className="flex flex-col gap-2">
+              {canTakePayment && (
+                <Button
+                  className="w-full"
+                  disabled={closeSaving}
+                  icon={<Wallet size={16} />}
+                  onClick={() => {
+                    const total = closeServices.reduce((s, x) => s + Number(x.price || 0), 0)
+                    openAcceptPayment(
+                      { ...closeAppt, servicePrice: total || closeAppt.servicePrice },
+                      { closeVisit: true },
+                    )
+                    setCloseOpen(false)
+                  }}
+                >
+                  Принять оплату и завершить
+                </Button>
+              )}
+              <div className="flex gap-2">
+                <Button className="flex-1" variant={canTakePayment ? 'secondary' : undefined} disabled={closeSaving} onClick={handleCloseVisit}>
+                  {closeSaving ? 'Сохранение…' : canTakePayment ? 'Завершить без оплаты' : 'Завершить приём'}
+                </Button>
+                <Button variant="ghost" onClick={() => setCloseOpen(false)}>Отмена</Button>
+              </div>
             </div>
           </div>
         )}
       </Modal>
+
+      <AcceptPaymentModal
+        open={payOpen}
+        onClose={() => { setPayOpen(false); setPayAppt(null) }}
+        patientName={
+          patients.find((p) => p.id === payAppt?.patientId)?.name
+          || payAppt?.patientName
+          || 'Пациент'
+        }
+        serviceLabel={String(payAppt?.serviceName || payAppt?.service || payAppt?.reason || '')}
+        diagnosis={payAppt?.diagnosis || ''}
+        toothNumber={payAppt?.toothNumber || ''}
+        suggestedAmount={suggestedPayAmount(payAppt, payDefaultClose ? closeServices : undefined)}
+        defaultMethod={PAY_METHODS[1] || PAY_METHODS[0]}
+        allowCloseVisit={payDefaultClose || !!(payAppt && !['done', 'completed', 'cancelled'].includes(String(payAppt.status)))}
+        defaultCloseVisit={payDefaultClose}
+        saving={paySaving}
+        onConfirm={handleAcceptPayment}
+      />
 
       {/* Waiting List Modal */}
       <Modal open={waitModalOpen} onClose={() => setWaitModalOpen(false)} title={editWaitId ? 'Редактировать запись' : 'Добавить в лист ожидания'} className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2">

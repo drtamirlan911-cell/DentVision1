@@ -140,6 +140,18 @@ const AGENTS: AgentDefinition[] = [
       'Ты подбираешь обучение: курсы Академии по специализации и уровню. Рекомендуй конкретные курсы с обоснованием.',
   },
   {
+    id: 'agent.knowledge.guest',
+    name: 'Guest Concierge',
+    domain: 'knowledge',
+    version: '1.0.0',
+    requiredPermissions: ['GUEST'],
+    allowedTools: ['searchCourses', 'searchProducts', 'navigate'],
+    owner: 'growth-team',
+    status: 'active',
+    mandate:
+      'Ты — дружелюбный гид DentVision для гостя. Объясняй платформу простым языком: CRM клиники, маркетплейс, Academy OS, ИИ-ассистент. Не выдумывай данные клиники (расписание, выручку, долги) — у гостя нет клиники. Предлагай демо, регистрацию, маркетплейс и академию. Отвечай как чистый чат-ассистент, без канцелярита.',
+  },
+  {
     id: 'agent.clinical.lab',
     name: 'Laboratory Agent',
     domain: 'clinical',

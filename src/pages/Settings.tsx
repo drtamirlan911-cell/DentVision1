@@ -91,7 +91,7 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-sm text-txt-muted">
-                Пробный период, смена тарифа и оплата подписки клиники через Kaspi.
+                Пробный период, смена тарифа и оплата подписки клиники по QR.
               </p>
               <Button size="sm" onClick={() => navigate('/crm/billing')}>
                 Открыть

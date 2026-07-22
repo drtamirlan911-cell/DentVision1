@@ -34,7 +34,7 @@ export default function ICD10() {
   }, [codes, selectedCategory]);
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
       <PageHeader
         title="Справочник МКБ-10"
         subtitle="Международная классификация болезней (стоматология)"
@@ -52,9 +52,9 @@ export default function ICD10() {
           />
         </div>
         <select
+          className="dv-select w-full md:w-64"
           value={selectedCategory}
           onChange={e => setSelectedCategory(e.target.value)}
-          className="w-full md:w-64"
         >
           {categories.map(c => (
             <option key={c} value={c}>{c === 'all' ? 'Все категории' : c}</option>

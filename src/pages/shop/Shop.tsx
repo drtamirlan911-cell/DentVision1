@@ -15,6 +15,7 @@ import { Input } from '../../components/ui/ds/Input';
 import { Badge } from '../../components/ui/ds/Badge';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard';
+import { estimateCashbackBps, formatCashbackPercent } from '@/lib/dentcash';
 
 interface ShopProductItem {
   id: string;
@@ -30,6 +31,13 @@ interface ShopProductItem {
   category_name: string;
   description?: string;
   tags?: string;
+  supplier_id?: string;
+  supplier_name?: string;
+  supplier_status?: string;
+  own_brand?: boolean;
+  created_at?: string;
+  image_url?: string | null;
+  imageUrl?: string | null;
 }
 
 interface ShopCategory {
@@ -41,6 +49,9 @@ interface ShopCategory {
 interface ShopSupplier {
   id: string;
   name: string;
+  rating?: number;
+  status?: string;
+  product_count?: number;
 }
 
 interface AiResponse {
@@ -115,16 +126,40 @@ export default function Shop() {
     });
   };
 
-  const lowStockProducts = products.filter(p => p.stock <= p.min_stock);
+  const lowStockProducts = products.filter(p => p.stock <= (p.min_stock || 5));
+  const verifiedSuppliers = suppliers.filter((s) => s.status === 'VERIFIED' || s.status === 'OFFICIAL_PARTNER' || !s.status);
+  const hotProducts = [...products].filter((p) => p.stock > 0).sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 4);
+  const promoProducts = products.filter((p) => (p.description || '').includes('[АКЦИЯ]') || !!p.old_price).slice(0, 4);
 
   return (
     <div className="p-6 min-h-screen">
       <PageHeader
-        title="DentVision Shop"
-        subtitle="Стоматологический маркетплейс"
+        title="Маркетплейс"
+        subtitle="Закупка расходников с кэшбэком DentCash (1–7%)"
         icon={<ShoppingBag size={22} />}
         actions={
           <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/profile')}
+            >
+              Мой кэшбэк
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/shop/suppliers')}
+            >
+              Поставщики
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/supplier')}
+            >
+              Кабинет продавца
+            </Button>
             <Button
               variant={showAi ? 'outline' : 'ghost'}
               size="sm"
@@ -245,9 +280,9 @@ export default function Shop() {
           />
         </div>
         <select
+          className="dv-select !w-auto !rounded-xl min-w-[160px]"
           value={sortBy}
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSortBy(e.target.value)}
-          className="!w-auto !rounded-xl min-w-[160px]"
         >
           {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -301,6 +336,78 @@ export default function Shop() {
         ))}
       </div>
 
+      {!loading && verifiedSuppliers.length > 0 && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs uppercase tracking-wide text-[var(--slate)] font-semibold">Проверенные поставщики</p>
+            <button onClick={() => navigate('/shop/suppliers')} className="text-xs text-[var(--gold)] bg-transparent border-none cursor-pointer">
+              Все →
+            </button>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {verifiedSuppliers.slice(0, 8).map((s) => (
+              <button
+                key={s.id}
+                onClick={() => navigate('/shop/suppliers')}
+                className="shrink-0 rounded-xl border border-[var(--border-subtle)] bg-white/[0.03] px-3 py-2 text-left hover:border-[var(--gold)]/40 transition-colors"
+              >
+                <p className="text-xs font-semibold text-white m-0">{s.name}</p>
+                <p className="text-[10px] text-[var(--slate)] m-0 mt-0.5">
+                  ★ {s.rating ?? 4.8} · {s.product_count ?? 0} SKU
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && (hotProducts.length > 0 || promoProducts.length > 0) && !search && !selectedCat && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+          {hotProducts.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs uppercase tracking-wide text-[var(--slate)] font-semibold mb-3 flex items-center gap-1.5">
+                  <TrendingUp size={12} className="text-[var(--gold)]" /> Сейчас берут клиники
+                </p>
+                <div className="space-y-2">
+                  {hotProducts.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => navigate(`/shop/${p.id}`)}
+                      className="w-full flex justify-between gap-2 text-left bg-transparent border-none cursor-pointer"
+                    >
+                      <span className="text-sm text-white truncate">{p.name}</span>
+                      <span className="text-xs text-[var(--gold)] shrink-0">{tg(p.price)}</span>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {promoProducts.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs uppercase tracking-wide text-[var(--slate)] font-semibold mb-3 flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-[var(--gold)]" /> Акции поставщиков
+                </p>
+                <div className="space-y-2">
+                  {promoProducts.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => navigate(`/shop/${p.id}`)}
+                      className="w-full flex justify-between gap-2 text-left bg-transparent border-none cursor-pointer"
+                    >
+                      <span className="text-sm text-white truncate">{p.name}</span>
+                      <span className="text-xs text-success shrink-0">акция</span>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="h-9 w-9 rounded-full border-[3px] border-[var(--gold)]/30 border-t-[var(--gold)] animate-spin" />
@@ -319,15 +426,37 @@ export default function Shop() {
                 key={product.id}
                 variants={scaleIn}
                 whileHover={{ y: -4 }}
+                onClick={() => navigate(`/shop/${product.id}`)}
                 className="rounded-xl border border-[var(--border-subtle)] bg-[var(--card)] overflow-hidden cursor-pointer transition-all duration-250 hover:shadow-[0_8px_30px_rgba(201,169,110,0.08)]"
               >
-                <div className="relative h-40 bg-gradient-to-br from-[var(--sapphire)]/20 to-[var(--gold)]/10 flex items-center justify-center">
-                  <Package size={40} className="text-[var(--gold)]/40" />
+                <div className="relative h-40 bg-gradient-to-br from-[var(--sapphire)]/20 to-[var(--gold)]/10 flex items-center justify-center overflow-hidden">
+                  {(product.image_url || product.imageUrl) ? (
+                    <img
+                      src={product.image_url || product.imageUrl || ''}
+                      alt={product.name}
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Package size={40} className="text-[var(--gold)]/40" />
+                  )}
                   {product.old_price && (
                     <div className="absolute top-2.5 left-2.5 bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
                       -{Math.round((1 - product.price / product.old_price) * 100)}%
                     </div>
                   )}
+                  <div
+                    className={
+                      product.old_price
+                        ? 'absolute top-2.5 left-2.5 mt-6 bg-emerald-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md'
+                        : 'absolute top-2.5 left-2.5 bg-emerald-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md'
+                    }
+                  >
+                    Кэшбэк {formatCashbackPercent(estimateCashbackBps({
+                      category: product.category_name,
+                      name: product.name,
+                      promo: !!product.old_price || (product.description || '').includes('[АКЦИЯ]'),
+                    }))}
+                  </div>
                   <motion.button
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
@@ -336,20 +465,26 @@ export default function Shop() {
                   >
                     <Heart size={14} className={isFav ? 'text-error fill-error' : 'text-white'} />
                   </motion.button>
-                  {product.stock <= product.min_stock && (
+                  {product.stock <= (product.min_stock || 5) && (
                     <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-warning/20 border border-warning/40 text-warning text-[10px] font-semibold px-2 py-0.5 rounded-md">
                       <AlertTriangle size={10} /> Мало на складе
                     </div>
                   )}
                 </div>
 
-                <div className="p-3.5" onClick={() => navigate(`/shop/${product.id}`)}>
+                <div className="p-3.5">
                   <div className="text-[10px] text-[var(--gold)] font-semibold mb-1 uppercase tracking-wide">
-                    {product.brand} · {product.category_name}
+                    {product.brand || product.supplier_name || 'Поставщик'} · {product.category_name}
                   </div>
                   <h3 className="text-sm font-bold text-white leading-snug mb-1.5 m-0">
                     {product.name}
                   </h3>
+                  {product.supplier_name && (
+                    <p className="text-[11px] text-[var(--slate)] m-0 mb-1.5">
+                      {product.supplier_status === 'VERIFIED' || product.supplier_status === 'OFFICIAL_PARTNER' ? '✓ ' : ''}
+                      {product.supplier_name}
+                    </p>
+                  )}
                   <div className="flex items-center gap-1.5 mb-2">
                     <div className="flex items-center gap-0.5">
                       {[...Array(5)].map((_, i) => (
@@ -371,7 +506,19 @@ export default function Shop() {
                     <motion.button
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
-                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); addToCart(product); }}
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        addToCart({
+                          id: product.id,
+                          name: product.name,
+                          brand: product.brand,
+                          price: product.price,
+                          imageUrl: product.image_url || product.imageUrl || null,
+                          supplierId: product.supplier_id || null,
+                          category: product.category_name || null,
+                          ownBrand: !!product.own_brand,
+                        });
+                      }}
                       disabled={product.stock <= 0}
                       className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border-none transition-all ${
                         product.stock > 0

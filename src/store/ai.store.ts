@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import * as api from '@/utils/api'
+import { normalizeAlertTone } from '@/utils/alertTone'
 
 type AIStatus = 'idle' | 'thinking' | 'executing' | 'result' | 'error'
 
@@ -140,12 +141,23 @@ export const useAIStore = create<AIState>((set, get) => ({
   loadProactiveAlerts: async () => {
     try {
       const res = await api.aiProactive()
-      const alerts: Alert[] = (res.alerts || []).map((a: any) => ({
-        type: a.type || a.category || 'info',
-        priority: mapPriority(a.priority ?? 0),
-        message: a.text,
-        action: a.action ? { type: a.action.type, payload: a.action } : undefined,
-      }))
+      const raw = res?.alerts || res || []
+      const list = Array.isArray(raw) ? raw : []
+      const alerts: Alert[] = list.map((a: any) => {
+        const p = a.priority
+        const priority: Alert['priority'] =
+          p === 'high' || p === 'medium' || p === 'low'
+            ? p
+            : mapPriority(typeof p === 'number' ? p : Number(p) || 0)
+        return {
+          type: normalizeAlertTone(a.type || a.category || 'info'),
+          priority,
+          message: a.message || a.text || '',
+          action: a.action
+            ? { type: a.action.type || a.action, payload: a.action }
+            : undefined,
+        }
+      }).filter((a: Alert) => !!a.message)
       set({ proactiveAlerts: alerts })
     } catch {
       // silently fail

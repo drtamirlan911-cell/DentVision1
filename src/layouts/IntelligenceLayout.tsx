@@ -9,13 +9,14 @@ import { useGuestStore } from '@/store/guest.store';
 import { useAIWorkspaceStore } from '@/store/workspace.store';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
-import { aiProactive } from '@/utils/api';
+import { useAIStore } from '@/store/ai.store';
 import { trackProductEvent } from '@/utils/analytics';
 import { Sidebar } from './Sidebar';
 import { AlertDropdown } from './AlertDropdown';
 import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
 import GuestCRMModal from '@/components/guest/GuestCRMModal';
+import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   crm: 'CRM',
@@ -37,7 +38,8 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   visits: 'Визиты',
   supplier: 'Кабинет продавца',
   shop: 'Маркетплейс',
-  school: 'Академия',
+  school: 'Academy OS',
+  'school-workspace': 'Кабинет лектора',
   analytics: 'Аналитика',
   jobs: 'Вакансии',
   community: 'Сообщество',
@@ -81,7 +83,8 @@ export const IntelligenceLayout: React.FC = () => {
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
   const isAIHome = location.pathname === '/';
 
-  const [proactiveAlerts, setProactiveAlerts] = useState<Array<{ type: string; text: string; priority: number }>>([]);
+  const proactiveAlerts = useAIStore((s) => s.proactiveAlerts);
+  const loadProactiveAlerts = useAIStore((s) => s.loadProactiveAlerts);
   const [isMobile, setIsMobile] = useState(false);
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
   const [guestCRMOpen, setGuestCRMOpen] = useState(false);
@@ -118,19 +121,35 @@ export const IntelligenceLayout: React.FC = () => {
   }, [isMobile, setContextSheetOpen]);
 
   useEffect(() => {
-    const t = setTimeout(() => fetchProactiveAlerts(), 500);
+    const t = setTimeout(() => { void loadProactiveAlerts() }, 500);
     return () => clearTimeout(t);
-  }, []);
+  }, [loadProactiveAlerts]);
 
-  const fetchProactiveAlerts = useCallback(async () => {
-    try {
-      const data = await aiProactive();
-      if (data?.alerts?.length) setProactiveAlerts(data.alerts);
-    } catch { /* ignore */ }
-  }, []);
+  // Guests always get a labeled expanded sidebar (never icon-only rail).
+  useEffect(() => {
+    if (!isGuest) return;
+    setSidebarVisible(true);
+    setSidebarCollapsed(false);
+    setFirstRunPhase('done');
+    completeFirstRun();
+    setOnboardingComplete(true);
+    firstRunBooted.current = true;
+    // Show the right twin panel by default so guests see the platform guide.
+    if (!isMobile) setContextSheetOpen(true);
+  }, [
+    isGuest,
+    isMobile,
+    setSidebarVisible,
+    setSidebarCollapsed,
+    setFirstRunPhase,
+    completeFirstRun,
+    setOnboardingComplete,
+    setContextSheetOpen,
+  ]);
 
   // ── First-run: greeting → functional sidebar dock → 15s collapse ──
   useEffect(() => {
+    if (isGuest) return;
     if (firstRunBooted.current) return;
     if (firstRunPhase === 'done') {
       setSidebarVisible(true);
@@ -159,6 +178,7 @@ export const IntelligenceLayout: React.FC = () => {
 
     return () => clearTimeout(dockTimer);
   }, [
+    isGuest,
     firstRunPhase,
     isAIHome,
     setSidebarVisible,
@@ -171,6 +191,7 @@ export const IntelligenceLayout: React.FC = () => {
 
   // 15s auto-collapse after dock (pause while hovering / pinned)
   useEffect(() => {
+    if (isGuest) return;
     if (firstRunPhase !== 'docked' || sidebarPinned || isMobile) return;
 
     const clear = () => {
@@ -195,6 +216,7 @@ export const IntelligenceLayout: React.FC = () => {
 
     return clear;
   }, [
+    isGuest,
     firstRunPhase,
     sidebarPinned,
     sidebarHovering,
@@ -308,21 +330,24 @@ export const IntelligenceLayout: React.FC = () => {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-2 h-12 sm:h-14 px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 overflow-hidden">
             <button
               onClick={toggleSidebar}
-              className="md:hidden flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+              className="md:hidden flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
               aria-label="Меню"
             >
               <Menu size={18} />
             </button>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-sm text-txt-muted">
+            <div className="min-w-0 overflow-hidden flex-1">
+              <div className="flex items-center gap-1.5 text-sm text-txt-muted overflow-hidden">
                 {getBreadcrumbs().map((crumb, idx, crumbs) => (
-                  <span key={crumb.path} className="flex items-center gap-1.5">
+                  <span key={crumb.path} className="flex items-center gap-1.5 min-w-0 max-w-full">
                     {idx > 0 && <ChevronRight size={12} className="text-txt-ghost shrink-0" />}
-                    <span className={idx === crumbs.length - 1 ? 'text-txt-primary font-semibold' : 'truncate'}>
+                    <span className={cn(
+                      'truncate',
+                      idx === crumbs.length - 1 ? 'text-txt-primary font-semibold' : 'hidden md:inline',
+                    )}>
                       {crumb.label}
                     </span>
                   </span>
@@ -330,7 +355,7 @@ export const IntelligenceLayout: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 max-w-[55%] sm:max-w-none">
             {isGuest && (
               <motion.button
                 whileTap={{ scale: 0.98 }}
@@ -341,6 +366,7 @@ export const IntelligenceLayout: React.FC = () => {
                 <span className="text-[10px] font-semibold">Гость</span>
               </motion.button>
             )}
+            <DentCashHeaderChip />
             <button
               onClick={() => setCmdOpen(true)}
               className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-dv-gold/30 transition-colors text-xs"
@@ -356,33 +382,35 @@ export const IntelligenceLayout: React.FC = () => {
             <button
               onClick={() => setContextSheetOpen(!contextSheetOpen)}
               className={cn(
-                'hidden md:flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+                'hidden lg:flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
                 contextSheetOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-txt-muted hover:text-txt-primary hover:bg-white/5'
               )}
               aria-label="Контекстная панель"
             >
               <Building2 size={16} />
             </button>
-            <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20">
+            <div className="hidden lg:flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
               <span className="text-[10px] font-medium text-dv-gold">AI</span>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-surface-0 relative min-h-0 pb-16 md:pb-0">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="h-full"
-            >
-              <Outlet context={{ user, clinic, roleInfo }} />
-            </motion.div>
-          </AnimatePresence>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden bg-surface-0 relative min-h-0 pb-[calc(var(--dv-bottomnav-height)+env(safe-area-inset-bottom,0px)+0.5rem)] md:pb-0">
+          {/*
+            No AnimatePresence/exit around Outlet: mode="wait" + opacity exit
+            can leave the main pane at opacity:0 while the shell stays clickable
+            (sidebar works, CRM body looks "frozen"/blank). Enter-only fade is enough.
+          */}
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.12 }}
+            className="h-full min-w-0 w-full max-w-full overflow-x-hidden"
+          >
+            <Outlet context={{ user, clinic, roleInfo }} />
+          </motion.div>
         </div>
       </div>
 

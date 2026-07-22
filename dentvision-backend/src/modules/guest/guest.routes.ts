@@ -1,7 +1,5 @@
-﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
-// Guest Routes вЂ” anonymous sessions (Public-First / Guest Mode)
-// POST /api/guest/session в†’ creates a guest user + returns JWT
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+﻿// Guest Routes — anonymous sessions (Public-First / Guest Mode)
+// POST /api/guest/session → creates a guest user + returns JWT
 import { Router } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -11,6 +9,13 @@ import { generateTokens } from '../../lib/jwt.js';
 
 const GUEST_AI_LIMIT = 20;
 const GUEST_ROLE = 'STUDENT' as UserRole;
+const GUEST_FIRST_NAME = 'Гость';
+
+function looksMojibake(value?: string | null): boolean {
+  if (!value) return true;
+  // Classic UTF-8 "Гость" mis-decoded as Latin-1/Windows-1251
+  return /Р.|Рѕ|С.|Ð.|Ñ./.test(value) || !/[А-Яа-яЁё]/.test(value);
+}
 
 export const guestRouter = Router();
 
@@ -20,6 +25,12 @@ guestRouter.post('/session', async (req, res) => {
 
     const existing = await prisma.user.findUnique({ where: { id: guestId } });
     if (existing) {
+      if (looksMojibake(existing.firstName)) {
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { firstName: GUEST_FIRST_NAME, lastName: '' },
+        }).catch(() => null);
+      }
       const { accessToken } = generateTokens({
         sub: existing.id,
         email: existing.email,
@@ -37,7 +48,7 @@ guestRouter.post('/session', async (req, res) => {
         id: guestId,
         email,
         password: hashed,
-        firstName: 'Р“РѕСЃС‚СЊ',
+        firstName: GUEST_FIRST_NAME,
         lastName: '',
         role: GUEST_ROLE,
       },
@@ -54,6 +65,6 @@ guestRouter.post('/session', async (req, res) => {
     res.json({ guestId: user.id, token: accessToken, aiRequestsLeft: GUEST_AI_LIMIT });
   } catch (err: any) {
     console.error('[Guest Session] error:', err?.message);
-    res.status(500).json({ ok: false, error: 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РіРѕСЃС‚РµРІСѓСЋ СЃРµСЃСЃРёСЋ' });
+    res.status(500).json({ ok: false, error: 'Не удалось создать гостевую сессию' });
   }
 });

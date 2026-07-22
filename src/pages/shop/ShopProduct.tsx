@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Badge } from '../../components/ui/ds/Badge';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
+import { estimateCashbackTenge, formatCashbackPercent } from '@/lib/dentcash';
 
 interface ProductReview {
   user_name?: string;
@@ -34,10 +35,13 @@ interface ProductDetail {
   sku?: string;
   category_name: string;
   description?: string;
+  supplier_id?: string;
   supplier_name?: string;
   supplier_country?: string;
+  own_brand?: boolean;
   delivery_days?: number;
   delivery_cost?: number;
+  image_url?: string;
   reviews?: ProductReview[];
   related?: { id: string; name: string; brand: string; price: number }[];
 }
@@ -57,7 +61,16 @@ export default function ShopProduct() {
 
   const handleAddToCart = () => {
     if (!product) return;
-    addToCart({ id: product.id, name: product.name, brand: product.brand, price: product.price, imageUrl: product.image_url });
+    addToCart({
+      id: product.id,
+      name: product.name,
+      brand: product.brand,
+      price: product.price,
+      imageUrl: product.image_url,
+      supplierId: product.supplier_id || null,
+      category: product.category_name || null,
+      ownBrand: !!product.own_brand,
+    });
     toast.success('Добавлено в корзину');
   };
 
@@ -132,9 +145,13 @@ export default function ShopProduct() {
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center relative"
+          className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center relative overflow-hidden"
         >
-          <Package size={80} color="#C9A96E30" />
+          {product.image_url ? (
+            <img src={product.image_url} alt={product.name} className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <Package size={80} color="#C9A96E30" />
+          )}
           {product.old_price && (
             <Badge variant="error" size="sm" className="absolute top-4 left-4 font-bold">
               -{Math.round((1 - product.price / product.old_price) * 100)}%
@@ -163,6 +180,24 @@ export default function ShopProduct() {
               <span className="text-base text-[#7A8899] line-through">{tg(product.old_price)}</span>
             )}
           </div>
+
+          {(() => {
+            const cb = estimateCashbackTenge(product.price, {
+              category: product.category_name,
+              name: product.name,
+              promo: !!product.old_price,
+            })
+            return (
+              <div className="mb-4 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3.5 py-2.5">
+                <p className="text-sm font-semibold text-emerald-300">
+                  Кэшбэк DentCash ~{formatCashbackPercent(cb.bps)} · ≈ {Math.round(cb.tenge).toLocaleString('ru-RU')} ₸
+                </p>
+                <p className="text-[11px] text-[#7A8899] mt-0.5">
+                  Начислится после доставки. Списать можно в корзине или на курсы Academy.
+                </p>
+              </div>
+            )
+          })()}
 
           <div className="flex items-center gap-1.5 mb-4">
             <div className={`w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-[#27AE60]' : 'bg-[#E74C3C]'}`} />

@@ -1,8 +1,9 @@
 /**
  * CRM → Тариф и оплата
- * Self-serve clinic SaaS: trial status, plan picker, Kaspi QR + mock confirm.
+ * Self-serve clinic SaaS: trial, plan picker, QR payment.
+ * Paid plans activate only after provider webhook confirms payment.
  */
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import {
   CreditCard, Check, Zap, Crown, Star, AlertTriangle, RefreshCw, QrCode,
@@ -43,6 +44,8 @@ export default function ClinicBilling() {
   const [data, setData] = useState<any>(null)
   const [months, setMonths] = useState(1)
   const [pendingPay, setPendingPay] = useState<any>(null)
+  const [payStatus, setPayStatus] = useState<string>('pending')
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -56,9 +59,50 @@ export default function ClinicBilling() {
     }
   }, [toast])
 
+  const stopPoll = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }, [])
+
+  const checkPayment = useCallback(async (paymentId: string, silent = false) => {
+    try {
+      const status = await api.getClinicBillingPayment(paymentId)
+      const st = String(status?.status || status?.providerStatus || 'pending')
+      setPayStatus(st)
+      if (status?.activated || st === 'paid') {
+        stopPoll()
+        setPendingPay(null)
+        toast.success('Оплата подтверждена — подписка продлена')
+        await load()
+        return true
+      }
+      if (!silent) {
+        toast.error('Оплата ещё не поступила. Оплатите QR и подождите подтверждение.')
+      }
+      return false
+    } catch (e: any) {
+      if (!silent) toast.error(e?.message || 'Не удалось проверить оплату')
+      return false
+    }
+  }, [load, stopPoll, toast])
+
   useEffect(() => {
     if (canManage) void load()
   }, [canManage, load])
+
+  // Auto-poll while awaiting payment
+  useEffect(() => {
+    stopPoll()
+    const paymentId = pendingPay?.payment?.id
+    if (!paymentId) return
+    setPayStatus('pending')
+    pollRef.current = setInterval(() => {
+      void checkPayment(paymentId, true)
+    }, 5000)
+    return stopPoll
+  }, [pendingPay?.payment?.id, checkPayment, stopPoll])
 
   if (!canManage) {
     return <Navigate to="/crm/schedule" replace />
@@ -74,7 +118,8 @@ export default function ClinicBilling() {
         await load()
       } else if (res?.payment) {
         setPendingPay(res)
-        toast.success('Счёт создан — оплатите через Kaspi')
+        setPayStatus('pending')
+        toast.success('Счёт создан — оплатите по QR')
       }
     } catch (e: any) {
       toast.error(e?.message || 'Ошибка оплаты')
@@ -87,12 +132,16 @@ export default function ClinicBilling() {
     if (!pendingPay?.payment?.id) return
     setBusy('confirm')
     try {
+      // Sync endpoint refuses to activate unpaid invoices (402).
       await api.confirmClinicBilling(pendingPay.payment.id)
-      toast.success('Оплата подтверждена, подписка продлена')
+      stopPoll()
       setPendingPay(null)
+      toast.success('Оплата подтверждена, подписка продлена')
       await load()
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось подтвердить')
+      // Still poll provider status for clearer UX
+      await checkPayment(pendingPay.payment.id, true)
+      toast.error(e?.message || 'Оплата не подтверждена')
     } finally {
       setBusy(null)
     }
@@ -104,7 +153,7 @@ export default function ClinicBilling() {
   const status = String(sub?.status || 'active')
 
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
+    <div className="dv-page max-w-5xl mx-auto py-4 md:py-6 space-y-6">
       <PageHeader
         title="Тариф и оплата"
         subtitle="Пробный период, смена тарифа и оплата подписки клиники"
@@ -157,9 +206,12 @@ export default function ClinicBilling() {
           {pendingPay?.payment && (
             <Card>
               <CardContent className="p-5 space-y-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <QrCode size={16} className="text-dv-gold" />
-                  <p className="text-sm font-semibold text-txt-primary">Оплата Kaspi QR</p>
+                  <p className="text-sm font-semibold text-txt-primary">Оплата по QR</p>
+                  <Badge variant={payStatus === 'paid' ? 'success' : 'outline'}>
+                    {payStatus === 'paid' ? 'Оплачено' : 'Ожидает оплаты'}
+                  </Badge>
                 </div>
                 <p className="text-xs text-txt-muted">
                   Тариф <span className="text-txt-primary">{pendingPay.plan}</span>
@@ -175,7 +227,8 @@ export default function ClinicBilling() {
                   {pendingPay.payment.qr}
                 </a>
                 <p className="text-[11px] text-txt-muted">
-                  В проде сюда придёт реальный Kaspi QR. Сейчас — sandbox: нажмите «Я оплатил», чтобы активировать подписку.
+                  Подписка продлевается только после подтверждения оплаты.
+                  Кнопка ниже лишь проверяет статус — без реальной оплаты срок не изменится.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -183,9 +236,9 @@ export default function ClinicBilling() {
                     disabled={busy === 'confirm'}
                     onClick={confirmPay}
                   >
-                    Я оплатил — активировать
+                    Проверить оплату
                   </Button>
-                  <Button variant="secondary" onClick={() => setPendingPay(null)}>Отмена</Button>
+                  <Button variant="secondary" onClick={() => { stopPoll(); setPendingPay(null) }}>Отмена</Button>
                 </div>
               </CardContent>
             </Card>

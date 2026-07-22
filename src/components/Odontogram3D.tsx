@@ -1,12 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════
-// 3D ODONTOGRAM COMPONENT
-// Full tooth surface mapping (M, O, D, B, L) with color coding
+// ODONTOGRAM — textbook anatomical teeth (1/2/3 roots + implants)
 // ═══════════════════════════════════════════════════════════════════
 
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { T, TOOTH_STATUS, TOOTH_SURFACES, UPPER, LOWER } from '../utils/constants';
 import { Card } from './ui/ds/Card';
 import { Badge } from './ui/ds/Badge';
+import { AnatomicalToothSvg } from './odontogram/AnatomicalToothSvg';
+import { getToothMorphology } from './odontogram/toothMorphology';
+import { cn } from '@/lib/utils';
 
 type ToothStatusKey = keyof typeof TOOTH_STATUS;
 
@@ -34,108 +36,18 @@ interface Tooth3DProps {
 }
 
 /**
- * Single tooth component with surface-level detail
+ * Single tooth — anatomical SVG (crown + roots / implant).
+ * Kept name Tooth3D for backward-compatible imports.
  */
-export function Tooth3D({ toothNumber, status, surfaces, onClick, selected }: Tooth3DProps) {
-  const [hovered, setHovered] = useState(false);
-  
-  const baseColor = status ? TOOTH_STATUS[status]?.c : "rgba(255,255,255,0.07)";
-  const isSelected = selected === toothNumber;
-  
-  const surfaceColors: ToothSurfaces = {
-    M: surfaces?.M || baseColor,
-    O: surfaces?.O || baseColor,
-    D: surfaces?.D || baseColor,
-    B: surfaces?.B || baseColor,
-    L: surfaces?.L || baseColor,
-  };
-
+export function Tooth3D({ toothNumber, status, onClick, selected }: Tooth3DProps) {
   return (
-    <div
+    <AnatomicalToothSvg
+      toothNumber={toothNumber}
+      status={status}
+      selected={selected === toothNumber}
       onClick={() => onClick(toothNumber)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        width: 48,
-        height: 56,
-        borderRadius: 8,
-        background: baseColor,
-        border: isSelected ? `2px solid ${T.gold}` : `1px solid rgba(255,255,255,0.08)`,
-        cursor: 'pointer',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-        transform: isSelected || hovered ? 'scale(1.08)' : 'scale(1)',
-        transition: 'all 0.15s ease',
-        boxShadow: isSelected ? `0 4px 12px ${baseColor}60` : 'none',
-      }}
-    >
-      {/* Tooth number */}
-      <span style={{
-        fontSize: 10,
-        color: 'rgba(255,255,255,0.7)',
-        fontWeight: 700,
-        marginBottom: 2
-      }}>
-        {toothNumber}
-      </span>
-      
-      {/* Surface indicators - mini grid showing each surface */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: 1,
-        width: '80%',
-        height: '60%'
-      }}>
-        {/* Top row: M O D */}
-        <div style={{
-          background: surfaceColors.M,
-          borderRadius: 2,
-          border: '1px solid rgba(255,255,255,0.1)'
-        }} title="Mesial" />
-        <div style={{
-          background: surfaceColors.O,
-          borderRadius: 2,
-          border: '1px solid rgba(255,255,255,0.1)'
-        }} title="Occlusal" />
-        <div style={{
-          background: surfaceColors.D,
-          borderRadius: 2,
-          border: '1px solid rgba(255,255,255,0.1)'
-        }} title="Distal" />
-        {/* Bottom row: B L (merged) */}
-        <div style={{
-          gridColumn: 'span 3',
-          background: surfaceColors.B,
-          borderRadius: 2,
-          border: '1px solid rgba(255,255,255,0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 6,
-          color: 'rgba(255,255,255,0.5)'
-        }}>
-          B/L
-        </div>
-      </div>
-      
-      {/* Status indicator dot */}
-      {status && (
-        <div style={{
-          position: 'absolute',
-          top: 2,
-          right: 2,
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: TOOTH_STATUS[status]?.c || T.ruby,
-          border: '1px solid rgba(255,255,255,0.3)'
-        }} />
-      )}
-    </div>
+      size={36}
+    />
   );
 }
 
@@ -146,78 +58,96 @@ interface Odontogram3DProps {
 }
 
 /**
- * Full odontogram with upper and lower arches
+ * Full odontogram with upper and lower arches (FDI).
+ * Contained horizontal scroll on mobile — page does not slide sideways.
  */
 export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }: Odontogram3DProps) {
-  const renderRow = (teeth: readonly number[], isUpper: boolean) => (
-    <div style={{
-      display: 'flex',
-      gap: 4,
-      justifyContent: 'center',
-      marginBottom: isUpper ? 8 : 0,
-      flexWrap: 'wrap',
-      padding: '8px 0'
-    }}>
-      {teeth.map(toothNum => {
-        const toothData = patientTeeth[toothNum];
-        const status = typeof toothData === 'string' ? (toothData as ToothStatusKey) : toothData?.status;
-        const surfaces = typeof toothData === 'object' ? toothData?.surfaces : null;
-        
-        return (
-          <Tooth3D
-            key={toothNum}
-            toothNumber={toothNum}
-            status={status}
-            surfaces={surfaces}
-            onClick={onToothClick}
-            selected={selectedTooth}
-          />
-        );
-      })}
-    </div>
-  );
+  const renderArch = (teeth: readonly number[], label: string, upper: boolean) => {
+    const right = teeth.slice(0, 8); // Q1 or Q4
+    const left = teeth.slice(8);     // Q2 or Q3
+    return (
+      <div className="space-y-2">
+        <div className="text-center text-[10px] uppercase tracking-[0.12em] text-txt-muted font-semibold">
+          {label}
+        </div>
+        <div className="overflow-x-auto overscroll-x-contain -mx-1 px-1">
+          <div
+            className={cn(
+              'inline-flex min-w-full justify-center items-end gap-0.5 sm:gap-1 py-1',
+              !upper && 'items-start',
+            )}
+          >
+            {right.map((n) => {
+              const toothData = patientTeeth[n];
+              const status = typeof toothData === 'string' ? (toothData as ToothStatusKey) : toothData?.status;
+              return (
+                <Tooth3D
+                  key={n}
+                  toothNumber={n}
+                  status={status}
+                  onClick={onToothClick}
+                  selected={selectedTooth}
+                />
+              );
+            })}
+            <div
+              className="w-px self-stretch mx-1 sm:mx-1.5 bg-gradient-to-b from-transparent via-dv-gold/50 to-transparent shrink-0"
+              aria-hidden
+            />
+            {left.map((n) => {
+              const toothData = patientTeeth[n];
+              const status = typeof toothData === 'string' ? (toothData as ToothStatusKey) : toothData?.status;
+              return (
+                <Tooth3D
+                  key={n}
+                  toothNumber={n}
+                  status={status}
+                  onClick={onToothClick}
+                  selected={selectedTooth}
+                />
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex justify-between text-[9px] text-txt-muted/50 px-2">
+          <span>{upper ? 'Q1 (UR)' : 'Q4 (LR)'}</span>
+          <span className="text-dv-gold/70">средняя линия</span>
+          <span>{upper ? 'Q2 (UL)' : 'Q3 (LL)'}</span>
+        </div>
+      </div>
+    );
+  };
+
+  const selectedMorph = selectedTooth ? getToothMorphology(selectedTooth) : null;
 
   return (
-    <Card className="p-5">
-      {/* Upper arch */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ 
-          textAlign: 'center', 
-          fontSize: 11, 
-          color: T.slate, 
-          marginBottom: 8,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em'
-        }}>
-          Верхняя челюсть
-        </div>
-        {renderRow(UPPER, true)}
+    <Card className="p-3 sm:p-5 overflow-hidden max-w-full">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] text-txt-muted">
+        <span className="rounded-md border border-bdr-subtle px-2 py-0.5">1 корень — резцы, клыки</span>
+        <span className="rounded-md border border-bdr-subtle px-2 py-0.5">2 корня — нижние моляры / 1 премоляр в/ч</span>
+        <span className="rounded-md border border-bdr-subtle px-2 py-0.5">3 корня — верхние моляры</span>
+        <span className="rounded-md border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 px-2 py-0.5">имплант</span>
       </div>
-      
-      {/* Divider */}
-      <div style={{
-        height: 1,
-        background: `linear-gradient(90deg, transparent, ${T.borderSub}, transparent)`,
-        margin: '12px 0'
-      }} />
-      
-      {/* Lower arch */}
-      <div>
-        <div style={{ 
-          textAlign: 'center', 
-          fontSize: 11, 
-          color: T.slate, 
-          marginBottom: 8,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em'
-        }}>
-          Нижняя челюсть
-        </div>
-        {renderRow(LOWER, false)}
-      </div>
+
+      {renderArch(UPPER, 'Верхняя челюсть', true)}
+
+      <div className="h-px my-3 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+      {renderArch(LOWER, 'Нижняя челюсть', false)}
+
+      {selectedMorph && selectedTooth && (
+        <p className="mt-3 text-center text-[11px] text-txt-secondary">
+          Зуб <span className="text-dv-gold font-semibold">{selectedTooth}</span>
+          {' · '}
+          {selectedMorph.label}
+          {' · '}
+          {selectedMorph.roots === 1 ? 'однокорневой' : selectedMorph.roots === 2 ? 'двукорневой' : 'трёхкорневой'}
+        </p>
+      )}
     </Card>
   );
 }
+
 
 interface SurfaceEditorProps {
   toothNumber: number;
@@ -266,34 +196,20 @@ export function SurfaceEditor({ toothNumber, surfaces, onSave, onCancel }: Surfa
       </div>
       
       {/* Surface grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(5, 1fr)',
-        gap: 8,
-        marginBottom: 16
-      }}>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
         {TOOTH_SURFACES.map(surface => (
           <button
             key={surface}
             onClick={() => handleSurfaceClick(surface)}
-            style={{
-              padding: '12px 8px',
-              background: selectedSurface === surface 
-                ? `${T.gold}20` 
-                : 'rgba(255,255,255,0.05)',
-              border: `1px solid ${selectedSurface === surface ? T.gold : T.borderSub}`,
-              borderRadius: 8,
-              color: selectedSurface === surface ? T.gold : T.slate,
-              cursor: 'pointer',
-              transition: 'all 0.12s',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 4
-            }}
+            className={cn(
+              'px-2 py-3 rounded-lg cursor-pointer transition-all flex flex-col items-center gap-1 border',
+              selectedSurface === surface
+                ? 'bg-dv-gold/20 border-dv-gold text-dv-gold'
+                : 'bg-white/[0.05] border-bdr-subtle text-txt-muted',
+            )}
           >
-            <span style={{ fontSize: 14, fontWeight: 700 }}>{surface}</span>
-            <span style={{ fontSize: 9, opacity: 0.7 }}>
+            <span className="text-sm font-bold">{surface}</span>
+            <span className="text-[9px] opacity-70">
               {surface === 'M' && 'Медиальная'}
               {surface === 'O' && 'Окклюзия'}
               {surface === 'D' && 'Дистальная'}
@@ -301,13 +217,10 @@ export function SurfaceEditor({ toothNumber, surfaces, onSave, onCancel }: Surfa
               {surface === 'L' && 'Лингвальная'}
             </span>
             {editedSurfaces[surface] && (
-              <div style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: editedSurfaces[surface],
-                border: '1px solid rgba(255,255,255,0.3)'
-              }} />
+              <div
+                className="w-2 h-2 rounded-full border border-white/30"
+                style={{ background: editedSurfaces[surface] }}
+              />
             )}
           </button>
         ))}
@@ -542,26 +455,13 @@ export function AutoTreatmentPlan({ teeth, onAddToPlan }: AutoTreatmentPlanProps
  */
 export function ToothLegend() {
   return (
-    <div style={{
-      display: 'flex',
-      gap: 12,
-      flexWrap: 'wrap',
-      padding: '10px 0'
-    }}>
+    <div className="flex gap-2 sm:gap-3 flex-wrap py-2">
       {(Object.entries(TOOTH_STATUS) as [ToothStatusKey, { l: string; c: string }][]).map(([key, value]) => (
-        <div key={key} style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: 11,
-          color: T.slate
-        }}>
-          <div style={{
-            width: 12,
-            height: 12,
-            borderRadius: 3,
-            background: value.c
-          }} />
+        <div key={key} className="flex items-center gap-1.5 text-[11px] text-txt-muted">
+          <div
+            className="w-3 h-3 rounded-sm shrink-0"
+            style={{ background: value.c }}
+          />
           {value.l}
         </div>
       ))}
