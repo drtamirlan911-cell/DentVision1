@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX } from 'lucide-react'
 import { isVoiceRepliesEnabled, setVoiceRepliesEnabled, speak, stopSpeaking, voiceOutputSupported } from '@/utils/voice'
 import { useAuth } from '@/store/auth.store'
-import { useGuestStore } from '@/store/guest.store'
 import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, aiBriefing, getActiveAiThread, getAiSessionId } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
@@ -27,8 +26,10 @@ interface AIWorkspaceIndexProps {
 export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, clinic } = useAuth()
-  const isGuest = useGuestStore((s) => s.isGuest) && !user
+  const { user, clinic, isAuthenticated } = useAuth()
+  // Anonymous / guest: no signed-in user. Don't wait for guest-store hydrate
+  // (that race previously showed a clinic "коллега" greeting to guests).
+  const isGuest = !user || !isAuthenticated
   const initializedForUser = useRef<string | null>(null)
   const historyRef = useRef<Array<{ role: string; content: string }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -105,7 +106,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
   // Bind chat to the signed-in user — reset + reload when identity changes.
   useEffect(() => {
-    const userKey = user?.id || 'guest'
+    const userKey = user?.id ? `user:${user.id}` : 'guest'
     if (initializedForUser.current === userKey) return
     initializedForUser.current = userKey
     firstMessageTracked.current = false
@@ -116,7 +117,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
     ;(async () => {
       try {
-        if (user?.id) {
+        if (user?.id && !isGuest) {
           const active = await getActiveAiThread()
           if (active?.sessionId || active?.threadId) {
             try {
@@ -150,7 +151,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         // Guests must never reopen stale CRM briefings/chips from a previous session.
         const looksLikeClinicCrm = isGuest && restored.some((m) =>
           m.role === 'assistant' &&
-          (/расписан|выручк|долг|запис(и|ей)|briefing|важн(о|ые) сегодня|CRM/i.test(m.content) ||
+          (/расписан|выручк|долг|запис(и|ей)|briefing|важн(о|ые) сегодня|CRM|Системы на связи|На радаре|планы лечения|коллега/i.test(m.content) ||
             /Показать расписание|Проверить долги|Показать выручку/.test(m.content)),
         )
         if (looksLikeClinicCrm) {
@@ -196,7 +197,8 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const initializeWorkspace = async () => {
     const started = Date.now()
     try {
-      if (isGuest) {
+      // Guests / anonymous: product guide only — never clinic Jarvis briefing.
+      if (isGuest || !user?.id) {
         const reply = buildGuestGreeting()
         setMessages([{
           id: 'greeting',
@@ -824,20 +826,21 @@ function restoreThread(userId: string | undefined): Message[] | null {
 function buildGuestGreeting() {
   const greeting = timeGreetingInTz(new Date(), detectUserTimeZone())
   return [
-    `${greeting}. Я DentVision Intelligence — на связи.`,
+    `${greeting}. Я DentVision Intelligence — гид по платформе.`,
     '',
-    'После входа держу пульс клиники: расписание, касса, склад.',
-    'Пока могу провести по платформе или открыть демо.',
+    'Сейчас вы в гостевом режиме: могу провести по CRM, маркету и Academy.',
+    'Данные клиники (расписание, касса, карты) появятся после входа.',
     '',
     '• **CRM** — расписание, пациенты, касса',
     '• **Маркет** — закупки у поставщиков',
     '• **Academy** — курсы и вебинары',
     '',
-    'Готов начинать, когда скажете.',
+    'С чего начнём — или откройте демо-клинику.',
   ].join('\n')
 }
 
 function buildGreeting(u: any, c: any, alerts: any[]) {
+  if (!u?.id) return buildGuestGreeting()
   const greeting = timeGreetingInTz(new Date(), detectUserTimeZone())
   const name = u?.name?.split(' ')[0] || u?.firstName || u?.login || 'коллега'
   const role = (u?.role || '').toLowerCase()
