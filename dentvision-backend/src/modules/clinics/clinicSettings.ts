@@ -2,6 +2,15 @@
  * Clinic settings helpers — OWNER / ADMIN (Руководитель / Администратор) only.
  */
 
+import {
+  DEFAULT_CLINIC_PAYMENTS,
+  mergeClinicPayments,
+  publicClinicPayments,
+  readClinicPayments,
+  type ClinicPaymentsConfig,
+  type ClinicPaymentsPublic,
+} from '../payments/clinicPayments.js';
+
 export const CLINIC_SETTINGS_ROLES = ['OWNER', 'ADMIN'] as const;
 
 export function canManageClinicSettings(role: string | undefined | null): boolean {
@@ -37,6 +46,11 @@ export interface ClinicSettingsPayload {
   bookingLink?: string;
   /** Allow patients to book online via /book/:clinicId */
   onlineBookingEnabled?: boolean;
+  /**
+   * Per-clinic Kaspi / bank for CRM cashier.
+   * Money goes to the clinic merchant — not DentVision platform.
+   */
+  payments?: ClinicPaymentsConfig | ClinicPaymentsPublic;
 }
 
 export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
@@ -63,10 +77,42 @@ export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
   autoDeductItems: '',
   bookingLink: '',
   onlineBookingEnabled: true,
+  payments: { ...DEFAULT_CLINIC_PAYMENTS },
 };
 
-export function mergeClinicSettings(raw: unknown): ClinicSettingsPayload {
+export function mergeClinicSettings(
+  raw: unknown,
+  incoming?: ClinicSettingsPayload,
+): ClinicSettingsPayload {
   const base = { ...DEFAULT_CLINIC_SETTINGS };
-  if (!raw || typeof raw !== 'object') return base;
-  return { ...base, ...(raw as ClinicSettingsPayload) };
+  const rawObj = raw && typeof raw === 'object' ? (raw as ClinicSettingsPayload) : {};
+  const merged: ClinicSettingsPayload = { ...base, ...rawObj };
+  if (incoming) {
+    const { payments: incomingPayments, ...rest } = incoming;
+    Object.assign(merged, rest);
+    if (incomingPayments !== undefined) {
+      merged.payments = mergeClinicPayments(
+        { payments: readClinicPayments(raw) },
+        incomingPayments as ClinicPaymentsConfig,
+      );
+    } else {
+      merged.payments = readClinicPayments(raw);
+    }
+  } else {
+    merged.payments = readClinicPayments(raw);
+  }
+  return merged;
+}
+
+/** Strip secrets before sending settings to the browser. */
+export function publicClinicSettings(
+  raw: unknown,
+  clinicId?: string,
+): ClinicSettingsPayload {
+  const merged = mergeClinicSettings(raw);
+  const cfg = readClinicPayments(raw);
+  return {
+    ...merged,
+    payments: publicClinicPayments(cfg, clinicId),
+  };
 }

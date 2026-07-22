@@ -6,7 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import {
-  CreditCard, Check, Zap, Crown, Star, AlertTriangle, RefreshCw, QrCode,
+  CreditCard, Check, Zap, Crown, Star, AlertTriangle, RefreshCw,
 } from 'lucide-react'
 import { useAuth, canManageClinicSettings } from '@/store/auth.store'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -14,6 +14,8 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Card, CardContent } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Badge } from '@/components/ui/ds/Badge'
+import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel'
+import { extractPaymentQrUrl } from '@/utils/paymentQr'
 import * as api from '@/utils/api'
 
 const PLAN_ICON: Record<string, React.ReactNode> = {
@@ -117,9 +119,13 @@ export default function ClinicBilling() {
         setPendingPay(null)
         await load()
       } else if (res?.payment) {
-        setPendingPay(res)
+        const qr = extractPaymentQrUrl(res.payment)
+        setPendingPay({
+          ...res,
+          payment: { ...res.payment, qr: qr || res.payment.qr },
+        })
         setPayStatus('pending')
-        toast.success('Счёт создан — оплатите по QR')
+        toast.success(qr ? 'Счёт создан — отсканируйте QR ниже' : 'Счёт создан — завершите оплату ниже')
       }
     } catch (e: any) {
       toast.error(e?.message || 'Ошибка оплаты')
@@ -168,6 +174,8 @@ export default function ClinicBilling() {
         <p className="text-sm text-txt-muted py-16 text-center">Загрузка…</p>
       ) : (
         <>
+          <PlanAccessBanner snap={data} />
+
           <Card>
             <CardContent className="p-5 space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -190,12 +198,42 @@ export default function ClinicBilling() {
                 </div>
               </div>
 
+              {data?.usage && (
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-bdr-subtle bg-white/[0.02] px-2 py-2">
+                    <p className="text-[10px] text-txt-muted m-0">Пациенты</p>
+                    <p className="text-sm font-semibold text-txt-primary m-0">
+                      {data.usage.patients}
+                      {data.entitlements?.maxPatients != null ? ` / ${data.entitlements.maxPatients}` : ' · ∞'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-bdr-subtle bg-white/[0.02] px-2 py-2">
+                    <p className="text-[10px] text-txt-muted m-0">Сотрудники</p>
+                    <p className="text-sm font-semibold text-txt-primary m-0">
+                      {data.usage.users}
+                      {data.entitlements?.maxUsers != null ? ` / ${data.entitlements.maxUsers}` : ' · ∞'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-bdr-subtle bg-white/[0.02] px-2 py-2">
+                    <p className="text-[10px] text-txt-muted m-0">AI / мес</p>
+                    <p className="text-sm font-semibold text-txt-primary m-0">
+                      {data.usage.aiRequestsThisMonth || 0}
+                      {data.entitlements?.aiRequestsPerMonth === 0
+                        ? ' · нет'
+                        : data.entitlements?.aiRequestsPerMonth != null
+                          ? ` / ${data.entitlements.aiRequestsPerMonth}`
+                          : ' · ∞'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {(data?.expired || data?.expiringSoon) && (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                   <p>
                     {data.expired
-                      ? 'Подписка истекла. Выберите тариф ниже и оплатите, чтобы снова открыть доступ.'
+                      ? 'Подписка истекла — создание записей и пациентов заблокировано API. Оплатите тариф ниже.'
                       : `До окончания осталось ${data.daysLeft} дн. Продлите заранее — уведомления приходят за 14, 7 и 1 день.`}
                   </p>
                 </div>
@@ -204,44 +242,15 @@ export default function ClinicBilling() {
           </Card>
 
           {pendingPay?.payment && (
-            <Card>
-              <CardContent className="p-5 space-y-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <QrCode size={16} className="text-dv-gold" />
-                  <p className="text-sm font-semibold text-txt-primary">Оплата по QR</p>
-                  <Badge variant={payStatus === 'paid' ? 'success' : 'outline'}>
-                    {payStatus === 'paid' ? 'Оплачено' : 'Ожидает оплаты'}
-                  </Badge>
-                </div>
-                <p className="text-xs text-txt-muted">
-                  Тариф <span className="text-txt-primary">{pendingPay.plan}</span>
-                  {' · '}{pendingPay.months} мес.
-                  {' · '}{fmtMoney(pendingPay.amountTenge)}
-                </p>
-                <a
-                  href={pendingPay.payment.qr}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm text-dv-gold underline break-all"
-                >
-                  {pendingPay.payment.qr}
-                </a>
-                <p className="text-[11px] text-txt-muted">
-                  Подписка продлевается только после подтверждения оплаты.
-                  Кнопка ниже лишь проверяет статус — без реальной оплаты срок не изменится.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    icon={<CreditCard size={14} />}
-                    disabled={busy === 'confirm'}
-                    onClick={confirmPay}
-                  >
-                    Проверить оплату
-                  </Button>
-                  <Button variant="secondary" onClick={() => { stopPoll(); setPendingPay(null) }}>Отмена</Button>
-                </div>
-              </CardContent>
-            </Card>
+            <PaymentQrPanel
+              payment={pendingPay.payment}
+              title={`Тариф ${pendingPay.plan} · ${pendingPay.months} мес.`}
+              amount={pendingPay.amountTenge}
+              busy={busy === 'confirm'}
+              onConfirm={confirmPay}
+              onCancel={() => { stopPoll(); setPendingPay(null) }}
+              hint="Подписка продлевается только после подтверждения оплаты. Кнопка ниже проверяет статус у платёжного провайдера."
+            />
           )}
 
           <div className="flex items-center gap-3">

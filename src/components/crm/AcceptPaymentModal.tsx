@@ -7,8 +7,12 @@ import { Modal } from '@/components/ui/ds/Modal'
 import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
 import { Badge } from '@/components/ui/ds/Badge'
+import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel'
 import { cn } from '@/lib/utils'
 import { PAY_METHODS } from '@/utils/constants'
+import { isOnlineQrMethod } from '@/utils/payMethod'
+import { extractPaymentQrUrl } from '@/utils/paymentQr'
+import * as api from '@/utils/api'
 
 function money(n: number): string {
   return `${Number(n || 0).toLocaleString('ru-RU')} ₸`
@@ -23,6 +27,7 @@ export type AcceptPaymentPayload = {
   paymentType: PayKind
   closeVisit: boolean
   notes?: string
+  paymentId?: string
 }
 
 type AcceptPaymentModalProps = {
@@ -38,6 +43,10 @@ type AcceptPaymentModalProps = {
   allowCloseVisit?: boolean
   defaultCloseVisit?: boolean
   saving?: boolean
+  /** Clinic / appointment refs for Kaspi payment meta */
+  clinicId?: string | null
+  appointmentId?: string | null
+  patientId?: string | null
   onConfirm: (payload: AcceptPaymentPayload) => void | Promise<void>
 }
 
@@ -51,12 +60,9 @@ const METHOD_META: Array<{
 }> = [
   {
     id: 'qr',
-    match: (m) => {
-      const v = m.toLowerCase()
-      return (v.includes('qr') || v.includes('kaspi')) && !v.includes('рассроч')
-    },
+    match: (m) => isOnlineQrMethod(m),
     label: 'QR-оплата',
-    hint: 'QR / перевод',
+    hint: 'Показать QR пациенту',
     icon: <QrCode size={18} />,
     accent: 'border-rose-400/50 bg-rose-400/10 text-rose-200',
   },
@@ -126,6 +132,9 @@ export function AcceptPaymentModal({
   allowCloseVisit = false,
   defaultCloseVisit = false,
   saving = false,
+  clinicId,
+  appointmentId,
+  patientId,
   onConfirm,
 }: AcceptPaymentModalProps) {
   const methods = useMemo(() => resolveMethodOptions(), [])
@@ -134,6 +143,10 @@ export function AcceptPaymentModal({
   const [payKind, setPayKind] = useState<PayKind>('full')
   const [closeVisit, setCloseVisit] = useState(defaultCloseVisit)
   const [notes, setNotes] = useState('')
+  const [pendingPay, setPendingPay] = useState<any>(null)
+  const [creatingQr, setCreatingQr] = useState(false)
+  const [confirmingQr, setConfirmingQr] = useState(false)
+  const [qrError, setQrError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -142,12 +155,17 @@ export function AcceptPaymentModal({
     setPayKind('full')
     setCloseVisit(defaultCloseVisit)
     setNotes('')
+    setPendingPay(null)
+    setCreatingQr(false)
+    setConfirmingQr(false)
+    setQrError(null)
   }, [open, suggestedAmount, defaultMethod, defaultCloseVisit, methods])
 
   const amountNum = Number(amount) || 0
   const canSubmit = amountNum > 0 && !!method && (payKind === 'credit' || amountNum > 0)
+  const needsOnlineQr = isOnlineQrMethod(method) && payKind !== 'credit'
 
-  const submit = async () => {
+  const finishOffline = async () => {
     if (!canSubmit || saving) return
     await onConfirm({
       amount: amountNum,
@@ -158,11 +176,73 @@ export function AcceptPaymentModal({
     })
   }
 
+  const startQrPayment = async () => {
+    if (!canSubmit || creatingQr || saving) return
+    setCreatingQr(true)
+    setQrError(null)
+    try {
+      const payment = await api.createPayment({
+        amount: amountNum,
+        domain: 'crm',
+        refType: appointmentId ? 'appointment' : 'crm_invoice',
+        refId: appointmentId || patientId || null,
+        meta: {
+          clinicId: clinicId || null,
+          patientId: patientId || null,
+          patientName,
+          service: serviceLabel || null,
+          appointmentId: appointmentId || null,
+          title: serviceLabel || `Оплата · ${patientName}`,
+        },
+      })
+      const qr = extractPaymentQrUrl(payment)
+      setPendingPay({ ...payment, qr: qr || payment?.qr, title: serviceLabel || `Оплата · ${patientName}` })
+    } catch (e: any) {
+      setQrError(e?.message || 'Не удалось создать QR-счёт')
+    } finally {
+      setCreatingQr(false)
+    }
+  }
+
+  const confirmQrPayment = async () => {
+    if (!pendingPay?.id) return
+    setConfirmingQr(true)
+    setQrError(null)
+    try {
+      const res = await api.confirmPayment(pendingPay.id)
+      if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
+        await onConfirm({
+          amount: amountNum,
+          method,
+          paymentType: payKind,
+          closeVisit: allowCloseVisit && closeVisit,
+          notes: notes.trim() || undefined,
+          paymentId: pendingPay.id,
+        })
+        setPendingPay(null)
+      } else {
+        setQrError('Оплата ещё не подтверждена. Попросите пациента оплатить QR.')
+      }
+    } catch (e: any) {
+      setQrError(e?.message || 'Оплата не подтверждена')
+    } finally {
+      setConfirmingQr(false)
+    }
+  }
+
+  const submit = async () => {
+    if (needsOnlineQr) {
+      await startQrPayment()
+      return
+    }
+    await finishOffline()
+  }
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Приём оплаты"
+      title={pendingPay ? 'Оплата по QR' : 'Приём оплаты'}
       size="lg"
       className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2"
     >
@@ -186,115 +266,142 @@ export function AcceptPaymentModal({
           )}
         </div>
 
-        <div className="rounded-2xl border border-bdr-subtle bg-surface-raised p-4 text-center">
-          <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold mb-2">Сумма к оплате</p>
-          <Input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="!text-center !text-3xl !font-bold !h-14 !text-emerald-300 !bg-transparent !border-dv-gold/30"
-            placeholder="0"
-          />
-          <p className="text-xs text-txt-muted mt-2">
-            {amountNum > 0 ? money(amountNum) : 'Введите сумму'}
-            {suggestedAmount > 0 && amountNum !== suggestedAmount && (
-              <button
-                type="button"
-                className="ml-2 text-dv-gold hover:underline"
-                onClick={() => setAmount(String(suggestedAmount))}
-              >
-                вернуть {money(suggestedAmount)}
-              </button>
-            )}
-          </p>
-        </div>
-
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold mb-2">Способ оплаты</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {methods.map(({ value, meta }) => {
-              const selected = method === value
-              return (
-                <motion.button
-                  key={value}
-                  type="button"
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => setMethod(value)}
-                  className={cn(
-                    'rounded-xl border p-3 text-left transition-all',
-                    selected
-                      ? meta.accent + ' ring-1 ring-inset ring-white/20 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]'
-                      : 'border-bdr-subtle bg-white/[0.03] text-txt-secondary hover:border-bdr-strong hover:bg-white/[0.05]',
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    {meta.icon}
-                    {selected && <CheckCircle2 size={14} className="ml-auto opacity-80" />}
-                  </div>
-                  <p className="text-xs font-semibold leading-tight">{meta.label}</p>
-                  <p className="text-[10px] opacity-70 mt-0.5">{meta.hint}</p>
-                </motion.button>
-              )
-            })}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold mb-2">Тип платежа</p>
-          <div className="flex rounded-xl border border-bdr-subtle overflow-hidden">
-            {PAY_KINDS.map((k) => (
-              <button
-                key={k.value}
-                type="button"
-                onClick={() => setPayKind(k.value)}
-                className={cn(
-                  'flex-1 px-3 py-2 text-xs font-semibold transition-colors',
-                  payKind === k.value ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary',
-                )}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <Input
-          label="Комментарий"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Необязательно"
-        />
-
-        {allowCloseVisit && (
-          <label className="flex items-center gap-3 rounded-xl border border-bdr-subtle bg-white/[0.03] px-3 py-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={closeVisit}
-              onChange={(e) => setCloseVisit(e.target.checked)}
-              className="h-4 w-4 accent-[#c4a574]"
+        {pendingPay ? (
+          <div className="space-y-3">
+            <PaymentQrPanel
+              payment={pendingPay}
+              title={pendingPay.title || serviceLabel || `Оплата · ${patientName}`}
+              amount={amountNum}
+              busy={confirmingQr || saving}
+              onConfirm={confirmQrPayment}
+              onCancel={() => setPendingPay(null)}
+              hint="Покажите QR пациенту. После оплаты нажмите «Проверить оплату» — чек сохранится в кассе."
             />
-            <div>
-              <p className="text-sm font-semibold text-txt-primary">Закрыть приём после оплаты</p>
-              <p className="text-[11px] text-txt-muted">Статус → готово, услуги зафиксированы</p>
+            {qrError && <p className="text-xs text-error m-0">{qrError}</p>}
+          </div>
+        ) : (
+          <>
+            <div className="rounded-2xl border border-bdr-subtle bg-surface-raised p-4 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold mb-2">Сумма к оплате</p>
+              <Input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="!text-center !text-3xl !font-bold !h-14 !text-emerald-300 !bg-transparent !border-dv-gold/30"
+                placeholder="0"
+              />
+              <p className="text-xs text-txt-muted mt-2">
+                {amountNum > 0 ? money(amountNum) : 'Введите сумму'}
+                {suggestedAmount > 0 && amountNum !== suggestedAmount && (
+                  <button
+                    type="button"
+                    className="ml-2 text-dv-gold hover:underline"
+                    onClick={() => setAmount(String(suggestedAmount))}
+                  >
+                    вернуть {money(suggestedAmount)}
+                  </button>
+                )}
+              </p>
             </div>
-          </label>
-        )}
 
-        <div className="flex gap-2 pt-1">
-          <Button
-            className="flex-1"
-            disabled={!canSubmit || saving}
-            icon={<Wallet size={16} />}
-            onClick={() => void submit()}
-          >
-            {saving
-              ? 'Сохранение…'
-              : payKind === 'credit'
-                ? 'Оформить долг'
-                : `Принять ${amountNum > 0 ? money(amountNum) : 'оплату'}`}
-          </Button>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>Отмена</Button>
-        </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold mb-2">Способ оплаты</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {methods.map(({ value, meta }) => {
+                  const selected = method === value
+                  return (
+                    <motion.button
+                      key={value}
+                      type="button"
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => setMethod(value)}
+                      className={cn(
+                        'rounded-xl border p-3 text-left transition-all',
+                        selected
+                          ? meta.accent + ' ring-1 ring-inset ring-white/20 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]'
+                          : 'border-bdr-subtle bg-white/[0.03] text-txt-secondary hover:border-bdr-strong hover:bg-white/[0.05]',
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        {meta.icon}
+                        {selected && <CheckCircle2 size={14} className="ml-auto opacity-80" />}
+                      </div>
+                      <p className="text-xs font-semibold leading-tight">{meta.label}</p>
+                      <p className="text-[10px] opacity-70 mt-0.5">{meta.hint}</p>
+                    </motion.button>
+                  )
+                })}
+              </div>
+              {needsOnlineQr && (
+                <p className="text-[11px] text-txt-muted mt-2 m-0">
+                  Для QR сначала создаётся счёт — пациент сканирует код, затем вы подтверждаете оплату.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold mb-2">Тип платежа</p>
+              <div className="flex rounded-xl border border-bdr-subtle overflow-hidden">
+                {PAY_KINDS.map((k) => (
+                  <button
+                    key={k.value}
+                    type="button"
+                    onClick={() => setPayKind(k.value)}
+                    className={cn(
+                      'flex-1 px-3 py-2 text-xs font-semibold transition-colors',
+                      payKind === k.value ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary',
+                    )}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Input
+              label="Комментарий"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Необязательно"
+            />
+
+            {allowCloseVisit && (
+              <label className="flex items-center gap-3 rounded-xl border border-bdr-subtle bg-white/[0.03] px-3 py-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={closeVisit}
+                  onChange={(e) => setCloseVisit(e.target.checked)}
+                  className="h-4 w-4 accent-[#c4a574]"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-txt-primary">Закрыть приём после оплаты</p>
+                  <p className="text-[11px] text-txt-muted">Статус → готово, услуги зафиксированы</p>
+                </div>
+              </label>
+            )}
+
+            {qrError && <p className="text-xs text-error m-0">{qrError}</p>}
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                className="flex-1"
+                disabled={!canSubmit || saving || creatingQr}
+                loading={saving || creatingQr}
+                icon={needsOnlineQr ? <QrCode size={16} /> : <Wallet size={16} />}
+                onClick={() => void submit()}
+              >
+                {creatingQr
+                  ? 'Создаём QR…'
+                  : payKind === 'credit'
+                    ? 'Оформить долг'
+                    : needsOnlineQr
+                      ? `Создать QR · ${amountNum > 0 ? money(amountNum) : ''}`
+                      : `Принять ${amountNum > 0 ? money(amountNum) : 'оплату'}`}
+              </Button>
+              <Button variant="ghost" onClick={onClose} disabled={saving || creatingQr}>Отмена</Button>
+            </div>
+          </>
+        )}
       </div>
     </Modal>
   )

@@ -3,12 +3,13 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { env } from '../../config.js';
 import { tengeToMinor, serializeBigInt } from '../../lib/money.js';
-import { providers } from '../payments/kaspi.provider.js';
+import { providers, withPaymentQr } from '../payments/kaspi.provider.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { runSubscriptionCron } from '../../jobs/subscriptionCron.js';
 import {
   activateClinicSubscriptionFromPayment,
   assertClinicBillingAccess,
+  assertClinicMemberAccess,
   getClinicBillingSnapshot,
   isSaasPlanId,
   CLINIC_SAAS_PLANS,
@@ -51,7 +52,7 @@ function clinicIdFrom(req: AuthRequest): string {
 clinicBillingRouter.get('/me', async (req: AuthRequest, res) => {
   try {
     const clinicId = clinicIdFrom(req);
-    await assertClinicBillingAccess(req.user!.id, clinicId);
+    await assertClinicMemberAccess(req.user!.id, clinicId);
     const snap = await getClinicBillingSnapshot(clinicId);
     if (!snap) return res.status(404).json({ ok: false, error: 'Клиника не найдена' } satisfies ApiResponse);
     return res.json({ ok: true, data: snap } satisfies ApiResponse);
@@ -120,7 +121,7 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
       ok: true,
       data: {
         activated: false,
-        payment: { ...serializeBigInt(payment), qr: created.qr },
+        payment: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
         plan: planId,
         months,
         amountTenge: catalog.priceTenge * months,

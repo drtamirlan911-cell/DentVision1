@@ -17,6 +17,9 @@ import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
 import GuestCRMModal from '@/components/guest/GuestCRMModal';
 import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
+import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner';
+import { useQuery } from '@tanstack/react-query';
+import * as api from '@/utils/api';
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   crm: 'CRM',
@@ -92,6 +95,15 @@ export const IntelligenceLayout: React.FC = () => {
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstRunBooted = useRef(false);
   const openTs = useRef(Date.now());
+
+  const clinicId = user?.clinicId || clinic?.id || null;
+  const { data: billingSnap } = useQuery({
+    queryKey: ['clinic-billing-access', clinicId],
+    queryFn: () => api.getClinicBilling(),
+    enabled: Boolean(clinicId) && isAuthenticated && !isGuest,
+    staleTime: 60_000,
+    retry: 1,
+  });
 
   const handleAIQuery = useCallback((query: string) => {
     navigate('/', { state: { aiQuery: query } });
@@ -406,6 +418,11 @@ export const IntelligenceLayout: React.FC = () => {
             can leave the main pane at opacity:0 while the shell stays clickable
             (sidebar works, CRM body looks "frozen"/blank). Enter-only fade is enough.
           */}
+          {billingSnap ? (
+            <div className="px-3 pt-3 md:px-4 md:pt-4">
+              <PlanAccessBanner snap={billingSnap} />
+            </div>
+          ) : null}
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0 }}
@@ -413,7 +430,7 @@ export const IntelligenceLayout: React.FC = () => {
             transition={{ duration: 0.12 }}
             className="h-full min-w-0 w-full max-w-full overflow-x-hidden"
           >
-            <Outlet context={{ user, clinic, roleInfo }} />
+            <Outlet context={{ user, clinic, roleInfo, billingSnap }} />
           </motion.div>
         </div>
       </div>

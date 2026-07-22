@@ -281,7 +281,7 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
 
     const price = Number(course.price || 0);
     if (price > 0) {
-      const { providers } = await import('../payments/kaspi.provider.js');
+      const { providers, withPaymentQr } = await import('../payments/kaspi.provider.js');
       const { tengeToMinor, serializeBigInt } = await import('../../lib/money.js');
       const amountMinor = tengeToMinor(price);
       const gateway = providers.kaspi_qr;
@@ -310,7 +310,7 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
         data: {
           requiresPayment: true,
           enrolled: false,
-          payment: { ...serializeBigInt(payment), qr: created.qr },
+          payment: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
           course: { id: course.id, title: course.title, price },
         },
       });
@@ -464,7 +464,7 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
       return;
     }
 
-    const { providers } = await import('../payments/kaspi.provider.js');
+    const { providers, withPaymentQr } = await import('../payments/kaspi.provider.js');
     const { tengeToMinor, serializeBigInt } = await import('../../lib/money.js');
     const amountMinor = tengeToMinor(price);
     const gateway = providers.kaspi_qr;
@@ -502,7 +502,7 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
         seatsLeft: seatsLeft - 1,
         status: 'awaiting_payment',
         requiresPayment: true,
-        payment: { ...serializeBigInt(payment), qr: created.qr },
+        payment: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
         message: 'Оплатите по QR, чтобы подтвердить место.',
       },
     });

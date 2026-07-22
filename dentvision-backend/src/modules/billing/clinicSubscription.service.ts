@@ -17,15 +17,15 @@ export const CLINIC_SAAS_PLANS = [
     priceTenge: 0,
     period: 'навсегда',
     description: 'Базовый CRM для небольшой практики',
-    features: ['До 100 пациентов', 'Базовое расписание', '1 пользователь'],
+    features: ['До 100 пациентов', 'Базовое расписание', '1 пользователь', 'Без AI и аналитики'],
   },
   {
     id: 'professional',
     name: 'Professional',
     priceTenge: 49900,
     period: '/месяц',
-    description: 'Полный CRM + AI + маркетплейс',
-    features: ['Безлимит пациентов', 'До 10 пользователей', 'AI-ассистент', 'Аналитика'],
+    description: 'Полный CRM + AI + аналитика',
+    features: ['Безлимит пациентов', 'До 10 пользователей', 'AI-ассистент (100 запросов/мес)', 'Аналитика'],
     popular: true,
   },
   {
@@ -34,7 +34,7 @@ export const CLINIC_SAAS_PLANS = [
     priceTenge: 149900,
     period: '/месяц',
     description: 'Сети клиник и расширенная поддержка',
-    features: ['Всё из Professional', 'Мульти-клиника', 'Приоритетная поддержка', 'Кастомные интеграции'],
+    features: ['Всё из Professional', 'Безлимит AI', 'Мульти-клиника', 'Приоритетная поддержка'],
   },
 ] as const;
 
@@ -83,6 +83,44 @@ export function addMonths(from: Date, months: number): Date {
 export function daysUntil(date: Date | null | undefined, now = new Date()): number | null {
   if (!date) return null;
   return Math.ceil((date.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+/** Any clinic member may read access/usage snapshot (for banners & soft locks). */
+export async function assertClinicMemberAccess(userId: string, clinicId: string) {
+  if (!clinicId) {
+    const err = new Error('Выберите клинику');
+    (err as any).status = 400;
+    throw err;
+  }
+  const member = await prisma.clinicMember.findUnique({
+    where: { userId_clinicId: { userId, clinicId } },
+  });
+  if (member) return member;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (user?.role === 'SUPERADMIN') return { role: 'SUPERADMIN' as const };
+  const err = new Error('Нет доступа к клинике');
+  (err as any).status = 403;
+  throw err;
+}
+
+/** OWNER/ADMIN may change plan / checkout. */
+export async function assertClinicBillingAccess(userId: string, clinicId: string) {
+  if (!clinicId) {
+    const err = new Error('Выберите клинику');
+    (err as any).status = 400;
+    throw err;
+  }
+  const member = await prisma.clinicMember.findUnique({
+    where: { userId_clinicId: { userId, clinicId } },
+  });
+  if (!member || !BILLING_ROLES.has(member.role)) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (user?.role === 'SUPERADMIN') return { role: 'SUPERADMIN' as const };
+    const err = new Error('Недостаточно прав для управления подпиской');
+    (err as any).status = 403;
+    throw err;
+  }
+  return member;
 }
 
 /** Bootstrap Enterprise trial for a newly created clinic. */
@@ -198,26 +236,11 @@ export async function activateClinicSubscriptionFromPayment(opts: {
   return result;
 }
 
-export async function assertClinicBillingAccess(userId: string, clinicId: string) {
-  if (!clinicId) {
-    const err = new Error('Выберите клинику');
-    (err as any).status = 400;
-    throw err;
-  }
-  const member = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId, clinicId } },
-  });
-  if (!member || !BILLING_ROLES.has(member.role)) {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-    if (user?.role === 'SUPERADMIN') return { role: 'SUPERADMIN' as const };
-    const err = new Error('Недостаточно прав для управления подпиской');
-    (err as any).status = 403;
-    throw err;
-  }
-  return member;
-}
-
 export async function getClinicBillingSnapshot(clinicId: string) {
+  const { resolveClinicAccess, getPlanCatalogWithEntitlements } = await import('./planEntitlements.js');
+  const access = await resolveClinicAccess(clinicId);
+  if (!access) return null;
+
   const clinic = await prisma.clinic.findUnique({
     where: { id: clinicId },
     select: { id: true, name: true, plan: true, active: true, city: true },
@@ -228,31 +251,32 @@ export async function getClinicBillingSnapshot(clinicId: string) {
     where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
   });
 
-  const now = new Date();
-  const periodEnd = subscription?.periodEnd || null;
-  const daysLeft = daysUntil(periodEnd, now);
-  const status = subscription?.status || (clinic.active ? 'active' : 'suspended');
-  const expired =
-    status === 'expired' ||
-    !clinic.active ||
-    (periodEnd != null && periodEnd.getTime() < now.getTime());
-  const expiringSoon = !expired && daysLeft != null && daysLeft >= 0 && daysLeft <= 14;
-
   return {
-    clinic,
+    clinic: {
+      ...clinic,
+      active: access.active,
+    },
     subscription: subscription || {
       ownerType: 'CLINIC',
       ownerId: clinicId,
-      plan: clinicPlanToSaas(clinic.plan),
-      status: clinic.active ? 'active' : 'suspended',
+      plan: access.saasPlan,
+      status: access.status,
       periodEnd: null,
     },
-    saasPlan: subscription?.plan || clinicPlanToSaas(clinic.plan),
-    daysLeft,
-    expired: !!expired || !clinic.active,
-    expiringSoon,
+    saasPlan: access.saasPlan,
+    daysLeft: access.daysLeft,
+    expired: access.expired,
+    expiringSoon: !access.expired && access.daysLeft != null && access.daysLeft >= 0 && access.daysLeft <= 14,
+    writeBlocked: access.writeBlocked,
     trialDays: TRIAL_DAYS,
-    plans: getPlanCatalog(),
+    entitlements: access.entitlements,
+    usage: access.usage,
+    limits: access.limits,
+    approaching: access.approaching,
+    plans: getPlanCatalogWithEntitlements().map((p) => ({
+      ...p,
+      amountMinor: tengeToMinor(p.priceTenge).toString(),
+    })),
   };
 }
 

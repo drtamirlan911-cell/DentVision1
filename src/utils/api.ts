@@ -1130,6 +1130,19 @@ export async function getShopSuppliers(): Promise<any> {
   }
 }
 export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
+export async function createPayment(payload: {
+  amount: number;
+  domain?: string;
+  refType?: string;
+  refId?: string | null;
+  meta?: Record<string, unknown>;
+  provider?: string;
+}): Promise<any> {
+  return apiRequest('/api/payments', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
 export async function getPayment(paymentId: string): Promise<any> {
   return apiRequest(`/api/payments/${paymentId}`);
 }

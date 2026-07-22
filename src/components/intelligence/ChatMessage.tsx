@@ -179,6 +179,10 @@ const ACTION_TYPE_PATHS: Record<string, string> = {
   OpenCommunity: '/community',
   OpenCRM: '/crm/schedule',
   OPEN_CRM: '/crm/schedule',
+  OPEN_INVOICE: '/crm/finance',
+  OpenInvoice: '/crm/finance',
+  OPEN_BILLING: '/crm/billing',
+  OpenBilling: '/crm/billing',
 };
 
 function escapeRegExp(s: string): string {
