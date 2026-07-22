@@ -20,6 +20,8 @@ const ACTION_PATHS: Record<string, string> = {
   OpenLab: '/crm/lab',
   OpenShop: '/shop',
   OpenDemo: '/crm/schedule?demo=1',
+  OpenPatients: '/crm/patients',
+  OpenTreatmentPlans: '/crm/treatment-plans',
 };
 
 interface AlertDropdownProps {

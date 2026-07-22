@@ -47,6 +47,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   finance: 'Финансы',
   schedule: 'Расписание',
   inventory: 'Склад',
+  load: 'Загрузка',
   general: 'Общее',
 }
 
@@ -61,6 +62,7 @@ const ACTION_LABELS: Record<string, string> = {
   OpenCRM: 'CRM',
   OpenSchedule: 'Расписание',
   OpenPatients: 'Пациенты',
+  OpenTreatmentPlans: 'Планы',
   OpenFinance: 'Финансы',
   OpenInventory: 'Склад',
   NAVIGATE: 'Открыть',
