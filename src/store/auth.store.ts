@@ -480,6 +480,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
     } catch (err) {
       set({ error: (err as Error).message || 'Failed to switch clinic' })
+      throw err
     }
   },
 

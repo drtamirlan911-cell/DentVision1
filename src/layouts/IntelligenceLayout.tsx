@@ -16,7 +16,7 @@ import { AlertDropdown } from './AlertDropdown';
 import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
 import GuestCRMModal from '@/components/guest/GuestCRMModal';
-import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
+import { ClinicSwitcher } from '@/components/ClinicSwitcher';
 import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '@/utils/api';
@@ -382,6 +382,7 @@ export const IntelligenceLayout: React.FC = () => {
                 <span className="text-[10px] font-semibold">Гость</span>
               </motion.button>
             )}
+            {!isGuest && <ClinicSwitcher />}
             <DentCashHeaderChip />
             <button
               onClick={() => setCmdOpen(true)}
@@ -424,7 +425,7 @@ export const IntelligenceLayout: React.FC = () => {
             </div>
           ) : null}
           <motion.div
-            key={location.pathname}
+            key={`${location.pathname}:${clinic?.id || 'none'}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.12 }}

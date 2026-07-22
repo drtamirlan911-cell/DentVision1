@@ -41,8 +41,9 @@ async function resolveUserSessionId(req: AuthRequest, requested?: string): Promi
   const clinicId = req.user.clinicId || DEMO_CLINIC_ID || 'platform';
 
   if (requested) {
+    // Only reuse a client session if it belongs to THIS clinic — never mix chats.
     const owned = await prisma.aISession.findFirst({
-      where: { id: requested, userId },
+      where: { id: requested, userId, clinicId },
       select: { id: true },
     });
     if (owned) return owned.id;
@@ -55,7 +56,7 @@ async function resolveUserSessionId(req: AuthRequest, requested?: string): Promi
   });
   if (existing) return existing.id;
 
-  const id = requested && requested.length >= 8 ? requested : crypto.randomUUID();
+  const id = crypto.randomUUID();
   await prisma.aISession.create({
     data: {
       id,

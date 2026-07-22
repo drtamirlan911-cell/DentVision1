@@ -1563,9 +1563,9 @@ export interface AIChatResponse {
   learnedLabels?: string[];
 }
 
-/** Stable UUID session id per user — prevents shared AI chat across accounts. */
-export function getAiSessionId(userId?: string | null): string {
-  const key = `dv_ai_session_${userId || 'guest'}`;
+/** Stable AI session per user + clinic — chats must not mix across clinics. */
+export function getAiSessionId(userId?: string | null, clinicId?: string | null): string {
+  const key = aiSessionStorageKey(userId, clinicId);
   try {
     const existing = localStorage.getItem(key);
     if (existing && existing.length >= 8) return existing;
@@ -1577,16 +1577,30 @@ export function getAiSessionId(userId?: string | null): string {
   return id;
 }
 
-export function clearAiSessionId(userId?: string | null): void {
+export function aiSessionStorageKey(userId?: string | null, clinicId?: string | null): string {
+  const u = userId || 'guest';
+  const c = clinicId || 'none';
+  return `dv_ai_session_${u}_${c}`;
+}
+
+export function aiThreadStorageKey(userId?: string | null, clinicId?: string | null): string {
+  const u = userId || 'guest';
+  const c = clinicId || 'none';
+  return `dv_ai_thread_${u}_${c}`;
+}
+
+export function clearAiSessionId(userId?: string | null, clinicId?: string | null): void {
+  try { localStorage.removeItem(aiSessionStorageKey(userId, clinicId)); } catch { /* ignore */ }
+  // Legacy key (pre clinic-scope) — drop so it cannot leak across clinics.
   try { localStorage.removeItem(`dv_ai_session_${userId || 'guest'}`); } catch { /* ignore */ }
 }
 
 export async function aiChat(
   message: string,
   history: Array<{ role: string; content: string }> = [],
-  opts?: { sessionId?: string; userId?: string | null },
+  opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null },
 ): Promise<AIChatResponse> {
-  const sessionId = opts?.sessionId || getAiSessionId(opts?.userId);
+  const sessionId = opts?.sessionId || getAiSessionId(opts?.userId, opts?.clinicId);
   const res = await apiRequest('/api/ai/query', {
     method: 'POST',
     body: JSON.stringify({
@@ -1609,7 +1623,7 @@ export async function aiChat(
 
   if (res?.sessionId) {
     try {
-      localStorage.setItem(`dv_ai_session_${opts?.userId || 'guest'}`, res.sessionId);
+      localStorage.setItem(aiSessionStorageKey(opts?.userId, opts?.clinicId), res.sessionId);
     } catch { /* ignore */ }
   }
 
@@ -1641,7 +1655,7 @@ export async function aiChatStream(
   message: string,
   history: Array<{ role: string; content: string }> = [],
   onChunk: (partial: string, done: boolean) => void,
-  opts?: { sessionId?: string; userId?: string | null },
+  opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null },
 ): Promise<AIChatResponse> {
   try {
     const streamed = await aiChatSSE(message, history, onChunk, opts);
@@ -1674,7 +1688,7 @@ async function aiChatSSE(
   message: string,
   history: Array<{ role: string; content: string }>,
   onChunk: (partial: string, done: boolean) => void,
-  opts?: { sessionId?: string; userId?: string | null },
+  opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null },
 ): Promise<AIChatResponse | null> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (_accessToken) headers.Authorization = `Bearer ${_accessToken}`;
@@ -1690,7 +1704,7 @@ async function aiChatSSE(
   const tz = clientTimezoneHeader();
   if (tz) headers['X-Client-Timezone'] = tz;
 
-  const sessionId = opts?.sessionId || getAiSessionId(opts?.userId);
+  const sessionId = opts?.sessionId || getAiSessionId(opts?.userId, opts?.clinicId);
   const res = await fetch(`${API_URL}/api/ai/query/stream`, {
     method: 'POST',
     headers,
