@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX } from 'lucide-react'
 import { isVoiceRepliesEnabled, setVoiceRepliesEnabled, speak, stopSpeaking, voiceOutputSupported } from '@/utils/voice'
 import { useAuth } from '@/store/auth.store'
-import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, aiBriefing, getActiveAiThread, getAiSessionId, aiFeedback } from '@/utils/api'
+import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, aiBriefing, getActiveAiThread, getAiSessionId, aiFeedback, aiSessionStorageKey, aiThreadStorageKey } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
@@ -30,6 +30,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   // Anonymous / guest: no signed-in user. Don't wait for guest-store hydrate
   // (that race previously showed a clinic "коллега" greeting to guests).
   const isGuest = !user || !isAuthenticated
+  const clinicId = clinic?.id || null
   const initializedForUser = useRef<string | null>(null)
   const historyRef = useRef<Array<{ role: string; content: string }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -104,16 +105,18 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, status])
 
-  // Bind chat to the signed-in user — reset + reload when identity changes.
+  // Bind chat to signed-in user + active clinic — reset when either changes.
   useEffect(() => {
-    const userKey = user?.id ? `user:${user.id}` : 'guest'
+    const userKey = user?.id
+      ? `user:${user.id}:clinic:${clinicId || 'none'}`
+      : 'guest'
     if (initializedForUser.current === userKey) return
     initializedForUser.current = userKey
     firstMessageTracked.current = false
     historyRef.current = []
     resetAI()
-    // Ensure a stable per-user session id exists before first query.
-    getAiSessionId(user?.id)
+    // Ensure a stable per-user+clinic session id exists before first query.
+    getAiSessionId(user?.id, clinicId)
 
     ;(async () => {
       try {
@@ -121,7 +124,10 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           const active = await getActiveAiThread()
           if (active?.sessionId || active?.threadId) {
             try {
-              localStorage.setItem(`dv_ai_session_${user.id}`, active.sessionId || active.threadId)
+              localStorage.setItem(
+                aiSessionStorageKey(user.id, clinicId),
+                active.sessionId || active.threadId,
+              )
             } catch { /* ignore */ }
           }
           if (active?.messages?.length) {
@@ -134,7 +140,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
             }))
             setMessages(restored)
             historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
-            persistThread(user.id, restored)
+            persistThread(user.id, clinicId, restored)
             trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
             setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
             // New calendar day → Jarvis posts a fresh role briefing on top of history.
@@ -146,7 +152,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         }
       } catch { /* fall through to local */ }
 
-      const restored = restoreThread(user?.id)
+      const restored = restoreThread(user?.id, clinicId)
       if (restored?.length) {
         // Guests must never reopen stale CRM briefings/chips from a previous session.
         const looksLikeClinicCrm = isGuest && restored.some((m) =>
@@ -155,6 +161,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
             /Показать расписание|Проверить долги|Показать выручку/.test(m.content)),
         )
         if (looksLikeClinicCrm) {
+          try { localStorage.removeItem(aiThreadStorageKey(undefined, null)) } catch { /* ignore */ }
           try { localStorage.removeItem('dv_ai_thread_guest') } catch { /* ignore */ }
         } else {
           const localMsgs = restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }))
@@ -171,14 +178,15 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       await initializeWorkspace()
       trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
     })()
-  }, [user?.id, isGuest])
+  }, [user?.id, clinicId, isGuest])
 
   useEffect(() => {
-    // Only persist for the user who currently owns the in-memory thread.
-    if (messages.length > 0 && initializedForUser.current === (user?.id || 'guest')) {
-      persistThread(user?.id, messages)
+    // Only persist for the user+clinic who currently owns the in-memory thread.
+    const key = user?.id ? `user:${user.id}:clinic:${clinicId || 'none'}` : 'guest'
+    if (messages.length > 0 && initializedForUser.current === key) {
+      persistThread(user?.id, clinicId, messages)
     }
-  }, [messages, user?.id])
+  }, [messages, user?.id, clinicId])
 
   useEffect(() => {
     const q = (location.state as any)?.aiQuery
@@ -362,7 +370,7 @@ const handleSend = useCallback(async (text: string) => {
           content: partial,
         })
         if (!done) setAIStatus('thinking')
-      }, { userId: user?.id })
+      }, { userId: user?.id, clinicId })
 
       if (res.conversationContext?.entities) {
         setCurrentIntent({
@@ -411,7 +419,7 @@ const handleSend = useCallback(async (text: string) => {
       }
 
       if (res.sessionId && user?.id) {
-        try { localStorage.setItem(`dv_ai_session_${user.id}`, res.sessionId) } catch { /* ignore */ }
+        try { localStorage.setItem(aiSessionStorageKey(user.id, clinicId), res.sessionId) } catch { /* ignore */ }
       }
 
       const nextSuggestions = (res.suggestions || []).slice(0, 4)
@@ -682,7 +690,7 @@ const result = await executeAction(
                   void aiFeedback({
                     rating,
                     messageId: m.messageId,
-                    sessionId: getAiSessionId(user?.id),
+                    sessionId: getAiSessionId(user?.id, clinicId),
                     assistantText: m.content,
                     userText: prevUser?.content,
                     intent: m.skill,
@@ -861,9 +869,9 @@ const result = await executeAction(
   )
 }
 
-function persistThread(userId: string | undefined, messages: Message[]) {
+function persistThread(userId: string | undefined, clinicId: string | null | undefined, messages: Message[]) {
   try {
-    const key = `dv_ai_thread_${userId || 'guest'}`
+    const key = aiThreadStorageKey(userId, clinicId)
     const slim = messages.slice(-40).map((m) => ({
       id: m.id,
       role: m.role,
@@ -876,9 +884,9 @@ function persistThread(userId: string | undefined, messages: Message[]) {
   } catch { /* ignore */ }
 }
 
-function restoreThread(userId: string | undefined): Message[] | null {
+function restoreThread(userId: string | undefined, clinicId: string | null | undefined): Message[] | null {
   try {
-    const key = `dv_ai_thread_${userId || 'guest'}`
+    const key = aiThreadStorageKey(userId, clinicId)
     const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw)
