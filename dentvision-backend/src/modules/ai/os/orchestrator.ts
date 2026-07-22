@@ -1,10 +1,10 @@
 /**
  * AI Orchestrator — DentVision AI OS (Spec §15.3, §15.17).
  *
- * The user talks to one assistant; internally the orchestrator plans with
- * GPT-5.6 (OpenAI Responses API) over the RBAC-filtered tool set from the
- * agent registry, executes tools against the clinic's data, and merges
- * everything into a single answer.
+ * The user talks to one assistant; internally the orchestrator plans with a
+ * cheap-first OpenAI model router (mini by default, full only for hard tasks)
+ * over the RBAC-filtered tool set from the agent registry, executes tools
+ * against the clinic's data, and merges everything into a single answer.
  *
  * Lifecycle per request (§15.17):
  *   UNDERSTAND → PLAN/SELECT TOOLS → EXECUTE → VERIFY → MERGE → RESPOND
@@ -26,6 +26,12 @@ import {
   preferClinicCurrency,
   resolveClinicCurrency,
 } from '../lib/currency.js';
+import {
+  chooseOpenAIModel,
+  estimateTokens,
+  recordModelUsage,
+  type ModelChoice,
+} from '../lib/modelRouter.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_TOOL_ROUNDS = 6;
@@ -128,7 +134,11 @@ interface ResponsesAPIResult {
   output_text?: string;
 }
 
-async function callModel(body: Record<string, unknown>): Promise<ResponsesAPIResult> {
+async function callModel(
+  body: Record<string, unknown>,
+  choice: ModelChoice,
+  usageHint: string,
+): Promise<ResponsesAPIResult> {
   const res = await fetch(OPENAI_RESPONSES_URL, {
     method: 'POST',
     headers: {
@@ -142,7 +152,27 @@ async function callModel(body: Record<string, unknown>): Promise<ResponsesAPIRes
     const detail = await res.text().catch(() => '');
     throw new Error(`OpenAI ${res.status}: ${detail.slice(0, 300)}`);
   }
-  return (await res.json()) as ResponsesAPIResult;
+  const payload = (await res.json()) as ResponsesAPIResult;
+  const outText =
+    (typeof payload.output_text === 'string' ? payload.output_text : '') ||
+    JSON.stringify(payload.output || []).slice(0, 4000);
+  recordModelUsage(
+    choice.tier,
+    estimateTokens(usageHint, outText) + Math.ceil(choice.maxOutputTokens * 0.15),
+  );
+  return payload;
+}
+
+function extractAssistantText(response: ResponsesAPIResult): string {
+  return (
+    (typeof response.output_text === 'string' && response.output_text.trim()) ||
+    (response.output || [])
+      .filter((i) => i.type === 'message')
+      .flatMap((i) => i.content || [])
+      .map((c) => c.text || '')
+      .join('')
+      .trim()
+  );
 }
 
 async function saveMessage(sessionId: string, role: string, content: string): Promise<void> {
@@ -205,30 +235,81 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   let navigateAction: { type: string; payload: unknown } | undefined;
 
   // PLAN → SELECT TOOLS → EXECUTE → VERIFY loop.
+  // Cheap-first: mini by default; escalate once if the first mini pass is empty.
+  let escalated = false;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await callModel({
-      model: env.OPENAI_MODEL,
-      instructions,
-      input: conversation,
-      tools: toolSchemas,
-      reasoning: { effort: env.OPENAI_REASONING_EFFORT },
-      max_output_tokens: 1200,
+    let choice = await chooseOpenAIModel({
+      task: 'orchestrate',
+      text: input.text,
+      isGuest: input.isGuest || String(input.role).toUpperCase() === 'GUEST',
+      historyTurns: input.history?.length || 0,
+      round,
+      toolsUsed: toolsUsed.length,
+      escalate: escalated,
     });
 
-    const outputItems = response.output || [];
-    const functionCalls = outputItems.filter((item) => item.type === 'function_call');
+    let response = await callModel(
+      {
+        model: choice.model,
+        instructions,
+        input: conversation,
+        tools: toolSchemas,
+        reasoning: { effort: choice.reasoningEffort },
+        max_output_tokens: choice.maxOutputTokens,
+      },
+      choice,
+      `${instructions}\n${input.text}`,
+    );
+
+    let outputItems = response.output || [];
+    let functionCalls = outputItems.filter((item) => item.type === 'function_call');
+    let messageText = extractAssistantText(response);
+
+    // One-shot escalate: empty mini answer on first round → retry with full.
+    if (
+      !escalated &&
+      choice.tier === 'mini' &&
+      functionCalls.length === 0 &&
+      !messageText &&
+      !(input.isGuest || String(input.role).toUpperCase() === 'GUEST')
+    ) {
+      escalated = true;
+      choice = await chooseOpenAIModel({
+        task: 'orchestrate',
+        text: input.text,
+        isGuest: false,
+        historyTurns: input.history?.length || 0,
+        round,
+        toolsUsed: toolsUsed.length,
+        escalate: true,
+      });
+      if (choice.tier === 'full') {
+        console.info('[AI OS] escalate empty mini → full', choice.reason);
+        response = await callModel(
+          {
+            model: choice.model,
+            instructions,
+            input: conversation,
+            tools: toolSchemas,
+            reasoning: { effort: choice.reasoningEffort },
+            max_output_tokens: choice.maxOutputTokens,
+          },
+          choice,
+          `${instructions}\n${input.text}`,
+        );
+        outputItems = response.output || [];
+        functionCalls = outputItems.filter((item) => item.type === 'function_call');
+        messageText = extractAssistantText(response);
+      }
+    }
+
+    if (round === 0) {
+      console.info(`[AI OS] model=${choice.model} tier=${choice.tier} reason=${choice.reason}`);
+    }
 
     if (functionCalls.length === 0) {
       // MERGE RESULTS → RESPOND
-      const message =
-        (typeof response.output_text === 'string' && response.output_text.trim()) ||
-        outputItems
-          .filter((i) => i.type === 'message')
-          .flatMap((i) => i.content || [])
-          .map((c) => c.text || '')
-          .join('')
-          .trim() ||
-        'Готово.';
+      const message = messageText || 'Готово.';
 
       const safeMessage = preferClinicCurrency(message, currencyCode);
       await saveMessage(input.sessionId, 'assistant', safeMessage);
