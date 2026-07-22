@@ -29,31 +29,31 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'crm', label: 'CRM', icon: <Stethoscope size={16} />, path: '/crm/schedule', color: '#C9A96E', section: 'services' },
-  { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={16} />, path: '/shop', color: '#8E44AD', section: 'services' },
-  { id: 'school', label: 'Academy OS', icon: <GraduationCap size={16} />, path: '/school', color: '#16A085', section: 'services' },
-  { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={16} />, path: '/analytics', color: '#F39C12', section: 'services' },
-  { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={16} />, path: '/jobs', color: '#E67E22', section: 'services' },
-  { id: 'community', label: 'Сообщество', icon: <Users size={16} />, path: '/community', color: '#00BCD4', section: 'services' },
-  { id: 'supplier', label: 'Кабинет продавца', icon: <Store size={16} />, path: '/supplier', color: '#16A085', section: 'platform' },
-  { id: 'school-workspace', label: 'Кабинет лектора', icon: <GraduationCap size={16} />, path: '/school-workspace', color: '#16A085', section: 'platform' },
-  { id: 'profile', label: 'Профиль', icon: <User size={16} />, path: '/profile', color: '#2980B9', section: 'platform' },
-  { id: 'settings', label: 'Настройки', icon: <Settings size={16} />, path: '/settings', color: '#64748B', section: 'platform' },
+  { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} strokeWidth={1.75} />, path: '/crm/schedule', color: '#C9A96E', section: 'services' },
+  { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop', color: '#A78BFA', section: 'services' },
+  { id: 'school', label: 'Academy OS', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school', color: '#2DD4BF', section: 'services' },
+  { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/analytics', color: '#FBBF24', section: 'services' },
+  { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={18} strokeWidth={1.75} />, path: '/jobs', color: '#FB923C', section: 'services' },
+  { id: 'community', label: 'Сообщество', icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
+  { id: 'supplier', label: 'Кабинет продавца', icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },
+  { id: 'school-workspace', label: 'Кабинет лектора', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school-workspace', color: '#2DD4BF', section: 'platform' },
+  { id: 'profile', label: 'Профиль', icon: <User size={18} strokeWidth={1.75} />, path: '/profile', color: '#60A5FA', section: 'platform' },
+  { id: 'settings', label: 'Настройки', icon: <Settings size={18} strokeWidth={1.75} />, path: '/settings', color: '#94A3B8', section: 'platform' },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [
-  { id: 'admin', label: 'Платформа', icon: <Shield size={16} />, path: '/admin', color: '#E74C3C', section: 'platform' },
-  { id: 'audit', label: 'Аудит', icon: <FileText size={16} />, path: '/audit', color: '#F39C12', section: 'platform' },
-  { id: 'backup', label: 'Бэкапы', icon: <Database size={16} />, path: '/backup', color: '#00BCD4', section: 'platform' },
+  { id: 'admin', label: 'Платформа', icon: <Shield size={18} strokeWidth={1.75} />, path: '/admin', color: '#F87171', section: 'platform' },
+  { id: 'audit', label: 'Аудит', icon: <FileText size={18} strokeWidth={1.75} />, path: '/audit', color: '#FBBF24', section: 'platform' },
+  { id: 'backup', label: 'Бэкапы', icon: <Database size={18} strokeWidth={1.75} />, path: '/backup', color: '#38BDF8', section: 'platform' },
 ];
 
 const GUEST_NAV_ITEMS: NavItem[] = [
-  { id: 'demo', label: 'Демо клиника', icon: <FlaskConical size={16} />, path: '/crm/schedule?demo=1', color: '#C9A96E', section: 'services' },
-  { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={16} />, path: '/shop', color: '#8E44AD', section: 'services' },
-  { id: 'school', label: 'Academy OS', icon: <GraduationCap size={16} />, path: '/school', color: '#16A085', section: 'services' },
-  { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={16} />, path: '/jobs', color: '#E67E22', section: 'services' },
-  { id: 'community', label: 'Сообщество', icon: <Users size={16} />, path: '/community', color: '#00BCD4', section: 'services' },
-  { id: 'pricing', label: 'Тарифы', icon: <Star size={16} />, path: '/pricing', color: '#F39C12', section: 'platform' },
+  { id: 'demo', label: 'Демо клиника', icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/crm/schedule?demo=1', color: '#C9A96E', section: 'services' },
+  { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop', color: '#A78BFA', section: 'services' },
+  { id: 'school', label: 'Academy OS', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school', color: '#2DD4BF', section: 'services' },
+  { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={18} strokeWidth={1.75} />, path: '/jobs', color: '#FB923C', section: 'services' },
+  { id: 'community', label: 'Сообщество', icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
+  { id: 'pricing', label: 'Тарифы', icon: <Star size={18} strokeWidth={1.75} />, path: '/pricing', color: '#FBBF24', section: 'platform' },
 ];
 
 interface SidebarProps {
@@ -90,6 +90,42 @@ const CRM_SUBNAV = [
   { id: 'icd10', label: 'МКБ-10', path: '/crm/icd10' },
 ];
 
+function NavIconChip({
+  color,
+  active,
+  collapsed,
+  children,
+}: {
+  color: string;
+  active: boolean;
+  collapsed: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        'relative flex shrink-0 items-center justify-center transition-all duration-200',
+        collapsed ? 'h-10 w-10 rounded-xl' : 'h-8 w-8 rounded-lg',
+      )}
+      style={{
+        color: active ? color : undefined,
+        background: active
+          ? `linear-gradient(145deg, ${color}28 0%, ${color}12 100%)`
+          : collapsed
+            ? 'rgba(255,255,255,0.035)'
+            : `${color}14`,
+        boxShadow: active
+          ? `inset 0 0 0 1px ${color}40, 0 0 18px ${color}18`
+          : collapsed
+            ? 'inset 0 0 0 1px rgba(255,255,255,0.04)'
+            : `inset 0 0 0 1px ${color}18`,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({
   collapsed, setCollapsed, sidebarVisible, isMobile, sidebarOpen,
   user, roleInfo, logout, toggleSidebar, isGuest = false, onToggleCollapsed,
@@ -98,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const location = useLocation();
   const queryClient = useQueryClient();
   const [crmOpen, setCrmOpen] = React.useState(location.pathname.startsWith('/crm'));
-  const sidebarWidth = !sidebarVisible && !isMobile ? 0 : (collapsed ? 72 : 240);
+  const sidebarWidth = !sidebarVisible && !isMobile ? 0 : (collapsed ? 76 : 248);
   const { user: authUser, role: authRole, roleInfo: authRoleInfo, activeMembership } = useAuth();
   const clinicId = authUser?.clinicId || '';
 
@@ -106,7 +142,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (location.pathname.startsWith('/crm')) setCrmOpen(true);
   }, [location.pathname]);
 
-  // Always prefer live useAuth roleInfo — prop roleInfo can lag behind membership.
   const allowedPages = authRoleInfo?.pages?.length
     ? authRoleInfo.pages
     : ((roleInfo as any)?.pages || []);
@@ -153,14 +188,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if ((sub as { adminOnly?: boolean }).adminOnly) {
       return showClinicSettings || canAccessPage(allowedPages, sub.id);
     }
-    // Guests / empty ACL: hide tools until role pages resolve
     if (!allowedPages.length) return false;
     return canAccessPage(allowedPages, sub.id);
   });
 
   const handleNavClick = (path: string) => {
     if (isGuest) {
-      // Guests may enter /crm — IntelligenceLayout shows GuestCRMModal (demo/create/join).
       const publicPaths = ['/shop', '/school', '/jobs', '/community', '/demo', '/pricing', '/', '/crm'];
       if (publicPaths.some(p => path === p || path.startsWith(p + '/'))) {
         navigate(path);
@@ -176,17 +209,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const renderNavSection = (items: NavItem[], sectionLabel?: string) => (
     <>
       {!collapsed && sectionLabel && (
-        <div className="pt-3 pb-1">
-          <p className="text-2xs font-semibold text-txt-ghost uppercase tracking-wider">{sectionLabel}</p>
+        <div className="pt-4 pb-1.5 px-1">
+          <p className="text-[10px] font-semibold text-txt-ghost uppercase tracking-[0.14em]">{sectionLabel}</p>
         </div>
+      )}
+      {collapsed && sectionLabel && (
+        <div className="my-2 mx-auto h-px w-7 rounded-full bg-gradient-to-r from-transparent via-white/12 to-transparent" />
       )}
       {items.map(item => {
         const isCrm = item.id === 'crm';
+        const color = item.color || '#C9A96E';
         const isActive = isCrm
           ? location.pathname.startsWith('/crm')
           : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
         const btn = (
           <motion.button
+            type="button"
             onClick={() => {
               if (isCrm && !collapsed) {
                 setCrmOpen((v) => !v);
@@ -196,35 +234,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }
             }}
             onMouseEnter={() => prefetchFor(item.id)}
-            whileHover={collapsed ? undefined : { scale: 1.02 }}
-            whileTap={collapsed ? undefined : { scale: 0.97 }}
+            whileHover={collapsed ? { scale: 1.04 } : { x: 2 }}
+            whileTap={{ scale: 0.97 }}
             className={cn(
-              'relative flex w-full items-center rounded-lg transition-colors duration-150',
-              collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2',
-              isActive
-                ? 'bg-white/[0.06] text-txt-primary'
-                : 'text-txt-secondary hover:bg-white/[0.04] hover:text-txt-primary'
+              'group relative flex w-full items-center transition-colors duration-150',
+              collapsed ? 'justify-center py-1' : 'gap-3 rounded-xl px-2 py-1.5',
+              !collapsed && (isActive
+                ? 'bg-white/[0.05]'
+                : 'hover:bg-white/[0.035]'),
             )}
           >
-            {isActive && (
+            {!collapsed && isActive && (
               <span
-                className={cn(
-                  'absolute top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-dv-gold shadow-sm shadow-dv-gold/50',
-                  collapsed ? 'left-0.5' : 'left-1',
-                )}
+                className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full"
+                style={{ background: color, boxShadow: `0 0 10px ${color}80` }}
               />
             )}
-            <span className={cn('shrink-0 transition-colors', isActive ? 'text-dv-gold' : 'text-txt-muted')}>
-              {item.icon}
-            </span>
+            <NavIconChip color={color} active={isActive} collapsed={collapsed}>
+              <span className={cn('transition-colors', !isActive && 'text-txt-muted group-hover:text-txt-secondary')}>
+                {item.icon}
+              </span>
+            </NavIconChip>
             {!collapsed && (
               <>
-                <span className="text-sm truncate flex-1 text-left">{item.label}</span>
+                <span className={cn(
+                  'text-[13px] truncate flex-1 text-left font-medium tracking-tight',
+                  isActive ? 'text-txt-primary' : 'text-txt-secondary group-hover:text-txt-primary',
+                )}>
+                  {item.label}
+                </span>
                 {item.badge && (
                   <Badge variant="gold" size="xs">{item.badge}</Badge>
                 )}
                 {isCrm && (
-                  <ChevronRight size={12} className={cn('text-txt-ghost transition-transform', crmOpen && 'rotate-90')} />
+                  <ChevronRight
+                    size={13}
+                    className={cn(
+                      'text-txt-ghost transition-transform duration-200',
+                      crmOpen && 'rotate-90',
+                    )}
+                  />
                 )}
               </>
             )}
@@ -232,21 +281,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
         );
         return (
           <Tooltip key={item.id} content={collapsed ? item.label : undefined} side="right">
-            <div>
+            <div className={cn(collapsed && 'flex justify-center')}>
               {btn}
               {isCrm && !collapsed && crmOpen && !isGuest && (
-                <div className="ml-3 mt-0.5 mb-1 space-y-0.5 border-l border-white/[0.06] pl-2">
+                <div className="ml-4 mt-1 mb-1.5 space-y-0.5 border-l border-white/[0.07] pl-2.5">
                   {visibleCrmSubnav.map((sub) => {
                     const subActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
                     return (
                       <button
                         key={sub.id}
+                        type="button"
                         onClick={() => handleNavClick(sub.path)}
                         className={cn(
-                          'w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors',
+                          'w-full text-left px-2.5 py-1.5 rounded-lg text-[12px] transition-colors',
                           subActive
-                            ? 'text-dv-gold bg-dv-gold/10'
-                            : 'text-txt-muted hover:text-txt-primary hover:bg-white/[0.04]'
+                            ? 'text-dv-gold bg-dv-gold/10 font-medium'
+                            : 'text-txt-muted hover:text-txt-primary hover:bg-white/[0.04]',
                         )}
                       >
                         {sub.label}
@@ -265,17 +315,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 
+  const intelligenceActive = location.pathname === '/';
+
   return (
     <motion.aside
       initial={false}
       animate={{
         width: sidebarWidth,
-        x: isMobile ? (sidebarOpen ? 0 : -Math.max(sidebarWidth, 72)) : 0,
+        x: isMobile ? (sidebarOpen ? 0 : -Math.max(sidebarWidth, 76)) : 0,
         opacity: sidebarVisible ? 1 : 0,
       }}
-      transition={{ type: 'tween', duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ type: 'tween', duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        'h-full flex flex-col bg-surface-1/80 backdrop-blur-xl border-r border-white/[0.04] flex-shrink-0 z-50 relative overflow-hidden origin-left',
+        'h-full flex flex-col flex-shrink-0 z-50 relative overflow-hidden origin-left',
+        'bg-gradient-to-b from-[#0E1A2C] via-[#0B1524] to-[#09101C]',
+        'border-r border-white/[0.05]',
         isMobile && 'fixed top-0 left-0 bottom-0 dv-safe-sidebar',
         !sidebarVisible && !isMobile && 'pointer-events-none border-transparent',
       )}
@@ -287,28 +341,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
         <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{
-            background: 'radial-gradient(ellipse at 50% 0%, rgba(201,169,110,0.8) 0%, transparent 60%)',
-          }}
+          className="absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full opacity-30 blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(201,169,110,0.45) 0%, transparent 70%)' }}
+        />
+        <div
+          className="absolute bottom-24 -left-10 h-32 w-32 rounded-full opacity-20 blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(56,189,248,0.35) 0%, transparent 70%)' }}
         />
       </div>
 
-      {/* Header: expanded = logo+title+toggle; collapsed = centered logo + corner expand */}
+      {/* Brand */}
       <div
         className={cn(
-          'relative flex h-14 border-b border-bdr-subtle flex-shrink-0',
-          collapsed ? 'items-center justify-center px-1' : 'items-center justify-between px-3',
+          'relative flex h-14 flex-shrink-0 border-b border-white/[0.05]',
+          collapsed ? 'items-center justify-center px-1' : 'items-center justify-between px-3.5',
         )}
       >
         <div className={cn('flex items-center min-w-0', collapsed ? 'justify-center' : 'gap-2.5')}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-dv-gold/15">
-            <Stethoscope size={16} className="text-dv-gold" />
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            style={{
+              background: 'linear-gradient(145deg, rgba(201,169,110,0.28), rgba(201,169,110,0.08))',
+              boxShadow: 'inset 0 0 0 1px rgba(201,169,110,0.35), 0 4px 16px rgba(201,169,110,0.12)',
+            }}
+          >
+            <Stethoscope size={17} className="text-dv-gold" strokeWidth={1.75} />
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <h1 className="text-sm font-bold text-dv-gold tracking-tight truncate">DentVision</h1>
-              <p className="text-2xs text-txt-muted truncate max-w-[140px]">Intelligence</p>
+              <h1 className="text-[13px] font-bold text-dv-gold tracking-tight truncate leading-tight">DentVision</h1>
+              <p className="text-[10px] text-txt-muted truncate leading-tight mt-0.5">SuperApp</p>
             </div>
           )}
         </div>
@@ -331,42 +393,64 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {!collapsed && (
-        <div className="px-3 py-2.5 border-b border-bdr-subtle flex-shrink-0">
+        <div className="relative px-3.5 py-3 border-b border-white/[0.05] flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <Avatar name={isGuest ? 'Гость' : (user?.name || user?.login || '?')} size="sm" />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-txt-primary truncate">{isGuest ? 'Гость' : (user?.name || user?.login)}</p>
-              <p className="text-2xs text-txt-muted">{isGuest ? 'Анонимный доступ' : ((roleInfo as any)?.label || 'Сотрудник')}</p>
+              <p className="text-[10px] text-txt-muted truncate">{isGuest ? 'Анонимный доступ' : ((roleInfo as any)?.label || 'Сотрудник')}</p>
             </div>
           </div>
         </div>
       )}
 
-      <div className={cn('pt-2 flex-shrink-0', collapsed ? 'px-1.5' : 'px-2')}>
-        <motion.button
-          type="button"
-          onClick={() => handleNavClick('/')}
-          whileTap={collapsed ? undefined : { scale: 0.98 }}
-          className={cn(
-            'flex w-full items-center rounded-xl transition-colors duration-200 border',
-            collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2.5',
-            location.pathname === '/'
-              ? 'bg-dv-gold/15 border-dv-gold/30 text-dv-gold'
-              : 'border-dv-gold/10 text-txt-secondary hover:border-dv-gold/30 hover:text-dv-gold bg-dv-gold/[0.04]',
-          )}
-        >
-          <Brain size={collapsed ? 18 : 16} className="shrink-0" />
-          {!collapsed && (
-            <div className="text-left min-w-0">
-              <p className="text-sm font-semibold truncate">Intelligence</p>
-              <p className="text-[10px] text-txt-muted truncate">Цифровой ассистент</p>
-            </div>
-          )}
-        </motion.button>
+      {/* Intelligence — always first in the vertical stack */}
+      <div className={cn('relative pt-3 flex-shrink-0', collapsed ? 'px-2' : 'px-2.5')}>
+        <Tooltip content={collapsed ? 'Intelligence' : undefined} side="right">
+          <motion.button
+            type="button"
+            onClick={() => handleNavClick('/')}
+            whileHover={collapsed ? { scale: 1.04 } : { scale: 1.01 }}
+            whileTap={{ scale: 0.97 }}
+            className={cn(
+              'flex w-full items-center transition-all duration-200',
+              collapsed ? 'justify-center' : 'gap-3 rounded-xl px-2 py-2',
+              !collapsed && (intelligenceActive
+                ? 'bg-dv-gold/12'
+                : 'hover:bg-white/[0.035]'),
+            )}
+          >
+            <span
+              className={cn(
+                'relative flex shrink-0 items-center justify-center transition-all duration-200',
+                collapsed ? 'h-11 w-11 rounded-2xl' : 'h-9 w-9 rounded-xl',
+              )}
+              style={{
+                color: '#C9A96E',
+                background: intelligenceActive
+                  ? 'linear-gradient(145deg, rgba(201,169,110,0.35), rgba(201,169,110,0.12))'
+                  : 'linear-gradient(145deg, rgba(201,169,110,0.18), rgba(201,169,110,0.06))',
+                boxShadow: intelligenceActive
+                  ? 'inset 0 0 0 1px rgba(201,169,110,0.5), 0 0 22px rgba(201,169,110,0.22)'
+                  : 'inset 0 0 0 1px rgba(201,169,110,0.22)',
+              }}
+            >
+              <Brain size={collapsed ? 20 : 17} strokeWidth={1.75} />
+            </span>
+            {!collapsed && (
+              <div className="text-left min-w-0">
+                <p className={cn('text-[13px] font-semibold truncate', intelligenceActive ? 'text-dv-gold' : 'text-txt-primary')}>
+                  Intelligence
+                </p>
+                <p className="text-[10px] text-txt-muted truncate">Цифровой ассистент</p>
+              </div>
+            )}
+          </motion.button>
+        </Tooltip>
       </div>
 
       {!collapsed && isGuest && (
-        <div className="px-3 pt-2 pb-1 flex-shrink-0">
+        <div className="px-3 pt-3 pb-1 flex-shrink-0">
           <div className="rounded-xl border border-dv-gold/20 bg-gradient-to-br from-dv-gold/10 via-dv-gold/5 to-transparent p-3 space-y-2">
             <p className="text-xs font-semibold text-txt-primary">Знакомство с DentVision</p>
             <p className="text-[11px] text-txt-muted leading-relaxed">
@@ -384,11 +468,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {!collapsed && (
-        <div className="px-3 pt-4 pb-1 flex-shrink-0">
-          <p className="text-2xs font-semibold text-txt-ghost uppercase tracking-wider">
+        <div className="px-3.5 pt-4 pb-1 flex-shrink-0">
+          <p className="text-[10px] font-semibold text-txt-ghost uppercase tracking-[0.14em]">
             {isGuest ? 'Открыть' : 'Сервисы'}
           </p>
         </div>
+      )}
+
+      {collapsed && (
+        <div className="my-2.5 mx-auto h-px w-8 rounded-full bg-gradient-to-r from-transparent via-dv-gold/35 to-transparent flex-shrink-0" />
       )}
 
       <motion.nav
@@ -396,11 +484,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         animate={sidebarVisible ? 'visible' : 'hidden'}
         variants={{
           hidden: {},
-          visible: { transition: { staggerChildren: 0.035, delayChildren: 0.1 } },
+          visible: { transition: { staggerChildren: 0.03, delayChildren: 0.06 } },
         }}
         className={cn(
-          'flex-1 overflow-y-auto overflow-x-hidden py-1 space-y-0.5 no-scrollbar',
-          collapsed ? 'px-1.5' : 'px-2',
+          'relative flex-1 overflow-y-auto overflow-x-hidden no-scrollbar',
+          collapsed ? 'px-2 space-y-1 py-0.5' : 'px-2.5 space-y-0.5 py-0.5',
         )}
       >
         {isGuest
@@ -413,33 +501,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
       </motion.nav>
 
-      <div className={cn('pb-2 flex-shrink-0 space-y-1', collapsed ? 'px-1.5' : 'px-2')}>
+      {/* Footer actions — pinned bottom of the vertical stack */}
+      <div className={cn('relative pb-3 pt-2 flex-shrink-0 space-y-1.5', collapsed ? 'px-2' : 'px-2.5')}>
+        <div className="mx-auto mb-1.5 h-px w-full max-w-[9rem] rounded-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         {!isGuest && user ? (
-          <motion.button
-            type="button"
-            onClick={() => { logout(); navigate('/login'); }}
-            whileTap={collapsed ? undefined : { scale: 0.98 }}
-            className={cn(
-              'flex w-full items-center rounded-lg border border-error/15 text-error transition-colors hover:bg-error/10',
-              collapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2',
-            )}
-          >
-            <LogOut size={16} className="shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Выйти</span>}
-          </motion.button>
+          <Tooltip content={collapsed ? 'Выйти' : undefined} side="right">
+            <motion.button
+              type="button"
+              onClick={() => { logout(); navigate('/login'); }}
+              whileHover={collapsed ? { scale: 1.04 } : undefined}
+              whileTap={{ scale: 0.97 }}
+              className={cn(
+                'flex w-full items-center rounded-xl border border-error/15 text-error transition-colors hover:bg-error/10',
+                collapsed ? 'justify-center py-2.5' : 'gap-2.5 px-3 py-2',
+              )}
+            >
+              <LogOut size={16} strokeWidth={1.75} className="shrink-0" />
+              {!collapsed && <span className="text-sm font-medium">Выйти</span>}
+            </motion.button>
+          </Tooltip>
         ) : (
-          <motion.button
-            type="button"
-            onClick={() => navigate('/login')}
-            whileTap={collapsed ? undefined : { scale: 0.98 }}
-            className={cn(
-              'flex w-full items-center rounded-lg border border-dv-gold/20 text-dv-gold transition-colors hover:bg-dv-gold/10',
-              collapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2',
-            )}
-          >
-            <LogIn size={16} className="shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Войти</span>}
-          </motion.button>
+          <Tooltip content={collapsed ? 'Войти' : undefined} side="right">
+            <motion.button
+              type="button"
+              onClick={() => navigate('/login')}
+              whileHover={collapsed ? { scale: 1.04 } : undefined}
+              whileTap={{ scale: 0.97 }}
+              className={cn(
+                'flex w-full items-center rounded-xl border border-dv-gold/25 text-dv-gold transition-colors hover:bg-dv-gold/10',
+                collapsed ? 'justify-center py-2.5' : 'gap-2.5 px-3 py-2',
+              )}
+            >
+              <LogIn size={16} strokeWidth={1.75} className="shrink-0" />
+              {!collapsed && <span className="text-sm font-medium">Войти</span>}
+            </motion.button>
+          </Tooltip>
         )}
       </div>
     </motion.aside>
