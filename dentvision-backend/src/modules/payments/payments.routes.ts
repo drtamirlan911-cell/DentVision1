@@ -351,7 +351,10 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       providerStatus = await gateway.getPaymentStatus(payment.externalId);
     }
 
-    const sandbox = env.NODE_ENV !== 'production';
+    const sandbox =
+      env.NODE_ENV !== 'production' ||
+      !env.KASPI_CALLBACK_SECRET ||
+      env.KASPI_CALLBACK_SECRET.length < 16;
     const canComplete = providerStatus === 'paid' || sandbox;
 
     if (!canComplete) {

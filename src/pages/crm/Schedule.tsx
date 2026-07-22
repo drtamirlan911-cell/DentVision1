@@ -1431,6 +1431,9 @@ export default function Schedule() {
         allowCloseVisit={payDefaultClose || !!(payAppt && !['done', 'completed', 'cancelled'].includes(String(payAppt.status)))}
         defaultCloseVisit={payDefaultClose}
         saving={paySaving}
+        clinicId={clinicId}
+        appointmentId={payAppt?.id}
+        patientId={payAppt?.patientId}
         onConfirm={handleAcceptPayment}
       />
 

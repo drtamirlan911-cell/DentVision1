@@ -21,9 +21,12 @@ import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
 import { Tabs } from '../../components/ui/ds/Misc'
 import { Switch } from '../../components/ui/ds/Misc'
+import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel'
 import { tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency, TOOTH_NAMES } from '../../utils/constants'
 import { buildWaLink } from '../../utils/reminders'
 import { cn, formatMoney } from '../../lib/utils'
+import { isOnlineQrMethod } from '@/utils/payMethod'
+import { extractPaymentQrUrl } from '@/utils/paymentQr'
 import type { Receipt, Appointment, Patient, Expense, InventoryItem, Clinic, User as UserType, RoleInfo } from '../../types'
 
 const TABS = [
@@ -108,6 +111,8 @@ export default function Cashier() {
   }
   const [activeTab, setActiveTab] = useState('unpaid')
   const [modalOpen, setModalOpen] = useState(false)
+  const [pendingPay, setPendingPay] = useState<any>(null)
+  const [payBusy, setPayBusy] = useState(false)
   const [form, setForm] = useState<CashierForm>(EMPTY_FORM)
   const [expenseForm, setExpenseForm] = useState<ExpenseForm>({ category: '', amount: '', notes: '' })
   const [expModalOpen, setExpModalOpen] = useState(false)
@@ -185,6 +190,7 @@ export default function Cashier() {
 
   const openPaymentModal = (appt: Appointment) => {
     const patient = patients.find(p => p.id === appt.patientId)
+    setPendingPay(null)
     setForm({
       ...EMPTY_FORM,
       patientId: appt.patientId || '',
@@ -199,11 +205,60 @@ export default function Cashier() {
     setModalOpen(true)
   }
 
-  const handleNewTransaction = () => { setForm({ ...EMPTY_FORM, paymentMethod: cashSettings.defaultMethod }); setModalOpen(true) }
+  const handleNewTransaction = () => {
+    setPendingPay(null)
+    setForm({ ...EMPTY_FORM, paymentMethod: cashSettings.defaultMethod })
+    setModalOpen(true)
+  }
 
   const handleQuickPayment = (service: { name: string; price: number }) => {
+    setPendingPay(null)
     setForm({ ...EMPTY_FORM, service: service.name, amount: service.price, paymentMethod: cashSettings.defaultMethod })
     setModalOpen(true)
+  }
+
+  const finalizeReceipt = async () => {
+    const status = form.paymentType === 'credit'
+      ? 'debt'
+      : form.paymentType === 'prepayment' || form.paymentType === 'installment'
+        ? 'partial'
+        : 'paid'
+
+    await upsertReceipt({
+      id: gid(),
+      clinicId: clinic?.id,
+      date: today(),
+      status,
+      total: Number(form.amount),
+      amount: Number(form.amount),
+      payMethod: form.paymentMethod,
+      paymentType: form.paymentType,
+      notes: form.notes,
+      patientId: form.patientId,
+      patientName: form.patientName || patients.find((p) => p.id === form.patientId)?.name || '',
+      service: form.service,
+      appointmentId: form.appointmentId || undefined,
+      diagnosis: form.diagnosis || '',
+      toothNumber: form.toothNumber || '',
+      items: form.service ? [{ name: form.service, price: Number(form.amount), qty: 1 }] : [],
+    })
+
+    if (form.appointmentId && (status === 'paid' || status === 'partial')) {
+      const appt = appointments.find((a) => a.id === form.appointmentId)
+      await upsertAppointment({
+        id: form.appointmentId,
+        patientId: appt?.patientId || form.patientId,
+        doctorId: appt?.doctorId,
+        date: appt?.date,
+        time: appt?.time,
+        duration: appt?.duration,
+        paymentStatus: status === 'paid' ? 'paid' : 'partial',
+      })
+    }
+
+    showToast('Оплата принята', 'success')
+    setPendingPay(null)
+    setModalOpen(false)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -217,48 +272,54 @@ export default function Cashier() {
       return
     }
     try {
-      const status = form.paymentType === 'credit'
-        ? 'debt'
-        : form.paymentType === 'prepayment' || form.paymentType === 'installment'
-          ? 'partial'
-          : 'paid'
-
-      await upsertReceipt({
-        id: gid(),
-        clinicId: clinic?.id,
-        date: today(),
-        status,
-        total: Number(form.amount),
-        amount: Number(form.amount),
-        payMethod: form.paymentMethod,
-        paymentType: form.paymentType,
-        notes: form.notes,
-        patientId: form.patientId,
-        patientName: form.patientName || patients.find((p) => p.id === form.patientId)?.name || '',
-        service: form.service,
-        appointmentId: form.appointmentId || undefined,
-        diagnosis: form.diagnosis || '',
-        toothNumber: form.toothNumber || '',
-        items: form.service ? [{ name: form.service, price: Number(form.amount), qty: 1 }] : [],
-      })
-
-      if (form.appointmentId && (status === 'paid' || status === 'partial')) {
-        const appt = appointments.find((a) => a.id === form.appointmentId)
-        await upsertAppointment({
-          id: form.appointmentId,
-          patientId: appt?.patientId || form.patientId,
-          doctorId: appt?.doctorId,
-          date: appt?.date,
-          time: appt?.time,
-          duration: appt?.duration,
-          paymentStatus: status === 'paid' ? 'paid' : 'partial',
+      const needsQr = isOnlineQrMethod(form.paymentMethod) && form.paymentType !== 'credit'
+      if (needsQr) {
+        setPayBusy(true)
+        const payment = await api.createPayment({
+          amount: Number(form.amount),
+          domain: 'crm',
+          refType: form.appointmentId ? 'appointment' : 'crm_invoice',
+          refId: form.appointmentId || form.patientId,
+          meta: {
+            clinicId: clinic?.id || null,
+            patientId: form.patientId,
+            patientName: form.patientName,
+            service: form.service,
+            appointmentId: form.appointmentId || null,
+            title: form.service || `Оплата · ${form.patientName || 'пациент'}`,
+          },
         })
+        const qr = extractPaymentQrUrl(payment)
+        setPendingPay({
+          ...payment,
+          qr: qr || payment?.qr,
+          title: form.service || `Оплата · ${form.patientName || 'пациент'}`,
+        })
+        showToast(qr ? 'Счёт создан — покажите QR пациенту' : 'Счёт создан — завершите оплату ниже')
+        return
       }
-
-      showToast('Оплата принята', 'success')
-      setModalOpen(false)
+      await finalizeReceipt()
     } catch (err: any) {
       showToast(err?.message || 'Ошибка сохранения', 'error')
+    } finally {
+      setPayBusy(false)
+    }
+  }
+
+  const confirmCashierQr = async () => {
+    if (!pendingPay?.id) return
+    setPayBusy(true)
+    try {
+      const res = await api.confirmPayment(pendingPay.id)
+      if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
+        await finalizeReceipt()
+      } else {
+        showToast('Оплата ещё не подтверждена', 'info')
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Оплата не подтверждена', 'error')
+    } finally {
+      setPayBusy(false)
     }
   }
 
@@ -742,11 +803,22 @@ export default function Cashier() {
       {/* Payment modal (from schedule or manual) */}
       <Modal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={form.appointmentId ? 'Оплата из расписания' : 'Новая оплата'}
+        onClose={() => { setModalOpen(false); setPendingPay(null) }}
+        title={pendingPay ? 'Оплата по QR' : form.appointmentId ? 'Оплата из расписания' : 'Новая оплата'}
         size="lg"
         className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2"
       >
+        {pendingPay ? (
+          <PaymentQrPanel
+            payment={pendingPay}
+            title={pendingPay.title || form.service || 'Оплата'}
+            amount={Number(form.amount)}
+            busy={payBusy}
+            onConfirm={confirmCashierQr}
+            onCancel={() => setPendingPay(null)}
+            hint="Покажите QR пациенту. После оплаты нажмите «Проверить оплату» — чек сохранится в кассе."
+          />
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {form.appointmentId && (
             <div className="p-3 rounded-xl bg-warning/5 border border-warning/20 space-y-2">
@@ -803,18 +875,26 @@ export default function Cashier() {
               options={PAY_TYPES}
             />
           </div>
+          {isOnlineQrMethod(form.paymentMethod) && form.paymentType !== 'credit' && (
+            <p className="text-[11px] text-txt-muted m-0">
+              Для QR сначала создаётся счёт с кодом — пациент оплачивает, затем вы подтверждаете.
+            </p>
+          )}
           <Input
             label="Комментарий"
             value={form.notes}
             onChange={e => setForm({ ...form, notes: e.target.value })}
           />
           <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1" icon={<CreditCard size={16} />}>
-              Принять оплату {form.amount ? money(Number(form.amount)) : ''}
+            <Button type="submit" className="flex-1" loading={payBusy} icon={<CreditCard size={16} />}>
+              {isOnlineQrMethod(form.paymentMethod) && form.paymentType !== 'credit'
+                ? `Создать QR ${form.amount ? money(Number(form.amount)) : ''}`
+                : `Принять оплату ${form.amount ? money(Number(form.amount)) : ''}`}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+            <Button type="button" variant="ghost" onClick={() => { setModalOpen(false); setPendingPay(null) }}>Отмена</Button>
           </div>
         </form>
+        )}
       </Modal>
 
       {/* Expense modal */}
