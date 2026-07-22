@@ -1,12 +1,14 @@
 ﻿import React from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, LayoutGrid, Building2, CreditCard } from 'lucide-react'
+import { Settings as SettingsIcon, User, Shield, Palette, LayoutGrid, Building2, CreditCard } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
 import { Switch } from '@/components/ui/ds/Misc'
 import { useAuth, canManageClinicSettings } from '@/store/auth.store'
+import { useUIStore } from '@/store/ui.store'
+import { useToast } from '@/components/ui/ds/Toast'
 
 const container = {
   hidden: { opacity: 0 },
@@ -35,10 +37,14 @@ const SERVICE_TOGGLES: ServiceToggle[] = [
 
 export default function SettingsPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const { user, clinic, roleInfo, role, activeMembership, logout } = useAuth()
-  const [notifications, setNotifications] = React.useState<boolean>(true)
-  const [darkMode, setDarkMode] = React.useState<boolean>(true)
-  const [autoSave, setAutoSave] = React.useState<boolean>(true)
+  const darkMode = useUIStore((s) => s.darkMode)
+  const notifications = useUIStore((s) => s.notifications)
+  const autoSave = useUIStore((s) => s.autoSave)
+  const setDarkMode = useUIStore((s) => s.setDarkMode)
+  const setNotifications = useUIStore((s) => s.setNotifications)
+  const setAutoSave = useUIStore((s) => s.setAutoSave)
 
   const canManageServices = roleInfo?.pages?.includes('settings')
   const showClinicSettings =
@@ -48,6 +54,40 @@ export default function SettingsPage() {
     !!roleInfo?.pages?.includes('clinic-settings')
   const clinicId = clinic?.id || activeMembership?.clinicId || user?.clinicId || ''
   const clinicName = clinic?.name || 'вашей клиники'
+
+  const onDarkMode = (next: boolean) => {
+    setDarkMode(next)
+    toast.success(next ? 'Тёмная тема включена' : 'Светлая тема включена')
+  }
+
+  const onNotifications = async (next: boolean) => {
+    setNotifications(next)
+    if (!next) {
+      toast.success('Браузерные уведомления выключены')
+      return
+    }
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      toast.info('Браузер не поддерживает push-уведомления')
+      return
+    }
+    if (Notification.permission === 'denied') {
+      toast.error('Разрешение заблокировано в настройках браузера')
+      return
+    }
+    if (Notification.permission === 'default') {
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') {
+        toast.error('Разрешение на уведомления не получено')
+        return
+      }
+    }
+    toast.success('Браузерные уведомления включены')
+  }
+
+  const onAutoSave = (next: boolean) => {
+    setAutoSave(next)
+    toast.success(next ? 'Автосохранение черновиков включено' : 'Автосохранение выключено')
+  }
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="max-w-3xl mx-auto space-y-6">
@@ -146,6 +186,7 @@ export default function SettingsPage() {
                     <Switch
                       checked
                       disabled
+                      onCheckedChange={() => {}}
                     />
                   </div>
                 ))}
@@ -197,23 +238,23 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-txt-primary">Тёмная тема</p>
-                  <p className="text-2xs text-txt-muted">Тёмный режим отображения</p>
+                  <p className="text-2xs text-txt-muted">Сохраняется на этом устройстве</p>
                 </div>
-                <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+                <Switch checked={darkMode} onCheckedChange={onDarkMode} />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-txt-primary">Уведомления</p>
-                  <p className="text-2xs text-txt-muted">Push-уведомления в браузере</p>
+                  <p className="text-2xs text-txt-muted">Push в браузере, когда вкладка в фоне</p>
                 </div>
-                <Switch checked={notifications} onCheckedChange={setNotifications} />
+                <Switch checked={notifications} onCheckedChange={onNotifications} />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-txt-primary">Автосохранение</p>
-                  <p className="text-2xs text-txt-muted">Автоматическое сохранение изменений</p>
+                  <p className="text-2xs text-txt-muted">Черновики форм в CRM сохраняются локально</p>
                 </div>
-                <Switch checked={autoSave} onCheckedChange={setAutoSave} />
+                <Switch checked={autoSave} onCheckedChange={onAutoSave} />
               </div>
             </div>
           </CardContent>

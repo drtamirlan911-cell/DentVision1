@@ -26,6 +26,7 @@ import {
 import { useToast } from '@/components/ui/ds/Toast'
 import { MessagesPanel } from '@/components/community/MessagesPanel'
 import { cn } from '@/lib/utils'
+import { useAutosaveDraft } from '@/hooks/useAutosaveDraft'
 
 const TOPICS = ['Все', 'Имплантация', 'Терапия', 'Ортодонтия', 'Хирургия', 'Лаборатория', 'Обучение']
 
@@ -52,6 +53,11 @@ export default function CommunityPage() {
 
   const [topic, setTopic] = useState('Все')
   const [draft, setDraft] = useState('')
+  const { clear: clearCommunityDraft } = useAutosaveDraft(
+    `community-draft:${user?.id || 'guest'}`,
+    draft,
+    setDraft,
+  )
   const [posts, setPosts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
@@ -113,6 +119,7 @@ export default function CommunityPage() {
       const post = await createCommunityPost({ content: draft.trim(), tags: topic !== 'Все' ? [topic] : ['Тред'], kind: 'thread' })
       setPosts((prev) => [post, ...prev])
       setDraft('')
+      clearCommunityDraft()
       showToast('Опубликовано', 'success')
     } catch (e: any) {
       showToast(e?.message || 'Не удалось опубликовать', 'error')

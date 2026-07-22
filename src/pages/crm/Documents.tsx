@@ -14,6 +14,7 @@ import { Input, Textarea, Select } from '../../components/ui/ds/Input';
 import { Modal } from '../../components/ui/ds/Modal';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { PageHeader } from '../../components/ui/ds/StatCard';
+import { useAutosaveDraft } from '@/hooks/useAutosaveDraft';
 import type { Document, Patient, User as UserType, Clinic, RoleInfo } from '../../types';
 
 const DOC_STATUS: Record<string, { l: string; v: string }> = {
@@ -452,6 +453,19 @@ export default function Documents() {
   const [form, setForm] = useState<DocForm>({
     patient_id: '', doctor_id: '', doc_type: '', title: '', content: '', status: 'draft',
   });
+  const { clear: clearDocDraft } = useAutosaveDraft(
+    `doc-form:${clinic?.id || 'x'}`,
+    form,
+    setForm,
+    {
+      onRestore: (draft) => {
+        if (draft?.title || draft?.content || draft?.doc_type) {
+          setShowForm(true);
+          setContentSnapshot(draft.content || '');
+        }
+      },
+    },
+  );
 
   const allTypes = useMemo(() => {
     const types = new Set<string>((documents || []).map(d => d.doc_type).filter(Boolean) as string[]);
@@ -481,6 +495,7 @@ export default function Documents() {
     setEditingId(null);
     setShowForm(false);
     setShowTemplates(false);
+    clearDocDraft();
   };
 
   const autoFillContent = (content: string, patientId: string, doctorId: string): string => {
@@ -573,6 +588,7 @@ export default function Documents() {
       user_name: user?.name,
     } as any);
     toast.success(editingId ? 'Документ обновлён' : 'Документ создан');
+    clearDocDraft();
     resetForm();
   };
 

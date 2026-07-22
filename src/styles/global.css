@@ -3,24 +3,58 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root,
+  html.dark {
     --dv-gold: #C9A96E;
     --dv-gold-light: #E2C998;
     --dv-gold-dim: #8B6F3E;
+    --dv-ink: #080F1A;
     --dv-surface-0: #080F1A;
     --dv-surface-1: #0D1B2E;
     --dv-surface-2: #132540;
     --dv-surface-3: #1A2F50;
+    --dv-surface-4: #213A5F;
+    --dv-surface-raised: rgba(255, 255, 255, 0.035);
+    --dv-surface-raised-hover: rgba(255, 255, 255, 0.06);
+    --dv-overlay: rgba(0, 0, 0, 0.6);
     --dv-text-primary: #F1F5F9;
     --dv-text-secondary: #94A3B8;
     --dv-text-muted: #64748B;
+    --dv-text-ghost: #475569;
     --dv-border: rgba(201, 169, 110, 0.15);
     --dv-border-subtle: rgba(255, 255, 255, 0.06);
+    --dv-border-focus: rgba(201, 169, 110, 0.5);
+    --dv-glass: rgba(255, 255, 255, 0.03);
+    --dv-glass-strong: rgba(255, 255, 255, 0.06);
     --dv-radius: 0.75rem;
     --dv-sidebar-width: 17rem;
     --dv-sidebar-collapsed: 4.5rem;
     --dv-topbar-height: 3.5rem;
     --dv-bottomnav-height: 3.5rem;
+  }
+
+  html.light {
+    --dv-gold: #B8924A;
+    --dv-gold-light: #C9A96E;
+    --dv-gold-dim: #8B6F3E;
+    --dv-ink: #080F1A;
+    --dv-surface-0: #F0F4F8;
+    --dv-surface-1: #FFFFFF;
+    --dv-surface-2: #E8EEF5;
+    --dv-surface-3: #DCE5F0;
+    --dv-surface-4: #CDD8E8;
+    --dv-surface-raised: rgba(15, 23, 42, 0.03);
+    --dv-surface-raised-hover: rgba(15, 23, 42, 0.06);
+    --dv-overlay: rgba(15, 23, 42, 0.45);
+    --dv-text-primary: #0B1220;
+    --dv-text-secondary: #475569;
+    --dv-text-muted: #64748B;
+    --dv-text-ghost: #94A3B8;
+    --dv-border: rgba(184, 146, 74, 0.28);
+    --dv-border-subtle: rgba(15, 23, 42, 0.08);
+    --dv-border-focus: rgba(184, 146, 74, 0.55);
+    --dv-glass: rgba(15, 23, 42, 0.04);
+    --dv-glass-strong: rgba(15, 23, 42, 0.07);
   }
 
   * {
@@ -40,6 +74,10 @@
     /* Prevent accidental page pan/zoom on mobile Chrome */
     overscroll-behavior-x: none;
     touch-action: pan-y;
+  }
+
+  html.light {
+    color-scheme: light;
   }
 
   body {
@@ -98,7 +136,7 @@
 
   select {
     @apply bg-surface-1 text-txt-primary;
-    color-scheme: dark;
+    color-scheme: inherit;
   }
 
   /* Native select dropdown list — OS-rendered; light text on white bg without these rules */
@@ -147,7 +185,7 @@
   /* Selection */
   ::selection {
     background: rgba(201, 169, 110, 0.3);
-    color: #F1F5F9;
+    color: var(--dv-text-primary);
   }
 
   /* Focus visible */
@@ -159,13 +197,15 @@
 @layer components {
   /* Glass effect */
   .glass {
-    @apply bg-white/[0.03] backdrop-blur-xl;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    @apply backdrop-blur-xl;
+    background: var(--dv-glass);
+    border: 1px solid var(--dv-border-subtle);
   }
 
   .glass-strong {
-    @apply bg-white/[0.06] backdrop-blur-2xl;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    @apply backdrop-blur-2xl;
+    background: var(--dv-glass-strong);
+    border: 1px solid var(--dv-border-subtle);
   }
 
   /* Card base */
@@ -221,9 +261,29 @@
   /* Native select — consistent closed-state appearance app-wide */
   .dv-select {
     @apply w-full rounded-lg border border-bdr-subtle bg-white/[0.03] px-3 py-2 text-sm text-txt-primary appearance-none transition-all duration-200;
-    color-scheme: dark;
+    color-scheme: inherit;
     @apply focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20;
     @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Light theme: remap translucent white overlays used as dark-UI hover fills */
+  html.light .bg-white\/\[0\.03\],
+  html.light .bg-white\/\[0\.04\],
+  html.light .bg-white\/\[0\.05\],
+  html.light .bg-white\/\[0\.06\],
+  html.light .hover\:bg-white\/\[0\.03\]:hover,
+  html.light .hover\:bg-white\/\[0\.04\]:hover,
+  html.light .hover\:bg-white\/\[0\.05\]:hover,
+  html.light .hover\:bg-white\/\[0\.06\]:hover,
+  html.light .hover\:bg-white\/5:hover,
+  html.light .bg-white\/5 {
+    background-color: rgb(15 23 42 / 0.05) !important;
+  }
+
+  html.light .border-white\/\[0\.06\],
+  html.light .border-white\/10,
+  html.light .border-white\/\[0\.08\] {
+    border-color: rgb(15 23 42 / 0.1) !important;
   }
 }
 

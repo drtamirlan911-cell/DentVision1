@@ -10,7 +10,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-gradient-to-r from-dv-gold to-dv-gold-light text-surface-0 hover:shadow-glow-sm',
+          'bg-gradient-to-r from-dv-gold to-dv-gold-light text-[color:var(--dv-ink)] hover:shadow-glow-sm',
         secondary:
           'bg-surface-raised border border-bdr-subtle text-txt-primary hover:bg-surface-raised-hover hover:border-bdr/50',
         ghost:

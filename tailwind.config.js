@@ -15,16 +15,16 @@ export default {
           'gold-dim': '#8B6F3E',
           'gold-muted': 'rgba(201, 169, 110, 0.15)',
         },
-        // Surface hierarchy
+        // Surface hierarchy (CSS vars — switch with html.dark / html.light)
         surface: {
-          0: '#080F1A',
-          1: '#0D1B2E',
-          2: '#132540',
-          3: '#1A2F50',
-          4: '#213A5F',
-          raised: 'rgba(255, 255, 255, 0.035)',
-          'raised-hover': 'rgba(255, 255, 255, 0.06)',
-          overlay: 'rgba(0, 0, 0, 0.6)',
+          0: 'var(--dv-surface-0)',
+          1: 'var(--dv-surface-1)',
+          2: 'var(--dv-surface-2)',
+          3: 'var(--dv-surface-3)',
+          4: 'var(--dv-surface-4)',
+          raised: 'var(--dv-surface-raised)',
+          'raised-hover': 'var(--dv-surface-raised-hover)',
+          overlay: 'var(--dv-overlay)',
         },
         // Semantic
         success: '#27AE60',
@@ -40,16 +40,16 @@ export default {
         },
         // Neutral text
         txt: {
-          primary: '#F1F5F9',
-          secondary: '#94A3B8',
-          muted: '#64748B',
-          ghost: '#475569',
+          primary: 'var(--dv-text-primary)',
+          secondary: 'var(--dv-text-secondary)',
+          muted: 'var(--dv-text-muted)',
+          ghost: 'var(--dv-text-ghost)',
         },
         // Border
         bdr: {
-          DEFAULT: 'rgba(201, 169, 110, 0.15)',
-          subtle: 'rgba(255, 255, 255, 0.06)',
-          focus: 'rgba(201, 169, 110, 0.5)',
+          DEFAULT: 'var(--dv-border)',
+          subtle: 'var(--dv-border-subtle)',
+          focus: 'var(--dv-border-focus)',
         },
       },
       fontFamily: {

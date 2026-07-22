@@ -1,4 +1,11 @@
 import { create } from 'zustand';
+import {
+  applyTheme,
+  ensureNotificationPermission,
+  readUiPrefs,
+  writeUiPrefs,
+  type UiPrefs,
+} from '@/utils/uiPrefs';
 
 export type FirstRunPhase = 'idle' | 'greeting' | 'docking' | 'docked' | 'collapsed' | 'done';
 
@@ -10,10 +17,15 @@ interface UIState {
   sidebarHovering: boolean;
   firstRunPhase: FirstRunPhase;
   darkMode: boolean;
+  notifications: boolean;
+  autoSave: boolean;
   contextSheetOpen: boolean;
 
   toggleSidebar: () => void;
   toggleDarkMode: () => void;
+  setDarkMode: (dark: boolean) => void;
+  setNotifications: (enabled: boolean) => void;
+  setAutoSave: (enabled: boolean) => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarPinned: (pinned: boolean) => void;
@@ -43,6 +55,24 @@ const readWelcomed = () => {
 
 const welcomed = typeof window !== 'undefined' ? readWelcomed() : false;
 const pinned = typeof window !== 'undefined' ? readPinned() : false;
+const initialPrefs: UiPrefs = typeof window !== 'undefined'
+  ? readUiPrefs()
+  : { darkMode: true, notifications: true, autoSave: true };
+
+if (typeof window !== 'undefined') {
+  applyTheme(initialPrefs.darkMode);
+}
+
+function persistPrefs(partial: Partial<UiPrefs>, get: () => UIState) {
+  const next: UiPrefs = {
+    darkMode: get().darkMode,
+    notifications: get().notifications,
+    autoSave: get().autoSave,
+    ...partial,
+  };
+  writeUiPrefs(next);
+  return next;
+}
 
 export const useUIStore = create<UIState>((set, get) => ({
   sidebarOpen: true,
@@ -51,11 +81,29 @@ export const useUIStore = create<UIState>((set, get) => ({
   sidebarVisible: welcomed,
   sidebarHovering: false,
   firstRunPhase: welcomed ? 'done' : 'greeting',
-  darkMode: true,
+  darkMode: initialPrefs.darkMode,
+  notifications: initialPrefs.notifications,
+  autoSave: initialPrefs.autoSave,
   contextSheetOpen: false,
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-  toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
+  toggleDarkMode: () => get().setDarkMode(!get().darkMode),
+  setDarkMode: (dark) => {
+    applyTheme(dark);
+    persistPrefs({ darkMode: dark }, get);
+    set({ darkMode: dark });
+  },
+  setNotifications: (enabled) => {
+    persistPrefs({ notifications: enabled }, get);
+    set({ notifications: enabled });
+    if (enabled) {
+      void ensureNotificationPermission();
+    }
+  },
+  setAutoSave: (enabled) => {
+    persistPrefs({ autoSave: enabled }, get);
+    set({ autoSave: enabled });
+  },
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   setSidebarPinned: (pinned) => {
