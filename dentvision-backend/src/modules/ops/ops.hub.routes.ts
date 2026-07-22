@@ -44,7 +44,7 @@ async function withLecturerUsers<T extends { userId: string }>(rows: T[]) {
 }
 
 const CLINIC_TO_SAAS: Record<string, string> = {
-  DEMO: 'free',
+  DEMO: 'professional',
   STANDARD: 'starter',
   PRO: 'professional',
   ENTERPRISE: 'enterprise',

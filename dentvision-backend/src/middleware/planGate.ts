@@ -133,13 +133,18 @@ export async function guardUserCreate(req: AuthRequest, res: Response, next: Nex
 
 export async function guardAiAccess(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    if (req.user?.role === 'SUPERADMIN') return next();
+    const role = String(req.user?.role || '').toUpperCase();
+    if (role === 'SUPERADMIN') return next();
     if (req.user?.isGuest || !req.user?.id) return next();
     const clinicId = req.user?.clinicId;
     if (!clinicId) return next();
+    // Dedicated demo clinic always has AI for product walkthroughs.
+    if (process.env.DEMO_CLINIC_ID && clinicId === process.env.DEMO_CLINIC_ID) return next();
     const access = req.clinicAccess || (await resolveClinicAccess(clinicId));
     if (!access) return next();
     req.clinicAccess = access;
+    // DEMO clinic plan → professional entitlements (see clinicPlanToSaas).
+    if (String(access.clinicPlan || '').toUpperCase() === 'DEMO') return next();
     const method = req.method.toUpperCase();
     const path = String(req.path || req.url || '');
     // Soft reads (tips / thread restore) must not hard-block the shell on starter.
@@ -147,7 +152,6 @@ export async function guardAiAccess(req: AuthRequest, res: Response, next: NextF
       method === 'GET' &&
       (/proactive|threads|history|digital-twin|briefing|memory/i.test(path));
     if (softRead) {
-      // Allow through; UI can still show upgrade prompts from billing banner.
       return next();
     }
     if (method === 'GET' || method === 'HEAD') {
