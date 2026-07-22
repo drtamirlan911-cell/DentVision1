@@ -323,7 +323,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       animate={{
         width: sidebarWidth,
         x: isMobile ? (sidebarOpen ? 0 : -Math.max(sidebarWidth, 76)) : 0,
-        opacity: sidebarVisible ? 1 : 0,
+        // On mobile the drawer must stay visible while open even if first-run
+        // sidebarVisible is still false.
+        opacity: isMobile || sidebarVisible ? 1 : 0,
       }}
       transition={{ type: 'tween', duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
@@ -395,7 +397,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!collapsed && (
         <div className="relative px-3.5 py-3 border-b border-white/[0.05] flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <Avatar name={isGuest ? 'Гость' : (user?.name || user?.login || '?')} size="sm" />
+            <Avatar
+              name={isGuest ? 'Гость' : (user?.name || user?.login || '?')}
+              size="sm"
+              src={isGuest ? undefined : ((user as any)?.photoUrl || (user as any)?.avatar || undefined)}
+            />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-txt-primary truncate">{isGuest ? 'Гость' : (user?.name || user?.login)}</p>
               <p className="text-[10px] text-txt-muted truncate">{isGuest ? 'Анонимный доступ' : ((roleInfo as any)?.label || 'Сотрудник')}</p>

@@ -378,7 +378,7 @@ export const IntelligenceLayout: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 max-w-[55%] sm:max-w-none">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 max-w-[48%] sm:max-w-none">
             {isGuest && (
               <motion.button
                 whileTap={{ scale: 0.98 }}

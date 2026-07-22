@@ -6,7 +6,7 @@ import {
   Plus, Trash2, Pencil, LogOut, Camera, Building2, Sparkles,
   ExternalLink, ChevronRight, GraduationCap, FolderGit2, MessageSquareQuote, Activity,
 } from 'lucide-react'
-import { useAuth } from '@/store/auth.store'
+import { useAuth, useAuthStore } from '@/store/auth.store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Badge } from '@/components/ui/ds/Badge'
@@ -88,7 +88,14 @@ export default function Profile() {
   const load = useCallback(async () => {
     try {
       const data = await api.getMyProfile()
-      setProfile(data.user || data)
+      const u = data.user || data
+      setProfile(u)
+      const photo = u?.photoUrl || u?.avatar
+      if (photo) {
+        useAuthStore.setState((s) => ({
+          user: s.user ? { ...s.user, photoUrl: photo, avatar: photo } : s.user,
+        }))
+      }
       setSkills(data.skills || [])
       setCertificates(data.certificates || [])
       setAchievements(data.achievements || [])
@@ -120,6 +127,20 @@ export default function Profile() {
     try {
       const updated = await api.updateMyProfile(editForm)
       setProfile((p: any) => ({ ...p, ...updated }))
+      const nextPhoto = updated?.photoUrl || updated?.avatar || editForm.photoUrl || ''
+      // Keep sidebar / chrome avatars in sync without re-login.
+      useAuthStore.setState((s) => ({
+        user: s.user
+          ? {
+              ...s.user,
+              photoUrl: nextPhoto || s.user.photoUrl,
+              avatar: nextPhoto || (s.user as any).avatar,
+              name: updated?.name || [updated?.firstName, updated?.lastName].filter(Boolean).join(' ') || s.user.name,
+              phone: updated?.phone ?? s.user.phone,
+              email: updated?.email ?? s.user.email,
+            }
+          : s.user,
+      }))
       toast.success('Профиль обновлён')
       setEditing(false)
     } catch (e: any) {
@@ -176,7 +197,18 @@ export default function Profile() {
 
   return (
     <div className="dv-page fade-in space-y-4 sm:space-y-5 max-w-3xl mx-auto pb-10 pt-3 sm:pt-6 overflow-x-hidden">
-      <PageHeader title="Мой профиль" subtitle="Визитка, кэшбэк DentCash и профессиональные данные" icon={<UserIcon size={20} className="text-dv-gold" />} />
+      <PageHeader
+        title="Мой профиль"
+        subtitle="Визитка, кэшбэк DentCash и профессиональные данные"
+        icon={
+          <Avatar
+            name={fullName || '?'}
+            size="sm"
+            src={profile?.photoUrl || editForm.photoUrl || user?.photoUrl || user?.avatar}
+            className="ring-1 ring-dv-gold/30"
+          />
+        }
+      />
 
       {/* ─── Header card ─── */}
       <Card className="overflow-hidden">

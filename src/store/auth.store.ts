@@ -182,9 +182,12 @@ interface AuthState {
 function normalizeUser(raw: any) {
   if (!raw) return raw
   const name = raw.name || [raw.firstName, raw.lastName].filter(Boolean).join(' ').trim() || raw.email
+  const photoUrl = raw.photoUrl || raw.avatar || undefined
   return {
     ...raw,
     name,
+    photoUrl,
+    avatar: raw.avatar || photoUrl || undefined,
     platformRole: normalizeRole(raw.platformRole || raw.role),
     role: normalizeRole(raw.role),
   }

@@ -16,6 +16,7 @@ export interface User {
   email?: string
   spec?: string
   photoUrl?: string
+  avatar?: string
   visibility?: 'public' | 'private'
   experienceYears?: number
   salary?: number
