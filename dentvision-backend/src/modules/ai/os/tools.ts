@@ -13,7 +13,18 @@
 import prisma from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
+import {
+  NAV_PATHS,
+  NAV_SECTION_LABELS,
+  NAV_ALIASES,
+  normalizeNavSection,
+  availableSectionKeys as mapAvailableSectionKeys,
+  availableSectionsRu as mapAvailableSectionsRu,
+  availableSectionsData as mapAvailableSectionsData,
+  platformMapPromptBlock,
+} from '../lib/platformMap.js';
 
+export { NAV_PATHS, NAV_SECTION_LABELS, NAV_ALIASES, normalizeNavSection, platformMapPromptBlock };
 export interface ToolContext {
   userId: string;
   clinicId: string | null;
@@ -44,123 +55,19 @@ function requireClinic(ctx: ToolContext): string {
   return ctx.clinicId;
 }
 
-/** Canonical section → path. Keys stay English for the tool API. */
-const NAV_PATHS: Record<string, string> = {
-  schedule: '/crm/schedule',
-  patients: '/crm/patients',
-  finance: '/crm/finance',
-  inventory: '/crm/inventory',
-  documents: '/crm/documents',
-  lab: '/crm/lab',
-  reminders: '/crm/reminders',
-  'dental-chart': '/crm/dental-chart',
-  'treatment-plans': '/crm/treatment-plans',
-  visits: '/crm/visits',
-  staff: '/crm/staff',
-  shop: '/shop',
-  school: '/school',
-  analytics: '/analytics',
-  settings: '/settings',
-  profile: '/profile',
-  demo: '/crm/schedule?demo=1',
-  pricing: '/pricing',
-  jobs: '/jobs',
-  community: '/community',
-};
-
-/** User-facing Russian names — never dump English keys into chat. */
-export const NAV_SECTION_LABELS: Record<string, string> = {
-  schedule: 'Расписание',
-  patients: 'Пациенты',
-  finance: 'Финансы',
-  inventory: 'Склад',
-  documents: 'Документы',
-  lab: 'Лаборатория',
-  reminders: 'Напоминания',
-  'dental-chart': 'Зубная карта',
-  'treatment-plans': 'Планы лечения',
-  visits: 'Визиты',
-  staff: 'Сотрудники',
-  shop: 'Маркетплейс',
-  school: 'Academy OS',
-  analytics: 'Аналитика',
-  settings: 'Настройки',
-  profile: 'Профиль',
-  demo: 'Демо-клиника',
-  pricing: 'Тарифы',
-  jobs: 'Вакансии',
-  community: 'Сообщество',
-};
-
-/** Accept Russian / alias inputs from the model and normalize to NAV_PATHS keys. */
-const NAV_ALIASES: Record<string, string> = {
-  расписание: 'schedule',
-  пациенты: 'patients',
-  финансы: 'finance',
-  касса: 'finance',
-  склад: 'inventory',
-  документы: 'documents',
-  лаборатория: 'lab',
-  напоминания: 'reminders',
-  'зубная карта': 'dental-chart',
-  зубнаякарта: 'dental-chart',
-  'планы лечения': 'treatment-plans',
-  планылечения: 'treatment-plans',
-  визиты: 'visits',
-  сотрудники: 'staff',
-  персонал: 'staff',
-  магазин: 'shop',
-  маркетплейс: 'shop',
-  marketplace: 'shop',
-  школа: 'school',
-  академия: 'school',
-  'academy os': 'school',
-  academy: 'school',
-  аналитика: 'analytics',
-  настройки: 'settings',
-  профиль: 'profile',
-  демо: 'demo',
-  'демо клиника': 'demo',
-  'демо-клиника': 'demo',
-  тарифы: 'pricing',
-  цены: 'pricing',
-  вакансии: 'jobs',
-  сообщество: 'community',
-};
-
-function normalizeNavSection(raw: unknown): string {
-  const key = String(raw || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^\/+/, '')
-    .replace(/^crm\//, '');
-  if (!key) return '';
-  if (NAV_PATHS[key]) return key;
-  if (NAV_ALIASES[key]) return NAV_ALIASES[key];
-  // path-style: /crm/schedule → schedule
-  const last = key.split('/').filter(Boolean).pop() || '';
-  if (NAV_PATHS[last]) return last;
-  if (NAV_ALIASES[last]) return NAV_ALIASES[last];
-  return key;
-}
-
 function availableSectionKeys(guestFriendly = false): string[] {
-  return guestFriendly
-    ? ['demo', 'shop', 'school', 'pricing', 'jobs', 'community']
-    : Object.keys(NAV_SECTION_LABELS);
+  return mapAvailableSectionKeys(guestFriendly ? 'GUEST' : 'OWNER', guestFriendly);
 }
 
 function availableSectionsRu(guestFriendly = false): string {
-  return availableSectionKeys(guestFriendly)
-    .map((k) => `• ${NAV_SECTION_LABELS[k]}`)
-    .join('\n');
+  return mapAvailableSectionsRu(guestFriendly ? 'GUEST' : 'OWNER', guestFriendly);
 }
 
 function availableSectionsData(guestFriendly = false): Array<{ key: string; label: string; path: string }> {
-  return availableSectionKeys(guestFriendly).map((key) => ({
+  return mapAvailableSectionsData(guestFriendly ? 'GUEST' : 'OWNER', guestFriendly).map(({ key, label, path }) => ({
     key,
-    label: NAV_SECTION_LABELS[key],
-    path: NAV_PATHS[key],
+    label,
+    path,
   }));
 }
 
@@ -168,13 +75,13 @@ function availableSectionsData(guestFriendly = false): Array<{ key: string; labe
 export function localizeNavKeysInMessage(text: string): string {
   if (!text) return text;
   let out = text;
-  out = out.replace(
-    /\b(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community)(\s*,\s*(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community))+/gi,
-    (match) =>
-      match
-        .split(/\s*,\s*/)
-        .map((k) => NAV_SECTION_LABELS[k.trim().toLowerCase()] || k.trim())
-        .join(', '),
+  const keyList = Object.keys(NAV_SECTION_LABELS).join('|');
+  const multi = new RegExp(`\\b(${keyList})(\\s*,\\s*(${keyList}))+`, 'gi');
+  out = out.replace(multi, (match) =>
+    match
+      .split(/\s*,\s*/)
+      .map((k) => NAV_SECTION_LABELS[k.trim().toLowerCase()] || k.trim())
+      .join(', '),
   );
   out = out.replace(
     /(раздел(?:ы)?\s*:\s*)([a-z0-9_,\-\s]+)/gi,
@@ -1000,13 +907,13 @@ export const TOOLS: Record<string, ToolSpec> = {
   navigate: {
     name: 'navigate',
     description:
-      'Открыть раздел приложения. Передавай section на русском или ключом: Расписание(schedule), Пациенты(patients), Финансы(finance), Склад(inventory), Документы(documents), Лаборатория(lab), Напоминания(reminders), Зубная карта(dental-chart), Планы лечения(treatment-plans), Визиты(visits), Сотрудники(staff), Маркетплейс(shop), Academy OS(school), Аналитика(analytics), Настройки(settings), Профиль(profile), Демо-клиника(demo), Тарифы(pricing), Вакансии(jobs), Сообщество(community). В ответе пользователю ВСЕГДА пиши русские названия, никогда не перечисляй английские ключи.',
+      'Открыть любой раздел DentVision. section — русское название или ключ. CRM: Расписание, Пациенты, Медкарта, Визиты, Зубная карта, Планы лечения, Касса, Лаборатория, Склад, Документы, Сотрудники, Напоминания, Прайс, Акции, МКБ-10, Настройки клиники, Тариф клиники. Экосистема: Маркетплейс, Academy OS, Аналитика, Вакансии, Сообщество, Кабинет продавца, Кабинет лектора. Платформа: Профиль, Настройки, Мои клиники, Платформа, Аудит, Бэкапы, Демо-клиника, Тарифы. В ответе пользователю — только русские названия.',
     parameters: {
       type: 'object',
       properties: {
         section: {
           type: 'string',
-          description: 'Русское название или ключ раздела (например «Расписание» или schedule)',
+          description: 'Русское название или ключ раздела (например «Расписание», «Прайс», «Кабинет продавца»)',
         },
       },
       required: ['section'],
@@ -1018,8 +925,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       if (!path) {
         return {
           ok: false,
-          error: `Неизвестный раздел. Доступные разделы:\n${availableSectionsRu(isGuest)}`,
-          data: { availableSections: availableSectionsData(isGuest) },
+          error: `Неизвестный раздел. Доступные разделы:\n${mapAvailableSectionsRu(ctx.role, isGuest)}`,
+          data: { availableSections: mapAvailableSectionsData(ctx.role, isGuest) },
         };
       }
       const label = NAV_SECTION_LABELS[section] || section;

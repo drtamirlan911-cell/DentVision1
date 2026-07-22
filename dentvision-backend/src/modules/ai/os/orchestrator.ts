@@ -33,6 +33,13 @@ import {
   type ModelChoice,
 } from '../lib/modelRouter.js';
 import { isClinicLoadQuery } from '../core/clinicLoadPlan.js';
+import { rolePromptFor } from '../prompts/system.prompts.js';
+import { platformMapPromptBlock, stageFromPath, stageAwareSuggestions } from '../lib/platformMap.js';
+import {
+  tryDeterministicNavigate,
+  tryDeterministicStats,
+  tryPlatformMapQuery,
+} from '../lib/deterministicShortcuts.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_TOOL_ROUNDS = 6;
@@ -53,6 +60,11 @@ export interface OrchestratorInput {
   learningInstructions?: string;
   /** Positive few-shot examples for similar past requests. */
   fewShots?: Array<{ user: string; assistant: string }>;
+  /** Current UI path — stage-aware guidance without burning tokens guessing. */
+  pathname?: string | null;
+  /** Context focus from workspace (patient / product / …). */
+  focusType?: string | null;
+  focusId?: string | null;
 }
 
 export interface OrchestratorResult {
@@ -89,42 +101,45 @@ function isJarvisBriefingTrigger(text: string): boolean {
 
 function systemPrompt(input: OrchestratorInput, currencyCode: string): string {
   if (input.isGuest || String(input.role).toUpperCase() === 'GUEST') {
+    const mapBlock = platformMapPromptBlock('GUEST', true);
     return `Ты — DentVision Intelligence, дружелюбный ассистент стоматологической SuperApp.
-Пользователь — гость (ещё не вошёл в клинику). Общайся как чистый ChatGPT: живо, по делу, без канцелярита.
+Пользователь — гость (ещё не вошёл в клинику). Общайся живо, по делу.
 
-О платформе (кратко, когда уместно):
-• CRM клиники — расписание, пациенты, касса, медкарты
-• Маркетплейс — закупки у поставщиков
-• Academy OS — курсы и вебинары
-• ИИ-помощник — после входа работает с живыми данными клиники
+${mapBlock}
 
 ПРАВИЛА:
 1. Отвечай по-русски.
 2. НЕ выдумывай расписание, выручку, долги, пациентов — у гостя нет клиники.
-3. Если просят «что важно сегодня / выручку / долги / расписание» — мягко объясни, что это появится после входа или демо, и предложи зарегистрироваться / открыть демо.
-4. Подсвечивай преимущества DentVision, когда гость знакомится с продуктом.
-5. Можно подсказать маркетплейс, академию, демо-клинику, тарифы через navigate.
-6. Не упоминай внутренние инструменты и не перечисляй английские ключи. Только русские названия.
-   Когда советуешь куда перейти — вызови navigate И напиши «Откройте Демо-клинику» / «Откройте Маркетплейс» (кнопка появится в чате).
-7. Если неясно куда открыть — список разделов СТРОГО в формате:
-Куда открыть? Доступные разделы:
-• Демо-клиника
-• Маркетплейс
-• Academy OS
-• Тарифы
-(по одному на строку с «•»).`;
+3. Если просят данные клиники — мягко предложи демо или регистрацию.
+4. Подсвечивай преимущества DentVision.
+5. Открывай разделы через navigate; в тексте — русские названия.
+6. Экономия: коротко, один next step.`;
   }
 
   const agents = agentsForRole(input.role);
   const mandates = agents.map((a) => `- ${a.name}: ${a.mandate}`).join('\n');
+  const stage = stageFromPath(input.pathname) || input.focusType || 'workspace';
+  const roleBlock = rolePromptFor(input.role);
+  const mapBlock = platformMapPromptBlock(input.role, false);
+  const stageHints = stageAwareSuggestions({
+    role: input.role,
+    isGuest: false,
+    stage,
+    focusType: input.focusType,
+  }).join(' · ');
 
   return `Ты — DentVision Intelligence, операционный ИИ клиники в духе Jarvis:
-проактивный, спокойный, точный, с лёгкой уверенностью. Без пафоса и без воды.
+проактивный, спокойный, точный. Экономичный: коротко, факты из инструментов, один next step.
 
 Пользователь: ${input.userName || 'сотрудник клиники'}, роль: ${input.role}.
+Сейчас на экране: этап «${stage}»${input.pathname ? ` (${input.pathname})` : ''}${input.focusType ? `, фокус: ${input.focusType}${input.focusId ? `/${input.focusId}` : ''}` : ''}.
+Подсказки по этапу: ${stageHints || '—'}.
 
-Ты оркестрируешь специализированных агентов:
+${roleBlock ? `РОЛЬ:\n${roleBlock}\n` : ''}
+Ты оркестрируешь агентов:
 ${mandates}
+
+${mapBlock}
 
 ПРАВИЛА:
 1. Отвечай по-русски, коротко. Сначала суть, потом деталь.
@@ -132,17 +147,15 @@ ${mandates}
 3. Мутации (запись, счёт, план) — confirmed=false, пока пользователь явно не подтвердил.
 4. Клинические выводы — черновик для врача, не диагноз.
 5. Ошибки инструментов признавай прямо и предлагай следующий шаг.
-6. Раздел открывай через navigate. В тексте — только русские названия (Расписание, Пациенты, Маркетплейс…), без английских ключей.
-   Когда советуешь куда перейти — обязательно вызови navigate И напиши фразу вида «Откройте Расписание» / «Откройте Маркетплейс», чтобы в чате появилась кнопка.
-   Если предлагаешь несколько разделов — список с «•» по одному на строку.
+6. Раздел открывай через navigate. В тексте — только русские названия. Когда советуешь куда перейти — вызови navigate И напиши «Откройте …».
 7. Не свети внутренние имена инструментов/агентов.
-8. Если пользователь только вошёл или просит «что важно» — приоритет: расписание сегодня, подтверждения, долги, склад, ближайшие 2 часа — по роли.
+8. Если пользователь только вошёл или просит «что важно» — приоритет по роли: расписание/подтверждения/долги/склад/ближайшие 2 часа.
 9. ${clinicCurrencyPromptRule(currencyCode)}
-10. Если пользователь говорит «запомни…» — подтверди кратко, что учёл правило.
-11. Загрузка клиники / возврат базы / пустые слоты / обзвон / незавершённое лечение:
-    СРАЗУ вызови getClinicLoadPlan и ответь списками из данных (ФИО, телефон, дата, свободные часы, открытые планы).
-    Запрещено отвечать общей методичкой («сегодня проверьте… завтра обзвон…») без имён и цифр из клиники.
-    Запрещено заканчивать «если хотите, я могу помочь» — сразу дай готовый план по данным.
+10. Если «запомни…» — подтверди кратко.
+11. Загрузка клиники / обзвон / пустые слоты — СРАЗУ getClinicLoadPlan с именами и цифрами.
+12. Учитывай этап экрана: предлагай действия, уместные ТАМ, где пользователь сейчас.
+13. Свобода платформы: можешь вести по CRM + маркет + академия + кабинеты, если роль позволяет.
+14. Экономия: не вызывай лишние инструменты; для «открой X» достаточно navigate.
 ${input.learningInstructions ? `\n${input.learningInstructions}` : ''}`;
 }
 
@@ -234,8 +247,50 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
     clinicId: input.clinicId,
   });
 
+  const isGuest = Boolean(input.isGuest || String(input.role).toUpperCase() === 'GUEST');
+
+  // Cheap deterministic paths — skip OpenAI entirely when we can.
+  const mapHit = tryPlatformMapQuery(input.text, { role: input.role, isGuest });
+  if (mapHit) {
+    const messageId = await saveMessage(input.sessionId, 'assistant', mapHit.message, {
+      userId: input.userId,
+      clinicId: input.clinicId,
+      prevUserText: input.text,
+    });
+    return { ...mapHit, messageId };
+  }
+
+  const navHit = tryDeterministicNavigate(input.text, { role: input.role, isGuest });
+  if (navHit) {
+    const messageId = await saveMessage(input.sessionId, 'assistant', navHit.message, {
+      userId: input.userId,
+      clinicId: input.clinicId,
+      prevUserText: input.text,
+    });
+    return { ...navHit, messageId };
+  }
+
+  try {
+    const statsHit = await tryDeterministicStats(input.text, {
+      userId: input.userId,
+      clinicId: input.clinicId,
+      role: input.role,
+      isGuest,
+    });
+    if (statsHit) {
+      const messageId = await saveMessage(input.sessionId, 'assistant', statsHit.message, {
+        userId: input.userId,
+        clinicId: input.clinicId,
+        prevUserText: input.text,
+      });
+      return { ...statsHit, messageId };
+    }
+  } catch (e) {
+    console.warn('[AI OS] deterministic stats failed', e);
+  }
+
   // Jarvis entry briefing — deterministic live KPIs, not a chatty LLM opener.
-  if (!input.isGuest && String(input.role).toUpperCase() !== 'GUEST' && isJarvisBriefingTrigger(input.text)) {
+  if (!isGuest && isJarvisBriefingTrigger(input.text)) {
     try {
       const { buildJarvisBriefing } = await import('../core/jarvisBriefing.js');
       const clinic = input.clinicId
@@ -270,8 +325,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
 
   // Clinic load / recall / empty slots — answer from live data, never a generic playbook.
   if (
-    !input.isGuest
-    && String(input.role).toUpperCase() !== 'GUEST'
+    !isGuest
     && input.clinicId
     && isClinicLoadQuery(input.text)
   ) {
