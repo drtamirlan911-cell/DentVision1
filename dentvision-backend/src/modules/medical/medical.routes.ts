@@ -3,10 +3,26 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import {
+  DENTAL_ICD10_SEED,
+  mapIcd10Row,
+  searchDentalCatalog,
+} from './icd10.catalog.js';
 
 const medicalRouter = Router();
 
 medicalRouter.use(authenticate);
+
+/** Idempotent seed of dental ICD-10 codes when the reference table is empty. */
+async function ensureIcd10Seeded() {
+  const count = await prisma.iCD10Code.count();
+  if (count > 0) return count;
+  await prisma.iCD10Code.createMany({
+    data: DENTAL_ICD10_SEED,
+    skipDuplicates: true,
+  });
+  return DENTAL_ICD10_SEED.length;
+}
 
 medicalRouter.post('/visits', async (req: AuthRequest, res) => {
   try {
@@ -286,26 +302,45 @@ medicalRouter.delete('/images/:id', async (req: AuthRequest, res) => {
 
 medicalRouter.get('/icd10', async (req: AuthRequest, res) => {
   try {
-    const { q } = req.query;
+    const rawQ = req.query.q ?? req.query.search;
+    const q = typeof rawQ === 'string' ? rawQ.trim() : '';
 
-    if (!q || typeof q !== 'string') {
-      res.status(400).json({ ok: false, error: 'Search query (q) is required' });
-      return;
+    try {
+      await ensureIcd10Seeded();
+    } catch (seedErr) {
+      console.warn('[icd10] seed skipped:', seedErr);
     }
 
-    const codes = await prisma.iCD10Code.findMany({
-      where: {
-        OR: [
-          { code: { contains: q } },
-          { description: { contains: q } },
-        ],
-      },
-      take: 20,
-    });
+    let rows: Array<{ code: string; description: string; category: string | null }> = [];
+    try {
+      rows = await prisma.iCD10Code.findMany({
+        where: q
+          ? {
+              OR: [
+                { code: { contains: q, mode: 'insensitive' } },
+                { description: { contains: q, mode: 'insensitive' } },
+                { category: { contains: q, mode: 'insensitive' } },
+              ],
+            }
+          : undefined,
+        orderBy: { code: 'asc' },
+        take: q ? 50 : 300,
+      });
+    } catch (dbErr) {
+      console.warn('[icd10] db read failed, using built-in catalog:', dbErr);
+    }
 
-    res.json({ ok: true, data: codes });
+    // Empty DB / failed query → still show the built-in dental catalog.
+    const data =
+      rows.length > 0
+        ? rows.map(mapIcd10Row)
+        : searchDentalCatalog(q || undefined, q ? 50 : 300);
+
+    return res.json({ ok: true, data });
   } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to search ICD-10 codes' });
+    console.error('[icd10]', error);
+    // Last resort: never leave the CRM page blank.
+    return res.json({ ok: true, data: searchDentalCatalog(undefined, 300) });
   }
 });
 
