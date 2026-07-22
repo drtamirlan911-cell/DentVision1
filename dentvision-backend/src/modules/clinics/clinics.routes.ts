@@ -522,22 +522,27 @@ clinicsRouter.delete('/:id/staff/:userId', authenticate, async (req: AuthRequest
     const gate = await assertCanManageStaff(actorId, clinicId);
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.error });
 
-    if (targetUserId === actorId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Нельзя удалить самого себя. Попросите другого владельца или администратора.',
-        code: 'CANNOT_REMOVE_SELF',
-      } satisfies ApiResponse);
-    }
-
-    const member = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: targetUserId, clinicId } },
+    // Accept either userId or membership id (UI historically mixed both).
+    const member = await prisma.clinicMember.findFirst({
+      where: {
+        clinicId,
+        OR: [{ userId: targetUserId }, { id: targetUserId }],
+      },
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true } },
       },
     });
     if (!member) {
       return res.status(404).json({ ok: false, error: 'Сотрудник не найден в клинике' } satisfies ApiResponse);
+    }
+
+    const resolvedUserId = member.userId;
+    if (resolvedUserId === actorId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Нельзя удалить самого себя. Попросите другого владельца или администратора.',
+        code: 'CANNOT_REMOVE_SELF',
+      } satisfies ApiResponse);
     }
 
     if (member.role === 'OWNER') {
@@ -561,14 +566,14 @@ clinicsRouter.delete('/:id/staff/:userId', authenticate, async (req: AuthRequest
     }
 
     await prisma.clinicMember.delete({
-      where: { userId_clinicId: { userId: targetUserId, clinicId } },
+      where: { userId_clinicId: { userId: resolvedUserId, clinicId } },
     });
 
     return res.json({
       ok: true,
       data: {
         removed: true,
-        userId: targetUserId,
+        userId: resolvedUserId,
         clinicId,
         email: member.user.email,
         name: [member.user.firstName, member.user.lastName].filter(Boolean).join(' '),
