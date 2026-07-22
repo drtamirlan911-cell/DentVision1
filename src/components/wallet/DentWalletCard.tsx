@@ -36,19 +36,19 @@ export function DentWalletCard({ className }: { className?: string }) {
   }, [])
 
   return (
-    <Card className={cn('border-dv-gold/25 bg-gradient-to-br from-dv-gold/10 via-white/[0.02] to-transparent', className)}>
-      <CardContent className="p-4 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
+    <Card className={cn('border-dv-gold/25 bg-gradient-to-br from-dv-gold/10 via-white/[0.02] to-transparent overflow-hidden', className)}>
+      <CardContent className="p-3 sm:p-4 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-sm font-semibold text-txt-primary">
-              <Gift size={16} className="text-dv-gold" />
-              Кэшбэк DentCash
+              <Gift size={16} className="text-dv-gold shrink-0" />
+              <span className="truncate">Кэшбэк DentCash</span>
             </div>
-            <p className="text-[11px] text-txt-muted mt-1">
+            <p className="text-[11px] text-txt-muted mt-1 leading-snug">
               1 DentCash = 1 ₸ · копится с покупок в магазине и подписки
             </p>
           </div>
-          <Badge variant="gold" size="xs">Dent Wallet</Badge>
+          <Badge variant="gold" size="xs" className="shrink-0 self-start">Dent Wallet</Badge>
         </div>
 
         {loading ? (
@@ -64,14 +64,14 @@ export function DentWalletCard({ className }: { className?: string }) {
           <>
             <div>
               <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold">Доступно к списанию</p>
-              <p className="text-3xl font-bold text-dv-gold mt-1">{fmt(wallet.balanceTenge)}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-dv-gold mt-1 break-all">{fmt(wallet.balanceTenge)}</p>
               {Number(wallet.balanceTenge || 0) === 0 && (
                 <p className="text-[11px] text-txt-muted mt-1.5 leading-relaxed">
                   Пока 0 ₸ — сделайте заказ в маркетплейсе: кэшбэк 1–7% начислится после доставки.
                 </p>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div className="rounded-xl bg-white/[0.03] border border-bdr-subtle p-2.5">
                 <p className="text-[10px] text-txt-muted flex items-center gap-1"><Clock size={10} /> Ожидает</p>
                 <p className="text-sm font-semibold text-txt-primary mt-1">{fmt(wallet.pendingTenge)}</p>
