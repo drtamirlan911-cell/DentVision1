@@ -474,16 +474,11 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       }
     }
 
-    // Clinic static/API: receptionist confirms after seeing money on clinic account.
-    // Platform mock: allow sandbox when webhook secret unset / non-production.
-    const platformSandbox =
+    const sandbox =
       env.NODE_ENV !== 'production' ||
       !env.KASPI_CALLBACK_SECRET ||
       env.KASPI_CALLBACK_SECRET.length < 16;
-    const canComplete =
-      providerStatus === 'paid' ||
-      isClinic ||
-      (!isClinic && platformSandbox);
+    const canComplete = providerStatus === 'paid' || sandbox;
 
     if (!canComplete) {
       return res.status(402).json({

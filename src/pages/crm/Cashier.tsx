@@ -816,7 +816,7 @@ export default function Cashier() {
             busy={payBusy}
             onConfirm={confirmCashierQr}
             onCancel={() => setPendingPay(null)}
-            hint="Покажите QR пациенту — оплата идёт на Kaspi клиники. После перевода нажмите «Проверить оплату» — чек сохранится в кассе."
+            hint="Покажите QR пациенту. После оплаты нажмите «Проверить оплату» — чек сохранится в кассе."
           />
         ) : (
         <form onSubmit={handleSubmit} className="space-y-4">

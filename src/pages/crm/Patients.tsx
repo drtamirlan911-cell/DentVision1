@@ -845,7 +845,7 @@ export default function Patients() {
                           }
                         }}
                         onCancel={() => setPendingPay(null)}
-                        hint="Покажите QR пациенту — оплата идёт на Kaspi клиники. После перевода нажмите «Проверить оплату»."
+                        hint="Покажите QR пациенту. После оплаты нажмите «Проверить оплату»."
                       />
                     ) : (
                     <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
