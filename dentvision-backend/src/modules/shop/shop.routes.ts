@@ -312,7 +312,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       });
       order = await prisma.order.findUnique({ where: { id: order.id } }) || order;
     } else if (needsOnlinePay) {
-      const { providers } = await import('../payments/kaspi.provider.js');
+      const { providers, withPaymentQr } = await import('../payments/kaspi.provider.js');
       const { tengeToMinor: toMinor, serializeBigInt } = await import('../../lib/money.js');
       const amountMinor = toMinor(finalTotal);
       const gateway = providers.kaspi_qr;
@@ -336,7 +336,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
           },
         },
       });
-      payment = { ...serializeBigInt(pay), qr: created.qr };
+      payment = withPaymentQr(serializeBigInt(pay) as Record<string, unknown>, created.qr);
       const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
       order = await prisma.order.update({
         where: { id: order.id },
