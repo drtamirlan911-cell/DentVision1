@@ -8,6 +8,25 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>DentVision — Стоматологическая SuperApp</title>
+    <script>
+      // Apply saved theme before paint to avoid flash
+      (function () {
+        try {
+          var raw = localStorage.getItem('dv_ui_prefs');
+          var dark = true;
+          if (raw) {
+            var p = JSON.parse(raw);
+            if (p && p.darkMode === false) dark = false;
+          }
+          var root = document.documentElement;
+          root.classList.toggle('dark', dark);
+          root.classList.toggle('light', !dark);
+          root.style.colorScheme = dark ? 'dark' : 'light';
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#080F1A' : '#F0F4F8');
+        } catch (e) { /* keep default dark */ }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
