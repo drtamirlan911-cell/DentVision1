@@ -15,9 +15,11 @@ type PendingAction = 'create' | 'join' | 'demo';
 interface GuestCRMModalProps {
   open: boolean;
   onClose: () => void;
+  /** When true, immediately enter seeded demo clinic (owner@). */
+  autoStartDemo?: boolean;
 }
 
-export default function GuestCRMModal({ open, onClose }: GuestCRMModalProps) {
+export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: GuestCRMModalProps) {
   const navigate = useNavigate();
   const toast = useToast();
   const { login, register, isAuthenticated, switchClinic } = useAuth();
@@ -32,6 +34,7 @@ export default function GuestCRMModal({ open, onClose }: GuestCRMModalProps) {
   const [joinCode, setJoinCode] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+  const autoStartedRef = React.useRef(false);
 
   const reset = () => {
     setStep('menu');
@@ -53,10 +56,9 @@ export default function GuestCRMModal({ open, onClose }: GuestCRMModalProps) {
   const handleSelect = (action: PendingAction) => {
     if (action === 'demo') {
       if (isAuthenticated) {
-        handleDemo();
+        void handleDemo();
       } else {
-        setPendingAction('demo');
-        setStep('auth');
+        void handleQuickDemoLogin();
       }
       return;
     }
@@ -73,6 +75,36 @@ export default function GuestCRMModal({ open, onClose }: GuestCRMModalProps) {
       setStep('auth');
     }
   };
+
+  /** Seeded demo clinic (owner@) — one tap into live CRM without registration. */
+  const handleQuickDemoLogin = async () => {
+    setDemoLoading(true);
+    setError('');
+    try {
+      await login('owner@dentvision.kz', 'Demo1234!');
+      toast.success('Демо-клиника открыта');
+      handleClose();
+      navigate('/crm/schedule');
+    } catch {
+      // Fall back to manual auth → createDemoClinic flow
+      setPendingAction('demo');
+      setStep('auth');
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!open) {
+      autoStartedRef.current = false;
+      return;
+    }
+    if (autoStartDemo && !autoStartedRef.current) {
+      autoStartedRef.current = true;
+      void handleQuickDemoLogin();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when modal opens with autoStartDemo
+  }, [open, autoStartDemo]);
 
   const handleAuth = async () => {
     setError('');
@@ -198,7 +230,7 @@ export default function GuestCRMModal({ open, onClose }: GuestCRMModalProps) {
                       <CRMOption
                         icon={<FlaskConical size={20} />}
                         title="Попробовать демо"
-                        desc="Демо-клиника с患者ами, планами лечения и данными для тестирования."
+                        desc="Демо-клиника с пациентами, планами лечения и данными для тестирования."
                         color="#27AE60"
                         onClick={() => handleSelect('demo')}
                         loading={demoLoading}

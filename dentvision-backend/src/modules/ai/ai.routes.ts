@@ -135,6 +135,7 @@ const ACTION_LABELS: Record<string, string> = {
   OpenReminders: 'Открыть напоминания',
   OPEN_INVOICE: 'Открыть счёт',
   NAVIGATE: 'Открыть раздел',
+  OpenDemo: 'Открыть демо-клинику',
 };
 
 const PATH_ACTION_LABELS: Record<string, string> = {
@@ -475,6 +476,7 @@ const NAVIGATION_ACTION_PATHS: Record<string, string> = {
   OpenSettings: '/settings',
   OpenMyClinics: '/my-clinics',
   OpenCRM: '/crm/schedule',
+  OpenDemo: '/crm/schedule?demo=1',
 };
 
 aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {

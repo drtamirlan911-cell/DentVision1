@@ -48,7 +48,7 @@ const ADMIN_ITEMS: NavItem[] = [
 ];
 
 const GUEST_NAV_ITEMS: NavItem[] = [
-  { id: 'demo', label: 'Демо клиника', icon: <FlaskConical size={16} />, path: '/demo', color: '#C9A96E', section: 'services' },
+  { id: 'demo', label: 'Демо клиника', icon: <FlaskConical size={16} />, path: '/crm/schedule?demo=1', color: '#C9A96E', section: 'services' },
   { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={16} />, path: '/shop', color: '#8E44AD', section: 'services' },
   { id: 'school', label: 'Academy OS', icon: <GraduationCap size={16} />, path: '/school', color: '#16A085', section: 'services' },
   { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={16} />, path: '/jobs', color: '#E67E22', section: 'services' },
@@ -151,7 +151,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleNavClick = (path: string) => {
     if (isGuest) {
-      const publicPaths = ['/shop', '/school', '/jobs', '/community', '/demo', '/pricing', '/'];
+      // Guests may enter /crm — IntelligenceLayout shows GuestCRMModal (demo/create/join).
+      const publicPaths = ['/shop', '/school', '/jobs', '/community', '/demo', '/pricing', '/', '/crm'];
       if (publicPaths.some(p => path === p || path.startsWith(p + '/'))) {
         navigate(path);
       } else {
@@ -342,7 +343,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </p>
             <button
               type="button"
-              onClick={() => handleNavClick('/demo')}
+              onClick={() => handleNavClick('/crm/schedule?demo=1')}
               className="w-full rounded-lg bg-dv-gold px-3 py-1.5 text-xs font-semibold text-surface-0 hover:bg-dv-gold/90 transition-colors"
             >
               Открыть демо

@@ -116,7 +116,7 @@ const SECTION_PATHS: Record<string, string> = {
   analytics: '/analytics',
   settings: '/settings',
   profile: '/profile',
-  demo: '/demo',
+  demo: '/crm/schedule?demo=1',
   pricing: '/pricing',
   jobs: '/jobs',
   community: '/community',

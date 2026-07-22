@@ -59,7 +59,7 @@ export function ContextTab() {
         title="Вы в режиме гостя"
         body="Свободно смотрите маркетплейс, Academy и демо-клинику. После входа контекст станет живым: пациенты, записи и касса вашей клиники."
         actionLabel="Открыть демо"
-        onAction={() => navigate('/demo')}
+        onAction={() => navigate('/crm/schedule?demo=1')}
       />
     )
   }

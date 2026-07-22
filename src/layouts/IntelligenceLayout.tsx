@@ -261,7 +261,11 @@ export const IntelligenceLayout: React.FC = () => {
               <h2 className="text-lg font-semibold text-txt-primary">CRM Стоматологии</h2>
               <p className="text-sm text-txt-secondary max-w-xs">Выберите способ начать работу с CRM</p>
             </div>
-            <GuestCRMModal open={guestCRMOpen} onClose={() => { setGuestCRMOpen(false); navigate('/'); }} />
+            <GuestCRMModal
+              open={guestCRMOpen}
+              autoStartDemo={new URLSearchParams(location.search).get('demo') === '1'}
+              onClose={() => { setGuestCRMOpen(false); navigate('/'); }}
+            />
           </div>
         );
       }

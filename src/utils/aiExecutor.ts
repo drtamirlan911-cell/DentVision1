@@ -68,11 +68,24 @@ const NAVIGATION_ACTIONS: Record<string, string> = {
   OpenProfile: '/profile',
   OpenSettings: '/settings',
   OpenMyClinics: '/my-clinics',
-  OpenDemo: '/demo',
+  OpenDemo: '/crm/schedule?demo=1',
   OpenPricing: '/pricing',
   OpenJobs: '/jobs',
   OpenCommunity: '/community',
+  NAVIGATE: '', // path comes from params.path
 };
+
+export function resolveNavigationPath(
+  type: string,
+  params?: Record<string, unknown>,
+): string | null {
+  if (type === 'NAVIGATE') {
+    const path = params && typeof params.path === 'string' ? params.path : '';
+    return path || null;
+  }
+  const mapped = NAVIGATION_ACTIONS[type];
+  return mapped || null;
+}
 
 export function useAIExecutor() {
   const navigate = useNavigate();
@@ -93,7 +106,7 @@ export function useAIExecutor() {
     try {
       // Pure navigation intents — resolve locally so OPEN_SCHEDULE / OpenSchedule both work
       // without a round-trip that can fail and leave the chat button dead.
-      const localPath = NAVIGATION_ACTIONS[action.type];
+      const localPath = resolveNavigationPath(action.type, action.params);
       if (localPath) {
         callbacks.onNavigate?.(localPath);
         navigate(localPath);
@@ -202,11 +215,11 @@ export function useAIExecutor() {
 }
 
 export function extractNavigationAction(action: AIAction): string | null {
-  return NAVIGATION_ACTIONS[action.type] || null;
+  return resolveNavigationPath(action.type, action.params);
 }
 
 export function isNavigationAction(action: AIAction): boolean {
-  return action.type in NAVIGATION_ACTIONS;
+  return Boolean(resolveNavigationPath(action.type, action.params)) || action.type in NAVIGATION_ACTIONS;
 }
 
 export function isDataAction(action: AIAction): boolean {

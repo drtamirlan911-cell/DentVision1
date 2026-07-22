@@ -19,7 +19,7 @@ const ACTION_PATHS: Record<string, string> = {
   OpenProfile: '/profile',
   OpenLab: '/crm/lab',
   OpenShop: '/shop',
-  OpenDemo: '/demo',
+  OpenDemo: '/crm/schedule?demo=1',
 };
 
 interface AlertDropdownProps {
