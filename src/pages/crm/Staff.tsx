@@ -39,6 +39,7 @@ const INVITE_ROLE_OPTIONS = [
 ]
 
 const ROLE_ICON: Record<string, React.ReactNode> = {
+  owner: <Crown size={18} />,
   director: <Crown size={18} />,
   admin: <Briefcase size={18} />,
   doctor: <Stethoscope size={18} />,
@@ -46,6 +47,7 @@ const ROLE_ICON: Record<string, React.ReactNode> = {
 }
 
 const ROLE_BADGE: Record<string, string> = {
+  owner: 'gold',
   director: 'gold',
   admin: 'info',
   doctor: 'success',
@@ -53,6 +55,7 @@ const ROLE_BADGE: Record<string, string> = {
 }
 
 const ROLE_LABELS: Record<string, string> = {
+  owner: 'Руководитель',
   director: 'Руководитель',
   admin: 'Администратор',
   doctor: 'Врач',

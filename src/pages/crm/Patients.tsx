@@ -85,7 +85,8 @@ interface OutletContext {
 
 export default function Patients() {
   const outlet = useOutletContext<OutletContext>() || ({} as OutletContext)
-  const { user, clinic: authClinic } = useAuth()
+  const { user, clinic: authClinic, roleInfo } = useAuth()
+  const readOnly = !!roleInfo?.readOnly
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
   const navigate = useNavigate()
@@ -436,9 +437,11 @@ export default function Patients() {
           subtitle={`База пациентов клиники · ${patients.length} чел.`}
           icon={<User size={20} />}
           actions={
-            <Button icon={<UserPlus size={16} />} onClick={openNew}>
-              Новый пациент
-            </Button>
+            {!readOnly && (
+              <Button icon={<UserPlus size={16} />} onClick={openNew}>
+                Новый пациент
+              </Button>
+            )}
           }
         />
 
