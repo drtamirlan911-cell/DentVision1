@@ -4,7 +4,7 @@
  */
 import prisma from '../../../lib/prisma.js';
 
-const OPEN_PLAN_STATUSES = new Set([
+const OPEN_PLAN_STATUSES = [
   'draft',
   'proposed',
   'accepted',
@@ -14,13 +14,25 @@ const OPEN_PLAN_STATUSES = new Set([
   'DRAFT',
   'PROPOSED',
   'ACCEPTED',
+  'IN_PROGRESS',
+  'IN-PROGRESS',
   'ACTIVE',
-]);
+] as const;
 
-const WORK_HOURS = [9, 10, 11, 12, 14, 15, 16, 17]; // skip typical lunch 13
+/** Typical chair hours; lunch 13:00 skipped. */
+const WORK_HOURS = [9, 10, 11, 12, 14, 15, 16, 17];
 
+/** Day is "weak" if underbooked relative to capacity. */
+const WEAK_BOOKED_MAX = 3;
+const WEAK_EMPTY_MIN = 4;
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+/** Local calendar YYYY-MM-DD (avoid UTC drift from toISOString). */
 function dayKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 function weekdayRu(d: Date): string {
@@ -32,7 +44,15 @@ function parseHour(time?: string | null): number | null {
   const m = String(time).match(/^(\d{1,2})/);
   if (!m) return null;
   const h = Number(m[1]);
-  return Number.isFinite(h) ? h : null;
+  return Number.isFinite(h) && h >= 0 && h <= 23 ? h : null;
+}
+
+function startOfLocalDay(d = new Date()): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function isWeakDay(booked: number, emptyHours: number): boolean {
+  return booked <= WEAK_BOOKED_MAX || emptyHours >= WEAK_EMPTY_MIN;
 }
 
 export interface ClinicLoadPlanResult {
@@ -49,24 +69,32 @@ export async function buildClinicLoadPlan(
   const inactiveDays = Math.min(Math.max(Number(options.inactiveDays) || 90, 30), 365);
 
   const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startToday = startOfLocalDay(now);
+  const currentHour = now.getHours();
   const endHorizon = new Date(startToday);
   endHorizon.setDate(endHorizon.getDate() + days);
 
-  const inactiveBefore = new Date(startToday);
-  inactiveBefore.setDate(inactiveBefore.getDate() - inactiveDays);
-
-  const [patients, appointments, plans, members] = await Promise.all([
+  const [patients, lastVisitRows, horizonAppointments, plans, members] = await Promise.all([
     prisma.patient.findMany({
       where: { clinicId },
       select: { id: true, firstName: true, lastName: true, phone: true },
-      take: 500,
+      take: 800,
       orderBy: { updatedAt: 'desc' },
+    }),
+    // True last PAST visit — future bookings must not hide inactive patients from recall.
+    prisma.appointment.groupBy({
+      by: ['patientId'],
+      where: {
+        clinicId,
+        date: { lt: startToday },
+        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+      },
+      _max: { date: true },
     }),
     prisma.appointment.findMany({
       where: {
         clinicId,
-        date: { gte: new Date(startToday.getTime() - inactiveDays * 86400000), lt: endHorizon },
+        date: { gte: startToday, lt: endHorizon },
         status: { notIn: ['CANCELLED', 'NO_SHOW'] },
       },
       select: {
@@ -93,28 +121,34 @@ export async function buildClinicLoadPlan(
       take: 40,
     }),
     prisma.clinicMember.findMany({
-      where: { clinicId, role: { in: ['DOCTOR', 'OWNER', 'ADMIN'] } },
+      where: { clinicId, role: { in: ['DOCTOR', 'OWNER', 'ADMIN', 'MANAGER'] } },
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
       take: 30,
     }),
   ]);
 
-  // Last activity per patient (appointments in window; older = inactive)
   const lastByPatient = new Map<string, Date>();
-  for (const a of appointments) {
-    const prev = lastByPatient.get(a.patientId);
-    if (!prev || a.date > prev) lastByPatient.set(a.patientId, a.date);
+  for (const row of lastVisitRows) {
+    const d = row._max.date;
+    if (d) lastByPatient.set(row.patientId, d);
   }
 
   const openPlanPatientIds = new Set(plans.map((p) => p.patientId));
+  // Patients already booked in the horizon — deprioritize / skip soft recall noise.
+  const bookedSoon = new Set(horizonAppointments.map((a) => a.patientId));
 
   const recall = patients
     .map((p) => {
+      if (bookedSoon.has(p.id) && !openPlanPatientIds.has(p.id)) return null;
       const last = lastByPatient.get(p.id);
       const daysSince = last
         ? Math.floor((startToday.getTime() - last.getTime()) / 86400000)
         : 9999;
-      if (daysSince < inactiveDays) return null;
+      if (daysSince < inactiveDays && !openPlanPatientIds.has(p.id)) return null;
+      // Active visitors with open plans still deserve a nudge only if inactive-ish
+      // or never visited; otherwise open-plans section covers them.
+      if (daysSince < inactiveDays && openPlanPatientIds.has(p.id)) return null;
+
       const hasOpenPlan = openPlanPatientIds.has(p.id);
       return {
         id: p.id,
@@ -133,7 +167,9 @@ export async function buildClinicLoadPlan(
   const openPlans = plans.slice(0, 12).map((p) => {
     const items = (p.items && typeof p.items === 'object' ? p.items : {}) as Record<string, any>;
     const stages = Array.isArray(items.stages) ? items.stages : [];
-    const next = stages.find((s: any) => !['done', 'completed'].includes(String(s.status || '').toLowerCase()));
+    const next = stages.find(
+      (s: any) => !['done', 'completed', 'DONE', 'COMPLETED'].includes(String(s.status || '')),
+    );
     return {
       planId: p.id,
       title: p.title,
@@ -146,10 +182,8 @@ export async function buildClinicLoadPlan(
     };
   });
 
-  // Schedule gaps for horizon
-  const apptsByDay = new Map<string, typeof appointments>();
-  for (const a of appointments) {
-    if (a.date < startToday) continue;
+  const apptsByDay = new Map<string, typeof horizonAppointments>();
+  for (const a of horizonAppointments) {
     const key = dayKey(a.date);
     const list = apptsByDay.get(key) || [];
     list.push(a);
@@ -172,9 +206,12 @@ export async function buildClinicLoadPlan(
     const takenHours = new Set(
       dayAppts.map((a) => parseHour(a.time)).filter((h): h is number => h != null),
     );
-    const emptyHours = WORK_HOURS.filter((h) => !takenHours.has(h)).map(
-      (h) => `${String(h).padStart(2, '0')}:00`,
-    );
+    // Today: only remaining hours count as empty capacity.
+    const hours = WORK_HOURS.filter((h) => (i === 0 ? h > currentHour : true));
+    const emptyHours = hours
+      .filter((h) => !takenHours.has(h))
+      .map((h) => `${pad2(h)}:00`);
+    if (!isWeakDay(dayAppts.length, emptyHours.length)) continue;
     weakDays.push({
       date: key,
       weekday: weekdayRu(d),
@@ -183,12 +220,16 @@ export async function buildClinicLoadPlan(
     });
   }
 
-  const weakest = [...weakDays].sort((a, b) => a.booked - b.booked || b.emptyHours.length - a.emptyHours.length).slice(0, 5);
+  const weakest = [...weakDays]
+    .sort((a, b) => a.booked - b.booked || b.emptyHours.length - a.emptyHours.length)
+    .slice(0, 5);
 
-  const doctorName = new Map(members.map((m) => [m.user.id, `${m.user.firstName} ${m.user.lastName}`.trim()]));
+  const doctorName = new Map(
+    members.map((m) => [m.user.id, `${m.user.firstName} ${m.user.lastName}`.trim()]),
+  );
   const doctorCounts = new Map<string, number>();
-  for (const a of appointments) {
-    if (a.date < startToday) continue;
+  for (const a of horizonAppointments) {
+    if (!a.doctorId) continue;
     doctorCounts.set(a.doctorId, (doctorCounts.get(a.doctorId) || 0) + 1);
   }
   const doctorLoad = members
@@ -198,14 +239,13 @@ export async function buildClinicLoadPlan(
     }))
     .sort((a, b) => a.appointments - b.appointments);
 
-  // Build answer — concrete, no playbook
   const lines: string[] = [];
   lines.push(`Загрузка клиники на ${days} дн. — по живым данным:`);
   lines.push('');
 
   lines.push('1) Кого возвращать в первую очередь');
   if (!recall.length) {
-    lines.push('• База активна: пациентов с паузой ≥' + inactiveDays + ' дн. нет.');
+    lines.push(`• База активна: пациентов с паузой ≥${inactiveDays} дн. нет.`);
   } else {
     for (const r of recall.slice(0, 8)) {
       const why =
@@ -226,7 +266,8 @@ export async function buildClinicLoadPlan(
   } else {
     for (const p of openPlans.slice(0, 8)) {
       const phone = p.phone ? ` · ${p.phone}` : '';
-      const budget = p.budget != null ? ` · ~${Math.round(Number(p.budget)).toLocaleString('ru-RU')} ₸` : '';
+      const budget =
+        p.budget != null ? ` · ~${Math.round(Number(p.budget)).toLocaleString('ru-RU')} ₸` : '';
       lines.push(`• ${p.patient}${phone}: «${p.title}» → ${p.nextStep}${budget}`);
     }
   }
@@ -234,11 +275,13 @@ export async function buildClinicLoadPlan(
 
   lines.push('3) Слабые окна в расписании');
   if (!weakest.length) {
-    lines.push('• Провалов не видно.');
+    lines.push('• Провалов не видно — горизонт заполнен равномерно.');
   } else {
     for (const d of weakest) {
       const slots = d.emptyHours.slice(0, 4).join(', ') || '—';
-      lines.push(`• ${d.date} (${d.weekday}): записей ${d.booked}, свободны ${slots}${d.emptyHours.length > 4 ? '…' : ''}`);
+      lines.push(
+        `• ${d.date} (${d.weekday}): записей ${d.booked}, свободны ${slots}${d.emptyHours.length > 4 ? '…' : ''}`,
+      );
     }
   }
   lines.push('');
@@ -251,7 +294,9 @@ export async function buildClinicLoadPlan(
     lines.push('');
   }
 
-  lines.push('Быстрые поводы на свободные слоты: осмотр, консультация, профгигиена, контроль, продолжение этапа.');
+  lines.push(
+    'Быстрые поводы на свободные слоты: осмотр, консультация, профгигиена, контроль, продолжение этапа.',
+  );
 
   const suggestions = [
     recall[0] ? `Записать ${recall[0].name.split(' ')[0]}` : 'Показать расписание',
@@ -273,7 +318,8 @@ export async function buildClinicLoadPlan(
         patients: patients.length,
         recall: recall.length,
         openPlans: openPlans.length,
-        appointmentsInHorizon: appointments.filter((a) => a.date >= startToday).length,
+        appointmentsInHorizon: horizonAppointments.length,
+        weakDays: weakest.length,
       },
     },
   };
@@ -294,15 +340,25 @@ export async function buildClinicLoadSignals(clinicId: string): Promise<{
   payload: Record<string, unknown>;
 }> {
   const plan = await buildClinicLoadPlan(clinicId);
-  const totals = (plan.payload.totals || {}) as { recall?: number; openPlans?: number };
+  const totals = (plan.payload.totals || {}) as {
+    recall?: number;
+    openPlans?: number;
+    weakDays?: number;
+  };
   const recall = Number(totals.recall || 0);
   const openPlans = Number(totals.openPlans || 0);
-  const weakDays = Array.isArray(plan.payload.weakDays) ? plan.payload.weakDays.length : 0;
+  const weakDays = Number(totals.weakDays || 0);
 
   const briefingLines: string[] = [];
-  if (recall > 0) briefingLines.push(`• Recall: **${recall}** пациентов без визита давно — можно обзвонить`);
-  if (openPlans > 0) briefingLines.push(`• Незакрытых планов лечения: **${openPlans}**`);
-  if (weakDays > 0) briefingLines.push(`• Слабые окна в расписании: **${weakDays}** дн. с дырами`);
+  if (recall > 0) {
+    briefingLines.push(`• Recall: **${recall}** пациентов без визита давно — можно обзвонить`);
+  }
+  if (openPlans > 0) {
+    briefingLines.push(`• Незакрытых планов лечения: **${openPlans}**`);
+  }
+  if (weakDays > 0) {
+    briefingLines.push(`• Слабые окна в расписании: **${weakDays}** дн. с дырами`);
+  }
 
   const alerts: Array<{
     type: string;
@@ -320,7 +376,7 @@ export async function buildClinicLoadSignals(clinicId: string): Promise<{
       text: `${recall} пациентов для recall / повторной записи`,
       message: `${recall} пациентов для recall / повторной записи`,
       priority: 7,
-      action: { type: 'OpenPatients' },
+      action: { type: 'OpenPatients', path: '/crm/patients' },
     });
   }
   if (openPlans > 0) {
@@ -330,17 +386,17 @@ export async function buildClinicLoadSignals(clinicId: string): Promise<{
       text: `${openPlans} незакрытых планов лечения`,
       message: `${openPlans} незакрытых планов лечения`,
       priority: 6,
-      action: { type: 'OpenTreatmentPlans' },
+      action: { type: 'OpenTreatmentPlans', path: '/crm/treatment-plans' },
     });
   }
   if (weakDays > 0) {
     alerts.push({
       type: 'clinic_load_slots',
       category: 'ops',
-      text: 'Есть свободные слоты — можно заполнить базу',
-      message: 'Есть свободные слоты — можно заполнить базу',
+      text: `${weakDays} слабых дня в расписании — можно заполнить базу`,
+      message: `${weakDays} слабых дня в расписании — можно заполнить базу`,
       priority: 5,
-      action: { type: 'OpenSchedule' },
+      action: { type: 'OpenSchedule', path: '/crm/schedule' },
     });
   }
 
