@@ -1,5 +1,5 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingCart, Search, Heart, Star, Package, Truck, TrendingUp,
@@ -9,6 +9,7 @@ import {
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
+import { useAuth, canManageClinicSettings } from '@/store/auth.store';
 import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Input } from '../../components/ui/ds/Input';
@@ -16,6 +17,8 @@ import { Badge } from '../../components/ui/ds/Badge';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard';
 import { estimateCashbackBps, formatCashbackPercent } from '@/lib/dentcash';
+import { buildClinicRestockSuggestions } from '@/lib/inventory-shop-match';
+import type { InventoryItem } from '@/types';
 
 interface ShopProductItem {
   id: string;
@@ -73,11 +76,21 @@ const SORT_OPTIONS = [
 
 export default function Shop() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { cart, favorites, cartCount, cartTotal, addToCart, toggleFav } = useCart();
+  const { role, user, isAuthenticated, activeMembership } = useAuth();
+  const clinicId = user?.clinicId || activeMembership?.clinicId || '';
+  const canSeeClinicRestock =
+    isAuthenticated &&
+    !!clinicId &&
+    (canManageClinicSettings(role) ||
+      canManageClinicSettings(activeMembership?.role) ||
+      String(role || '').toLowerCase() === 'buyer');
   const [categories, setCategories] = useState<ShopCategory[]>([]);
   const [products, setProducts] = useState<ShopProductItem[]>([]);
   const [suppliers, setSuppliers] = useState<ShopSupplier[]>([]);
-  const [search, setSearch] = useState('');
+  const [clinicInventory, setClinicInventory] = useState<InventoryItem[]>([]);
+  const [search, setSearch] = useState(() => searchParams.get('q') || '');
   const [selectedCat, setSelectedCat] = useState('');
   const [sortBy, setSortBy] = useState('');
   const [loading, setLoading] = useState(true);
@@ -85,6 +98,12 @@ export default function Shop() {
   const [aiQuery, setAiQuery] = useState('');
   const [aiResponse, setAiResponse] = useState<AiResponse | null>(null);
   const [showAi, setShowAi] = useState(false);
+  const [restockDismissed, setRestockDismissed] = useState(false);
+
+  useEffect(() => {
+    const q = searchParams.get('q') || '';
+    if (q) setSearch(q);
+  }, [searchParams]);
 
   useEffect(() => {
     Promise.all([api.getShopCategories(), api.getShopProducts(), api.getShopSuppliers()])
@@ -92,6 +111,33 @@ export default function Shop() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!canSeeClinicRestock || !clinicId) {
+      setClinicInventory([]);
+      return;
+    }
+    let cancelled = false;
+    api.getInventory(clinicId)
+      .then((rows) => { if (!cancelled) setClinicInventory(Array.isArray(rows) ? rows : []); })
+      .catch(() => { if (!cancelled) setClinicInventory([]); });
+    return () => { cancelled = true; };
+  }, [canSeeClinicRestock, clinicId]);
+
+  const clinicRestock = useMemo(
+    () => (canSeeClinicRestock
+      ? buildClinicRestockSuggestions(clinicInventory, products, { onlyWithMatches: true, limit: 5 })
+      : []),
+    [canSeeClinicRestock, clinicInventory, products],
+  );
+
+  const applyRestockQuery = (query: string) => {
+    setSearch(query);
+    const next = new URLSearchParams(searchParams);
+    if (query) next.set('q', query);
+    else next.delete('q');
+    setSearchParams(next, { replace: true });
+  };
 
   const filteredProducts = useMemo(() => {
     let list = [...products];
@@ -252,6 +298,88 @@ export default function Shop() {
         )}
       </AnimatePresence>
 
+      {!restockDismissed && clinicRestock.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-txt-primary m-0">
+                    На складе клиники заканчивается {clinicRestock.length} позици
+                    {clinicRestock.length === 1 ? 'я' : clinicRestock.length < 5 ? 'и' : 'й'}
+                  </p>
+                  <p className="text-[11px] text-txt-muted m-0 mt-0.5">
+                    Подобрали товары и аналоги в маркетплейсе для пополнения.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRestockDismissed(true)}
+                  className="text-txt-ghost hover:text-txt-primary p-0.5"
+                  aria-label="Скрыть"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {clinicRestock.map((row) => {
+                  const best = row.matches[0];
+                  return (
+                    <div
+                      key={row.item.id || row.query}
+                      className="flex flex-wrap items-center gap-2 rounded-lg bg-black/20 border border-white/[0.05] px-2.5 py-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-txt-primary m-0 truncate">
+                          <span className="font-semibold">{row.item.name}</span>
+                          <span className="text-txt-muted">
+                            {' '}· {row.item.quantity ?? 0}/{row.min} {row.item.unit || 'шт'}
+                          </span>
+                        </p>
+                        {best && (
+                          <p className="text-[11px] text-txt-muted m-0 truncate">
+                            {best.kind === 'exact' ? 'Есть в магазине' : 'Аналог'}: {best.brand ? `${best.brand} · ` : ''}{best.name}
+                            {(best.stock || 0) > 0 ? '' : ' (нет в наличии у продавца)'}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => applyRestockQuery(row.query)}
+                      >
+                        Показать
+                      </Button>
+                      {best && (best.stock || 0) > 0 && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => navigate(`/shop/${best.id}`)}
+                        >
+                          Купить
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/crm/inventory?filter=lowStock')}
+                className="text-[11px] text-dv-gold hover:underline bg-transparent border-none cursor-pointer p-0"
+              >
+                Открыть склад клиники
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -262,7 +390,14 @@ export default function Shop() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--slate)]" />
           <input
             value={search}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              const v = e.target.value;
+              setSearch(v);
+              const next = new URLSearchParams(searchParams);
+              if (v) next.set('q', v);
+              else next.delete('q');
+              setSearchParams(next, { replace: true });
+            }}
             placeholder="Поиск товаров, брендов..."
             className="w-full !pl-10 !rounded-xl"
           />
