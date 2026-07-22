@@ -104,16 +104,30 @@ const SOURCE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = 
   market: { label: 'Рынок', icon: <BarChart3 size={10} /> },
 };
 
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return (
+        <span key={i} className="font-semibold text-dv-gold">
+          {part.slice(2, -2)}
+        </span>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+}
+
 function renderContent(content: string) {
   const blocks = content.split('\n\n');
   return blocks.map((block, i) => {
-    if (block.startsWith('•') || block.startsWith('-')) {
+    if (block.startsWith('•') || block.startsWith('-') || block.includes('\n•') || block.includes('\n-')) {
       return (
         <div key={i} className="space-y-1 my-2">
-          {block.split('\n').map((line, j) => (
+          {block.split('\n').filter(Boolean).map((line, j) => (
             <div key={j} className="flex gap-2.5 text-[13px] leading-relaxed">
               <span className="text-dv-gold/60 mt-0.5 shrink-0">•</span>
-              <span className="text-txt-primary/90">{line.replace(/^[•-]\s*/, '')}</span>
+              <span className="text-txt-primary/90">{renderInlineMarkdown(line.replace(/^[•\-]\s*/, ''))}</span>
             </div>
           ))}
         </div>
@@ -129,16 +143,16 @@ function renderContent(content: string) {
                 <p key={j} className="text-[13px] leading-relaxed mb-0.5">
                   <span className="font-semibold text-dv-gold">{parts[1]}</span>
                   {parts[2] && <span className="text-txt-muted"> — </span>}
-                  {parts[2] && <span className="text-txt-primary/80">{parts[2]}</span>}
+                  {parts[2] && <span className="text-txt-primary/80">{renderInlineMarkdown(parts[2])}</span>}
                 </p>
               );
             }
-            return <p key={j} className="text-[13px] leading-relaxed">{line}</p>;
+            return <p key={j} className="text-[13px] leading-relaxed">{renderInlineMarkdown(line)}</p>;
           })}
         </div>
       );
     }
-    return <p key={i} className="my-1.5 text-[13px] leading-relaxed text-txt-primary/90">{block}</p>;
+    return <p key={i} className="my-1.5 text-[13px] leading-relaxed text-txt-primary/90">{renderInlineMarkdown(block)}</p>;
   });
 }
 
