@@ -118,8 +118,20 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
   });
 }
 
+/** Soft-rewrite legacy ACL error copy that leaked raw intent codes into chat history. */
+function sanitizeAssistantContent(content: string): string {
+  const raw = String(content || '');
+  if (/Нет прав для действия:\s*UNKNOWN/i.test(raw)) {
+    return 'Не совсем понял запрос. Попробуйте: «Чем полезен DentVision?», «Открыть демо-клинику» или войдите как сотрудник.';
+  }
+  if (/Нет прав для действия:\s*[A-Z0-9_]+/i.test(raw)) {
+    return 'Для этого действия нужны права сотрудника клиники. Войдите в демо или под своей учётной записью.';
+  }
+  return raw;
+}
+
 function renderContent(content: string) {
-  const blocks = content.split('\n\n');
+  const blocks = sanitizeAssistantContent(content).split('\n\n');
   return blocks.map((block, i) => {
     if (block.startsWith('•') || block.startsWith('-') || block.includes('\n•') || block.includes('\n-')) {
       return (
