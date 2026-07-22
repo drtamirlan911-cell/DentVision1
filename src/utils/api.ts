@@ -1119,12 +1119,14 @@ function mapShopProduct(p: any) {
     created_at: p.created_at || p.createdAt,
     image_url: p.image_url || p.imageUrl,
     description: p.description || '',
+    city: p.city || p.supplier_city || null,
+    supplier_city: p.supplier_city || p.city || null,
   };
 }
 
-export async function getShopCategories(): Promise<any> {
+export async function getShopCategories(params: Record<string, string> = {}): Promise<any> {
   try {
-    const products = await getShopProducts();
+    const products = await getShopProducts({ limit: '200', ...params });
     const counts = new Map<string, number>();
     for (const p of products) {
       const cat = p.category || 'Прочее';
@@ -1142,15 +1144,23 @@ export async function getShopCategories(): Promise<any> {
 
 export async function getShopProducts(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
+  if (!params.limit) q.set('limit', '200');
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
   const raw = await apiRequest(`/api/shop/products?${q}`);
   const rows = Array.isArray(raw) ? raw : (raw?.data ?? []);
   return (Array.isArray(rows) ? rows : []).map(mapShopProduct);
 }
 export async function getShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`); }
-export async function getShopSuppliers(): Promise<any> {
+export async function getShopSuppliers(params: Record<string, string> = {}): Promise<any> {
   try {
-    const raw = await apiRequest('/api/suppliers?limit=50');
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
+    let raw: any;
+    try {
+      raw = await apiRequest(`/api/shop/suppliers?${q}`);
+    } catch {
+      raw = await apiRequest(`/api/suppliers?limit=50&${q}`);
+    }
     const rows = Array.isArray(raw)
       ? raw
       : Array.isArray(raw?.data)
@@ -1162,15 +1172,15 @@ export async function getShopSuppliers(): Promise<any> {
       id: s.id,
       name: s.name,
       country: 'Казахстан',
-      city: String(s.legalAddress || 'Алматы').split(',')[0].trim() || 'Алматы',
+      city: s.city || String(s.legalAddress || '').split(',')[0].trim() || '',
       phone: s.phone,
       email: s.email,
       website: s.email ? `https://${String(s.email).split('@')[1] || 'dentvision.kz'}` : undefined,
-      rating: s.status === 'OFFICIAL_PARTNER' ? 4.9 : s.status === 'VERIFIED' ? 4.6 : 4.2,
-      deliveryDays: s.status === 'OFFICIAL_PARTNER' ? 1 : 2,
+      rating: s.rating ?? (s.status === 'OFFICIAL_PARTNER' ? 4.9 : s.status === 'VERIFIED' ? 4.6 : 4.2),
+      deliveryDays: s.delivery_days ?? s.deliveryDays ?? (s.status === 'OFFICIAL_PARTNER' ? 1 : 2),
       deliveryCost: s.status === 'OFFICIAL_PARTNER' ? 0 : 2500,
       status: s.status,
-      productCount: s._count?.products ?? 0,
+      productCount: s.product_count ?? s._count?.products ?? 0,
     }));
   } catch {
     return [];

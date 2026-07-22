@@ -572,6 +572,8 @@ model Supplier {
   kind          SupplierKind   @default(SUPPLIER)
   bin           String?
   legalAddress  String?
+  /// Delivery / warehouse city (Kazakhstan)
+  city          String?
   contactPerson String?
   phone         String?
   email         String?
@@ -584,6 +586,7 @@ model Supplier {
   documents SupplierDocument[]
   members   SupplierMember[]
 
+  @@index([city])
   @@map("suppliers")
 }
 

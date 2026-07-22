@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -11,6 +11,7 @@ import { Input, Textarea } from '@/components/ui/ds/Input'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Modal } from '@/components/ui/ds/Modal'
+import { CityFilter } from '@/components/ui/CityFilter'
 import { useAuth } from '@/store/auth.store'
 import { applyToJob, createJob, getJobs, getMyJobApplications } from '@/utils/api'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -38,7 +39,7 @@ export default function JobsPage() {
       return ''
     }
   })
-  const [city, setCity] = useState('all')
+  const [city, setCity] = useState('')
   const [vacancies, setVacancies] = useState<any[]>([])
   const [applied, setApplied] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,7 +61,7 @@ export default function JobsPage() {
     try {
       const list = await getJobs({
         q: search || '',
-        city: city === 'all' ? '' : city,
+        city: city || '',
       })
       setVacancies(Array.isArray(list) ? list : [])
       if (isAuthenticated) {
@@ -79,11 +80,6 @@ export default function JobsPage() {
     return () => clearTimeout(t)
   }, [search, city, isAuthenticated])
 
-  const cities = useMemo(
-    () => ['all', ...Array.from(new Set(vacancies.map((v) => v.city).filter(Boolean)))],
-    [vacancies]
-  )
-
   const openPost = (kind: PostKind = 'vacancy') => {
     if (!isAuthenticated) {
       showToast('Войдите, чтобы разместить объявление', 'info')
@@ -94,6 +90,7 @@ export default function JobsPage() {
     setForm({
       ...EMPTY_FORM,
       clinicName: kind === 'vacancy' ? (clinic?.name || '') : (user?.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || ''),
+      city: city || clinic?.city || '',
       employmentType: kind === 'resume' ? 'Ищу работу' : 'Полная занятость',
     })
     setPostOpen(true)
@@ -104,12 +101,16 @@ export default function JobsPage() {
       showToast('Укажите должность / заголовок', 'error')
       return
     }
+    if (!form.city.trim()) {
+      showToast('Выберите город', 'error')
+      return
+    }
     setSaving(true)
     try {
       await createJob({
         title: form.title.trim(),
         clinicName: form.clinicName.trim() || undefined,
-        city: form.city.trim() || undefined,
+        city: form.city.trim(),
         salary: form.salary.trim() || undefined,
         employmentType: form.employmentType,
         description: form.description.trim() || undefined,
@@ -119,6 +120,7 @@ export default function JobsPage() {
       showToast(postKind === 'resume' ? 'Резюме опубликовано' : 'Вакансия размещена', 'success')
       setPostOpen(false)
       setForm({ ...EMPTY_FORM })
+      setCity(form.city.trim())
       await load()
     } catch (e: any) {
       showToast(e?.message || 'Не удалось разместить', 'error')
@@ -163,23 +165,18 @@ export default function JobsPage() {
         }
       />
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="space-y-3">
+        <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Должность, клиника…" className="pl-9" />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {cities.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCity(c)}
-              className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                city === c ? 'bg-dv-gold/15 border-dv-gold/30 text-dv-gold' : 'border-bdr-subtle text-txt-muted hover:text-txt-primary'
-              }`}
-            >
-              {c === 'all' ? 'Все города' : c}
-            </button>
-          ))}
+        <div className="rounded-xl border border-bdr-subtle bg-white/[0.02] p-3">
+          <CityFilter
+            label="Город"
+            value={city}
+            onChange={setCity}
+            showPopularChips
+          />
         </div>
       </div>
 
@@ -261,7 +258,15 @@ export default function JobsPage() {
               value={form.clinicName}
               onChange={(e) => setForm({ ...form, clinicName: e.target.value })}
             />
-            <Input label="Город" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Алматы" />
+            <div className="sm:col-span-1">
+              <CityFilter
+                label="Город *"
+                value={form.city}
+                onChange={(c) => setForm({ ...form, city: c })}
+                required
+                showPopularChips={false}
+              />
+            </div>
             <Input label="Зарплата" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} placeholder="450 000 — 700 000 ₸" />
             <Input
               label="Тип занятости"

@@ -51,6 +51,7 @@ supplierWorkspaceRouter.patch('/me', requireSupplierWrite, async (req: AuthReque
       ...(b.name !== undefined && { name: b.name }),
       ...(b.bin !== undefined && { bin: b.bin || null }),
       ...(b.legalAddress !== undefined && { legalAddress: b.legalAddress || null }),
+      ...(b.city !== undefined && { city: b.city || null }),
       ...(b.contactPerson !== undefined && { contactPerson: b.contactPerson || null }),
       ...(b.phone !== undefined && { phone: b.phone || null }),
       ...(b.email !== undefined && { email: b.email || null }),
