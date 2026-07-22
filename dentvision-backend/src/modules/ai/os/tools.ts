@@ -43,6 +43,7 @@ function requireClinic(ctx: ToolContext): string {
   return ctx.clinicId;
 }
 
+/** Canonical section → path. Keys stay English for the tool API. */
 const NAV_PATHS: Record<string, string> = {
   schedule: '/crm/schedule',
   patients: '/crm/patients',
@@ -60,7 +61,135 @@ const NAV_PATHS: Record<string, string> = {
   analytics: '/analytics',
   settings: '/settings',
   profile: '/profile',
+  demo: '/demo',
+  pricing: '/pricing',
+  jobs: '/jobs',
+  community: '/community',
 };
+
+/** User-facing Russian names — never dump English keys into chat. */
+export const NAV_SECTION_LABELS: Record<string, string> = {
+  schedule: 'Расписание',
+  patients: 'Пациенты',
+  finance: 'Финансы',
+  inventory: 'Склад',
+  documents: 'Документы',
+  lab: 'Лаборатория',
+  reminders: 'Напоминания',
+  'dental-chart': 'Зубная карта',
+  'treatment-plans': 'Планы лечения',
+  visits: 'Визиты',
+  staff: 'Сотрудники',
+  shop: 'Маркетплейс',
+  school: 'Academy OS',
+  analytics: 'Аналитика',
+  settings: 'Настройки',
+  profile: 'Профиль',
+  demo: 'Демо-клиника',
+  pricing: 'Тарифы',
+  jobs: 'Вакансии',
+  community: 'Сообщество',
+};
+
+/** Accept Russian / alias inputs from the model and normalize to NAV_PATHS keys. */
+const NAV_ALIASES: Record<string, string> = {
+  расписание: 'schedule',
+  пациенты: 'patients',
+  финансы: 'finance',
+  касса: 'finance',
+  склад: 'inventory',
+  документы: 'documents',
+  лаборатория: 'lab',
+  напоминания: 'reminders',
+  'зубная карта': 'dental-chart',
+  зубнаякарта: 'dental-chart',
+  'планы лечения': 'treatment-plans',
+  планылечения: 'treatment-plans',
+  визиты: 'visits',
+  сотрудники: 'staff',
+  персонал: 'staff',
+  магазин: 'shop',
+  маркетплейс: 'shop',
+  marketplace: 'shop',
+  школа: 'school',
+  академия: 'school',
+  'academy os': 'school',
+  academy: 'school',
+  аналитика: 'analytics',
+  настройки: 'settings',
+  профиль: 'profile',
+  демо: 'demo',
+  'демо клиника': 'demo',
+  'демо-клиника': 'demo',
+  тарифы: 'pricing',
+  цены: 'pricing',
+  вакансии: 'jobs',
+  сообщество: 'community',
+};
+
+function normalizeNavSection(raw: unknown): string {
+  const key = String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\/+/, '')
+    .replace(/^crm\//, '');
+  if (!key) return '';
+  if (NAV_PATHS[key]) return key;
+  if (NAV_ALIASES[key]) return NAV_ALIASES[key];
+  // path-style: /crm/schedule → schedule
+  const last = key.split('/').filter(Boolean).pop() || '';
+  if (NAV_PATHS[last]) return last;
+  if (NAV_ALIASES[last]) return NAV_ALIASES[last];
+  return key;
+}
+
+function availableSectionKeys(guestFriendly = false): string[] {
+  return guestFriendly
+    ? ['demo', 'shop', 'school', 'pricing', 'jobs', 'community']
+    : Object.keys(NAV_SECTION_LABELS);
+}
+
+function availableSectionsRu(guestFriendly = false): string {
+  return availableSectionKeys(guestFriendly)
+    .map((k) => `• ${NAV_SECTION_LABELS[k]}`)
+    .join('\n');
+}
+
+function availableSectionsData(guestFriendly = false): Array<{ key: string; label: string; path: string }> {
+  return availableSectionKeys(guestFriendly).map((key) => ({
+    key,
+    label: NAV_SECTION_LABELS[key],
+    path: NAV_PATHS[key],
+  }));
+}
+
+/** Replace English nav keys in model text so users never see schedule/patients dumps. */
+export function localizeNavKeysInMessage(text: string): string {
+  if (!text) return text;
+  let out = text;
+  out = out.replace(
+    /\b(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community)(\s*,\s*(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community))+/gi,
+    (match) =>
+      match
+        .split(/\s*,\s*/)
+        .map((k) => NAV_SECTION_LABELS[k.trim().toLowerCase()] || k.trim())
+        .join(', '),
+  );
+  out = out.replace(
+    /(раздел(?:ы)?\s*:\s*)([a-z0-9_,\-\s]+)/gi,
+    (_m, _prefix: string, list: string) =>
+      'разделы: ' +
+      list
+        .split(/[,\n]/)
+        .map((part) => {
+          const k = part.trim().toLowerCase();
+          return NAV_SECTION_LABELS[k] || part.trim();
+        })
+        .filter(Boolean)
+        .join(', '),
+  );
+  return out;
+}
 
 export const TOOLS: Record<string, ToolSpec> = {
   searchPatients: {
@@ -791,16 +920,34 @@ export const TOOLS: Record<string, ToolSpec> = {
   navigate: {
     name: 'navigate',
     description:
-      'Открыть раздел приложения для пользователя. Допустимые: schedule, patients, finance, inventory, documents, lab, reminders, dental-chart, treatment-plans, visits, staff, shop, school, analytics, settings, profile.',
+      'Открыть раздел приложения. Передавай section на русском или ключом: Расписание(schedule), Пациенты(patients), Финансы(finance), Склад(inventory), Документы(documents), Лаборатория(lab), Напоминания(reminders), Зубная карта(dental-chart), Планы лечения(treatment-plans), Визиты(visits), Сотрудники(staff), Маркетплейс(shop), Academy OS(school), Аналитика(analytics), Настройки(settings), Профиль(profile), Демо-клиника(demo), Тарифы(pricing), Вакансии(jobs), Сообщество(community). В ответе пользователю ВСЕГДА пиши русские названия, никогда не перечисляй английские ключи.',
     parameters: {
       type: 'object',
-      properties: { section: { type: 'string', description: 'Ключ раздела из списка' } },
+      properties: {
+        section: {
+          type: 'string',
+          description: 'Русское название или ключ раздела (например «Расписание» или schedule)',
+        },
+      },
       required: ['section'],
     },
-    async execute(args) {
-      const path = NAV_PATHS[String(args.section)];
-      if (!path) return { ok: false, error: `Неизвестный раздел: ${args.section}` };
-      return { ok: true, data: { opened: path }, navigate: path };
+    async execute(args, ctx) {
+      const section = normalizeNavSection(args.section);
+      const path = NAV_PATHS[section];
+      const isGuest = String(ctx.role || '').toUpperCase() === 'GUEST';
+      if (!path) {
+        return {
+          ok: false,
+          error: `Неизвестный раздел. Доступные разделы:\n${availableSectionsRu(isGuest)}`,
+          data: { availableSections: availableSectionsData(isGuest) },
+        };
+      }
+      const label = NAV_SECTION_LABELS[section] || section;
+      return {
+        ok: true,
+        data: { opened: path, section, label },
+        navigate: path,
+      };
     },
   },
 };

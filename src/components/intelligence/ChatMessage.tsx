@@ -63,17 +63,143 @@ const ACTION_LABELS: Record<string, string> = {
   OpenInventory: 'Открыть склад',
   OPEN_CRM: 'Открыть CRM',
   OpenCRM: 'Открыть CRM',
-  OPEN_SHOP: 'Открыть магазин',
-  OpenShop: 'Открыть магазин',
-  OPEN_SCHOOL: 'Открыть школу',
-  OpenSchool: 'Открыть школу',
+  OPEN_SHOP: 'Открыть маркетплейс',
+  OpenShop: 'Открыть маркетплейс',
+  OPEN_SCHOOL: 'Открыть Academy OS',
+  OpenSchool: 'Открыть Academy OS',
   OPEN_ANALYTICS: 'Открыть аналитику',
   OpenAnalytics: 'Открыть аналитику',
   OPEN_FINANCE: 'Открыть финансы',
   OpenFinance: 'Открыть финансы',
   OPEN_PATIENTS: 'Открыть пациентов',
   OpenPatients: 'Открыть пациентов',
+  NAVIGATE: 'Открыть раздел',
 };
+
+const SECTION_KEY_RU: Record<string, string> = {
+  schedule: 'Расписание',
+  patients: 'Пациенты',
+  finance: 'Финансы',
+  inventory: 'Склад',
+  documents: 'Документы',
+  lab: 'Лаборатория',
+  reminders: 'Напоминания',
+  'dental-chart': 'Зубная карта',
+  'treatment-plans': 'Планы лечения',
+  visits: 'Визиты',
+  staff: 'Сотрудники',
+  shop: 'Маркетплейс',
+  school: 'Academy OS',
+  analytics: 'Аналитика',
+  settings: 'Настройки',
+  profile: 'Профиль',
+  demo: 'Демо-клиника',
+  pricing: 'Тарифы',
+  jobs: 'Вакансии',
+  community: 'Сообщество',
+};
+
+const SECTION_PATHS: Record<string, string> = {
+  schedule: '/crm/schedule',
+  patients: '/crm/patients',
+  finance: '/crm/finance',
+  inventory: '/crm/inventory',
+  documents: '/crm/documents',
+  lab: '/crm/lab',
+  reminders: '/crm/reminders',
+  'dental-chart': '/crm/dental-chart',
+  'treatment-plans': '/crm/treatment-plans',
+  visits: '/crm/visits',
+  staff: '/crm/staff',
+  shop: '/shop',
+  school: '/school',
+  analytics: '/analytics',
+  settings: '/settings',
+  profile: '/profile',
+  demo: '/demo',
+  pricing: '/pricing',
+  jobs: '/jobs',
+  community: '/community',
+};
+
+const SECTION_BY_LABEL: Record<string, { key: string; path: string; label: string }> = Object.fromEntries(
+  Object.entries(SECTION_KEY_RU).map(([key, label]) => [
+    label.toLowerCase(),
+    { key, path: SECTION_PATHS[key], label },
+  ]),
+);
+
+function resolveSection(raw: string): { key: string; path: string; label: string } | null {
+  const t = String(raw || '').trim().replace(/^[•\d.)\s-]+/, '').replace(/[.。]+$/, '');
+  if (!t) return null;
+  const lower = t.toLowerCase();
+  if (SECTION_BY_LABEL[lower]) return SECTION_BY_LABEL[lower];
+  if (SECTION_PATHS[lower]) {
+    return { key: lower, path: SECTION_PATHS[lower], label: SECTION_KEY_RU[lower] || t };
+  }
+  // "Открыть расписание" / "открыть маркетплейс"
+  const opened = lower.replace(/^открыть\s+/, '');
+  if (SECTION_BY_LABEL[opened]) return SECTION_BY_LABEL[opened];
+  return null;
+}
+
+type SectionChoice = { key: string; path: string; label: string };
+
+/** Pull a navigable section menu out of assistant prose (comma / bullet lists). */
+function parseSectionOffer(content: string): { intro: string; sections: SectionChoice[] } | null {
+  const text = localizeSectionKeys(String(content || '').trim());
+  if (!text) return null;
+
+  const collect = (parts: string[]): SectionChoice[] => {
+    const seen = new Set<string>();
+    const out: SectionChoice[] = [];
+    for (const part of parts) {
+      const s = resolveSection(part);
+      if (!s || seen.has(s.path)) continue;
+      seen.add(s.path);
+      out.push(s);
+    }
+    return out;
+  };
+
+  // "…разделы: A, B, C" (same line or following lines)
+  const labeled = text.match(/^(.*?раздел(?:ы)?\s*:)\s*([\s\S]+)$/i);
+  if (labeled) {
+    const tail = labeled[2].trim();
+    const parts = tail.includes('\n')
+      ? tail.split(/\n+/).map((l) => l.replace(/^[•-]\s*/, '').trim())
+      : tail.split(/\s*,\s*/);
+    const sections = collect(parts);
+    if (sections.length >= 2) {
+      return { intro: labeled[1].replace(/:\s*$/, '').trim(), sections };
+    }
+  }
+
+  // Bullet / numbered list where most lines are known sections
+  const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length >= 3) {
+    const bulletish = lines.filter((l) => /^[•\d.-]/.test(l) || resolveSection(l));
+    if (bulletish.length >= 2) {
+      const sections = collect(bulletish);
+      if (sections.length >= 2 && sections.length >= Math.ceil(bulletish.length * 0.6)) {
+        const introLines = lines.filter((l) => !resolveSection(l.replace(/^[•\d.)\s-]+/, '')));
+        const intro = (introLines.join('\n').trim() || 'Куда открыть?').replace(/:\s*$/, '');
+        return { intro, sections };
+      }
+    }
+  }
+
+  // Dense comma list of known sections (no "разделы:" prefix)
+  const comma = text.match(/^([\s\S]{0,160}?)((?:[A-Za-zА-Яа-яЁё0-9 -]+\s*,\s*){2,}[A-Za-zА-Яа-яЁё0-9 -]+)\s*$/);
+  if (comma) {
+    const sections = collect(comma[2].split(/\s*,\s*/));
+    if (sections.length >= 3) {
+      return { intro: (comma[1] || 'Куда открыть?').trim().replace(/:\s*$/, '') || 'Куда открыть?', sections };
+    }
+  }
+
+  return null;
+}
 
 function skillLabel(skill?: string): string | null {
   if (!skill) return null;
@@ -89,16 +215,24 @@ function skillLabel(skill?: string): string | null {
   return skill;
 }
 
-function actionLabel(a: { action?: string; type?: string; label?: string }): string {
+function actionLabel(a: { action?: string; type?: string; label?: string; params?: Record<string, unknown> }): string {
   const key = a.action || a.type || '';
+  if (key === 'NAVIGATE') {
+    const path = String(a.params?.path || '');
+    const section = path.replace(/^\/crm\//, '/').replace(/^\//, '');
+    const ru = SECTION_KEY_RU[section] || SECTION_KEY_RU[path.replace(/^\//, '')];
+    if (ru) return `Открыть ${ru.toLowerCase() === 'academy os' ? 'Academy OS' : ru.toLowerCase()}`;
+    if (a.label && !/^NAVIGATE$/i.test(a.label)) return a.label;
+    return 'Открыть раздел';
+  }
   if (a.label && !/^[A-Z][A-Z0-9_]+$/.test(a.label) && a.label !== key) return a.label;
   return ACTION_LABELS[key] || ACTION_LABELS[a.label || ''] || a.label || key || 'Действие';
 }
 
 const SOURCE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   crm: { label: 'CRM', icon: <Database size={10} /> },
-  shop: { label: 'Shop', icon: <ShoppingCart size={10} /> },
-  school: { label: 'School', icon: <GraduationCap size={10} /> },
+  shop: { label: 'Маркетплейс', icon: <ShoppingCart size={10} /> },
+  school: { label: 'Academy OS', icon: <GraduationCap size={10} /> },
   knowledge: { label: 'База знаний', icon: <BookOpen size={10} /> },
   external: { label: 'Внешний источник', icon: <Globe size={10} /> },
   market: { label: 'Рынок', icon: <BarChart3 size={10} /> },
@@ -130,18 +264,96 @@ function sanitizeAssistantContent(content: string): string {
   return raw;
 }
 
-function renderContent(content: string) {
-  const blocks = sanitizeAssistantContent(content).split('\n\n');
+/** Soft-rewrite English section key dumps the model sometimes echoes from tool schemas. */
+function localizeSectionKeys(text: string): string {
+  let out = sanitizeAssistantContent(text);
+  // Comma-separated English keys (the usual failure mode)
+  out = out.replace(
+    /\b(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community)(\s*,\s*(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community))+/gi,
+    (match) =>
+      match
+        .split(/\s*,\s*/)
+        .map((k) => SECTION_KEY_RU[k.trim().toLowerCase()] || k.trim())
+        .join(', '),
+  );
+  // After «разделы:» / «раздел:» even a single key
+  out = out.replace(
+    /(раздел(?:ы)?\s*:\s*)([a-z0-9_,\s-]+)/gi,
+    (_m, _prefix: string, list: string) =>
+      'разделы: ' +
+      list
+        .split(/[,\n]/)
+        .map((part) => {
+          const k = part.trim().toLowerCase();
+          return SECTION_KEY_RU[k] || part.trim();
+        })
+        .filter(Boolean)
+        .join(', '),
+  );
+  return out;
+}
+
+function renderContent(
+  content: string,
+  onNavigateSection?: (section: SectionChoice) => void,
+) {
+  const offer = onNavigateSection ? parseSectionOffer(content) : null;
+  if (offer && offer.sections.length >= 2) {
+    return (
+      <div className="space-y-3">
+        {offer.intro && (
+          <p className="text-[13px] leading-relaxed text-txt-primary/90">{renderInlineMarkdown(offer.intro)}</p>
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          {offer.sections.map((s, i) => (
+            <motion.button
+              key={s.path}
+              type="button"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 * i, duration: 0.2 }}
+              onClick={() => onNavigateSection?.(s)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-dv-gold/10 text-dv-gold border border-dv-gold/20 hover:bg-dv-gold/18 hover:border-dv-gold/35 transition-all cursor-pointer"
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <Zap size={10} />
+              {s.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const blocks = localizeSectionKeys(content).split('\n\n');
   return blocks.map((block, i) => {
     if (block.startsWith('•') || block.startsWith('-') || block.includes('\n•') || block.includes('\n-')) {
       return (
         <div key={i} className="space-y-1 my-2">
-          {block.split('\n').filter(Boolean).map((line, j) => (
-            <div key={j} className="flex gap-2.5 text-[13px] leading-relaxed">
-              <span className="text-dv-gold/60 mt-0.5 shrink-0">•</span>
-              <span className="text-txt-primary/90">{renderInlineMarkdown(line.replace(/^[•-]\s*/, ''))}</span>
-            </div>
-          ))}
+          {block.split('\n').filter(Boolean).map((line, j) => {
+            const plain = line.replace(/^[•-]\s*/, '');
+            const section = onNavigateSection ? resolveSection(plain) : null;
+            if (section) {
+              return (
+                <button
+                  key={j}
+                  type="button"
+                  onClick={() => onNavigateSection(section)}
+                  className="flex gap-2.5 text-[13px] leading-relaxed w-full text-left rounded-lg px-1 py-0.5 -mx-1 hover:bg-dv-gold/10 transition-colors group/row"
+                >
+                  <span className="text-dv-gold/60 mt-0.5 shrink-0">•</span>
+                  <span className="text-dv-gold font-medium underline-offset-2 group-hover/row:underline">{section.label}</span>
+                </button>
+              );
+            }
+            return (
+              <div key={j} className="flex gap-2.5 text-[13px] leading-relaxed">
+                <span className="text-dv-gold/60 mt-0.5 shrink-0">•</span>
+                <span className="text-txt-primary/90">{renderInlineMarkdown(plain)}</span>
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -184,6 +396,20 @@ export function ChatMessage({
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
+
+  const goToSection = (section: SectionChoice) => {
+    const action = {
+      type: 'NAVIGATE',
+      label: section.label,
+      params: { path: section.path, section: section.key },
+    };
+    if (onExecuteAction) onExecuteAction(action);
+    else onAction?.(section.label);
+  };
+
+  const sectionOffer = !isUser ? parseSectionOffer(msg.content) : null;
+  // Hide duplicate NAVIGATE chips when the message already shows section buttons.
+  const offerPaths = new Set((sectionOffer?.sections || []).map((s) => s.path));
 
   const hasContent = !!String(msg.content || '').trim()
   const hasExtras = !!(
@@ -238,13 +464,14 @@ export function ChatMessage({
         <motion.div
           layout
           className={cn(
-            'rounded-[1.35rem] px-5 py-3.5 text-[13.5px] leading-[1.55] whitespace-pre-wrap max-w-full',
+            'rounded-[1.35rem] px-5 py-3.5 text-[13.5px] leading-[1.55] max-w-full',
+            sectionOffer ? 'whitespace-normal' : 'whitespace-pre-wrap',
             isUser
               ? 'bg-gradient-to-br from-[#D4B57A] to-dv-gold/85 text-[#0B1220] font-medium rounded-br-lg shadow-[0_8px_28px_rgba(201,169,110,0.18)]'
               : 'bg-gradient-to-b from-white/[0.055] to-white/[0.025] border border-white/[0.08] text-txt-primary rounded-bl-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-md'
           )}
         >
-          {renderContent(msg.content)}
+          {renderContent(msg.content, isUser ? undefined : goToSection)}
         </motion.div>
 
         {msg.data?.products && Array.isArray(msg.data.products) && msg.data.products.length > 0 && (
@@ -331,6 +558,11 @@ export function ChatMessage({
           <div className="flex flex-wrap gap-1.5">
             {msg.actions
               .filter((a) => !String(a.action || a.type || '').startsWith('SHOW_'))
+              .filter((a) => {
+                if (!offerPaths.size) return true;
+                const path = String(a.params?.path || '');
+                return !(path && offerPaths.has(path));
+              })
               .map((a, i) => {
                 const label = actionLabel(a);
                 return (

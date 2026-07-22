@@ -671,7 +671,11 @@ const result = await executeAction(
                 onAction={(q) => { void handleSend(q) }}
                 onExecuteAction={(a) => {
                   const type = a.type || a.action || ''
-                  const path = NAV_ACTIONS[type]
+                  const pathFromParams =
+                    (a.params && typeof a.params === 'object' && 'path' in a.params
+                      ? String((a.params as { path?: string }).path || '')
+                      : '') || ''
+                  const path = NAV_ACTIONS[type] || (type === 'NAVIGATE' ? pathFromParams : '')
                   if (path) {
                     navigate(path)
                     onNavigate?.(path)
