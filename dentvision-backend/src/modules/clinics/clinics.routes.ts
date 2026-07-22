@@ -26,6 +26,10 @@ function normalizeStaffRole(role?: string): 'OWNER' | 'ADMIN' | 'DOCTOR' | 'ASSI
 }
 
 async function assertCanManageStaff(userId: string, clinicId: string) {
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (actor?.role === 'SUPERADMIN') {
+    return { ok: true as const, membership: { role: 'OWNER' as const } };
+  }
   const membership = await prisma.clinicMember.findUnique({
     where: { userId_clinicId: { userId, clinicId } },
   });
@@ -502,5 +506,76 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest,
   } catch (error) {
     console.error('[Clinics] update staff', error);
     return res.status(500).json({ ok: false, error: 'Не удалось обновить сотрудника' });
+  }
+});
+
+/**
+ * Remove a staff member from the clinic (membership only — user account kept).
+ * Guards: cannot remove self, cannot remove last OWNER, ADMIN cannot remove OWNER.
+ */
+clinicsRouter.delete('/:id/staff/:userId', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.params.id as string;
+    const targetUserId = req.params.userId as string;
+    const actorId = req.user!.id;
+
+    const gate = await assertCanManageStaff(actorId, clinicId);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.error });
+
+    if (targetUserId === actorId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Нельзя удалить самого себя. Попросите другого владельца или администратора.',
+        code: 'CANNOT_REMOVE_SELF',
+      } satisfies ApiResponse);
+    }
+
+    const member = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId: targetUserId, clinicId } },
+      include: {
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+      },
+    });
+    if (!member) {
+      return res.status(404).json({ ok: false, error: 'Сотрудник не найден в клинике' } satisfies ApiResponse);
+    }
+
+    if (member.role === 'OWNER') {
+      if (gate.membership.role !== 'OWNER' && req.user?.role !== 'SUPERADMIN') {
+        return res.status(403).json({
+          ok: false,
+          error: 'Только владелец может удалить другого владельца',
+          code: 'OWNER_REQUIRED',
+        } satisfies ApiResponse);
+      }
+      const ownerCount = await prisma.clinicMember.count({
+        where: { clinicId, role: 'OWNER' },
+      });
+      if (ownerCount <= 1) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Нельзя удалить последнего владельца клиники',
+          code: 'LAST_OWNER',
+        } satisfies ApiResponse);
+      }
+    }
+
+    await prisma.clinicMember.delete({
+      where: { userId_clinicId: { userId: targetUserId, clinicId } },
+    });
+
+    return res.json({
+      ok: true,
+      data: {
+        removed: true,
+        userId: targetUserId,
+        clinicId,
+        email: member.user.email,
+        name: [member.user.firstName, member.user.lastName].filter(Boolean).join(' '),
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[Clinics] delete staff', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось удалить сотрудника' } satisfies ApiResponse);
   }
 });
