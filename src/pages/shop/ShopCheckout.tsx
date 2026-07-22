@@ -1,7 +1,7 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShoppingBag, Truck, CreditCard, ArrowLeft, Building2, Wallet } from 'lucide-react';
+import { ShoppingBag, Truck, CreditCard, ArrowLeft, Building2, Wallet, QrCode } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
@@ -10,6 +10,7 @@ import { useToast } from '../../components/ui/ds/Toast';
 import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Input } from '../../components/ui/ds/Input';
+import { Badge } from '../../components/ui/ds/Badge';
 import { PageHeader } from '../../components/ui/ds/StatCard';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 
@@ -33,15 +34,60 @@ export default function ShopCheckout() {
   const [useDentCash, setUseDentCash] = useState(false);
   const [quote, setQuote] = useState<any>(null);
   const [quoteFailed, setQuoteFailed] = useState(false);
+  const [pendingPay, setPendingPay] = useState<any>(null);
+  const [payStatus, setPayStatus] = useState<'pending' | 'paid'>('pending');
+  const [confirming, setConfirming] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [form, setForm] = useState({
     contactName: user?.name || '',
     phone: user?.phone || '',
     delivery_address: '',
     delivery_method: 'courier',
-    payment_method: 'kaspi',
+    payment_method: 'qr',
     buyFor: 'self' as 'self' | 'clinic',
     notes: '',
   });
+
+  const stopPoll = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const finishPaid = useCallback((orderId?: string, orderTotal?: number, earn?: number) => {
+    stopPoll();
+    clearCart();
+    setPendingPay(null);
+    toast.success(
+      earn
+        ? `Оплата прошла! Кэшбэк ~${Math.round(earn).toLocaleString('ru-RU')} ₸ после доставки`
+        : 'Оплата прошла, заказ оформлен!',
+    );
+    navigate('/shop/orders', { state: { successOrderId: orderId, total: orderTotal } });
+  }, [clearCart, navigate, stopPoll, toast]);
+
+  const checkPayment = useCallback(async (paymentId: string, silent = false) => {
+    try {
+      const status = await api.getPayment(paymentId);
+      if (status?.status === 'paid') {
+        setPayStatus('paid');
+        finishPaid(pendingPay?.orderId, pendingPay?.total, pendingPay?.earn);
+        return;
+      }
+      if (!silent) toast.info('Оплата ещё не подтверждена');
+    } catch {
+      if (!silent) toast.error('Не удалось проверить оплату');
+    }
+  }, [finishPaid, pendingPay?.earn, pendingPay?.orderId, pendingPay?.total, toast]);
+
+  useEffect(() => {
+    if (!pendingPay?.payment?.id || payStatus === 'paid') return;
+    pollRef.current = setInterval(() => {
+      void checkPayment(pendingPay.payment.id, true);
+    }, 5000);
+    return stopPoll;
+  }, [pendingPay?.payment?.id, payStatus, checkPayment, stopPoll]);
 
   useEffect(() => {
     if (!user || cart.length === 0) return;
@@ -67,7 +113,7 @@ export default function ShopCheckout() {
     return () => { cancelled = true; };
   }, [user, cart]);
 
-  if (cart.length === 0) {
+  if (cart.length === 0 && !pendingPay) {
     return (
       <div className="p-6">
         <EmptyState
@@ -110,8 +156,19 @@ export default function ShopCheckout() {
         dentCashTenge: spendTenge > 0 ? spendTenge : undefined,
         total,
       });
-      clearCart();
       const earn = res?.dentCashEarnPendingTenge;
+      if (res?.requiresPayment && res?.payment?.id) {
+        setPendingPay({
+          payment: res.payment,
+          orderId: res.id,
+          total: res.total,
+          earn,
+        });
+        setPayStatus('pending');
+        toast.success('Заказ создан — оплатите по QR');
+        return;
+      }
+      clearCart();
       toast.success(
         earn
           ? `Заказ оформлен! Кэшбэк ~${Math.round(earn).toLocaleString('ru-RU')} ₸ после доставки`
@@ -125,6 +182,24 @@ export default function ShopCheckout() {
     }
   };
 
+  const confirmPay = async () => {
+    if (!pendingPay?.payment?.id) return;
+    setConfirming(true);
+    try {
+      const res = await api.confirmPayment(pendingPay.payment.id);
+      if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
+        setPayStatus('paid');
+        finishPaid(pendingPay.orderId, pendingPay.total, pendingPay.earn);
+      } else {
+        toast.info('Оплата ещё не подтверждена');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Оплата не подтверждена');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-[900px] mx-auto">
       <button
@@ -135,6 +210,44 @@ export default function ShopCheckout() {
       </button>
 
       <PageHeader title="Оформление заказа" subtitle="Проверьте данные и подтвердите заказ" icon={<ShoppingBag size={22} />} />
+
+      {pendingPay?.payment && (
+        <Card className="mt-5">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <QrCode size={16} className="text-[#C9A96E]" />
+              <p className="text-sm font-semibold text-white">Оплата по QR</p>
+              <Badge variant={payStatus === 'paid' ? 'success' : 'outline'}>
+                {payStatus === 'paid' ? 'Оплачено' : 'Ожидает оплаты'}
+              </Badge>
+            </div>
+            <p className="text-xs text-[var(--slate)]">
+              Заказ создан. Сумма к оплате: <span className="text-white font-semibold">{money(Number(pendingPay.total || 0))}</span>
+            </p>
+            {pendingPay.payment.qr && (
+              <a
+                href={pendingPay.payment.qr}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-[#C9A96E] underline break-all"
+              >
+                {pendingPay.payment.qr}
+              </a>
+            )}
+            <p className="text-[11px] text-[var(--slate)]">
+              Откройте ссылку оплаты, оплатите, затем нажмите «Проверить оплату». В демо-среде кнопка завершает оплату сразу.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button icon={<CreditCard size={14} />} loading={confirming} onClick={confirmPay}>
+                Проверить оплату
+              </Button>
+              <Button variant="secondary" onClick={() => { stopPoll(); setPendingPay(null); }}>
+                Отмена
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mt-5">
         <div className="md:col-span-3 space-y-4">
@@ -186,7 +299,7 @@ export default function ShopCheckout() {
                 <div>
                   <label className="text-xs text-[var(--slate)] mb-1 block">Оплата</label>
                   <select className="dv-select" value={form.payment_method} onChange={set('payment_method')}>
-                    <option value="kaspi">Kaspi Pay</option>
+                    <option value="qr">Онлайн по QR</option>
                     <option value="card">Картой</option>
                     <option value="cash">Наличными при получении</option>
                   </select>

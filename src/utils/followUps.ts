@@ -1,4 +1,4 @@
-/** KazDent donor: surgery / complex treatment follow-up keywords */
+/** Surgery / complex treatment follow-up keywords */
 export const FOLLOW_UP_KEYWORDS = [
   'удален', 'удалён', 'имплант', 'хирург', 'пульпит', 'синус', 'костн', 'разрез', 'швы', 'экстрак',
 ]

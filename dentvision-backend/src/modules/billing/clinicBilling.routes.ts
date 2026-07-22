@@ -188,7 +188,7 @@ clinicBillingRouter.post('/confirm', async (req: AuthRequest, res) => {
 
     return res.status(402).json({
       ok: false,
-      error: 'Оплата ещё не подтверждена провайдером. Оплатите Kaspi QR и дождитесь подтверждения.',
+      error: 'Оплата ещё не подтверждена провайдером. Оплатите по QR и дождитесь подтверждения.',
       data: {
         activated: false,
         paymentStatus: payment.status,

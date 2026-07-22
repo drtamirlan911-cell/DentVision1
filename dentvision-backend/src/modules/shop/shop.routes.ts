@@ -70,6 +70,8 @@ shopRouter.get('/products', async (req, res) => {
       review_count: 0,
       min_stock: 5,
       old_price: null,
+      image_url: p.imageUrl || null,
+      imageUrl: p.imageUrl || null,
     }));
 
     // Always return plain array for frontend compatibility
@@ -109,6 +111,8 @@ shopRouter.get('/products/:id', async (req, res) => {
         rating: product.rating ?? 4.5,
         review_count: 0,
         delivery_days: 3,
+        image_url: product.imageUrl || null,
+        imageUrl: product.imageUrl || null,
       },
     });
   } catch (error) {
@@ -289,6 +293,60 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         ? Number(cashback.totalMinor) / 100
         : 0;
 
+    let payment: Record<string, unknown> | null = null;
+    const method = String(payment_method || 'kaspi').toLowerCase();
+    const needsOnlinePay = finalTotal > 0 && method !== 'cash';
+
+    if (finalTotal <= 0) {
+      const { settlePaidPayment } = await import('../payments/payments.routes.js');
+      // Fully covered by DentCash — settle order/supplier credits without QR payment.
+      await settlePaidPayment({
+        id: `dentcash-${order.id}`,
+        refType: 'order',
+        refId: order.id,
+        domain: 'shop',
+        sellerType: null,
+        sellerId: null,
+        amount: 0n,
+        meta: { userId: req.user!.id, coveredByDentCash: true },
+      });
+      order = await prisma.order.findUnique({ where: { id: order.id } }) || order;
+    } else if (needsOnlinePay) {
+      const { providers } = await import('../payments/kaspi.provider.js');
+      const { tengeToMinor: toMinor, serializeBigInt } = await import('../../lib/money.js');
+      const amountMinor = toMinor(finalTotal);
+      const gateway = providers.kaspi_qr;
+      const created = await gateway.createPayment({ amountMinor, refId: order.id });
+      const primarySupplier = lines.find((l) => l.supplierId)?.supplierId || null;
+      const pay = await prisma.payment.create({
+        data: {
+          provider: 'kaspi_qr',
+          externalId: created.externalId,
+          amount: amountMinor,
+          status: 'pending',
+          refType: 'order',
+          refId: order.id,
+          domain: 'shop',
+          sellerType: primarySupplier ? 'SUPPLIER' : null,
+          sellerId: primarySupplier,
+          meta: {
+            qr: created.qr,
+            userId: req.user!.id,
+            payment_method: method,
+          },
+        },
+      });
+      payment = { ...serializeBigInt(pay), qr: created.qr };
+      const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
+      order = await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'awaiting_payment',
+          meta: { ...prevMeta, paymentId: pay.id },
+        },
+      });
+    }
+
     res.status(201).json({
       ok: true,
       data: {
@@ -296,6 +354,8 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         dentCashSpentTenge: Number(spent) / 100,
         dentCashEarnPendingTenge: earnTenge,
         dentCashEarnSkipped: cashback?.skipped ? cashback.reason : null,
+        payment,
+        requiresPayment: !!payment,
       },
     });
   } catch (error) {

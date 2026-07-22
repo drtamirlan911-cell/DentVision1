@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Store, Package, Wallet, BarChart3, Plus, Trash2, CheckCircle2, Clock,
   ShieldCheck, Building2, Sparkles, TrendingUp, AlertTriangle, RotateCcw,
-  Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent,
+  Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent, Camera, ImageIcon,
 } from 'lucide-react'
 import * as api from '@/utils/api'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { Modal } from '@/components/ui/ds/Modal'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader } from '@/components/ui/ds/StatCard'
+import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 
 type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'profile'
 
@@ -33,6 +34,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const ORDER_STATUS: Record<string, string> = {
   pending: 'Новый',
+  awaiting_payment: 'Ждёт оплаты',
   placed: 'Оформлен',
   paid: 'Оплачен',
   packing: 'Сборка',
@@ -81,9 +83,11 @@ export default function SupplierWorkspace() {
 
   const [addOpen, setAddOpen] = useState(false)
   const [promoOpen, setPromoOpen] = useState(false)
-  const [form, setForm] = useState({ name: '', price: '', stock: '', category: '', description: '' })
+  const [form, setForm] = useState({ name: '', price: '', stock: '', category: '', description: '', imageUrl: '' })
   const [promoForm, setPromoForm] = useState({ productId: '', title: '', discountPercent: '10', cashbackPercent: '10' })
   const [saving, setSaving] = useState(false)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
   const [cashbackRules, setCashbackRules] = useState<any[]>([])
   const [defaultCb, setDefaultCb] = useState('1')
   const [cbSaving, setCbSaving] = useState(false)
@@ -162,6 +166,19 @@ export default function SupplierWorkspace() {
   const kpis = dash?.kpis || {}
   const insights = dash?.insights || []
 
+  const handlePhotoFile = async (file: File | null) => {
+    try {
+      setPhotoUploading(true)
+      const dataUrl = await readImageAsDataUrl(file)
+      setForm((f) => ({ ...f, imageUrl: dataUrl }))
+      toast.success('Фото загружено')
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось загрузить фото')
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
+
   const handleAdd = async () => {
     if (!token) return
     if (!form.name.trim() || !form.price) { toast.error('Введите название и цену'); return }
@@ -173,10 +190,11 @@ export default function SupplierWorkspace() {
         stock: Number(form.stock) || 0,
         category: form.category || undefined,
         description: form.description || undefined,
+        imageUrl: form.imageUrl || undefined,
       })
       toast.success('Товар добавлен')
       setAddOpen(false)
-      setForm({ name: '', price: '', stock: '', category: '', description: '' })
+      setForm({ name: '', price: '', stock: '', category: '', description: '', imageUrl: '' })
       await loadAll(token)
     } catch (e: any) {
       toast.error(e?.message || 'Ошибка при добавлении')
@@ -312,7 +330,7 @@ export default function SupplierWorkspace() {
       <div className="p-6 max-w-[900px] mx-auto space-y-4">
         <PageHeader
           title="Кабинет продавца"
-          subtitle="Kaspi для стоматологии — продажи, остатки, AI и реклама"
+          subtitle="Продажи, остатки, AI и реклама в маркетплейсе DentVision"
           icon={<Store size={22} />}
         />
         <EmptyState
@@ -355,7 +373,7 @@ export default function SupplierWorkspace() {
     <div className="p-4 md:p-6 max-w-[1100px] mx-auto space-y-5">
       <PageHeader
         title="Кабинет продавца"
-        subtitle={`${me?.name || 'Поставщик'} · Kaspi для стоматологии`}
+        subtitle={`${me?.name || 'Поставщик'} · кабинет продавца DentVision`}
         icon={<Store size={22} />}
         actions={me && (
           <Badge variant={me.status === 'VERIFIED' || me.status === 'OFFICIAL_PARTNER' ? 'success' : 'gold'}>
@@ -745,15 +763,24 @@ export default function SupplierWorkspace() {
                       <Card>
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-sm font-bold text-white truncate">{p.name}</p>
-                              <p className="text-xs text-[#7A8899] mt-0.5">{p.category || 'Без категории'} · остаток {p.stock}</p>
-                              <p className="text-sm text-[#C9A96E] font-semibold mt-1.5">{fmtTenge(p.price)}</p>
-                              {p.rating != null && (
-                                <p className="text-xs text-[#7A8899] mt-1 flex items-center gap-1">
-                                  <Star size={11} className="text-[#C9A96E]" /> {p.rating}
-                                </p>
-                              )}
+                            <div className="flex gap-3 min-w-0">
+                              <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+                                {p.imageUrl ? (
+                                  <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                                ) : (
+                                  <ImageIcon size={18} className="text-[#7A8899]" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-white truncate">{p.name}</p>
+                                <p className="text-xs text-[#7A8899] mt-0.5">{p.category || 'Без категории'} · остаток {p.stock}</p>
+                                <p className="text-sm text-[#C9A96E] font-semibold mt-1.5">{fmtTenge(p.price)}</p>
+                                {p.rating != null && (
+                                  <p className="text-xs text-[#7A8899] mt-1 flex items-center gap-1">
+                                    <Star size={11} className="text-[#C9A96E]" /> {p.rating}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                             {canWrite && (
                               <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors shrink-0" aria-label="Удалить">
@@ -778,13 +805,52 @@ export default function SupplierWorkspace() {
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый товар">
         <div className="space-y-3">
-          <Input label="Название *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Имплант Straumann BLT" />
+          <Input label="Название *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Имплант титановый BLT" />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Цена, ₸ *" type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} placeholder="150000" />
             <Input label="Остаток" type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} placeholder="10" />
           </div>
           <Input label="Категория" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} placeholder="Импланты" />
           <Input label="Описание" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Краткое описание" />
+          <div>
+            <p className="text-xs text-[#7A8899] mb-1.5">Фото товара</p>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept={PROFILE_PHOTO_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                void handlePhotoFile(e.target.files?.[0] || null)
+                e.target.value = ''
+              }}
+            />
+            {form.imageUrl ? (
+              <div className="relative h-36 rounded-lg overflow-hidden border border-white/10 mb-2">
+                <img src={form.imageUrl} alt="Превью" className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, imageUrl: '' }))}
+                  className="absolute top-2 right-2 rounded-md bg-black/50 px-2 py-1 text-[11px] text-white border-none cursor-pointer"
+                >
+                  Убрать
+                </button>
+              </div>
+            ) : (
+              <div className="h-28 rounded-lg border border-dashed border-white/15 bg-white/[0.03] flex items-center justify-center mb-2">
+                <ImageIcon size={22} className="text-[#7A8899]" />
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              icon={<Camera size={14} />}
+              loading={photoUploading}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              {form.imageUrl ? 'Заменить фото' : 'Добавить фото'}
+            </Button>
+          </div>
           <div className="flex gap-3 pt-2">
             <Button variant="ghost" onClick={() => setAddOpen(false)}>Отмена</Button>
             <Button loading={saving} onClick={handleAdd} icon={<Plus size={15} />}>Добавить</Button>

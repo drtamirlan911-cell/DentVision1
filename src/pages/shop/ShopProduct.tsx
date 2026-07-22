@@ -145,9 +145,13 @@ export default function ShopProduct() {
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center relative"
+          className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center relative overflow-hidden"
         >
-          <Package size={80} color="#C9A96E30" />
+          {product.image_url ? (
+            <img src={product.image_url} alt={product.name} className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <Package size={80} color="#C9A96E30" />
+          )}
           {product.old_price && (
             <Badge variant="error" size="sm" className="absolute top-4 left-4 font-bold">
               -{Math.round((1 - product.price / product.old_price) * 100)}%

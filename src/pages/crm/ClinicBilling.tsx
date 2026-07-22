@@ -1,6 +1,6 @@
 /**
  * CRM → Тариф и оплата
- * Self-serve clinic SaaS: trial, plan picker, Kaspi QR.
+ * Self-serve clinic SaaS: trial, plan picker, QR payment.
  * Paid plans activate only after provider webhook confirms payment.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -79,7 +79,7 @@ export default function ClinicBilling() {
         return true
       }
       if (!silent) {
-        toast.error('Оплата ещё не поступила. Оплатите QR и подождите подтверждение от Kaspi.')
+        toast.error('Оплата ещё не поступила. Оплатите QR и подождите подтверждение.')
       }
       return false
     } catch (e: any) {
@@ -119,7 +119,7 @@ export default function ClinicBilling() {
       } else if (res?.payment) {
         setPendingPay(res)
         setPayStatus('pending')
-        toast.success('Счёт создан — оплатите через Kaspi QR')
+        toast.success('Счёт создан — оплатите по QR')
       }
     } catch (e: any) {
       toast.error(e?.message || 'Ошибка оплаты')
@@ -208,7 +208,7 @@ export default function ClinicBilling() {
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center gap-2 flex-wrap">
                   <QrCode size={16} className="text-dv-gold" />
-                  <p className="text-sm font-semibold text-txt-primary">Оплата Kaspi QR</p>
+                  <p className="text-sm font-semibold text-txt-primary">Оплата по QR</p>
                   <Badge variant={payStatus === 'paid' ? 'success' : 'outline'}>
                     {payStatus === 'paid' ? 'Оплачено' : 'Ожидает оплаты'}
                   </Badge>
@@ -227,7 +227,7 @@ export default function ClinicBilling() {
                   {pendingPay.payment.qr}
                 </a>
                 <p className="text-[11px] text-txt-muted">
-                  Подписка продлевается только после подтверждения оплаты от Kaspi (webhook).
+                  Подписка продлевается только после подтверждения оплаты.
                   Кнопка ниже лишь проверяет статус — без реальной оплаты срок не изменится.
                 </p>
                 <div className="flex flex-wrap gap-2">

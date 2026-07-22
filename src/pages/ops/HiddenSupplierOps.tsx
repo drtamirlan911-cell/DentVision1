@@ -49,7 +49,7 @@ function fmtDate(d: string | Date | null | undefined): string {
 }
 
 /**
- * Platform Ops Command Center — Kaspi/Apple-style inbox + domain control.
+ * Platform Ops Command Center — inbox + domain control.
  * Hidden URL /x-ops/sg · SUPERADMIN + PLATFORM_OPS_SECRET
  */
 export default function PlatformOpsCommandCenter() {

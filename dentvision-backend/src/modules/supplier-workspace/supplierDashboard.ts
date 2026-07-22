@@ -377,6 +377,7 @@ export async function buildSupplierDashboard(supplierId: string) {
       rating: p.rating,
       brand: p.brand,
       description: p.description,
+      imageUrl: p.imageUrl || null,
       ownBrand: Boolean((p as { ownBrand?: boolean }).ownBrand),
     })),
   };

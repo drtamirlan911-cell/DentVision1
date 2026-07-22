@@ -38,14 +38,13 @@ const TABS = [
 
 const EMPTY_FORM = {
   type: 'income', amount: '', patientId: '', patientName: '', service: '',
-  paymentMethod: 'Kaspi QR', paymentType: 'full', notes: '',
+  paymentMethod: 'QR-оплата', paymentType: 'full', notes: '',
 }
 
 const PAY_TYPES = [
   { value: 'full', label: 'Полная оплата' },
   { value: 'prepayment', label: 'Предоплата' },
   { value: 'installment', label: 'Рассрочка' },
-  { value: 'kaspi_installment', label: 'Kaspi Рассрочка' },
   { value: 'credit', label: 'Долг' },
 ]
 
@@ -112,7 +111,7 @@ export default function Cashier() {
   const [form, setForm] = useState<CashierForm>(EMPTY_FORM)
   const [expenseForm, setExpenseForm] = useState<ExpenseForm>({ category: '', amount: '', notes: '' })
   const [expModalOpen, setExpModalOpen] = useState(false)
-  const [cashSettings, setCashSettings] = useState({ defaultMethod: 'Kaspi QR', autoReceipt: true, reminders: true })
+  const [cashSettings, setCashSettings] = useState({ defaultMethod: 'QR-оплата', autoReceipt: true, reminders: true })
   const [searchUnpaid, setSearchUnpaid] = useState('')
   const [financeReport, setFinanceReport] = useState<any>(null)
   const [reportLoading, setReportLoading] = useState(false)
@@ -220,7 +219,7 @@ export default function Cashier() {
     try {
       const status = form.paymentType === 'credit'
         ? 'debt'
-        : form.paymentType === 'prepayment' || form.paymentType === 'installment' || form.paymentType === 'kaspi_installment'
+        : form.paymentType === 'prepayment' || form.paymentType === 'installment'
           ? 'partial'
           : 'paid'
 
@@ -626,7 +625,7 @@ export default function Cashier() {
 
           {activeTab === 'payroll' && (
             <div>
-              <p className="text-sm font-bold text-txt-primary mb-4">Зарплата по % (как в KazDent)</p>
+              <p className="text-sm font-bold text-txt-primary mb-4">Зарплата по %</p>
               <p className="text-xs text-txt-muted mb-4">
                 Начисление = (сумма услуг − себестоимость материалов) × % врача за выбранный период отчёта.
               </p>

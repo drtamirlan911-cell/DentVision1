@@ -22,8 +22,8 @@ export const kaspiProvider: PaymentProvider = {
   async createPayment({ amountMinor, refId }) {
     const externalId = `kaspi_${randomUUID()}`;
     mockLedger.set(externalId, 'pending');
-    // Production: call Kaspi Pay API with merchant token and return real QR/deeplink.
-    const base = env.KASPI_PAY_BASE_URL || 'https://kaspi.kz/pay';
+    // Production: call payment provider API with merchant token and return real QR/deeplink.
+    const base = env.KASPI_PAY_BASE_URL || 'https://pay.dentvision.app/qr';
     const qr = `${base}/${externalId}?amount=${amountMinor.toString()}${refId ? `&ref=${encodeURIComponent(refId)}` : ''}`;
     return { externalId, qr };
   },

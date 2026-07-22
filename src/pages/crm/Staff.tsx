@@ -394,7 +394,7 @@ export default function Staff() {
           onChange={e => setForm({ ...form, commissionPercent: e.target.value })}
           placeholder="30"
         />
-        <p className="text-2xs text-txt-muted -mt-2">Как в KazDent: врач получает % от (цена − материалы)</p>
+        <p className="text-2xs text-txt-muted -mt-2">Врач получает % от (цена − материалы)</p>
 
         <div className={cn(
           'p-3 rounded-lg border text-xs text-txt-secondary',
