@@ -3,10 +3,13 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 
 export const labRouter = Router();
 
 labRouter.use(authenticate);
+labRouter.use(loadClinicAccess);
+labRouter.use(blockClinicWrites);
 
 interface LabOrderMeta {
   patientName?: string;

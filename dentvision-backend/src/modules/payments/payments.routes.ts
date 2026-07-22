@@ -20,6 +20,11 @@ import {
 } from './clinicPayments.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import {
+  resolveClinicAccess,
+  assertClinicWritable,
+  PlanGateError,
+} from '../billing/planEntitlements.js';
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();

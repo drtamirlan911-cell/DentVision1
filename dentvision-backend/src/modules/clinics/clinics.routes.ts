@@ -10,6 +10,7 @@ import {
   publicClinicSettings,
   type ClinicSettingsPayload,
 } from './clinicSettings.js';
+import { guardUserCreate } from '../../middleware/planGate.js';
 
 export const clinicsRouter = Router();
 
@@ -341,7 +342,7 @@ clinicsRouter.put('/:id/settings', authenticate, async (req: AuthRequest, res) =
   }
 });
 
-clinicsRouter.post('/:id/invite', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.post('/:id/invite', authenticate, guardUserCreate, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
 
@@ -371,7 +372,7 @@ clinicsRouter.post('/:id/invite', authenticate, async (req: AuthRequest, res) =>
 });
 
 /** Create or attach a staff member to the clinic (manual add). */
-clinicsRouter.post('/:id/staff', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.post('/:id/staff', authenticate, guardUserCreate, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.params.id as string;
     const gate = await assertCanManageStaff(req.user!.id, clinicId);

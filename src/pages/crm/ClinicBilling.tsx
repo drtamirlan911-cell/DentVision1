@@ -174,6 +174,8 @@ export default function ClinicBilling() {
         <p className="text-sm text-txt-muted py-16 text-center">Загрузка…</p>
       ) : (
         <>
+          <PlanAccessBanner snap={data} />
+
           <Card>
             <CardContent className="p-5 space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -196,12 +198,42 @@ export default function ClinicBilling() {
                 </div>
               </div>
 
+              {data?.usage && (
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-bdr-subtle bg-white/[0.02] px-2 py-2">
+                    <p className="text-[10px] text-txt-muted m-0">Пациенты</p>
+                    <p className="text-sm font-semibold text-txt-primary m-0">
+                      {data.usage.patients}
+                      {data.entitlements?.maxPatients != null ? ` / ${data.entitlements.maxPatients}` : ' · ∞'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-bdr-subtle bg-white/[0.02] px-2 py-2">
+                    <p className="text-[10px] text-txt-muted m-0">Сотрудники</p>
+                    <p className="text-sm font-semibold text-txt-primary m-0">
+                      {data.usage.users}
+                      {data.entitlements?.maxUsers != null ? ` / ${data.entitlements.maxUsers}` : ' · ∞'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-bdr-subtle bg-white/[0.02] px-2 py-2">
+                    <p className="text-[10px] text-txt-muted m-0">AI / мес</p>
+                    <p className="text-sm font-semibold text-txt-primary m-0">
+                      {data.usage.aiRequestsThisMonth || 0}
+                      {data.entitlements?.aiRequestsPerMonth === 0
+                        ? ' · нет'
+                        : data.entitlements?.aiRequestsPerMonth != null
+                          ? ` / ${data.entitlements.aiRequestsPerMonth}`
+                          : ' · ∞'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {(data?.expired || data?.expiringSoon) && (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                   <p>
                     {data.expired
-                      ? 'Подписка истекла. Выберите тариф ниже и оплатите, чтобы снова открыть доступ.'
+                      ? 'Подписка истекла — создание записей и пациентов заблокировано API. Оплатите тариф ниже.'
                       : `До окончания осталось ${data.daysLeft} дн. Продлите заранее — уведомления приходят за 14, 7 и 1 день.`}
                   </p>
                 </div>
