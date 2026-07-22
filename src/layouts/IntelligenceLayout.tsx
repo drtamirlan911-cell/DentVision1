@@ -19,6 +19,7 @@ import GuestCRMModal from '@/components/guest/GuestCRMModal';
 import { ClinicSwitcher } from '@/components/ClinicSwitcher';
 import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner';
 import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
+import { useCompactShell } from '@/hooks/useCompactShell';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '@/utils/api';
 
@@ -89,7 +90,7 @@ export const IntelligenceLayout: React.FC = () => {
 
   const proactiveAlerts = useAIStore((s) => s.proactiveAlerts);
   const loadProactiveAlerts = useAIStore((s) => s.loadProactiveAlerts);
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useCompactShell();
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
   const [guestCRMOpen, setGuestCRMOpen] = useState(false);
   const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
@@ -121,13 +122,6 @@ export const IntelligenceLayout: React.FC = () => {
     }
     return crumbs;
   }, [location.pathname]);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
 
   useEffect(() => {
     if (!isMobile) setContextSheetOpen(false);
@@ -347,11 +341,14 @@ export const IntelligenceLayout: React.FC = () => {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-2 h-12 sm:h-14 px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0 min-w-0 overflow-hidden">
+        <header className="dv-safe-header sticky top-0 z-30 flex items-center justify-between gap-2 min-h-[calc(var(--dv-topbar-height)+var(--dv-safe-top))] px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0 min-w-0 overflow-hidden">
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 overflow-hidden">
             <button
               onClick={toggleSidebar}
-              className="md:hidden flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+              className={cn(
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors',
+                !isMobile && 'hidden',
+              )}
               aria-label="Меню"
             >
               <Menu size={18} />
@@ -387,7 +384,10 @@ export const IntelligenceLayout: React.FC = () => {
             <DentCashHeaderChip />
             <button
               onClick={() => setCmdOpen(true)}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-dv-gold/30 transition-colors text-xs"
+              className={cn(
+                'items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-dv-gold/30 transition-colors text-xs',
+                isMobile ? 'hidden' : 'flex',
+              )}
             >
               <span>Поиск...</span>
               <kbd className="px-1 py-0.5 text-[10px] font-mono bg-surface-3 rounded border border-bdr-subtle">⌘K</kbd>
@@ -414,14 +414,21 @@ export const IntelligenceLayout: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden bg-surface-0 relative min-h-0 pb-[calc(var(--dv-bottomnav-height)+env(safe-area-inset-bottom,0px)+0.5rem)] md:pb-0">
+        <div
+          className={cn(
+            'flex-1 bg-surface-0 relative min-h-0',
+            isAIHome
+              ? 'overflow-hidden flex flex-col'
+              : 'overflow-y-auto overflow-x-hidden dv-content-pad-bottom',
+          )}
+        >
           {/*
             No AnimatePresence/exit around Outlet: mode="wait" + opacity exit
             can leave the main pane at opacity:0 while the shell stays clickable
             (sidebar works, CRM body looks "frozen"/blank). Enter-only fade is enough.
           */}
           {billingSnap ? (
-            <div className="px-3 pt-3 md:px-4 md:pt-4">
+            <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0">
               <PlanAccessBanner snap={billingSnap} />
             </div>
           ) : null}
@@ -430,7 +437,10 @@ export const IntelligenceLayout: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.12 }}
-            className="h-full min-w-0 w-full max-w-full overflow-x-hidden"
+            className={cn(
+              'min-w-0 w-full max-w-full overflow-x-hidden',
+              isAIHome ? 'flex-1 min-h-0 h-full' : 'h-full',
+            )}
           >
             <Outlet context={{ user, clinic, roleInfo, billingSnap }} />
           </motion.div>
@@ -479,7 +489,8 @@ export const IntelligenceLayout: React.FC = () => {
               onDragEnd={(_, info) => {
                 if (info.offset.y > 100) setContextSheetOpen(false);
               }}
-              className="fixed bottom-0 left-0 right-0 z-50 md:hidden max-h-[85vh] bg-surface-1 border-t border-bdr-subtle rounded-t-2xl shadow-2xl flex flex-col"
+              className="fixed bottom-0 left-0 right-0 z-50 max-h-[min(85vh,85dvh)] bg-surface-1 border-t border-bdr-subtle rounded-t-2xl shadow-2xl flex flex-col"
+              style={{ paddingBottom: 'var(--dv-safe-bottom)' }}
             >
               <div
                 className="flex h-12 items-center justify-center border-b border-bdr-subtle cursor-grab active:cursor-grabbing touch-pan-y"
