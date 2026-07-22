@@ -511,6 +511,46 @@ aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
   }
 });
 
+/** Jarvis role briefing — used on login / «Что важно сегодня?» */
+aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (req.user?.isGuest) {
+      return res.status(403).json({ ok: false, error: 'Briefing requires clinic user' });
+    }
+    const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
+    const clinicId = req.user!.clinicId || null;
+    const clinic = clinicId
+      ? await prisma.clinic.findUnique({
+          where: { id: clinicId },
+          select: { name: true },
+        }).catch(() => null)
+      : null;
+    const briefing = await buildJarvisBriefing({
+      userId: req.user!.id,
+      clinicId,
+      role: req.user!.role,
+      firstName: req.user!.firstName,
+      clinicName: clinic?.name,
+      isGuest: false,
+    });
+    res.json({
+      ok: true,
+      data: {
+        reply: briefing.message,
+        message: briefing.message,
+        suggestions: briefing.suggestions,
+        skill: 'practice',
+        intent: 'MORNING_BRIEFING',
+        action: { type: 'SHOW_BRIEFING', payload: briefing.payload },
+        role: briefing.role,
+      },
+    });
+  } catch (error) {
+    console.error('[AI Briefing Error]', error);
+    res.status(500).json({ ok: false, error: 'Briefing failed' });
+  }
+});
+
 aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
   try {
     const { actionId, action, confirmed, data, params } = req.body || {};

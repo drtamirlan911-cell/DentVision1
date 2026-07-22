@@ -57,6 +57,17 @@ export function orchestratorEnabled(): boolean {
   return Boolean(env.OPENAI_API_KEY);
 }
 
+function isJarvisBriefingTrigger(text: string): boolean {
+  const t = String(text || '').trim().toLowerCase();
+  return (
+    /^(привет|здравствуй|добрый|hello|hi|приветствие|сводка|брифинг)\b/i.test(t)
+    || t === 'приветствие'
+    || t === 'сводка при входе'
+    || t === 'jarvis briefing'
+    || /что\s+важно|сводка\s+(на\s+)?сегодня|брифинг|обзор\s+дня|резюме\s+дня/.test(t)
+  );
+}
+
 function systemPrompt(input: OrchestratorInput, currencyCode: string): string {
   if (input.isGuest || String(input.role).toUpperCase() === 'GUEST') {
     return `Ты — DentVision Intelligence, дружелюбный ассистент стоматологической SuperApp.
@@ -80,21 +91,24 @@ function systemPrompt(input: OrchestratorInput, currencyCode: string): string {
   const agents = agentsForRole(input.role);
   const mandates = agents.map((a) => `- ${a.name}: ${a.mandate}`).join('\n');
 
-  return `Ты — DentVision Intelligence, операционная система стоматологической клиники.
+  return `Ты — DentVision Intelligence, операционный ИИ клиники в духе Jarvis:
+проактивный, спокойный, точный, с лёгкой уверенностью. Без пафоса и без воды.
+
 Пользователь: ${input.userName || 'сотрудник клиники'}, роль: ${input.role}.
 
-Ты работаешь как оркестратор сети специализированных агентов. Их мандаты:
+Ты оркестрируешь специализированных агентов:
 ${mandates}
 
 ПРАВИЛА:
-1. Отвечай по-русски, кратко и по делу, как опытный коллега.
-2. Все факты о клинике бери ТОЛЬКО из инструментов. Не выдумывай пациентов, суммы, записи.
-3. Изменяющие действия (запись, счёт, план лечения) вызывай с confirmed=false — инструмент вернёт черновик для подтверждения пользователем. confirmed=true передавай только если пользователь уже явно подтвердил в этом сообщении.
-4. Клинические выводы — всегда черновик для врача, не диагноз.
-5. Если инструмент вернул ошибку — скажи об этом честно и предложи следующий шаг.
-6. Если просят открыть раздел — используй navigate.
-7. Не упоминай внутренние названия инструментов и агентов в ответе.
-8. ${clinicCurrencyPromptRule(currencyCode)}`;
+1. Отвечай по-русски, коротко. Сначала суть, потом деталь.
+2. Все факты о клинике — ТОЛЬКО из инструментов. Не выдумывай.
+3. Мутации (запись, счёт, план) — confirmed=false, пока пользователь явно не подтвердил.
+4. Клинические выводы — черновик для врача, не диагноз.
+5. Ошибки инструментов признавай прямо и предлагай следующий шаг.
+6. Раздел открывай через navigate.
+7. Не свети внутренние имена инструментов/агентов.
+8. Если пользователь только вошёл или просит «что важно» — приоритет: расписание сегодня, подтверждения, долги, склад, ближайшие 2 часа — по роли.
+9. ${clinicCurrencyPromptRule(currencyCode)}`;
 }
 
 interface ResponsesAPIOutputItem {
@@ -138,14 +152,42 @@ async function saveMessage(sessionId: string, role: string, content: string): Pr
 }
 
 export async function orchestrate(input: OrchestratorInput): Promise<OrchestratorResult> {
+  await saveMessage(input.sessionId, 'user', input.text);
+
+  // Jarvis entry briefing — deterministic live KPIs, not a chatty LLM opener.
+  if (!input.isGuest && String(input.role).toUpperCase() !== 'GUEST' && isJarvisBriefingTrigger(input.text)) {
+    try {
+      const { buildJarvisBriefing } = await import('../core/jarvisBriefing.js');
+      const clinic = input.clinicId
+        ? await prisma.clinic.findUnique({ where: { id: input.clinicId }, select: { name: true } }).catch(() => null)
+        : null;
+      const briefing = await buildJarvisBriefing({
+        userId: input.userId,
+        clinicId: input.clinicId,
+        role: input.role,
+        firstName: input.userName,
+        clinicName: clinic?.name,
+        isGuest: false,
+      });
+      await saveMessage(input.sessionId, 'assistant', briefing.message);
+      return {
+        message: briefing.message,
+        intent: 'MORNING_BRIEFING',
+        action: { type: 'SHOW_BRIEFING', payload: briefing.payload },
+        suggestions: briefing.suggestions,
+        toolsUsed: ['jarvis_briefing'],
+      };
+    } catch (e) {
+      console.warn('[AI OS] jarvis briefing failed, continuing to LLM', e);
+    }
+  }
+
   // UNDERSTAND — resolve permissions into the concrete tool surface.
   const allowedTools = toolsForRole(input.role);
   const toolSchemas = toolSchemasFor(allowedTools);
   const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role };
   const currencyCode = await resolveClinicCurrency(input.clinicId);
   const instructions = systemPrompt(input, currencyCode);
-
-  await saveMessage(input.sessionId, 'user', input.text);
 
   const conversation: Array<Record<string, unknown>> = [
     ...(input.history || []).slice(-12).map((m) => ({
@@ -249,11 +291,14 @@ function defaultSuggestions(role: string): string[] {
   if (normalized === 'GUEST') {
     return ['Чем полезен DentVision?', 'Открыть демо-клинику', 'Что в Academy OS?'];
   }
-  if (normalized === 'OWNER' || normalized === 'ADMIN' || normalized === 'MANAGER') {
-    return ['Покажи выручку за месяц', 'Кто должен клинике?', 'Загрузка врачей'];
+  if (normalized === 'OWNER' || normalized === 'DIRECTOR' || normalized === 'MANAGER') {
+    return ['Что важно сегодня?', 'Показать выручку', 'Проверить долги'];
   }
-  if (normalized === 'DOCTOR') {
-    return ['Моё расписание на сегодня', 'Найди пациента', 'Создай план лечения'];
+  if (normalized === 'ADMIN' || normalized === 'RECEPTION' || normalized === 'CASHIER') {
+    return ['Показать расписание', 'Записать пациента', 'Открыть кассу'];
   }
-  return ['Расписание на сегодня', 'Найди курс', 'Что на складе?'];
+  if (normalized === 'DOCTOR' || normalized === 'ASSISTANT') {
+    return ['Показать расписание', 'Открыть зубную карту', 'Создать план лечения'];
+  }
+  return ['Что важно сегодня?', 'Показать расписание', 'Проверить долги'];
 }
