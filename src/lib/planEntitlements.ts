@@ -85,14 +85,15 @@ export function normalizeSaasPlanId(raw: string | null | undefined): SaasPlanKey
   const v = String(raw || 'free').toLowerCase()
   if (v === 'pro') return 'professional'
   if (v === 'standard') return 'starter'
-  if (v === 'demo' || v === 'free') return 'free'
+  if (v === 'demo') return 'professional'
+  if (v === 'free') return 'free'
   if (v === 'starter' || v === 'professional' || v === 'enterprise') return v
   return 'free'
 }
 
 export function entitlementsForPlan(plan: string): PlanEntitlements {
   const map: Record<string, SaasPlanKey> = {
-    DEMO: 'free',
+    DEMO: 'professional',
     STANDARD: 'starter',
     PRO: 'professional',
     ENTERPRISE: 'enterprise',

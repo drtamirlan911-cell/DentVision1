@@ -47,7 +47,8 @@ const SAAS_TO_CLINIC: Record<SaasPlanId, ClinicPlan> = {
 };
 
 const CLINIC_TO_SAAS: Record<ClinicPlan, SaasPlanId | 'free'> = {
-  DEMO: 'free',
+  // Demo must showcase AI + analytics; free gating is for real unpaid clinics.
+  DEMO: 'professional',
   STANDARD: 'starter',
   PRO: 'professional',
   ENTERPRISE: 'enterprise',

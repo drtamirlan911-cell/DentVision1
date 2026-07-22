@@ -5,6 +5,7 @@ import { Smile, Search, ArrowRight, Save } from 'lucide-react';
 import { useAuth } from '@/store/auth.store';
 import { useDataQuery } from '@/queries/useDataQuery';
 import { Odontogram3D, ToothLegend, SurfaceEditor, AutoTreatmentPlan } from '@/components/Odontogram3D';
+import { syncOdontogramToTreatmentPlan } from '@/lib/odontogram-plan-sync';
 import { Card, CardContent } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Input } from '@/components/ui/ds/Input';
@@ -62,15 +63,33 @@ export default function DentalChart() {
     if (!selected) return;
     setSaving(true);
     try {
+      const clinicId = user?.clinicId || (selected as any).clinicId;
       await upsertPatient({
         id: selected.id,
-        clinicId: user?.clinicId || (selected as any).clinicId,
+        clinicId,
         name: selected.name || (selected as any).fullName,
         phone: selected.phone,
         teeth,
       } as any);
       setDirty(false);
-      showToast('Зубная карта сохранена', 'success');
+      if (clinicId) {
+        try {
+          const synced = await syncOdontogramToTreatmentPlan({
+            clinicId,
+            patientId: selected.id,
+            patientName: selected.name || (selected as any).fullName,
+            teeth,
+          });
+          showToast(
+            synced ? `Карта сохранена · план: ${synced.count} поз.` : 'Зубная карта сохранена',
+            'success',
+          );
+        } catch {
+          showToast('Зубная карта сохранена', 'success');
+        }
+      } else {
+        showToast('Зубная карта сохранена', 'success');
+      }
     } catch {
       showToast('Не удалось сохранить карту', 'error');
     } finally {
@@ -196,7 +215,31 @@ export default function DentalChart() {
                   teeth={teeth}
                   patientId={selected.id}
                   patientName={selected.name || (selected as any).fullName}
-                  onAddToPlan={() => navigate(`/crm/treatment-plans?patient=${selected.id}`)}
+                  clinicId={user?.clinicId || (selected as any).clinicId}
+                  onAddToPlan={async () => {
+                    const clinicId = user?.clinicId || (selected as any).clinicId;
+                    if (!clinicId) {
+                      showToast('Выберите клинику', 'error');
+                      return;
+                    }
+                    try {
+                      const synced = await syncOdontogramToTreatmentPlan({
+                        clinicId,
+                        patientId: selected.id,
+                        patientName: selected.name || (selected as any).fullName,
+                        teeth,
+                      });
+                      showToast(
+                        synced
+                          ? `${synced.created ? 'Создан' : 'Обновлён'} план · ${synced.count} поз.`
+                          : 'Нет позиций для плана',
+                        'success',
+                      );
+                      navigate(`/crm/treatment-plans?patient=${selected.id}`);
+                    } catch {
+                      showToast('Не удалось сохранить план лечения', 'error');
+                    }
+                  }}
                 />
               </div>
             )}

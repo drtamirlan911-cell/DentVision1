@@ -302,18 +302,32 @@ interface AutoTreatmentPlanProps {
   teeth: PatientTeeth
   patientId?: string
   patientName?: string
-  onAddToPlan: (recommendations: PlanRecommendation[]) => void
+  clinicId?: string
+  onAddToPlan: (recommendations: PlanRecommendation[]) => void | Promise<void>
 }
 
-export function AutoTreatmentPlan({ teeth, patientId, patientName, onAddToPlan }: AutoTreatmentPlanProps) {
+export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onAddToPlan }: AutoTreatmentPlanProps) {
   const navigate = useNavigate()
   const recommendations = useMemo(() => buildPlanFromOdontogram(teeth), [teeth])
   const summary = useMemo(() => summarizeOdontogram(teeth, patientName), [teeth, patientName])
+  const [busy, setBusy] = useState(false)
+
+  const savePlan = async () => {
+    setBusy(true)
+    try {
+      await onAddToPlan(recommendations)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const openAiPlan = () => {
     if (!patientId) return
-    const prompt = aiPlanPrompt(patientId, patientName || 'пациент', teeth)
-    navigate('/', { state: { aiQuery: prompt } })
+    // Prefer local plan first — AI may 402 on free/starter; still open chat as optional refine.
+    void savePlan().then(() => {
+      const prompt = aiPlanPrompt(patientId, patientName || 'пациент', teeth)
+      navigate('/', { state: { aiQuery: prompt } })
+    })
   }
 
   if (recommendations.length === 0) {
@@ -322,11 +336,6 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, onAddToPlan }
         <div className="text-center text-sm text-emerald-400">
           ✓ Нет активных проблем по одонтограмме — можно назначить профилактику.
         </div>
-        {patientId && (
-          <Button size="sm" variant="secondary" className="w-full" icon={<Sparkles size={14} />} onClick={openAiPlan}>
-            Спросить ИИ по одонтограмме
-          </Button>
-        )}
       </Card>
     )
   }
@@ -337,7 +346,7 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, onAddToPlan }
     <Card className="p-4 mt-3 space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-dv-gold">Предварительный план</span>
+          <span className="text-sm font-bold text-dv-gold">План из одонтограммы</span>
           <Badge variant="warning">{recommendations.length}</Badge>
         </div>
         <span className="text-[11px] text-txt-muted">
@@ -375,15 +384,18 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, onAddToPlan }
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <Button size="sm" variant="secondary" onClick={() => onAddToPlan(recommendations)}>
-          В план лечения
+        <Button size="sm" onClick={() => void savePlan()} disabled={busy}>
+          {busy ? 'Сохранение…' : 'В план лечения'}
         </Button>
-        {patientId && (
-          <Button size="sm" icon={<Sparkles size={14} />} onClick={openAiPlan}>
-            ИИ: уточнить план
+        {patientId && clinicId && (
+          <Button size="sm" variant="secondary" icon={<Sparkles size={14} />} onClick={openAiPlan} disabled={busy}>
+            Сохранить и уточнить в ИИ
           </Button>
         )}
       </div>
+      <p className="text-[10px] text-txt-muted m-0">
+        При сохранении зуба позиции уже попадают в черновик плана. ИИ — опционально (нужен тариф с AI).
+      </p>
     </Card>
   )
 }

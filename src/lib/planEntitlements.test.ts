@@ -11,7 +11,8 @@ import {
 describe('plan entitlements', () => {
   it('normalizes aliases', () => {
     expect(normalizeSaasPlanId('pro')).toBe('professional')
-    expect(normalizeSaasPlanId('DEMO')).toBe('free')
+    expect(normalizeSaasPlanId('DEMO')).toBe('professional')
+    expect(entitlementsForPlan('DEMO').features.ai).toBe(true)
   })
 
   it('starter caps patients/users and blocks AI', () => {

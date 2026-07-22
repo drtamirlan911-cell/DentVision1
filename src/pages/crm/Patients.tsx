@@ -21,6 +21,7 @@ import { Tabs } from '../../components/ui/ds/Misc'
 import { Avatar } from '../../components/ui/ds/Avatar'
 import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel'
 import { Odontogram3D, SurfaceEditor, AutoTreatmentPlan, ToothLegend } from '../../components/Odontogram3D'
+import { syncOdontogramToTreatmentPlan } from '@/lib/odontogram-plan-sync'
 import { T, PATIENT_CATEGORY, calculateAge, formatPhone, fd, tg, gid, today } from '../../utils/constants'
 import { cn, formatMoney } from '../../lib/utils'
 import { isOnlineQrMethod } from '@/utils/payMethod'
@@ -289,7 +290,26 @@ export default function Patients() {
           phone: selected.phone,
           teeth: updated,
         } as any)
-        showToast('Зубная карта обновлена', 'success')
+        const clinicId = clinic?.id || selected.clinicId
+        if (clinicId) {
+          try {
+            const synced = await syncOdontogramToTreatmentPlan({
+              clinicId,
+              patientId: selected.id,
+              patientName: selected.name,
+              teeth: updated,
+            })
+            if (synced) {
+              showToast(`Зубная карта сохранена · в план: ${synced.count} поз.`, 'success')
+            } else {
+              showToast('Зубная карта обновлена', 'success')
+            }
+          } catch {
+            showToast('Зубная карта сохранена (план не синхронизирован)', 'success')
+          }
+        } else {
+          showToast('Зубная карта обновлена', 'success')
+        }
       } catch {
         showToast('Не удалось сохранить зубную карту', 'error')
       }
@@ -795,9 +815,30 @@ export default function Patients() {
                     teeth={teethState}
                     patientId={selected.id}
                     patientName={selected.name || (selected as any).fullName}
-                    onAddToPlan={(recs) => {
-                      showToast(`Черновик: ${recs.length} позиций — откройте планы лечения`, 'success')
-                      navigate(`/crm/treatment-plans?patient=${selected.id}`)
+                    clinicId={clinic?.id || selected.clinicId}
+                    onAddToPlan={async (recs) => {
+                      const clinicId = clinic?.id || selected.clinicId
+                      if (!clinicId) {
+                        showToast('Выберите клинику', 'error')
+                        return
+                      }
+                      try {
+                        const synced = await syncOdontogramToTreatmentPlan({
+                          clinicId,
+                          patientId: selected.id,
+                          patientName: selected.name,
+                          teeth: teethState,
+                        })
+                        showToast(
+                          synced
+                            ? `${synced.created ? 'Создан' : 'Обновлён'} план · ${synced.count} поз.`
+                            : `Нет позиций (${recs.length})`,
+                          'success',
+                        )
+                        navigate(`/crm/treatment-plans?patient=${selected.id}`)
+                      } catch {
+                        showToast('Не удалось сохранить план лечения', 'error')
+                      }
                     }}
                   />
                 </motion.div>

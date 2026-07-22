@@ -275,7 +275,7 @@ adminRouter.patch('/clinics/:id/toggle', authenticate, requireSuperadmin, async 
       create: {
         ownerType: 'CLINIC',
         ownerId: id,
-        plan: existing.plan === 'PRO' ? 'professional' : existing.plan === 'ENTERPRISE' ? 'enterprise' : existing.plan === 'DEMO' ? 'free' : 'starter',
+        plan: existing.plan === 'PRO' || existing.plan === 'DEMO' ? 'professional' : existing.plan === 'ENTERPRISE' ? 'enterprise' : 'starter',
         status: clinic.active ? 'active' : 'suspended',
       },
       update: { status: clinic.active ? 'active' : 'suspended' },
@@ -295,9 +295,9 @@ adminRouter.patch('/clinics/:id/plan', authenticate, requireSuperadmin, async (r
 
     const clinic = await prisma.clinic.update({ where: { id }, data: { plan: normalized } });
     const saas =
-      normalized === 'PRO' ? 'professional'
+      normalized === 'PRO' || normalized === 'DEMO' ? 'professional'
         : normalized === 'ENTERPRISE' ? 'enterprise'
-          : normalized === 'DEMO' ? 'free' : 'starter';
+          : 'starter';
     await prisma.subscription.upsert({
       where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: id } },
       create: { ownerType: 'CLINIC', ownerId: id, plan: saas, status: 'active' },
