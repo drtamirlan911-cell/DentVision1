@@ -37,9 +37,16 @@ CI runs all of the above on push/PR (`.github/workflows/ci.yml`).
 | `JWT_SECRET` | Yes | Strong random string |
 | `JWT_REFRESH_SECRET` | Yes | Strong random string |
 | `CORS_ORIGIN` | Yes | `https://dent-vision1.vercel.app` (comma-separated). Backend also always allows Vercel preview hosts matching `dent-vision`. Do not rely on `*` alone. |
-| `KASPI_CALLBACK_SECRET` | Yes (for paid SaaS) | Shared secret / HMAC key for `POST /api/payments/callbacks/kaspi`. Without it, paid webhooks are rejected and subscriptions will not auto-extend. |
+| `KASPI_CALLBACK_SECRET` | Yes (for paid SaaS / platform) | Shared secret / HMAC for platform `POST /api/payments/callbacks/kaspi`. Academy, Shop, SaaS tariff. |
+| `PUBLIC_API_URL` | Recommended | Public API origin for clinic webhook URLs in settings (e.g. `https://dentvision-api.onrender.com`). |
 | `NODE_ENV` | Yes | `production` |
 | `PORT` | Auto | Render sets to 10000 |
+
+**Clinic cashier Kaspi (per clinic, not platform)**
+
+Money from CRM cashier / schedule / patient card goes to **each clinic’s own Kaspi/bank**.  
+Setup UI: `CRM → Настройки клиники → Оплата на кассе`.  
+Full guide: [`docs/KASPI_CLINIC_SETUP.md`](./KASPI_CLINIC_SETUP.md).
 
 ### Database
 
