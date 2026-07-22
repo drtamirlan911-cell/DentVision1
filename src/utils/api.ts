@@ -949,10 +949,18 @@ export async function getICD10(search?: string): Promise<ICD10Code[]> {
 // column and unpacked again on read, instead of adding new columns.
 function mapVisitFromBackend(raw: any): any {
   const t = (raw?.treatment && typeof raw.treatment === 'object') ? raw.treatment : {};
+  const patientName = raw.patientName
+    || raw.patient_name
+    || (raw.patient
+      ? `${raw.patient.firstName || ''} ${raw.patient.lastName || ''}`.trim()
+      : '');
   return {
     ...raw,
     patient_id: raw.patientId,
+    patient_name: patientName,
+    patientName,
     doctor_id: raw.doctorId,
+    doctor_name: raw.doctorName || raw.doctor_name || '',
     chief_complaint: raw.complaints,
     treatment_plan: t.plan || '',
     procedures_done: t.proceduresDone || '',
@@ -1007,11 +1015,23 @@ function decodeDocumentUrl(url: string | undefined): string {
 }
 
 function mapDocument(raw: any): any {
+  const patientName = raw.patientName
+    || raw.patient_name
+    || (raw.patient
+      ? `${raw.patient.firstName || ''} ${raw.patient.lastName || ''}`.trim()
+      : '');
   return {
     ...raw,
-    doc_type: raw.type,
-    patient_id: raw.patientId,
-    content: decodeDocumentUrl(raw.url),
+    title: raw.title || raw.name || '',
+    doc_type: raw.doc_type || raw.docType || raw.type,
+    docType: raw.docType || raw.doc_type || raw.type,
+    patient_id: raw.patientId || raw.patient_id,
+    patientId: raw.patientId || raw.patient_id,
+    patient_name: patientName,
+    patientName,
+    created_at: raw.createdAt || raw.created_at,
+    createdAt: raw.createdAt || raw.created_at,
+    content: raw.content || decodeDocumentUrl(raw.url),
   };
 }
 
@@ -1041,7 +1061,21 @@ export async function deleteDocument(id: string): Promise<any> {
 
 // ─── Audit Log ───
 export async function getAuditLog(clinicId: string, limit: number = 100): Promise<AuditLogEntry[]> {
-  return apiRequest(`/api/audit?limit=${limit}`);
+  const rows = await apiRequest(`/api/audit?limit=${limit}`);
+  const list = Array.isArray(rows) ? rows : [];
+  return list.map((l: any) => ({
+    ...l,
+    userName: l.userName || l.user_name || l.userId || '',
+    user_name: l.userName || l.user_name || l.userId || '',
+    entityType: l.entityType || l.entity_type || l.entity || '',
+    entity_type: l.entityType || l.entity_type || l.entity || '',
+    entityId: l.entityId || l.entity_id || '',
+    entity_id: l.entityId || l.entity_id || '',
+    createdAt: l.createdAt || l.created_at,
+    created_at: l.createdAt || l.created_at,
+    details: typeof l.details === 'string' ? l.details : (l.details ? JSON.stringify(l.details) : ''),
+    ipAddress: l.ipAddress || l.ip || '',
+  }));
 }
 
 // ─── Backup ───
@@ -1838,7 +1872,7 @@ export async function aiDigitalTwin(): Promise<any> {
 
 /** Jarvis role briefing on login / «Что важно сегодня?» */
 export async function aiBriefing(): Promise<AIChatResponse> {
-  const tz = clientTimezone();
+  const tz = clientTimezoneHeader();
   const qs = tz ? `?timezone=${encodeURIComponent(tz)}` : '';
   const res = await apiRequest(`/api/ai/briefing${qs}`);
   const data = res?.data || res || {};

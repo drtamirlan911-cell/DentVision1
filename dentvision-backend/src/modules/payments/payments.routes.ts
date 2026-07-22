@@ -525,7 +525,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
         ...serializeBigInt(updated),
         qr: qrMeta.qr || null,
         settled,
-        sandbox: !isClinic && platformSandbox && providerStatus !== 'paid',
+        sandbox: !isClinic && sandbox && providerStatus !== 'paid',
         clinicStaffConfirm: isClinic && providerStatus !== 'paid',
       },
     } satisfies ApiResponse);

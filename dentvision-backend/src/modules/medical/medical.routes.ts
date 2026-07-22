@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
+import { DENTAL_ICD10_SEED, mapIcd10Row, searchDentalCatalog } from './icd10.catalog.js';
 
 const medicalRouter = Router();
 
@@ -95,6 +96,9 @@ medicalRouter.get('/visits', async (req: AuthRequest, res) => {
     const clinicId = req.user!.clinicId;
     const visits = await prisma.visit.findMany({
       where: { patient: { clinicId } },
+      include: {
+        patient: { select: { id: true, firstName: true, lastName: true } },
+      },
       orderBy: { date: 'desc' },
       take: 100,
     });

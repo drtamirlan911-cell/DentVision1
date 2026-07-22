@@ -93,7 +93,7 @@ export default function JobsPage() {
     setPostKind(kind)
     setForm({
       ...EMPTY_FORM,
-      clinicName: kind === 'vacancy' ? (clinic?.name || '') : ([user?.firstName, user?.lastName].filter(Boolean).join(' ') || ''),
+      clinicName: kind === 'vacancy' ? (clinic?.name || '') : (user?.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || ''),
       employmentType: kind === 'resume' ? 'Ищу работу' : 'Полная занятость',
     })
     setPostOpen(true)

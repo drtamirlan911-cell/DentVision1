@@ -146,6 +146,7 @@ function ConfirmModal({
   onConfirm,
   title,
   message,
+  description,
   confirmLabel = 'Подтвердить',
   variant = 'danger',
 }: {
@@ -153,10 +154,13 @@ function ConfirmModal({
   onClose: () => void
   onConfirm: () => void
   title: string
-  message: string
+  message?: string
+  /** @deprecated use message — kept for ShopAdmin/SchoolAdmin callers */
+  description?: string
   confirmLabel?: string
   variant?: 'danger' | 'warning'
 }) {
+  const body = message || description || ''
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -168,7 +172,7 @@ function ConfirmModal({
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
       <div onKeyDown={handleKeyDown}>
-        <p className="text-sm text-txt-secondary mb-6">{message}</p>
+        <p className="text-sm text-txt-secondary mb-6">{body}</p>
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}

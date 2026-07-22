@@ -236,8 +236,13 @@ export interface LabOrder {
   id: string
   clinicId?: string
   patientId?: string
+  patientName?: string
   doctorId?: string
   type?: string
+  labType?: string
+  material?: string
+  toothNumber?: string | number
+  shade?: string
   description?: string
   dueDate?: string
   status: LabOrderStatus
@@ -318,6 +323,8 @@ export interface Promotion {
   endDate?: string
   imageUrl?: string
   status?: PromotionStatus
+  /** Backend boolean mirror of status === 'active' */
+  active?: boolean
   createdAt?: string
 }
 

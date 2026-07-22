@@ -279,6 +279,82 @@ export async function buildClinicLoadPlan(
   };
 }
 
+/** Compact signals for proactive twin alerts + Jarvis briefing lines. */
+export async function buildClinicLoadSignals(clinicId: string): Promise<{
+  alerts: Array<{
+    type: string;
+    category: string;
+    text: string;
+    message: string;
+    priority: number;
+    action?: { type: string; path?: string };
+  }>;
+  briefingLines: string[];
+  suggestions: string[];
+  payload: Record<string, unknown>;
+}> {
+  const plan = await buildClinicLoadPlan(clinicId);
+  const totals = (plan.payload.totals || {}) as {
+    recall?: number;
+    openPlans?: number;
+  };
+  const recall = Number(totals.recall || 0);
+  const openPlans = Number(totals.openPlans || 0);
+  const weakDays = Array.isArray(plan.payload.weakDays) ? plan.payload.weakDays.length : 0;
+
+  const briefingLines: string[] = [];
+  if (recall > 0) briefingLines.push(`• Recall: **${recall}** пациентов без визита давно — можно обзвонить`);
+  if (openPlans > 0) briefingLines.push(`• Незакрытых планов лечения: **${openPlans}**`);
+  if (weakDays > 0) briefingLines.push(`• Слабые окна в расписании: **${weakDays}** дн. с дырами`);
+
+  const alerts: Array<{
+    type: string;
+    category: string;
+    text: string;
+    message: string;
+    priority: number;
+    action?: { type: string; path?: string };
+  }> = [];
+
+  if (recall > 0) {
+    alerts.push({
+      type: 'clinic_load_recall',
+      category: 'ops',
+      text: `${recall} пациентов для recall / повторной записи`,
+      message: `${recall} пациентов для recall / повторной записи`,
+      priority: 7,
+      action: { type: 'OpenPatients' },
+    });
+  }
+  if (openPlans > 0) {
+    alerts.push({
+      type: 'clinic_load_plans',
+      category: 'ops',
+      text: `${openPlans} незакрытых планов лечения`,
+      message: `${openPlans} незакрытых планов лечения`,
+      priority: 6,
+      action: { type: 'OpenTreatmentPlans' },
+    });
+  }
+  if (weakDays > 0) {
+    alerts.push({
+      type: 'clinic_load_slots',
+      category: 'ops',
+      text: `Есть свободные слоты — можно заполнить базу`,
+      message: `Есть свободные слоты — можно заполнить базу`,
+      priority: 5,
+      action: { type: 'OpenSchedule' },
+    });
+  }
+
+  return {
+    alerts,
+    briefingLines,
+    suggestions: plan.suggestions.slice(0, 3),
+    payload: plan.payload,
+  };
+}
+
 export function isClinicLoadQuery(text: string): boolean {
   const t = String(text || '').trim().toLowerCase();
   if (!t) return false;
