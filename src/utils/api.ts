@@ -127,7 +127,7 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
   let res = await fetch(`${API_URL}${path}`, finalOptions);
   let data = await res.json();
 
-  if (res.status === 401 && (data.code === 'TOKEN_EXPIRED' || data.error?.includes('Невалидный')) && _refreshToken) {
+  if (res.status === 401 && _refreshToken) {
     try {
       const newToken = await refreshAccessToken();
       headers['Authorization'] = `Bearer ${newToken}`;

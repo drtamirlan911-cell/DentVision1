@@ -18,6 +18,7 @@ import { trackProductEvent } from '@/utils/analytics'
 import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 import { alertDismissKey, filterDismissedAlerts } from '@/utils/dismissedAlerts'
 import { buildLiveClinicGreeting, isStaticRadarGreeting } from '@/lib/liveGreeting'
+import { answerJobsSearchQuery } from '@/lib/jobsAiQuery'
 
 import type { Message, Action } from '@/store/workspace.store'
 
