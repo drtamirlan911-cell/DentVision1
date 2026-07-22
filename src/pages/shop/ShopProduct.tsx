@@ -6,6 +6,7 @@ import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
 import { useAuth } from '@/store/auth.store';
+import { useUIStore } from '@/store/ui.store';
 import { useToast } from '../../components/ui/ds/Toast';
 import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
@@ -104,6 +105,12 @@ export default function ShopProduct() {
   useEffect(() => {
     api.getShopProduct(id).then(setProduct).catch(() => {}).finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    const label = product?.name?.trim() || null;
+    useUIStore.getState().setCrumbTailLabel(label);
+    return () => useUIStore.getState().setCrumbTailLabel(null);
+  }, [product?.name]);
 
   if (loading) return (
     <div className="flex justify-center py-20">

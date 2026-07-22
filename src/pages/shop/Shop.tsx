@@ -9,6 +9,8 @@ import {
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
+import { useAuth, canManageClinicSettings } from '@/store/auth.store';
+import { useGuestStore } from '@/store/guest.store';
 import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Input } from '../../components/ui/ds/Input';
@@ -74,6 +76,10 @@ const SORT_OPTIONS = [
 export default function Shop() {
   const navigate = useNavigate();
   const { cart, favorites, cartCount, cartTotal, addToCart, toggleFav } = useCart();
+  const { role, isAuthenticated } = useAuth();
+  const isGuest = useGuestStore((s) => s.isGuest);
+  // Warehouse restock alerts are seller/ops — not for guests or marketplace buyers.
+  const showStockOps = isAuthenticated && !isGuest && canManageClinicSettings(role);
   const [categories, setCategories] = useState<ShopCategory[]>([]);
   const [products, setProducts] = useState<ShopProductItem[]>([]);
   const [suppliers, setSuppliers] = useState<ShopSupplier[]>([]);
@@ -127,6 +133,7 @@ export default function Shop() {
   };
 
   const lowStockProducts = products.filter(p => p.stock <= (p.min_stock || 5));
+  const outOfStockProducts = products.filter(p => p.stock <= 0);
   const verifiedSuppliers = suppliers.filter((s) => s.status === 'VERIFIED' || s.status === 'OFFICIAL_PARTNER' || !s.status);
   const hotProducts = [...products].filter((p) => p.stock > 0).sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 4);
   const promoProducts = products.filter((p) => (p.description || '').includes('[АКЦИЯ]') || !!p.old_price).slice(0, 4);
@@ -251,7 +258,7 @@ export default function Shop() {
         )}
       </AnimatePresence>
 
-      {lowStockProducts.length > 0 && (
+      {showStockOps && lowStockProducts.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -330,7 +337,9 @@ export default function Shop() {
           { label: 'Всего товаров', value: products.length, icon: Package },
           { label: 'Категорий', value: categories.length, icon: BarChart3 },
           { label: 'Поставщиков', value: suppliers.length, icon: Truck },
-          { label: 'Нет в наличии', value: lowStockProducts.length, icon: AlertTriangle },
+          showStockOps
+            ? { label: 'Мало на складе', value: lowStockProducts.length, icon: AlertTriangle }
+            : { label: 'Нет в наличии', value: outOfStockProducts.length, icon: AlertTriangle },
         ].map((s, i) => (
           <StatCard key={i} label={s.label} value={s.value} icon={<s.icon size={18} />} />
         ))}
@@ -465,7 +474,7 @@ export default function Shop() {
                   >
                     <Heart size={14} className={isFav ? 'text-error fill-error' : 'text-white'} />
                   </motion.button>
-                  {product.stock <= (product.min_stock || 5) && (
+                  {showStockOps && product.stock <= (product.min_stock || 5) && (
                     <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-warning/20 border border-warning/40 text-warning text-[10px] font-semibold px-2 py-0.5 rounded-md">
                       <AlertTriangle size={10} /> Мало на складе
                     </div>

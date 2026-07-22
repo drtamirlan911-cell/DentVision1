@@ -59,6 +59,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
 };
 
 const FIRST_RUN_COLLAPSE_MS = 15_000;
+const UUID_SEG_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -81,6 +82,7 @@ export const IntelligenceLayout: React.FC = () => {
     setFirstRunPhase,
     completeFirstRun,
     toggleSidebarCollapsed,
+    crumbTailLabel,
   } = useUIStore();
   const setOnboardingComplete = useAIWorkspaceStore((s) => s.setOnboardingComplete);
 
@@ -116,12 +118,20 @@ export const IntelligenceLayout: React.FC = () => {
     if (segments.length === 0) return [{ label: 'AI Workspace', path: '/' }];
     const crumbs: { label: string; path: string }[] = [];
     let accumulated = '';
-    for (const seg of segments) {
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
       accumulated += '/' + seg;
-      crumbs.push({ label: BREADCRUMB_LABELS[seg] || seg, path: accumulated });
+      const isLast = i === segments.length - 1;
+      let label = BREADCRUMB_LABELS[seg] || seg;
+      if (UUID_SEG_RE.test(seg)) {
+        label = (isLast && crumbTailLabel) || 'Товар';
+      } else if (isLast && crumbTailLabel && !BREADCRUMB_LABELS[seg]) {
+        label = crumbTailLabel;
+      }
+      crumbs.push({ label, path: accumulated });
     }
     return crumbs;
-  }, [location.pathname]);
+  }, [location.pathname, crumbTailLabel]);
 
   useEffect(() => {
     if (!isMobile) setContextSheetOpen(false);
