@@ -111,14 +111,18 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
     }));
     const fromProactive: BellAlert[] = (alerts || []).map((a, i) => ({
       ...a,
-      id: a.id || `pa-${i}`,
+      id: `pa-${i}`,
       source: 'proactive' as const,
     }));
     // Unread notifications first, then proactive, then read.
     return [...fromNotif.filter((n) => !n.read), ...fromProactive, ...fromNotif.filter((n) => n.read)].slice(0, 30);
   }, [alerts, notifications]);
 
-  const badgeCount = Math.max(unreadNotifs, alerts.length, merged.filter((a) => a.source === 'proactive' || !a.read).length);
+  const badgeCount = Math.max(
+    unreadNotifs,
+    alerts.length,
+    merged.filter((a) => a.source === 'proactive' || !a.read).length,
+  );
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -152,7 +156,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
               className="fixed inset-0 z-[90] bg-black/40 sm:bg-transparent"
               onClick={() => setIsOpen(false)}
             />
-            {/* Always fixed — header uses overflow-hidden and would clip absolute panels */}
+            {/* Always fixed — header overflow would clip absolute panels */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -168,20 +172,8 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
             >
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-bdr-subtle">
                 <span className="text-xs font-semibold text-txt-primary">Оповещения</span>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="p-1 rounded text-txt-muted hover:text-txt-primary transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="max-h-[min(60vh,320px)] overflow-y-auto overscroll-contain">
-                {alerts.map((alert, i) => {
-                  const pr = normalizePriority(alert.priority);
-                  const text = alert.message || alert.text || '';
-                  const path = alert.action?.path
-                    || (alert.action?.type ? ACTION_PATHS[alert.action.type] : undefined);
-                  return (
+                <div className="flex items-center gap-1">
+                  {unreadNotifs > 0 && (
                     <button
                       type="button"
                       onClick={() => void markAll()}
