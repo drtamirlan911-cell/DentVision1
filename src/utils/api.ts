@@ -1188,9 +1188,12 @@ export async function getSchoolWebinars(): Promise<any> {
 export async function getSchoolOfficeCourses(): Promise<any> {
   return collection(await apiRequest('/api/school/office-courses'));
 }
+export async function getSchoolTextbooks(): Promise<any> {
+  return collection(await apiRequest('/api/school/textbooks'));
+}
 export async function registerAcademyProduct(payload: {
   productId: string;
-  format: 'webinar' | 'office' | 'live';
+  format: 'webinar' | 'office' | 'live' | 'textbook' | 'course';
 }): Promise<any> {
   return apiRequest('/api/school/commerce/register', {
     method: 'POST',

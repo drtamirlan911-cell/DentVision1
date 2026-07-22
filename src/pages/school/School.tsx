@@ -17,12 +17,14 @@ import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
 import { Modal } from '@/components/ui/ds/Modal'
 import { useToast } from '@/components/ui/ds/Toast'
 
-type TabId = 'overview' | 'webinars' | 'office' | 'courses' | 'teachers' | 'academies' | 'cases' | 'certs' | 'portfolio' | 'homework'
+type TabId = 'overview' | 'webinars' | 'office' | 'textbooks' | 'courses' | 'teachers' | 'academies' | 'cases' | 'certs' | 'portfolio' | 'homework'
+type BuyFormat = 'webinar' | 'office' | 'textbook'
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
   { id: 'overview', label: 'Обзор', icon: <Sparkles size={14} /> },
   { id: 'webinars', label: 'Вебинары', icon: <Radio size={14} /> },
   { id: 'office', label: 'Офис-курсы', icon: <MapPin size={14} /> },
+  { id: 'textbooks', label: 'Учебники', icon: <FileText size={14} /> },
   { id: 'courses', label: 'Онлайн-треки', icon: <BookOpen size={14} /> },
   { id: 'teachers', label: 'Преподаватели', icon: <Users size={14} /> },
   { id: 'academies', label: 'Академии', icon: <Building2 size={14} /> },
@@ -80,15 +82,17 @@ export default function School() {
       }
     } catch {
       try {
-        const [webinars, officeCourses, courses] = await Promise.all([
+        const [webinars, officeCourses, textbooks, courses] = await Promise.all([
           api.getSchoolWebinars().catch(() => []),
           api.getSchoolOfficeCourses().catch(() => []),
+          api.getSchoolTextbooks().catch(() => []),
           api.getSchoolCourses().catch(() => []),
         ])
         setHub({
           kpis: {
             webinars: webinars.length,
             officeCourses: officeCourses.length,
+            textbooks: textbooks.length,
             courses: courses.length,
             academies: 0,
             lecturers: 0,
@@ -97,6 +101,7 @@ export default function School() {
           },
           webinars,
           officeCourses,
+          textbooks,
           courses: Array.isArray(courses) ? courses : [],
           academies: [],
           lecturers: [],
@@ -121,6 +126,7 @@ export default function School() {
   const cases = hub?.cases || []
   const webinars = hub?.webinars || hub?.live || []
   const officeCourses = hub?.officeCourses || []
+  const textbooks = hub?.textbooks || []
   const kpis = hub?.kpis || {}
 
   const filteredCourses = useMemo(() => {
@@ -156,9 +162,20 @@ export default function School() {
     )
   }, [officeCourses, search])
 
-  const buy = async (productId: string, format: 'webinar' | 'office') => {
+  const filteredTextbooks = useMemo(() => {
+    if (!search) return textbooks
+    const q = search.toLowerCase()
+    return textbooks.filter((t: any) =>
+      t.title?.toLowerCase().includes(q)
+      || t.lecturer?.toLowerCase().includes(q)
+      || t.instructor?.toLowerCase().includes(q)
+      || t.category?.toLowerCase().includes(q),
+    )
+  }, [textbooks, search])
+
+  const buy = async (productId: string, format: BuyFormat) => {
     if (!isAuthenticated) {
-      toast.error('Войдите, чтобы купить место')
+      toast.error(format === 'textbook' ? 'Войдите, чтобы купить учебник' : 'Войдите, чтобы купить место')
       navigate('/login')
       return
     }
@@ -169,10 +186,10 @@ export default function School() {
         setPendingPay({ ...res.payment, title: res.title, price: res.price })
         toast.success('Счёт создан — оплатите по QR')
       } else {
-        toast.success(res.message || 'Место подтверждено')
+        toast.success(res.message || (format === 'textbook' ? 'Учебник открыт' : 'Место подтверждено'))
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось забронировать')
+      toast.error(e?.message || 'Не удалось оформить покупку')
     } finally {
       setBuyingId(null)
     }
@@ -185,7 +202,7 @@ export default function School() {
       const res = await api.confirmPayment(pendingPay.id)
       if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
         setPendingPay(null)
-        toast.success('Оплата прошла — место подтверждено')
+        toast.success('Оплата прошла — доступ открыт')
       } else {
         toast.info('Оплата ещё не подтверждена')
       }
@@ -219,7 +236,7 @@ export default function School() {
     <div className="p-4 md:p-6 max-w-[1100px] mx-auto space-y-5">
       <PageHeader
         title="Academy OS"
-        subtitle="Вебинары и офис-курсы · сертификация · портфолио врача"
+        subtitle="Вебинары · учебники · офис-курсы · сертификация"
         icon={<GraduationCap size={22} />}
         actions={
           <div className="flex gap-2 flex-wrap justify-end">
@@ -229,8 +246,8 @@ export default function School() {
             <Button size="sm" onClick={() => setTab('webinars')} icon={<Radio size={14} />}>
               Купить вебинар
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => setTab('office')} icon={<MapPin size={14} />}>
-              Офис-курсы
+            <Button size="sm" variant="secondary" onClick={() => setTab('textbooks')} icon={<FileText size={14} />}>
+              Учебники
             </Button>
           </div>
         }
@@ -263,16 +280,16 @@ export default function School() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard label="Вебинары" value={kpis.webinars || webinars.length} icon={<Radio size={16} />} />
+        <StatCard label="Учебники" value={kpis.textbooks || textbooks.length} icon={<FileText size={16} />} />
         <StatCard label="Офис-курсы" value={kpis.officeCourses || officeCourses.length} icon={<MapPin size={16} />} />
         <StatCard label="Преподаватели" value={kpis.lecturers || lecturers.length} icon={<Users size={16} />} />
-        <StatCard label="Академии" value={kpis.academies || academies.length} icon={<Building2 size={16} />} />
         <StatCard label="Онлайн-треки" value={kpis.courses || courses.length} icon={<BookOpen size={16} />} />
         <StatCard label="Сертификаты" value={certs.length || kpis.certificates || 0} icon={<Award size={16} />} />
       </div>
 
       <div className="relative max-w-md">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск вебинаров, офис-курсов, городов…" className="pl-9" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск вебинаров, учебников, офис-курсов…" className="pl-9" />
       </div>
 
       <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
@@ -303,14 +320,15 @@ export default function School() {
                     <div className="flex items-start gap-3">
                       <Radio className="text-[#C9A96E] shrink-0" size={20} />
                       <div>
-                        <p className="text-sm font-semibold text-white">Главный продукт — вебинары и офис-курсы</p>
+                        <p className="text-sm font-semibold text-white">Курсы, вебинары и учебники от лекторов</p>
                         <p className="text-sm text-[#A8B4C0] mt-1">
-                          Онлайн-треки и кейсы поддерживают обучение. Деньги и спрос — в вебинарах и очных hands-on.
+                          В кабинете лектора можно продавать онлайн-треки, live-вебинары, PDF-учебники и офис-курсы.
                         </p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" onClick={() => setTab('webinars')}>Вебинары</Button>
+                      <Button size="sm" variant="secondary" onClick={() => setTab('textbooks')}>Учебники</Button>
                       <Button size="sm" variant="secondary" onClick={() => setTab('office')}>Офис-курсы</Button>
                       <Button size="sm" variant="secondary" onClick={() => { setTab('homework'); setHwOpen(true) }}>AI-проверка ДЗ</Button>
                     </div>
@@ -357,12 +375,33 @@ export default function School() {
                     ))}
                   </div>
                 </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold text-white">Учебники от лекторов</p>
+                    <button className="text-xs text-[#C9A96E] bg-transparent border-none cursor-pointer" onClick={() => setTab('textbooks')}>
+                      Все <ArrowRight size={10} className="inline" />
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {textbooks.slice(0, 3).map((t: any) => (
+                      <CommerceCard
+                        key={t.id}
+                        item={t}
+                        kind="textbook"
+                        buying={buyingId === t.id}
+                        onBuy={() => buy(t.id, 'textbook')}
+                      />
+                    ))}
+                    {textbooks.length === 0 && <p className="text-sm text-[#7A8899]">Учебники появятся после публикации лекторами</p>}
+                  </div>
+                </div>
               </>
             )}
 
             {tab === 'webinars' && (
               <div className="space-y-3">
-                <p className="text-sm text-[#7A8899]">Платные live-вебинары с записью и материалами. Основной онлайн-формат продаж.</p>
+                <p className="text-sm text-[#7A8899]">Платные live-вебинары с записью и материалами. Лекторы публикуют их из кабинета.</p>
                 {filteredWebinars.map((w: any) => (
                   <CommerceCard key={w.id} item={w} kind="webinar" buying={buyingId === w.id} onBuy={() => buy(w.id, 'webinar')} />
                 ))}
@@ -380,6 +419,18 @@ export default function School() {
                 ))}
                 {filteredOffice.length === 0 && (
                   <EmptyState icon={<MapPin size={28} />} title="Офис-курсов не найдено" description="Попробуйте другой город или категорию." />
+                )}
+              </div>
+            )}
+
+            {tab === 'textbooks' && (
+              <div className="space-y-3">
+                <p className="text-sm text-[#7A8899]">PDF и цифровые учебники от лекторов. Покупка открывает доступ к материалу.</p>
+                {filteredTextbooks.map((t: any) => (
+                  <CommerceCard key={t.id} item={t} kind="textbook" buying={buyingId === t.id} onBuy={() => buy(t.id, 'textbook')} />
+                ))}
+                {filteredTextbooks.length === 0 && (
+                  <EmptyState icon={<FileText size={28} />} title="Учебников пока нет" description="Лекторы добавят материалы в кабинете." />
                 )}
               </div>
             )}
@@ -504,6 +555,7 @@ export default function School() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <MiniStat icon={<Award size={14} />} label="Сертификаты" value={String(certs.length)} />
                       <MiniStat icon={<Radio size={14} />} label="Вебинары" value={String(webinars.length)} />
+                      <MiniStat icon={<FileText size={14} />} label="Учебники" value={String(textbooks.length)} />
                       <MiniStat icon={<MapPin size={14} />} label="Офис" value={String(officeCourses.length)} />
                       <MiniStat icon={<Microscope size={14} />} label="Навыки" value={String(portfolio?.skills?.length || '—')} />
                     </div>
@@ -580,11 +632,17 @@ function CommerceCard({
   onBuy,
 }: {
   item: any
-  kind: 'webinar' | 'office'
+  kind: 'webinar' | 'office' | 'textbook'
   buying?: boolean
   onBuy: () => void
 }) {
-  const seatsLeft = Math.max(0, (item.seats || 0) - (item.enrolled || 0))
+  const seatsCap = item.seats
+  const unlimited = seatsCap == null
+  const seatsLeft = unlimited ? Number.POSITIVE_INFINITY : Math.max(0, Number(seatsCap) - (item.enrolled || 0))
+  const soldOut = !unlimited && seatsLeft <= 0
+  const lecturer = item.lecturer || item.instructor || 'Лектор'
+  const academy = item.academy || item.academyName
+
   return (
     <Card>
       <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -592,31 +650,51 @@ function CommerceCard({
           <div className="flex flex-wrap items-center gap-2">
             {kind === 'webinar' ? (
               <Badge size="xs" variant="gold">Вебинар</Badge>
+            ) : kind === 'textbook' ? (
+              <Badge size="xs" variant="gold">Учебник</Badge>
             ) : (
               <Badge size="xs" variant="gold">Офис-курс</Badge>
             )}
             <Badge size="xs">{item.category}</Badge>
-            {item.certificate && <Badge size="xs" variant="success">Сертификат</Badge>}
+            {item.certificate && kind !== 'textbook' && <Badge size="xs" variant="success">Сертификат</Badge>}
+            {item.source === 'lecturer' && <Badge size="xs">От лектора</Badge>}
           </div>
           <p className="text-sm font-semibold text-white">{item.title}</p>
           <p className="text-xs text-[#7A8899]">
-            {item.lecturer}
-            {item.academy ? ` · ${item.academy}` : ''}
+            {lecturer}
+            {academy ? ` · ${academy}` : ''}
           </p>
           <div className="flex flex-wrap gap-3 text-[11px] text-[#7A8899]">
-            <span className="flex items-center gap-1">
-              <Calendar size={11} />
-              {new Date(item.startsAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-            </span>
-            {kind === 'webinar' ? (
+            {kind !== 'textbook' && item.startsAt && (
+              <span className="flex items-center gap-1">
+                <Calendar size={11} />
+                {new Date(item.startsAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+            {kind === 'webinar' && item.durationMin != null && (
               <span className="flex items-center gap-1"><Clock size={11} /> {item.durationMin} мин</span>
-            ) : (
+            )}
+            {kind === 'office' && (
               <>
-                <span className="flex items-center gap-1"><MapPin size={11} /> {item.city}</span>
-                <span className="flex items-center gap-1"><Clock size={11} /> {item.durationDays} дн.</span>
+                {item.city && <span className="flex items-center gap-1"><MapPin size={11} /> {item.city}</span>}
+                {item.durationDays != null && (
+                  <span className="flex items-center gap-1"><Clock size={11} /> {item.durationDays} дн.</span>
+                )}
               </>
             )}
-            <span>{item.enrolled}/{item.seats} мест · осталось {seatsLeft}</span>
+            {kind === 'textbook' && (
+              <>
+                {item.pages != null && (
+                  <span className="flex items-center gap-1"><FileText size={11} /> {item.pages} стр.</span>
+                )}
+                {item.duration && (
+                  <span className="flex items-center gap-1"><BookOpen size={11} /> {item.duration}</span>
+                )}
+              </>
+            )}
+            {!unlimited && (
+              <span>{item.enrolled || 0}/{seatsCap} мест · осталось {seatsLeft}</span>
+            )}
           </div>
           {kind === 'office' && item.venue && (
             <p className="text-[11px] text-[#7A8899] truncate">{item.venue}</p>
@@ -627,8 +705,14 @@ function CommerceCard({
         </div>
         <div className="shrink-0 text-left sm:text-right space-y-2">
           <p className="text-lg font-bold text-[#C9A96E]">{fmtPrice(item.price, item.currency)}</p>
-          <Button size="sm" loading={buying} disabled={seatsLeft <= 0} onClick={onBuy}>
-            {seatsLeft <= 0 ? 'Нет мест' : kind === 'office' ? 'Забронировать' : 'Купить место'}
+          <Button size="sm" loading={buying} disabled={soldOut} onClick={onBuy}>
+            {soldOut
+              ? 'Нет мест'
+              : kind === 'textbook'
+                ? 'Купить учебник'
+                : kind === 'office'
+                  ? 'Забронировать'
+                  : 'Купить место'}
           </Button>
         </div>
       </CardContent>
