@@ -1671,6 +1671,28 @@ export async function aiDigitalTwin(): Promise<any> {
   return apiRequest('/api/ai/digital-twin');
 }
 
+/** Jarvis role briefing on login / «Что важно сегодня?» */
+export async function aiBriefing(): Promise<AIChatResponse> {
+  const res = await apiRequest('/api/ai/briefing');
+  const data = res?.data || res || {};
+  return {
+    reply: data.reply || data.message || '',
+    skill: data.skill || data.intent || 'practice',
+    suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+    actions: data.action
+      ? [{
+          type: data.action.type,
+          label: data.action.type,
+          params: data.action.payload || {},
+          confidence: 1,
+          requiresConfirmation: false,
+        }]
+      : [],
+    proactive: [],
+    conversationContext: { turnCount: 0, entities: {} },
+  };
+}
+
 // ─── Jobs (HH-class) ───
 export async function getJobs(params: Record<string, string> = {}): Promise<any[]> {
   const q = new URLSearchParams();

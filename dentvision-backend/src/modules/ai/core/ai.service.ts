@@ -79,25 +79,32 @@ export class AIService {
       return response;
     }
 
-    // Greeting / unknown: guests get a product concierge, not CRM help.
-    if (intent === Intent.UNKNOWN || isGreetingText(text)) {
-      if (context.isGuest) {
-        const message = guestWelcomeMessage();
-        await this.saveMessage(sessionId, 'assistant', message);
-        return { message, intent: 'GUEST_WELCOME', suggestions: guestSuggestions() };
+    // Greeting / login: Jarvis briefing for clinic users; guests get product concierge.
+    if (context.isGuest && (intent === Intent.UNKNOWN || isGreetingText(text))) {
+      const message = guestWelcomeMessage();
+      await this.saveMessage(sessionId, 'assistant', message);
+      return { message, intent: 'GUEST_WELCOME', suggestions: guestSuggestions() };
+    }
+
+    if (!context.isGuest && (isGreetingText(text) || isBriefingAsk(text) || intent === Intent.MORNING_BRIEFING)) {
+      try {
+        const briefing = await agentRouter.route(context, 'MORNING_BRIEFING', params);
+        await this.saveMessage(sessionId, 'assistant', briefing.message);
+        return briefing;
+      } catch (e) {
+        console.warn('[AI] briefing fallback', e);
       }
+    }
+
+    if (intent === Intent.UNKNOWN) {
       const message =
-        'Могу помочь с расписанием, выручкой, долгами, складом или записью пациента.\n\n' +
-        'Попробуйте, например:\n' +
-        '• Покажи расписание на сегодня\n' +
-        '• Что важно сегодня?\n' +
-        '• Покажи выручку\n' +
-        '• Проверь долги';
+        'На связи. Могу дать сводку дня, открыть расписание, выручку, долги или склад.\n\n' +
+        'Например: «Что важно сегодня?», «Покажи расписание», «Проверь долги».';
       await this.saveMessage(sessionId, 'assistant', message);
       return {
         message,
         intent,
-        suggestions: ['Показать расписание', 'Что важно сегодня?', 'Показать выручку', 'Проверить долги'],
+        suggestions: ['Что важно сегодня?', 'Показать расписание', 'Показать выручку', 'Проверить долги'],
       };
     }
 
@@ -285,7 +292,17 @@ export class AIService {
 
 function isGreetingText(text: string): boolean {
   const t = String(text || '').trim().toLowerCase();
-  return /^(привет|здравствуй|добрый|hello|hi|приветствие)\b/i.test(t) || t === 'приветствие';
+  return (
+    /^(привет|здравствуй|добрый|hello|hi|приветствие|сводка|брифинг)\b/i.test(t)
+    || t === 'приветствие'
+    || t === 'сводка при входе'
+    || t === 'jarvis briefing'
+  );
+}
+
+function isBriefingAsk(text: string): boolean {
+  const t = String(text || '').trim().toLowerCase();
+  return /что\s+важно|сводка|брифинг|обзор\s+дня|резюме\s+дня/.test(t);
 }
 
 function guestSuggestions(): string[] {

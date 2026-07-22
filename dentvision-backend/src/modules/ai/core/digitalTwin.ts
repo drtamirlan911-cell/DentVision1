@@ -672,5 +672,11 @@ export async function buildProactiveAlerts(opts: {
     });
   }
 
-  return alerts.sort((a, b) => b.priority - a.priority).slice(0, 20);
+  const sorted = alerts.sort((a, b) => b.priority - a.priority);
+  try {
+    const { filterAlertsForRole } = await import('./jarvisBriefing.js');
+    return filterAlertsForRole(sorted, opts.role).slice(0, 12);
+  } catch {
+    return sorted.slice(0, 12);
+  }
 }
