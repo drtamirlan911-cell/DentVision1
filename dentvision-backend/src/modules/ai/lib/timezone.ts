@@ -102,14 +102,48 @@ export function zonedDayRange(timeZone = DEFAULT_CLINIC_TZ, now = new Date()): {
   };
 }
 
-export function resolveClinicTimeZone(raw?: string | null): string {
+export function isValidTimeZone(raw?: string | null): boolean {
   const tz = String(raw || '').trim();
-  if (!tz) return DEFAULT_CLINIC_TZ;
+  if (!tz) return false;
   try {
-    // Throws RangeError for invalid IANA zones in modern Node.
     Intl.DateTimeFormat('en-US', { timeZone: tz }).format(new Date());
-    return tz;
+    return true;
   } catch {
-    return DEFAULT_CLINIC_TZ;
+    return false;
   }
+}
+
+/** First valid IANA zone wins; falls back to Asia/Almaty. */
+export function resolveTimeZone(...candidates: Array<string | null | undefined>): string {
+  for (const raw of candidates) {
+    const tz = String(raw || '').trim();
+    if (tz && isValidTimeZone(tz)) return tz;
+  }
+  return DEFAULT_CLINIC_TZ;
+}
+
+/** @deprecated use resolveTimeZone */
+export function resolveClinicTimeZone(raw?: string | null): string {
+  return resolveTimeZone(raw);
+}
+
+/** Read browser/client zone from header, body, or query. Null if none provided. */
+export function clientTimeZoneFromRequest(input: {
+  headers?: Record<string, string | string[] | undefined>;
+  body?: Record<string, unknown> | null;
+  query?: Record<string, unknown> | null;
+}): string | null {
+  const headerRaw =
+    input.headers?.['x-client-timezone'] ||
+    input.headers?.['X-Client-Timezone'] ||
+    input.headers?.['x-timezone'];
+  const header = Array.isArray(headerRaw) ? headerRaw[0] : headerRaw;
+  const fromBody = input.body?.timezone ?? input.body?.timeZone ?? input.body?.clientTimezone;
+  const fromQuery = input.query?.timezone ?? input.query?.timeZone;
+  for (const candidate of [header, fromBody, fromQuery]) {
+    if (typeof candidate === 'string' && isValidTimeZone(candidate)) {
+      return candidate.trim();
+    }
+  }
+  return null;
 }

@@ -7,7 +7,7 @@ import { AI_SERVICES } from '@/components/intelligence/AIServiceCards'
 import { StaggerContainer, StaggerItem, RingSpinner, TypingText, GlassMorph, TransformCard } from '@/components/ui/motion'
 import { GlassCard } from '@/components/ui/ds/GlassCard'
 import { cn } from '@/lib/utils'
-import { resolveClinicTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
+import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 
 interface WelcomeAnimationProps {
   onComplete: () => void
@@ -156,7 +156,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
   useEffect(() => {
     if (phase !== 2 || !dataReady) return
 
-    const timeWord = timeGreetingInTz(new Date(), resolveClinicTimeZone(clinic?.timezone || clinic?.settings?.timezone))
+    const timeWord = timeGreetingInTz(new Date(), detectUserTimeZone())
     const name = currentUser?.name?.split(' ')[0] || currentUser?.login || ''
     const roleLabel = currentUser?.spec || 'доктор'
 
@@ -230,7 +230,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
     onComplete()
   }
 
-  const timeWord = timeGreetingInTz(new Date(), resolveClinicTimeZone(clinic?.timezone || clinic?.settings?.timezone))
+  const timeWord = timeGreetingInTz(new Date(), detectUserTimeZone())
   const name = currentUser?.name?.split(' ')[0] || currentUser?.login || ''
   const roleLabel = currentUser?.spec || 'доктор'
 

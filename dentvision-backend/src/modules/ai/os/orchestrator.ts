@@ -40,6 +40,8 @@ export interface OrchestratorInput {
   sessionId: string;
   history?: Array<{ role: string; content: string }>;
   isGuest?: boolean;
+  /** Browser IANA timezone from the client (preferred for greetings / "today"). */
+  timeZone?: string | null;
 }
 
 export interface OrchestratorResult {
@@ -168,6 +170,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
         firstName: input.userName,
         clinicName: clinic?.name,
         isGuest: false,
+        timeZone: input.timeZone,
       });
       await saveMessage(input.sessionId, 'assistant', briefing.message);
       return {

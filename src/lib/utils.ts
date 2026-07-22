@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { resolveClinicTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
+import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -38,8 +38,8 @@ export function getInitials(name: string): string {
 }
 
 export function getGreeting(timeZone?: string | null): string {
-  // Prefer clinic TZ — API hosts run UTC; browser TZ can also differ from clinic.
-  return timeGreetingInTz(new Date(), resolveClinicTimeZone(timeZone))
+  // Prefer the user's device timezone (auto from browser).
+  return timeGreetingInTz(new Date(), timeZone || detectUserTimeZone())
 }
 
 export function timeAgo(date: string | Date): string {

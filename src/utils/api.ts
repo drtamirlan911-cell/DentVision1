@@ -93,6 +93,15 @@ async function refreshAccessToken(): Promise<string> {
 }
 
 // ─── Core API Request ───
+function clientTimezoneHeader(): string | null {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz && typeof tz === 'string' ? tz : null;
+  } catch {
+    return null;
+  }
+}
+
 async function apiRequest(path: string, options: RequestInit = {}): Promise<any> {
   const headers: Record<string, string> = { ...options.headers as Record<string, string> };
 
@@ -108,6 +117,9 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
       }
     } catch { /* ignore */ }
   }
+
+  const tz = clientTimezoneHeader();
+  if (tz) headers['X-Client-Timezone'] = tz;
 
   const finalOptions: RequestInit = { ...options, headers };
   headers['Content-Type'] = 'application/json';
@@ -1497,6 +1509,7 @@ export async function aiChat(
       message,
       history: history.slice(-20),
       sessionId,
+      timezone: clientTimezoneHeader(),
     }),
   });
 
@@ -1586,12 +1599,20 @@ async function aiChatSSE(
       }
     } catch { /* ignore */ }
   }
+  const tz = clientTimezoneHeader();
+  if (tz) headers['X-Client-Timezone'] = tz;
 
   const sessionId = opts?.sessionId || getAiSessionId(opts?.userId);
   const res = await fetch(`${API_URL}/api/ai/query/stream`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ text: message, message, history: history.slice(-20), sessionId }),
+    body: JSON.stringify({
+      text: message,
+      message,
+      history: history.slice(-20),
+      sessionId,
+      timezone: tz,
+    }),
   });
   if (!res.ok || !res.body) return null;
 

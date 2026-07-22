@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clientTimeZoneFromRequest,
   hourInTimeZone,
+  resolveTimeZone,
   timeGreetingInTz,
   zonedDayRange,
   zonedLocalToUtc,
@@ -23,5 +25,15 @@ describe('clinic timezone helpers', () => {
     expect(end.getTime()).toBeGreaterThan(start.getTime());
     expect(dateLabel.toLowerCase()).toContain('22');
     expect(dateLabel.toLowerCase()).toContain('июл');
+  });
+
+  it('prefers client timezone over clinic default', () => {
+    expect(resolveTimeZone('Europe/Moscow', 'Asia/Almaty')).toBe('Europe/Moscow');
+    expect(
+      clientTimeZoneFromRequest({
+        headers: { 'x-client-timezone': 'Europe/Berlin' },
+        body: { timezone: 'Asia/Almaty' },
+      }),
+    ).toBe('Europe/Berlin');
   });
 });

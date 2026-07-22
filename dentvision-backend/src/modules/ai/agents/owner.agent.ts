@@ -67,6 +67,7 @@ export class OwnerAgent implements Agent {
       firstName,
       clinicName,
       isGuest: context.isGuest,
+      timeZone: typeof meta.timeZone === 'string' ? meta.timeZone : null,
     });
 
     return {

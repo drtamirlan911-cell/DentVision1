@@ -6,7 +6,7 @@ import { prisma } from '../../../lib/prisma.js';
 import { formatClinicMoney, resolveClinicCurrency } from '../lib/currency.js';
 import {
   DEFAULT_CLINIC_TZ,
-  resolveClinicTimeZone,
+  resolveTimeZone,
   timeGreetingInTz,
   zonedDayRange,
 } from '../lib/timezone.js';
@@ -84,19 +84,23 @@ export async function buildJarvisBriefing(opts: {
   firstName?: string | null;
   clinicName?: string | null;
   isGuest?: boolean;
+  /** Prefer browser/client IANA zone when provided. */
+  timeZone?: string | null;
 }): Promise<JarvisBriefingResult> {
   const role = normalizeRole(opts.isGuest ? 'guest' : opts.role);
   const name = firstName(opts.firstName);
 
-  let timeZone = DEFAULT_CLINIC_TZ;
+  let clinicTz: string | null = null;
   if (opts.clinicId) {
     const clinic = await prisma.clinic.findUnique({
       where: { id: opts.clinicId },
       select: { settings: true },
     });
     const settings = (clinic?.settings || {}) as { timezone?: string };
-    timeZone = resolveClinicTimeZone(settings.timezone);
+    clinicTz = settings.timezone || null;
   }
+  // User device zone first, then clinic settings, then KZ default.
+  const timeZone = resolveTimeZone(opts.timeZone, clinicTz, DEFAULT_CLINIC_TZ);
 
   const greet = timeGreetingInTz(new Date(), timeZone);
   const { start: dayStart, end: dayEnd, dateLabel } = zonedDayRange(timeZone);
@@ -319,6 +323,7 @@ export async function buildJarvisBriefing(opts: {
     message: [...header, ...lines, '', closing].join('\n'),
     suggestions: suggestions.slice(0, 3),
     payload: {
+      timeZone,
       apptsToday,
       myApptsToday,
       upcomingSoon,
