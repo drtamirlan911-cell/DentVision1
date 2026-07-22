@@ -69,6 +69,8 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: [
       'getSchedule',
       'searchPatients',
+      'getClinicLoadPlan',
+      'getTreatmentPlans',
       'createAppointment',
       'updateAppointmentStatus',
       'cancelAppointment',
@@ -78,7 +80,7 @@ const AGENTS: AgentDefinition[] = [
     owner: 'clinical-team',
     status: 'active',
     mandate:
-      'Ты управляешь записью: расписание, свободные слоты, создание, перенос, смена статуса и отмена. Любые мутации требуют подтверждения пользователем.',
+      'Ты управляешь записью и загрузкой: при вопросах про пустые слоты / возврат пациентов / обзвон СРАЗУ вызывай getClinicLoadPlan и отвечай именами, телефонами и часами из данных. Без общих лекций.',
   },
   {
     id: 'agent.business.finance',
@@ -98,11 +100,11 @@ const AGENTS: AgentDefinition[] = [
     domain: 'business',
     version: '1.0.0',
     requiredPermissions: ['OWNER', 'ADMIN', 'MANAGER'],
-    allowedTools: ['getDashboardStats', 'getRevenue', 'getDoctorUtilization', 'navigate'],
+    allowedTools: ['getDashboardStats', 'getRevenue', 'getDoctorUtilization', 'getClinicLoadPlan', 'getDebtors', 'navigate'],
     owner: 'business-team',
     status: 'active',
     mandate:
-      'Ты делаешь аналитику: KPI клиники, загрузка врачей, динамика выручки и пациентской базы. Давай бизнес-инсайты, а не сырые таблицы.',
+      'Ты делаешь аналитику и загрузку клиники. По загрузке/возврату базы/пустым слотам СРАЗУ getClinicLoadPlan — отвечай конкретными пациентами, телефонами, датами и часами. Не подменяй данные общей теорией и не заканчивай «если хотите, помогу».',
   },
   {
     id: 'agent.marketplace.shop',
