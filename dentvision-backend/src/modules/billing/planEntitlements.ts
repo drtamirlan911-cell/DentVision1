@@ -101,6 +101,23 @@ export function normalizeSaasPlanId(raw: string | null | undefined): SaasPlanId 
   return 'free';
 }
 
+/** Prefer higher of clinic.plan vs subscription.plan (avoids stale starter sub on PRO demos). */
+export function resolveEffectiveSaasPlan(
+  clinicPlan: ClinicPlan,
+  subscriptionPlan?: string | null,
+): SaasPlanId | 'free' {
+  const fromClinic = normalizeSaasPlanId(clinicPlanToSaas(clinicPlan));
+  if (!subscriptionPlan) return fromClinic;
+  const fromSub = normalizeSaasPlanId(subscriptionPlan);
+  const rank: Record<string, number> = {
+    free: 0,
+    starter: 1,
+    professional: 2,
+    enterprise: 3,
+  };
+  return (rank[fromClinic] || 0) >= (rank[fromSub] || 0) ? fromClinic : fromSub;
+}
+
 export function entitlementsForPlan(plan: SaasPlanId | 'free' | ClinicPlan | string): PlanEntitlements {
   if (plan === 'DEMO' || plan === 'STANDARD' || plan === 'PRO' || plan === 'ENTERPRISE') {
     return { ...PLAN_ENTITLEMENTS[clinicPlanToSaas(plan) as SaasPlanId | 'free'] };
@@ -191,9 +208,7 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
     !clinic.active ||
     periodExpired;
 
-  const saasPlan = normalizeSaasPlanId(
-    subscription?.plan || clinicPlanToSaas(clinic.plan),
-  );
+  const saasPlan = resolveEffectiveSaasPlan(clinic.plan, subscription?.plan);
   // Expired clinics keep their plan label but lose paid features (fall back to free caps for display)
   const entitlements = expired
     ? { ...PLAN_ENTITLEMENTS.free, saasPlan }
@@ -203,7 +218,10 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
 
   const [patients, users, aiCount] = await Promise.all([
     prisma.patient.count({ where: { clinicId } }),
-    prisma.clinicMember.count({ where: { clinicId } }),
+    // Seat count: exclude STUDENT — interns shouldn't consume the paid seat budget.
+    prisma.clinicMember.count({
+      where: { clinicId, role: { not: 'STUDENT' } },
+    }),
     prisma.aISession.count({
       where: {
         clinicId,

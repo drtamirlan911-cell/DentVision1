@@ -6,6 +6,7 @@ import {
   PLAN_ENTITLEMENTS,
   entitlementsForPlan,
   normalizeSaasPlanId,
+  resolveEffectiveSaasPlan,
   assertClinicWritable,
   assertFeature,
   assertPatientSlot,
@@ -99,5 +100,11 @@ describe('planEntitlements gate logic', () => {
     } catch (e) {
       expect((e as PlanGateError).code).toBe('PLAN_AI_QUOTA')
     }
+  })
+
+  it('prefers clinic PRO over stale starter subscription', () => {
+    expect(resolveEffectiveSaasPlan('PRO', 'starter')).toBe('professional')
+    expect(resolveEffectiveSaasPlan('STANDARD', 'professional')).toBe('professional')
+    expect(resolveEffectiveSaasPlan('PRO', null)).toBe('professional')
   })
 })
