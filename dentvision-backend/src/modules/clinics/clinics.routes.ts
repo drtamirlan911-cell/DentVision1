@@ -24,6 +24,10 @@ function normalizeStaffRole(role?: string): 'OWNER' | 'ADMIN' | 'DOCTOR' | 'ASSI
 }
 
 async function assertCanManageStaff(userId: string, clinicId: string) {
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (actor?.role === 'SUPERADMIN') {
+    return { ok: true as const, membership: { role: 'OWNER' as const } };
+  }
   const membership = await prisma.clinicMember.findUnique({
     where: { userId_clinicId: { userId, clinicId } },
   });
