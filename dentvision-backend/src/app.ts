@@ -104,7 +104,15 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Platform-Ops-Key', 'X-Cron-Secret', 'X-Requested-With'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Platform-Ops-Key',
+    'X-Cron-Secret',
+    'X-Requested-With',
+    'X-Client-Timezone',
+    'X-Timezone',
+  ],
   optionsSuccessStatus: 204,
   maxAge: 86400,
 }));
@@ -116,6 +124,16 @@ app.options('*', cors({
     return cb(null, false);
   },
   credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Platform-Ops-Key',
+    'X-Cron-Secret',
+    'X-Requested-With',
+    'X-Client-Timezone',
+    'X-Timezone',
+  ],
 }));
 
 app.use(express.json({ limit: '10mb' }));
