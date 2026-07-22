@@ -7,6 +7,7 @@ import { AI_SERVICES } from '@/components/intelligence/AIServiceCards'
 import { StaggerContainer, StaggerItem, RingSpinner, TypingText, GlassMorph, TransformCard } from '@/components/ui/motion'
 import { GlassCard } from '@/components/ui/ds/GlassCard'
 import { cn } from '@/lib/utils'
+import { resolveClinicTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 
 interface WelcomeAnimationProps {
   onComplete: () => void
@@ -155,8 +156,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
   useEffect(() => {
     if (phase !== 2 || !dataReady) return
 
-    const h = new Date().getHours()
-    const timeWord = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
+    const timeWord = timeGreetingInTz(new Date(), resolveClinicTimeZone(clinic?.timezone || clinic?.settings?.timezone))
     const name = currentUser?.name?.split(' ')[0] || currentUser?.login || ''
     const roleLabel = currentUser?.spec || 'доктор'
 
@@ -230,8 +230,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
     onComplete()
   }
 
-  const h = new Date().getHours()
-  const timeWord = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
+  const timeWord = timeGreetingInTz(new Date(), resolveClinicTimeZone(clinic?.timezone || clinic?.settings?.timezone))
   const name = currentUser?.name?.split(' ')[0] || currentUser?.login || ''
   const roleLabel = currentUser?.spec || 'доктор'
 

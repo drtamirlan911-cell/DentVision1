@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { resolveClinicTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -36,12 +37,9 @@ export function getInitials(name: string): string {
     .slice(0, 2)
 }
 
-export function getGreeting(): string {
-  const h = new Date().getHours()
-  if (h < 6) return 'Доброй ночи'
-  if (h < 12) return 'Доброе утро'
-  if (h < 18) return 'Добрый день'
-  return 'Добрый вечер'
+export function getGreeting(timeZone?: string | null): string {
+  // Prefer clinic TZ — API hosts run UTC; browser TZ can also differ from clinic.
+  return timeGreetingInTz(new Date(), resolveClinicTimeZone(timeZone))
 }
 
 export function timeAgo(date: string | Date): string {

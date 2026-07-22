@@ -4,6 +4,12 @@
  */
 import { prisma } from '../../../lib/prisma.js';
 import { formatClinicMoney, resolveClinicCurrency } from '../lib/currency.js';
+import {
+  DEFAULT_CLINIC_TZ,
+  resolveClinicTimeZone,
+  timeGreetingInTz,
+  zonedDayRange,
+} from '../lib/timezone.js';
 
 export type BriefingRole =
   | 'owner'
@@ -35,14 +41,6 @@ function normalizeRole(role?: string | null): BriefingRole {
   if (r === 'buyer' || r === 'закуп' || r === 'manager' || r === 'менеджер') return 'buyer';
   if (r === 'guest' || r === 'гость') return 'guest';
   return 'staff';
-}
-
-function timeGreeting(d = new Date()): string {
-  const h = d.getHours();
-  if (h < 6) return 'Доброй ночи';
-  if (h < 12) return 'Доброе утро';
-  if (h < 18) return 'Добрый день';
-  return 'Добрый вечер';
 }
 
 function firstName(name?: string | null, fallback = 'коллега'): string {
@@ -88,13 +86,20 @@ export async function buildJarvisBriefing(opts: {
   isGuest?: boolean;
 }): Promise<JarvisBriefingResult> {
   const role = normalizeRole(opts.isGuest ? 'guest' : opts.role);
-  const greet = timeGreeting();
   const name = firstName(opts.firstName);
-  const dateLabel = new Date().toLocaleDateString('ru-RU', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
+
+  let timeZone = DEFAULT_CLINIC_TZ;
+  if (opts.clinicId) {
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: opts.clinicId },
+      select: { settings: true },
+    });
+    const settings = (clinic?.settings || {}) as { timezone?: string };
+    timeZone = resolveClinicTimeZone(settings.timezone);
+  }
+
+  const greet = timeGreetingInTz(new Date(), timeZone);
+  const { start: dayStart, end: dayEnd, dateLabel } = zonedDayRange(timeZone);
 
   if (role === 'guest' || !opts.clinicId) {
     return {
@@ -108,21 +113,20 @@ export async function buildJarvisBriefing(opts: {
         'Готов начинать, когда скажете.',
       ].join('\n'),
       suggestions: ['Чем полезен DentVision?', 'Открыть демо-клинику', 'Что в Academy OS?'],
-      payload: { mode: 'guest' },
+      payload: { mode: 'guest', timeZone },
     };
   }
 
   const clinicId = opts.clinicId;
   const now = new Date();
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(now);
-  dayEnd.setHours(23, 59, 59, 999);
   const in2h = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-  const yesterdayStart = new Date(dayStart);
-  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-  const yesterdayEnd = new Date(dayEnd);
-  yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+  // Previous calendar day in the clinic timezone
+  const yParts = (() => {
+    const prev = new Date(dayStart.getTime() - 12 * 60 * 60 * 1000);
+    return zonedDayRange(timeZone, prev);
+  })();
+  const yesterdayStart = yParts.start;
+  const yesterdayEnd = yParts.end;
 
   const doctorScoped = role === 'doctor' || role === 'assistant';
 

@@ -467,16 +467,24 @@ aiRouter.post('/session', async (req: AuthRequest, res) => {
 
 aiRouter.post('/greeting', async (req: AuthRequest, res) => {
   try {
-    const hour = new Date().getHours();
-    let greeting = 'Добрый день';
-    if (hour < 6) greeting = 'Доброй ночи';
-    else if (hour < 12) greeting = 'Доброе утро';
-    else if (hour < 18) greeting = 'Добрый день';
-    else greeting = 'Добрый вечер';
+    const { timeGreetingInTz, resolveClinicTimeZone, DEFAULT_CLINIC_TZ } = await import(
+      './lib/timezone.js'
+    );
+    let timeZone = DEFAULT_CLINIC_TZ;
+    const clinicId = req.user?.clinicId || DEMO_CLINIC_ID;
+    if (clinicId) {
+      const clinic = await prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { settings: true },
+      });
+      const settings = (clinic?.settings || {}) as { timezone?: string };
+      timeZone = resolveClinicTimeZone(settings.timezone);
+    }
+    const greeting = timeGreetingInTz(new Date(), timeZone);
 
     const alerts = await aiService.getProactiveAlerts({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
+      clinicId,
       role: req.user?.role || 'guest',
       sessionId: crypto.randomUUID(),
       metadata: {},
@@ -487,6 +495,7 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
       data: {
         greeting: `${greeting}, ${req.user?.firstName || 'Гость'}!`,
         alerts: alerts.slice(0, 3),
+        timeZone,
       },
     });
   } catch (error) {
