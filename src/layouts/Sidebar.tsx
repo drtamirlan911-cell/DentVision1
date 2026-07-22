@@ -15,6 +15,7 @@ import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { useAuth, canManageClinicSettings } from '@/store/auth.store';
 import { useGuestStore } from '@/store/guest.store';
+import { canAccessPage } from '@/lib/roleAccess';
 import type { User as UserType, RoleInfo } from '@/types';
 
 interface NavItem {
@@ -139,14 +140,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [queryClient, clinicId, isGuest]);
 
   const serviceItems = isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
-    if (item.section === 'platform' && item.id === 'ai') return true;
-    if (item.section === 'platform') return true;
-    // CRM is the workspace entry point. Keep it visible for every signed-in
-    // user; access to individual tools remains governed by their role.
     if (item.id === 'crm') return true;
-    if (item.id === 'shop') return allowedPages.length === 0 || allowedPages.includes('shop');
-    if (item.id === 'school') return allowedPages.length === 0 || allowedPages.includes('school');
-    return true;
+    if (item.id === 'ai' || item.id === 'profile' || item.id === 'settings') return true;
+    if (item.id === 'supplier' || item.id === 'school-workspace') return true;
+    if (item.id === 'jobs' || item.id === 'community') return true;
+    if (item.id === 'shop') return allowedPages.length === 0 || canAccessPage(allowedPages, 'shop');
+    if (item.id === 'school') return allowedPages.length === 0 || canAccessPage(allowedPages, 'school');
+    if (item.id === 'analytics') return canAccessPage(allowedPages, 'analytics');
+    return canAccessPage(allowedPages, item.id) || allowedPages.length === 0;
+  });
+
+  const visibleCrmSubnav = CRM_SUBNAV.filter((sub) => {
+    if ((sub as { adminOnly?: boolean }).adminOnly) {
+      return showClinicSettings || canAccessPage(allowedPages, sub.id);
+    }
+    // Guests / empty ACL: hide tools until role pages resolve
+    if (!allowedPages.length) return false;
+    return canAccessPage(allowedPages, sub.id);
   });
 
   const handleNavClick = (path: string) => {
@@ -187,21 +197,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }
             }}
             onMouseEnter={() => prefetchFor(item.id)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
+            whileHover={collapsed ? undefined : { scale: 1.02 }}
+            whileTap={collapsed ? undefined : { scale: 0.97 }}
             className={cn(
-              'relative flex w-full items-center gap-2.5 rounded-lg transition-all duration-150',
-              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2',
+              'relative flex w-full items-center rounded-lg transition-colors duration-150',
+              collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2',
               isActive
                 ? 'bg-white/[0.06] text-txt-primary'
                 : 'text-txt-secondary hover:bg-white/[0.04] hover:text-txt-primary'
             )}
           >
             {isActive && (
-              <motion.div
-                layoutId="nav-indicator"
-                className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-dv-gold shadow-sm shadow-dv-gold/50"
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              <span
+                className={cn(
+                  'absolute top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-dv-gold shadow-sm shadow-dv-gold/50',
+                  collapsed ? 'left-0.5' : 'left-1',
+                )}
               />
             )}
             <span className={cn('shrink-0 transition-colors', isActive ? 'text-dv-gold' : 'text-txt-muted')}>
@@ -226,7 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {btn}
               {isCrm && !collapsed && crmOpen && !isGuest && (
                 <div className="ml-3 mt-0.5 mb-1 space-y-0.5 border-l border-white/[0.06] pl-2">
-                  {CRM_SUBNAV.filter((sub) => !(sub as { adminOnly?: boolean }).adminOnly || showClinicSettings).map((sub) => {
+                  {visibleCrmSubnav.map((sub) => {
                     const subActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
                     return (
                       <button
@@ -243,6 +254,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </button>
                     );
                   })}
+                  {visibleCrmSubnav.length === 0 && (
+                    <p className="px-2.5 py-1.5 text-[10px] text-txt-ghost">Нет доступных разделов</p>
+                  )}
                 </div>
               )}
             </div>
@@ -257,28 +271,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
       initial={false}
       animate={{
         width: sidebarWidth,
-        x: isMobile ? (sidebarOpen ? 0 : -sidebarWidth) : 0,
+        x: isMobile ? (sidebarOpen ? 0 : -Math.max(sidebarWidth, 72)) : 0,
         opacity: sidebarVisible ? 1 : 0,
-        scale: sidebarVisible ? 1 : 0.95,
       }}
-      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+      transition={{ type: 'tween', duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        'h-full flex flex-col bg-surface-1/80 backdrop-blur-xl border-r border-white/[0.04] flex-shrink-0 z-50 relative overflow-hidden',
+        'h-full flex flex-col bg-surface-1/80 backdrop-blur-xl border-r border-white/[0.04] flex-shrink-0 z-50 relative overflow-hidden origin-left',
         isMobile && 'fixed top-0 left-0 bottom-0',
-        !sidebarVisible && !isMobile && 'pointer-events-none border-transparent'
+        !sidebarVisible && !isMobile && 'pointer-events-none border-transparent',
       )}
-      style={{ width: sidebarWidth }}
+      style={{
+        width: sidebarWidth,
+        minWidth: sidebarWidth,
+        maxWidth: sidebarWidth,
+      }}
     >
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
         <div
-          className="absolute -inset-[100%] opacity-[0.04] sidebar-gradient"
+          className="absolute inset-0 opacity-[0.04]"
           style={{
             background: 'radial-gradient(ellipse at 50% 0%, rgba(201,169,110,0.8) 0%, transparent 60%)',
           }}
         />
       </div>
-      <div className="flex items-center justify-between px-3 h-14 border-b border-bdr-subtle flex-shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
+
+      {/* Header: expanded = logo+title+toggle; collapsed = centered logo + corner expand */}
+      <div
+        className={cn(
+          'relative flex h-14 border-b border-bdr-subtle flex-shrink-0',
+          collapsed ? 'items-center justify-center px-1' : 'items-center justify-between px-3',
+        )}
+      >
+        <div className={cn('flex items-center min-w-0', collapsed ? 'justify-center' : 'gap-2.5')}>
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-dv-gold/15">
             <Stethoscope size={16} className="text-dv-gold" />
           </div>
@@ -291,8 +315,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         {!isGuest && (
           <button
+            type="button"
             onClick={() => (onToggleCollapsed ? onToggleCollapsed() : setCollapsed(!collapsed))}
-            className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+            className={cn(
+              'hidden md:flex items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors',
+              collapsed
+                ? 'absolute right-1 top-1 h-6 w-6'
+                : 'h-7 w-7 shrink-0',
+            )}
             aria-label={collapsed ? 'Развернуть сайдбар' : 'Свернуть сайдбар'}
           >
             {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
@@ -312,16 +342,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
 
-      <div className="px-2 pt-2 flex-shrink-0">
+      <div className={cn('pt-2 flex-shrink-0', collapsed ? 'px-1.5' : 'px-2')}>
         <motion.button
+          type="button"
           onClick={() => handleNavClick('/')}
-          whileTap={{ scale: 0.98 }}
+          whileTap={collapsed ? undefined : { scale: 0.98 }}
           className={cn(
-            'flex w-full items-center gap-2.5 rounded-xl transition-all duration-200 border',
-            collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
+            'flex w-full items-center rounded-xl transition-colors duration-200 border',
+            collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2.5',
             location.pathname === '/'
               ? 'bg-dv-gold/15 border-dv-gold/30 text-dv-gold'
-              : 'bg-gradient-to-r from-dv-gold/5 to-transparent border-dv-gold/10 text-txt-secondary hover:border-dv-gold/30 hover:text-dv-gold'
+              : 'border-dv-gold/10 text-txt-secondary hover:border-dv-gold/30 hover:text-dv-gold bg-dv-gold/[0.04]',
           )}
         >
           <Brain size={collapsed ? 18 : 16} className="shrink-0" />
@@ -367,7 +398,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           hidden: {},
           visible: { transition: { staggerChildren: 0.035, delayChildren: 0.1 } },
         }}
-        className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 no-scrollbar"
+        className={cn(
+          'flex-1 overflow-y-auto overflow-x-hidden py-1 space-y-0.5 no-scrollbar',
+          collapsed ? 'px-1.5' : 'px-2',
+        )}
       >
         {isGuest
           ? renderNavSection(GUEST_NAV_ITEMS)
@@ -379,29 +413,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
       </motion.nav>
 
-      <div className="px-2 pb-2 flex-shrink-0 space-y-1">
+      <div className={cn('pb-2 flex-shrink-0 space-y-1', collapsed ? 'px-1.5' : 'px-2')}>
         {!isGuest && user ? (
           <motion.button
+            type="button"
             onClick={() => { logout(); navigate('/login'); }}
-            whileTap={{ scale: 0.98 }}
+            whileTap={collapsed ? undefined : { scale: 0.98 }}
             className={cn(
-              'flex w-full items-center gap-2 rounded-lg border border-error/15 text-error transition-colors hover:bg-error/10',
-              collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
+              'flex w-full items-center rounded-lg border border-error/15 text-error transition-colors hover:bg-error/10',
+              collapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2',
             )}
           >
-            <LogOut size={16} />
+            <LogOut size={16} className="shrink-0" />
             {!collapsed && <span className="text-sm font-medium">Выйти</span>}
           </motion.button>
         ) : (
           <motion.button
+            type="button"
             onClick={() => navigate('/login')}
-            whileTap={{ scale: 0.98 }}
+            whileTap={collapsed ? undefined : { scale: 0.98 }}
             className={cn(
-              'flex w-full items-center gap-2 rounded-lg border border-dv-gold/20 text-dv-gold transition-colors hover:bg-dv-gold/10',
-              collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
+              'flex w-full items-center rounded-lg border border-dv-gold/20 text-dv-gold transition-colors hover:bg-dv-gold/10',
+              collapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2',
             )}
           >
-            <LogIn size={16} />
+            <LogIn size={16} className="shrink-0" />
             {!collapsed && <span className="text-sm font-medium">Войти</span>}
           </motion.button>
         )}

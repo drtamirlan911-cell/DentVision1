@@ -4,10 +4,13 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 
 const inventoryRouter = Router();
 
 inventoryRouter.use(authenticate);
+inventoryRouter.use(loadClinicAccess);
+inventoryRouter.use(blockClinicWrites);
 
 inventoryRouter.get('/', async (req: AuthRequest, res) => {
   try {

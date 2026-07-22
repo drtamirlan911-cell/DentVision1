@@ -6,10 +6,12 @@ import { publish } from '../../lib/events.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
+import { loadClinicAccess, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
 
 export const patientsRouter = Router();
 
 patientsRouter.use(authenticate);
+patientsRouter.use(loadClinicAccess);
 
 function splitName(name?: string, firstName?: string, lastName?: string) {
   if (firstName || lastName) {
@@ -142,7 +144,7 @@ patientsRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
-patientsRouter.post('/', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -327,7 +329,7 @@ patientsRouter.get('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-patientsRouter.patch('/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+patientsRouter.patch('/:id', requirePermission('patient.write'), requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -390,7 +392,7 @@ patientsRouter.patch('/:id', requirePermission('patient.write'), async (req: Aut
   }
 });
 
-patientsRouter.delete('/:id', requirePermission('patient.delete'), async (req: AuthRequest, res) => {
+patientsRouter.delete('/:id', requirePermission('patient.delete'), requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -498,7 +500,7 @@ patientsRouter.get('/:id/treatment-plan', async (req: AuthRequest, res) => {
 });
 
 /** KazDent donor: prepaid deposit / credit balance */
-patientsRouter.post('/:id/deposit', async (req: AuthRequest, res) => {
+patientsRouter.post('/:id/deposit', requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {

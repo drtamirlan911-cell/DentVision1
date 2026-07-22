@@ -20,6 +20,7 @@ import {
   startSyncQueueListener,
 } from '@/lib/syncQueue'
 import { useAuth, canAcceptPayment } from '@/store/auth.store'
+import { canAccessPage } from '@/lib/roleAccess'
 import { cn, today } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card'
@@ -199,7 +200,10 @@ export default function Schedule() {
     }
   }
 
-  const ownDataOnly = !!roleInfo?.ownDataOnly && user?.role === 'doctor'
+  const ownDataOnly = !!roleInfo?.ownDataOnly
+  const readOnly = !!roleInfo?.readOnly
+  const canOpenCashier = canAccessPage(roleInfo?.pages, 'cashier') || canAccessPage(roleInfo?.pages, 'finance')
+  const canManageScheduleBoard = !ownDataOnly && !readOnly
 
   const dayAppts = useMemo(() => {
     let list = appointments.filter(a => a.date === selDate)
@@ -755,14 +759,18 @@ export default function Schedule() {
               <Button variant="secondary" onClick={printZReport} icon={<ClipboardCheck size={14} />}>
                 <span className="hidden sm:inline">Z-отчёт</span>
               </Button>
-              {!ownDataOnly && (
+              {canOpenCashier && (
                 <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>
                   <span className="hidden xs:inline sm:inline">Касса</span>
                 </Button>
               )}
-              <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
-              <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
-              {roleInfo?.canSeeSuperAdmin !== false && (
+              {!readOnly && (
+                <>
+                  <Button onClick={openNew} icon={<Plus size={14} />} className="hidden sm:inline-flex">Новая запись</Button>
+                  <Button onClick={openNew} icon={<Plus size={14} />} className="sm:hidden !px-3">Новая</Button>
+                </>
+              )}
+              {canManageScheduleBoard && (
                 <Button variant="secondary" onClick={() => { setWaitForm(EMPTY_WAIT); setEditWaitId(null); setWaitModalOpen(true) }} icon={<ListOrdered size={14} />}>
                   <span className="hidden sm:inline">Лист ожидания</span>
                   <span className="sm:hidden">Ожидание</span>
@@ -841,7 +849,7 @@ export default function Schedule() {
                   className="!w-full sm:!w-44 !h-8 min-w-0" />
               )}
 
-              {roleInfo?.canSeeSuperAdmin !== false && (
+              {canManageScheduleBoard && (
                 <div className="flex rounded-lg border border-bdr-subtle overflow-x-auto max-w-full">
                   {([
                     { key: 'doctors' as const, label: 'Врачи', labelFull: 'По врачам' },
@@ -1431,6 +1439,9 @@ export default function Schedule() {
         allowCloseVisit={payDefaultClose || !!(payAppt && !['done', 'completed', 'cancelled'].includes(String(payAppt.status)))}
         defaultCloseVisit={payDefaultClose}
         saving={paySaving}
+        clinicId={clinicId}
+        appointmentId={payAppt?.id}
+        patientId={payAppt?.patientId}
         onConfirm={handleAcceptPayment}
       />
 

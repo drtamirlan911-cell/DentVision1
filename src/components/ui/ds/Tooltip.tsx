@@ -13,6 +13,8 @@ interface TooltipProps {
   side?: TooltipSide
   delay?: number
   className?: string
+  /** Classes for the trigger wrapper (default inline-flex). Use `w-full` in nav rails. */
+  triggerClassName?: string
 }
 
 const OFFSET = 8

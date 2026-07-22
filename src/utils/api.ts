@@ -803,6 +803,13 @@ export async function updateClinicStaff(
   });
 }
 
+/** Remove staff membership from clinic (does not delete the user account). */
+export async function deleteClinicStaff(clinicId: string, userId: string): Promise<any> {
+  return apiRequest(`/api/clinics/${clinicId}/staff/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function deletePhoto(id: string): Promise<any> {
   return apiRequest(`/api/medical/images/${id}`, { method: 'DELETE' });
 }
@@ -923,7 +930,7 @@ export async function upsertMedicalCard(data: Partial<MedicalCard> & Record<stri
 }
 
 // ─── ICD-10 ───
-export async function getICD10(search: string): Promise<ICD10Code[]> {
+export async function getICD10(search?: string): Promise<ICD10Code[]> {
   const q = search ? `?q=${encodeURIComponent(search)}` : '';
   return apiRequest(`/api/medical/icd10${q}`);
 }
@@ -1130,6 +1137,19 @@ export async function getShopSuppliers(): Promise<any> {
   }
 }
 export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
+export async function createPayment(payload: {
+  amount: number;
+  domain?: string;
+  refType?: string;
+  refId?: string | null;
+  meta?: Record<string, unknown>;
+  provider?: string;
+}): Promise<any> {
+  return apiRequest('/api/payments', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
 export async function getPayment(paymentId: string): Promise<any> {
   return apiRequest(`/api/payments/${paymentId}`);
 }

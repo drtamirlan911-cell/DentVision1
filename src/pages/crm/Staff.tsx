@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Users, UserPlus, Shield, Stethoscope, Briefcase, Crown, Phone, Mail,
-  Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings, Copy, Check, Link2, Camera,
+  Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings, Copy, Check, Link2, Camera, Trash2,
 } from 'lucide-react'
 import { useAuth, ORG_ROLES, canManageClinicSettings } from '@/store/auth.store'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -39,6 +39,7 @@ const INVITE_ROLE_OPTIONS = [
 ]
 
 const ROLE_ICON: Record<string, React.ReactNode> = {
+  owner: <Crown size={18} />,
   director: <Crown size={18} />,
   admin: <Briefcase size={18} />,
   doctor: <Stethoscope size={18} />,
@@ -46,6 +47,7 @@ const ROLE_ICON: Record<string, React.ReactNode> = {
 }
 
 const ROLE_BADGE: Record<string, string> = {
+  owner: 'gold',
   director: 'gold',
   admin: 'info',
   doctor: 'success',
@@ -53,6 +55,7 @@ const ROLE_BADGE: Record<string, string> = {
 }
 
 const ROLE_LABELS: Record<string, string> = {
+  owner: 'Руководитель',
   director: 'Руководитель',
   admin: 'Администратор',
   doctor: 'Врач',
@@ -128,7 +131,9 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 export default function Staff() {
   const { clinic, user } = useOutletContext<OutletContext>()
   const { addStaffMember, roleInfo, role, activeMembership } = useAuth()
-  const { users: staff } = useDataQuery(clinic?.id || user?.clinicId)
+  const clinicId = clinic?.id || user?.clinicId || ''
+  const { users: staff } = useDataQuery(clinicId)
+  const queryClient = useQueryClient()
   const { toast, showToast, clearToast } = useToast()
   const [modalOpen, setModalOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -139,6 +144,7 @@ export default function Staff() {
   const [profileModal, setProfileModal] = useState<UserType | null>(null)
   const [form, setForm] = useState<StaffForm>(EMPTY_FORM)
   const [photoUploading, setPhotoUploading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const photoInputRef = React.useRef<HTMLInputElement>(null)
 
   const handleStaffPhoto = async (file: File | null) => {
@@ -165,7 +171,6 @@ export default function Staff() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
-    const clinicId = clinic?.id || user?.clinicId
     if (!clinicId) {
       showToast('Выберите клинику', 'warning')
       return
@@ -289,6 +294,36 @@ export default function Staff() {
       workSchedule: (member as any).workSchedule || { start: '09:00', end: '18:00', workDays: ['пн', 'вт', 'ср', 'чт', 'пт'] },
     })
     setModalOpen(true)
+  }
+
+  const handleDeleteStaff = async (member: UserType) => {
+    if (!clinicId) {
+      showToast('Выберите клинику', 'warning')
+      return
+    }
+    if (member.id === user?.id) {
+      showToast('Нельзя удалить самого себя', 'warning')
+      return
+    }
+    const label = member.name || member.email || 'сотрудника'
+    if (!window.confirm(`Удалить ${label} из клиники?\n\nДоступ к этой клинике будет отозван. Аккаунт пользователя сохранится.`)) {
+      return
+    }
+    setDeletingId(member.id)
+    try {
+      await api.deleteClinicStaff(clinicId, member.id)
+      showToast('Сотрудник удалён из клиники', 'success')
+      if (profileModal?.id === member.id) setProfileModal(null)
+      if (editingStaff?.id === member.id) {
+        setEditingStaff(null)
+        setModalOpen(false)
+      }
+      refreshStaff()
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось удалить сотрудника', 'error')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const inviteModal = (
@@ -647,10 +682,20 @@ export default function Staff() {
             )}
           </div>
 
-          <div className="flex gap-2 mt-5">
+          <div className="flex gap-2 mt-5 flex-wrap">
             {canManage && (
               <Button className="flex-1" icon={<Edit size={16} />} onClick={() => { setProfileModal(null); openEditStaff(profileModal) }}>
                 Редактировать
+              </Button>
+            )}
+            {canManage && profileModal.id !== user?.id && (
+              <Button
+                variant="danger"
+                icon={<Trash2 size={16} />}
+                loading={deletingId === profileModal.id}
+                onClick={() => { void handleDeleteStaff(profileModal) }}
+              >
+                Удалить
               </Button>
             )}
             <Button variant="ghost" onClick={() => setProfileModal(null)}>Закрыть</Button>
@@ -828,17 +873,32 @@ export default function Staff() {
                       </div>
                     </div>
 
-                    {/* Edit button */}
+                    {/* Actions */}
                     {canManage && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full mt-3"
-                        icon={<Edit size={14} />}
-                        onClick={(e) => { e.stopPropagation(); openEditStaff(member) }}
-                      >
-                        Редактировать
-                      </Button>
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex-1"
+                          icon={<Edit size={14} />}
+                          onClick={(e) => { e.stopPropagation(); openEditStaff(member) }}
+                        >
+                          Редактировать
+                        </Button>
+                        {!isCurrentUser && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-error hover:text-error"
+                            icon={<Trash2 size={14} />}
+                            loading={deletingId === member.id}
+                            onClick={(e) => { e.stopPropagation(); void handleDeleteStaff(member) }}
+                            title="Удалить из клиники"
+                          >
+                            Удалить
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </Card>

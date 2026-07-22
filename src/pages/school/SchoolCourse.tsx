@@ -1,10 +1,12 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2, Sparkles, Send, QrCode, CreditCard } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2, Sparkles, Send } from 'lucide-react';
 import { Button, Badge, EmptyState, Card, ProgressBar } from '../../components/ui/ds';
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '../../components/ui/ds/Toast';
+import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel';
+import { extractPaymentQrUrl } from '@/utils/paymentQr';
 import * as api from '../../utils/api';
 
 interface Lesson {
@@ -140,8 +142,9 @@ export default function SchoolCourse() {
     try {
       const res = await api.enrollCourse({ courseId: id, course_id: id, clinic_id: activeClinic?.id || null });
       if (res?.requiresPayment && res?.payment?.id) {
-        setPendingPay(res.payment);
-        toast.showToast('Оплатите по QR, чтобы открыть курс', 'info');
+        const qr = extractPaymentQrUrl(res.payment);
+        setPendingPay({ ...res.payment, qr: qr || res.payment.qr, title: course?.title, price: course?.price });
+        toast.showToast(qr ? 'Счёт создан — отсканируйте QR ниже' : 'Счёт создан — завершите оплату ниже', 'info');
         return;
       }
       setEnrolled(true);
@@ -322,19 +325,16 @@ export default function SchoolCourse() {
                   {activeClinic ? `Запись для «${activeClinic.name}»` : 'Запись для личного обучения'}
                 </p>
                 {pendingPay && (
-                  <div className="mt-3 rounded-lg border border-[#C9A96E]/30 bg-[#C9A96E]/10 p-3 space-y-2">
-                    <div className="flex items-center gap-1.5 text-[#C9A96E] text-xs font-semibold">
-                      <QrCode size={14} /> Оплата по QR
-                    </div>
-                    {pendingPay.qr && (
-                      <a href={pendingPay.qr} target="_blank" rel="noreferrer" className="text-[11px] text-[#C9A96E] underline break-all">
-                        {pendingPay.qr}
-                      </a>
-                    )}
-                    <Button size="sm" icon={<CreditCard size={13} />} loading={payBusy} onClick={confirmCoursePay}>
-                      Проверить оплату
-                    </Button>
-                  </div>
+                  <PaymentQrPanel
+                    payment={pendingPay}
+                    title={pendingPay.title || course?.title || 'Оплата курса'}
+                    amount={pendingPay.price ?? course?.price}
+                    busy={payBusy}
+                    onConfirm={confirmCoursePay}
+                    onCancel={() => setPendingPay(null)}
+                    hint="Оплатите по QR, затем нажмите «Проверить оплату». В демо курс откроется сразу."
+                    className="mt-3"
+                  />
                 )}
               </>
             ) : (

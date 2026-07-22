@@ -4,10 +4,13 @@ import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import type { Prisma } from '@prisma/client';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 
 export const crmRouter = Router();
 
 crmRouter.use(authenticate);
+crmRouter.use(loadClinicAccess);
+crmRouter.use(blockClinicWrites);
 
 interface TreatmentPlanLineItem {
   id?: string;

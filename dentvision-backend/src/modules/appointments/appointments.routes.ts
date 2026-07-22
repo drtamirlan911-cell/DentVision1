@@ -13,10 +13,12 @@ import {
   toDbStatus,
 } from '../crm/appointmentMeta.js';
 import { metaFromClosedVisit } from '../crm/payroll.js';
+import { loadClinicAccess, requireClinicWritable } from '../../middleware/planGate.js';
 
 export const appointmentsRouter = Router();
 
 appointmentsRouter.use(authenticate);
+appointmentsRouter.use(loadClinicAccess);
 
 const patientSelect = {
   id: true,
@@ -117,7 +119,7 @@ appointmentsRouter.get('/conflicts', async (req: AuthRequest, res) => {
   }
 });
 
-appointmentsRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+appointmentsRouter.post('/', requirePermission('appointment.write'), requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -252,7 +254,7 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), async (req:
   }
 });
 
-appointmentsRouter.patch('/:id/status', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+appointmentsRouter.patch('/:id/status', requirePermission('appointment.write'), requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -285,7 +287,7 @@ appointmentsRouter.patch('/:id/status', requirePermission('appointment.write'), 
   }
 });
 
-appointmentsRouter.post('/:id/close', async (req: AuthRequest, res) => {
+appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     const userId = req.user?.id;
@@ -364,7 +366,7 @@ appointmentsRouter.post('/:id/close', async (req: AuthRequest, res) => {
   }
 });
 
-appointmentsRouter.delete('/:id', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+appointmentsRouter.delete('/:id', requirePermission('appointment.write'), requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {

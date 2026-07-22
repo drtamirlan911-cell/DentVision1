@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   GraduationCap, Search, Star, Users, Clock, BookOpen, Play, Brain,
   Stethoscope, Award, Building2, Radio, Briefcase, Sparkles, CheckCircle2,
-  Microscope, FileText, ArrowRight, MapPin, Calendar, QrCode, CreditCard,
+  Microscope, FileText, ArrowRight, MapPin, Calendar,
 } from 'lucide-react'
 import * as api from '@/utils/api'
 import { useAuth } from '@/store/auth.store'
@@ -16,6 +16,8 @@ import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
 import { Modal } from '@/components/ui/ds/Modal'
 import { useToast } from '@/components/ui/ds/Toast'
+import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel'
+import { extractPaymentQrUrl } from '@/utils/paymentQr'
 
 type TabId = 'overview' | 'webinars' | 'office' | 'textbooks' | 'courses' | 'teachers' | 'academies' | 'cases' | 'certs' | 'portfolio' | 'homework'
 type BuyFormat = 'webinar' | 'office' | 'textbook'
@@ -183,8 +185,15 @@ export default function School() {
     try {
       const res = await api.registerAcademyProduct({ productId, format })
       if (res?.requiresPayment && res?.payment?.id) {
-        setPendingPay({ ...res.payment, title: res.title, price: res.price })
-        toast.success('Счёт создан — оплатите по QR')
+        const qr = extractPaymentQrUrl(res.payment)
+        setPendingPay({
+          ...res.payment,
+          title: res.title,
+          price: res.price,
+          currency: res.currency || res.payment?.currency || 'KZT',
+          qr: qr || res.payment.qr,
+        })
+        toast.success(qr ? 'Счёт создан — отсканируйте QR ниже' : 'Счёт создан — завершите оплату ниже')
       } else {
         toast.success(res.message || (format === 'textbook' ? 'Учебник открыт' : 'Место подтверждено'))
       }
@@ -254,28 +263,16 @@ export default function School() {
       />
 
       {pendingPay && (
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center gap-2 text-[#C9A96E]">
-              <QrCode size={16} />
-              <p className="text-sm font-semibold m-0">Оплата: {pendingPay.title || 'Academy OS'}</p>
-            </div>
-            {pendingPay.price != null && (
-              <p className="text-xs text-[#7A8899] m-0">Сумма: {fmtPrice(pendingPay.price)}</p>
-            )}
-            {pendingPay.qr && (
-              <a href={pendingPay.qr} target="_blank" rel="noreferrer" className="text-sm text-[#C9A96E] underline break-all">
-                {pendingPay.qr}
-              </a>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" icon={<CreditCard size={14} />} loading={payBusy} onClick={confirmEventPay}>
-                Проверить оплату
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => setPendingPay(null)}>Отмена</Button>
-            </div>
-          </CardContent>
-        </Card>
+        <PaymentQrPanel
+          payment={pendingPay}
+          title={pendingPay.title || 'Academy OS'}
+          amount={pendingPay.price}
+          currency={pendingPay.currency || 'KZT'}
+          busy={payBusy}
+          onConfirm={confirmEventPay}
+          onCancel={() => setPendingPay(null)}
+          hint="Оплатите по QR, затем нажмите «Проверить оплату». В демо место подтверждается сразу."
+        />
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

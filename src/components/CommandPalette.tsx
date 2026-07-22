@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Search, ArrowRight, Calendar, Users, ShoppingCart, GraduationCap, BarChart3, Bot, FileText, Settings, Stethoscope, Package, CreditCard, ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/store/auth.store'
+import { canAccessPage } from '@/lib/roleAccess'
 
 interface CommandItem {
   id: string
@@ -25,24 +27,33 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
+  const { roleInfo } = useAuth()
+  const allowedPages = roleInfo?.pages || []
 
-  const commands: CommandItem[] = useMemo(() => [
-    { id: 'schedule', label: 'Расписание', description: 'Открыть календарь записей', icon: <Calendar size={16} />, action: () => { navigate('/crm/schedule'); onClose() }, section: 'CRM', keywords: ['расписание', 'календарь', 'записи', 'appointment'] },
-    { id: 'patients', label: 'Пациенты', description: 'Список пациентов', icon: <Users size={16} />, action: () => { navigate('/crm/patients'); onClose() }, section: 'CRM', keywords: ['пациенты', 'список', 'patient'] },
-    { id: 'cashier', label: 'Касса', description: 'Финансы и счета', icon: <CreditCard size={16} />, action: () => { navigate('/crm/cashier'); onClose() }, section: 'CRM', keywords: ['касса', 'оплата', 'счёт', 'cashier', 'finance'] },
-    { id: 'inventory', label: 'Склад', description: 'Учёт материалов', icon: <Package size={16} />, action: () => { navigate('/crm/inventory'); onClose() }, section: 'CRM', keywords: ['склад', 'материалы', 'inventory', 'stock'] },
-    { id: 'lab', label: 'Лаборатория', description: 'Лабораторные заказы', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/lab'); onClose() }, section: 'CRM', keywords: ['лаборатория', 'lab', 'заказ'] },
-    { id: 'documents', label: 'Документы', description: 'Файлы и подписи', icon: <FileText size={16} />, action: () => { navigate('/crm/documents'); onClose() }, section: 'CRM', keywords: ['документы', 'файлы', 'documents'] },
-    { id: 'promotions', label: 'Акции', description: 'Скидки и спецпредложения', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/promotions'); onClose() }, section: 'CRM', keywords: ['акции', 'скидки', 'promotions'] },
-    { id: 'icd10', label: 'МКБ-10', description: 'Справочник диагнозов', icon: <FileText size={16} />, action: () => { navigate('/crm/icd10'); onClose() }, section: 'CRM', keywords: ['мкб', 'icd10', 'диагноз'] },
-    { id: 'staff', label: 'Сотрудники', description: 'Команда клиники', icon: <Users size={16} />, action: () => { navigate('/crm/staff'); onClose() }, section: 'CRM', keywords: ['сотрудники', 'staff', 'врачи'] },
-    { id: 'reminders', label: 'Напоминания', description: 'SMS и WhatsApp', icon: <Calendar size={16} />, action: () => { navigate('/crm/reminders'); onClose() }, section: 'CRM', keywords: ['напоминания', 'reminders'] },
-    { id: 'shop', label: 'Маркетплейс', description: 'Товары и закупки', icon: <ShoppingCart size={16} />, action: () => { navigate('/shop'); onClose() }, section: 'Сервисы', keywords: ['магазин', 'товары', 'shop', 'marketplace'] },
-    { id: 'school', label: 'Академия', description: 'Курсы и обучение', icon: <GraduationCap size={16} />, action: () => { navigate('/school'); onClose() }, section: 'Сервисы', keywords: ['школа', 'курсы', 'school', 'academy'] },
-    { id: 'analytics', label: 'Аналитика', description: 'Отчёты и метрики', icon: <BarChart3 size={16} />, action: () => { navigate('/analytics'); onClose() }, section: 'Сервисы', keywords: ['аналитика', 'отчёты', 'analytics'] },
-    { id: 'settings', label: 'Настройки', description: 'Параметры системы', icon: <Settings size={16} />, action: () => { navigate('/settings'); onClose() }, section: 'Платформа', keywords: ['настройки', 'settings'] },
-    { id: 'ai-chat', label: 'AI Ассистент', description: 'Начать диалог с AI', icon: <Bot size={16} />, action: () => { navigate('/'); onClose() }, section: 'Платформа', keywords: ['ai', 'ассистент', 'помощь', 'умный'] },
-  ], [navigate, onClose])
+  const commands: CommandItem[] = useMemo(() => {
+    const all: CommandItem[] = [
+      { id: 'schedule', label: 'Расписание', description: 'Открыть календарь записей', icon: <Calendar size={16} />, action: () => { navigate('/crm/schedule'); onClose() }, section: 'CRM', keywords: ['расписание', 'календарь', 'записи', 'appointment'] },
+      { id: 'patients', label: 'Пациенты', description: 'Список пациентов', icon: <Users size={16} />, action: () => { navigate('/crm/patients'); onClose() }, section: 'CRM', keywords: ['пациенты', 'список', 'patient'] },
+      { id: 'cashier', label: 'Касса', description: 'Финансы и счета', icon: <CreditCard size={16} />, action: () => { navigate('/crm/cashier'); onClose() }, section: 'CRM', keywords: ['касса', 'оплата', 'счёт', 'cashier', 'finance'] },
+      { id: 'inventory', label: 'Склад', description: 'Учёт материалов', icon: <Package size={16} />, action: () => { navigate('/crm/inventory'); onClose() }, section: 'CRM', keywords: ['склад', 'материалы', 'inventory', 'stock'] },
+      { id: 'lab', label: 'Лаборатория', description: 'Лабораторные заказы', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/lab'); onClose() }, section: 'CRM', keywords: ['лаборатория', 'lab', 'заказ'] },
+      { id: 'documents', label: 'Документы', description: 'Файлы и подписи', icon: <FileText size={16} />, action: () => { navigate('/crm/documents'); onClose() }, section: 'CRM', keywords: ['документы', 'файлы', 'documents'] },
+      { id: 'promotions', label: 'Акции', description: 'Скидки и спецпредложения', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/promotions'); onClose() }, section: 'CRM', keywords: ['акции', 'скидки', 'promotions'] },
+      { id: 'icd10', label: 'МКБ-10', description: 'Справочник диагнозов', icon: <FileText size={16} />, action: () => { navigate('/crm/icd10'); onClose() }, section: 'CRM', keywords: ['мкб', 'icd10', 'диагноз'] },
+      { id: 'staff', label: 'Сотрудники', description: 'Команда клиники', icon: <Users size={16} />, action: () => { navigate('/crm/staff'); onClose() }, section: 'CRM', keywords: ['сотрудники', 'staff', 'врачи'] },
+      { id: 'reminders', label: 'Напоминания', description: 'SMS и WhatsApp', icon: <Calendar size={16} />, action: () => { navigate('/crm/reminders'); onClose() }, section: 'CRM', keywords: ['напоминания', 'reminders'] },
+      { id: 'shop', label: 'Маркетплейс', description: 'Товары и закупки', icon: <ShoppingCart size={16} />, action: () => { navigate('/shop'); onClose() }, section: 'Сервисы', keywords: ['магазин', 'товары', 'shop', 'marketplace'] },
+      { id: 'school', label: 'Академия', description: 'Курсы и обучение', icon: <GraduationCap size={16} />, action: () => { navigate('/school'); onClose() }, section: 'Сервисы', keywords: ['школа', 'курсы', 'school', 'academy'] },
+      { id: 'analytics', label: 'Аналитика', description: 'Отчёты и метрики', icon: <BarChart3 size={16} />, action: () => { navigate('/analytics'); onClose() }, section: 'Сервисы', keywords: ['аналитика', 'отчёты', 'analytics'] },
+      { id: 'settings', label: 'Настройки', description: 'Параметры системы', icon: <Settings size={16} />, action: () => { navigate('/settings'); onClose() }, section: 'Платформа', keywords: ['настройки', 'settings'] },
+      { id: 'ai-chat', label: 'AI Ассистент', description: 'Начать диалог с AI', icon: <Bot size={16} />, action: () => { navigate('/'); onClose() }, section: 'Платформа', keywords: ['ai', 'ассистент', 'помощь', 'умный'] },
+    ]
+    // Always allow settings + AI home; filter the rest by role pages.
+    return all.filter((cmd) => {
+      if (cmd.id === 'settings' || cmd.id === 'ai-chat') return true
+      return canAccessPage(allowedPages, cmd.id)
+    })
+  }, [navigate, onClose, allowedPages])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands

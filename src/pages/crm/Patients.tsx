@@ -19,9 +19,12 @@ import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { PageHeader } from '../../components/ui/ds/StatCard'
 import { Tabs } from '../../components/ui/ds/Misc'
 import { Avatar } from '../../components/ui/ds/Avatar'
+import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel'
 import { Odontogram3D, SurfaceEditor, AutoTreatmentPlan, ToothLegend } from '../../components/Odontogram3D'
 import { T, PATIENT_CATEGORY, calculateAge, formatPhone, fd, tg, gid, today } from '../../utils/constants'
 import { cn, formatMoney } from '../../lib/utils'
+import { isOnlineQrMethod } from '@/utils/payMethod'
+import { extractPaymentQrUrl } from '@/utils/paymentQr'
 import type { Patient, Appointment, Clinic, User as UserType, RoleInfo } from '../../types'
 import { usePatientStore } from '@/store/patient.store'
 
@@ -72,7 +75,7 @@ const EMPTY_FORM = {
   category: 'new', notes: '', teeth: {},
 }
 
-const EMPTY_PAYMENT = { amount: '', payMethod: 'cash' }
+const EMPTY_PAYMENT = { amount: '', payMethod: 'QR-оплата' }
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
@@ -85,7 +88,8 @@ interface OutletContext {
 
 export default function Patients() {
   const outlet = useOutletContext<OutletContext>() || ({} as OutletContext)
-  const { user, clinic: authClinic } = useAuth()
+  const { user, clinic: authClinic, roleInfo } = useAuth()
+  const readOnly = !!roleInfo?.readOnly
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
   const navigate = useNavigate()
@@ -107,6 +111,8 @@ export default function Patients() {
   const [photoCategory, setPhotoCategory] = useState('smile')
   const [photosLoading, setPhotosLoading] = useState(false)
   const [payment, setPayment] = useState(EMPTY_PAYMENT)
+  const [pendingPay, setPendingPay] = useState<any>(null)
+  const [payBusy, setPayBusy] = useState(false)
   const [patientSummary, setPatientSummary] = useState<{
     balance?: number
     paidTotal?: number
@@ -436,9 +442,11 @@ export default function Patients() {
           subtitle={`База пациентов клиники · ${patients.length} чел.`}
           icon={<User size={20} />}
           actions={
-            <Button icon={<UserPlus size={16} />} onClick={openNew}>
-              Новый пациент
-            </Button>
+            {!readOnly && (
+              <Button icon={<UserPlus size={16} />} onClick={openNew}>
+                Новый пациент
+              </Button>
+            )}
           }
         />
 
@@ -801,8 +809,48 @@ export default function Patients() {
                     ))}
                   </div>
 
-                  <div className="p-4 rounded-xl border border-bdr-subtle bg-white/[0.02] mb-5">
-                    <p className="text-sm font-semibold text-txt-primary mb-3">Внести оплату</p>
+                  <div className="p-4 rounded-xl border border-bdr-subtle bg-white/[0.02] mb-5 space-y-4">
+                    <p className="text-sm font-semibold text-txt-primary m-0">Внести оплату</p>
+                    {pendingPay ? (
+                      <PaymentQrPanel
+                        payment={pendingPay}
+                        title={pendingPay.title || `Оплата · ${selected?.name || 'пациент'}`}
+                        amount={Number(payment.amount)}
+                        busy={payBusy}
+                        onConfirm={async () => {
+                          if (!pendingPay?.id || !selected?.id) return
+                          setPayBusy(true)
+                          try {
+                            const res = await api.confirmPayment(pendingPay.id)
+                            if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
+                              await upsertReceipt({
+                                clinicId: clinic?.id,
+                                patientId: selected.id,
+                                patientName: selected.name,
+                                amount: Number(payment.amount),
+                                total: Number(payment.amount),
+                                payMethod: payment.payMethod,
+                                status: 'paid',
+                                service: 'Оплата',
+                                date: new Date().toISOString().slice(0, 10),
+                                items: [{ name: 'Оплата', price: Number(payment.amount), qty: 1 }],
+                              })
+                              showToast(`Оплата ${tg(Number(payment.amount))} подтверждена`, 'success')
+                              setPayment(EMPTY_PAYMENT)
+                              setPendingPay(null)
+                            } else {
+                              showToast('Оплата ещё не подтверждена', 'info')
+                            }
+                          } catch (err: any) {
+                            showToast(err?.message || 'Оплата не подтверждена', 'error')
+                          } finally {
+                            setPayBusy(false)
+                          }
+                        }}
+                        onCancel={() => setPendingPay(null)}
+                        hint="Покажите QR пациенту. После оплаты нажмите «Проверить оплату»."
+                      />
+                    ) : (
                     <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
                       <Input
                         label="Сумма (₸)"
@@ -816,6 +864,7 @@ export default function Patients() {
                         value={payment.payMethod}
                         onChange={e => setPayment({ ...payment, payMethod: e.target.value })}
                         options={[
+                          { value: 'QR-оплата', label: 'QR / Kaspi' },
                           { value: 'cash', label: 'Наличные' },
                           { value: 'card', label: 'Карта' },
                           { value: 'transfer', label: 'Перевод' },
@@ -823,10 +872,34 @@ export default function Patients() {
                       />
                       <Button
                         icon={<CreditCard size={16} />}
+                        loading={payBusy}
                         onClick={async () => {
                           if (!selected?.id) { showToast('Выберите пациента', 'warning'); return }
                           if (!payment.amount || Number(payment.amount) <= 0) { showToast('Укажите сумму', 'warning'); return }
                           try {
+                            if (isOnlineQrMethod(payment.payMethod)) {
+                              setPayBusy(true)
+                              const created = await api.createPayment({
+                                amount: Number(payment.amount),
+                                domain: 'crm',
+                                refType: 'crm_invoice',
+                                refId: selected.id,
+                                meta: {
+                                  clinicId: clinic?.id || null,
+                                  patientId: selected.id,
+                                  patientName: selected.name,
+                                  title: `Оплата · ${selected.name}`,
+                                },
+                              })
+                              const qr = extractPaymentQrUrl(created)
+                              setPendingPay({
+                                ...created,
+                                qr: qr || created?.qr,
+                                title: `Оплата · ${selected.name}`,
+                              })
+                              showToast(qr ? 'Счёт создан — покажите QR ниже' : 'Счёт создан — завершите оплату ниже', 'success')
+                              return
+                            }
                             await upsertReceipt({
                               clinicId: clinic?.id,
                               patientId: selected.id,
@@ -843,13 +916,16 @@ export default function Patients() {
                             setPayment(EMPTY_PAYMENT)
                           } catch (err: any) {
                             showToast(err?.message || 'Не удалось сохранить оплату', 'error')
+                          } finally {
+                            setPayBusy(false)
                           }
                         }}
                       >
-                        Внести
+                        {isOnlineQrMethod(payment.payMethod) ? 'QR' : 'Внести'}
                       </Button>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-bdr-subtle flex items-end gap-3 flex-wrap">
+                    )}
+                    <div className="pt-4 border-t border-bdr-subtle flex items-end gap-3 flex-wrap">
                       <div className="flex-1 min-w-[140px]">
                         <p className="text-xs text-txt-muted mb-1">Предоплата / баланс</p>
                         <p className="text-lg font-bold text-dv-gold">{tg(Number(selected.prepaidBalance || 0))}</p>

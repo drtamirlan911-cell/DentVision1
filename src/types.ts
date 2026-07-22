@@ -85,6 +85,21 @@ export interface ClinicSettings {
   requireChair?: boolean
   autoDeductItems?: string
   bookingLink?: string
+  onlineBookingEnabled?: boolean
+  /** Per-clinic Kaspi for CRM cashier (not platform). */
+  payments?: {
+    mode?: 'unconfigured' | 'static' | 'api'
+    merchantName?: string
+    kaspiPhone?: string
+    staticQrUrl?: string
+    apiBaseUrl?: string
+    apiKey?: string
+    webhookSecret?: string
+    configured?: boolean
+    apiKeySet?: boolean
+    webhookSecretSet?: boolean
+    webhookUrl?: string
+  }
 }
 
 // ─── Patients ───────────────────────────────────────────────────
@@ -387,6 +402,7 @@ export interface ICD10Code {
   code: string
   name: string
   category?: string
+  description?: string
 }
 
 // ─── Notifications (unified Notification Center) ────────────────

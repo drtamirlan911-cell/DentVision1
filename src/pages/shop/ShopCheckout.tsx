@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShoppingBag, Truck, CreditCard, ArrowLeft, Building2, Wallet, QrCode } from 'lucide-react';
+import { ShoppingBag, Truck, CreditCard, ArrowLeft, Building2, Wallet } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
@@ -10,9 +10,10 @@ import { useToast } from '../../components/ui/ds/Toast';
 import { Button } from '../../components/ui/ds/Button';
 import { Card, CardContent } from '../../components/ui/ds/Card';
 import { Input } from '../../components/ui/ds/Input';
-import { Badge } from '../../components/ui/ds/Badge';
 import { PageHeader } from '../../components/ui/ds/StatCard';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
+import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel';
+import { extractPaymentQrUrl } from '@/utils/paymentQr';
 
 const DELIVERY_FREE_FROM = 50000;
 const DELIVERY_COST = 2500;
@@ -158,14 +159,15 @@ export default function ShopCheckout() {
       });
       const earn = res?.dentCashEarnPendingTenge;
       if (res?.requiresPayment && res?.payment?.id) {
+        const qr = extractPaymentQrUrl(res.payment);
         setPendingPay({
-          payment: res.payment,
+          payment: { ...res.payment, qr: qr || res.payment.qr },
           orderId: res.id,
           total: res.total,
           earn,
         });
         setPayStatus('pending');
-        toast.success('Заказ создан — оплатите по QR');
+        toast.success(qr ? 'Заказ создан — отсканируйте QR ниже' : 'Заказ создан — завершите оплату ниже');
         return;
       }
       clearCart();
@@ -212,41 +214,16 @@ export default function ShopCheckout() {
       <PageHeader title="Оформление заказа" subtitle="Проверьте данные и подтвердите заказ" icon={<ShoppingBag size={22} />} />
 
       {pendingPay?.payment && (
-        <Card className="mt-5">
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <QrCode size={16} className="text-[#C9A96E]" />
-              <p className="text-sm font-semibold text-white">Оплата по QR</p>
-              <Badge variant={payStatus === 'paid' ? 'success' : 'outline'}>
-                {payStatus === 'paid' ? 'Оплачено' : 'Ожидает оплаты'}
-              </Badge>
-            </div>
-            <p className="text-xs text-[var(--slate)]">
-              Заказ создан. Сумма к оплате: <span className="text-white font-semibold">{money(Number(pendingPay.total || 0))}</span>
-            </p>
-            {pendingPay.payment.qr && (
-              <a
-                href={pendingPay.payment.qr}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-[#C9A96E] underline break-all"
-              >
-                {pendingPay.payment.qr}
-              </a>
-            )}
-            <p className="text-[11px] text-[var(--slate)]">
-              Откройте ссылку оплаты, оплатите, затем нажмите «Проверить оплату». В демо-среде кнопка завершает оплату сразу.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button icon={<CreditCard size={14} />} loading={confirming} onClick={confirmPay}>
-                Проверить оплату
-              </Button>
-              <Button variant="secondary" onClick={() => { stopPoll(); setPendingPay(null); }}>
-                Отмена
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <PaymentQrPanel
+          className="mt-5"
+          payment={pendingPay.payment}
+          title="Оплата заказа"
+          amount={Number(pendingPay.total || 0)}
+          busy={confirming}
+          onConfirm={confirmPay}
+          onCancel={() => { stopPoll(); setPendingPay(null); }}
+          hint="Откройте оплату по QR, оплатите, затем нажмите «Проверить оплату». В демо-среде кнопка завершает оплату сразу."
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mt-5">

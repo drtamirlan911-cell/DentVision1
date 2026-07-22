@@ -312,7 +312,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       });
       order = await prisma.order.findUnique({ where: { id: order.id } }) || order;
     } else if (needsOnlinePay) {
-      const { providers } = await import('../payments/kaspi.provider.js');
+      const { providers, withPaymentQr } = await import('../payments/kaspi.provider.js');
       const { tengeToMinor: toMinor, serializeBigInt } = await import('../../lib/money.js');
       const amountMinor = toMinor(finalTotal);
       const gateway = providers.kaspi_qr;
@@ -336,7 +336,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
           },
         },
       });
-      payment = { ...serializeBigInt(pay), qr: created.qr };
+      payment = withPaymentQr(serializeBigInt(pay) as Record<string, unknown>, created.qr);
       const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
       order = await prisma.order.update({
         where: { id: order.id },
@@ -383,7 +383,24 @@ shopRouter.get('/orders', authenticate, async (req: AuthRequest, res) => {
       prisma.order.count({ where }),
     ]);
 
-    res.json({ ok: true, data: paginatedResponse(orders, total, page, limit) });
+    const data = orders.map((o) => {
+      const meta = (o.meta && typeof o.meta === 'object' ? o.meta : {}) as Record<string, unknown>;
+      const rawItems = Array.isArray(o.items) ? o.items : [];
+      return {
+        ...o,
+        paymentMethod: meta.payment_method || null,
+        deliveryMethod: meta.delivery_method || null,
+        items: rawItems.map((it: any, idx: number) => ({
+          id: it.id || `${o.id}-${idx}`,
+          productName: it.productName || it.name || 'Товар',
+          quantity: Number(it.quantity || it.qty || 1),
+          price: Number(it.price || 0),
+        })),
+        meta,
+      };
+    });
+
+    res.json({ ok: true, data: paginatedResponse(data, total, page, limit) });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch orders' });
   }
