@@ -15,6 +15,7 @@ import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { useAuth, canManageClinicSettings } from '@/store/auth.store';
 import { useGuestStore } from '@/store/guest.store';
+import { canAccessPage } from '@/lib/roleAccess';
 import type { User as UserType, RoleInfo } from '@/types';
 
 interface NavItem {
@@ -139,14 +140,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [queryClient, clinicId, isGuest]);
 
   const serviceItems = isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
-    if (item.section === 'platform' && item.id === 'ai') return true;
-    if (item.section === 'platform') return true;
-    // CRM is the workspace entry point. Keep it visible for every signed-in
-    // user; access to individual tools remains governed by their role.
     if (item.id === 'crm') return true;
-    if (item.id === 'shop') return allowedPages.length === 0 || allowedPages.includes('shop');
-    if (item.id === 'school') return allowedPages.length === 0 || allowedPages.includes('school');
-    return true;
+    if (item.id === 'ai' || item.id === 'profile' || item.id === 'settings') return true;
+    if (item.id === 'supplier' || item.id === 'school-workspace') return true;
+    if (item.id === 'jobs' || item.id === 'community') return true;
+    if (item.id === 'shop') return allowedPages.length === 0 || canAccessPage(allowedPages, 'shop');
+    if (item.id === 'school') return allowedPages.length === 0 || canAccessPage(allowedPages, 'school');
+    if (item.id === 'analytics') return canAccessPage(allowedPages, 'analytics');
+    return canAccessPage(allowedPages, item.id) || allowedPages.length === 0;
+  });
+
+  const visibleCrmSubnav = CRM_SUBNAV.filter((sub) => {
+    if ((sub as { adminOnly?: boolean }).adminOnly) {
+      return showClinicSettings || canAccessPage(allowedPages, sub.id);
+    }
+    // Guests / empty ACL: hide tools until role pages resolve
+    if (!allowedPages.length) return false;
+    return canAccessPage(allowedPages, sub.id);
   });
 
   const handleNavClick = (path: string) => {
@@ -226,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {btn}
               {isCrm && !collapsed && crmOpen && !isGuest && (
                 <div className="ml-3 mt-0.5 mb-1 space-y-0.5 border-l border-white/[0.06] pl-2">
-                  {CRM_SUBNAV.filter((sub) => !(sub as { adminOnly?: boolean }).adminOnly || showClinicSettings).map((sub) => {
+                  {visibleCrmSubnav.map((sub) => {
                     const subActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
                     return (
                       <button
@@ -243,6 +253,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </button>
                     );
                   })}
+                  {visibleCrmSubnav.length === 0 && (
+                    <p className="px-2.5 py-1.5 text-[10px] text-txt-ghost">Нет доступных разделов</p>
+                  )}
                 </div>
               )}
             </div>

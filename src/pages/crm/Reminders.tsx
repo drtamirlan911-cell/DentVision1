@@ -47,7 +47,7 @@ export default function Reminders() {
   const [cronRunning, setCronRunning] = useState(false);
 
   const readOnly = !!(roleInfo as any)?.readOnly;
-  const ownDataOnly = !!(roleInfo as any)?.ownDataOnly && user?.role === 'doctor';
+  const ownDataOnly = !!(roleInfo as any)?.ownDataOnly;
 
   const scopedAppointments = ownDataOnly
     ? appointments.filter(a => a.doctorId === user?.id)
