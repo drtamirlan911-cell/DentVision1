@@ -1,9 +1,10 @@
-import React from 'react'
+import React, { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle, Info, CheckCircle, X, RefreshCw, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Info, CheckCircle, X, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
 import { normalizeAlertTone } from '@/utils/alertTone'
 import { cn } from '@/lib/utils'
 import { resolveNavigationPath, useAIExecutor } from '@/utils/aiExecutor'
+import { dismissAlertPersist, dismissAlertsPersist } from '@/utils/dismissedAlerts'
 
 interface Alert {
   id: string
@@ -50,18 +51,18 @@ const CATEGORY_LABELS: Record<string, string> = {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  OpenDemo: 'Открыть демо',
-  OpenShop: 'Открыть маркетплейс',
-  OpenSchool: 'Открыть Academy OS',
-  OpenPricing: 'Открыть тарифы',
-  OpenJobs: 'Открыть вакансии',
-  OpenCommunity: 'Открыть сообщество',
-  OpenProfile: 'Открыть профиль',
-  OpenCRM: 'Открыть CRM',
-  OpenSchedule: 'Открыть расписание',
-  OpenPatients: 'Открыть пациентов',
-  OpenFinance: 'Открыть финансы',
-  OpenInventory: 'Открыть склад',
+  OpenDemo: 'Демо',
+  OpenShop: 'Маркет',
+  OpenSchool: 'Academy',
+  OpenPricing: 'Тарифы',
+  OpenJobs: 'Вакансии',
+  OpenCommunity: 'Сеть',
+  OpenProfile: 'Профиль',
+  OpenCRM: 'CRM',
+  OpenSchedule: 'Расписание',
+  OpenPatients: 'Пациенты',
+  OpenFinance: 'Финансы',
+  OpenInventory: 'Склад',
   NAVIGATE: 'Открыть',
 }
 
@@ -69,21 +70,39 @@ export function ProactiveAlertsDisplay({
   alerts,
   onAcknowledge,
   onResolve,
-  maxVisible = 4,
+  maxVisible = 3,
 }: ProactiveAlertsDisplayProps) {
   const { executeAction } = useAIExecutor()
+  const [expanded, setExpanded] = useState(false)
 
-  if (!alerts.length) return null
-  const sortedAlerts = [...alerts].sort((a, b) => b.priority - a.priority)
-  const visibleAlerts = sortedAlerts.slice(0, maxVisible)
+  const activeAlerts = useMemo(
+    () =>
+      [...alerts]
+        .filter((a) => !a.acknowledged && !a.resolved && a.text)
+        .sort((a, b) => b.priority - a.priority),
+    [alerts],
+  )
+
+  if (!activeAlerts.length) return null
+
+  const visibleAlerts = expanded ? activeAlerts.slice(0, maxVisible) : activeAlerts.slice(0, 1)
+  const hiddenCount = Math.max(0, activeAlerts.length - visibleAlerts.length)
+
+  const dismissOne = (alert: Alert) => {
+    dismissAlertPersist(alert)
+    onAcknowledge(alert.id)
+  }
+
+  const dismissAll = () => {
+    dismissAlertsPersist(activeAlerts)
+    for (const a of activeAlerts) onAcknowledge(a.id)
+  }
 
   const handleActionClick = async (alert: Alert) => {
     const actionType = alert.action?.type
     if (!actionType) return
 
     const path = resolveNavigationPath(actionType, alert.action?.params)
-    // Navigation never needs a confirm dialog — previous bug set requiresConfirmation
-    // without onConfirm, so «Выполнить» silently no-op'd.
     const result = await executeAction({
       id: `alert-${alert.id}`,
       type: actionType,
@@ -94,109 +113,107 @@ export function ProactiveAlertsDisplay({
     })
 
     if (result?.type === 'navigate' || path) {
-      onAcknowledge(alert.id)
+      dismissOne(alert)
     }
   }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -10, height: 0 }}
-      animate={{ opacity: 1, y: 0, height: 'auto' }}
-      exit={{ opacity: 0, y: -10, height: 0 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-      className="mx-4 md:mx-6 mt-4 max-w-3xl"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      className="mx-3 sm:mx-4 md:mx-6 mb-1 max-w-3xl shrink-0"
     >
-      <AnimatePresence>
-        {visibleAlerts.map((alert, i) => (
-          <motion.div
-            key={alert.id}
-            initial={{ opacity: 0, y: 20, x: -30, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, x: 30, scale: 0.95 }}
-            transition={{
-              delay: i * 0.08,
-              type: 'spring',
-              stiffness: 400,
-              damping: 28,
-            }}
-            className={cn(
-              'relative flex gap-3 p-3.5 rounded-2xl border transition-all duration-300 mb-2',
-              COLORS[normalizeAlertTone(alert.type)],
-              'shadow-lg shadow-black/20',
-            )}
+      <div className="rounded-xl border border-white/[0.08] bg-surface-1/80 backdrop-blur-md overflow-hidden">
+        <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-white/[0.04]">
+          <Sparkles size={12} className="text-dv-gold shrink-0" />
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/[0.05]">
-              {(() => {
-                const tone = normalizeAlertTone(alert.type)
-                const AlertIcon = ICONS[tone]
-                return <AlertIcon size={16} className={cn(COLORS[tone].split(' ')[0])} />
-              })()}
-            </div>
+            <span className="text-[11px] font-semibold text-txt-secondary truncate">
+              {activeAlerts.length === 1
+                ? 'Подсказка'
+                : `${activeAlerts.length} подсказки`}
+            </span>
+            {hiddenCount > 0 && !expanded && (
+              <span className="text-[10px] text-txt-muted shrink-0">+{hiddenCount}</span>
+            )}
+            <ChevronDown
+              size={12}
+              className={cn('text-txt-muted shrink-0 transition-transform ml-auto', expanded && 'rotate-180')}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={dismissAll}
+            className="shrink-0 px-2 py-1 rounded-md text-[10px] font-medium text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+            aria-label="Скрыть все подсказки"
+          >
+            Скрыть
+          </button>
+        </div>
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-medium text-txt-primary pr-4">{alert.text}</p>
-                <div className="flex items-center gap-1 shrink-0">
+        <AnimatePresence initial={false}>
+          {visibleAlerts.map((alert) => {
+            const tone = normalizeAlertTone(alert.type)
+            const AlertIcon = ICONS[tone]
+            return (
+              <motion.div
+                key={alert.id}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.18 }}
+                className="border-b border-white/[0.04] last:border-b-0"
+              >
+                <div className="flex items-center gap-2 px-2.5 py-2">
+                  <div
+                    className={cn(
+                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-md border',
+                      COLORS[tone],
+                    )}
+                  >
+                    <AlertIcon size={12} />
+                  </div>
+                  <p className="flex-1 min-w-0 text-[12px] leading-snug text-txt-primary line-clamp-2">
+                    {alert.text}
+                  </p>
                   {alert.action?.type && (
-                    <motion.button
+                    <button
                       type="button"
                       onClick={() => void handleActionClick(alert)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="px-2.5 py-1 rounded-lg text-xs font-medium bg-dv-gold/15 text-dv-gold border border-dv-gold/25 hover:bg-dv-gold/25 transition-colors flex items-center gap-1"
+                      className="shrink-0 px-2 py-1 rounded-md text-[10px] font-semibold bg-dv-gold/15 text-dv-gold border border-dv-gold/25 hover:bg-dv-gold/25 transition-colors flex items-center gap-0.5"
                     >
-                      <ChevronRight size={10} />
                       {ACTION_LABELS[alert.action.type] || 'Открыть'}
-                    </motion.button>
+                      <ChevronRight size={10} />
+                    </button>
                   )}
-                  {!alert.acknowledged && (
-                    <motion.button
-                      type="button"
-                      onClick={() => onAcknowledge(alert.id)}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
-                      aria-label="Скрыть"
-                    >
-                      <X size={12} />
-                    </motion.button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => dismissOne(alert)}
+                    className="shrink-0 p-1.5 rounded-md text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+                    aria-label="Скрыть"
+                  >
+                    <X size={12} />
+                  </button>
                 </div>
-              </div>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
 
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-txt-muted">
-                  {CATEGORY_LABELS[alert.category] || alert.category}
-                </span>
-                {alert.timestamp && (
-                  <span className="text-[10px] text-txt-ghost">
-                    {alert.timestamp.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-
-      {sortedAlerts.length > maxVisible && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-2"
-        >
-          <motion.button
+        {expanded && activeAlerts.length > maxVisible && (
+          <button
             type="button"
-            onClick={() => onResolve(sortedAlerts[0].id)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-txt-muted hover:bg-white/10 hover:text-txt-secondary transition-all text-sm font-medium flex items-center justify-center gap-2"
+            onClick={() => onResolve(activeAlerts[0].id)}
+            className="w-full px-2.5 py-1.5 text-[10px] text-txt-muted hover:text-txt-secondary transition-colors"
           >
-            <RefreshCw size={14} />
-            Показать все {sortedAlerts.length} оповещений
-          </motion.button>
-        </motion.div>
-      )}
+            Ещё {activeAlerts.length - maxVisible} в панели контекста
+          </button>
+        )}
+      </div>
     </motion.div>
   )
 }
@@ -207,69 +224,66 @@ export function ProactiveAlertsCompact({
   onAction,
   maxVisible = 3,
 }: ProactiveAlertsDisplayProps & { onAction?: (type: string) => void }) {
-  if (!alerts.length) return null
+  const active = useMemo(
+    () =>
+      [...alerts]
+        .filter((a) => !a.acknowledged && !a.resolved && a.text)
+        .sort((a, b) => b.priority - a.priority)
+        .slice(0, maxVisible),
+    [alerts, maxVisible],
+  )
 
-  const sortedAlerts = [...alerts].sort((a, b) => b.priority - a.priority)
-  const visibleAlerts = sortedAlerts.slice(0, maxVisible)
+  if (!active.length) return null
 
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      className="space-y-2"
-    >
+    <div className="space-y-1.5">
       <AnimatePresence>
-        {visibleAlerts.map((alert, i) => (
-          <motion.div
-            key={alert.id}
-            initial={{ opacity: 0, x: 20, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: -20, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25, delay: i * 0.1 }}
-            className={cn(
-              'flex items-start gap-2 px-3 py-2 rounded-xl border transition-all',
-              COLORS[normalizeAlertTone(alert.type)],
-            )}
-          >
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/[0.05]">
-              {(() => {
-                const tone = normalizeAlertTone(alert.type)
-                const AlertIcon = ICONS[tone]
-                return <AlertIcon size={12} className={cn(COLORS[tone].split(' ')[0])} />
-              })()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-txt-primary">{alert.text}</p>
-              <p className="text-2xs text-txt-muted mt-0.5">
+        {active.map((alert, i) => {
+          const tone = normalizeAlertTone(alert.type)
+          const AlertIcon = ICONS[tone]
+          return (
+            <motion.div
+              key={alert.id}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -12 }}
+              transition={{ delay: i * 0.04 }}
+              className={cn(
+                'flex items-center gap-2 px-2.5 py-1.5 rounded-lg border',
+                COLORS[tone],
+              )}
+            >
+              <AlertIcon size={12} className="shrink-0" />
+              <p className="flex-1 min-w-0 text-[11px] text-txt-primary line-clamp-1">{alert.text}</p>
+              <span className="text-[9px] text-txt-muted shrink-0 hidden sm:inline">
                 {CATEGORY_LABELS[alert.category] || alert.category}
-              </p>
-            </div>
-            {alert.action && onAction && (
-              <motion.button
-                type="button"
-                onClick={() => onAction(alert.action!.type)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-2 py-1 rounded-lg text-xs font-medium bg-white/10 text-txt-secondary hover:bg-white/20 transition-colors"
-              >
-                {ACTION_LABELS[alert.action.type] || 'Открыть'}
-              </motion.button>
-            )}
-            {onAcknowledge && (
-              <motion.button
-                type="button"
-                onClick={() => onAcknowledge(alert.id)}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="p-1 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
-              >
-                <X size={12} />
-              </motion.button>
-            )}
-          </motion.div>
-        ))}
+              </span>
+              {alert.action && onAction && (
+                <button
+                  type="button"
+                  onClick={() => onAction(alert.action!.type)}
+                  className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/10 text-txt-secondary hover:bg-white/20"
+                >
+                  {ACTION_LABELS[alert.action.type] || 'Открыть'}
+                </button>
+              )}
+              {onAcknowledge && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    dismissAlertPersist(alert)
+                    onAcknowledge(alert.id)
+                  }}
+                  className="p-1 rounded text-txt-muted hover:text-txt-primary"
+                  aria-label="Скрыть"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </motion.div>
+          )
+        })}
       </AnimatePresence>
-    </motion.div>
+    </div>
   )
 }

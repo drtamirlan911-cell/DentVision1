@@ -16,8 +16,33 @@ import { ActionConfirm } from '@/components/intelligence/ActionConfirm'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { trackProductEvent } from '@/utils/analytics'
 import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
+import { alertDismissKey, filterDismissedAlerts } from '@/utils/dismissedAlerts'
 
 import type { Message, Action } from '@/store/workspace.store'
+
+function mapProactiveAlerts(raw: any[]): Array<{
+  id: string
+  type: string
+  category: string
+  text: string
+  priority: number
+  action?: { type: string; params?: Record<string, unknown> }
+}> {
+  const mapped = (Array.isArray(raw) ? raw : []).map((a: any, i: number) => {
+    const text = a.text || a.message || ''
+    const action = a.action
+    const stable = alertDismissKey({ action, text, message: text, id: a.id })
+    return {
+      id: a.id || `${stable}-${i}`,
+      type: a.type || 'info',
+      category: a.category || 'general',
+      text,
+      priority: typeof a.priority === 'number' ? a.priority : Number(a.priority) || 0,
+      action,
+    }
+  }).filter((a) => a.text)
+  return filterDismissedAlerts(mapped)
+}
 
 interface AIWorkspaceIndexProps {
   onNavigate?: (path: string) => void
@@ -230,14 +255,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           const twin = twinRes?.twin || twinRes
           if (twin) setContextFocus('workspace', null, { digitalTwin: twin })
           if (proactiveData?.alerts?.length) {
-            setProactiveAlerts(proactiveData.alerts.map((a: any) => ({
-              id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              type: a.type || 'info',
-              category: a.category || 'general',
-              text: a.text || a.message || '',
-              priority: a.priority || 0,
-              action: a.action,
-            })))
+            setProactiveAlerts(mapProactiveAlerts(proactiveData.alerts))
           }
         })
         return
@@ -282,14 +300,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         (chatRes?.suggestions || getDefaultSuggestions(user, 'workspace', false)).slice(0, 3)
       )
       if (proactiveData?.alerts?.length) {
-        setProactiveAlerts(proactiveData.alerts.map((a: any) => ({
-          id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          type: a.type || 'info',
-          category: a.category || 'general',
-          text: a.text || a.message || '',
-          priority: a.priority || 0,
-          action: a.action,
-        })))
+        setProactiveAlerts(mapProactiveAlerts(proactiveData.alerts))
       }
       if (twinData?.twin) {
         setContextFocus('workspace', null, { digitalTwin: twinData.twin })
@@ -756,9 +767,10 @@ const result = await executeAction(
 
       {unacknowledgedCount > 0 && (
         <ProactiveAlertsDisplay
-          alerts={proactiveAlerts as any}
+          alerts={(proactiveAlerts as any).filter((a: any) => !a.acknowledged && !a.resolved)}
           onAcknowledge={acknowledgeAlert}
           onResolve={resolveAlert}
+          maxVisible={3}
         />
       )}
 
