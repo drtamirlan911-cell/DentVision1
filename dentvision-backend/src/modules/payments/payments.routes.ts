@@ -10,6 +10,7 @@ import {
   providers,
   markMockPaymentStatus,
   verifyKaspiCallbackAuth,
+  withPaymentQr,
 } from './kaspi.provider.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
@@ -289,7 +290,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 
     return res.status(201).json({
       ok: true,
-      data: { ...serializeBigInt(payment), qr: created.qr },
+      data: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
     } satisfies ApiResponse);
   } catch (error) {
     console.error('Create payment error:', error);
@@ -314,7 +315,10 @@ paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
   }
   return res.json({
     ok: true,
-    data: { ...serializeBigInt(payment), qr: meta.qr || null, providerStatus },
+    data: {
+      ...withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, meta.qr || null),
+      providerStatus,
+    },
   } satisfies ApiResponse);
 });
 
@@ -347,7 +351,10 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       providerStatus = await gateway.getPaymentStatus(payment.externalId);
     }
 
-    const sandbox = env.NODE_ENV !== 'production';
+    const sandbox =
+      env.NODE_ENV !== 'production' ||
+      !env.KASPI_CALLBACK_SECRET ||
+      env.KASPI_CALLBACK_SECRET.length < 16;
     const canComplete = providerStatus === 'paid' || sandbox;
 
     if (!canComplete) {

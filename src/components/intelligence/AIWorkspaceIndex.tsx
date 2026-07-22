@@ -972,6 +972,10 @@ const NAV_ACTIONS: Record<string, string> = {
   OPEN_CRM: '/crm',
   OpenDemo: '/crm/schedule?demo=1',
   OpenPricing: '/pricing',
+  OPEN_INVOICE: '/crm/finance',
+  OpenInvoice: '/crm/finance',
+  OPEN_BILLING: '/crm/billing',
+  OpenBilling: '/crm/billing',
 }
 
 export type { AIWorkspaceIndexProps }
