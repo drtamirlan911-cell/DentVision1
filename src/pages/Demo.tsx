@@ -83,7 +83,7 @@ export default function Demo() {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/crm/schedule?demo=1')}
                 className="flex items-center gap-2 px-6 py-3 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors"
               >
                 Войти в демо

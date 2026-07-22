@@ -734,7 +734,25 @@ const result = await executeAction(
             >
               <SuggestionChips
                 suggestions={suggestions.map(s => s.label)}
-                onSelect={handleSend}
+                onSelect={(label) => {
+                  const lower = String(label || '').toLowerCase()
+                  if (/демо/.test(lower)) {
+                    navigate('/crm/schedule?demo=1')
+                    onNavigate?.('/crm/schedule?demo=1')
+                    return
+                  }
+                  if (/academy|школ/.test(lower)) {
+                    navigate('/school')
+                    onNavigate?.('/school')
+                    return
+                  }
+                  if (/маркет|магазин|закуп/.test(lower)) {
+                    navigate('/shop')
+                    onNavigate?.('/shop')
+                    return
+                  }
+                  void handleSend(label)
+                }}
                 disabled={isProcessing}
               />
             </motion.div>
@@ -952,7 +970,7 @@ const NAV_ACTIONS: Record<string, string> = {
   OpenCommunity: '/community',
   OpenCRM: '/crm',
   OPEN_CRM: '/crm',
-  OpenDemo: '/demo',
+  OpenDemo: '/crm/schedule?demo=1',
   OpenPricing: '/pricing',
 }
 

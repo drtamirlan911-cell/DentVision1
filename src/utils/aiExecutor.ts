@@ -68,7 +68,7 @@ const NAVIGATION_ACTIONS: Record<string, string> = {
   OpenProfile: '/profile',
   OpenSettings: '/settings',
   OpenMyClinics: '/my-clinics',
-  OpenDemo: '/demo',
+  OpenDemo: '/crm/schedule?demo=1',
   OpenPricing: '/pricing',
   OpenJobs: '/jobs',
   OpenCommunity: '/community',
