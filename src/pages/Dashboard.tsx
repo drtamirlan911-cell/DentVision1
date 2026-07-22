@@ -75,7 +75,7 @@ const SERVICE_TILES = [
     title: 'AI Assistant',
     subtitle: 'ИИ-помощник врача',
     icon: <Bot size={22} />,
-    path: '/ai',
+    path: '/',
     color: '#8E44AD',
     gradient: 'from-[#8E44AD]/15 to-[#8E44AD]/5',
   },

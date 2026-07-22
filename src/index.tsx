@@ -18,7 +18,6 @@ import { reportWebVitals } from './utils/vitals';
 
 // Platform pages
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
-const AITeam = lazyWithRetry(() => import('./pages/AITeam'));
 const SuperAdmin = lazyWithRetry(() => import('./pages/SuperAdmin'));
 const HiddenSupplierOps = lazyWithRetry(() => import('./pages/ops/HiddenSupplierOps'));
 const AuditLog = lazyWithRetry(() => import('./pages/AuditLog'));
@@ -114,7 +113,7 @@ if (container) {
                   <Route path="intelligence" element={<Navigate to="/" replace />} />
 
                   {/* Platform pages */}
-                  <Route path="ai" element={guarded('ai', <AITeam />)} />
+                  <Route path="ai" element={<Navigate to="/" replace />} />
                   <Route path="analytics" element={guarded('analytics', <Analytics />)} />
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
                   <Route path="admin" element={guarded('admin', <SuperAdmin />)} />

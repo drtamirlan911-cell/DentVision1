@@ -48,7 +48,6 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   analytics: 'Аналитика',
   jobs: 'Вакансии',
   community: 'Сообщество',
-  ai: 'AI Команда',
   profile: 'Профиль',
   'clinic-settings': 'Настройки клиники',
   billing: 'Тариф и оплата',

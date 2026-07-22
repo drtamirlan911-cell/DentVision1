@@ -29,7 +29,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   owner: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
     canSeeSalary: true,
     canSeeSuperAdmin: true,
     canAddStaff: true,
@@ -41,7 +41,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   director: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
     canSeeSalary: true,
     canSeeReports: true,
     canAddStaff: true,
@@ -62,7 +62,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
     canManageClinicSettings: true,
     canManageFinance: true,
   },
-  doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'ai', 'reminders', 'school', 'treatment-plans', 'dental-chart'], canSeeSalary: false, canSeeOwnSalary: true, ownDataOnly: true },
+  doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'reminders', 'school', 'treatment-plans', 'dental-chart'], canSeeSalary: false, canSeeOwnSalary: true, ownDataOnly: true },
   assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
   reception: { label: 'Регистратор', icon: '📋', pages: ['schedule', 'patients', 'documents', 'reminders', 'shop'], canAddStaff: false, readOnly: true },
   accountant: { label: 'Бухгалтер', icon: '📊', pages: ['analytics', 'finance', 'cashier', 'pricelist', 'dashboard'], canSeeSalary: true, canSeeExpenses: true, canManageFinance: true },
@@ -76,7 +76,7 @@ export const PLATFORM_ROLES: Record<string, RoleConfig> = {
   superadmin: {
     label: 'Super Admin',
     icon: '⚙️',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'ai', 'reminders', 'promotions', 'inventory', 'admin', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'staff', 'treatment-plans', 'dental-chart'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'admin', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'staff', 'treatment-plans', 'dental-chart'],
     canSeeSalary: true,
     canSeeSuperAdmin: true,
     canAddStaff: true,
@@ -86,8 +86,8 @@ export const PLATFORM_ROLES: Record<string, RoleConfig> = {
     canManageFinance: true,
   },
   support: { label: 'Поддержка', icon: '🛟', pages: ['admin', 'analytics', 'settings'] },
-  user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school', 'ai'] },
-  verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school', 'ai'] },
+  user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school'] },
+  verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school'] },
 }
 
 /** Clinic settings ACL: Руководитель (owner/director) + Администратор. */
