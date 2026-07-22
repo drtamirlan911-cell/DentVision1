@@ -15,6 +15,9 @@ export interface ChatMsg {
   data?: Record<string, unknown>;
   recommendations?: Array<Record<string, unknown>>;
   onAction?: (action: string, params?: Record<string, unknown>) => void;
+  messageId?: string;
+  feedback?: 'up' | 'down';
+  learnedHint?: string;
 }
 
 const SKILL_ICONS: Record<string, React.ReactNode> = {
@@ -506,18 +509,27 @@ export function ChatMessage({
   msg,
   onAction,
   onExecuteAction,
+  onFeedback,
 }: {
   msg: ChatMsg;
   onAction?: (query: string) => void;
   onExecuteAction?: (action: { action?: string; type?: string; label: string; params?: Record<string, unknown> }) => void;
+  onFeedback?: (rating: 'up' | 'down', msg: ChatMsg) => void;
 }) {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
+  const [localFeedback, setLocalFeedback] = useState<'up' | 'down' | undefined>(msg.feedback);
   const handleCopy = () => {
     navigator.clipboard?.writeText(msg.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
+
+  const sendFeedback = (rating: 'up' | 'down') => {
+    if (localFeedback === rating) return;
+    setLocalFeedback(rating);
+    onFeedback?.(rating, msg);
+  };
 
   const goToSection = (section: SectionChoice) => {
     const action = {
@@ -750,6 +762,10 @@ export function ChatMessage({
           </div>
         )}
 
+        {!!msg.learnedHint && (
+          <p className="text-[11px] text-dv-gold/80 m-0 px-1">{msg.learnedHint}</p>
+        )}
+
         {!isUser && !!msg.content?.trim() && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -758,18 +774,33 @@ export function ChatMessage({
             className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
           >
             <button
-              onClick={() => onAction?.('Спасибо')}
-              className="p-1.5 rounded-lg text-txt-ghost hover:text-txt-secondary hover:bg-white/[0.04] transition-colors"
+              type="button"
+              title="Хороший ответ — ИИ запомнит стиль"
+              onClick={() => sendFeedback('up')}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors',
+                localFeedback === 'up'
+                  ? 'text-emerald-400 bg-emerald-400/10'
+                  : 'text-txt-ghost hover:text-txt-secondary hover:bg-white/[0.04]',
+              )}
             >
               <ThumbsUp size={12} />
             </button>
             <button
-              onClick={() => onAction?.('Расскажи подробнее')}
-              className="p-1.5 rounded-lg text-txt-ghost hover:text-txt-secondary hover:bg-white/[0.04] transition-colors"
+              type="button"
+              title="Плохой ответ — ИИ учтёт"
+              onClick={() => sendFeedback('down')}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors',
+                localFeedback === 'down'
+                  ? 'text-rose-400 bg-rose-400/10'
+                  : 'text-txt-ghost hover:text-txt-secondary hover:bg-white/[0.04]',
+              )}
             >
               <ThumbsDown size={12} />
             </button>
             <button
+              type="button"
               onClick={handleCopy}
               className="p-1.5 rounded-lg text-txt-ghost hover:text-txt-secondary hover:bg-white/[0.04] transition-colors"
             >

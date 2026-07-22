@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX } from 'lucide-react'
 import { isVoiceRepliesEnabled, setVoiceRepliesEnabled, speak, stopSpeaking, voiceOutputSupported } from '@/utils/voice'
 import { useAuth } from '@/store/auth.store'
-import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, aiBriefing, getActiveAiThread, getAiSessionId } from '@/utils/api'
+import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, aiBriefing, getActiveAiThread, getAiSessionId, aiFeedback } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
@@ -387,6 +387,8 @@ const handleSend = useCallback(async (text: string) => {
           content: finalContent,
           skill: res.skill,
           source: res.source,
+          messageId: res.messageId,
+          learnedHint: res.learnedHint,
           actions: res.actions?.map((a: any) => ({
             id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             type: a.type || a.action,
@@ -406,6 +408,10 @@ const handleSend = useCallback(async (text: string) => {
             messages: state.ai.messages.filter((m) => m.id !== assistantId),
           },
         }))
+      }
+
+      if (res.sessionId && user?.id) {
+        try { localStorage.setItem(`dv_ai_session_${user.id}`, res.sessionId) } catch { /* ignore */ }
       }
 
       const nextSuggestions = (res.suggestions || []).slice(0, 4)
@@ -669,6 +675,30 @@ const result = await executeAction(
                 key={msg.id}
                 msg={msg as any}
                 onAction={(q) => { void handleSend(q) }}
+                onFeedback={(rating, m) => {
+                  if (isGuest) return
+                  const idx = messages.findIndex((x) => x.id === m.id)
+                  const prevUser = [...messages].slice(0, idx).reverse().find((x) => x.role === 'user')
+                  void aiFeedback({
+                    rating,
+                    messageId: m.messageId,
+                    sessionId: getAiSessionId(user?.id),
+                    assistantText: m.content,
+                    userText: prevUser?.content,
+                    intent: m.skill,
+                  }).then((res) => {
+                    useAIWorkspaceStore.setState((state) => ({
+                      ai: {
+                        ...state.ai,
+                        messages: state.ai.messages.map((row) =>
+                          row.id === m.id
+                            ? { ...row, feedback: rating, messageId: res?.messageId || row.messageId }
+                            : row,
+                        ),
+                      },
+                    }))
+                  }).catch(() => undefined)
+                }}
                 onExecuteAction={(a) => {
                   const type = a.type || a.action || ''
                   const pathFromParams =
