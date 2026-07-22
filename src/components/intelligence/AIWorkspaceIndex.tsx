@@ -577,20 +577,20 @@ const result = await executeAction(
   const showEmpty = messages.length === 0
 
   return (
-    <div className="flex flex-col h-full bg-surface-0">
+    <div className="flex flex-col h-full min-h-0 bg-surface-0">
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-white/[0.04] bg-surface-0/50 backdrop-blur-xl flex-shrink-0 sticky top-0 z-10"
+        className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2 sm:py-3 border-b border-white/[0.04] bg-surface-0/50 backdrop-blur-xl flex-shrink-0 sticky top-0 z-10"
       >
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-dv-gold/25 to-dv-gold/5 border border-dv-gold/20 shadow-[0_0_24px_rgba(201,169,110,0.12)]">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-dv-gold/25 to-dv-gold/5 border border-dv-gold/20 shadow-[0_0_24px_rgba(201,169,110,0.12)] shrink-0">
             <Bot size={18} className="text-dv-gold" />
           </div>
-          <div>
-            <h1 className="font-serif text-[15px] font-semibold text-txt-primary tracking-tight">DentVision Intelligence</h1>
-            <p className="text-[11px] text-txt-muted">
+          <div className="min-w-0">
+            <h1 className="font-serif text-[14px] sm:text-[15px] font-semibold text-txt-primary tracking-tight truncate">DentVision Intelligence</h1>
+            <p className="dv-ai-header-meta text-[11px] text-txt-muted truncate">
               {status === 'idle' ? 'AI Operating System · стоматология' :
                status === 'thinking' ? 'AI анализирует...' :
                status === 'executing' ? 'Выполняю...' :
@@ -651,7 +651,7 @@ const result = await executeAction(
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
-              className="relative flex flex-col items-center justify-center py-20 text-center overflow-hidden"
+              className="relative flex flex-col items-center justify-center py-10 sm:py-16 md:py-20 text-center overflow-hidden dv-ai-empty"
             >
               <div
                 aria-hidden
@@ -664,14 +664,14 @@ const result = await executeAction(
               <motion.div
                 animate={{ scale: [1, 1.04, 1], opacity: [0.9, 1, 0.9] }}
                 transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-                className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-dv-gold/25 via-dv-gold/10 to-transparent border border-dv-gold/20 mb-6 shadow-[0_0_48px_rgba(201,169,110,0.18)]"
+                className="dv-ai-empty-icon relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-dv-gold/25 via-dv-gold/10 to-transparent border border-dv-gold/20 mb-6 shadow-[0_0_48px_rgba(201,169,110,0.18)]"
               >
                 <Bot size={30} className="text-dv-gold" />
               </motion.div>
-              <h2 className="relative font-serif text-2xl md:text-[1.75rem] font-semibold tracking-tight text-txt-primary mb-2">
+              <h2 className="relative font-serif text-xl sm:text-2xl md:text-[1.75rem] font-semibold tracking-tight text-txt-primary mb-2">
                 DentVision Intelligence
               </h2>
-              <p className="relative text-sm text-txt-muted max-w-sm leading-relaxed">
+              <p className="relative text-sm text-txt-muted max-w-sm leading-relaxed px-2">
                 AI-операционка клиники. Спросите о расписании, выручке или долгах — или выберите действие ниже.
               </p>
             </motion.div>
@@ -830,7 +830,8 @@ const result = await executeAction(
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 320, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-            className="fixed right-0 top-0 z-50 h-full w-80 md:w-96 bg-surface-1 border-l border-bdr-subtle flex flex-col"
+            className="fixed right-0 top-0 z-50 h-full w-[min(20rem,100vw)] md:w-96 bg-surface-1 border-l border-bdr-subtle flex flex-col"
+            style={{ paddingTop: 'var(--dv-safe-top)', paddingBottom: 'var(--dv-safe-bottom)' }}
           >
             <div className="flex h-12 items-center justify-between px-4 border-b border-bdr-subtle">
               <h3 className="text-sm font-semibold text-txt-primary">Контекст</h3>

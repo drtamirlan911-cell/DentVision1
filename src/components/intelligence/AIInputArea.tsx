@@ -115,7 +115,7 @@ export function AIInputArea({
   }, [])
 
   return (
-    <div className="px-4 md:px-6 pb-4 pt-2">
+    <div className="px-3 sm:px-4 md:px-6 pt-2 dv-composer-pad">
       <AnimatePresence mode="wait">
         {isProcessing ? (
           <motion.div

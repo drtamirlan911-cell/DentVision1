@@ -254,27 +254,30 @@ export default function SchoolCourse() {
   if (!course) return <div className="py-10 text-center text-[var(--slate)]">Курс не найден</div>;
 
   return (
-    <div className="min-h-screen">
-      <div className="px-6 py-3 border-b border-[var(--border-subtle)]">
-        <div className="flex items-center gap-2 text-xs text-[var(--slate)]">
+    <div className="min-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px))]">
+      <div className="px-3 sm:px-6 py-3 border-b border-[var(--border-subtle)]">
+        <div className="flex items-center gap-2 text-xs text-[var(--slate)] min-w-0 overflow-hidden">
           <button
             onClick={() => navigate('/school')}
-            className="flex items-center gap-1 bg-transparent border-none text-[#C9A96E] cursor-pointer font-inherit text-xs"
+            className="flex items-center gap-1 bg-transparent border-none text-[#C9A96E] cursor-pointer font-inherit text-xs shrink-0"
           >
             <ArrowLeft size={14} /> Academy OS
           </button>
-          <ChevronRight size={12} />
-          <span>{course.category}</span>
-          <ChevronRight size={12} />
-          <span className="text-white">{course.title}</span>
+          <ChevronRight size={12} className="shrink-0" />
+          <span className="truncate">{course.category}</span>
+          <ChevronRight size={12} className="shrink-0 hidden sm:block" />
+          <span className="text-white truncate hidden sm:inline">{course.title}</span>
         </div>
       </div>
 
       <div
-        className="grid gap-0 min-h-[calc(100vh-60px)]"
-        style={{ gridTemplateColumns: activeLesson ? '350px 1fr' : '1fr' }}
+        className={
+          activeLesson
+            ? 'grid gap-0 lg:grid-cols-[minmax(260px,350px)_minmax(0,1fr)] min-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px)-3rem)]'
+            : 'grid gap-0 min-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px)-3rem)]'
+        }
       >
-        <div className="border-r border-[var(--border-subtle)] overflow-y-auto max-h-[calc(100vh-60px)]">
+        <div className="border-b lg:border-b-0 lg:border-r border-[var(--border-subtle)] overflow-y-auto max-h-[min(50dvh,420px)] lg:max-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px)-3rem)]">
           <div className="p-5 border-b border-[var(--border-subtle)]">
             <div className="flex gap-1.5 mb-2">
               <span
@@ -417,9 +420,9 @@ export default function SchoolCourse() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            className="p-8 overflow-y-auto max-h-[calc(100vh-60px)]"
+            className="p-4 sm:p-6 lg:p-8 overflow-y-auto max-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px)-3rem)]"
           >
-            <div className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[400px] flex items-center justify-center mb-6 border border-[var(--border-subtle)] relative overflow-hidden">
+            <div className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[min(400px,50dvh)] min-h-[200px] flex items-center justify-center mb-6 border border-[var(--border-subtle)] relative overflow-hidden">
               {activeLesson.type === 'video' && (activeLesson.videoUrl || activeLesson.video_url) ? (
                 <video
                   controls

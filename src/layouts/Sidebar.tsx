@@ -277,7 +277,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       transition={{ type: 'tween', duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
         'h-full flex flex-col bg-surface-1/80 backdrop-blur-xl border-r border-white/[0.04] flex-shrink-0 z-50 relative overflow-hidden origin-left',
-        isMobile && 'fixed top-0 left-0 bottom-0',
+        isMobile && 'fixed top-0 left-0 bottom-0 dv-safe-sidebar',
         !sidebarVisible && !isMobile && 'pointer-events-none border-transparent',
       )}
       style={{
@@ -318,7 +318,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             type="button"
             onClick={() => (onToggleCollapsed ? onToggleCollapsed() : setCollapsed(!collapsed))}
             className={cn(
-              'hidden md:flex items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors',
+              'items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors',
+              isMobile ? 'hidden' : 'flex',
               collapsed
                 ? 'absolute right-1 top-1 h-6 w-6'
                 : 'h-7 w-7 shrink-0',

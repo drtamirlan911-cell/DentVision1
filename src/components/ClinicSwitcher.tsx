@@ -78,7 +78,7 @@ export function ClinicSwitcher({ className }: { className?: string }) {
       </button>
 
       {multi && open && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-[220px] rounded-xl border border-bdr-subtle bg-surface-1 shadow-xl p-1.5">
+        <div className="absolute right-0 top-full mt-1.5 z-50 w-[min(220px,calc(100vw-1.5rem))] max-w-[calc(100vw-1rem)] rounded-xl border border-bdr-subtle bg-surface-1 shadow-xl p-1.5">
           <p className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-txt-muted">Рабочее пространство</p>
           <div className="max-h-64 overflow-y-auto space-y-0.5">
             {clinics.map((m) => {
