@@ -47,8 +47,21 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
     const header = req.headers.authorization;
     if (header?.startsWith('Bearer ')) {
       const payload = verifyAccessToken(header.slice(7));
-      req.user = { id: payload.sub, email: payload.email, role: payload.role, firstName: '', lastName: '', clinicId: payload.clinicId, isGuest: payload.isGuest };
+      const email = String(payload.email || '');
+      req.user = {
+        id: payload.sub,
+        email,
+        role: payload.role,
+        firstName: '',
+        lastName: '',
+        clinicId: payload.clinicId,
+        // Normalize: guest JWTs sometimes omit isGuest — never treat them as staff.
+        isGuest:
+          payload.isGuest === true ||
+          email.endsWith('@guest.local') ||
+          String(payload.role || '').toUpperCase() === 'GUEST',
+      };
     }
-  } catch {}
+  } catch { /* anonymous */ }
   next();
 }
