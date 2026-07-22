@@ -4,6 +4,7 @@ import * as api from '@/utils/api'
 interface Notification {
   id: string
   type: string
+  title: string
   message: string
   read: boolean
   createdAt: string
@@ -20,10 +21,13 @@ interface NotificationState {
 }
 
 function mapNotification(n: any): Notification {
+  const title = n.title || n.message || ''
+  const message = n.title && n.message && n.message !== n.title ? n.message : (n.body || '')
   return {
     id: n.id,
     type: n.type || n.category || 'system',
-    message: n.title || n.message || '',
+    title,
+    message,
     read: n.read ?? false,
     createdAt: n.createdAt || new Date().toISOString(),
     action: n.actionUrl

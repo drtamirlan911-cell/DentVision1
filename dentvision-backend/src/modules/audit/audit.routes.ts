@@ -40,9 +40,34 @@ auditRouter.get('/', async (req: AuthRequest, res) => {
       prisma.auditLog.count({ where }),
     ]);
 
+    const userIds = [...new Set(logs.map((l) => l.userId).filter(Boolean))] as string[];
+    const users = userIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, firstName: true, lastName: true, email: true },
+        })
+      : [];
+    const userMap = new Map(
+      users.map((u) => [
+        u.id,
+        `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || u.id,
+      ]),
+    );
+
+    const data = logs.map((l) => ({
+      ...l,
+      userName: (l.userId && userMap.get(l.userId)) || l.userId || null,
+      user_name: (l.userId && userMap.get(l.userId)) || l.userId || null,
+      entityType: l.entity,
+      entity_type: l.entity,
+      entity_id: l.entityId,
+      created_at: l.createdAt,
+      ipAddress: l.ip,
+    }));
+
     return res.json({
       ok: true,
-      data: logs,
+      data,
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
   } catch (err) {

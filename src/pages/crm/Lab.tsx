@@ -102,7 +102,8 @@ function isWaxUpOrder(order: LabOrder & { labType?: string }): boolean {
 }
 
 function printWorkOrder(order: Partial<LabOrder>): void {
-  const labTypeLabel = LAB_TYPES.find(t => t.value === order.labType)?.label || order.labType
+  const labType = order.labType || order.type
+  const labTypeLabel = LAB_TYPES.find(t => t.value === labType)?.label || labType
   const materialLabel = MATERIALS.find(m => m.value === order.material)?.label || order.material
   const printWindow = window.open('', '_blank')
   printWindow!.document.write(`<!DOCTYPE html><html><head><title>Заказ-наряд №${escapeHtml(order.id?.slice(-6) || 'NEW')}</title>

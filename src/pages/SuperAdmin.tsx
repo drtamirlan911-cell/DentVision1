@@ -38,8 +38,9 @@ type Tab = 'clinics' | 'users' | 'support';
 export default function SuperAdmin() {
   const { showToast } = useToast();
   const qc = useQueryClient();
-  const platformRole = useAuth(s => s.user?.platformRole);
-  const userRole = useAuth(s => s.user?.role);
+  const { user } = useAuth();
+  const platformRole = (user as { platformRole?: string } | null)?.platformRole;
+  const userRole = user?.role;
 
   const [tab, setTab] = useState<Tab>('clinics');
   const [search, setSearch] = useState('');

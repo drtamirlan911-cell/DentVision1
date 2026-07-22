@@ -77,7 +77,7 @@ const SORT_OPTIONS = [
 export default function Shop() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { cart, favorites, cartCount, cartTotal, addToCart, toggleFav } = useCart();
+  const { cart, favorites, cartCount, cartTotal, addToCart, toggleFav, updateQty, removeFromCart } = useCart();
   const { role, user, isAuthenticated, activeMembership } = useAuth();
   const clinicId = user?.clinicId || activeMembership?.clinicId || '';
   const canSeeClinicRestock =
@@ -716,21 +716,21 @@ export default function Shop() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, qty: Math.max(1, i.qty - 1) } : i))}
+                        onClick={() => updateQty(item.id, Math.max(1, item.qty - 1))}
                         className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[var(--border-subtle)] bg-white/5 text-white cursor-pointer hover:bg-white/10 transition-colors"
                       >
                         <Minus size={12} />
                       </button>
                       <span className="text-[13px] font-bold text-white min-w-[20px] text-center">{item.qty}</span>
                       <button
-                        onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, qty: i.qty + 1 } : i))}
+                        onClick={() => updateQty(item.id, item.qty + 1)}
                         className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[var(--border-subtle)] bg-white/5 text-white cursor-pointer hover:bg-white/10 transition-colors"
                       >
                         <Plus size={12} />
                       </button>
                     </div>
                     <button
-                      onClick={() => setCart(prev => prev.filter(i => i.id !== item.id))}
+                      onClick={() => removeFromCart(item.id)}
                       className="text-error hover:text-error/80 transition-colors bg-transparent border-none cursor-pointer"
                     >
                       <X size={14} />

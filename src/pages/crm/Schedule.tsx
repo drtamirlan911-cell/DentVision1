@@ -1095,15 +1095,15 @@ export default function Schedule() {
                   <tbody>
                     {dayWaitList.map(w => (
                       <tr key={w.id} className="border-b border-bdr-subtle hover:bg-white/[0.02] transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-txt-primary">{w.patient_name || '—'}</td>
-                        <td className="px-4 py-2.5 text-txt-secondary">{w.patient_phone || '—'}</td>
-                        <td className="px-4 py-2.5 text-dv-gold">{w.doctor_name || 'Любой'}</td>
-                        <td className="px-4 py-2.5 text-txt-secondary">{w.preferred_time || '—'} {w.preferred_date ? `(${w.preferred_date})` : ''}</td>
-                        <td className="px-4 py-2.5 text-txt-secondary">{w.preferred_service || '—'}</td>
+                        <td className="px-4 py-2.5 font-medium text-txt-primary">{w.patientName || w.patient_name || '—'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{w.patientPhone || w.patient_phone || '—'}</td>
+                        <td className="px-4 py-2.5 text-dv-gold">{w.doctorName || w.doctor_name || 'Любой'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{w.preferredTime || w.preferred_time || '—'} {(w.preferredDate || w.preferred_date) ? `(${w.preferredDate || w.preferred_date})` : ''}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{w.preferredService || w.preferred_service || '—'}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex gap-1">
                             <Button size="icon-xs" variant="ghost" onClick={() => handlePromoteFromWait(w)} title="Записать"><CheckCircle size={13} className="text-success" /></Button>
-                            <Button size="icon-xs" variant="ghost" onClick={() => { setEditWaitId(w.id); setWaitForm({ patientId: w.patient_id || '', patientName: w.patient_name || '', patientPhone: w.patient_phone || '', doctorId: w.doctor_id || '', preferredDate: w.preferred_date || '', preferredTime: w.preferred_time || '', preferredService: w.preferred_service || '', notes: w.notes || '' }); setWaitModalOpen(true) }} title="Редактировать"><GripVertical size={13} className="text-dv-gold" /></Button>
+                            <Button size="icon-xs" variant="ghost" onClick={() => { setEditWaitId(w.id); setWaitForm({ patientId: w.patientId || w.patient_id || '', patientName: w.patientName || w.patient_name || '', patientPhone: w.patientPhone || w.patient_phone || '', doctorId: w.doctorId || w.doctor_id || '', preferredDate: w.preferredDate || w.preferred_date || '', preferredTime: w.preferredTime || w.preferred_time || '', preferredService: w.preferredService || w.preferred_service || '', notes: w.notes || '' }); setWaitModalOpen(true) }} title="Редактировать"><GripVertical size={13} className="text-dv-gold" /></Button>
                             <Button size="icon-xs" variant="ghost" onClick={() => handleDeleteWait(w.id)} title="Удалить"><Trash2 size={13} className="text-error" /></Button>
                           </div>
                         </td>
