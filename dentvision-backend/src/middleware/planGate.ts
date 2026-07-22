@@ -3,6 +3,7 @@
  */
 import type { Response, NextFunction } from 'express';
 import type { AuthRequest } from '../types/index.js';
+import { applyCorsHeaders } from '../lib/cors.js';
 import {
   PlanGateError,
   resolveClinicAccess,
@@ -14,7 +15,8 @@ import {
   type PlanFeature,
 } from '../modules/billing/planEntitlements.js';
 
-function sendPlanError(res: Response, err: unknown) {
+function sendPlanError(req: AuthRequest, res: Response, err: unknown) {
+  applyCorsHeaders(req, res);
   if (err instanceof PlanGateError) {
     return res.status(err.status).json({
       ok: false,
@@ -59,7 +61,7 @@ export function requireClinicWritable(req: AuthRequest, res: Response, next: Nex
     assertClinicWritable(access);
     next();
   } catch (e) {
-    return sendPlanError(res, e);
+    return sendPlanError(req, res, e);
   }
 }
 
@@ -94,7 +96,7 @@ export function requirePlanFeature(feature: PlanFeature) {
       assertFeature(access, feature);
       next();
     } catch (e) {
-      return sendPlanError(res, e);
+      return sendPlanError(req, res, e);
     }
   };
 }
@@ -110,7 +112,7 @@ export async function guardPatientCreate(req: AuthRequest, res: Response, next: 
     assertPatientSlot(access);
     next();
   } catch (e) {
-    return sendPlanError(res, e);
+    return sendPlanError(req, res, e);
   }
 }
 
@@ -125,7 +127,7 @@ export async function guardUserCreate(req: AuthRequest, res: Response, next: Nex
     assertUserSlot(access);
     next();
   } catch (e) {
-    return sendPlanError(res, e);
+    return sendPlanError(req, res, e);
   }
 }
 
@@ -139,7 +141,15 @@ export async function guardAiAccess(req: AuthRequest, res: Response, next: NextF
     if (!access) return next();
     req.clinicAccess = access;
     const method = req.method.toUpperCase();
-    // History/list reads: need AI feature, but do not burn/block on monthly quota.
+    const path = String(req.path || req.url || '');
+    // Soft reads (tips / thread restore) must not hard-block the shell on starter.
+    const softRead =
+      method === 'GET' &&
+      (/proactive|threads|history|digital-twin|briefing|memory/i.test(path));
+    if (softRead) {
+      // Allow through; UI can still show upgrade prompts from billing banner.
+      return next();
+    }
     if (method === 'GET' || method === 'HEAD') {
       assertFeature(access, 'ai');
     } else {
@@ -147,7 +157,7 @@ export async function guardAiAccess(req: AuthRequest, res: Response, next: NextF
     }
     next();
   } catch (e) {
-    return sendPlanError(res, e);
+    return sendPlanError(req, res, e);
   }
 }
 
@@ -162,7 +172,7 @@ export async function guardAnalytics(req: AuthRequest, res: Response, next: Next
     assertFeature(access, 'analytics');
     next();
   } catch (e) {
-    return sendPlanError(res, e);
+    return sendPlanError(req, res, e);
   }
 }
 

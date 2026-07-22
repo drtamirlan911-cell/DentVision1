@@ -2,8 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { env } from './config.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import {
+  applyCorsHeaders,
+  corsGuard,
+  isOriginAllowed,
+  CORS_HEADERS,
+  CORS_METHODS,
+} from './lib/cors.js';
 
 // Routes
 import { authRouter } from './modules/auth/auth.routes.js';
@@ -62,40 +68,14 @@ const app = express();
 // ─── Global Middleware ───
 app.set('trust proxy', 1);
 
+// Always set CORS first — including on 4xx/5xx/429 — so browsers show real errors.
+app.use(corsGuard);
+
 // Helmet: keep security headers, but allow cross-origin browser fetches from Vercel.
-// Default CORP "same-origin" makes Chromium report failed API calls as CORS errors.
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 }));
-
-const DEFAULT_ALLOWED_ORIGINS = [
-  'https://dent-vision1.vercel.app',
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-];
-
-function parseCorsOrigins(raw: string): true | string[] {
-  const value = (raw || '').trim();
-  if (!value || value === '*') return true; // reflect request Origin (safe with credentials)
-  return [...new Set([...value.split(',').map((s) => s.trim()).filter(Boolean), ...DEFAULT_ALLOWED_ORIGINS])];
-}
-
-const corsOrigins = parseCorsOrigins(env.CORS_ORIGIN);
-
-function isOriginAllowed(origin: string | undefined): boolean {
-  if (!origin) return true;
-  if (corsOrigins === true) return true;
-  if (corsOrigins.includes(origin)) return true;
-  // Vercel preview deployments: https://dent-vision1-*.vercel.app
-  try {
-    const host = new URL(origin).hostname;
-    if (host === 'dent-vision1.vercel.app') return true;
-    if (host.endsWith('.vercel.app') && host.includes('dent-vision')) return true;
-  } catch { /* ignore */ }
-  return false;
-}
 
 app.use(cors({
   origin(origin, cb) {
@@ -103,49 +83,30 @@ app.use(cors({
     return cb(null, false);
   },
   credentials: true,
-  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Platform-Ops-Key',
-    'X-Cron-Secret',
-    'X-Requested-With',
-    'X-Client-Timezone',
-    'X-Timezone',
-  ],
+  methods: [...CORS_METHODS],
+  allowedHeaders: [...CORS_HEADERS],
   optionsSuccessStatus: 204,
   maxAge: 86400,
-}));
-
-// Explicit preflight catch-all (Express 4) before body parsers / rate limit
-app.options('*', cors({
-  origin(origin, cb) {
-    if (isOriginAllowed(origin)) return cb(null, true);
-    return cb(null, false);
-  },
-  credentials: true,
-  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Platform-Ops-Key',
-    'X-Cron-Secret',
-    'X-Requested-With',
-    'X-Client-Timezone',
-    'X-Timezone',
-  ],
 }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting — never throttle CORS preflight
+// Rate limiting — never throttle CORS preflight; always keep CORS headers on 429
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === 'OPTIONS',
+  handler: (req, res, _next, options) => {
+    applyCorsHeaders(req, res);
+    res.status(options.statusCode).json({
+      ok: false,
+      error: 'Слишком много запросов. Подождите немного.',
+      code: 'RATE_LIMIT',
+    });
+  },
 });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -153,6 +114,14 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === 'OPTIONS',
+  handler: (req, res, _next, options) => {
+    applyCorsHeaders(req, res);
+    res.status(options.statusCode).json({
+      ok: false,
+      error: 'Слишком много попыток входа. Подождите 15 минут.',
+      code: 'AUTH_RATE_LIMIT',
+    });
+  },
 });
 app.use('/api/', apiLimiter);
 app.use('/api/auth/login', authLimiter);

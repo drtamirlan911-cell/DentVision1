@@ -1,18 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
+import { applyCorsHeaders } from '../lib/cors.js';
 
 /** Ensure error responses still carry CORS when upstream middleware skipped. */
 function ensureCorsOnError(req: Request, res: Response) {
-  const origin = req.headers.origin;
-  if (!origin || res.getHeader('Access-Control-Allow-Origin')) return;
-  const allowed =
-    origin === 'https://dent-vision1.vercel.app' ||
-    origin.startsWith('http://localhost:') ||
-    (origin.endsWith('.vercel.app') && origin.includes('dent-vision'));
-  if (allowed) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Vary', 'Origin');
-  }
+  applyCorsHeaders(req, res);
 }
 
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction) {
