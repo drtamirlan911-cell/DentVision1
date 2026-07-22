@@ -39,7 +39,13 @@ type BellAlert = {
 };
 
 interface AlertDropdownProps {
-  alerts: BellAlert[];
+  alerts: Array<{
+    type: string;
+    message?: string;
+    text?: string;
+    priority: 'high' | 'medium' | 'low' | number;
+    action?: { type: string; path?: string };
+  }>;
   isOpen: boolean;
   setIsOpen: (v: boolean) => void;
 }
@@ -162,8 +168,20 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
             >
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-bdr-subtle">
                 <span className="text-xs font-semibold text-txt-primary">Оповещения</span>
-                <div className="flex items-center gap-1">
-                  {unreadNotifs > 0 && (
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="p-1 rounded text-txt-muted hover:text-txt-primary transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="max-h-[min(60vh,320px)] overflow-y-auto overscroll-contain">
+                {alerts.map((alert, i) => {
+                  const pr = normalizePriority(alert.priority);
+                  const text = alert.message || alert.text || '';
+                  const path = alert.action?.path
+                    || (alert.action?.type ? ACTION_PATHS[alert.action.type] : undefined);
+                  return (
                     <button
                       type="button"
                       onClick={() => void markAll()}
