@@ -814,11 +814,15 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-aiRouter.get('/digital-twin', authenticate, async (req: AuthRequest, res) => {
+aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
   try {
-    const { buildDigitalTwin } = await import('./core/digitalTwin.js');
-    const twin = await buildDigitalTwin(req.user!.id, req.user?.clinicId || null, {
-      isGuest: req.user?.isGuest === true,
+    const { buildDigitalTwin, buildGuestPlatformTwin } = await import('./core/digitalTwin.js');
+    if (!req.user?.id) {
+      // Avoid noisy 401 during auth race / anonymous shell.
+      return res.json({ ok: true, data: { twin: buildGuestPlatformTwin(null), preferences: [] } });
+    }
+    const twin = await buildDigitalTwin(req.user.id, req.user.clinicId || null, {
+      isGuest: req.user.isGuest === true,
     });
     if (!twin) {
       return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
@@ -826,7 +830,7 @@ aiRouter.get('/digital-twin', authenticate, async (req: AuthRequest, res) => {
     let preferences: Array<{ key: string; label: string; value: string; source: string }> = [];
     try {
       const learning = await import('./learning/learning.service.js');
-      preferences = await learning.listPrefs(req.user!.id, req.user?.clinicId || null);
+      preferences = await learning.listPrefs(req.user.id, req.user.clinicId || null);
     } catch { /* optional */ }
     res.json({ ok: true, data: { twin, preferences } });
   } catch (error) {
