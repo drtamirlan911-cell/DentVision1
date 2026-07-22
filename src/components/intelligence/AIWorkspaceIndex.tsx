@@ -57,6 +57,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const isGuest = !user || !isAuthenticated
   const clinicId = clinic?.id || null
   const initializedForUser = useRef<string | null>(null)
+  const initGeneration = useRef(0)
   const historyRef = useRef<Array<{ role: string; content: string }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const firstMessageTracked = useRef(false)
@@ -137,6 +138,8 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       : 'guest'
     if (initializedForUser.current === userKey) return
     initializedForUser.current = userKey
+    const gen = ++initGeneration.current
+    const stillCurrent = () => initGeneration.current === gen && initializedForUser.current === userKey
     firstMessageTracked.current = false
     historyRef.current = []
     resetAI()
@@ -147,6 +150,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       try {
         if (user?.id && !isGuest) {
           const active = await getActiveAiThread()
+          if (!stillCurrent()) return
           if (active?.sessionId || active?.threadId) {
             try {
               localStorage.setItem(
@@ -163,19 +167,26 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
               timestamp: new Date(m.timestamp || Date.now()),
               skill: m.skill,
             }))
-            setMessages(restored)
-            historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
-            persistThread(user.id, clinicId, restored)
-            trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
-            setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
-            // New calendar day → Jarvis posts a fresh role briefing on top of history.
-            if (shouldRefreshDailyBriefing(restored)) {
-              void pushDailyJarvisBriefing()
+            // Never keep a guest concierge thread under a signed-in clinic session.
+            if (looksLikeGuestThread(restored)) {
+              /* fall through to fresh clinic workspace */
+            } else {
+              if (!stillCurrent()) return
+              setMessages(restored)
+              historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
+              persistThread(user.id, clinicId, restored)
+              trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
+              setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
+              if (shouldRefreshDailyBriefing(restored)) {
+                void pushDailyJarvisBriefing()
+              }
+              return
             }
-            return
           }
         }
       } catch { /* fall through to local */ }
+
+      if (!stillCurrent()) return
 
       const restored = restoreThread(user?.id, clinicId)
       if (restored?.length) {
@@ -185,11 +196,14 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           (/расписан|выручк|долг|запис(и|ей)|briefing|важн(о|ые) сегодня|CRM|Системы на связи|На радаре|планы лечения|коллега/i.test(m.content) ||
             /Показать расписание|Проверить долги|Показать выручку/.test(m.content)),
         )
-        if (looksLikeClinicCrm) {
+        const guestLeakIntoAuth = !isGuest && looksLikeGuestThread(restored)
+        if (looksLikeClinicCrm || guestLeakIntoAuth) {
+          try { localStorage.removeItem(aiThreadStorageKey(user?.id, clinicId)) } catch { /* ignore */ }
           try { localStorage.removeItem(aiThreadStorageKey(undefined, null)) } catch { /* ignore */ }
           try { localStorage.removeItem('dv_ai_thread_guest') } catch { /* ignore */ }
         } else {
           const localMsgs = restored.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }))
+          if (!stillCurrent()) return
           setMessages(localMsgs)
           historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
           trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
@@ -200,7 +214,9 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           return
         }
       }
+      if (!stillCurrent()) return
       await initializeWorkspace()
+      if (!stillCurrent()) return
       trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
     })()
   }, [user?.id, clinicId, isGuest])
@@ -229,10 +245,15 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
   const initializeWorkspace = async () => {
     const started = Date.now()
+    const expectedKey = initializedForUser.current
+    const gen = initGeneration.current
+    const stillCurrent = () =>
+      initGeneration.current === gen && initializedForUser.current === expectedKey
     try {
       // Guests / anonymous: product guide only — never clinic Jarvis briefing.
       if (isGuest || !user?.id) {
         const reply = buildGuestGreeting()
+        if (!stillCurrent()) return
         setMessages([{
           id: 'greeting',
           role: 'assistant',
@@ -252,6 +273,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           aiDigitalTwin().catch(() => null),
           aiProactive().catch(() => ({ alerts: [] })),
         ]).then(([twinRes, proactiveData]) => {
+          if (!stillCurrent()) return
           const twin = twinRes?.twin || twinRes
           if (twin) setContextFocus('workspace', null, { digitalTwin: twin })
           if (proactiveData?.alerts?.length) {
@@ -267,11 +289,13 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         aiProactive().catch(() => ({ alerts: [] })),
         aiDigitalTwin().catch(() => ({ twin: null })),
       ])
+      if (!stillCurrent()) return
 
       let chatRes = briefRes
       if (!chatRes?.reply) {
         chatRes = await aiChat('Сводка при входе', [], { userId: user?.id }).catch(() => null)
       }
+      if (!stillCurrent()) return
 
       let reply = chatRes?.reply || buildGreeting(user, clinic, proactiveData?.alerts || [])
 
@@ -307,6 +331,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       }
       historyRef.current = [{ role: 'assistant', content: reply }]
     } catch {
+      if (!stillCurrent()) return
       const fallback = isGuest ? buildGuestGreeting() : buildGreeting(user, clinic, [])
       setMessages([{ id: 'greeting', role: 'assistant', content: fallback, timestamp: new Date() }])
       historyRef.current = [{ role: 'assistant', content: fallback }]
@@ -879,6 +904,13 @@ const result = await executeAction(
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+function looksLikeGuestThread(messages: Array<{ role?: string; content?: string }>): boolean {
+  return messages.some((m) =>
+    m.role === 'assistant' &&
+    /гостев(ом|ой)\s+режим|гид по платформе|Данные клиники \(расписание/i.test(String(m.content || '')),
   )
 }
 

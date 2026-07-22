@@ -51,6 +51,7 @@ export async function seedDemoClinic(
     });
   }
 
+  // Keep Subscription row aligned with clinic.plan=PRO → professional seats/AI.
   await prisma.subscription.upsert({
     where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
     create: {

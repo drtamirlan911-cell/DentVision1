@@ -218,6 +218,7 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
 
   const [patients, users, aiCount] = await Promise.all([
     prisma.patient.count({ where: { clinicId } }),
+    // Seat count: exclude STUDENT — interns shouldn't consume the paid seat budget.
     prisma.clinicMember.count({
       where: { clinicId, role: { not: 'STUDENT' } },
     }),
