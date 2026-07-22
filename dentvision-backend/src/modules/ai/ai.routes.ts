@@ -105,12 +105,49 @@ interface ProcessedResponse extends AIResponse {
  * user confirms → UI POSTs /api/ai/action with {action, params} → the
  * RBAC-checked tool layer performs the mutation.
  */
+/** Human labels for actions shown as chat chips — never expose raw SCREAMING_SNAKE types. */
+const ACTION_LABELS: Record<string, string> = {
+  OPEN_SCHEDULE: 'Открыть расписание',
+  OpenSchedule: 'Открыть расписание',
+  OPEN_CRM: 'Открыть CRM',
+  OpenCRM: 'Открыть CRM',
+  OPEN_PATIENTS: 'Открыть пациентов',
+  OpenPatients: 'Открыть пациентов',
+  OPEN_SCHOOL: 'Открыть школу',
+  OpenSchool: 'Открыть школу',
+  OPEN_SHOP: 'Открыть магазин',
+  OpenShop: 'Открыть магазин',
+  OPEN_FINANCE: 'Открыть финансы',
+  OpenFinance: 'Открыть финансы',
+  OPEN_LABORATORY: 'Открыть лабораторию',
+  OpenLab: 'Открыть лабораторию',
+  OPEN_ANALYTICS: 'Открыть аналитику',
+  OpenAnalytics: 'Открыть аналитику',
+  OPEN_INVENTORY: 'Открыть склад',
+  OpenInventory: 'Открыть склад',
+  OPEN_DOCUMENTS: 'Открыть документы',
+  OpenDocuments: 'Открыть документы',
+  OPEN_MEDICAL_CARD: 'Открыть карту',
+  OpenMedicalCard: 'Открыть карту',
+  OpenReminders: 'Открыть напоминания',
+  OPEN_INVOICE: 'Открыть счёт',
+};
+
+/** Display-only payloads (SHOW_*) are not clickable navigation — keep them out of chips. */
+const DISPLAY_ONLY_ACTIONS = new Set([
+  'SHOW_BRIEFING',
+  'SHOW_REVENUE',
+  'SHOW_DEBTORS',
+  'SHOW_UTILIZATION',
+]);
+
 function responseActions(response: ProcessedResponse): Array<Record<string, unknown>> {
   const actions: Array<Record<string, unknown>> = [];
-  if (response.action) {
+  if (response.action && !DISPLAY_ONLY_ACTIONS.has(response.action.type)) {
+    const type = response.action.type;
     actions.push({
-      type: response.action.type,
-      label: response.action.type,
+      type,
+      label: ACTION_LABELS[type] || response.action.type.replace(/^Open/, 'Открыть '),
       params: response.action.payload,
       confidence: 1,
       requiresConfirmation: false,
@@ -120,7 +157,7 @@ function responseActions(response: ProcessedResponse): Array<Record<string, unkn
   if (confirm?.action) {
     actions.push({
       type: confirm.action,
-      label: confirm.summary || confirm.action,
+      label: confirm.summary || ACTION_LABELS[confirm.action] || confirm.action,
       params: confirm.params || {},
       confidence: 1,
       requiresConfirmation: true,
