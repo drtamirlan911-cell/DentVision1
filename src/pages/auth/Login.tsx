@@ -2,6 +2,7 @@
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
 import { useAuth } from '@/store/auth.store'
+import { setRememberMe } from '@/utils/api'
 import { Button, Input } from '@/components/ui/ds'
 import { cn } from '@/lib/utils'
 import {
@@ -106,6 +107,7 @@ export default function Login() {
     e.preventDefault()
     setLocalError('')
     if (!validate()) return
+    setRememberMe(rememberMe)
     await login(loginStr.trim(), password)
   }
 
@@ -265,7 +267,7 @@ export default function Login() {
           >
             <div>
               <div className="text-xs text-success font-bold">Новая клиника?</div>
-              <div className="text-[11px] text-txt-muted">14 дней бесплатно</div>
+              <div className="text-[11px] text-txt-muted">30 дней бесплатно</div>
             </div>
             <Button
               type="button"

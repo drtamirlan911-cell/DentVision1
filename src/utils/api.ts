@@ -32,19 +32,47 @@ let _accessToken: string | null = null;
 let _refreshToken: string | null = null;
 let _refreshPromise: Promise<string> | null = null;
 
+const REMEMBER_KEY = 'dv_remember_me';
+
+export function setRememberMe(remember: boolean): void {
+  try {
+    localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0');
+  } catch { /* ignore */ }
+}
+
+export function getRememberMe(): boolean {
+  try {
+    const v = localStorage.getItem(REMEMBER_KEY);
+    if (v === '0') return false;
+  } catch { /* ignore */ }
+  return true;
+}
+
+function tokenStorage(): Storage {
+  try {
+    return getRememberMe() ? localStorage : sessionStorage;
+  } catch {
+    return localStorage;
+  }
+}
+
 export function setTokens(access: string | null, refresh: string | null): void {
   _accessToken = access;
   _refreshToken = refresh;
+  try {
+    localStorage.removeItem('dv_tokens');
+    sessionStorage.removeItem('dv_tokens');
+  } catch { /* ignore */ }
   if (access && refresh) {
-    try { localStorage.setItem('dv_tokens', JSON.stringify({ access, refresh })); } catch { /* ignore */ }
-  } else {
-    try { localStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
+    try {
+      tokenStorage().setItem('dv_tokens', JSON.stringify({ access, refresh }));
+    } catch { /* ignore */ }
   }
 }
 
 export function loadTokens(): { accessToken: string; refreshToken: string } | null {
   try {
-    const stored = localStorage.getItem('dv_tokens');
+    const stored = localStorage.getItem('dv_tokens') || sessionStorage.getItem('dv_tokens');
     if (stored) {
       const { access, refresh } = JSON.parse(stored);
       _accessToken = access;
@@ -58,7 +86,10 @@ export function loadTokens(): { accessToken: string; refreshToken: string } | nu
 export function clearTokens(): void {
   _accessToken = null;
   _refreshToken = null;
-  try { localStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem('dv_tokens');
+    sessionStorage.removeItem('dv_tokens');
+  } catch { /* ignore */ }
 }
 
 export function getAccessToken(): string | null { return _accessToken; }
@@ -160,10 +191,20 @@ export async function login(loginStr: string, password: string): Promise<LoginRe
   });
 }
 
-export async function register(data: Partial<User> & { password: string }): Promise<any> {
+export async function register(data: Partial<User> & { password: string; login?: string; name?: string }): Promise<any> {
+  const name = String((data as any).name || '').trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  const email = String((data as any).email || (data as any).login || '').trim().toLowerCase();
+  const payload = {
+    email,
+    password: data.password,
+    firstName: String((data as any).firstName || parts[0] || 'Пользователь').trim(),
+    lastName: String((data as any).lastName || parts.slice(1).join(' ') || '').trim(),
+    phone: (data as any).phone || undefined,
+  };
   return apiRequest('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -1611,6 +1652,7 @@ export interface AIChatResponse {
   messageId?: string;
   learnedHint?: string;
   learnedLabels?: string[];
+  aiRequestsLeft?: number;
 }
 
 /** Stable AI session per user + clinic — chats must not mix across clinics. */
@@ -1707,6 +1749,7 @@ export async function aiChat(
     messageId: res?.messageId,
     learnedHint: res?.learnedHint,
     learnedLabels: Array.isArray(res?.learnedLabels) ? res.learnedLabels : [],
+    aiRequestsLeft: typeof res?.aiRequestsLeft === 'number' ? res.aiRequestsLeft : undefined,
   } as AIChatResponse;
 }
 
@@ -1856,6 +1899,7 @@ async function aiChatSSE(
     messageId: donePayload.messageId,
     learnedHint: donePayload.learnedHint,
     learnedLabels: Array.isArray(donePayload.learnedLabels) ? donePayload.learnedLabels : [],
+    aiRequestsLeft: typeof donePayload.aiRequestsLeft === 'number' ? donePayload.aiRequestsLeft : undefined,
   };
 }
 

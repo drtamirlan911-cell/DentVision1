@@ -4,15 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Modal } from '@/components/ui/ds/Modal';
 import { useGuestStore } from '@/store/guest.store';
 import { useAuth } from '@/store/auth.store';
-import { Mail, Lock, Check, Loader2, UserPlus } from 'lucide-react';
+import { Mail, Lock, Check, Loader2, UserPlus, Eye, EyeOff } from 'lucide-react';
 
 export default function RegistrationModal() {
   const navigate = useNavigate();
   const { showRegistrationModal, setRegistrationModal, pendingAction, convertGuest } = useGuestStore();
-  const { login, register } = useAuth();
+  const { login } = useAuth();
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [loginData, setLoginData] = useState({ login: '', password: '' });
-  const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [registerData, setRegisterData] = useState({ name: '', login: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
@@ -29,28 +28,29 @@ export default function RegistrationModal() {
     setRegistrationModal(false);
     setShowLoginForm(false);
     setLoginData({ login: '', password: '' });
-    setName('');
     setShowPassword(false);
     setRegisterData({ name: '', login: '', password: '', confirmPassword: '' });
     setError('');
     setSuccess(false);
   };
 
+  const afterAuth = () => {
+    handleClose();
+    if (pendingAction) pendingAction();
+    else navigate('/');
+  };
+
   const handleGuestLogin = async () => {
     setError('');
     if (!loginData.login.trim() || !loginData.password) {
-      setError('Введите логин и пароль');
+      setError('Введите email и пароль');
       return;
     }
     setLoading(true);
     try {
       await login(loginData.login, loginData.password);
       setSuccess(true);
-      setTimeout(() => {
-        handleClose();
-        if (pendingAction) pendingAction();
-        else navigate('/');
-      }, 500);
+      setTimeout(afterAuth, 400);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка входа');
     } finally {
@@ -61,33 +61,35 @@ export default function RegistrationModal() {
   const handleConvertAndRegister = async () => {
     setError('');
     if (!registerData.name.trim()) { setError('Введите имя'); return; }
-    if (!registerData.login.trim() || registerData.login.length < 4) { setError('Логин ≥ 4 символа'); return; }
-    if (registerData.password.length < 6) { setError('Пароль ≥ 6 символов'); return; }
+    const email = registerData.login.trim().toLowerCase();
+    if (!email.includes('@') || email.length < 5) { setError('Укажите корректный email'); return; }
+    if (registerData.password.length < 8) { setError('Пароль ≥ 8 символов'); return; }
+    if (!/[A-Za-zА-Яа-я]/.test(registerData.password) || !/\d/.test(registerData.password)) {
+      setError('Пароль должен содержать буквы и цифры');
+      return;
+    }
     if (registerData.password !== registerData.confirmPassword) { setError('Пароли не совпадают'); return; }
-    
+
     setLoading(true);
     try {
-      const converted = await convertGuest(registerData.login, registerData.password, registerData.name);
-      if (converted) {
-        await register({ name: registerData.name, login: registerData.login, password: registerData.password });
-        setSuccess(true);
-        setTimeout(() => {
-          handleClose();
-          if (pendingAction) pendingAction();
-          else navigate('/');
-        }, 500);
-      } else {
+      const converted = await convertGuest(email, registerData.password, registerData.name);
+      if (!converted) {
         setError('Ошибка конвертации');
+        return;
       }
+      // Convert already minted tokens; login hydrates user/clinic into auth store
+      const ok = await login(email, registerData.password);
+      if (!ok) {
+        setError('Аккаунт создан, но вход не удался — попробуйте войти вручную');
+        return;
+      }
+      setSuccess(true);
+      setTimeout(afterAuth, 400);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка регистрации');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleLogin = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL || 'https://dentvision-api.onrender.com'}/api/auth/google`;
   };
 
   return (
@@ -125,15 +127,16 @@ export default function RegistrationModal() {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-txt-secondary mb-1.5">Логин</label>
+                <label className="block text-xs font-medium text-txt-secondary mb-1.5">Email</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-txt-muted" />
                   <input
-                    type="text"
+                    type="email"
                     value={loginData.login}
                     onChange={(e) => setLoginData(prev => ({ ...prev, login: e.target.value }))}
-                    placeholder="Логин"
+                    placeholder="email@clinic.kz"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
+                    autoComplete="username"
                   />
                 </div>
               </div>
@@ -148,13 +151,15 @@ export default function RegistrationModal() {
                     onChange={(e) => setLoginData(prev => ({ ...prev, password: e.target.value }))}
                     placeholder="Пароль"
                     className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-2 top-1/2 transform -translate-y-1/2 text-txt-muted hover:text-txt-secondary"
+                    aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                   >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
@@ -194,7 +199,7 @@ export default function RegistrationModal() {
           >
             <div className="text-center">
               <h3 className="text-lg font-semibold text-txt-primary mb-1">Создать аккаунт</h3>
-              <p className="text-xs text-txt-muted">Регистрация-convert guest session to permanent account</p>
+              <p className="text-xs text-txt-muted">Сохраним гостевую сессию и откроем полный доступ</p>
             </div>
 
             {error && (
@@ -211,17 +216,19 @@ export default function RegistrationModal() {
                 onChange={(e) => setRegisterData(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Ваше имя"
                 className="w-full px-3 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
+                autoComplete="name"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-txt-secondary mb-1.5">Логин</label>
+              <label className="block text-xs font-medium text-txt-secondary mb-1.5">Email</label>
               <input
-                type="text"
+                type="email"
                 value={registerData.login}
                 onChange={(e) => setRegisterData(prev => ({ ...prev, login: e.target.value }))}
-                placeholder="Логин (мин. 4 символа)"
+                placeholder="email@clinic.kz"
                 className="w-full px-3 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
+                autoComplete="email"
               />
             </div>
 
@@ -231,8 +238,9 @@ export default function RegistrationModal() {
                 type="password"
                 value={registerData.password}
                 onChange={(e) => setRegisterData(prev => ({ ...prev, password: e.target.value }))}
-                placeholder="Пароль (мин. 6 символов)"
+                placeholder="Минимум 8 символов, буквы и цифры"
                 className="w-full px-3 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
+                autoComplete="new-password"
               />
             </div>
 
@@ -244,6 +252,7 @@ export default function RegistrationModal() {
                 onChange={(e) => setRegisterData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                 placeholder="Повторите пароль"
                 className="w-full px-3 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
+                autoComplete="new-password"
               />
             </div>
 
@@ -276,4 +285,3 @@ export default function RegistrationModal() {
     </Modal>
   );
 }
-

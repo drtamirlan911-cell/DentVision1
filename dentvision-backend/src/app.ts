@@ -144,6 +144,7 @@ app.use('/api/auth/register', authLimiter);
 app.use('/api/ai/query', aiLimiter);
 app.use('/api/ai/query/stream', aiLimiter);
 app.use('/api/guest/session', guestSessionLimiter);
+app.use('/api/guest/convert', authLimiter);
 
 // ─── Health ───
 app.get('/api/health', (_req, res) => {

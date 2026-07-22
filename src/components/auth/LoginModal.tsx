@@ -62,12 +62,16 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
       setError('Введите имя');
       return;
     }
-    if (!loginInput.trim() || loginInput.length < 4) {
-      setError('Логин ≥ 4 символов');
+    if (!loginInput.trim() || !loginInput.includes('@')) {
+      setError('Укажите корректный email');
       return;
     }
-    if (password.length < 6) {
-      setError('Пароль ≥ 6 символов');
+    if (password.length < 8) {
+      setError('Пароль ≥ 8 символов');
+      return;
+    }
+    if (!/[A-Za-zА-Яа-я]/.test(password) || !/\d/.test(password)) {
+      setError('Пароль должен содержать буквы и цифры');
       return;
     }
     if (password !== confirmPassword) {
@@ -88,11 +92,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleLogin = () => {
-    // Google OAuth is not wired on the API yet — keep guest path available.
-    handleClose();
   };
 
   return (

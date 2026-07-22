@@ -452,8 +452,8 @@ export default function School() {
                   <div className="col-span-full">
                     <EmptyState
                       icon={<Users size={28} />}
-                      title="Преподаватели подключаются"
-                      description="Лекторы продают вебинары и офис-курсы через кабинет."
+                      title="Преподаватели"
+                      description="Откройте кабинет лектора, чтобы опубликовать профиль и программы. Гости могут смотреть каталог курсов и вебинары."
                       action={<Button size="sm" onClick={() => navigate('/school-workspace')}>Кабинет лектора</Button>}
                     />
                   </div>
@@ -479,7 +479,7 @@ export default function School() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {academies.length === 0 ? (
                   <div className="col-span-full">
-                    <EmptyState icon={<Building2 size={28} />} title="Академии скоро появятся" description="Учебные центры публикуют офис-курсы и вебинары." />
+                    <EmptyState icon={<Building2 size={28} />} title="Академии" description="Учебные центры публикуют офис-курсы и вебинары. Следите за каталогом — первые площадки уже подключаются." />
                   </div>
                 ) : academies.map((a: any) => (
                   <Card key={a.id}>

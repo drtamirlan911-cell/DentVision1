@@ -44,21 +44,24 @@
 
 ### Smoke after deploy (presentation order)
 
-1. `GET /api/health` → `{ ok: true }` (warm Render first)
-2. Open `/` as guest → Jarvis greeting loads
+1. `GET /api/health` → `{ ok: true }` (warm Render 30–60s first — cold start recovery)
+2. Open `/` as guest → Jarvis guest greeting (not clinic «выручка/долги»)
 3. Chip **«Открыть демо-клинику»** → schedule loads (spinner, then data)
-4. Ask Jarvis: «что умеешь», «открой прайс», «что важно сегодня?»
-5. Sidebar: photo, alert bell, clinic switcher
-6. Shop city filter (KZ) works for guests
-7. Login / Register — branded, no Google dead-end
-8. Favicon is DentVision mark (not Vite)
+4. **Mobile:** bottom nav CRM → same demo path (`/crm/schedule?demo=1`)
+5. Ask Jarvis: «что умеешь», «открой прайс» — guest AI counter decreases
+6. Guest → «Создать аккаунт» (RegistrationModal) → `POST /api/guest/convert` works
+7. Trial copy everywhere says **30 дней** (Login / Pricing / Demo)
+8. Shop: guests see catalog + city filter; no «Кабинет продавца» / «Мой кэшбэк»
+9. Sidebar: photo, alert bell (no noisy guest notification fetch), clinic switcher after login
+10. Favicon + `/robots.txt` + OG image present
 
 ### Demo script (stage)
 
 1. Pre-warm API 30–60s before going live
 2. Prefer `/` → demo chip over cold CRM deep-link
 3. Stay on DEMO clinic for AI (starter plans correctly gate paid AI)
-4. Avoid Register mid-demo unless showing onboarding
+4. Avoid Register mid-demo unless showing onboarding convert
+5. If guest session fails: banner «Повторить» — do not hard-refresh mid-pitch
 
 ---
 
@@ -69,5 +72,6 @@
 | P0 | No committed `.env` / secrets | Verify |
 | P0 | CORS not `*` alone in production | Set `CORS_ORIGIN` |
 | P1 | `DEMO_USER_PASSWORD` set in prod | Required for one-tap demo |
+| P1 | Guest convert only upgrades `@guest.local` users | Shipped |
 
 Full clinic Kaspi guide: [`docs/KASPI_CLINIC_SETUP.md`](./KASPI_CLINIC_SETUP.md).
