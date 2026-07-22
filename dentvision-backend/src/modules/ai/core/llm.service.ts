@@ -1,5 +1,5 @@
 import { env } from '../../../config.js';
-import { SYSTEM_PROMPT, ROLE_PROMPTS } from '../prompts/system.prompts.js';
+import { SYSTEM_PROMPT, rolePromptFor } from '../prompts/system.prompts.js';
 import {
   clinicCurrencyPromptRule,
   preferClinicCurrency,
@@ -15,8 +15,7 @@ import type { AIContext, AIResponse } from '../types/ai.types.js';
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
 function rolePrompt(role: string): string {
-  const normalizedRole = role.toLowerCase() as keyof typeof ROLE_PROMPTS;
-  return ROLE_PROMPTS[normalizedRole] || '';
+  return rolePromptFor(role);
 }
 
 /**

@@ -1648,7 +1648,14 @@ export function clearAiSessionId(userId?: string | null, clinicId?: string | nul
 export async function aiChat(
   message: string,
   history: Array<{ role: string; content: string }> = [],
-  opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null },
+  opts?: {
+    sessionId?: string
+    userId?: string | null
+    clinicId?: string | null
+    pathname?: string | null
+    focusType?: string | null
+    focusId?: string | null
+  },
 ): Promise<AIChatResponse> {
   const sessionId = opts?.sessionId || getAiSessionId(opts?.userId, opts?.clinicId);
   const res = await apiRequest('/api/ai/query', {
@@ -1659,6 +1666,9 @@ export async function aiChat(
       history: history.slice(-20),
       sessionId,
       timezone: clientTimezoneHeader(),
+      pathname: opts?.pathname || (typeof window !== 'undefined' ? window.location.pathname : undefined),
+      focusType: opts?.focusType || undefined,
+      focusId: opts?.focusId || undefined,
     }),
   });
 
@@ -1705,7 +1715,14 @@ export async function aiChatStream(
   message: string,
   history: Array<{ role: string; content: string }> = [],
   onChunk: (partial: string, done: boolean) => void,
-  opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null },
+  opts?: {
+    sessionId?: string
+    userId?: string | null
+    clinicId?: string | null
+    pathname?: string | null
+    focusType?: string | null
+    focusId?: string | null
+  },
 ): Promise<AIChatResponse> {
   try {
     const streamed = await aiChatSSE(message, history, onChunk, opts);
@@ -1738,7 +1755,14 @@ async function aiChatSSE(
   message: string,
   history: Array<{ role: string; content: string }>,
   onChunk: (partial: string, done: boolean) => void,
-  opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null },
+  opts?: {
+    sessionId?: string
+    userId?: string | null
+    clinicId?: string | null
+    pathname?: string | null
+    focusType?: string | null
+    focusId?: string | null
+  },
 ): Promise<AIChatResponse | null> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (_accessToken) headers.Authorization = `Bearer ${_accessToken}`;
@@ -1764,6 +1788,9 @@ async function aiChatSSE(
       history: history.slice(-20),
       sessionId,
       timezone: tz,
+      pathname: opts?.pathname || (typeof window !== 'undefined' ? window.location.pathname : undefined),
+      focusType: opts?.focusType || undefined,
+      focusId: opts?.focusId || undefined,
     }),
   });
   if (!res.ok || !res.body) return null;

@@ -294,10 +294,7 @@ export async function buildClinicLoadSignals(clinicId: string): Promise<{
   payload: Record<string, unknown>;
 }> {
   const plan = await buildClinicLoadPlan(clinicId);
-  const totals = (plan.payload.totals || {}) as {
-    recall?: number;
-    openPlans?: number;
-  };
+  const totals = (plan.payload.totals || {}) as { recall?: number; openPlans?: number };
   const recall = Number(totals.recall || 0);
   const openPlans = Number(totals.openPlans || 0);
   const weakDays = Array.isArray(plan.payload.weakDays) ? plan.payload.weakDays.length : 0;
@@ -340,8 +337,8 @@ export async function buildClinicLoadSignals(clinicId: string): Promise<{
     alerts.push({
       type: 'clinic_load_slots',
       category: 'ops',
-      text: `Есть свободные слоты — можно заполнить базу`,
-      message: `Есть свободные слоты — можно заполнить базу`,
+      text: 'Есть свободные слоты — можно заполнить базу',
+      message: 'Есть свободные слоты — можно заполнить базу',
       priority: 5,
       action: { type: 'OpenSchedule' },
     });

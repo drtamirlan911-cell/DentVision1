@@ -165,6 +165,54 @@ const AGENTS: AgentDefinition[] = [
     status: 'active',
     mandate: 'Ты следишь за лабораторными заказами: статусы, сроки, просрочки.',
   },
+  {
+    id: 'agent.marketplace.buyer',
+    name: 'Buyer Agent',
+    domain: 'marketplace',
+    version: '1.0.0',
+    requiredPermissions: ['BUYER', 'OWNER', 'ADMIN', 'MANAGER'],
+    allowedTools: ['getInventory', 'searchProducts', 'navigate'],
+    owner: 'marketplace-team',
+    status: 'active',
+    mandate:
+      'Ты закупщик: склад клиники → аналоги в маркетплейсе → заказы. Без клинических диагнозов.',
+  },
+  {
+    id: 'agent.marketplace.supplier',
+    name: 'Supplier Agent',
+    domain: 'marketplace',
+    version: '1.0.0',
+    requiredPermissions: ['SUPPLIER'],
+    allowedTools: ['searchProducts', 'navigate'],
+    owner: 'marketplace-team',
+    status: 'active',
+    mandate:
+      'Ты гид кабинета продавца: товары, заказы маркетплейса. CRM чужой клиники не трогай.',
+  },
+  {
+    id: 'agent.education.lecturer',
+    name: 'Lecturer Agent',
+    domain: 'education',
+    version: '1.0.0',
+    requiredPermissions: ['LECTURER'],
+    allowedTools: ['searchCourses', 'navigate'],
+    owner: 'education-team',
+    status: 'active',
+    mandate:
+      'Ты помогаешь лектору: курсы, вебинары, кабинет лектора Academy OS.',
+  },
+  {
+    id: 'agent.platform.superadmin',
+    name: 'Platform Admin Agent',
+    domain: 'compliance',
+    version: '1.0.0',
+    requiredPermissions: ['SUPERADMIN'],
+    allowedTools: ['navigate', 'getDashboardStats'],
+    owner: 'platform-team',
+    status: 'active',
+    mandate:
+      'Ты суперадмин платформы: клиники, аудит, бэкапы. Веди через navigate в /admin, /audit, /backup.',
+  },
 ];
 
 export function listAgents(): AgentDefinition[] {

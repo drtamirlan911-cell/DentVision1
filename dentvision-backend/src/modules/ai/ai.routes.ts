@@ -53,6 +53,9 @@ const querySchema = z.object({
     sessionId: z.string().min(8).optional(),
     timezone: z.string().min(1).optional(),
     timeZone: z.string().min(1).optional(),
+    pathname: z.string().max(200).optional(),
+    focusType: z.string().max(64).optional(),
+    focusId: z.string().max(128).optional(),
     history: z.array(z.object({
       role: z.string(),
       content: z.string(),
@@ -274,6 +277,10 @@ async function processQuery(
     body: (req.body || {}) as Record<string, unknown>,
     query: (req.query || {}) as Record<string, unknown>,
   });
+  const body = (req.body || {}) as Record<string, unknown>;
+  const pathname = typeof body.pathname === 'string' ? body.pathname : undefined;
+  const focusType = typeof body.focusType === 'string' ? body.focusType : undefined;
+  const focusId = typeof body.focusId === 'string' ? body.focusId : undefined;
 
   const userId = req.user?.id || 'guest';
   const clinicId = isGuest ? null : (req.user!.clinicId || null);
@@ -326,6 +333,9 @@ async function processQuery(
         timeZone,
         learningInstructions: learningInstructions || undefined,
         fewShots,
+        pathname,
+        focusType,
+        focusId,
       });
 
       if (!isGuest && result.toolsUsed?.length) {
