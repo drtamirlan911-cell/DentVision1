@@ -267,8 +267,17 @@ export default function Patients() {
     setSelectedTooth(t => t === toothNum ? null : toothNum)
   }, [])
 
-  const handleSaveToothSurfaces = async (toothNum: number, surfaces: any) => {
-    const updated = { ...teethState, [toothNum]: { ...teethState[toothNum], surfaces } }
+  const handleSaveToothSurfaces = async (toothNum: number, data: any) => {
+    const prev = teethState[toothNum]
+    const base = typeof prev === 'object' && prev ? prev : {}
+    const updated = {
+      ...teethState,
+      [toothNum]: {
+        ...base,
+        status: data?.status || (typeof prev === 'string' ? prev : prev?.status) || 'healthy',
+        surfaces: data?.surfaces || {},
+      },
+    }
     setTeethState(updated)
     setSelectedTooth(null)
     if (selected) {
@@ -760,10 +769,6 @@ export default function Patients() {
                   <div className="p-4 rounded-xl border border-dashed border-bdr-subtle text-sm text-txt-secondary mb-5">
                     {selected.notes || 'Нет особых заметок. Для добавления нажмите «Редактировать».'}
                   </div>
-                  <AutoTreatmentPlan
-                    teeth={teethState}
-                    onAddToPlan={(recs: any[]) => showToast(`Добавлено ${recs.length} процедур в план`, 'success')}
-                  />
                 </motion.div>
               )}
 
@@ -775,16 +780,26 @@ export default function Patients() {
                   <Odontogram3D
                     patientTeeth={teethState}
                     onToothClick={handleToothClick}
-                    selectedTooth={selectedTooth}
+                    selectedTooth={selectedTooth ?? undefined}
                   />
                   {selectedTooth && (
                     <SurfaceEditor
                       toothNumber={selectedTooth}
-                      surfaces={teethState[selectedTooth]?.surfaces || {}}
+                      tooth={teethState[selectedTooth]}
+                      surfaces={typeof teethState[selectedTooth] === 'object' ? teethState[selectedTooth]?.surfaces : {}}
                       onSave={handleSaveToothSurfaces}
                       onCancel={() => setSelectedTooth(null)}
                     />
                   )}
+                  <AutoTreatmentPlan
+                    teeth={teethState}
+                    patientId={selected.id}
+                    patientName={selected.name || (selected as any).fullName}
+                    onAddToPlan={(recs) => {
+                      showToast(`Черновик: ${recs.length} позиций — откройте планы лечения`, 'success')
+                      navigate(`/crm/treatment-plans?patient=${selected.id}`)
+                    }}
+                  />
                 </motion.div>
               )}
 

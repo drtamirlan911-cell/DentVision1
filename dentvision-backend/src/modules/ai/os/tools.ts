@@ -226,7 +226,9 @@ export const TOOLS: Record<string, ToolSpec> = {
 
   getPatientCard: {
     name: 'getPatientCard',
-    description: 'Полная карта пациента: визиты, зубная карта, планы лечения, медицинская история.',
+    description:
+      'Полная карта пациента: визиты, зубная карта (одонтограмма FDI: статус + поверхности M/O/D/B/L), планы лечения, анамнез. ' +
+      'Для плана лечения по полости рта сначала вызови этот инструмент и прочитай odontogramSummary / teeth.',
     parameters: {
       type: 'object',
       properties: { patientId: { type: 'string', description: 'ID пациента (uuid из searchPatients)' } },
@@ -243,7 +245,55 @@ export const TOOLS: Record<string, ToolSpec> = {
         },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
-      return { ok: true, data: patient };
+
+      const history = (patient.medicalHistory && typeof patient.medicalHistory === 'object'
+        ? patient.medicalHistory
+        : {}) as Record<string, any>;
+      const teethMap: Record<string, any> = {};
+      if (history.teeth && typeof history.teeth === 'object') Object.assign(teethMap, history.teeth);
+      for (const t of patient.teeth || []) {
+        const key = String(t.number);
+        let surfaces: Record<string, string> | undefined;
+        if (t.notes) {
+          try {
+            const parsed = JSON.parse(t.notes);
+            if (parsed?.surfaces) surfaces = parsed.surfaces;
+          } catch { /* ignore */ }
+        }
+        if (!teethMap[key]) {
+          teethMap[key] = { status: t.condition || 'healthy', surfaces: surfaces || {} };
+        } else if (typeof teethMap[key] === 'object' && surfaces && !teethMap[key].surfaces) {
+          teethMap[key].surfaces = surfaces;
+        }
+      }
+
+      const STATUS_RU: Record<string, string> = {
+        healthy: 'здоров', caries: 'кариес', filled: 'пломба', crown: 'коронка',
+        missing: 'отсутствует', root: 'корень', implant: 'имплант', veneer: 'винир',
+        endo_ok: 'эндо успех', endo_fail: 'эндо неуспех',
+      };
+      const lines: string[] = [];
+      for (const [num, raw] of Object.entries(teethMap).sort((a, b) => Number(a[0]) - Number(b[0]))) {
+        const t = typeof raw === 'string' ? { status: raw } : (raw || {});
+        const status = t.status || 'healthy';
+        const hasSurf = t.surfaces && Object.keys(t.surfaces).length > 0;
+        if (status === 'healthy' && !hasSurf) continue;
+        const surf = hasSurf
+          ? Object.entries(t.surfaces).map(([s, v]) => `${s}=${STATUS_RU[String(v)] || v}`).join(', ')
+          : '';
+        lines.push(`${num}: ${STATUS_RU[status] || status}${surf ? ` [${surf}]` : ''}`);
+      }
+
+      return {
+        ok: true,
+        data: {
+          ...patient,
+          teethMap,
+          odontogramSummary: lines.length
+            ? lines.join('\n')
+            : 'Все зубы без отметок (здоровы / не заполнены).',
+        },
+      };
     },
   },
 
@@ -586,7 +636,10 @@ export const TOOLS: Record<string, ToolSpec> = {
   createTreatmentPlan: {
     name: 'createTreatmentPlan',
     description:
-      'Создать черновик плана лечения (title, diagnosis, teeth FDI, budget). ТРЕБУЕТ подтверждения: без confirmed=true возвращает черновик. План всегда со статусом proposed — утверждает врач.',
+      'Создать черновик плана лечения по одонтограмме или вручную (title, diagnosis, teeth FDI, stages, budget). ' +
+      'Перед этим желательно getPatientCard → odontogramSummary. ' +
+      'ТРЕБУЕТ подтверждения: без confirmed=true возвращает черновик. Статус always proposed — утверждает врач. ' +
+      'Этапы: срочное (эндо fail, глубокий кариес) → терапия поверхностей → ортопедия/импланты.',
     parameters: {
       type: 'object',
       properties: {
