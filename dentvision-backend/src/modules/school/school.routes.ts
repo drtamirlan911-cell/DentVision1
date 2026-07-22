@@ -11,6 +11,10 @@ import {
   upcomingOfficeCourses,
   upcomingWebinars,
 } from './academyContent.js';
+import {
+  mapCourseToEventCard,
+  normalizeSchoolFormat,
+} from './schoolFormats.js';
 
 const schoolRouter = Router();
 
@@ -19,6 +23,7 @@ function mapCourse(course: any) {
   const durationHours = course.duration
     ? Number(String(course.duration).replace(/[^\d.]/g, '')) || lessonCount
     : lessonCount;
+  const format = normalizeSchoolFormat(course.format);
   return {
     id: course.id,
     title: course.title,
@@ -31,6 +36,7 @@ function mapCourse(course: any) {
     lessonCount,
     duration_hours: durationHours,
     durationHours,
+    duration: course.duration,
     enrolled_count: course._count?.enrollments ?? 0,
     enrolledCount: course._count?.enrollments ?? 0,
     instructor: course.author || course.lecturerBio || 'Academy OS',
@@ -41,8 +47,26 @@ function mapCourse(course: any) {
     image_url: course.imageUrl,
     imageUrl: course.imageUrl,
     price: course.price,
+    format,
+    startsAt: course.startsAt || null,
+    seats: course.seats ?? null,
+    fileUrl: course.fileUrl || null,
+    meta: course.meta || null,
     created_at: course.createdAt,
   };
+}
+
+async function loadDbOfferings(format: 'webinar' | 'textbook' | 'office' | 'course') {
+  return prisma.course.findMany({
+    where: { format },
+    include: {
+      _count: { select: { enrollments: true, lessons: true } },
+      academy: { select: { id: true, name: true, city: true } },
+      lecturer: { select: { id: true, level: true, bio: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
 }
 
 function mapCourseDetail(course: any) {
@@ -143,21 +167,35 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
       users.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]),
     );
 
-    const webinars = upcomingWebinars();
-    const officeCourses = upcomingOfficeCourses();
+    const [dbWebinars, dbTextbooks, dbOffice] = await Promise.all([
+      loadDbOfferings('webinar'),
+      loadDbOfferings('textbook'),
+      loadDbOfferings('office'),
+    ]);
+    const webinars = [
+      ...dbWebinars.map(mapCourseToEventCard),
+      ...upcomingWebinars(),
+    ];
+    const officeCourses = [
+      ...dbOffice.map(mapCourseToEventCard),
+      ...upcomingOfficeCourses(),
+    ];
+    const textbooks = dbTextbooks.map(mapCourseToEventCard);
+    const trackCourses = courses.filter((c) => normalizeSchoolFormat((c as any).format) === 'course');
 
     res.json({
       ok: true,
       data: {
         positioning: {
-          primary: ['webinar', 'office'],
-          headline: 'Academy OS продаёт вебинары и офис-курсы',
+          primary: ['webinar', 'office', 'textbook', 'course'],
+          headline: 'Academy OS — курсы, вебинары и учебники от лекторов',
           secondary: ['online_track', 'cases', 'certification', 'portfolio'],
         },
         kpis: {
           webinars: webinars.length,
           officeCourses: officeCourses.length,
-          courses: courses.length,
+          textbooks: textbooks.length,
+          courses: trackCourses.length,
           academies: academies.length,
           lecturers: lecturers.length,
           cases: CLINICAL_CASES.length,
@@ -166,7 +204,8 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
         },
         webinars,
         officeCourses,
-        courses: courses.map(mapCourse),
+        textbooks,
+        courses: trackCourses.map(mapCourse),
         academies: academies.map((a) => ({
           id: a.id,
           name: a.name,
@@ -204,8 +243,10 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
 
 schoolRouter.get('/courses', async (req, res) => {
   try {
-    const { category, search } = req.query;
-    const where: Record<string, unknown> = {};
+    const { category, search, format } = req.query;
+    const where: Record<string, unknown> = {
+      format: format ? normalizeSchoolFormat(format) : 'course',
+    };
 
     if (category && typeof category === 'string') where.category = category;
     if (search && typeof search === 'string') {
@@ -408,44 +449,86 @@ schoolRouter.get('/library', async (req, res) => {
 });
 
 schoolRouter.get('/live', async (_req, res) => {
-  res.json({ ok: true, data: upcomingWebinars() });
+  const db = await loadDbOfferings('webinar');
+  res.json({ ok: true, data: [...db.map(mapCourseToEventCard), ...upcomingWebinars()] });
 });
 
 schoolRouter.get('/webinars', async (_req, res) => {
-  res.json({ ok: true, data: upcomingWebinars() });
+  const db = await loadDbOfferings('webinar');
+  res.json({ ok: true, data: [...db.map(mapCourseToEventCard), ...upcomingWebinars()] });
 });
 
 schoolRouter.get('/office-courses', async (_req, res) => {
-  res.json({ ok: true, data: upcomingOfficeCourses() });
+  const db = await loadDbOfferings('office');
+  res.json({ ok: true, data: [...db.map(mapCourseToEventCard), ...upcomingOfficeCourses()] });
 });
 
-/** Paid registration for webinars & office seats via QR payment. */
+schoolRouter.get('/textbooks', async (_req, res) => {
+  const db = await loadDbOfferings('textbook');
+  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
+});
+
+/** Paid registration for webinars, office seats, textbooks (soft catalog + lecturer DB). */
 schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { productId, format } = req.body || {};
-    if (!productId || !format) {
+    const { productId, format: formatRaw } = req.body || {};
+    if (!productId || !formatRaw) {
       res.status(400).json({ ok: false, error: 'productId и format обязательны' });
       return;
     }
-    const catalog =
-      format === 'office'
-        ? upcomingOfficeCourses()
-        : format === 'webinar' || format === 'live'
-          ? upcomingWebinars()
-          : [];
-    const product = catalog.find((p) => p.id === productId);
+    const format = normalizeSchoolFormat(formatRaw);
+
+    // Prefer lecturer-owned DB product (course row with matching format).
+    const dbProduct = await prisma.course.findUnique({
+      where: { id: String(productId) },
+      include: { _count: { select: { enrollments: true } } },
+    });
+
+    let product: any = null;
+    let sellerType: 'LECTURER' | 'PLATFORM' = 'PLATFORM';
+    let sellerId = 'system';
+
+    if (dbProduct && normalizeSchoolFormat(dbProduct.format) === format) {
+      product = mapCourseToEventCard(dbProduct);
+      if (dbProduct.lecturerId) {
+        sellerType = 'LECTURER';
+        sellerId = dbProduct.lecturerId;
+      }
+    } else {
+      const catalog =
+        format === 'office'
+          ? upcomingOfficeCourses()
+          : format === 'webinar'
+            ? upcomingWebinars()
+            : [];
+      product = catalog.find((p) => p.id === productId) || null;
+    }
+
     if (!product) {
       res.status(404).json({ ok: false, error: 'Продукт не найден' });
       return;
     }
-    const seatsLeft = Math.max(0, (product.seats || 0) - (product.enrolled || 0));
-    if (seatsLeft <= 0) {
-      res.status(409).json({ ok: false, error: 'Мест больше нет' });
-      return;
+
+    const seats = (product as any).seats;
+    const enrolled = (product as any).enrolled || 0;
+    if (seats != null && seats > 0) {
+      const seatsLeft = Math.max(0, seats - enrolled);
+      if (seatsLeft <= 0) {
+        res.status(409).json({ ok: false, error: 'Мест больше нет' });
+        return;
+      }
     }
 
     const price = Number(product.price || 0);
     if (price <= 0) {
+      // Free: for DB products create enrollment; soft catalog just confirms.
+      if (dbProduct) {
+        await prisma.schoolEnrollment.upsert({
+          where: { userId_courseId: { userId: req.user!.id, courseId: dbProduct.id } },
+          create: { id: uid(), userId: req.user!.id, courseId: dbProduct.id },
+          update: {},
+        });
+      }
       res.status(201).json({
         ok: true,
         data: {
@@ -454,11 +537,11 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
           format: product.format,
           title: product.title,
           price: 0,
-          currency: product.currency || 'KZT',
-          seatsLeft: seatsLeft - 1,
+          currency: (product as any).currency || 'KZT',
+          seatsLeft: (product as any).seatsLeft,
           status: 'confirmed',
           requiresPayment: false,
-          message: 'Место подтверждено бесплатно.',
+          message: format === 'textbook' ? 'Учебник открыт.' : 'Место подтверждено бесплатно.',
         },
       });
       return;
@@ -475,17 +558,18 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
         externalId: created.externalId,
         amount: amountMinor,
         status: 'pending',
-        refType: 'academy_event',
-        refId: productId,
+        refType: dbProduct ? 'enrollment' : 'academy_event',
+        refId: dbProduct ? dbProduct.id : productId,
         domain: 'school',
-        sellerType: 'PLATFORM',
-        sellerId: 'system',
+        sellerType,
+        sellerId,
         meta: {
           qr: created.qr,
           userId: req.user!.id,
           productId: product.id,
           format: product.format,
           title: product.title,
+          courseId: dbProduct?.id,
         },
       },
     });
@@ -498,15 +582,16 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
         format: product.format,
         title: product.title,
         price,
-        currency: product.currency || 'KZT',
-        seatsLeft: seatsLeft - 1,
+        currency: (product as any).currency || 'KZT',
+        seatsLeft: (product as any).seatsLeft,
         status: 'awaiting_payment',
         requiresPayment: true,
         payment: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
         message: 'Оплатите по QR, чтобы подтвердить место.',
       },
     });
-  } catch {
+  } catch (error) {
+    console.error('[school commerce/register]', error);
     res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать' });
   }
 });

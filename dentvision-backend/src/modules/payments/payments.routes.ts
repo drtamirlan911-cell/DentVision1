@@ -144,6 +144,8 @@ async function settleEnrollmentPayment(payment: {
 async function settleAcademyEventPayment(payment: {
   id: string;
   amount: bigint;
+  sellerType?: string | null;
+  sellerId?: string | null;
   meta: unknown;
 }): Promise<boolean> {
   const meta = (payment.meta || {}) as {
@@ -151,14 +153,26 @@ async function settleAcademyEventPayment(payment: {
     format?: string;
     title?: string;
     userId?: string;
+    courseId?: string;
   };
   if (!meta.productId || !meta.userId) return false;
-  // Catalog events are soft products — mark payment meta completed; optional PLATFORM sale.
+
+  // Lecturer-owned DB product: create enrollment + credit lecturer wallet.
+  if (meta.courseId) {
+    await prisma.schoolEnrollment.upsert({
+      where: { userId_courseId: { userId: meta.userId, courseId: meta.courseId } },
+      create: { id: uid(), userId: meta.userId, courseId: meta.courseId },
+      update: {},
+    });
+  }
+
   if (payment.amount > 0n) {
+    const sellerType = (payment.sellerType || 'PLATFORM') as WalletOwnerType;
+    const sellerId = payment.sellerId || 'system';
     await recordSale({
       domain: 'school',
-      sellerType: 'PLATFORM',
-      sellerId: 'system',
+      sellerType,
+      sellerId,
       amountMinor: payment.amount,
       refType: 'academy_event',
       refId: payment.id,

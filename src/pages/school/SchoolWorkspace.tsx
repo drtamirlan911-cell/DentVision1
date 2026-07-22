@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon } from 'lucide-react';
+import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon, Radio, BookMarked } from 'lucide-react';
 import * as api from '@/utils/api';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '@/components/ui/ds/Button';
-import { Input } from '@/components/ui/ds/Input';
+import { Input, Select } from '@/components/ui/ds/Input';
 import { Card, CardContent } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Modal } from '@/components/ui/ds/Modal';
@@ -14,6 +14,37 @@ import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload';
 
 interface LecturerCtx { scopeId: string; level?: string; academy?: { id: string; name: string } | null }
+
+type OfferFormat = 'course' | 'webinar' | 'textbook' | 'office'
+
+const FORMAT_OPTIONS = [
+  { value: 'course', label: 'Онлайн-курс' },
+  { value: 'webinar', label: 'Вебинар' },
+  { value: 'textbook', label: 'Учебник / PDF' },
+  { value: 'office', label: 'Офис-курс' },
+]
+
+const FORMAT_LABEL: Record<string, string> = {
+  course: 'Курс',
+  webinar: 'Вебинар',
+  textbook: 'Учебник',
+  office: 'Офис-курс',
+}
+
+const EMPTY_FORM = {
+  format: 'course' as OfferFormat,
+  title: '',
+  price: '',
+  category: '',
+  duration: '',
+  description: '',
+  imageUrl: '',
+  startsAt: '',
+  seats: '50',
+  fileUrl: '',
+  pages: '',
+  venue: '',
+}
 
 const LEVEL_LABEL: Record<string, string> = {
   NEW: 'Новый лектор', VERIFIED: 'Проверенный', EXPERT: 'Эксперт', INTERNATIONAL_SPEAKER: 'Международный спикер',
@@ -36,7 +67,8 @@ export default function SchoolWorkspace() {
   const [analytics, setAnalytics] = useState<any>(null);
 
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', price: '', category: '', duration: '', description: '', imageUrl: '' });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [listFilter, setListFilter] = useState<'all' | OfferFormat>('all');
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -110,20 +142,34 @@ export default function SchoolWorkspace() {
 
   const handleAdd = async () => {
     if (!token) return;
-    if (!form.title.trim()) { toast.error('Введите название курса'); return; }
+    if (!form.title.trim()) { toast.error('Введите название'); return; }
+    if ((form.format === 'webinar' || form.format === 'office') && !form.startsAt) {
+      toast.error('Укажите дату и время');
+      return;
+    }
+    if (form.format === 'textbook' && !form.fileUrl.trim()) {
+      toast.error('Укажите ссылку на файл учебника');
+      return;
+    }
     setSaving(true);
     try {
       await api.lecturerWs.createCourse(token, {
+        format: form.format,
         title: form.title.trim(),
         price: form.price ? Number(form.price) : undefined,
         category: form.category || undefined,
         duration: form.duration || undefined,
         description: form.description || undefined,
         imageUrl: form.imageUrl || undefined,
+        startsAt: form.startsAt || undefined,
+        seats: form.seats ? Number(form.seats) : undefined,
+        fileUrl: form.fileUrl || undefined,
+        pages: form.pages ? Number(form.pages) : undefined,
+        venue: form.venue || undefined,
       });
-      toast.success('Курс создан');
+      toast.success(`${FORMAT_LABEL[form.format] || 'Продукт'} создан`);
       setAddOpen(false);
-      setForm({ title: '', price: '', category: '', duration: '', description: '', imageUrl: '' });
+      setForm({ ...EMPTY_FORM });
       await loadAll(token);
     } catch (e: any) {
       toast.error(e?.message || 'Ошибка при создании');
@@ -136,7 +182,7 @@ export default function SchoolWorkspace() {
     if (!token) return;
     try {
       await api.lecturerWs.deleteCourse(token, id);
-      toast.success('Курс удалён');
+      toast.success('Удалено');
       await loadAll(token);
     } catch (e: any) {
       toast.error(e?.message || 'Ошибка при удалении');
@@ -174,11 +220,11 @@ export default function SchoolWorkspace() {
   if (contexts.length === 0) {
     return (
       <div className="p-6 max-w-[900px] mx-auto">
-        <PageHeader title="Кабинет лектора · Academy OS" subtitle="Продажа вебинаров и офис-курсов · аналитика" icon={<GraduationCap size={22} />} />
+        <PageHeader title="Кабинет лектора · Academy OS" subtitle="Продажа курсов, вебинаров и учебников · аналитика" icon={<GraduationCap size={22} />} />
         <EmptyState
           icon={<GraduationCap size={36} />}
           title="Станьте лектором Academy OS"
-          description="Создайте профиль преподавателя, чтобы публиковать курсы, смотреть аналитику и запрашивать выплаты. Обучение сотрудников клиники — в разделе Academy OS."
+          description="Создайте профиль преподавателя, чтобы публиковать курсы, вебинары и учебники, смотреть аналитику и запрашивать выплаты."
           action={
             <div className="flex flex-wrap gap-2 justify-center">
               <Button
@@ -200,16 +246,20 @@ export default function SchoolWorkspace() {
   }
 
   const TABS: Array<{ id: typeof tab; label: string; icon: React.ReactNode }> = [
-    { id: 'courses', label: 'Курсы', icon: <BookOpen size={15} /> },
+    { id: 'courses', label: 'Продукты', icon: <BookOpen size={15} /> },
     { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={15} /> },
     { id: 'profile', label: 'Профиль', icon: <Building2 size={15} /> },
   ];
+
+  const filteredProducts = listFilter === 'all'
+    ? courses
+    : courses.filter((c) => String(c.format || 'course') === listFilter);
 
   return (
     <div className="p-6 max-w-[1000px] mx-auto">
       <PageHeader
         title="Кабинет лектора · Academy OS"
-        subtitle={me?.academy?.name ? `Академия: ${me.academy.name} · вебинары и офис-курсы` : 'Вебинары · офис-курсы · независимый преподаватель'}
+        subtitle={me?.academy?.name ? `Академия: ${me.academy.name} · курсы · вебинары · учебники` : 'Курсы · вебинары · учебники · независимый преподаватель'}
         icon={<GraduationCap size={22} />}
         actions={me && (
           <Badge variant={me.level === 'EXPERT' || me.level === 'INTERNATIONAL_SPEAKER' ? 'success' : 'gold'}>
@@ -232,41 +282,79 @@ export default function SchoolWorkspace() {
 
       {tab === 'courses' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-[#7A8899]">Курсов: {courses.length}</p>
-            <Button variant="primary" size="sm" icon={<Plus size={15} />} onClick={() => setAddOpen(true)}>Создать курс</Button>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div className="flex flex-wrap gap-1.5">
+              {([{ id: 'all', label: 'Все' }, ...FORMAT_OPTIONS.map((f) => ({ id: f.value, label: f.label }))] as Array<{ id: string; label: string }>).map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setListFilter(f.id as typeof listFilter)}
+                  className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${
+                    listFilter === f.id
+                      ? 'border-[#C9A96E]/50 bg-[#C9A96E]/10 text-[#C9A96E]'
+                      : 'border-white/10 text-[#7A8899] hover:text-white'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <Button variant="primary" size="sm" icon={<Plus size={15} />} onClick={() => { setForm({ ...EMPTY_FORM }); setAddOpen(true); }}>
+              Создать продукт
+            </Button>
           </div>
-          {courses.length === 0 ? (
-            <EmptyState icon={<BookOpen size={32} />} title="Нет курсов" description="Создайте свой первый курс." />
+          <p className="text-sm text-[#7A8899] mb-3">Показано: {filteredProducts.length} из {courses.length}</p>
+          {filteredProducts.length === 0 ? (
+            <EmptyState
+              icon={<BookOpen size={32} />}
+              title="Нет продуктов"
+              description="Создайте курс, вебинар или учебник для продажи в Academy OS."
+              action={<Button size="sm" icon={<Plus size={14} />} onClick={() => setAddOpen(true)}>Создать</Button>}
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {courses.map((c, i) => (
-                <motion.div key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
-                  <Card>
-                    <CardContent>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex gap-3 min-w-0">
-                          <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
-                            {c.imageUrl ? (
-                              <img src={c.imageUrl} alt={c.title} className="h-full w-full object-cover" />
-                            ) : (
-                              <ImageIcon size={18} className="text-[#7A8899]" />
-                            )}
+              {filteredProducts.map((c, i) => {
+                const fmt = String(c.format || 'course');
+                return (
+                  <motion.div key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
+                    <Card>
+                      <CardContent>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex gap-3 min-w-0">
+                            <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+                              {c.imageUrl ? (
+                                <img src={c.imageUrl} alt={c.title} className="h-full w-full object-cover" />
+                              ) : fmt === 'webinar' ? (
+                                <Radio size={18} className="text-[#C9A96E]" />
+                              ) : fmt === 'textbook' ? (
+                                <BookMarked size={18} className="text-[#C9A96E]" />
+                              ) : (
+                                <ImageIcon size={18} className="text-[#7A8899]" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge variant="gold" size="xs">{FORMAT_LABEL[fmt] || fmt}</Badge>
+                                {c.category && <span className="text-[10px] text-[#7A8899]">{c.category}</span>}
+                              </div>
+                              <p className="text-sm font-bold text-white truncate mt-1">{c.title}</p>
+                              <p className="text-xs text-[#7A8899] mt-0.5">
+                                {c._count?.enrollments ?? 0} покупок
+                                {fmt === 'course' ? ` · ${c._count?.lessons ?? 0} уроков` : ''}
+                                {c.startsAt ? ` · ${String(c.startsAt).slice(0, 16).replace('T', ' ')}` : ''}
+                              </p>
+                              <p className="text-sm text-[#C9A96E] font-semibold mt-1.5">{c.price ? Number(c.price).toLocaleString('ru-RU') + ' ₸' : 'Бесплатно'}</p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-white truncate">{c.title}</p>
-                            <p className="text-xs text-[#7A8899] mt-0.5">{c.category || 'Без категории'} · {c._count?.enrollments ?? 0} студ. · {c._count?.lessons ?? 0} уроков</p>
-                            <p className="text-sm text-[#C9A96E] font-semibold mt-1.5">{c.price ? Number(c.price).toLocaleString('ru-RU') + ' ₸' : 'Бесплатно'}</p>
-                          </div>
+                          <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors shrink-0" aria-label="Удалить">
+                            <Trash2 size={15} />
+                          </button>
                         </div>
-                        <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors shrink-0" aria-label="Удалить">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -300,17 +388,65 @@ export default function SchoolWorkspace() {
         </div>
       )}
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый курс">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый продукт Academy OS">
         <div className="space-y-3">
-          <Input label="Название *" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Основы имплантации" />
+          <Select
+            label="Тип продукта *"
+            value={form.format}
+            onChange={(e) => setForm((f) => ({ ...f, format: e.target.value as OfferFormat }))}
+            options={FORMAT_OPTIONS}
+          />
+          <Input
+            label="Название *"
+            value={form.title}
+            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+            placeholder={
+              form.format === 'webinar'
+                ? 'Вебинар: цифровой протокол'
+                : form.format === 'textbook'
+                  ? 'Учебник по эндодонтии'
+                  : 'Основы имплантации'
+            }
+          />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Цена, ₸" type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} placeholder="85000" />
             <Input label="Категория" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} placeholder="Хирургия" />
           </div>
-          <Input label="Длительность" value={form.duration} onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))} placeholder="24 часа" />
-          <Input label="Описание" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Краткое описание курса" />
+          {(form.format === 'webinar' || form.format === 'office') && (
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Дата и время *"
+                type="datetime-local"
+                value={form.startsAt}
+                onChange={(e) => setForm((f) => ({ ...f, startsAt: e.target.value }))}
+              />
+              <Input
+                label="Мест"
+                type="number"
+                value={form.seats}
+                onChange={(e) => setForm((f) => ({ ...f, seats: e.target.value }))}
+                placeholder="50"
+              />
+            </div>
+          )}
+          {form.format === 'office' && (
+            <Input label="Площадка / адрес" value={form.venue} onChange={(e) => setForm((f) => ({ ...f, venue: e.target.value }))} placeholder="Алматы, ул. …" />
+          )}
+          {form.format === 'textbook' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Ссылка на файл *" value={form.fileUrl} onChange={(e) => setForm((f) => ({ ...f, fileUrl: e.target.value }))} placeholder="https://…/book.pdf" />
+              <Input label="Страниц" type="number" value={form.pages} onChange={(e) => setForm((f) => ({ ...f, pages: e.target.value }))} placeholder="120" />
+            </div>
+          )}
+          <Input
+            label={form.format === 'webinar' ? 'Длительность (мин)' : 'Длительность'}
+            value={form.duration}
+            onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
+            placeholder={form.format === 'webinar' ? '90' : '24 часа'}
+          />
+          <Input label="Описание" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Краткое описание" />
           <div>
-            <p className="text-xs text-[#7A8899] mb-1.5">Обложка курса</p>
+            <p className="text-xs text-[#7A8899] mb-1.5">Обложка</p>
             <input
               ref={photoInputRef}
               type="file"
@@ -350,7 +486,9 @@ export default function SchoolWorkspace() {
           </div>
           <div className="flex gap-3 pt-2">
             <Button variant="ghost" onClick={() => setAddOpen(false)}>Отмена</Button>
-            <Button variant="primary" loading={saving} onClick={handleAdd} icon={<Plus size={15} />}>Создать</Button>
+            <Button variant="primary" loading={saving} onClick={handleAdd} icon={<Plus size={15} />}>
+              Создать {FORMAT_LABEL[form.format]?.toLowerCase() || 'продукт'}
+            </Button>
           </div>
         </div>
       </Modal>

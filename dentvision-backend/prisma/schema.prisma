@@ -760,6 +760,17 @@ model Course {
   category    String?
   duration    String?
 
+  /// Sellable format: course | webinar | textbook | office
+  format      String    @default("course")
+  /// Webinar / office start time
+  startsAt    DateTime?
+  /// Capacity for webinar/office (null = unlimited)
+  seats       Int?
+  /// Textbook / materials download URL
+  fileUrl     String?
+  /// Extra payload (includes[], pages, venue, …)
+  meta        Json?
+
   // Phase 3: structured authorship (gradually replaces the string `author`)
   lecturerId String?
   academyId  String?
@@ -773,6 +784,7 @@ model Course {
   updatedAt DateTime @updatedAt
 
   @@index([lecturerId])
+  @@index([format])
   @@map("courses")
 }
 
