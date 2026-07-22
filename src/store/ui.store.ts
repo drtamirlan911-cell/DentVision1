@@ -20,6 +20,8 @@ interface UIState {
   notifications: boolean;
   autoSave: boolean;
   contextSheetOpen: boolean;
+  /** Optional override for the last path segment in header breadcrumbs (e.g. product name). */
+  crumbTailLabel: string | null;
 
   toggleSidebar: () => void;
   toggleDarkMode: () => void;
@@ -34,6 +36,7 @@ interface UIState {
   toggleSidebarCollapsed: () => void;
   setFirstRunPhase: (phase: FirstRunPhase) => void;
   setContextSheetOpen: (open: boolean) => void;
+  setCrumbTailLabel: (label: string | null) => void;
   completeFirstRun: () => void;
 }
 
@@ -85,6 +88,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   notifications: initialPrefs.notifications,
   autoSave: initialPrefs.autoSave,
   contextSheetOpen: false,
+  crumbTailLabel: null,
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   toggleDarkMode: () => get().setDarkMode(!get().darkMode),
@@ -121,6 +125,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
   setFirstRunPhase: (phase) => set({ firstRunPhase: phase }),
   setContextSheetOpen: (open) => set({ contextSheetOpen: open }),
+  setCrumbTailLabel: (label) => set({ crumbTailLabel: label }),
   completeFirstRun: () => {
     try {
       sessionStorage.setItem('dv_welcomed', '1');
