@@ -183,7 +183,7 @@ crmRouter.post('/treatment-plans', async (req: AuthRequest, res) => {
       teeth: collectPlanTeeth(normalizedStages).length ? collectPlanTeeth(normalizedStages) : (teeth || []),
       stages: normalizedStages,
       doctorId: doctorId ?? null,
-    } satisfies Prisma.InputJsonObject as unknown as TreatmentPlanItems & Prisma.InputJsonValue;
+    } as unknown as Prisma.InputJsonValue;
 
     const plan = id
       ? await prisma.treatmentPlan.update({
