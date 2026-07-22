@@ -12,6 +12,7 @@
 
 import prisma from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
+import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 
 export interface ToolContext {
   userId: string;
@@ -814,6 +815,32 @@ export const TOOLS: Record<string, ToolSpec> = {
         },
       });
       return { ok: true, data: invoice, navigate: '/crm/finance' };
+    },
+  },
+
+  getClinicLoadPlan: {
+    name: 'getClinicLoadPlan',
+    description:
+      'Живой план загрузки клиники: кого возвращать (давно не были / незавершённые планы + телефоны), ' +
+      'слабые окна расписания на N дней, загрузка врачей. Вызывай СРАЗУ при вопросах про загрузку, обзвон, пустые слоты, возврат базы — не давай общую теорию.',
+    parameters: {
+      type: 'object',
+      properties: {
+        days: { type: 'number', description: 'Горизонт дней (по умолчанию 7)' },
+        inactiveDays: { type: 'number', description: 'Сколько дней без визита считать «давно» (по умолчанию 90)' },
+      },
+    },
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const plan = await buildClinicLoadPlan(clinicId, {
+        days: args.days as number | undefined,
+        inactiveDays: args.inactiveDays as number | undefined,
+      });
+      return {
+        ok: true,
+        data: { ...plan.payload, answer: plan.message, suggestions: plan.suggestions },
+        navigate: '/crm/schedule',
+      };
     },
   },
 

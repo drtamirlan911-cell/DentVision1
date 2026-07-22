@@ -32,6 +32,7 @@ import {
   recordModelUsage,
   type ModelChoice,
 } from '../lib/modelRouter.js';
+import { isClinicLoadQuery } from '../core/clinicLoadPlan.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_TOOL_ROUNDS = 6;
@@ -138,6 +139,10 @@ ${mandates}
 8. Если пользователь только вошёл или просит «что важно» — приоритет: расписание сегодня, подтверждения, долги, склад, ближайшие 2 часа — по роли.
 9. ${clinicCurrencyPromptRule(currencyCode)}
 10. Если пользователь говорит «запомни…» — подтверди кратко, что учёл правило.
+11. Загрузка клиники / возврат базы / пустые слоты / обзвон / незавершённое лечение:
+    СРАЗУ вызови getClinicLoadPlan и ответь списками из данных (ФИО, телефон, дата, свободные часы, открытые планы).
+    Запрещено отвечать общей методичкой («сегодня проверьте… завтра обзвон…») без имён и цифр из клиники.
+    Запрещено заканчивать «если хотите, я могу помочь» — сразу дай готовый план по данным.
 ${input.learningInstructions ? `\n${input.learningInstructions}` : ''}`;
 }
 
@@ -260,6 +265,34 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
       };
     } catch (e) {
       console.warn('[AI OS] jarvis briefing failed, continuing to LLM', e);
+    }
+  }
+
+  // Clinic load / recall / empty slots — answer from live data, never a generic playbook.
+  if (
+    !input.isGuest
+    && String(input.role).toUpperCase() !== 'GUEST'
+    && input.clinicId
+    && isClinicLoadQuery(input.text)
+  ) {
+    try {
+      const { buildClinicLoadPlan } = await import('../core/clinicLoadPlan.js');
+      const plan = await buildClinicLoadPlan(input.clinicId);
+      const messageId = await saveMessage(input.sessionId, 'assistant', plan.message, {
+        userId: input.userId,
+        clinicId: input.clinicId,
+        prevUserText: input.text,
+      });
+      return {
+        message: plan.message,
+        intent: 'CLINIC_LOAD_PLAN',
+        action: { type: 'NAVIGATE', payload: { path: '/crm/schedule' } },
+        suggestions: plan.suggestions,
+        toolsUsed: ['getClinicLoadPlan'],
+        messageId,
+      };
+    } catch (e) {
+      console.warn('[AI OS] clinic load plan failed, continuing to LLM', e);
     }
   }
 
