@@ -96,6 +96,9 @@ medicalRouter.get('/visits', async (req: AuthRequest, res) => {
     const clinicId = req.user!.clinicId;
     const visits = await prisma.visit.findMany({
       where: { patient: { clinicId } },
+      include: {
+        patient: { select: { id: true, firstName: true, lastName: true } },
+      },
       orderBy: { date: 'desc' },
       take: 100,
     });

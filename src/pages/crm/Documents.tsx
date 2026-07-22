@@ -468,7 +468,7 @@ export default function Documents() {
   );
 
   const allTypes = useMemo(() => {
-    const types = new Set<string>((documents || []).map(d => d.doc_type).filter(Boolean) as string[]);
+    const types = new Set<string>((documents || []).map(d => d.doc_type || d.docType).filter(Boolean) as string[]);
     DOC_TEMPLATES.forEach(cat => cat.items.forEach(t => types.add(t.type)));
     return ['all', ...Array.from(types).sort()];
   }, [documents]);
@@ -476,18 +476,28 @@ export default function Documents() {
   const filteredDocs = useMemo(() => {
     if (!documents) return [];
     let result = documents;
-    if (filterType !== 'all') result = result.filter(d => d.doc_type === filterType);
+    if (filterType !== 'all') result = result.filter(d => (d.doc_type || d.docType) === filterType);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(d =>
-        d.title?.toLowerCase().includes(q) ||
-        d.patient_name?.toLowerCase().includes(q) ||
-        d.doc_type?.toLowerCase().includes(q) ||
-        d.content?.toLowerCase().includes(q)
-      );
+      result = result.filter(d => {
+        const patientName = d.patient_name
+          || d.patientName
+          || patients.find(p => p.id === (d.patient_id || d.patientId))?.name
+          || '';
+        return (d.title || '').toLowerCase().includes(q)
+          || patientName.toLowerCase().includes(q)
+          || (d.doc_type || d.docType || '').toLowerCase().includes(q)
+          || (d.content || '').toLowerCase().includes(q);
+      });
     }
     return result;
-  }, [documents, searchQuery, filterType]);
+  }, [documents, searchQuery, filterType, patients]);
+
+  const resolveDocPatient = (doc: Document & Record<string, any>) =>
+    doc.patient_name
+    || doc.patientName
+    || patients.find(p => p.id === (doc.patient_id || doc.patientId))?.name
+    || 'Без пациента';
 
   const resetForm = () => {
     setForm({ patient_id: '', doctor_id: '', doc_type: '', title: '', content: '', status: 'draft' });
@@ -538,8 +548,8 @@ export default function Documents() {
   const startEdit = (doc: Document) => {
     setForm({
       patient_id: doc.patient_id || doc.patientId || '',
-      doctor_id: doc.doctor_id || '',
-      doc_type: doc.doc_type || '',
+      doctor_id: doc.doctor_id || doc.doctorId || '',
+      doc_type: doc.doc_type || doc.docType || '',
       title: doc.title || '',
       content: doc.content || '',
       status: doc.status || 'draft',
@@ -782,7 +792,7 @@ export default function Documents() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-bold text-txt-primary">{previewDoc.title}</h3>
-                <p className="text-xs text-txt-muted">{previewDoc.doc_type} · {previewDoc.patient_name || 'Без пациента'}</p>
+                <p className="text-xs text-txt-muted">{previewDoc.doc_type || previewDoc.docType} · {resolveDocPatient(previewDoc)}</p>
               </div>
               <Button variant="ghost" size="icon-sm" icon={<X size={20} />} onClick={() => setPreviewDoc(null)} />
             </div>
@@ -836,7 +846,7 @@ export default function Documents() {
                           <Badge variant={statusInfo.v as any} size="xs">{statusInfo.l}</Badge>
                         </div>
                         <p className="text-xs text-txt-muted mt-0.5">
-                          {doc.doc_type} · {doc.patient_name || 'Без пациента'} · {doc.created_at ? new Date(doc.created_at).toLocaleDateString('ru-RU') : '—'}
+                          {doc.doc_type || doc.docType} · {resolveDocPatient(doc)} · {(doc.created_at || doc.createdAt) ? new Date(doc.created_at || doc.createdAt).toLocaleDateString('ru-RU') : '—'}
                         </p>
                       </div>
                     </div>

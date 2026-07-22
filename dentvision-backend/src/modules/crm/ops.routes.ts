@@ -52,7 +52,10 @@ crmOpsRouter.get('/waiting-list', async (req: AuthRequest, res) => {
         status: r.status,
         // snake_case aliases for older Schedule.tsx handlers
         patient_id: r.patientId,
+        patient_name: r.patientName,
+        patient_phone: r.patientPhone,
         doctor_id: r.doctorId,
+        doctor_name: r.doctorName,
         preferred_date: r.preferredDate ? r.preferredDate.toISOString().slice(0, 10) : null,
         preferred_time: r.preferredTime,
         preferred_service: r.preferredService,

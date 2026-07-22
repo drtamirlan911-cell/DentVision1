@@ -56,6 +56,9 @@ filesRouter.get('/', async (req: AuthRequest, res) => {
           ? { patientId, ...(scopedClinic ? { clinicId: scopedClinic } : {}) }
           : { clinicId: scopedClinic! }),
       },
+      include: {
+        patient: { select: { id: true, firstName: true, lastName: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
 

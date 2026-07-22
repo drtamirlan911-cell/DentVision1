@@ -48,13 +48,34 @@ export default function Visits() {
   const filteredVisits = useMemo(() => {
     if (!visits) return [];
     const q = searchQuery.toLowerCase();
-    return visits.filter(v =>
-      !q || v.patient_name?.toLowerCase().includes(q) ||
-      v.doctor_name?.toLowerCase().includes(q) ||
-      v.diagnosis?.toLowerCase().includes(q) ||
-      v.icd10_codes?.toLowerCase().includes(q)
-    );
-  }, [visits, searchQuery]);
+    return visits.filter(v => {
+      const patientName = v.patient_name
+        || v.patientName
+        || patients.find(p => p.id === (v.patient_id || v.patientId))?.name
+        || '';
+      const doctorName = v.doctor_name
+        || v.doctorName
+        || doctors.find(d => d.id === (v.doctor_id || v.doctorId))?.name
+        || '';
+      return !q
+        || patientName.toLowerCase().includes(q)
+        || doctorName.toLowerCase().includes(q)
+        || v.diagnosis?.toLowerCase().includes(q)
+        || v.icd10_codes?.toLowerCase().includes(q);
+    });
+  }, [visits, searchQuery, patients, doctors]);
+
+  const resolvePatientName = (visit: Visit & Record<string, any>) =>
+    visit.patient_name
+    || visit.patientName
+    || patients.find(p => p.id === (visit.patient_id || visit.patientId))?.name
+    || '—';
+
+  const resolveDoctorName = (visit: Visit & Record<string, any>) =>
+    visit.doctor_name
+    || visit.doctorName
+    || doctors.find(d => d.id === (visit.doctor_id || visit.doctorId))?.name
+    || '—';
 
   const resetForm = () => {
     setForm({ patient_id: '', doctor_id: '', chief_complaint: '', diagnosis: '', icd10_codes: '', treatment_plan: '', procedures_done: '', prescriptions: '', next_visit_date: '', notes: '' });
@@ -223,12 +244,12 @@ export default function Visits() {
                           if (pid) navigate(`/crm/patients?patient=${pid}`)
                         }}
                       >
-                        {visit.patient_name || '—'}
+                        {resolvePatientName(visit)}
                       </button>
                       {visit.icd10_codes && (
                         <Badge variant="gold" size="xs">МКБ: {visit.icd10_codes}</Badge>
                       )}
-                      <span className="text-xs text-txt-muted">{visit.doctor_name || '—'}</span>
+                      <span className="text-xs text-txt-muted">{resolveDoctorName(visit)}</span>
                       <span className="text-xs text-txt-ghost">
                         {visit.visit_date ? new Date(visit.visit_date).toLocaleDateString('ru-RU') : '—'}
                       </span>

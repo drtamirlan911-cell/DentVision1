@@ -43,7 +43,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
 
     setLoading(true);
     try {
-      await login({ login: loginInput, password });
+      await login(loginInput, password);
       setSuccess(true);
       setTimeout(() => {
         handleClose();
