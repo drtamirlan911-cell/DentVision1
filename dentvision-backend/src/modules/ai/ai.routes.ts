@@ -8,6 +8,14 @@ import { improveResponseWithLLM } from './core/llm.service.js';
 import { orchestrate, orchestratorEnabled } from './os/orchestrator.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
+import { clientTimeZoneFromRequest } from './lib/timezone.js';
+import {
+  ensureTodaySession,
+  getThreadMessages,
+  listDailyThreads,
+  purgeExpiredAiSessions,
+  touchSessionMeta,
+} from './core/sessionArchive.js';
 
 const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
 
@@ -29,7 +37,7 @@ const querySchema = z.object({
   }),
 });
 
-/** Stable AI session per authenticated user (and clinic when present). */
+/** One active AI session per user/clinic per calendar day; older days roll to archive. */
 async function resolveUserSessionId(req: AuthRequest, requested?: string): Promise<string> {
   if (!req.user?.id || req.user.isGuest) {
     return requested && requested.length >= 8 ? requested : crypto.randomUUID();
@@ -37,36 +45,33 @@ async function resolveUserSessionId(req: AuthRequest, requested?: string): Promi
 
   const userId = req.user.id;
   const clinicId = req.user.clinicId || DEMO_CLINIC_ID || 'platform';
+  const timeZone = clientTimeZoneFromRequest({
+    headers: req.headers as Record<string, string | string[] | undefined>,
+    body: req.body,
+    query: req.query as Record<string, unknown>,
+  });
 
+  // Opening an archive thread for read is allowed, but writes should stay on today.
   if (requested) {
     const owned = await prisma.aISession.findFirst({
       where: { id: requested, userId },
-      select: { id: true },
+      select: { id: true, context: true },
     });
-    if (owned) return owned.id;
+    if (owned) {
+      const ctx = (owned.context && typeof owned.context === 'object') ? owned.context as { status?: string } : {};
+      if (ctx.status === 'archived') {
+        // Don't write into archives — fall through to today's active chat
+      } else {
+        return owned.id;
+      }
+    }
   }
 
-  const existing = await prisma.aISession.findFirst({
-    where: { userId, clinicId },
-    orderBy: { updatedAt: 'desc' },
-    select: { id: true },
-  });
-  if (existing) return existing.id;
-
-  const id = requested && requested.length >= 8 ? requested : crypto.randomUUID();
-  await prisma.aISession.create({
-    data: {
-      id,
-      userId,
-      clinicId,
-      messages: [],
-      context: {},
-    },
-  });
-  return id;
+  const today = await ensureTodaySession({ userId, clinicId, timeZone });
+  return today.sessionId;
 }
 
-async function syncSessionMessages(sessionId: string, userId: string | undefined, clinicId: string | undefined) {
+async function syncSessionMessages(sessionId: string, userId: string | undefined, clinicId: string | undefined, timeZone?: string | null) {
   if (!userId) return;
   try {
     const rows = await prisma.aIMessage.findMany({
@@ -92,6 +97,7 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
       },
       update: { messages },
     });
+    await touchSessionMeta(sessionId, messages, timeZone || undefined);
   } catch (err) {
     console.error('[AI] syncSessionMessages', err);
   }
@@ -237,7 +243,11 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     const prompt = String(text || message || '').trim();
     const sessionId = await resolveUserSessionId(req, rawSession);
     const response = await processQuery(req, prompt, sessionId, history);
-    await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
+    const tz = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      body: req.body,
+    });
+    await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined, tz);
     return res.json({
       ok: true,
       data: {
@@ -281,7 +291,11 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     let response: ProcessedResponse;
     try {
       response = await processQuery(req, text, sessionId, history);
-      await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
+      const tz = clientTimeZoneFromRequest({
+        headers: req.headers as Record<string, string | string[] | undefined>,
+        body: req.body,
+      });
+      await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined, tz);
     } finally {
       clearInterval(heartbeat);
     }
@@ -312,62 +326,57 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
   }
 });
 
-// Per-user durable threads backed by AISession + AIMessage.
+// Daily threads: one active chat per day; archives kept 7 days.
 aiRouter.get('/threads', authenticate, async (req: AuthRequest, res) => {
   try {
-    const sessions = await prisma.aISession.findMany({
-      where: { userId: req.user!.id },
-      orderBy: { updatedAt: 'desc' },
-      take: 20,
-      select: { id: true, clinicId: true, updatedAt: true, createdAt: true },
+    const timeZone = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      query: req.query as Record<string, unknown>,
+    });
+    const data = await listDailyThreads({
+      userId: req.user!.id,
+      clinicId: req.user!.clinicId || DEMO_CLINIC_ID || 'platform',
+      timeZone,
     });
     return res.json({
       ok: true,
       data: {
-        threads: sessions.map((s) => ({
-          threadId: s.id,
-          clinicId: s.clinicId,
-          updatedAt: s.updatedAt,
-          createdAt: s.createdAt,
-        })),
+        ...data,
+        // Back-compat flat list for older clients
+        threads: [data.active, ...data.archives].filter(Boolean),
       },
     });
   } catch (error) {
     console.error('[AI] threads list', error);
-    return res.json({ ok: true, data: { threads: [] } });
+    return res.json({ ok: true, data: { active: null, archives: [], threads: [], retentionDays: 7 } });
   }
 });
 
 aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
   try {
-    const sessionId = await resolveUserSessionId(req);
-    const session = await prisma.aISession.findFirst({
-      where: { id: sessionId, userId: req.user!.id },
+    const timeZone = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      query: req.query as Record<string, unknown>,
     });
-    let messages: Array<{ id: string; role: string; content: string; timestamp?: string }> = [];
-    if (Array.isArray(session?.messages) && (session!.messages as any[]).length) {
-      messages = session!.messages as any;
-    } else {
-      const rows = await prisma.aIMessage.findMany({
-        where: { sessionId },
-        orderBy: { createdAt: 'asc' },
-        take: 80,
-      });
-      messages = rows.map((r) => ({
-        id: r.id,
-        role: r.role,
-        content: r.content,
-        timestamp: r.createdAt.toISOString(),
-      }));
-    }
+    const today = await ensureTodaySession({
+      userId: req.user!.id,
+      clinicId: req.user!.clinicId || DEMO_CLINIC_ID || 'platform',
+      timeZone,
+    });
+    const detail = await getThreadMessages({ userId: req.user!.id, sessionId: today.sessionId });
     return res.json({
       ok: true,
       data: {
-        threadId: sessionId,
-        sessionId,
-        messages,
-        turnCount: messages.length,
+        threadId: today.sessionId,
+        sessionId: today.sessionId,
+        dayKey: today.dayKey,
+        rolled: today.rolled,
+        label: detail?.label || 'Сегодня',
+        status: 'active',
+        messages: detail?.messages || [],
+        turnCount: detail?.messages?.length || 0,
         entities: {},
+        retentionDays: 7,
       },
     });
   } catch (error) {
@@ -376,23 +385,62 @@ aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+aiRouter.get('/threads/:id', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const detail = await getThreadMessages({ userId: req.user!.id, sessionId: String(req.params.id) });
+    if (!detail) {
+      return res.status(404).json({ ok: false, error: 'Чат не найден или уже удалён' });
+    }
+    return res.json({ ok: true, data: detail });
+  } catch (error) {
+    console.error('[AI] threads get', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось открыть чат' });
+  }
+});
+
 aiRouter.post('/threads/new', authenticate, async (req: AuthRequest, res) => {
   try {
-    const clinicId = req.user!.clinicId || DEMO_CLINIC_ID || 'platform';
-    const id = crypto.randomUUID();
-    await prisma.aISession.create({
+    // "New chat" within the same day reuses today — midnight creates the real boundary.
+    // If the client insists on a blank slate, we clear today's messages.
+    const timeZone = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      body: req.body,
+    });
+    const today = await ensureTodaySession({
+      userId: req.user!.id,
+      clinicId: req.user!.clinicId || DEMO_CLINIC_ID || 'platform',
+      timeZone,
+    });
+    const forceBlank = req.body?.blank === true || req.body?.force === true;
+    if (forceBlank) {
+      await prisma.aIMessage.deleteMany({ where: { sessionId: today.sessionId } });
+      await prisma.aISession.update({
+        where: { id: today.sessionId },
+        data: { messages: [], context: { dayKey: today.dayKey, status: 'active', timeZone: today.timeZone } },
+      });
+    }
+    return res.json({
+      ok: true,
       data: {
-        id,
-        userId: req.user!.id,
-        clinicId,
-        messages: [],
-        context: {},
+        threadId: today.sessionId,
+        sessionId: today.sessionId,
+        dayKey: today.dayKey,
+        rolled: today.rolled,
       },
     });
-    return res.json({ ok: true, data: { threadId: id, sessionId: id } });
   } catch (error) {
     console.error('[AI] threads new', error);
     return res.status(500).json({ ok: false, error: 'Не удалось создать сессию' });
+  }
+});
+
+aiRouter.post('/threads/purge', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const removed = await purgeExpiredAiSessions(req.user!.id);
+    return res.json({ ok: true, data: { removed } });
+  } catch (error) {
+    console.error('[AI] threads purge', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось очистить архив' });
   }
 });
 

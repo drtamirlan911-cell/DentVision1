@@ -1,12 +1,24 @@
 ﻿import React, { useEffect, useCallback, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX } from 'lucide-react'
+import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX, Archive } from 'lucide-react'
 import { isVoiceRepliesEnabled, setVoiceRepliesEnabled, speak, stopSpeaking, voiceOutputSupported } from '@/utils/voice'
 import { useAuth } from '@/store/auth.store'
-import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, aiBriefing, getActiveAiThread, getAiSessionId } from '@/utils/api'
+import {
+  aiChat,
+  aiChatStream,
+  aiProactive,
+  aiDigitalTwin,
+  aiBriefing,
+  getActiveAiThread,
+  getAiThread,
+  getAiSessionId,
+  clearAiSessionId,
+  type AiThreadSummary,
+} from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
+import { ChatArchivePanel } from './ChatArchivePanel'
 import { AIStatus } from '@/components/ai/AIStatus'
 import { useAIWorkspaceStore } from '@/store/workspace.store'
 import { useAIExecutor, AIAction } from '@/utils/aiExecutor'
@@ -35,10 +47,18 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const firstMessageTracked = useRef(false)
   const [showContextPanel, setShowContextPanel] = useState(false)
+  const [showArchivePanel, setShowArchivePanel] = useState(false)
+  const [viewingArchive, setViewingArchive] = useState<{
+    sessionId: string
+    label: string
+    dayKey: string
+  } | null>(null)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<Action | null>(null)
   const [voiceReplies, setVoiceReplies] = useState(() => isVoiceRepliesEnabled())
   const [voiceResumeToken, setVoiceResumeToken] = useState(0)
   const ttsSupported = voiceOutputSupported()
+  const isArchiveView = !!viewingArchive
 
   const toggleVoiceReplies = useCallback(() => {
     const next = !voiceReplies
@@ -120,9 +140,19 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         if (user?.id && !isGuest) {
           const active = await getActiveAiThread()
           if (active?.sessionId || active?.threadId) {
+            const sid = active.sessionId || active.threadId
+            setActiveSessionId(sid)
             try {
-              localStorage.setItem(`dv_ai_session_${user.id}`, active.sessionId || active.threadId)
+              localStorage.setItem(`dv_ai_session_${user.id}`, sid)
             } catch { /* ignore */ }
+          }
+          // Midnight rolled → clear local cache so we don't resurrect yesterday
+          if (active?.rolled) {
+            try { localStorage.removeItem(`dv_ai_thread_${user.id}`) } catch { /* ignore */ }
+            clearAiSessionId(user.id)
+            if (active?.sessionId) {
+              try { localStorage.setItem(`dv_ai_session_${user.id}`, active.sessionId) } catch { /* ignore */ }
+            }
           }
           if (active?.messages?.length) {
             const restored = active.messages.map((m: any, i: number) => ({
@@ -138,9 +168,16 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
             trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
             setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
             // New calendar day → Jarvis posts a fresh role briefing on top of history.
-            if (shouldRefreshDailyBriefing(restored)) {
+            if (shouldRefreshDailyBriefing(restored) || active?.rolled) {
               void pushDailyJarvisBriefing()
             }
+            return
+          }
+          if (active?.rolled) {
+            // Fresh day with empty chat — greet + briefing
+            await initializeWorkspace()
+            void pushDailyJarvisBriefing()
+            trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false, rolled: true })
             return
           }
         }
@@ -175,10 +212,106 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
   useEffect(() => {
     // Only persist for the user who currently owns the in-memory thread.
+    // Never overwrite today's cache while browsing an archive.
+    if (isArchiveView) return
     if (messages.length > 0 && initializedForUser.current === (user?.id || 'guest')) {
       persistThread(user?.id, messages)
     }
-  }, [messages, user?.id])
+  }, [messages, user?.id, isArchiveView])
+
+  // Soft roll at local midnight — archive yesterday in UI without refresh.
+  useEffect(() => {
+    if (isGuest || !user?.id) return
+    const tz = detectUserTimeZone()
+    const schedule = () => {
+      const now = new Date()
+      // Next local midnight ≈ tomorrow 00:00:05
+      const tomorrow = new Date(now)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      tomorrow.setHours(0, 0, 5, 0)
+      return Math.max(5_000, tomorrow.getTime() - now.getTime())
+    }
+    let timer: ReturnType<typeof setTimeout>
+    const arm = () => {
+      timer = setTimeout(async () => {
+        try {
+          clearAiSessionId(user.id)
+          try { localStorage.removeItem(`dv_ai_thread_${user.id}`) } catch { /* ignore */ }
+          initializedForUser.current = null
+          setViewingArchive(null)
+          // Force re-init path
+          const key = `user:${user.id}`
+          initializedForUser.current = key
+          resetAI()
+          historyRef.current = []
+          const active = await getActiveAiThread()
+          if (active?.sessionId) {
+            setActiveSessionId(active.sessionId)
+            try { localStorage.setItem(`dv_ai_session_${user.id}`, active.sessionId) } catch { /* ignore */ }
+          }
+          setMessages([])
+          await initializeWorkspace()
+          void pushDailyJarvisBriefing()
+          trackProductEvent('ai_chat_midnight_roll', { tz })
+        } catch { /* ignore */ }
+        arm()
+      }, schedule())
+    }
+    arm()
+    return () => clearTimeout(timer)
+  }, [isGuest, user?.id])
+
+  const openTodayChat = useCallback(async () => {
+    if (!user?.id || isGuest) {
+      setViewingArchive(null)
+      return
+    }
+    setViewingArchive(null)
+    try {
+      const active = await getActiveAiThread()
+      const sid = active?.sessionId || active?.threadId
+      if (sid) {
+        setActiveSessionId(sid)
+        try { localStorage.setItem(`dv_ai_session_${user.id}`, sid) } catch { /* ignore */ }
+      }
+      if (active?.messages?.length) {
+        const restored = active.messages.map((m: any, i: number) => ({
+          id: m.id || `srv-${i}`,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.timestamp || Date.now()),
+          skill: m.skill,
+        }))
+        setMessages(restored)
+        historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
+      } else {
+        historyRef.current = []
+        await initializeWorkspace()
+      }
+    } catch { /* ignore */ }
+  }, [user?.id, isGuest, setMessages])
+
+  const openArchiveChat = useCallback(async (thread: AiThreadSummary) => {
+    if (!user?.id) return
+    try {
+      const detail = await getAiThread(thread.sessionId)
+      if (!detail) return
+      setViewingArchive({
+        sessionId: detail.sessionId,
+        label: detail.label || thread.label,
+        dayKey: detail.dayKey || thread.dayKey,
+      })
+      const restored = (detail.messages || []).map((m: any, i: number) => ({
+        id: m.id || `arc-${i}`,
+        role: m.role,
+        content: m.content,
+        timestamp: new Date(m.timestamp || Date.now()),
+      }))
+      setMessages(restored)
+      historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
+      trackProductEvent('ai_archive_open', { dayKey: thread.dayKey })
+    } catch { /* ignore */ }
+  }, [user?.id, setMessages])
 
   useEffect(() => {
     const q = (location.state as any)?.aiQuery
@@ -300,8 +433,8 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     }
   }
 
-const handleSend = useCallback(async (text: string) => {
-    if (!text.trim() || isProcessing) return
+  const handleSend = useCallback(async (text: string) => {
+    if (!text.trim() || isProcessing || isArchiveView) return
 
     stopSpeaking()
 
@@ -577,7 +710,9 @@ const result = await executeAction(
           <div>
             <h1 className="font-serif text-[15px] font-semibold text-txt-primary tracking-tight">DentVision Intelligence</h1>
             <p className="text-[11px] text-txt-muted">
-              {status === 'idle' ? 'AI Operating System · стоматология' :
+              {isArchiveView
+                ? `Архив · ${viewingArchive?.label}`
+                : status === 'idle' ? 'AI Operating System · стоматология' :
                status === 'thinking' ? 'AI анализирует...' :
                status === 'executing' ? 'Выполняю...' :
                status === 'confirmation' ? 'Ожидаю подтверждение' :
@@ -587,7 +722,7 @@ const result = await executeAction(
         </div>
 
         <div className="flex items-center gap-2">
-          {unacknowledgedCount > 0 && (
+          {unacknowledgedCount > 0 && !isArchiveView && (
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -596,6 +731,23 @@ const result = await executeAction(
             >
               <Sparkles size={14} />
               <span className="text-xs font-semibold hidden sm:inline">{unacknowledgedCount}</span>
+            </motion.button>
+          )}
+
+          {!isGuest && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowArchivePanel(true)}
+              title="Архив чатов"
+              aria-label="Архив чатов"
+              className={
+                isArchiveView || showArchivePanel
+                  ? 'flex h-8 w-8 items-center justify-center rounded-lg text-dv-gold bg-dv-gold/10 border border-dv-gold/20 hover:bg-dv-gold/15 transition-colors'
+                  : 'flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors'
+              }
+            >
+              <Archive size={15} strokeWidth={1.75} />
             </motion.button>
           )}
 
@@ -632,6 +784,26 @@ const result = await executeAction(
 
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5">
+          {isArchiveView && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="text-[12px] font-medium text-txt-primary">Архив · {viewingArchive?.label}</p>
+                <p className="text-[11px] text-txt-muted">Только просмотр · хранится до 7 дней</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { void openTodayChat() }}
+                className="shrink-0 rounded-xl border border-dv-gold/20 bg-dv-gold/10 px-3 py-1.5 text-[11px] font-medium text-dv-gold hover:bg-dv-gold/15 transition-colors"
+              >
+                К сегодня
+              </button>
+            </motion.div>
+          )}
+
           {showEmpty && (
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
@@ -722,7 +894,7 @@ const result = await executeAction(
 
       <div className="flex-shrink-0 border-t border-white/[0.04] bg-surface-0/50 backdrop-blur-xl">
         <div className="max-w-3xl mx-auto">
-          {suggestions.length > 0 && !isProcessing && (
+          {suggestions.length > 0 && !isProcessing && !isArchiveView && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -731,22 +903,40 @@ const result = await executeAction(
               <SuggestionChips
                 suggestions={suggestions.map(s => s.label)}
                 onSelect={handleSend}
-                disabled={isProcessing}
+                disabled={isProcessing || isArchiveView}
               />
             </motion.div>
           )}
-          <AIInputArea
-            onSend={handleSend}
-            disabled={isProcessing}
-            status={status === 'confirmation' ? 'result' : status}
-            progress={progress}
-            suggestions={suggestions.map(s => s.label)}
-            placeholder={isGuest
-              ? 'Спросите о DentVision, демо, Academy или маркетплейсе…'
-              : 'Спросите: что важно сегодня, покажи выручку, проверь долги…'}            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
-          />
+          {!isArchiveView ? (
+            <AIInputArea
+              onSend={handleSend}
+              disabled={isProcessing}
+              status={status === 'confirmation' ? 'result' : status}
+              progress={progress}
+              suggestions={suggestions.map(s => s.label)}
+              placeholder={isGuest
+                ? 'Спросите о DentVision, демо, Academy или маркетплейсе…'
+                : 'Спросите: что важно сегодня, покажи выручку, проверь долги…'}
+              voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
+            />
+          ) : (
+            <div className="px-4 md:px-6 pb-5">
+              <div className="rounded-2xl border border-white/[0.05] bg-white/[0.02] px-4 py-3 text-center text-[12px] text-txt-muted">
+                Архивный день · ввод недоступен
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      <ChatArchivePanel
+        open={showArchivePanel}
+        onClose={() => setShowArchivePanel(false)}
+        activeSessionId={activeSessionId}
+        viewingSessionId={viewingArchive?.sessionId || activeSessionId}
+        onSelectToday={() => { void openTodayChat() }}
+        onSelectArchive={(thread) => { void openArchiveChat(thread) }}
+      />
 
       <AnimatePresence>
         {pendingConfirm && (

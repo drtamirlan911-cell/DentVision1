@@ -1262,18 +1262,50 @@ export async function deleteTreatmentPlan(id: string): Promise<any> {
   return apiRequest(`/api/crm/treatment-plans/${id}`, { method: 'DELETE' });
 }
 
-// ─── AI Threads ───
-export async function getAiThreads(): Promise<any> {
-  return apiRequest('/api/ai/threads');
+// ─── AI Threads (daily archive) ───
+export type AiThreadSummary = {
+  threadId: string
+  sessionId: string
+  dayKey: string
+  label: string
+  status: 'active' | 'archived'
+  preview?: string
+  messageCount: number
+  createdAt: string
+  updatedAt: string
+  expiresInDays?: number
+}
+
+export async function getAiThreads(): Promise<{
+  active: AiThreadSummary | null
+  archives: AiThreadSummary[]
+  retentionDays: number
+  threads?: AiThreadSummary[]
+}> {
+  const raw = await apiRequest('/api/ai/threads')
+  return {
+    active: raw?.active ?? null,
+    archives: Array.isArray(raw?.archives) ? raw.archives : [],
+    retentionDays: raw?.retentionDays ?? 7,
+    threads: Array.isArray(raw?.threads) ? raw.threads : undefined,
+  }
 }
 
 export async function getActiveAiThread(): Promise<any> {
-  return apiRequest('/api/ai/threads/active');
+  return apiRequest('/api/ai/threads/active')
 }
 
-export async function startNewAiThread(): Promise<any> {
-  return apiRequest('/api/ai/threads/new', { method: 'POST', body: '{}' });
+export async function getAiThread(id: string): Promise<any> {
+  return apiRequest(`/api/ai/threads/${encodeURIComponent(id)}`)
 }
+
+export async function startNewAiThread(opts?: { blank?: boolean }): Promise<any> {
+  return apiRequest('/api/ai/threads/new', {
+    method: 'POST',
+    body: JSON.stringify({ blank: !!opts?.blank }),
+  })
+}
+
 
 // ─── Service Access ───
 export async function getServiceAccess(clinicId: string): Promise<Record<string, boolean>> {
