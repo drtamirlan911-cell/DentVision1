@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Badge } from '@/components/ui/ds/Badge'
 import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel'
+import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner'
 import { extractPaymentQrUrl } from '@/utils/paymentQr'
 import * as api from '@/utils/api'
 

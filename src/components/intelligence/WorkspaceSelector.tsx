@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, LogIn, MousePointer2, CheckCircle2, Building2, Sparkles } from 'lucide-react'
+import { Plus, LogIn, MousePointer2, CheckCircle2, Building2, Sparkles, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
 import { GlassCard } from '@/components/ui/ds/GlassCard'
