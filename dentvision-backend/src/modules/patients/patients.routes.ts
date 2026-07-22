@@ -46,16 +46,36 @@ function serializePatient(p: {
     ? p.medicalHistory
     : {}) as Record<string, unknown>;
   const teethMap: Record<string, unknown> = {};
+
+  // Prefer full odontogram from medicalHistory (includes surfaces).
+  if (history.teeth && typeof history.teeth === 'object') {
+    Object.assign(teethMap, history.teeth as object);
+  }
+
   if (Array.isArray(p.teeth)) {
     for (const t of p.teeth) {
-      teethMap[String(t.number)] = {
-        status: t.condition || 'healthy',
-        diagnosis: t.diagnosis,
-        notes: t.notes,
-      };
+      const key = String(t.number);
+      let surfaces: Record<string, string> | undefined;
+      if (t.notes) {
+        try {
+          const parsed = JSON.parse(t.notes);
+          if (parsed && typeof parsed === 'object' && parsed.surfaces) surfaces = parsed.surfaces;
+        } catch { /* plain notes */ }
+      }
+      const existing = teethMap[key];
+      if (existing && typeof existing === 'object') {
+        const ex = existing as Record<string, unknown>;
+        if (!ex.status && t.condition) ex.status = t.condition;
+        if (!ex.surfaces && surfaces) ex.surfaces = surfaces;
+      } else if (!existing) {
+        teethMap[key] = {
+          status: t.condition || 'healthy',
+          diagnosis: t.diagnosis,
+          notes: surfaces ? null : t.notes,
+          ...(surfaces ? { surfaces } : {}),
+        };
+      }
     }
-  } else if (history.teeth && typeof history.teeth === 'object') {
-    Object.assign(teethMap, history.teeth as object);
   }
 
   return {
@@ -90,7 +110,10 @@ async function syncTeeth(patientId: string, teeth: Record<string, any> | undefin
     if (!Number.isFinite(number)) continue;
     const condition = typeof val === 'string' ? val : val?.status || val?.condition || 'healthy';
     const diagnosis = typeof val === 'object' ? val?.diagnosis || null : null;
-    const notes = typeof val === 'object' ? val?.notes || null : null;
+    let notes: string | null = typeof val === 'object' ? val?.notes || null : null;
+    if (typeof val === 'object' && val?.surfaces && typeof val.surfaces === 'object') {
+      notes = JSON.stringify({ surfaces: val.surfaces, note: typeof notes === 'string' ? notes : null });
+    }
     await prisma.tooth.upsert({
       where: { patientId_number: { patientId, number } },
       create: { id: uid(), patientId, number, condition, diagnosis, notes },

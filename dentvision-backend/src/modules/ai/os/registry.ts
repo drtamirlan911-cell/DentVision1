@@ -57,7 +57,8 @@ const AGENTS: AgentDefinition[] = [
     owner: 'clinical-team',
     status: 'active',
     mandate:
-      'Ты составляешь планы лечения: этапы, зубы (FDI), бюджет. План — черновик для врача, всегда помечай его как требующий врачебного утверждения.',
+      'Ты составляешь планы лечения по одонтограмме: читай getPatientCard.odontogramSummary (статусы FDI + поверхности M/O/D/B/L, эндо ✓/✗, импланты). ' +
+      'Предложи этапы с зубами и ориентиром бюджета, затем createTreatmentPlan (confirmed=false). План — черновик для врача.',
   },
   {
     id: 'agent.clinical.reception',

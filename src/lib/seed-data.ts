@@ -90,7 +90,9 @@ export const TOOTH_STATUS = {
   missing:{l:"Отсутствует",c:"#E74C3C"},
   root:{l:"Корень",c:"#E67E22"},
   implant:{l:"Имплант",c:"#00BCD4"},
-  veneer:{l:"Винир",c:"#E91E8C"}
+  veneer:{l:"Винир",c:"#E91E8C"},
+  endo_ok:{l:"Эндо ✓",c:"#2ECC71"},
+  endo_fail:{l:"Эндо ✗",c:"#C0392B"},
 } as const;
 
 export const UPPER = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28] as const;

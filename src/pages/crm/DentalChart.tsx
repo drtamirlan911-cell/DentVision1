@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Smile, Search, ArrowRight, Save } from 'lucide-react';
 import { useAuth } from '@/store/auth.store';
 import { useDataQuery } from '@/queries/useDataQuery';
-import { Odontogram3D, ToothLegend } from '@/components/Odontogram3D';
+import { Odontogram3D, ToothLegend, SurfaceEditor, AutoTreatmentPlan } from '@/components/Odontogram3D';
 import { Card, CardContent } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Input } from '@/components/ui/ds/Input';
@@ -12,16 +12,6 @@ import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
 import { usePatientStore } from '@/store/patient.store';
-
-const TOOTH_STATUSES = [
-  { id: 'healthy', label: 'Здоров' },
-  { id: 'caries', label: 'Кариес' },
-  { id: 'filled', label: 'Пломба' },
-  { id: 'crown', label: 'Коронка' },
-  { id: 'missing', label: 'Отсутствует' },
-  { id: 'implant', label: 'Имплант' },
-  { id: 'root', label: 'Корень' },
-];
 
 /**
  * Mandatory CRM section: Dental Chart (Spec §05.4.6).
@@ -67,18 +57,6 @@ export default function DentalChart() {
     setSelectedTooth(undefined);
     void usePatientStore.getState().openPatient(selected.id);
   }, [selected?.id]);
-
-  const setToothStatus = (status: string) => {
-    if (!selectedTooth) return;
-    setTeeth((prev) => ({
-      ...prev,
-      [selectedTooth]: {
-        ...(typeof prev[selectedTooth] === 'object' ? prev[selectedTooth] : {}),
-        status,
-      },
-    }));
-    setDirty(true);
-  };
 
   const saveChart = async () => {
     if (!selected) return;
@@ -197,23 +175,29 @@ export default function DentalChart() {
                   selectedTooth={selectedTooth}
                 />
                 {selectedTooth && (
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {TOOTH_STATUSES.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => setToothStatus(s.id)}
-                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                          (typeof teeth[selectedTooth] === 'object' ? teeth[selectedTooth]?.status : teeth[selectedTooth]) === s.id
-                            ? 'border-dv-gold/40 bg-dv-gold/15 text-dv-gold'
-                            : 'border-white/10 text-txt-secondary hover:bg-white/5'
-                        }`}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
+                  <SurfaceEditor
+                    toothNumber={selectedTooth}
+                    tooth={teeth[selectedTooth]}
+                    onSave={(n, data) => {
+                      setTeeth((prev) => ({
+                        ...prev,
+                        [n]: {
+                          ...(typeof prev[n] === 'object' ? prev[n] : {}),
+                          ...data,
+                        },
+                      }))
+                      setDirty(true)
+                      setSelectedTooth(undefined)
+                    }}
+                    onCancel={() => setSelectedTooth(undefined)}
+                  />
                 )}
+                <AutoTreatmentPlan
+                  teeth={teeth}
+                  patientId={selected.id}
+                  patientName={selected.name || (selected as any).fullName}
+                  onAddToPlan={() => navigate(`/crm/treatment-plans?patient=${selected.id}`)}
+                />
               </div>
             )}
           </CardContent>

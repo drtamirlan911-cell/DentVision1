@@ -1,160 +1,194 @@
 import React from 'react'
 import { cn } from '@/lib/utils'
 import { getToothMorphology, isUpperArch, type RootPattern } from './toothMorphology'
+import {
+  STATUS_META,
+  statusColor,
+  normalizeSurfaceStatus,
+  type ToothSurfaces,
+  type SurfaceKey,
+} from '@/lib/odontogram'
 
-type StatusKey =
-  | 'healthy'
-  | 'caries'
-  | 'filled'
-  | 'crown'
-  | 'missing'
-  | 'root'
-  | 'implant'
-  | 'veneer'
-  | string
-
-const STATUS_FILL: Record<string, string> = {
-  healthy: '#27AE60',
-  caries: '#F39C12',
-  filled: '#2980B9',
-  crown: '#8E44AD',
-  missing: 'transparent',
-  root: '#E67E22',
-  implant: '#00BCD4',
-  veneer: '#E91E8C',
-}
+type StatusKey = string
 
 interface AnatomicalToothSvgProps {
   toothNumber: number
   status?: StatusKey
+  surfaces?: ToothSurfaces | null
   selected?: boolean
   onClick?: () => void
   className?: string
-  /** Width of the SVG in px (height scales) */
   size?: number
 }
 
-/** Crown outline paths by pattern — viewBox 0 0 40 72, crown in y≈28–52, roots in y≈0–30 or 52–72 */
 function crownPath(pattern: RootPattern): string {
   switch (pattern) {
     case 'incisor':
-      return 'M14 30 C14 28 16 26 20 26 C24 26 26 28 26 30 L27 48 C27 51 24 53 20 53 C16 53 13 51 13 48 Z'
+      return 'M13 29 C13 26 15.5 24 20 24 C24.5 24 27 26 27 29 L28.5 49 C28.5 53 25 56 20 56 C15 56 11.5 53 11.5 49 Z'
     case 'canine':
-      return 'M15 28 C15 26 17 22 20 20 C23 22 25 26 25 28 L27 48 C27 51 24 53 20 53 C16 53 13 51 13 48 Z'
+      return 'M14 27 C14 24 16.5 19 20 17 C23.5 19 26 24 26 27 L28 49 C28 53 24.5 56 20 56 C15.5 56 12 53 12 49 Z'
     case 'premolar1':
     case 'premolar2':
-      return 'M12 30 C12 27 15 25 20 25 C25 25 28 27 28 30 L29 48 C29 51 25 54 20 54 C15 54 11 51 11 48 Z'
+      return 'M11 29 C11 25.5 14.5 23 20 23 C25.5 23 29 25.5 29 29 L30.5 49 C30.5 53.5 26 57 20 57 C14 57 9.5 53.5 9.5 49 Z'
     case 'molarUpper':
     case 'molarLower':
-      return 'M8 30 C8 26 12 24 20 24 C28 24 32 26 32 30 L33 49 C33 53 28 56 20 56 C12 56 7 53 7 49 Z'
+      return 'M7 29 C7 24.5 12 21.5 20 21.5 C28 21.5 33 24.5 33 29 L34.5 50 C34.5 55 28.5 58.5 20 58.5 C11.5 58.5 5.5 55 5.5 50 Z'
     default:
-      return 'M14 30 C14 28 16 26 20 26 C24 26 26 28 26 30 L27 48 C27 51 24 53 20 53 C16 53 13 51 13 48 Z'
+      return 'M13 29 C13 26 15.5 24 20 24 C24.5 24 27 26 27 29 L28.5 49 C28.5 53 25 56 20 56 C15 56 11.5 53 11.5 49 Z'
   }
 }
 
-/** Roots pointing UP (for upper arch — roots toward top of SVG) */
 function upperRoots(pattern: RootPattern): React.ReactNode {
   switch (pattern) {
     case 'incisor':
-      return <path d="M18 30 L17 8 C17 5 19 3 20 3 C21 3 23 5 23 8 L22 30" />
+      return <path d="M17.5 29 L16.5 7 C16.5 4 18.2 2 20 2 C21.8 2 23.5 4 23.5 7 L22.5 29" />
     case 'canine':
-      return <path d="M18 28 L17 4 C17 2 19 1 20 1 C21 1 23 2 23 4 L22 28" />
+      return <path d="M17.5 27 L16.2 3 C16.2 1.2 18 0.5 20 0.5 C22 0.5 23.8 1.2 23.8 3 L22.5 27" />
     case 'premolar1':
       return (
         <>
-          <path d="M14 30 L12 10 C12 7 14 5 15.5 5 C17 5 18 7 18 10 L18 30" />
-          <path d="M22 30 L22 10 C22 7 23 5 24.5 5 C26 5 28 7 28 10 L26 30" />
+          <path d="M13.5 29 L11.5 9 C11.5 6 13.2 4 15 4 C16.8 4 18 6 18 9 L18 29" />
+          <path d="M22 29 L22 9 C22 6 23.2 4 25 4 C26.8 4 28.5 6 28.5 9 L26.5 29" />
         </>
       )
     case 'premolar2':
-      return <path d="M18 30 L17 8 C17 5 19 3 20 3 C21 3 23 5 23 8 L22 30" />
+      return <path d="M17.5 29 L16.5 7 C16.5 4 18.2 2 20 2 C21.8 2 23.5 4 23.5 7 L22.5 29" />
     case 'molarUpper':
       return (
         <>
-          <path d="M11 30 L8 8 C8 5 10 3 12 3 C14 3 15 5 15 8 L15 30" />
-          <path d="M18 30 L18 6 C18 3 19 2 20 2 C21 2 22 3 22 6 L22 30" />
-          <path d="M25 30 L25 8 C25 5 26 3 28 3 C30 3 32 5 32 8 L29 30" />
+          <path d="M10.5 29 L7.5 7 C7.5 4 9.5 2 11.5 2 C13.5 2 14.5 4 14.5 7 L14.5 29" />
+          <path d="M18 29 L18 5 C18 2.5 19 1 20 1 C21 1 22 2.5 22 5 L22 29" />
+          <path d="M25.5 29 L25.5 7 C25.5 4 26.5 2 28.5 2 C30.5 2 32.5 4 32.5 7 L29.5 29" />
         </>
       )
     case 'molarLower':
       return (
         <>
-          <path d="M13 30 L11 8 C11 5 13 3 15 3 C17 3 18 5 18 8 L18 30" />
-          <path d="M22 30 L22 8 C22 5 23 3 25 3 C27 3 29 5 29 8 L27 30" />
+          <path d="M12.5 29 L10.5 7 C10.5 4 12.5 2 14.5 2 C16.5 2 17.5 4 17.5 7 L17.5 29" />
+          <path d="M22.5 29 L22.5 7 C22.5 4 23.5 2 25.5 2 C27.5 2 29.5 4 29.5 7 L27.5 29" />
         </>
       )
     default:
-      return <path d="M18 30 L17 8 C17 5 19 3 20 3 C21 3 23 5 23 8 L22 30" />
+      return <path d="M17.5 29 L16.5 7 C16.5 4 18.2 2 20 2 C21.8 2 23.5 4 23.5 7 L22.5 29" />
   }
 }
 
-/** Roots pointing DOWN (lower arch) */
 function lowerRoots(pattern: RootPattern): React.ReactNode {
   switch (pattern) {
     case 'incisor':
-      return <path d="M18 48 L17 66 C17 69 19 71 20 71 C21 71 23 69 23 66 L22 48" />
+      return <path d="M17.5 49 L16.5 67 C16.5 70 18.2 72 20 72 C21.8 72 23.5 70 23.5 67 L22.5 49" />
     case 'canine':
-      return <path d="M18 48 L17 70 C17 72 19 73 20 73 C21 73 23 72 23 70 L22 48" />
+      return <path d="M17.5 49 L16.2 71 C16.2 72.8 18 73.5 20 73.5 C22 73.5 23.8 72.8 23.8 71 L22.5 49" />
     case 'premolar1':
       return (
         <>
-          <path d="M14 48 L12 64 C12 67 14 69 15.5 69 C17 69 18 67 18 64 L18 48" />
-          <path d="M22 48 L22 64 C22 67 23 69 24.5 69 C26 69 28 67 28 64 L26 48" />
+          <path d="M13.5 49 L11.5 65 C11.5 68 13.2 70 15 70 C16.8 70 18 68 18 65 L18 49" />
+          <path d="M22 49 L22 65 C22 68 23.2 70 25 70 C26.8 70 28.5 68 28.5 65 L26.5 49" />
         </>
       )
     case 'premolar2':
-      return <path d="M18 48 L17 66 C17 69 19 71 20 71 C21 71 23 69 23 66 L22 48" />
+      return <path d="M17.5 49 L16.5 67 C16.5 70 18.2 72 20 72 C21.8 72 23.5 70 23.5 67 L22.5 49" />
     case 'molarUpper':
       return (
         <>
-          <path d="M11 48 L8 66 C8 69 10 71 12 71 C14 71 15 69 15 66 L15 48" />
-          <path d="M18 48 L18 68 C18 71 19 72 20 72 C21 72 22 71 22 68 L22 48" />
-          <path d="M25 48 L25 66 C25 69 26 71 28 71 C30 71 32 69 32 66 L29 48" />
+          <path d="M10.5 49 L7.5 67 C7.5 70 9.5 72 11.5 72 C13.5 72 14.5 70 14.5 67 L14.5 49" />
+          <path d="M18 49 L18 69 C18 71.5 19 73 20 73 C21 73 22 71.5 22 69 L22 49" />
+          <path d="M25.5 49 L25.5 67 C25.5 70 26.5 72 28.5 72 C30.5 72 32.5 70 32.5 67 L29.5 49" />
         </>
       )
     case 'molarLower':
       return (
         <>
-          <path d="M13 48 L11 66 C11 69 13 71 15 71 C17 71 18 69 18 66 L18 48" />
-          <path d="M22 48 L22 66 C22 69 23 71 25 71 C27 71 29 69 29 66 L27 48" />
+          <path d="M12.5 49 L10.5 67 C10.5 70 12.5 72 14.5 72 C16.5 72 17.5 70 17.5 67 L17.5 49" />
+          <path d="M22.5 49 L22.5 67 C22.5 70 23.5 72 25.5 72 C27.5 72 29.5 70 29.5 67 L27.5 49" />
         </>
       )
     default:
-      return <path d="M18 48 L17 66 C17 69 19 71 20 71 C21 71 23 69 23 66 L22 48" />
+      return <path d="M17.5 49 L16.5 67 C16.5 70 18.2 72 20 72 C21.8 72 23.5 70 23.5 67 L22.5 49" />
   }
 }
 
-/** Titanium implant fixture + abutment + crown silhouette */
-function ImplantGlyph({ upper }: { upper: boolean }) {
+function ImplantGlyph({ upper, fill }: { upper: boolean; fill: string }) {
   if (upper) {
     return (
       <g>
-        {/* Screw in bone (up) */}
-        <rect x="17" y="4" width="6" height="22" rx="1.5" fill="#90A4AE" stroke="#546E7A" strokeWidth="0.8" />
-        <path d="M17 8 H23 M17 12 H23 M17 16 H23 M17 20 H23" stroke="#546E7A" strokeWidth="0.6" opacity="0.7" />
-        {/* Abutment */}
-        <path d="M16 26 L24 26 L22 32 L18 32 Z" fill="#CFD8DC" stroke="#78909C" strokeWidth="0.7" />
-        {/* Crown */}
+        <rect x="16.5" y="3" width="7" height="23" rx="2" fill="#78909C" stroke="#455A64" strokeWidth="0.7" />
+        <path d="M16.5 7 H23.5 M16.5 11 H23.5 M16.5 15 H23.5 M16.5 19 H23.5" stroke="#546E7A" strokeWidth="0.7" />
+        <path d="M15 26 L25 26 L23 32 L17 32 Z" fill="#CFD8DC" stroke="#90A4AE" strokeWidth="0.6" />
         <path
-          d="M12 32 C12 30 15 28 20 28 C25 28 28 30 28 32 L29 48 C29 52 25 55 20 55 C15 55 11 52 11 48 Z"
-          fill="currentColor"
-          stroke="rgba(255,255,255,0.25)"
+          d="M11 32 C11 29.5 14.5 27.5 20 27.5 C25.5 27.5 29 29.5 29 32 L30.5 49 C30.5 53.5 26 57 20 57 C14 57 9.5 53.5 9.5 49 Z"
+          fill={fill}
+          stroke="rgba(255,255,255,0.3)"
           strokeWidth="0.8"
         />
+        <ellipse cx="20" cy="40" rx="6" ry="2" fill="rgba(0,0,0,0.12)" />
       </g>
     )
   }
   return (
     <g>
       <path
-        d="M12 20 C12 17 15 15 20 15 C25 15 28 17 28 20 L29 36 C29 40 25 43 20 43 C15 43 11 40 11 36 Z"
-        fill="currentColor"
-        stroke="rgba(255,255,255,0.25)"
+        d="M11 18 C11 15.5 14.5 13.5 20 13.5 C25.5 13.5 29 15.5 29 18 L30.5 35 C30.5 39.5 26 43 20 43 C14 43 9.5 39.5 9.5 35 Z"
+        fill={fill}
+        stroke="rgba(255,255,255,0.3)"
         strokeWidth="0.8"
       />
-      <path d="M16 42 L24 42 L22 48 L18 48 Z" fill="#CFD8DC" stroke="#78909C" strokeWidth="0.7" />
-      <rect x="17" y="48" width="6" height="22" rx="1.5" fill="#90A4AE" stroke="#546E7A" strokeWidth="0.8" />
-      <path d="M17 52 H23 M17 56 H23 M17 60 H23 M17 64 H23" stroke="#546E7A" strokeWidth="0.6" opacity="0.7" />
+      <ellipse cx="20" cy="26" rx="6" ry="2" fill="rgba(0,0,0,0.12)" />
+      <path d="M15 42 L25 42 L23 48 L17 48 Z" fill="#CFD8DC" stroke="#90A4AE" strokeWidth="0.6" />
+      <rect x="16.5" y="48" width="7" height="23" rx="2" fill="#78909C" stroke="#455A64" strokeWidth="0.7" />
+      <path d="M16.5 52 H23.5 M16.5 56 H23.5 M16.5 60 H23.5 M16.5 64 H23.5" stroke="#546E7A" strokeWidth="0.7" />
+    </g>
+  )
+}
+
+/** Occlusal surface zones for visual MODBL feedback (crown bbox ~ x 8–32, y 28–52). */
+const SURFACE_REGIONS: Record<SurfaceKey, { x: number; y: number; w: number; h: number }> = {
+  M: { x: 8, y: 34, w: 5, h: 14 },
+  O: { x: 14, y: 34, w: 12, h: 12 },
+  D: { x: 27, y: 34, w: 5, h: 14 },
+  B: { x: 14, y: 28, w: 12, h: 5 },
+  L: { x: 14, y: 47, w: 12, h: 5 },
+}
+
+function SurfaceOverlays({
+  surfaces,
+  upper,
+}: {
+  surfaces?: ToothSurfaces | null
+  upper: boolean
+}) {
+  if (!surfaces) return null
+  const entries = Object.entries(surfaces) as [SurfaceKey, string][]
+  if (!entries.length) return null
+
+  return (
+    <g>
+      {entries.map(([key, raw]) => {
+        const st = normalizeSurfaceStatus(raw)
+        if (!st || st === 'healthy') return null
+        const color = statusColor(st)
+        const r = SURFACE_REGIONS[key]
+        if (!r) return null
+        // Flip B/L for lower arch visual orientation
+        let y = r.y
+        if (!upper && (key === 'B' || key === 'L')) {
+          y = key === 'B' ? SURFACE_REGIONS.L.y : SURFACE_REGIONS.B.y
+        }
+        return (
+          <rect
+            key={key}
+            x={r.x}
+            y={y}
+            width={r.w}
+            height={r.h}
+            rx={1.2}
+            fill={color}
+            opacity={0.92}
+            stroke="rgba(255,255,255,0.35)"
+            strokeWidth="0.5"
+          />
+        )
+      })}
     </g>
   )
 }
@@ -162,27 +196,30 @@ function ImplantGlyph({ upper }: { upper: boolean }) {
 export function AnatomicalToothSvg({
   toothNumber,
   status,
+  surfaces,
   selected,
   onClick,
   className,
-  size = 44,
+  size = 42,
 }: AnatomicalToothSvgProps) {
   const morph = getToothMorphology(toothNumber)
   const upper = isUpperArch(toothNumber)
   const isMissing = status === 'missing'
   const isImplant = status === 'implant'
   const isRootOnly = status === 'root'
-  const fill = STATUS_FILL[status || ''] || 'rgba(226,232,240,0.55)'
-  const rootFill = isRootOnly ? fill : 'rgba(241,245,249,0.35)'
-  const crownFill = isRootOnly ? 'rgba(255,255,255,0.08)' : fill
-
+  const isEndoOk = status === 'endo_ok'
+  const isEndoFail = status === 'endo_fail'
+  const solidFill = STATUS_META[status || '']?.color || '#E8EEF0'
+  const rootFill = isRootOnly || isEndoFail ? (STATUS_META[status || 'root']?.color || '#E67E22') : '#D7DEE8'
+  const crownFill = isRootOnly ? 'rgba(255,255,255,0.1)' : solidFill
   const height = Math.round(size * 1.85)
+  const hasSurfaces = surfaces && Object.values(surfaces).some((v) => normalizeSurfaceStatus(v) && normalizeSurfaceStatus(v) !== 'healthy')
 
   return (
     <button
       type="button"
       onClick={onClick}
-      title={`${toothNumber} · ${morph.label}${morph.roots > 1 ? ` · ${morph.roots} корня` : ' · 1 корень'}${status ? ` · ${status}` : ''}`}
+      title={`${toothNumber} · ${morph.label}${status ? ` · ${STATUS_META[status]?.label || status}` : ''}`}
       aria-label={`Зуб ${toothNumber}`}
       className={cn(
         'relative flex flex-col items-center justify-center rounded-lg p-0.5 transition-transform duration-150',
@@ -190,7 +227,7 @@ export function AnatomicalToothSvg({
         selected ? 'scale-110 z-10' : 'hover:scale-105',
         className,
       )}
-      style={{ width: size + 8, minHeight: height + 18 }}
+      style={{ width: size + 10, minHeight: height + 20 }}
     >
       <span
         className={cn(
@@ -204,88 +241,97 @@ export function AnatomicalToothSvg({
         width={size}
         height={height}
         viewBox="0 0 40 74"
-        className={cn(
-          'overflow-visible transition-shadow',
-          selected && 'drop-shadow-[0_0_8px_rgba(201,169,110,0.55)]',
-        )}
-        style={{ color: fill }}
+        className={cn(selected && 'drop-shadow-[0_0_8px_rgba(201,169,110,0.55)]')}
       >
-        {/* Selection ring */}
+        <defs>
+          <linearGradient id={`enamel-${toothNumber}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#F8FAFC" />
+            <stop offset="45%" stopColor="#E2E8F0" />
+            <stop offset="100%" stopColor="#CBD5E1" />
+          </linearGradient>
+          <linearGradient id={`rootGrad-${toothNumber}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ECEFF4" />
+            <stop offset="100%" stopColor="#C5CDD8" />
+          </linearGradient>
+        </defs>
+
         {selected && (
-          <rect
-            x="1"
-            y="1"
-            width="38"
-            height="72"
-            rx="6"
-            fill="none"
-            stroke="#C9A96E"
-            strokeWidth="1.5"
-            strokeDasharray="3 2"
-            opacity="0.9"
-          />
+          <rect x="1" y="1" width="38" height="72" rx="6" fill="none" stroke="#C9A96E" strokeWidth="1.4" strokeDasharray="3 2" />
         )}
 
         {isImplant ? (
-          <ImplantGlyph upper={upper} />
+          <ImplantGlyph upper={upper} fill={STATUS_META.implant.color} />
         ) : isMissing ? (
-          <g opacity="0.45">
-            <path
-              d={crownPath(morph.pattern)}
-              fill="none"
-              stroke="rgba(239,68,68,0.7)"
-              strokeWidth="1.2"
-              strokeDasharray="3 2"
-            />
-            <line x1="12" y1="28" x2="28" y2="52" stroke="#E74C3C" strokeWidth="1.4" />
-            <line x1="28" y1="28" x2="12" y2="52" stroke="#E74C3C" strokeWidth="1.4" />
+          <g opacity="0.5">
+            <path d={crownPath(morph.pattern)} fill="none" stroke="#E74C3C" strokeWidth="1.3" strokeDasharray="3 2" />
+            <line x1="12" y1="28" x2="28" y2="52" stroke="#E74C3C" strokeWidth="1.5" />
+            <line x1="28" y1="28" x2="12" y2="52" stroke="#E74C3C" strokeWidth="1.5" />
           </g>
         ) : (
           <g>
-            {/* Roots */}
             <g
-              fill={rootFill}
-              stroke="rgba(255,255,255,0.22)"
-              strokeWidth="0.9"
+              fill={status && status !== 'healthy' && (isRootOnly || isEndoOk || isEndoFail) ? rootFill : `url(#rootGrad-${toothNumber})`}
+              stroke="rgba(255,255,255,0.25)"
+              strokeWidth="0.85"
               strokeLinejoin="round"
             >
               {upper ? upperRoots(morph.pattern) : lowerRoots(morph.pattern)}
             </g>
-            {/* Crown */}
+
             <path
               d={crownPath(morph.pattern)}
-              fill={crownFill}
-              stroke="rgba(255,255,255,0.28)"
+              fill={status && status !== 'healthy' && !hasSurfaces ? crownFill : `url(#enamel-${toothNumber})`}
+              stroke="rgba(255,255,255,0.35)"
               strokeWidth="0.9"
               strokeLinejoin="round"
               opacity={isRootOnly ? 0.35 : 1}
             />
-            {/* Occlusal hint for molars/premolars */}
+
+            {/* Specular highlight */}
+            {!isRootOnly && (
+              <path
+                d="M14 32 C16 30 18 29.5 20 29.5 C22 29.5 24 30 26 32"
+                fill="none"
+                stroke="rgba(255,255,255,0.45)"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+            )}
+
+            {/* Occlusal groove hint */}
             {(morph.pattern === 'molarUpper' || morph.pattern === 'molarLower' || morph.pattern.startsWith('premolar')) && !isRootOnly && (
               <ellipse
                 cx="20"
                 cy={upper ? 42 : 36}
-                rx={morph.pattern.startsWith('molar') ? 8 : 5}
-                ry="2.2"
-                fill="rgba(0,0,0,0.18)"
+                rx={morph.pattern.startsWith('molar') ? 7.5 : 5}
+                ry="2"
+                fill="rgba(0,0,0,0.12)"
               />
             )}
-            {/* Root count ticks */}
-            <g fill="rgba(255,255,255,0.35)">
-              {Array.from({ length: morph.roots }).map((_, i) => (
-                <circle
-                  key={i}
-                  cx={20 - (morph.roots - 1) * 3 + i * 6}
-                  cy={upper ? 70 : 4}
-                  r="1.2"
-                />
-              ))}
-            </g>
+
+            <SurfaceOverlays surfaces={surfaces} upper={upper} />
+
+            {/* Endo marker on crown center */}
+            {(isEndoOk || isEndoFail) && (
+              <g>
+                <circle cx="20" cy={upper ? 40 : 34} r="4.5" fill={isEndoOk ? '#2ECC71' : '#C0392B'} stroke="white" strokeWidth="0.8" />
+                <text
+                  x="20"
+                  y={upper ? 42.2 : 36.2}
+                  textAnchor="middle"
+                  fontSize="6"
+                  fontWeight="700"
+                  fill="white"
+                >
+                  {isEndoOk ? '✓' : '✗'}
+                </text>
+              </g>
+            )}
           </g>
         )}
       </svg>
-      <span className="text-[8px] text-txt-muted/60 leading-none mt-0.5 tabular-nums">
-        {isImplant ? 'импл.' : `${morph.roots}к`}
+      <span className="text-[8px] text-txt-muted/70 leading-none mt-0.5 tabular-nums">
+        {isImplant ? 'импл.' : isEndoOk ? 'эндо✓' : isEndoFail ? 'эндо✗' : `${morph.roots}к`}
       </span>
     </button>
   )
