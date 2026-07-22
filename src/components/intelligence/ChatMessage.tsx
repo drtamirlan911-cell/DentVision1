@@ -145,6 +145,121 @@ function resolveSection(raw: string): { key: string; path: string; label: string
 
 type SectionChoice = { key: string; path: string; label: string };
 
+const ACTION_TYPE_PATHS: Record<string, string> = {
+  OpenSchedule: '/crm/schedule',
+  OPEN_SCHEDULE: '/crm/schedule',
+  OpenPatients: '/crm/patients',
+  OPEN_PATIENTS: '/crm/patients',
+  OpenPatient: '/crm/patients',
+  OpenFinance: '/crm/finance',
+  OPEN_FINANCE: '/crm/finance',
+  OpenCashier: '/crm/finance',
+  OpenInventory: '/crm/inventory',
+  OPEN_INVENTORY: '/crm/inventory',
+  OpenDocuments: '/crm/documents',
+  OPEN_DOCUMENTS: '/crm/documents',
+  OpenLab: '/crm/lab',
+  OPEN_LABORATORY: '/crm/lab',
+  OpenReminders: '/crm/reminders',
+  OpenDentalChart: '/crm/dental-chart',
+  OpenTreatmentPlans: '/crm/treatment-plans',
+  OpenVisits: '/crm/visits',
+  OpenStaff: '/crm/staff',
+  OpenShop: '/shop',
+  OPEN_SHOP: '/shop',
+  OpenSchool: '/school',
+  OPEN_SCHOOL: '/school',
+  OpenAnalytics: '/analytics',
+  OPEN_ANALYTICS: '/analytics',
+  OpenSettings: '/settings',
+  OpenProfile: '/profile',
+  OpenDemo: '/crm/schedule?demo=1',
+  OpenPricing: '/pricing',
+  OpenJobs: '/jobs',
+  OpenCommunity: '/community',
+  OpenCRM: '/crm/schedule',
+  OPEN_CRM: '/crm/schedule',
+};
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function pathToSection(path: string): SectionChoice | null {
+  const raw = String(path || '').trim();
+  if (!raw) return null;
+  const bare = raw.split('?')[0];
+  for (const [key, p] of Object.entries(SECTION_PATHS)) {
+    const pBare = p.split('?')[0];
+    if (p === raw || pBare === bare || (key === 'demo' && bare === '/crm/schedule' && raw.includes('demo=1'))) {
+      return { key, path: p, label: SECTION_KEY_RU[key] || key };
+    }
+  }
+  // /crm/schedule → schedule
+  const last = bare.replace(/^\/crm\//, '').replace(/^\//, '');
+  if (SECTION_PATHS[last]) {
+    return { key: last, path: SECTION_PATHS[last], label: SECTION_KEY_RU[last] || last };
+  }
+  return null;
+}
+
+/** Collect every place the assistant suggests opening — for in-message buttons. */
+function extractNavTargets(
+  content: string,
+  actions?: ChatMsg['actions'],
+): SectionChoice[] {
+  const seen = new Set<string>();
+  const out: SectionChoice[] = [];
+  const add = (s: SectionChoice | null | undefined) => {
+    if (!s?.path || seen.has(s.path)) return;
+    seen.add(s.path);
+    out.push(s);
+  };
+
+  // 1) Explicit actions from backend (navigate tool / Open*)
+  for (const a of actions || []) {
+    const type = String(a.type || a.action || '');
+    if (!type || type.startsWith('SHOW_')) continue;
+    if (type === 'NAVIGATE') {
+      add(pathToSection(String(a.params?.path || '')));
+      continue;
+    }
+    const mapped = ACTION_TYPE_PATHS[type];
+    if (mapped) add(pathToSection(mapped));
+  }
+
+  const text = localizeSectionKeys(String(content || ''));
+  if (!text.trim()) return out.slice(0, 8);
+
+  // 2) Section menus (comma / bullet lists)
+  const offer = parseSectionOffer(text);
+  if (offer) offer.sections.forEach(add);
+
+  // 3) CTA phrases: «откройте расписание», «перейдите в маркетплейс»…
+  const ctaRe =
+    /(?:откройте|открыть|открой|перейдите(?:\s+в)?|перейти(?:\s+в)?|зайдите(?:\s+в)?|зайти(?:\s+в)?|посмотрите(?:\s+в)?|посмотри|покаж(?:у|ите)|откроем|давайте\s+откроем|можете\s+открыть)\s+(?:раздел\s+|страницу\s+|модуль\s+)?[«"']?([А-Яа-яЁёA-Za-z0-9][А-Яа-яЁёA-Za-z0-9 -]{1,40})/gi;
+  let m: RegExpExecArray | null;
+  while ((m = ctaRe.exec(text))) {
+    const raw = m[1].replace(/[.,;:!?»"']+$/g, '').trim();
+    add(resolveSection(raw));
+  }
+
+  // 4) Known section labels when the message is clearly giving a go-somewhere tip
+  const hasNavIntent =
+    /откро|перейд|зайд|посмотри|покаж|раздел|переход|можно\s+открыть|советую\s+открыть|давайте\s+откроем/i.test(
+      text,
+    );
+  if (hasNavIntent) {
+    const labels = Object.entries(SECTION_BY_LABEL).sort((a, b) => b[0].length - a[0].length);
+    for (const [labelLower, meta] of labels) {
+      const re = new RegExp(`(?:^|[^А-Яа-яЁёA-Za-z0-9])${escapeRegExp(labelLower)}(?:[^А-Яа-яЁёA-Za-z0-9]|$)`, 'i');
+      if (re.test(text)) add(meta);
+    }
+  }
+
+  return out.slice(0, 8);
+}
+
 /** Pull a navigable section menu out of assistant prose (comma / bullet lists). */
 function parseSectionOffer(content: string): { intro: string; sections: SectionChoice[] } | null {
   const text = localizeSectionKeys(String(content || '').trim());
@@ -295,9 +410,16 @@ function localizeSectionKeys(text: string): string {
 
 function renderContent(
   content: string,
-  onNavigateSection?: (section: SectionChoice) => void,
+  opts?: { onNavigateSection?: (section: SectionChoice) => void; hideInlineNav?: boolean },
 ) {
-  const offer = onNavigateSection ? parseSectionOffer(content) : null;
+  const onNavigateSection = opts?.onNavigateSection;
+  const offer = onNavigateSection && !opts?.hideInlineNav ? parseSectionOffer(content) : null;
+  // When we already render a unified button row below the bubble, only keep the intro.
+  if (offer && offer.sections.length >= 2 && opts?.hideInlineNav) {
+    return offer.intro ? (
+      <p className="text-[13px] leading-relaxed text-txt-primary/90">{renderInlineMarkdown(offer.intro)}</p>
+    ) : null;
+  }
   if (offer && offer.sections.length >= 2) {
     return (
       <div className="space-y-3">
@@ -333,13 +455,13 @@ function renderContent(
         <div key={i} className="space-y-1 my-2">
           {block.split('\n').filter(Boolean).map((line, j) => {
             const plain = line.replace(/^[•-]\s*/, '');
-            const section = onNavigateSection ? resolveSection(plain) : null;
+            const section = onNavigateSection && !opts?.hideInlineNav ? resolveSection(plain) : null;
             if (section) {
               return (
                 <button
                   key={j}
                   type="button"
-                  onClick={() => onNavigateSection(section)}
+                  onClick={() => onNavigateSection?.(section)}
                   className="flex gap-2.5 text-[13px] leading-relaxed w-full text-left rounded-lg px-1 py-0.5 -mx-1 hover:bg-dv-gold/10 transition-colors group/row"
                 >
                   <span className="text-dv-gold/60 mt-0.5 shrink-0">•</span>
@@ -400,22 +522,23 @@ export function ChatMessage({
   const goToSection = (section: SectionChoice) => {
     const action = {
       type: 'NAVIGATE',
-      label: section.label,
+      label: `Открыть ${section.label}`,
       params: { path: section.path, section: section.key },
     };
     if (onExecuteAction) onExecuteAction(action);
     else onAction?.(section.label);
   };
 
-  const sectionOffer = !isUser ? parseSectionOffer(msg.content) : null;
-  // Hide duplicate NAVIGATE chips when the message already shows section buttons.
-  const offerPaths = new Set((sectionOffer?.sections || []).map((s) => s.path));
+  const navTargets = !isUser ? extractNavTargets(msg.content, msg.actions) : [];
+  const navPaths = new Set(navTargets.map((s) => s.path));
+  const sectionOffer = navTargets.length >= 2 ? parseSectionOffer(msg.content) : null;
 
   const hasContent = !!String(msg.content || '').trim()
   const hasExtras = !!(
     (msg.data && Object.keys(msg.data).length) ||
     (msg.actions && msg.actions.length) ||
-    (msg.recommendations && msg.recommendations.length)
+    (msg.recommendations && msg.recommendations.length) ||
+    navTargets.length
   )
   // Don't render empty assistant placeholders (optimistic stream shell).
   if (!isUser && !hasContent && !hasExtras) return null
@@ -465,14 +588,39 @@ export function ChatMessage({
           layout
           className={cn(
             'rounded-[1.35rem] px-5 py-3.5 text-[13.5px] leading-[1.55] max-w-full',
-            sectionOffer ? 'whitespace-normal' : 'whitespace-pre-wrap',
+            sectionOffer || navTargets.length ? 'whitespace-normal' : 'whitespace-pre-wrap',
             isUser
               ? 'bg-gradient-to-br from-[#D4B57A] to-dv-gold/85 text-[#0B1220] font-medium rounded-br-lg shadow-[0_8px_28px_rgba(201,169,110,0.18)]'
               : 'bg-gradient-to-b from-white/[0.055] to-white/[0.025] border border-white/[0.08] text-txt-primary rounded-bl-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-md'
           )}
         >
-          {renderContent(msg.content, isUser ? undefined : goToSection)}
+          {renderContent(msg.content, {
+            onNavigateSection: isUser ? undefined : goToSection,
+            hideInlineNav: navTargets.length > 0,
+          })}
         </motion.div>
+
+        {/* Always show go-to buttons when the assistant suggests a destination */}
+        {!isUser && navTargets.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 w-full">
+            {navTargets.map((s, i) => (
+              <motion.button
+                key={s.path}
+                type="button"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.08 + i * 0.04, type: 'spring', stiffness: 400, damping: 22 }}
+                onClick={() => goToSection(s)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-dv-gold/12 text-dv-gold border border-dv-gold/25 hover:bg-dv-gold/20 hover:border-dv-gold/40 transition-all"
+                whileHover={{ scale: 1.03, y: -1 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <Zap size={10} />
+                {navTargets.length === 1 ? `Открыть ${s.label}` : s.label}
+              </motion.button>
+            ))}
+          </div>
+        )}
 
         {msg.data?.products && Array.isArray(msg.data.products) && msg.data.products.length > 0 && (
           <div className="grid gap-1.5 w-full">
@@ -559,9 +707,24 @@ export function ChatMessage({
             {msg.actions
               .filter((a) => !String(a.action || a.type || '').startsWith('SHOW_'))
               .filter((a) => {
-                if (!offerPaths.size) return true;
-                const path = String(a.params?.path || '');
-                return !(path && offerPaths.has(path));
+                // Already covered by the unified nav button row
+                const type = String(a.type || a.action || '');
+                if (type === 'NAVIGATE' || type in ACTION_TYPE_PATHS) {
+                  const path =
+                    type === 'NAVIGATE'
+                      ? String(a.params?.path || '')
+                      : ACTION_TYPE_PATHS[type] || '';
+                  if (path && navPaths.has(path)) return false;
+                  if (path) {
+                    const bare = path.split('?')[0];
+                    for (const p of navPaths) {
+                      if (p.split('?')[0] === bare) return false;
+                    }
+                  }
+                  // Prefer unified row — skip raw navigate action chips entirely when we have navTargets
+                  if (navTargets.length) return false;
+                }
+                return true;
               })
               .map((a, i) => {
                 const label = actionLabel(a);
