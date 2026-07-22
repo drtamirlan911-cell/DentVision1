@@ -402,6 +402,7 @@ export interface ICD10Code {
   code: string
   name: string
   category?: string
+  description?: string
 }
 
 // ─── Notifications (unified Notification Center) ────────────────

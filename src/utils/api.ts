@@ -923,7 +923,7 @@ export async function upsertMedicalCard(data: Partial<MedicalCard> & Record<stri
 }
 
 // ─── ICD-10 ───
-export async function getICD10(search: string): Promise<ICD10Code[]> {
+export async function getICD10(search?: string): Promise<ICD10Code[]> {
   const q = search ? `?q=${encodeURIComponent(search)}` : '';
   return apiRequest(`/api/medical/icd10${q}`);
 }
