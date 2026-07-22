@@ -141,7 +141,7 @@ export default function SchoolCourse() {
       const res = await api.enrollCourse({ courseId: id, course_id: id, clinic_id: activeClinic?.id || null });
       if (res?.requiresPayment && res?.payment?.id) {
         setPendingPay(res.payment);
-        toast.showToast('Оплатите Kaspi QR, чтобы открыть курс', 'info');
+        toast.showToast('Оплатите по QR, чтобы открыть курс', 'info');
         return;
       }
       setEnrolled(true);
@@ -324,7 +324,7 @@ export default function SchoolCourse() {
                 {pendingPay && (
                   <div className="mt-3 rounded-lg border border-[#C9A96E]/30 bg-[#C9A96E]/10 p-3 space-y-2">
                     <div className="flex items-center gap-1.5 text-[#C9A96E] text-xs font-semibold">
-                      <QrCode size={14} /> Оплата Kaspi QR
+                      <QrCode size={14} /> Оплата по QR
                     </div>
                     {pendingPay.qr && (
                       <a href={pendingPay.qr} target="_blank" rel="noreferrer" className="text-[11px] text-[#C9A96E] underline break-all">

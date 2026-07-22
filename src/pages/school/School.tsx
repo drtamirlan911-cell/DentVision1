@@ -167,7 +167,7 @@ export default function School() {
       const res = await api.registerAcademyProduct({ productId, format })
       if (res?.requiresPayment && res?.payment?.id) {
         setPendingPay({ ...res.payment, title: res.title, price: res.price })
-        toast.success('Счёт создан — оплатите Kaspi QR')
+        toast.success('Счёт создан — оплатите по QR')
       } else {
         toast.success(res.message || 'Место подтверждено')
       }

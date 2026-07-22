@@ -43,7 +43,7 @@ export default function ShopCheckout() {
     phone: user?.phone || '',
     delivery_address: '',
     delivery_method: 'courier',
-    payment_method: 'kaspi',
+    payment_method: 'qr',
     buyFor: 'self' as 'self' | 'clinic',
     notes: '',
   });
@@ -165,7 +165,7 @@ export default function ShopCheckout() {
           earn,
         });
         setPayStatus('pending');
-        toast.success('Заказ создан — оплатите через Kaspi QR');
+        toast.success('Заказ создан — оплатите по QR');
         return;
       }
       clearCart();
@@ -216,7 +216,7 @@ export default function ShopCheckout() {
           <CardContent className="p-5 space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
               <QrCode size={16} className="text-[#C9A96E]" />
-              <p className="text-sm font-semibold text-white">Оплата Kaspi QR</p>
+              <p className="text-sm font-semibold text-white">Оплата по QR</p>
               <Badge variant={payStatus === 'paid' ? 'success' : 'outline'}>
                 {payStatus === 'paid' ? 'Оплачено' : 'Ожидает оплаты'}
               </Badge>
@@ -235,7 +235,7 @@ export default function ShopCheckout() {
               </a>
             )}
             <p className="text-[11px] text-[var(--slate)]">
-              Откройте ссылку Kaspi, оплатите, затем нажмите «Проверить оплату». В демо-среде кнопка завершает оплату сразу.
+              Откройте ссылку оплаты, оплатите, затем нажмите «Проверить оплату». В демо-среде кнопка завершает оплату сразу.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button icon={<CreditCard size={14} />} loading={confirming} onClick={confirmPay}>
@@ -299,7 +299,7 @@ export default function ShopCheckout() {
                 <div>
                   <label className="text-xs text-[var(--slate)] mb-1 block">Оплата</label>
                   <select className="dv-select" value={form.payment_method} onChange={set('payment_method')}>
-                    <option value="kaspi">Kaspi Pay</option>
+                    <option value="qr">Онлайн по QR</option>
                     <option value="card">Картой</option>
                     <option value="cash">Наличными при получении</option>
                   </select>

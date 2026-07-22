@@ -419,7 +419,7 @@ schoolRouter.get('/office-courses', async (_req, res) => {
   res.json({ ok: true, data: upcomingOfficeCourses() });
 });
 
-/** Paid registration for webinars & office seats via Kaspi QR. */
+/** Paid registration for webinars & office seats via QR payment. */
 schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, res) => {
   try {
     const { productId, format } = req.body || {};
@@ -503,7 +503,7 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
         status: 'awaiting_payment',
         requiresPayment: true,
         payment: { ...serializeBigInt(payment), qr: created.qr },
-        message: 'Оплатите Kaspi QR, чтобы подтвердить место.',
+        message: 'Оплатите по QR, чтобы подтвердить место.',
       },
     });
   } catch {

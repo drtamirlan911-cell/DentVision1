@@ -353,7 +353,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
     if (!canComplete) {
       return res.status(402).json({
         ok: false,
-        error: 'Оплата ещё не подтверждена. Оплатите Kaspi QR и дождитесь webhook.',
+        error: 'Оплата ещё не подтверждена. Оплатите по QR и дождитесь подтверждения.',
         data: { paymentStatus: payment.status, providerStatus },
       } satisfies ApiResponse);
     }

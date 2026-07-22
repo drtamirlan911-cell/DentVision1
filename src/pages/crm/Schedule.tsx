@@ -1305,7 +1305,7 @@ export default function Schedule() {
         {closeAppt && (
           <div className="space-y-4">
             <p className="text-sm text-txt-secondary">
-              Укажите выполненные услуги и заметки — как в KazDent. При включённом авто-списании материалы уйдут со склада.
+              Укажите выполненные услуги и заметки. При включённом авто-списании материалы уйдут со склада.
             </p>
             <Input
               label="Заметки врача"

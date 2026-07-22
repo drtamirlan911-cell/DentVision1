@@ -142,7 +142,7 @@ export function MessagesPanel({ initialPeerId, onConsumedPeer }: MessagesPanelPr
     return (
       <EmptyState
         title="Войдите для сообщений"
-        description="Личные сообщения — как в Telegram: только между вами и коллегой."
+        description="Личные сообщения — только между вами и коллегой."
       />
     )
   }

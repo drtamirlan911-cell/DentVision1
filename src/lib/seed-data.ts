@@ -36,7 +36,7 @@ export const INIT_APPOINTMENTS: Appointment[] = [
 ];
 
 export const INIT_RECEIPTS: Receipt[] = [
-  { id: "r1", clinicId: "c1", patientId: "p1", doctorId: "u2", date: new Date().toISOString().slice(0,10), items: [{ serviceId: "s3", name: "Лечение кариеса (1 поверхность)", price: 15000, qty: 1 }], discount: 0, payMethod: "Kaspi QR", status: "paid", total: 15000 },
+  { id: "r1", clinicId: "c1", patientId: "p1", doctorId: "u2", date: new Date().toISOString().slice(0,10), items: [{ serviceId: "s3", name: "Лечение кариеса (1 поверхность)", price: 15000, qty: 1 }], discount: 0, payMethod: "QR-оплата", status: "paid", total: 15000 },
   { id: "r2", clinicId: "c2", patientId: "p3", doctorId: "u5", date: new Date().toISOString().slice(0,10), items: [{ serviceId: "s13", name: "Профгигиена полости рта", price: 18000, qty: 1 }], discount: 5, payMethod: "Наличные", status: "paid", total: 17100 },
 ];
 
@@ -71,7 +71,7 @@ export const ALL_SERVICES: Service[] = [
   { id:"s28", cat:"Лаборатория",   name:"Временная коронка",                        price:8000 },
 ];
 
-export const PAY_METHODS = ["Наличные", "Kaspi QR", "Kaspi рассрочка", "Банковская карта", "Перевод"] as const;
+export const PAY_METHODS = ["Наличные", "QR-оплата", "Рассрочка", "Банковская карта", "Перевод"] as const;
 
 export const PLANS = {
   starter: { name: "Starter", price: "15 000 ₸/мес", maxDoctors: 2, color: T.sapphire, features: ["До 2 врачей", "Расписание", "Пациенты", "Касса"] },

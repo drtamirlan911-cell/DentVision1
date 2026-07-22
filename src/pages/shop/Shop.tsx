@@ -135,7 +135,7 @@ export default function Shop() {
     <div className="p-6 min-h-screen">
       <PageHeader
         title="Маркетплейс"
-        subtitle="Kaspi для стоматологии — закупка с кэшбэком DentCash (1–7%)"
+        subtitle="Закупка расходников с кэшбэком DentCash (1–7%)"
         icon={<ShoppingBag size={22} />}
         actions={
           <>

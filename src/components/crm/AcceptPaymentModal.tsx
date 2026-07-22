@@ -50,17 +50,20 @@ const METHOD_META: Array<{
   accent: string
 }> = [
   {
-    id: 'kaspi',
-    match: (m) => m.toLowerCase().includes('kaspi') && !m.toLowerCase().includes('рассроч'),
-    label: 'Kaspi QR',
+    id: 'qr',
+    match: (m) => {
+      const v = m.toLowerCase()
+      return (v.includes('qr') || v.includes('kaspi')) && !v.includes('рассроч')
+    },
+    label: 'QR-оплата',
     hint: 'QR / перевод',
     icon: <QrCode size={18} />,
     accent: 'border-rose-400/50 bg-rose-400/10 text-rose-200',
   },
   {
-    id: 'kaspi_installment',
+    id: 'installment',
     match: (m) => m.toLowerCase().includes('рассроч'),
-    label: 'Kaspi рассрочка',
+    label: 'Рассрочка',
     hint: 'В рассрочку',
     icon: <Smartphone size={18} />,
     accent: 'border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-200',
@@ -127,7 +130,7 @@ export function AcceptPaymentModal({
 }: AcceptPaymentModalProps) {
   const methods = useMemo(() => resolveMethodOptions(), [])
   const [amount, setAmount] = useState(String(suggestedAmount || ''))
-  const [method, setMethod] = useState<string>(defaultMethod || methods[0]?.value || 'Kaspi QR')
+  const [method, setMethod] = useState<string>(defaultMethod || methods[0]?.value || 'QR-оплата')
   const [payKind, setPayKind] = useState<PayKind>('full')
   const [closeVisit, setCloseVisit] = useState(defaultCloseVisit)
   const [notes, setNotes] = useState('')
@@ -135,7 +138,7 @@ export function AcceptPaymentModal({
   useEffect(() => {
     if (!open) return
     setAmount(String(suggestedAmount || ''))
-    setMethod(defaultMethod || methods[0]?.value || 'Kaspi QR')
+    setMethod(defaultMethod || methods[0]?.value || 'QR-оплата')
     setPayKind('full')
     setCloseVisit(defaultCloseVisit)
     setNotes('')

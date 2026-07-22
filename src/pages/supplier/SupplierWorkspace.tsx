@@ -330,7 +330,7 @@ export default function SupplierWorkspace() {
       <div className="p-6 max-w-[900px] mx-auto space-y-4">
         <PageHeader
           title="Кабинет продавца"
-          subtitle="Kaspi для стоматологии — продажи, остатки, AI и реклама"
+          subtitle="Продажи, остатки, AI и реклама в маркетплейсе DentVision"
           icon={<Store size={22} />}
         />
         <EmptyState
@@ -373,7 +373,7 @@ export default function SupplierWorkspace() {
     <div className="p-4 md:p-6 max-w-[1100px] mx-auto space-y-5">
       <PageHeader
         title="Кабинет продавца"
-        subtitle={`${me?.name || 'Поставщик'} · Kaspi для стоматологии`}
+        subtitle={`${me?.name || 'Поставщик'} · кабинет продавца DentVision`}
         icon={<Store size={22} />}
         actions={me && (
           <Badge variant={me.status === 'VERIFIED' || me.status === 'OFFICIAL_PARTNER' ? 'success' : 'gold'}>
@@ -805,7 +805,7 @@ export default function SupplierWorkspace() {
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый товар">
         <div className="space-y-3">
-          <Input label="Название *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Имплант Straumann BLT" />
+          <Input label="Название *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Имплант титановый BLT" />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Цена, ₸ *" type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} placeholder="150000" />
             <Input label="Остаток" type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} placeholder="10" />

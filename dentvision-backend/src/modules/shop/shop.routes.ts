@@ -299,7 +299,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
 
     if (finalTotal <= 0) {
       const { settlePaidPayment } = await import('../payments/payments.routes.js');
-      // Fully covered by DentCash — settle order/supplier credits without Kaspi.
+      // Fully covered by DentCash — settle order/supplier credits without QR payment.
       await settlePaidPayment({
         id: `dentcash-${order.id}`,
         refType: 'order',
