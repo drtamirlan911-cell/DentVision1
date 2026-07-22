@@ -45,6 +45,7 @@ const ACTION_PATHS: Record<string, string> = {
   OpenPatients: '/crm/patients',
   OpenLab: '/crm/lab',
   OpenNotifications: '/crm/reminders',
+  OpenTreatmentPlans: '/crm/treatment-plans',
   GetPendingAppointments: '/crm/schedule',
 }
 

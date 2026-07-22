@@ -14,20 +14,26 @@ describe('jarvisBriefing role filters', () => {
       { category: 'billing', text: 'debt' },
       { category: 'stock', text: 'low' },
       { category: 'school', text: 'course' },
+      { category: 'load', text: 'recall' },
     ];
     const filtered = filterAlertsForRole(alerts, 'DOCTOR');
-    expect(filtered.map((a) => a.category)).toEqual(['appointments', 'school']);
+    expect(filtered.map((a) => a.category)).toEqual(['appointments', 'school', 'load']);
   });
 
-  it('admin focuses on appointments and cashier', () => {
+  it('admin focuses on appointments, cashier and load', () => {
     const filtered = filterAlertsForRole(
       [
         { category: 'appointments' },
         { category: 'billing' },
         { category: 'stock' },
+        { category: 'load' },
       ],
       'admin',
     );
-    expect(filtered.map((a) => a.category)).toEqual(['appointments', 'billing']);
+    expect(filtered.map((a) => a.category)).toEqual(['appointments', 'billing', 'load']);
+  });
+
+  it('owner sees load category', () => {
+    expect(alertCategoriesForRole('OWNER')?.has('load')).toBe(true);
   });
 });

@@ -299,3 +299,103 @@ export function isClinicLoadQuery(text: string): boolean {
     || /поднять\s+(свою\s+)?базу/i.test(t)
   );
 }
+
+export type ClinicLoadAlert = {
+  type: string;
+  category: string;
+  text: string;
+  message: string;
+  priority: number;
+  action?: { type: string };
+};
+
+/** Compact signals for proactive alerts + Jarvis login briefing (no user query needed). */
+export async function buildClinicLoadSignals(clinicId: string): Promise<{
+  alerts: ClinicLoadAlert[];
+  briefingLines: string[];
+  suggestions: string[];
+  payload: Record<string, unknown>;
+}> {
+  const plan = await buildClinicLoadPlan(clinicId, { days: 3, inactiveDays: 90 });
+  const p = plan.payload as {
+    recall?: Array<{ name: string; phone?: string | null; daysSince?: number | null; reason?: string }>;
+    openPlans?: Array<{ patient: string; phone?: string | null; title: string; nextStep: string }>;
+    weakDays?: Array<{ date: string; weekday: string; booked: number; emptyHours: string[] }>;
+    totals?: { recall?: number; openPlans?: number };
+  };
+
+  const recall = p.recall || [];
+  const openPlans = p.openPlans || [];
+  const weakDays = p.weakDays || [];
+  const today = weakDays[0];
+  const alerts: ClinicLoadAlert[] = [];
+  const briefingLines: string[] = [];
+
+  if (openPlans.length > 0) {
+    const top = openPlans[0];
+    const phone = top.phone ? ` · ${top.phone}` : '';
+    alerts.push({
+      type: 'load',
+      category: 'load',
+      text: `Незавершённых планов: ${openPlans.length} — начните с ${top.patient}`,
+      message: `Незавершённых планов: ${openPlans.length}. ${top.patient}${phone}: «${top.title}» → ${top.nextStep}`,
+      priority: 8,
+      action: { type: 'OpenTreatmentPlans' },
+    });
+    briefingLines.push(
+      `• Загрузка: **${openPlans.length}** незакрытых планов — напр. **${top.patient}**${phone}: ${top.nextStep}`,
+    );
+  }
+
+  if (recall.length > 0) {
+    const top = recall[0];
+    const phone = top.phone ? ` · ${top.phone}` : '';
+    const why =
+      top.reason === 'open_plan'
+        ? 'есть открытый план'
+        : top.daysSince != null
+          ? `${top.daysSince} дн. без визита`
+          : 'давно не был';
+    alerts.push({
+      type: 'load',
+      category: 'load',
+      text: `Вернуть в базу: ${recall.length} пациентов — ${top.name}`,
+      message: `Вернуть в базу: ${recall.length}. Первый: ${top.name}${phone} (${why})`,
+      priority: 7,
+      action: { type: 'OpenPatients' },
+    });
+    briefingLines.push(`• Вернуть: **${top.name}**${phone} — ${why}${recall.length > 1 ? ` (+ ещё ${recall.length - 1})` : ''}`);
+  }
+
+  if (today && today.emptyHours.length >= 3 && today.booked < 6) {
+    const slots = today.emptyHours.slice(0, 4).join(', ');
+    alerts.push({
+      type: 'load',
+      category: 'load',
+      text: `${today.date}: свободно ${slots} — заполните осмотрами/гигиеной`,
+      message: `${today.weekday} ${today.date}: записей ${today.booked}, свободны ${slots}. Поводы: осмотр, профгигиена, контроль, продолжение этапа.`,
+      priority: 7,
+      action: { type: 'OpenSchedule' },
+    });
+    briefingLines.push(`• Свободные слоты **${today.date}**: ${slots} — заполнить обзвоном`);
+  }
+
+  const suggestions = [
+    ...(openPlans[0] ? ['Открыть планы лечения'] : []),
+    ...(recall[0] ? [`Записать ${recall[0].name.split(/\s+/)[0]}`] : []),
+    'Показать расписание',
+  ].slice(0, 3);
+
+  return {
+    alerts,
+    briefingLines,
+    suggestions,
+    payload: {
+      recallCount: recall.length,
+      openPlansCount: openPlans.length,
+      todayEmptyHours: today?.emptyHours || [],
+      topRecall: recall[0] || null,
+      topOpenPlan: openPlans[0] || null,
+    },
+  };
+}

@@ -672,6 +672,15 @@ export async function buildProactiveAlerts(opts: {
     });
   }
 
+  // Proactive clinic load — tell admin about recall / open plans / empty slots without waiting for a question.
+  try {
+    const { buildClinicLoadSignals } = await import('./clinicLoadPlan.js');
+    const signals = await buildClinicLoadSignals(clinicId);
+    alerts.push(...signals.alerts);
+  } catch (e) {
+    console.warn('[proactive] clinic load signals failed', e);
+  }
+
   const sorted = alerts.sort((a, b) => b.priority - a.priority);
   try {
     const { filterAlertsForRole } = await import('./jarvisBriefing.js');

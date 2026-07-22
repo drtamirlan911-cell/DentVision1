@@ -54,13 +54,13 @@ export function alertCategoriesForRole(role?: string | null): Set<string> | null
   const r = normalizeRole(role);
   if (r === 'guest') return new Set(['product']);
   if (r === 'owner' || r === 'director') {
-    return new Set(['billing', 'appointments', 'stock', 'school', 'inbox', 'wallet']);
+    return new Set(['billing', 'appointments', 'stock', 'school', 'inbox', 'wallet', 'load']);
   }
   if (r === 'admin' || r === 'reception') {
-    return new Set(['appointments', 'billing', 'inbox']);
+    return new Set(['appointments', 'billing', 'inbox', 'load']);
   }
   if (r === 'doctor' || r === 'assistant') {
-    return new Set(['appointments', 'school', 'inbox']);
+    return new Set(['appointments', 'school', 'inbox', 'load']);
   }
   if (r === 'buyer') {
     return new Set(['stock', 'wallet', 'billing', 'inbox']);
@@ -238,6 +238,17 @@ export async function buildJarvisBriefing(opts: {
   const lines: string[] = [];
   const suggestions: string[] = [];
 
+  // Always surface load opportunities for desk/ops roles without waiting for a question.
+  let loadSignals: Awaited<ReturnType<typeof import('./clinicLoadPlan.js').buildClinicLoadSignals>> | null = null;
+  if (role === 'owner' || role === 'director' || role === 'admin' || role === 'reception' || role === 'staff') {
+    try {
+      const { buildClinicLoadSignals } = await import('./clinicLoadPlan.js');
+      loadSignals = await buildClinicLoadSignals(clinicId);
+    } catch (e) {
+      console.warn('[jarvis] clinic load signals failed', e);
+    }
+  }
+
   if (role === 'owner' || role === 'director') {
     lines.push(`• Расписание сегодня: **${apptsToday}** записей`);
     if (upcomingSoon > 0) lines.push(`• В ближайшие 2 часа: **${upcomingSoon}**`);
@@ -252,10 +263,15 @@ export async function buildJarvisBriefing(opts: {
     if (dentCash >= 1000) {
       lines.push(`• DentCash: **${Math.round(dentCash).toLocaleString('ru-KZ')} ₸** к списанию`);
     }
+    if (loadSignals?.briefingLines?.length) {
+      lines.push('');
+      lines.push('**Загрузка клиники (сам нашёл в CRM):**');
+      lines.push(...loadSignals.briefingLines);
+    }
     suggestions.push(
+      ...(loadSignals?.suggestions || []),
       unpaidInvoices.length ? 'Проверить долги' : 'Показать выручку',
       'Показать расписание',
-      lowStock > 0 ? 'Что на складе' : 'Что важно сегодня?',
     );
   } else if (role === 'admin' || role === 'reception') {
     lines.push(`• Записей сегодня: **${apptsToday}**`);
@@ -269,10 +285,15 @@ export async function buildJarvisBriefing(opts: {
       lines.push(`• Касса: **${unpaidInvoices.length}** неоплаченных · **${fmt(debtTotal)}**`);
     }
     if (unreadNotifs > 0) lines.push(`• Уведомлений: **${unreadNotifs}**`);
+    if (loadSignals?.briefingLines?.length) {
+      lines.push('');
+      lines.push('**Что сделать для загрузки (без запроса):**');
+      lines.push(...loadSignals.briefingLines);
+    }
     suggestions.push(
+      ...(loadSignals?.suggestions || []),
       pendingConfirm > 0 ? 'Показать расписание' : 'Записать пациента',
       'Открыть кассу',
-      'Показать расписание',
     );
   } else if (role === 'doctor' || role === 'assistant') {
     lines.push(`• Ваших приёмов сегодня: **${myApptsToday || apptsToday}**`);
@@ -286,6 +307,11 @@ export async function buildJarvisBriefing(opts: {
       lines.push(`• Следующий: **${pn}**${t ? ` в ${t}` : ''}`);
     }
     if (courses > 0) lines.push(`• Academy: **${courses}** курс(ов) в процессе`);
+    if (loadSignals?.briefingLines?.length) {
+      // Doctors: only open plans that need clinical follow-up
+      const planLine = loadSignals.briefingLines.find((l) => l.includes('незакрытых планов') || l.includes('планов'));
+      if (planLine) lines.push(planLine);
+    }
     if (!lines.length) lines.push('• На сегодня свободный день — можно закрыть планы лечения или курс');
     suggestions.push('Показать расписание', 'Открыть зубную карту', 'Создать план лечения');
   } else if (role === 'buyer') {
@@ -304,7 +330,8 @@ export async function buildJarvisBriefing(opts: {
     if (upcomingSoon > 0) lines.push(`• Ближайшие 2 часа: **${upcomingSoon}**`);
     if (unpaidInvoices.length > 0) lines.push(`• Неоплаченных счетов: **${unpaidInvoices.length}**`);
     if (lowStock > 0) lines.push(`• Низкий остаток: **${lowStock}**`);
-    suggestions.push('Показать расписание', 'Что важно сегодня?', 'Проверить долги');
+    if (loadSignals?.briefingLines?.length) lines.push(...loadSignals.briefingLines);
+    suggestions.push(...(loadSignals?.suggestions || []), 'Показать расписание', 'Что важно сегодня?');
   }
 
   if (unreadNotifs > 0 && role !== 'admin' && role !== 'reception') {
@@ -313,7 +340,13 @@ export async function buildJarvisBriefing(opts: {
 
   const closing =
     role === 'owner' || role === 'director'
-      ? 'Я на пульсе клиники. Скажите, с чего начать — или выберите действие ниже.'
+      ? (loadSignals?.briefingLines?.length
+        ? 'Уже нашёл точки загрузки в CRM — можно сразу обзванивать или открыть раздел ниже.'
+        : 'Я на пульсе клиники. Скажите, с чего начать — или выберите действие ниже.')
+      : role === 'admin' || role === 'reception'
+        ? (loadSignals?.briefingLines?.length
+          ? 'Администратору: сверху — конкретные пациенты и слоты из CRM. Не жду отдельный запрос.'
+          : 'Готов выполнить команду. Что делаем первым?')
       : role === 'doctor'
         ? 'Готов вести приём с вами: карта, план, расписание — одной фразой.'
         : 'Готов выполнить команду. Что делаем первым?';
@@ -321,7 +354,7 @@ export async function buildJarvisBriefing(opts: {
   return {
     role,
     message: [...header, ...lines, '', closing].join('\n'),
-    suggestions: suggestions.slice(0, 3),
+    suggestions: [...new Set(suggestions)].slice(0, 3),
     payload: {
       timeZone,
       apptsToday,
@@ -336,6 +369,7 @@ export async function buildJarvisBriefing(opts: {
       unreadNotifs,
       courses,
       dentCash,
+      clinicLoad: loadSignals?.payload || null,
     },
   };
 }
