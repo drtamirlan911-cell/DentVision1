@@ -441,13 +441,11 @@ export default function Patients() {
           title="Пациенты"
           subtitle={`База пациентов клиники · ${patients.length} чел.`}
           icon={<User size={20} />}
-          actions={
-            {!readOnly && (
-              <Button icon={<UserPlus size={16} />} onClick={openNew}>
-                Новый пациент
-              </Button>
-            )}
-          }
+          actions={!readOnly ? (
+            <Button icon={<UserPlus size={16} />} onClick={openNew}>
+              Новый пациент
+            </Button>
+          ) : undefined}
         />
 
         <div className="flex flex-wrap gap-2 mb-5 items-center">
