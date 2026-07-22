@@ -98,6 +98,7 @@ lecturerRouter.post('/courses', async (req: AuthRequest, res) => {
         category: b.category || null,
         price: b.price !== undefined ? Number(b.price) : null,
         duration: b.duration || null,
+        imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
         lecturerId: req.user!.lecturerId, // forced to own lecturer
         academyId: lecturer?.academyId || null,
       },
@@ -125,6 +126,9 @@ lecturerRouter.patch('/courses/:id', async (req: AuthRequest, res) => {
       ...(b.category !== undefined && { category: b.category || null }),
       ...(b.price !== undefined && { price: Number(b.price) }),
       ...(b.duration !== undefined && { duration: b.duration || null }),
+      ...(b.imageUrl !== undefined && {
+        imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
+      }),
     },
   });
   return res.json({ ok: true, data: course } satisfies ApiResponse);

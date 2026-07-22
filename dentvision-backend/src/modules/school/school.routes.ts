@@ -279,11 +279,52 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
       return;
     }
 
+    const price = Number(course.price || 0);
+    if (price > 0) {
+      const { providers } = await import('../payments/kaspi.provider.js');
+      const { tengeToMinor, serializeBigInt } = await import('../../lib/money.js');
+      const amountMinor = tengeToMinor(price);
+      const gateway = providers.kaspi_qr;
+      const created = await gateway.createPayment({ amountMinor, refId: courseId });
+      const payment = await prisma.payment.create({
+        data: {
+          provider: 'kaspi_qr',
+          externalId: created.externalId,
+          amount: amountMinor,
+          status: 'pending',
+          refType: 'enrollment',
+          refId: courseId,
+          domain: 'school',
+          sellerType: course.lecturerId ? 'LECTURER' : course.academyId ? 'ACADEMY' : null,
+          sellerId: course.lecturerId || course.academyId || null,
+          meta: {
+            qr: created.qr,
+            userId,
+            courseId,
+            courseTitle: course.title,
+          },
+        },
+      });
+      res.status(201).json({
+        ok: true,
+        data: {
+          requiresPayment: true,
+          enrolled: false,
+          payment: { ...serializeBigInt(payment), qr: created.qr },
+          course: { id: course.id, title: course.title, price },
+        },
+      });
+      return;
+    }
+
     const enrollment = await prisma.schoolEnrollment.create({
       data: { id: uid(), userId, courseId },
       include: { course: true },
     });
-    res.status(201).json({ ok: true, data: enrollment });
+    res.status(201).json({
+      ok: true,
+      data: { ...enrollment, requiresPayment: false, enrolled: true },
+    });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to create enrollment' });
   }
@@ -378,7 +419,7 @@ schoolRouter.get('/office-courses', async (_req, res) => {
   res.json({ ok: true, data: upcomingOfficeCourses() });
 });
 
-/** Soft registration / purchase intent for webinars & office seats (commerce stub). */
+/** Paid registration for webinars & office seats via Kaspi QR. */
 schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, res) => {
   try {
     const { productId, format } = req.body || {};
@@ -402,6 +443,53 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
       res.status(409).json({ ok: false, error: 'Мест больше нет' });
       return;
     }
+
+    const price = Number(product.price || 0);
+    if (price <= 0) {
+      res.status(201).json({
+        ok: true,
+        data: {
+          registrationId: `reg-${productId}-${req.user!.id.slice(0, 8)}`,
+          productId: product.id,
+          format: product.format,
+          title: product.title,
+          price: 0,
+          currency: product.currency || 'KZT',
+          seatsLeft: seatsLeft - 1,
+          status: 'confirmed',
+          requiresPayment: false,
+          message: 'Место подтверждено бесплатно.',
+        },
+      });
+      return;
+    }
+
+    const { providers } = await import('../payments/kaspi.provider.js');
+    const { tengeToMinor, serializeBigInt } = await import('../../lib/money.js');
+    const amountMinor = tengeToMinor(price);
+    const gateway = providers.kaspi_qr;
+    const created = await gateway.createPayment({ amountMinor, refId: productId });
+    const payment = await prisma.payment.create({
+      data: {
+        provider: 'kaspi_qr',
+        externalId: created.externalId,
+        amount: amountMinor,
+        status: 'pending',
+        refType: 'academy_event',
+        refId: productId,
+        domain: 'school',
+        sellerType: 'PLATFORM',
+        sellerId: 'system',
+        meta: {
+          qr: created.qr,
+          userId: req.user!.id,
+          productId: product.id,
+          format: product.format,
+          title: product.title,
+        },
+      },
+    });
+
     res.status(201).json({
       ok: true,
       data: {
@@ -409,14 +497,13 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
         productId: product.id,
         format: product.format,
         title: product.title,
-        price: product.price,
-        currency: product.currency,
+        price,
+        currency: product.currency || 'KZT',
         seatsLeft: seatsLeft - 1,
-        status: 'reserved',
-        message:
-          product.format === 'office'
-            ? 'Место на офис-курсе забронировано. Оплата и чек-ин — у организатора.'
-            : 'Место на вебинаре забронировано. Ссылка придёт перед стартом.',
+        status: 'awaiting_payment',
+        requiresPayment: true,
+        payment: { ...serializeBigInt(payment), qr: created.qr },
+        message: 'Оплатите Kaspi QR, чтобы подтвердить место.',
       },
     });
   } catch {

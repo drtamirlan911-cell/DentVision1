@@ -36,6 +36,8 @@ interface ShopProductItem {
   supplier_status?: string;
   own_brand?: boolean;
   created_at?: string;
+  image_url?: string | null;
+  imageUrl?: string | null;
 }
 
 interface ShopCategory {
@@ -424,10 +426,19 @@ export default function Shop() {
                 key={product.id}
                 variants={scaleIn}
                 whileHover={{ y: -4 }}
+                onClick={() => navigate(`/shop/${product.id}`)}
                 className="rounded-xl border border-[var(--border-subtle)] bg-[var(--card)] overflow-hidden cursor-pointer transition-all duration-250 hover:shadow-[0_8px_30px_rgba(201,169,110,0.08)]"
               >
-                <div className="relative h-40 bg-gradient-to-br from-[var(--sapphire)]/20 to-[var(--gold)]/10 flex items-center justify-center">
-                  <Package size={40} className="text-[var(--gold)]/40" />
+                <div className="relative h-40 bg-gradient-to-br from-[var(--sapphire)]/20 to-[var(--gold)]/10 flex items-center justify-center overflow-hidden">
+                  {(product.image_url || product.imageUrl) ? (
+                    <img
+                      src={product.image_url || product.imageUrl || ''}
+                      alt={product.name}
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Package size={40} className="text-[var(--gold)]/40" />
+                  )}
                   {product.old_price && (
                     <div className="absolute top-2.5 left-2.5 bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
                       -{Math.round((1 - product.price / product.old_price) * 100)}%
@@ -461,7 +472,7 @@ export default function Shop() {
                   )}
                 </div>
 
-                <div className="p-3.5" onClick={() => navigate(`/shop/${product.id}`)}>
+                <div className="p-3.5">
                   <div className="text-[10px] text-[var(--gold)] font-semibold mb-1 uppercase tracking-wide">
                     {product.brand || product.supplier_name || 'Поставщик'} · {product.category_name}
                   </div>
@@ -502,6 +513,7 @@ export default function Shop() {
                           name: product.name,
                           brand: product.brand,
                           price: product.price,
+                          imageUrl: product.image_url || product.imageUrl || null,
                           supplierId: product.supplier_id || null,
                           category: product.category_name || null,
                           ownBrand: !!product.own_brand,

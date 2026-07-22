@@ -1059,6 +1059,12 @@ export async function getShopSuppliers(): Promise<any> {
   return collection(await apiRequest('/api/shop/suppliers'));
 }
 export async function createShopOrder(data: any): Promise<any> { return apiRequest('/api/shop/orders', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getPayment(paymentId: string): Promise<any> {
+  return apiRequest(`/api/payments/${paymentId}`);
+}
+export async function confirmPayment(paymentId: string): Promise<any> {
+  return apiRequest(`/api/payments/${paymentId}/confirm`, { method: 'POST', body: JSON.stringify({}) });
+}
 export async function getShopOrders(clinicId: string): Promise<any> { return collection(await apiRequest('/api/shop/orders')); }
 export async function createShopReview(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
 export async function toggleShopFavorite(data: any): Promise<any> { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }

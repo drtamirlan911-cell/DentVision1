@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   GraduationCap, Search, Star, Users, Clock, BookOpen, Play, Brain,
   Stethoscope, Award, Building2, Radio, Briefcase, Sparkles, CheckCircle2,
-  Microscope, FileText, ArrowRight, MapPin, Calendar,
+  Microscope, FileText, ArrowRight, MapPin, Calendar, QrCode, CreditCard,
 } from 'lucide-react'
 import * as api from '@/utils/api'
 import { useAuth } from '@/store/auth.store'
@@ -57,6 +57,8 @@ export default function School() {
   const [certs, setCerts] = useState<any[]>([])
   const [portfolio, setPortfolio] = useState<any>(null)
   const [buyingId, setBuyingId] = useState<string | null>(null)
+  const [pendingPay, setPendingPay] = useState<any>(null)
+  const [payBusy, setPayBusy] = useState(false)
 
   const [hwOpen, setHwOpen] = useState(false)
   const [hwForm, setHwForm] = useState({ title: '', notes: '', category: 'Эндодонтия', imageCount: '3' })
@@ -163,11 +165,34 @@ export default function School() {
     setBuyingId(productId)
     try {
       const res = await api.registerAcademyProduct({ productId, format })
-      toast.success(res.message || 'Место забронировано')
+      if (res?.requiresPayment && res?.payment?.id) {
+        setPendingPay({ ...res.payment, title: res.title, price: res.price })
+        toast.success('Счёт создан — оплатите Kaspi QR')
+      } else {
+        toast.success(res.message || 'Место подтверждено')
+      }
     } catch (e: any) {
       toast.error(e?.message || 'Не удалось забронировать')
     } finally {
       setBuyingId(null)
+    }
+  }
+
+  const confirmEventPay = async () => {
+    if (!pendingPay?.id) return
+    setPayBusy(true)
+    try {
+      const res = await api.confirmPayment(pendingPay.id)
+      if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
+        setPendingPay(null)
+        toast.success('Оплата прошла — место подтверждено')
+      } else {
+        toast.info('Оплата ещё не подтверждена')
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Оплата не подтверждена')
+    } finally {
+      setPayBusy(false)
     }
   }
 
@@ -210,6 +235,31 @@ export default function School() {
           </div>
         }
       />
+
+      {pendingPay && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 text-[#C9A96E]">
+              <QrCode size={16} />
+              <p className="text-sm font-semibold m-0">Оплата: {pendingPay.title || 'Academy OS'}</p>
+            </div>
+            {pendingPay.price != null && (
+              <p className="text-xs text-[#7A8899] m-0">Сумма: {fmtPrice(pendingPay.price)}</p>
+            )}
+            {pendingPay.qr && (
+              <a href={pendingPay.qr} target="_blank" rel="noreferrer" className="text-sm text-[#C9A96E] underline break-all">
+                {pendingPay.qr}
+              </a>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" icon={<CreditCard size={14} />} loading={payBusy} onClick={confirmEventPay}>
+                Проверить оплату
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setPendingPay(null)}>Отмена</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard label="Вебинары" value={kpis.webinars || webinars.length} icon={<Radio size={16} />} />
@@ -587,20 +637,30 @@ function CommerceCard({
 }
 
 function CourseCard({ course, onOpen }: { course: any; onOpen: () => void }) {
+  const cover = course.imageUrl || course.image_url
+  const price = course.price != null ? Number(course.price) : null
   return (
     <motion.div variants={fadeUp} initial="hidden" animate="show">
       <Card className="cursor-pointer hover:border-[#C9A96E]/30 transition-colors" onClick={onOpen}>
         <CardContent className="p-4 space-y-2">
-          <div className="h-24 rounded-lg bg-gradient-to-br from-[#C9A96E]/20 to-[#1a2a40] flex items-center justify-center">
-            <Play size={22} className="text-[#C9A96E]/70" />
+          <div className="h-24 rounded-lg bg-gradient-to-br from-[#C9A96E]/20 to-[#1a2a40] flex items-center justify-center overflow-hidden relative">
+            {cover ? (
+              <img src={cover} alt={course.title} className="absolute inset-0 h-full w-full object-cover" />
+            ) : (
+              <Play size={22} className="text-[#C9A96E]/70" />
+            )}
           </div>
           <Badge size="xs">{course.category || 'Трек'}</Badge>
           <p className="text-sm font-semibold text-white line-clamp-2">{course.title}</p>
           <p className="text-xs text-[#7A8899] truncate">{course.instructor || course.academyName || 'Academy OS'}</p>
-          <div className="flex items-center gap-3 text-[11px] text-[#7A8899]">
-            <span className="flex items-center gap-1"><Star size={11} className="text-[#C9A96E]" /> {course.rating || 4.8}</span>
-            <span className="flex items-center gap-1"><Clock size={11} /> {course.duration_hours || course.lesson_count || 0} ч</span>
-            <span className="flex items-center gap-1"><FileText size={11} /> {course.lesson_count || 0} ур.</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 text-[11px] text-[#7A8899]">
+              <span className="flex items-center gap-1"><Star size={11} className="text-[#C9A96E]" /> {course.rating || 4.8}</span>
+              <span className="flex items-center gap-1"><Clock size={11} /> {course.duration_hours || course.lesson_count || 0} ч</span>
+            </div>
+            <span className="text-xs font-semibold text-[#C9A96E]">
+              {price && price > 0 ? fmtPrice(price) : 'Бесплатно'}
+            </span>
           </div>
         </CardContent>
       </Card>

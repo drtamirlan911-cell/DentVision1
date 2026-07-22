@@ -297,6 +297,7 @@ supplierWorkspaceRouter.post('/products', requireSupplierWrite, async (req: Auth
         price: Number(b.price),
         stock: Number(b.stock) || 0,
         description: b.description || null,
+        imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
         manufacturer: b.manufacturer || null,
         country: b.country || null,
         compatibility: b.compatibility || null,
@@ -329,6 +330,9 @@ supplierWorkspaceRouter.patch('/products/:id', requireSupplierWrite, async (req:
       ...(b.category !== undefined && { category: b.category || null }),
       ...(b.ownBrand !== undefined && { ownBrand: !!b.ownBrand }),
       ...(b.brand !== undefined && { brand: b.brand || null }),
+      ...(b.imageUrl !== undefined && {
+        imageUrl: typeof b.imageUrl === 'string' && b.imageUrl.trim() ? b.imageUrl.trim() : null,
+      }),
     },
   });
   return res.json({ ok: true, data: product } satisfies ApiResponse);
