@@ -331,6 +331,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       }
       historyRef.current = [{ role: 'assistant', content: reply }]
     } catch {
+      if (!stillCurrent()) return
       const fallback = isGuest ? buildGuestGreeting() : buildGreeting(user, clinic, [])
       setMessages([{ id: 'greeting', role: 'assistant', content: fallback, timestamp: new Date() }])
       historyRef.current = [{ role: 'assistant', content: fallback }]
