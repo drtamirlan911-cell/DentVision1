@@ -93,7 +93,7 @@ async function refreshAccessToken(): Promise<string> {
 }
 
 // ─── Core API Request ───
-function clientTimezone(): string | null {
+function clientTimezoneHeader(): string | null {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return tz && typeof tz === 'string' ? tz : null;
@@ -118,9 +118,8 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
     } catch { /* ignore */ }
   }
 
-  // Do NOT send X-Client-Timezone as a custom header — older API CORS
-  // allow-lists reject it and break shop/school/community for everyone.
-  // AI endpoints receive timezone via JSON body or ?timezone= query.
+  const tz = clientTimezoneHeader();
+  if (tz) headers['X-Client-Timezone'] = tz;
 
   const finalOptions: RequestInit = { ...options, headers };
   headers['Content-Type'] = 'application/json';
@@ -1510,7 +1509,7 @@ export async function aiChat(
       message,
       history: history.slice(-20),
       sessionId,
-      timezone: clientTimezone(),
+      timezone: clientTimezoneHeader(),
     }),
   });
 
@@ -1600,7 +1599,8 @@ async function aiChatSSE(
       }
     } catch { /* ignore */ }
   }
-  const tz = clientTimezone();
+  const tz = clientTimezoneHeader();
+  if (tz) headers['X-Client-Timezone'] = tz;
 
   const sessionId = opts?.sessionId || getAiSessionId(opts?.userId);
   const res = await fetch(`${API_URL}/api/ai/query/stream`, {

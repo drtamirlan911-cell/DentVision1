@@ -840,7 +840,6 @@ function buildGuestGreeting() {
 }
 
 function buildGreeting(u: any, c: any, alerts: any[]) {
-  if (!u?.id) return buildGuestGreeting()
   const greeting = timeGreetingInTz(new Date(), detectUserTimeZone())
   const name = u?.name?.split(' ')[0] || u?.firstName || u?.login || 'коллега'
   const role = (u?.role || '').toLowerCase()
