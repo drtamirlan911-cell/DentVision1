@@ -35,24 +35,36 @@ export interface ExecutorCallbacks {
 
 const NAVIGATION_ACTIONS: Record<string, string> = {
   OpenSchedule: '/crm/schedule',
+  OPEN_SCHEDULE: '/crm/schedule',
   OpenPatients: '/crm/patients',
+  OPEN_PATIENTS: '/crm/patients',
   OpenPatient: '/crm/patients',
   OpenMedicalCard: '/crm/medical-card',
+  OPEN_MEDICAL_CARD: '/crm/medical-card',
   OpenCashier: '/crm/finance',
   OpenFinance: '/crm/finance',
+  OPEN_FINANCE: '/crm/finance',
   OpenLab: '/crm/lab',
+  OPEN_LABORATORY: '/crm/lab',
   OpenInventory: '/crm/inventory',
+  OPEN_INVENTORY: '/crm/inventory',
   OpenStaff: '/crm/staff',
   OpenVisits: '/crm/visits',
   OpenDocuments: '/crm/documents',
+  OPEN_DOCUMENTS: '/crm/documents',
   OpenReminders: '/crm/reminders',
   OpenDentalChart: '/crm/dental-chart',
   OpenTreatmentPlans: '/crm/treatment-plans',
   OpenPriceList: '/crm/pricelist',
   OpenPromotions: '/crm/promotions',
   OpenShop: '/shop',
+  OPEN_SHOP: '/shop',
   OpenSchool: '/school',
+  OPEN_SCHOOL: '/school',
   OpenAnalytics: '/analytics',
+  OPEN_ANALYTICS: '/analytics',
+  OpenCRM: '/crm',
+  OPEN_CRM: '/crm',
   OpenProfile: '/profile',
   OpenSettings: '/settings',
   OpenMyClinics: '/my-clinics',
@@ -75,6 +87,15 @@ export function useAIExecutor() {
     }
 
     try {
+      // Pure navigation intents — resolve locally so OPEN_SCHEDULE / OpenSchedule both work
+      // without a round-trip that can fail and leave the chat button dead.
+      const localPath = NAVIGATION_ACTIONS[action.type];
+      if (localPath) {
+        callbacks.onNavigate?.(localPath);
+        navigate(localPath);
+        return { type: 'navigate', path: localPath, label: action.label };
+      }
+
       const result = await aiAction(action.type, action.params || {});
 
       switch (result.type) {

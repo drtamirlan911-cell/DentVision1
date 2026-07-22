@@ -540,7 +540,21 @@ const result = await executeAction(
 
           <AnimatePresence>
             {messages.map((msg) => (
-              <ChatMessage key={msg.id} msg={msg as any} />
+              <ChatMessage
+                key={msg.id}
+                msg={msg as any}
+                onAction={(q) => { void handleSend(q) }}
+                onExecuteAction={(a) => {
+                  const type = a.type || a.action || ''
+                  const path = NAV_ACTIONS[type]
+                  if (path) {
+                    navigate(path)
+                    onNavigate?.(path)
+                    return
+                  }
+                  void handleSend(a.label)
+                }}
+              />
             ))}
           </AnimatePresence>
 
@@ -744,26 +758,38 @@ function getDefaultSuggestions(u: any, focusType: string) {
 
 const NAV_ACTIONS: Record<string, string> = {
   OpenSchedule: '/crm/schedule',
+  OPEN_SCHEDULE: '/crm/schedule',
   OpenPatients: '/crm/patients',
+  OPEN_PATIENTS: '/crm/patients',
   OpenCashier: '/crm/finance',
   OpenFinance: '/crm/finance',
+  OPEN_FINANCE: '/crm/finance',
   OpenLab: '/crm/lab',
+  OPEN_LABORATORY: '/crm/lab',
   OpenShop: '/shop',
+  OPEN_SHOP: '/shop',
   OpenSchool: '/school',
+  OPEN_SCHOOL: '/school',
   OpenAnalytics: '/analytics',
+  OPEN_ANALYTICS: '/analytics',
   OpenDocuments: '/crm/documents',
+  OPEN_DOCUMENTS: '/crm/documents',
   OpenReminders: '/crm/reminders',
   OpenSettings: '/settings',
   OpenProfile: '/profile',
   OpenMedicalCard: '/crm/medical-card',
+  OPEN_MEDICAL_CARD: '/crm/medical-card',
   OpenVisits: '/crm/visits',
   OpenInventory: '/crm/inventory',
+  OPEN_INVENTORY: '/crm/inventory',
   OpenStaff: '/crm/staff',
   OpenPatient: '/crm/patients',
   OpenDentalChart: '/crm/dental-chart',
   OpenTreatmentPlans: '/crm/treatment-plans',
   OpenJobs: '/jobs',
   OpenCommunity: '/community',
+  OpenCRM: '/crm',
+  OPEN_CRM: '/crm',
 }
 
 export type { AIWorkspaceIndexProps }

@@ -142,7 +142,15 @@ function renderContent(content: string) {
   });
 }
 
-export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query: string) => void }) {
+export function ChatMessage({
+  msg,
+  onAction,
+  onExecuteAction,
+}: {
+  msg: ChatMsg;
+  onAction?: (query: string) => void;
+  onExecuteAction?: (action: { action?: string; type?: string; label: string; params?: Record<string, unknown> }) => void;
+}) {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
 
@@ -297,7 +305,10 @@ export function ChatMessage({ msg, onAction }: { msg: ChatMsg; onAction?: (query
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.2 + i * 0.05, type: 'spring', stiffness: 400, damping: 20 }}
-                    onClick={() => onAction?.(label)}
+                    onClick={() => {
+                      if (onExecuteAction) onExecuteAction(a);
+                      else onAction?.(label);
+                    }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-dv-gold/8 text-dv-gold border border-dv-gold/15 hover:bg-dv-gold/15 hover:border-dv-gold/30 transition-all"
                     whileHover={{ scale: 1.03, y: -1 }}
                     whileTap={{ scale: 0.97 }}
