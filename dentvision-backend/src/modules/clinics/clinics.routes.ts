@@ -7,6 +7,7 @@ import { hashPassword } from '../../lib/password.js';
 import {
   canManageClinicSettings,
   mergeClinicSettings,
+  publicClinicSettings,
   type ClinicSettingsPayload,
 } from './clinicSettings.js';
 import { guardUserCreate } from '../../middleware/planGate.js';
@@ -123,7 +124,7 @@ clinicsRouter.get('/:id', authenticate, async (req, res) => {
       ok: true,
       data: {
         ...clinic,
-        settings: mergeClinicSettings(clinic.settings),
+        settings: publicClinicSettings(clinic.settings, clinic.id),
       },
     };
 
@@ -214,7 +215,7 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
 
     const nextSettings =
       settings !== undefined
-        ? mergeClinicSettings({ ...mergeClinicSettings(existing.settings), ...settings })
+        ? mergeClinicSettings(existing.settings, settings)
         : undefined;
 
     const clinic = await prisma.clinic.update({
@@ -233,7 +234,7 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       ok: true,
       data: {
         ...clinic,
-        settings: mergeClinicSettings(clinic.settings),
+        settings: publicClinicSettings(clinic.settings, clinic.id),
       },
     };
 
@@ -281,7 +282,7 @@ clinicsRouter.get('/:id/settings', authenticate, async (req: AuthRequest, res) =
           logo: clinic.logo,
           plan: clinic.plan,
         },
-        settings: mergeClinicSettings(clinic.settings),
+        settings: publicClinicSettings(clinic.settings, clinic.id),
       },
     } satisfies ApiResponse);
   } catch (error) {
@@ -312,7 +313,7 @@ clinicsRouter.put('/:id/settings', authenticate, async (req: AuthRequest, res) =
     }
 
     const body = (req.body || {}) as ClinicSettingsPayload;
-    const nextSettings = mergeClinicSettings({ ...mergeClinicSettings(existing.settings), ...body });
+    const nextSettings = mergeClinicSettings(existing.settings, body);
 
     const clinic = await prisma.clinic.update({
       where: { id },
@@ -332,7 +333,7 @@ clinicsRouter.put('/:id/settings', authenticate, async (req: AuthRequest, res) =
           logo: clinic.logo,
           plan: clinic.plan,
         },
-        settings: mergeClinicSettings(clinic.settings),
+        settings: publicClinicSettings(clinic.settings, clinic.id),
       },
     } satisfies ApiResponse);
   } catch (error) {
