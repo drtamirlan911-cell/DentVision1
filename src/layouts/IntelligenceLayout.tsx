@@ -350,7 +350,7 @@ export const IntelligenceLayout: React.FC = () => {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="dv-safe-header sticky top-0 z-30 flex items-center justify-between gap-2 min-h-[calc(var(--dv-topbar-height)+var(--dv-safe-top))] px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0 min-w-0 overflow-hidden">
+        <header className="dv-safe-header sticky top-0 z-30 flex items-center justify-between gap-2 min-h-[calc(var(--dv-topbar-height)+var(--dv-safe-top))] px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0 min-w-0 overflow-visible">
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 overflow-hidden">
             <button
               onClick={toggleSidebar}
