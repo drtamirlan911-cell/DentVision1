@@ -93,7 +93,7 @@ async function refreshAccessToken(): Promise<string> {
 }
 
 // ─── Core API Request ───
-function clientTimezoneHeader(): string | null {
+function clientTimezone(): string | null {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return tz && typeof tz === 'string' ? tz : null;
@@ -118,8 +118,9 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
     } catch { /* ignore */ }
   }
 
-  const tz = clientTimezoneHeader();
-  if (tz) headers['X-Client-Timezone'] = tz;
+  // Do NOT send X-Client-Timezone as a custom header — older API CORS
+  // allow-lists reject it and break shop/school/community for everyone.
+  // AI endpoints receive timezone via JSON body or ?timezone= query.
 
   const finalOptions: RequestInit = { ...options, headers };
   headers['Content-Type'] = 'application/json';
@@ -1509,7 +1510,7 @@ export async function aiChat(
       message,
       history: history.slice(-20),
       sessionId,
-      timezone: clientTimezoneHeader(),
+      timezone: clientTimezone(),
     }),
   });
 
@@ -1599,8 +1600,7 @@ async function aiChatSSE(
       }
     } catch { /* ignore */ }
   }
-  const tz = clientTimezoneHeader();
-  if (tz) headers['X-Client-Timezone'] = tz;
+  const tz = clientTimezone();
 
   const sessionId = opts?.sessionId || getAiSessionId(opts?.userId);
   const res = await fetch(`${API_URL}/api/ai/query/stream`, {
@@ -1700,7 +1700,9 @@ export async function aiDigitalTwin(): Promise<any> {
 
 /** Jarvis role briefing on login / «Что важно сегодня?» */
 export async function aiBriefing(): Promise<AIChatResponse> {
-  const res = await apiRequest('/api/ai/briefing');
+  const tz = clientTimezone();
+  const qs = tz ? `?timezone=${encodeURIComponent(tz)}` : '';
+  const res = await apiRequest(`/api/ai/briefing${qs}`);
   const data = res?.data || res || {};
   return {
     reply: data.reply || data.message || '',
