@@ -40,7 +40,14 @@ export function BottomNav() {
   }, [isAuthenticated, isGuest, navigate, setRegistrationModal]);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-surface-1/95 backdrop-blur-xl border-t border-bdr-subtle" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 bg-surface-1/95 backdrop-blur-xl border-t border-bdr-subtle"
+      style={{
+        paddingBottom: 'var(--dv-safe-bottom)',
+        paddingLeft: 'var(--dv-safe-left)',
+        paddingRight: 'var(--dv-safe-right)',
+      }}
+    >
       <div className="flex items-center justify-around h-[var(--dv-bottomnav-height,3.5rem)]">
         {ITEMS.map((item) => {
           const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');

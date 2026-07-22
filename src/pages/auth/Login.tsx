@@ -112,7 +112,7 @@ export default function Login() {
   const displayError = error || localError
 
   return (
-    <div className="relative min-h-screen bg-surface-0 flex items-center justify-center p-4 sm:p-5 overflow-hidden">
+    <div className="relative min-h-screen min-h-[100dvh] bg-surface-0 flex items-center justify-center p-4 sm:p-5 overflow-hidden" style={{ paddingTop: 'max(1rem, var(--dv-safe-top, 0px))', paddingBottom: 'max(1rem, var(--dv-safe-bottom, 0px))' }}>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute -top-48 -right-48 w-[600px] h-[600px] rounded-full"

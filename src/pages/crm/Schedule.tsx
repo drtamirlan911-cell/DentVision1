@@ -737,7 +737,7 @@ export default function Schedule() {
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="dv-page max-w-7xl mx-auto space-y-4 py-4 md:py-6">
       {toast && (
-        <div className={cn('fixed bottom-20 md:bottom-6 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-fade-up max-w-[calc(100vw-2rem)]',
+        <div className={cn('fixed dv-float-above-nav right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-fade-up max-w-[calc(100vw-2rem)]',
           toast.type === 'success' && 'bg-success text-white',
           toast.type === 'error' && 'bg-error text-white',
           toast.type === 'warning' && 'bg-warning text-surface-0',
@@ -869,8 +869,8 @@ export default function Schedule() {
           </motion.div>
 
           {periodMode === 'week' ? (
-            <motion.div variants={fadeUp} className="overflow-x-auto overscroll-x-contain rounded-xl">
-              <div className="grid grid-cols-7 gap-2 min-w-[640px] md:min-w-[700px]">
+            <motion.div variants={fadeUp} className="dv-scroll-x overflow-x-auto overscroll-x-contain rounded-xl">
+              <div className="grid grid-cols-7 gap-2 min-w-[560px] sm:min-w-[640px] md:min-w-[700px]">
                 {weekDates.map((d, i) => {
                   const appts = weekApptsByDate[d] || []
                   const [, mo, dd] = d.split('-')

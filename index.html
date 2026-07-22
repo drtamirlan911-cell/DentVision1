@@ -3,28 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#080F1A" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
     <title>DentVision — Стоматологическая SuperApp</title>
     <script>
-      // Apply saved theme before paint to avoid flash
+      // Theme + compact shell hint before paint (avoids flash / wrong chrome on landscape phones)
       (function () {
         try {
+          var root = document.documentElement;
           var raw = localStorage.getItem('dv_ui_prefs');
           var dark = true;
           if (raw) {
             var p = JSON.parse(raw);
             if (p && p.darkMode === false) dark = false;
           }
-          var root = document.documentElement;
           root.classList.toggle('dark', dark);
           root.classList.toggle('light', !dark);
           root.style.colorScheme = dark ? 'dark' : 'light';
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute('content', dark ? '#080F1A' : '#F0F4F8');
-        } catch (e) { /* keep default dark */ }
+          var compact = window.innerWidth < 768 || window.innerHeight < 520;
+          root.dataset.shell = compact ? 'compact' : 'wide';
+        } catch (e) { /* keep defaults */ }
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

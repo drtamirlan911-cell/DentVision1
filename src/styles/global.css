@@ -27,10 +27,29 @@
     --dv-glass: rgba(255, 255, 255, 0.03);
     --dv-glass-strong: rgba(255, 255, 255, 0.06);
     --dv-radius: 0.75rem;
-    --dv-sidebar-width: 17rem;
+    --dv-sidebar-width: 15rem;
     --dv-sidebar-collapsed: 4.5rem;
     --dv-topbar-height: 3.5rem;
     --dv-bottomnav-height: 3.5rem;
+    --dv-safe-top: env(safe-area-inset-top, 0px);
+    --dv-safe-right: env(safe-area-inset-right, 0px);
+    --dv-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --dv-safe-left: env(safe-area-inset-left, 0px);
+    --dv-float-bottom: 1.5rem;
+    --dv-chrome-bottom: 0px;
+  }
+
+  html[data-shell='compact'] {
+    --dv-topbar-height: 3rem;
+    --dv-float-bottom: calc(var(--dv-bottomnav-height) + var(--dv-safe-bottom) + 0.75rem);
+    --dv-chrome-bottom: calc(var(--dv-bottomnav-height) + var(--dv-safe-bottom));
+  }
+
+  @media (max-height: 420px) {
+    html[data-shell='compact'] {
+      --dv-topbar-height: 2.75rem;
+      --dv-bottomnav-height: 3rem;
+    }
   }
 
   html.light {
@@ -71,9 +90,7 @@
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
-    /* Prevent accidental page pan/zoom on mobile Chrome */
     overscroll-behavior-x: none;
-    touch-action: pan-y;
   }
 
   html.light {
@@ -103,13 +120,13 @@
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: max(1rem, var(--dv-safe-left));
+    padding-right: max(1rem, var(--dv-safe-right));
   }
   @media (min-width: 768px) {
     .dv-page {
-      padding-left: 1.5rem;
-      padding-right: 1.5rem;
+      padding-left: max(1.5rem, var(--dv-safe-left));
+      padding-right: max(1.5rem, var(--dv-safe-right));
     }
   }
 
@@ -118,6 +135,64 @@
     max-width: 100%;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+
+  .dv-scroll-x {
+    overflow-x: auto;
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+
+  .dv-safe-header {
+    padding-top: var(--dv-safe-top);
+    padding-left: var(--dv-safe-left);
+    padding-right: var(--dv-safe-right);
+  }
+
+  .dv-safe-sidebar {
+    padding-top: var(--dv-safe-top);
+    padding-bottom: var(--dv-safe-bottom);
+  }
+
+  .dv-float-above-nav {
+    bottom: var(--dv-float-bottom) !important;
+  }
+
+  .dv-content-pad-bottom {
+    padding-bottom: 0.5rem;
+  }
+  html[data-shell='compact'] .dv-content-pad-bottom {
+    padding-bottom: calc(var(--dv-bottomnav-height) + var(--dv-safe-bottom) + 0.5rem);
+  }
+
+  .dv-composer-pad {
+    padding-bottom: max(0.75rem, var(--dv-safe-bottom));
+  }
+  html[data-shell='compact'] .dv-composer-pad {
+    padding-bottom: calc(var(--dv-bottomnav-height) + var(--dv-safe-bottom) + 0.5rem);
+  }
+
+  /* Short landscape: tighten AI empty hero so composer stays visible */
+  html[data-shell='compact'] .dv-ai-empty {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+  @media (max-height: 480px) {
+    html[data-shell='compact'] .dv-ai-empty {
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+    html[data-shell='compact'] .dv-ai-empty-icon {
+      width: 3rem;
+      height: 3rem;
+      margin-bottom: 0.75rem;
+    }
+    html[data-shell='compact'] .dv-ai-header-meta {
+      display: none;
+    }
   }
 
   /* Prefer tap without accidental double-tap zoom on controls */
