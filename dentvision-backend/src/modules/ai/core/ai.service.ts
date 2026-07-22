@@ -7,6 +7,7 @@ import { AdminAgent } from '../agents/admin.agent.js';
 import { memoryEngine } from '../memory/memory.engine.js';
 import { contextManager } from './context.manager.js';
 import { prisma } from '../../../lib/prisma.js';
+import { timeGreetingInTz } from '../lib/timezone.js';
 
 export class AIService {
   constructor() {
@@ -310,8 +311,8 @@ function guestSuggestions(): string[] {
 }
 
 function guestWelcomeMessage(): string {
-  const h = new Date().getHours();
-  const greeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
+  // Server runs in UTC; greet by clinic default TZ (KZ).
+  const greeting = timeGreetingInTz();
   return [
     `${greeting}! Я DentVision Intelligence — ваш гид по стоматологической SuperApp.`,
     '',

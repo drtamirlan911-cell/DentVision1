@@ -20,6 +20,8 @@ const querySchema = z.object({
     text: z.string().min(1),
     message: z.string().optional(),
     sessionId: z.string().min(8).optional(),
+    timezone: z.string().min(1).optional(),
+    timeZone: z.string().min(1).optional(),
     history: z.array(z.object({
       role: z.string(),
       content: z.string(),
@@ -142,6 +144,12 @@ async function processQuery(
   history: Array<{ role: string; content: string }>,
 ): Promise<ProcessedResponse> {
   const isGuest = !req.user || req.user.isGuest === true;
+  const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
+  const timeZone = clientTimeZoneFromRequest({
+    headers: req.headers as Record<string, string | string[] | undefined>,
+    body: (req.body || {}) as Record<string, unknown>,
+    query: (req.query || {}) as Record<string, unknown>,
+  });
 
   // Guests get a product concierge (LLM) — not the clinic CRM intent router.
   if (orchestratorEnabled()) {
@@ -157,6 +165,7 @@ async function processQuery(
         sessionId,
         history,
         isGuest,
+        timeZone,
       });
       return {
         message: result.message,
@@ -178,7 +187,7 @@ async function processQuery(
     role: isGuest ? 'guest' : (req.user?.role || 'guest'),
     isGuest,
     sessionId,
-    metadata: {},
+    metadata: { timeZone },
   };
   const response = await aiService.processMessage(text, context, sessionId);
   response.message = (await improveResponseWithLLM(text, response, context)) || response.message;
@@ -467,19 +476,35 @@ aiRouter.post('/session', async (req: AuthRequest, res) => {
 
 aiRouter.post('/greeting', async (req: AuthRequest, res) => {
   try {
-    const hour = new Date().getHours();
-    let greeting = 'Добрый день';
-    if (hour < 6) greeting = 'Доброй ночи';
-    else if (hour < 12) greeting = 'Доброе утро';
-    else if (hour < 18) greeting = 'Добрый день';
-    else greeting = 'Добрый вечер';
+    const {
+      timeGreetingInTz,
+      resolveTimeZone,
+      clientTimeZoneFromRequest,
+      DEFAULT_CLINIC_TZ,
+    } = await import('./lib/timezone.js');
+    const clinicId = req.user?.clinicId || DEMO_CLINIC_ID;
+    let clinicTz: string | null = null;
+    if (clinicId) {
+      const clinic = await prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { settings: true },
+      });
+      const settings = (clinic?.settings || {}) as { timezone?: string };
+      clinicTz = settings.timezone || null;
+    }
+    const clientTz = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      body: (req.body || {}) as Record<string, unknown>,
+    });
+    const timeZone = resolveTimeZone(clientTz, clinicTz, DEFAULT_CLINIC_TZ);
+    const greeting = timeGreetingInTz(new Date(), timeZone);
 
     const alerts = await aiService.getProactiveAlerts({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || DEMO_CLINIC_ID,
+      clinicId,
       role: req.user?.role || 'guest',
       sessionId: crypto.randomUUID(),
-      metadata: {},
+      metadata: { timeZone },
     });
 
     res.json({
@@ -487,6 +512,7 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
       data: {
         greeting: `${greeting}, ${req.user?.firstName || 'Гость'}!`,
         alerts: alerts.slice(0, 3),
+        timeZone,
       },
     });
   } catch (error) {
@@ -525,6 +551,11 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
           select: { name: true },
         }).catch(() => null)
       : null;
+    const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
+    const timeZone = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      query: (req.query || {}) as Record<string, unknown>,
+    });
     const briefing = await buildJarvisBriefing({
       userId: req.user!.id,
       clinicId,
@@ -532,6 +563,7 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
       firstName: req.user!.firstName,
       clinicName: clinic?.name,
       isGuest: false,
+      timeZone,
     });
     res.json({
       ok: true,
@@ -543,6 +575,7 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
         intent: 'MORNING_BRIEFING',
         action: { type: 'SHOW_BRIEFING', payload: briefing.payload },
         role: briefing.role,
+        timeZone: briefing.payload?.timeZone || timeZone,
       },
     });
   } catch (error) {

@@ -16,6 +16,7 @@ import { ContextPanel } from '@/components/intelligence/ContextPanel'
 import { ActionConfirm } from '@/components/intelligence/ActionConfirm'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { trackProductEvent } from '@/utils/analytics'
+import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 
 import type { Message, Action } from '@/store/workspace.store'
 
@@ -821,8 +822,7 @@ function restoreThread(userId: string | undefined): Message[] | null {
 }
 
 function buildGuestGreeting() {
-  const h = new Date().getHours()
-  const greeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
+  const greeting = timeGreetingInTz(new Date(), detectUserTimeZone())
   return [
     `${greeting}. Я DentVision Intelligence — на связи.`,
     '',
@@ -838,8 +838,7 @@ function buildGuestGreeting() {
 }
 
 function buildGreeting(u: any, c: any, alerts: any[]) {
-  const h = new Date().getHours()
-  const greeting = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
+  const greeting = timeGreetingInTz(new Date(), detectUserTimeZone())
   const name = u?.name?.split(' ')[0] || u?.firstName || u?.login || 'коллега'
   const role = (u?.role || '').toLowerCase()
   const clinicName = c?.name || ''
