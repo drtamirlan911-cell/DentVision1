@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Providers } from '@/app/providers';
@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/ds';
 import { AIWorkspaceIndex } from './components/intelligence/AIWorkspaceIndex';
 import IntelligenceLayout from './layouts/IntelligenceLayout';
+import { lazyWithRetry } from '@/utils/lazyWithRetry';
 
 import Login from './pages/auth/Login';
 import ForgotPassword from './pages/auth/ForgotPassword';
@@ -15,61 +16,61 @@ import './styles/global.css';
 import { reportWebVitals } from './utils/vitals';
 
 // Platform pages
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const AITeam = lazy(() => import('./pages/AITeam'));
-const SuperAdmin = lazy(() => import('./pages/SuperAdmin'));
-const HiddenSupplierOps = lazy(() => import('./pages/ops/HiddenSupplierOps'));
-const AuditLog = lazy(() => import('./pages/AuditLog'));
-const Backup = lazy(() => import('./pages/Backup'));
-const Analytics = lazy(() => import('./pages/Analytics'));
-const SettingsPage = lazy(() => import('./pages/Settings'));
-const Profile = lazy(() => import('./pages/Profile'));
-const Jobs = lazy(() => import('./pages/Jobs'));
-const Community = lazy(() => import('./pages/Community'));
-const Demo = lazy(() => import('./pages/Demo'));
-const Pricing = lazy(() => import('./pages/Pricing'));
+const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
+const AITeam = lazyWithRetry(() => import('./pages/AITeam'));
+const SuperAdmin = lazyWithRetry(() => import('./pages/SuperAdmin'));
+const HiddenSupplierOps = lazyWithRetry(() => import('./pages/ops/HiddenSupplierOps'));
+const AuditLog = lazyWithRetry(() => import('./pages/AuditLog'));
+const Backup = lazyWithRetry(() => import('./pages/Backup'));
+const Analytics = lazyWithRetry(() => import('./pages/Analytics'));
+const SettingsPage = lazyWithRetry(() => import('./pages/Settings'));
+const Profile = lazyWithRetry(() => import('./pages/Profile'));
+const Jobs = lazyWithRetry(() => import('./pages/Jobs'));
+const Community = lazyWithRetry(() => import('./pages/Community'));
+const Demo = lazyWithRetry(() => import('./pages/Demo'));
+const Pricing = lazyWithRetry(() => import('./pages/Pricing'));
 
 // CRM sub-app pages
-const Schedule = lazy(() => import('./pages/crm/Schedule'));
-const Patients = lazy(() => import('./pages/crm/Patients'));
-const Cashier = lazy(() => import('./pages/crm/Cashier'));
-const Lab = lazy(() => import('./pages/crm/Lab'));
-const Staff = lazy(() => import('./pages/crm/Staff'));
-const PriceList = lazy(() => import('./pages/crm/PriceList'));
-const Promotions = lazy(() => import('./pages/crm/Promotions'));
-const Inventory = lazy(() => import('./pages/crm/Inventory'));
-const MedicalCard = lazy(() => import('./pages/crm/MedicalCard'));
-const ICD10 = lazy(() => import('./pages/crm/ICD10'));
-const Visits = lazy(() => import('./pages/crm/Visits'));
-const Documents = lazy(() => import('./pages/crm/Documents'));
-const Reminders = lazy(() => import('./pages/crm/Reminders'));
-const DentalChart = lazy(() => import('./pages/crm/DentalChart'));
-const TreatmentPlans = lazy(() => import('./pages/crm/TreatmentPlans'));
-const ClinicSettings = lazy(() => import('./pages/crm/ClinicSettings'));
-const ClinicBilling = lazy(() => import('./pages/crm/ClinicBilling'));
+const Schedule = lazyWithRetry(() => import('./pages/crm/Schedule'));
+const Patients = lazyWithRetry(() => import('./pages/crm/Patients'));
+const Cashier = lazyWithRetry(() => import('./pages/crm/Cashier'));
+const Lab = lazyWithRetry(() => import('./pages/crm/Lab'));
+const Staff = lazyWithRetry(() => import('./pages/crm/Staff'));
+const PriceList = lazyWithRetry(() => import('./pages/crm/PriceList'));
+const Promotions = lazyWithRetry(() => import('./pages/crm/Promotions'));
+const Inventory = lazyWithRetry(() => import('./pages/crm/Inventory'));
+const MedicalCard = lazyWithRetry(() => import('./pages/crm/MedicalCard'));
+const ICD10 = lazyWithRetry(() => import('./pages/crm/ICD10'));
+const Visits = lazyWithRetry(() => import('./pages/crm/Visits'));
+const Documents = lazyWithRetry(() => import('./pages/crm/Documents'));
+const Reminders = lazyWithRetry(() => import('./pages/crm/Reminders'));
+const DentalChart = lazyWithRetry(() => import('./pages/crm/DentalChart'));
+const TreatmentPlans = lazyWithRetry(() => import('./pages/crm/TreatmentPlans'));
+const ClinicSettings = lazyWithRetry(() => import('./pages/crm/ClinicSettings'));
+const ClinicBilling = lazyWithRetry(() => import('./pages/crm/ClinicBilling'));
 
 // Shop sub-app pages
-const Shop = lazy(() => import('./pages/shop/Shop'));
-const ShopProduct = lazy(() => import('./pages/shop/ShopProduct'));
-const ShopCheckout = lazy(() => import('./pages/shop/ShopCheckout'));
-const ShopOrders = lazy(() => import('./pages/shop/ShopOrders'));
-const ShopFavorites = lazy(() => import('./pages/shop/ShopFavorites'));
-const ShopSuppliers = lazy(() => import('./pages/shop/ShopSuppliers'));
+const Shop = lazyWithRetry(() => import('./pages/shop/Shop'));
+const ShopProduct = lazyWithRetry(() => import('./pages/shop/ShopProduct'));
+const ShopCheckout = lazyWithRetry(() => import('./pages/shop/ShopCheckout'));
+const ShopOrders = lazyWithRetry(() => import('./pages/shop/ShopOrders'));
+const ShopFavorites = lazyWithRetry(() => import('./pages/shop/ShopFavorites'));
+const ShopSuppliers = lazyWithRetry(() => import('./pages/shop/ShopSuppliers'));
 
 // School sub-app pages
-const School = lazy(() => import('./pages/school/School'));
-const SchoolCourse = lazy(() => import('./pages/school/SchoolCourse'));
-const SchoolWorkspace = lazy(() => import('./pages/school/SchoolWorkspace'));
+const School = lazyWithRetry(() => import('./pages/school/School'));
+const SchoolCourse = lazyWithRetry(() => import('./pages/school/SchoolCourse'));
+const SchoolWorkspace = lazyWithRetry(() => import('./pages/school/SchoolWorkspace'));
 
 // Platform content-management (superadmin) pages
-const ShopAdmin = lazy(() => import('./pages/admin/ShopAdmin'));
-const SchoolAdmin = lazy(() => import('./pages/admin/SchoolAdmin'));
+const ShopAdmin = lazyWithRetry(() => import('./pages/admin/ShopAdmin'));
+const SchoolAdmin = lazyWithRetry(() => import('./pages/admin/SchoolAdmin'));
 
 // Workspace selection
-const MyClinics = lazy(() => import('./pages/MyClinics'));
+const MyClinics = lazyWithRetry(() => import('./pages/MyClinics'));
 
 // Supplier self-service workspace
-const SupplierWorkspace = lazy(() => import('./pages/supplier/SupplierWorkspace'));
+const SupplierWorkspace = lazyWithRetry(() => import('./pages/supplier/SupplierWorkspace'));
 
 function PageLoader() {
   return (

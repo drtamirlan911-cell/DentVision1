@@ -55,6 +55,24 @@ export class AIService {
     // Save user message
     await this.saveMessage(sessionId, 'user', text);
 
+    // UNKNOWN must never look like a permissions error — handle first.
+    if (intent === Intent.UNKNOWN || !intent) {
+      if (context.isGuest) {
+        const message = guestWelcomeMessage();
+        await this.saveMessage(sessionId, 'assistant', message);
+        return { message, intent: 'GUEST_WELCOME', suggestions: guestSuggestions() };
+      }
+      const message =
+        'На связи. Могу дать сводку дня, открыть расписание, выручку, долги или склад.\n\n' +
+        'Например: «Что важно сегодня?», «Покажи расписание», «Проверь долги».';
+      await this.saveMessage(sessionId, 'assistant', message);
+      return {
+        message,
+        intent: Intent.UNKNOWN,
+        suggestions: ['Что важно сегодня?', 'Показать расписание', 'Показать выручку', 'Проверить долги'],
+      };
+    }
+
     // Navigation intents → return an action the frontend can execute (allowed for all roles)
     const navAction = this.mapNavigationAction(intent);
     if (navAction) {
@@ -81,7 +99,7 @@ export class AIService {
     }
 
     // Greeting / login: Jarvis briefing for clinic users; guests get product concierge.
-    if (context.isGuest && (intent === Intent.UNKNOWN || isGreetingText(text))) {
+    if (context.isGuest && isGreetingText(text)) {
       const message = guestWelcomeMessage();
       await this.saveMessage(sessionId, 'assistant', message);
       return { message, intent: 'GUEST_WELCOME', suggestions: guestSuggestions() };
@@ -95,18 +113,6 @@ export class AIService {
       } catch (e) {
         console.warn('[AI] briefing fallback', e);
       }
-    }
-
-    if (intent === Intent.UNKNOWN) {
-      const message =
-        'На связи. Могу дать сводку дня, открыть расписание, выручку, долги или склад.\n\n' +
-        'Например: «Что важно сегодня?», «Покажи расписание», «Проверь долги».';
-      await this.saveMessage(sessionId, 'assistant', message);
-      return {
-        message,
-        intent,
-        suggestions: ['Что важно сегодня?', 'Показать расписание', 'Показать выручку', 'Проверить долги'],
-      };
     }
 
     // Guests never run clinic CRM agents (empty clinic → zeros / confusing UX).
@@ -187,6 +193,7 @@ export class AIService {
   }
 
   private hasPermission(permissions: string[], intent: string): boolean {
+    if (!intent || intent === 'UNKNOWN' || intent === Intent.UNKNOWN) return true;
     if (permissions.includes('*')) return true;
     const modulesByIntent: Record<string, string[]> = {
       CREATE_APPOINTMENT: ['appointments'],
@@ -212,10 +219,15 @@ export class AIService {
   }
 
   private permissionDenied(intent: string): AIResponse {
+    // Never surface raw intent codes like UNKNOWN — that reads as a broken ACL.
+    const friendly =
+      !intent || intent === 'UNKNOWN'
+        ? 'Не совсем понял запрос. Попробуйте: «Что важно сегодня?», «Покажи расписание» или «Проверь долги».'
+        : 'Для этого действия нужны права сотрудника клиники. Войдите в демо или под своей учётной записью.';
     return {
-      message: `Нет прав для действия: ${intent}`,
-      intent,
-      suggestions: ['Обратитесь к администратору'],
+      message: friendly,
+      intent: intent || 'UNKNOWN',
+      suggestions: ['Что важно сегодня?', 'Открыть демо-клинику', 'Чем полезен DentVision?'],
     };
   }
 

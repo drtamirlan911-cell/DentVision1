@@ -130,7 +130,7 @@ const SECTION_BY_LABEL: Record<string, { key: string; path: string; label: strin
 );
 
 function resolveSection(raw: string): { key: string; path: string; label: string } | null {
-  const t = String(raw || '').trim().replace(/^[•\-\d.)\s]+/, '').replace(/[.。]+$/, '');
+  const t = String(raw || '').trim().replace(/^[•\d.)\s-]+/, '').replace(/[.。]+$/, '');
   if (!t) return null;
   const lower = t.toLowerCase();
   if (SECTION_BY_LABEL[lower]) return SECTION_BY_LABEL[lower];
@@ -167,7 +167,7 @@ function parseSectionOffer(content: string): { intro: string; sections: SectionC
   if (labeled) {
     const tail = labeled[2].trim();
     const parts = tail.includes('\n')
-      ? tail.split(/\n+/).map((l) => l.replace(/^[•\-]\s*/, '').trim())
+      ? tail.split(/\n+/).map((l) => l.replace(/^[•-]\s*/, '').trim())
       : tail.split(/\s*,\s*/);
     const sections = collect(parts);
     if (sections.length >= 2) {
@@ -178,11 +178,11 @@ function parseSectionOffer(content: string): { intro: string; sections: SectionC
   // Bullet / numbered list where most lines are known sections
   const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
   if (lines.length >= 3) {
-    const bulletish = lines.filter((l) => /^[•\-\d.]/.test(l) || resolveSection(l));
+    const bulletish = lines.filter((l) => /^[•\d.-]/.test(l) || resolveSection(l));
     if (bulletish.length >= 2) {
       const sections = collect(bulletish);
       if (sections.length >= 2 && sections.length >= Math.ceil(bulletish.length * 0.6)) {
-        const introLines = lines.filter((l) => !resolveSection(l.replace(/^[•\-\d.)\s]+/, '')));
+        const introLines = lines.filter((l) => !resolveSection(l.replace(/^[•\d.)\s-]+/, '')));
         const intro = (introLines.join('\n').trim() || 'Куда открыть?').replace(/:\s*$/, '');
         return { intro, sections };
       }
@@ -190,7 +190,7 @@ function parseSectionOffer(content: string): { intro: string; sections: SectionC
   }
 
   // Dense comma list of known sections (no "разделы:" prefix)
-  const comma = text.match(/^([\s\S]{0,160}?)((?:[A-Za-zА-Яа-яЁё0-9\- ]+\s*,\s*){2,}[A-Za-zА-Яа-яЁё0-9\- ]+)\s*$/);
+  const comma = text.match(/^([\s\S]{0,160}?)((?:[A-Za-zА-Яа-яЁё0-9 -]+\s*,\s*){2,}[A-Za-zА-Яа-яЁё0-9 -]+)\s*$/);
   if (comma) {
     const sections = collect(comma[2].split(/\s*,\s*/));
     if (sections.length >= 3) {
@@ -252,9 +252,21 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
   });
 }
 
+/** Soft-rewrite legacy ACL error copy that leaked raw intent codes into chat history. */
+function sanitizeAssistantContent(content: string): string {
+  const raw = String(content || '');
+  if (/Нет прав для действия:\s*UNKNOWN/i.test(raw)) {
+    return 'Не совсем понял запрос. Попробуйте: «Чем полезен DentVision?», «Открыть демо-клинику» или войдите как сотрудник.';
+  }
+  if (/Нет прав для действия:\s*[A-Z0-9_]+/i.test(raw)) {
+    return 'Для этого действия нужны права сотрудника клиники. Войдите в демо или под своей учётной записью.';
+  }
+  return raw;
+}
+
 /** Soft-rewrite English section key dumps the model sometimes echoes from tool schemas. */
 function localizeSectionKeys(text: string): string {
-  let out = text;
+  let out = sanitizeAssistantContent(text);
   // Comma-separated English keys (the usual failure mode)
   out = out.replace(
     /\b(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community)(\s*,\s*(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community))+/gi,
@@ -266,7 +278,7 @@ function localizeSectionKeys(text: string): string {
   );
   // After «разделы:» / «раздел:» even a single key
   out = out.replace(
-    /(раздел(?:ы)?\s*:\s*)([a-z0-9_,\-\s]+)/gi,
+    /(раздел(?:ы)?\s*:\s*)([a-z0-9_,\s-]+)/gi,
     (_m, _prefix: string, list: string) =>
       'разделы: ' +
       list
