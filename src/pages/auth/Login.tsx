@@ -285,8 +285,9 @@ export default function Login() {
           >
             <div className="text-[10px] text-dv-gold font-bold mb-2.5 uppercase tracking-[0.08em] flex items-center gap-1.5">
               <LogIn size={12} />
-              Demo-доступ
+              {import.meta.env.PROD ? 'Быстрый вход' : 'Demo-доступ'}
             </div>
+            {!import.meta.env.PROD ? (
             <div className="space-y-1">
               {[
                 { login: 'owner@dentvision.kz', pass: 'Demo1234!', role: 'Владелец (демо-клиника)' },
@@ -307,10 +308,15 @@ export default function Login() {
                 >
                   <span className="text-xs text-dv-gold font-semibold">{d.login}</span>
                   <span className="text-[11px] text-txt-muted"> / {d.pass}</span>
-                  <span className="text-[11px] text-txt-ghost italic"> — {d.role}</span>
+                  <span className="text-[10px] text-txt-ghost block">{d.role}</span>
                 </motion.button>
               ))}
             </div>
+            ) : (
+              <p className="text-[11px] text-txt-muted m-0 leading-relaxed">
+                Войдите корпоративным аккаунтом клиники. Демо-пароли в production отключены.
+              </p>
+            )}
           </motion.div>
         </motion.div>
       </motion.div>

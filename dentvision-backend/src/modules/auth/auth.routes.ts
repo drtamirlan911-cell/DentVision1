@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { generateTokens, verifyRefreshToken } from '../../lib/jwt.js';
-import { hashPassword, comparePassword } from '../../lib/password.js';
+import { hashPassword, comparePassword, assertPasswordPolicy } from '../../lib/password.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
@@ -22,22 +22,33 @@ authRouter.post('/register', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Все обязательные поля должны быть заполнены' });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const passwordError = assertPasswordPolicy(password);
+    if (passwordError) {
+      return res.status(400).json({ ok: false, error: passwordError });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!normalizedEmail.includes('@') || normalizedEmail.endsWith('@guest.local')) {
+      return res.status(400).json({ ok: false, error: 'Некорректный email' });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return res.status(409).json({ ok: false, error: 'Пользователь с таким email уже существует' });
     }
 
     const hashedPassword = await hashPassword(password);
 
+    // Open registration never grants clinical DOCTOR — join/create clinic upgrades role.
     const user = await prisma.user.create({
       data: {
         id: uid(),
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
-        firstName,
-        lastName,
+        firstName: String(firstName).trim(),
+        lastName: String(lastName).trim(),
         phone: phone || null,
-        role: 'DOCTOR',
+        role: 'STUDENT',
       },
       select: { id: true, email: true, firstName: true, lastName: true, role: true },
     });

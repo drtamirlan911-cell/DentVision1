@@ -5,6 +5,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import type { Prisma } from '@prisma/client';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
+import { assertSameClinic, requireClinicScope } from '../../lib/clinicAccess.js';
 
 export const crmRouter = Router();
 
@@ -123,12 +124,11 @@ function serializePlan(plan: {
 // schema migration against the production database.
 crmRouter.get('/:clinicId/treatment-plans', async (req: AuthRequest, res) => {
   try {
-    const { clinicId } = req.params as { clinicId: string };
-    const { patientId, status } = req.query as { patientId?: string; status?: string };
+    const { clinicId: paramClinicId } = req.params as { clinicId: string };
+    const clinicId = requireClinicScope(req, res, { paramClinicId });
+    if (!clinicId) return;
 
-    if (req.user?.clinicId && req.user.clinicId !== clinicId) {
-      return res.status(403).json({ ok: false, error: 'Доступ к другой клинике запрещён' } satisfies ApiResponse);
-    }
+    const { patientId, status } = req.query as { patientId?: string; status?: string };
 
     const plans = await prisma.treatmentPlan.findMany({
       where: {
@@ -172,9 +172,7 @@ crmRouter.post('/treatment-plans', async (req: AuthRequest, res) => {
     if (!patient) {
       return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
     }
-    if (req.user?.clinicId && patient.clinicId !== req.user.clinicId) {
-      return res.status(403).json({ ok: false, error: 'Пациент принадлежит другой клинике' } satisfies ApiResponse);
-    }
+    if (!assertSameClinic(req, res, patient.clinicId)) return;
 
     const normalizedStages = enrichStages(stages || []);
     const computedTotal = normalizedStages.reduce((sum, stage) => sum + stageTotal(stage), 0);
@@ -223,6 +221,15 @@ crmRouter.post('/treatment-plans', async (req: AuthRequest, res) => {
 crmRouter.delete('/treatment-plans/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
+    const plan = await prisma.treatmentPlan.findUnique({
+      where: { id },
+      include: { patient: { select: { clinicId: true } } },
+    });
+    if (!plan) {
+      return res.status(404).json({ ok: false, error: 'План не найден' } satisfies ApiResponse);
+    }
+    if (!assertSameClinic(req, res, plan.patient?.clinicId)) return;
+
     await prisma.treatmentPlan.delete({ where: { id } });
     return res.json({ ok: true, data: { deleted: true } } satisfies ApiResponse);
   } catch (error) {
@@ -251,9 +258,7 @@ crmRouter.patch('/treatment-plans/:id/stages/:stageId', async (req: AuthRequest,
     if (!plan) {
       return res.status(404).json({ ok: false, error: 'План не найден' } satisfies ApiResponse);
     }
-    if (req.user?.clinicId && plan.patient?.clinicId !== req.user.clinicId) {
-      return res.status(403).json({ ok: false, error: 'Доступ запрещён' } satisfies ApiResponse);
-    }
+    if (!assertSameClinic(req, res, plan.patient?.clinicId)) return;
 
     const items = ((plan.items as TreatmentPlanItems) || {}) as TreatmentPlanItems;
     const stages = enrichStages(Array.isArray(items.stages) ? [...items.stages] : []);

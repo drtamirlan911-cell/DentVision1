@@ -33,7 +33,11 @@ export default function Register({ onBack }: RegisterProps) {
     setLocalError('');
     if (!form.name.trim()) { setLocalError('Введите имя'); return; }
     if (!form.login.trim() || form.login.length < 4) { setLocalError('Логин должен быть не менее 4 символов'); return; }
-    if (form.password.length < 6) { setLocalError('Пароль должен быть не менее 6 символов'); return; }
+    if (form.password.length < 8) { setLocalError('Пароль должен быть не менее 8 символов'); return; }
+    if (!/[A-Za-zА-Яа-я]/.test(form.password) || !/\d/.test(form.password)) {
+      setLocalError('Пароль должен содержать буквы и цифры');
+      return;
+    }
     if (form.password !== form.confirmPassword) { setLocalError('Пароли не совпадают'); return; }
     const ok = await register({
       name: form.name,
@@ -92,7 +96,7 @@ export default function Register({ onBack }: RegisterProps) {
             <Field label="Email" value={form.email} type="email" onChange={(v) => set('email', v)} placeholder="ivan@example.com" />
             <Field label="Телефон" value={form.phone} type="tel" onChange={(v) => set('phone', v)} placeholder="+7 777 000 00 00" />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Пароль *" value={form.password} type="password" onChange={(v) => set('password', v)} placeholder="Минимум 6 символов" />
+              <Field label="Пароль *" value={form.password} type="password" onChange={(v) => set('password', v)} placeholder="Минимум 8 символов, буквы и цифры" />
               <Field label="Повторите пароль *" value={form.confirmPassword} type="password" onChange={(v) => set('confirmPassword', v)} placeholder="••••••" />
             </div>
           </div>

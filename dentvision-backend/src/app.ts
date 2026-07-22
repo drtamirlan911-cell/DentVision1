@@ -154,9 +154,27 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => req.method === 'OPTIONS',
 });
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
+  message: { ok: false, error: 'Слишком много AI-запросов. Подождите немного.', code: 'AI_RATE_LIMIT' },
+});
+const guestSessionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
+});
 app.use('/api/', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/ai/query', aiLimiter);
+app.use('/api/ai/query/stream', aiLimiter);
+app.use('/api/guest/session', guestSessionLimiter);
 
 // ─── Health ───
 app.get('/api/health', (_req, res) => {

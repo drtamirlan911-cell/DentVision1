@@ -4,7 +4,16 @@ import { randomUUID } from 'node:crypto';
 import { seedDemoClinic, DEMO_CLINIC, DEMO_PATIENTS } from './seed-demo-clinic.js';
 import type { UserRole } from '@prisma/client';
 
-export const TEST_USER_PASSWORD = 'Demo1234!';
+export const TEST_USER_PASSWORD =
+  process.env.DEMO_USER_PASSWORD ||
+  (process.env.NODE_ENV === 'production'
+    ? '' // force env in production seeds
+    : 'Demo1234!');
+
+if (process.env.NODE_ENV === 'production' && !process.env.DEMO_USER_PASSWORD) {
+  // Seed/reset-demo will fail loudly rather than ship a known password.
+  console.warn('[seed] DEMO_USER_PASSWORD is not set — demo user seeding disabled until configured');
+}
 
 export type TestUserSpec = {
   email: string;
@@ -26,6 +35,9 @@ export const TEST_USERS: TestUserSpec[] = [
 ];
 
 export async function seedTestUsersOnly(prisma: PrismaClient) {
+  if (!TEST_USER_PASSWORD || TEST_USER_PASSWORD.length < 8) {
+    throw new Error('DEMO_USER_PASSWORD must be set (min 8 chars) before seeding demo users');
+  }
   const password = await bcrypt.hash(TEST_USER_PASSWORD, 12);
   const created = [];
 

@@ -6,6 +6,7 @@ import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../types/index.js';
 import type { ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { assertSameClinic, denyGuest, requireClinicScope } from '../../lib/clinicAccess.js';
 
 const filesRouter = Router();
 
@@ -14,7 +15,7 @@ filesRouter.use(authenticate);
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = [
       '.jpg', '.jpeg', '.png', '.gif', '.webp',
@@ -33,12 +34,27 @@ const upload = multer({
 
 filesRouter.get('/', async (req: AuthRequest, res) => {
   try {
+    if (denyGuest(req, res)) return;
+    const clinicId = requireClinicScope(req, res);
+    if (!clinicId && String(req.user?.role || '').toUpperCase() !== 'SUPERADMIN') return;
+    const scopedClinic = clinicId || req.user!.clinicId;
+    if (!scopedClinic && String(req.user?.role || '').toUpperCase() !== 'SUPERADMIN') {
+      return res.status(403).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' });
+    }
+
     const { patientId } = req.query as { patientId?: string };
-    const clinicId = req.user!.clinicId;
+
+    if (patientId) {
+      const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
+      if (!patient) return res.status(404).json({ ok: false, error: 'Пациент не найден' });
+      if (!assertSameClinic(req, res, patient.clinicId)) return;
+    }
 
     const documents = await prisma.document.findMany({
       where: {
-        ...(patientId ? { patientId } : { clinicId }),
+        ...(patientId
+          ? { patientId, ...(scopedClinic ? { clinicId: scopedClinic } : {}) }
+          : { clinicId: scopedClinic! }),
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -57,6 +73,14 @@ filesRouter.get('/', async (req: AuthRequest, res) => {
 // column, avoiding another risky migration against production.
 filesRouter.post('/documents', async (req: AuthRequest, res) => {
   try {
+    if (denyGuest(req, res)) return;
+    const scoped = requireClinicScope(req, res);
+    if (!scoped && String(req.user?.role || '').toUpperCase() !== 'SUPERADMIN') return;
+    const clinicId = scoped || req.user!.clinicId;
+    if (!clinicId) {
+      return res.status(403).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' } satisfies ApiResponse);
+    }
+
     const { id, patientId, docType, title, content, status } = req.body as {
       id?: string; patientId?: string; docType?: string; title?: string; content?: string; status?: string;
     };
@@ -64,8 +88,18 @@ filesRouter.post('/documents', async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'Тип и название документа обязательны' } satisfies ApiResponse);
     }
 
+    if (patientId) {
+      const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
+      if (!patient) return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
+      if (!assertSameClinic(req, res, patient.clinicId)) return;
+    }
+    if (id) {
+      const existing = await prisma.document.findUnique({ where: { id }, select: { clinicId: true } });
+      if (!existing) return res.status(404).json({ ok: false, error: 'Документ не найден' } satisfies ApiResponse);
+      if (!assertSameClinic(req, res, existing.clinicId)) return;
+    }
+
     const url = `data:text/plain;charset=utf-8;base64,${Buffer.from(content || '', 'utf-8').toString('base64')}`;
-    const clinicId = req.user!.clinicId || null;
 
     const doc = id
       ? await prisma.document.update({
@@ -88,9 +122,7 @@ filesRouter.post('/documents/:id/send-signature', async (req: AuthRequest, res) 
     const id = req.params.id as string;
     const doc = await prisma.document.findUnique({ where: { id } });
     if (!doc) return res.status(404).json({ ok: false, error: 'Документ не найден' } satisfies ApiResponse);
-    if (doc.clinicId && req.user?.clinicId && doc.clinicId !== req.user.clinicId) {
-      return res.status(403).json({ ok: false, error: 'Доступ запрещён' } satisfies ApiResponse);
-    }
+    if (!assertSameClinic(req, res, doc.clinicId)) return;
     const token = uid().replace(/-/g, '');
     // Encode token into metadata via notes-like fields: prepend to url query for demo links
     const signUrl = `/sign/${id}?token=${token}`;
@@ -147,11 +179,25 @@ filesRouter.post('/documents/:id/sign', async (req: AuthRequest, res) => {
 
 filesRouter.post('/upload', upload.single('file'), async (req: AuthRequest, res) => {
   try {
+    if (denyGuest(req, res)) return;
     if (!req.file) {
       return res.status(400).json({ ok: false, error: 'Файл не загружен' });
     }
 
+    const clinicId = requireClinicScope(req, res);
+    if (!clinicId && String(req.user?.role || '').toUpperCase() !== 'SUPERADMIN') return;
+    const scopedClinic = clinicId || req.user!.clinicId || null;
+    if (!scopedClinic) {
+      return res.status(403).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' });
+    }
+
     const { patientId, type } = req.body as { patientId?: string; type?: string };
+    if (patientId) {
+      const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
+      if (!patient) return res.status(404).json({ ok: false, error: 'Пациент не найден' });
+      if (!assertSameClinic(req, res, patient.clinicId)) return;
+    }
+
     const fileType = type || path.extname(req.file.originalname).slice(1).toUpperCase() || 'FILE';
 
     const fileSize = req.file.size;
@@ -161,7 +207,7 @@ filesRouter.post('/upload', upload.single('file'), async (req: AuthRequest, res)
       data: {
         id: uid(),
         patientId: patientId || null,
-        clinicId: req.user!.clinicId || null,
+        clinicId: scopedClinic,
         type: fileType,
         name: req.file.originalname,
         url: `/mock-storage/${uid()}/${req.file.originalname}`,
@@ -203,12 +249,14 @@ filesRouter.post('/upload', upload.single('file'), async (req: AuthRequest, res)
 
 filesRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
+    if (denyGuest(req, res)) return;
     const id = req.params.id as string;
 
     const doc = await prisma.document.findUnique({ where: { id } });
     if (!doc) {
       return res.status(404).json({ ok: false, error: 'Документ не найден' });
     }
+    if (!assertSameClinic(req, res, doc.clinicId)) return;
 
     const patientImage = doc.patientId
       ? await prisma.patientImage.findFirst({
@@ -231,6 +279,7 @@ filesRouter.get('/:id', async (req: AuthRequest, res) => {
 
 filesRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
+    if (denyGuest(req, res)) return;
     const id = req.params.id as string;
 
     const doc = await prisma.document.findUnique({ where: { id } });
@@ -238,9 +287,7 @@ filesRouter.delete('/:id', async (req: AuthRequest, res) => {
       return res.status(404).json({ ok: false, error: 'Документ не найден' });
     }
 
-    if (doc.clinicId && doc.clinicId !== req.user!.clinicId) {
-      return res.status(403).json({ ok: false, error: 'Доступ запрещён' });
-    }
+    if (!assertSameClinic(req, res, doc.clinicId)) return;
 
     await prisma.document.delete({ where: { id } });
 

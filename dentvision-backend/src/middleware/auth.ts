@@ -1,6 +1,7 @@
 import type { Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../lib/jwt.js';
 import prisma from '../lib/prisma.js';
+import { isGuestEmail } from '../lib/guestAiQuota.js';
 import type { AuthRequest, AuthUser } from '../types/index.js';
 
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
@@ -15,12 +16,25 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
 
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, firstName: true, lastName: true, role: true },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        memberships: { select: { id: true }, take: 1 },
+      },
     });
 
     if (!user) {
       return res.status(401).json({ ok: false, error: 'Пользователь не найден' });
     }
+
+    // Guest flag is email-based (source of truth). JWT isGuest alone cannot
+    // elevate/demote a real account — blocks IDOR from forged guest claims.
+    const guestByEmail = isGuestEmail(user.email);
+    const hasMembership = (user.memberships?.length || 0) > 0;
+    const isGuest = guestByEmail && !hasMembership;
 
     req.user = {
       id: user.id,
@@ -28,12 +42,13 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
-      clinicId: payload.clinicId,
-      supplierId: payload.supplierId,
-      supplierRole: payload.supplierRole,
-      lecturerId: payload.lecturerId,
-      isGuest: payload.isGuest === true || String(user.email || '').endsWith('@guest.local'),
-    };
+      // Guests never carry a clinic scope from a stolen JWT claim.
+      clinicId: isGuest ? undefined : payload.clinicId,
+      supplierId: isGuest ? undefined : payload.supplierId,
+      supplierRole: isGuest ? undefined : payload.supplierRole,
+      lecturerId: isGuest ? undefined : payload.lecturerId,
+      isGuest,
+    } satisfies AuthUser;
 
     next();
   } catch (err: any) {
@@ -48,18 +63,23 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
     if (header?.startsWith('Bearer ')) {
       const payload = verifyAccessToken(header.slice(7));
       const email = String(payload.email || '');
+      const guestByEmail = isGuestEmail(email);
+      const roleUpper = String(payload.role || '').toUpperCase();
+      // Without DB lookup, only trust explicit guest signals — never treat
+      // missing isGuest on a real email as staff elevation for guests.
+      const isGuest =
+        guestByEmail ||
+        roleUpper === 'GUEST' ||
+        (payload.isGuest === true && (!email || guestByEmail));
+
       req.user = {
         id: payload.sub,
         email,
         role: payload.role,
         firstName: '',
         lastName: '',
-        clinicId: payload.clinicId,
-        // Normalize: guest JWTs sometimes omit isGuest — never treat them as staff.
-        isGuest:
-          payload.isGuest === true ||
-          email.endsWith('@guest.local') ||
-          String(payload.role || '').toUpperCase() === 'GUEST',
+        clinicId: isGuest ? undefined : payload.clinicId,
+        isGuest,
       };
     }
   } catch { /* anonymous */ }
