@@ -51,6 +51,23 @@ export async function seedDemoClinic(
     });
   }
 
+  // Keep Subscription row aligned with clinic.plan=PRO → professional seats/AI.
+  await prisma.subscription.upsert({
+    where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
+    create: {
+      ownerType: 'CLINIC',
+      ownerId: clinicId,
+      plan: 'professional',
+      status: 'active',
+      periodEnd: null,
+    },
+    update: {
+      plan: 'professional',
+      status: 'active',
+      periodEnd: null,
+    },
+  });
+
   const patients = [];
   for (const p of DEMO_PATIENTS) {
     const patient = await prisma.patient.create({
