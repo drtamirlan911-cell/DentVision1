@@ -7,7 +7,7 @@ import { Navigate, useNavigate, useOutletContext } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Settings, Building2, Clock, Bell, Armchair, Save, Plus, Trash2,
-  DollarSign, Users, Link2, Copy, Check,
+  DollarSign, Users, Link2, Copy, Check, QrCode, BookOpen, ExternalLink,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth, canManageClinicSettings } from '@/store/auth.store'
@@ -70,6 +70,17 @@ const DEFAULT_SETTINGS: ClinicSettings = {
   requireChair: false,
   autoDeductItems: '',
   bookingLink: '',
+  onlineBookingEnabled: true,
+  payments: {
+    mode: 'unconfigured',
+    merchantName: '',
+    kaspiPhone: '',
+    staticQrUrl: '',
+    apiBaseUrl: '',
+    configured: false,
+    apiKeySet: false,
+    webhookSecretSet: false,
+  },
 }
 
 interface OutletCtx {
@@ -99,6 +110,10 @@ export default function ClinicSettingsPage() {
   const [inviteSaving, setInviteSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
+  const [copiedWebhook, setCopiedWebhook] = useState(false)
+  const [apiKeyDraft, setApiKeyDraft] = useState('')
+  const [webhookSecretDraft, setWebhookSecretDraft] = useState('')
+  const [showPayHelp, setShowPayHelp] = useState(true)
 
   const bookingUrl = useMemo(() => {
     if (!clinicId || typeof window === 'undefined') return ''
@@ -129,6 +144,8 @@ export default function ClinicSettingsPage() {
       logo: c.logo || '',
     })
     setSettings({ ...DEFAULT_SETTINGS, ...(data.settings || c.settings || {}) })
+    setApiKeyDraft('')
+    setWebhookSecretDraft('')
   }, [clinicQ.data])
 
   const chairs: Chair[] = chairsQ.data || []
@@ -157,15 +174,27 @@ export default function ClinicSettingsPage() {
     }
     setSaving(true)
     try {
+      const payments = {
+        ...(settings.payments || {}),
+        mode: settings.payments?.mode || 'unconfigured',
+        merchantName: settings.payments?.merchantName || '',
+        kaspiPhone: settings.payments?.kaspiPhone || '',
+        staticQrUrl: settings.payments?.staticQrUrl || '',
+        apiBaseUrl: settings.payments?.apiBaseUrl || '',
+        ...(apiKeyDraft.trim() ? { apiKey: apiKeyDraft.trim() } : {}),
+        ...(webhookSecretDraft.trim() ? { webhookSecret: webhookSecretDraft.trim() } : {}),
+      }
       await api.updateClinic(clinicId, {
         name: profile.name.trim(),
         city: profile.city.trim(),
         address: profile.address.trim(),
         phone: profile.phone.trim(),
         logo: profile.logo.trim(),
-        settings,
+        settings: { ...settings, payments },
       })
       await queryClient.invalidateQueries({ queryKey: ['clinic-settings', clinicId] })
+      setApiKeyDraft('')
+      setWebhookSecretDraft('')
       showToast('Настройки клиники сохранены', 'success')
     } catch (err: any) {
       showToast(err?.message || 'Не удалось сохранить', 'error')
@@ -484,6 +513,169 @@ export default function ClinicSettingsPage() {
               onChange={(e) => setSettings({ ...settings, bookingLink: e.target.value })}
               placeholder="https://instagram.com/… или 2GIS"
             />
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        <Card className="border-[#C9A96E]/25">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="flex items-center gap-2">
+                <QrCode size={16} className="text-dv-gold" />
+                Оплата на кассе (Kaspi клиники)
+              </span>
+              <Badge variant={settings.payments?.configured || settings.payments?.mode === 'static' || settings.payments?.mode === 'api' ? 'success' : 'outline'} size="xs">
+                {settings.payments?.configured
+                  ? 'Подключено'
+                  : settings.payments?.mode && settings.payments.mode !== 'unconfigured'
+                    ? 'Заполните и сохраните'
+                    : 'Не подключено'}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-xl border border-dv-gold/20 bg-dv-gold/5 p-3 space-y-2">
+              <p className="text-sm text-txt-primary m-0 font-medium">
+                Деньги с кассы, расписания и карточки пациента идут на <span className="text-dv-gold">счёт вашей клиники</span>, не на DentVision.
+              </p>
+              <p className="text-xs text-txt-muted m-0">
+                Academy, Магазин и тариф SaaS оплачиваются отдельно через Kaspi платформы.
+              </p>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-xs text-dv-gold hover:underline bg-transparent border-none cursor-pointer p-0 font-inherit"
+                onClick={() => setShowPayHelp((v) => !v)}
+              >
+                <BookOpen size={13} />
+                {showPayHelp ? 'Скрыть инструкцию' : 'Показать инструкцию'}
+              </button>
+              {showPayHelp && (
+                <ol className="m-0 pl-4 space-y-1.5 text-xs text-txt-secondary list-decimal">
+                  <li>
+                    <b>Вариант A (быстро):</b> режим «Телефон / ссылка Kaspi» → укажите телефон Kaspi клиники или готовую ссылку оплаты → Сохранить.
+                  </li>
+                  <li>
+                    В <b>Кассе</b> или <b>Расписании</b> выберите «QR-оплата» → «Создать QR» → пациент сканирует → перевод на ваш Kaspi → «Проверить оплату».
+                  </li>
+                  <li>
+                    <b>Вариант B (API):</b> режим «API-шлюз» → Base URL + API Key + Webhook secret из кабинета шлюза → скопируйте Webhook URL ниже в кабинет шлюза.
+                  </li>
+                  <li>
+                    Полная инструкция: файл <code className="text-dv-gold">docs/KASPI_CLINIC_SETUP.md</code> в репозитории.
+                  </li>
+                </ol>
+              )}
+            </div>
+
+            <Select
+              label="Режим приёма QR"
+              value={settings.payments?.mode || 'unconfigured'}
+              onChange={(e) => setSettings({
+                ...settings,
+                payments: { ...(settings.payments || {}), mode: e.target.value as any },
+              })}
+              options={[
+                { value: 'unconfigured', label: 'Не подключено' },
+                { value: 'static', label: 'Телефон / ссылка Kaspi (рекомендуется для старта)' },
+                { value: 'api', label: 'API-шлюз (ApiPay / PayBot / свой)' },
+              ]}
+            />
+
+            <Input
+              label="Название мерчанта (для пациента)"
+              value={settings.payments?.merchantName || ''}
+              onChange={(e) => setSettings({
+                ...settings,
+                payments: { ...(settings.payments || {}), merchantName: e.target.value },
+              })}
+              placeholder={profile.name || 'Стоматология …'}
+            />
+
+            {(settings.payments?.mode === 'static' || settings.payments?.mode === 'unconfigured') && (
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Input
+                  label="Телефон Kaspi клиники"
+                  value={settings.payments?.kaspiPhone || ''}
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    payments: { ...(settings.payments || {}), kaspiPhone: e.target.value },
+                  })}
+                  placeholder="+7 7XX XXX XX XX"
+                />
+                <Input
+                  label="Или ссылка / QR-пейлоад Kaspi"
+                  value={settings.payments?.staticQrUrl || ''}
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    payments: { ...(settings.payments || {}), staticQrUrl: e.target.value },
+                  })}
+                  placeholder="https://…"
+                />
+              </div>
+            )}
+
+            {settings.payments?.mode === 'api' && (
+              <div className="space-y-3">
+                <Input
+                  label="API Base URL"
+                  value={settings.payments?.apiBaseUrl || ''}
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    payments: { ...(settings.payments || {}), apiBaseUrl: e.target.value },
+                  })}
+                  placeholder="https://api.apipay.kz/api/v1"
+                />
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <Input
+                    label={settings.payments?.apiKeySet ? 'API Key (оставлен прежний, введите новый чтобы заменить)' : 'API Key'}
+                    type="password"
+                    value={apiKeyDraft}
+                    onChange={(e) => setApiKeyDraft(e.target.value)}
+                    placeholder={settings.payments?.apiKeySet ? '••••••••' : 'sk_live_…'}
+                    autoComplete="new-password"
+                  />
+                  <Input
+                    label={settings.payments?.webhookSecretSet ? 'Webhook secret (оставьте пустым = без изменений)' : 'Webhook secret'}
+                    type="password"
+                    value={webhookSecretDraft}
+                    onChange={(e) => setWebhookSecretDraft(e.target.value)}
+                    placeholder={settings.payments?.webhookSecretSet ? '••••••••' : 'мин. 16 символов'}
+                    autoComplete="new-password"
+                  />
+                </div>
+                {settings.payments?.webhookUrl && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      label="Webhook URL (вставить в кабинет шлюза)"
+                      value={settings.payments.webhookUrl}
+                      readOnly
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="mt-5"
+                      icon={copiedWebhook ? <Check size={14} /> : <Copy size={14} />}
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(settings.payments?.webhookUrl || '')
+                          setCopiedWebhook(true)
+                          window.setTimeout(() => setCopiedWebhook(false), 1600)
+                        } catch { /* ignore */ }
+                      }}
+                    >
+                      {copiedWebhook ? 'Скопировано' : 'Копировать'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="text-[11px] text-txt-muted m-0 flex items-start gap-1.5">
+              <ExternalLink size={12} className="mt-0.5 shrink-0" />
+              После сохранения проверьте: Касса → QR-оплата → Создать QR. Деньги должны прийти на Kaspi клиники.
+            </p>
           </CardContent>
         </Card>
       </motion.div>

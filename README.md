@@ -115,6 +115,14 @@ server/
 | `DATABASE_URL` | PostgreSQL connection string (Neon pooler) |
 | `JWT_SECRET` | JWT signing secret |
 | `PORT` | Server port (default: 3001) |
+| `KASPI_CALLBACK_SECRET` | Platform Kaspi webhook secret (Academy / Shop / SaaS) |
+| `PUBLIC_API_URL` | Public API URL for clinic webhook links |
+
+## Kaspi / оплата
+
+- **Касса клиники** → свой Kaspi/банк клиники. Инструкция: [`docs/KASPI_CLINIC_SETUP.md`](docs/KASPI_CLINIC_SETUP.md)  
+  UI: `CRM → Настройки клиники → Оплата на кассе (Kaspi клиники)`
+- **Academy / Магазин / тариф SaaS** → Kaspi платформы DentVision
 
 ## License
 

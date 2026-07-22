@@ -275,7 +275,7 @@ export function AcceptPaymentModal({
               busy={confirmingQr || saving}
               onConfirm={confirmQrPayment}
               onCancel={() => setPendingPay(null)}
-              hint="Покажите QR пациенту. После оплаты нажмите «Проверить оплату» — чек сохранится в кассе."
+              hint="Покажите QR пациенту — оплата идёт на Kaspi клиники. После перевода нажмите «Проверить оплату»."
             />
             {qrError && <p className="text-xs text-error m-0">{qrError}</p>}
           </div>
