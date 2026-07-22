@@ -803,6 +803,13 @@ export async function updateClinicStaff(
   });
 }
 
+/** Remove staff membership from clinic (does not delete the user account). */
+export async function deleteClinicStaff(clinicId: string, userId: string): Promise<any> {
+  return apiRequest(`/api/clinics/${clinicId}/staff/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function deletePhoto(id: string): Promise<any> {
   return apiRequest(`/api/medical/images/${id}`, { method: 'DELETE' });
 }
