@@ -1,10 +1,9 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, AlertTriangle, Info, CheckCircle, X, ExternalLink, RefreshCw, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Info, CheckCircle, X, RefreshCw, ChevronRight } from 'lucide-react'
 import { normalizeAlertTone } from '@/utils/alertTone'
 import { cn } from '@/lib/utils'
-import { useAIWorkspaceStore } from '@/store/workspace.store'
-import { useAIExecutor } from '@/utils/aiExecutor'
+import { resolveNavigationPath, useAIExecutor } from '@/utils/aiExecutor'
 
 interface Alert {
   id: string
@@ -39,11 +38,38 @@ const ICONS = {
   error: AlertTriangle,
 }
 
-export function ProactiveAlertsDisplay({ 
-  alerts, 
-  onAcknowledge, 
-  onResolve, 
-  maxVisible = 4 
+const CATEGORY_LABELS: Record<string, string> = {
+  product: 'Платформа',
+  platform: 'Платформа',
+  setup: 'Настройка',
+  clinic: 'Клиника',
+  finance: 'Финансы',
+  schedule: 'Расписание',
+  inventory: 'Склад',
+  general: 'Общее',
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  OpenDemo: 'Открыть демо',
+  OpenShop: 'Открыть маркетплейс',
+  OpenSchool: 'Открыть Academy OS',
+  OpenPricing: 'Открыть тарифы',
+  OpenJobs: 'Открыть вакансии',
+  OpenCommunity: 'Открыть сообщество',
+  OpenProfile: 'Открыть профиль',
+  OpenCRM: 'Открыть CRM',
+  OpenSchedule: 'Открыть расписание',
+  OpenPatients: 'Открыть пациентов',
+  OpenFinance: 'Открыть финансы',
+  OpenInventory: 'Открыть склад',
+  NAVIGATE: 'Открыть',
+}
+
+export function ProactiveAlertsDisplay({
+  alerts,
+  onAcknowledge,
+  onResolve,
+  maxVisible = 4,
 }: ProactiveAlertsDisplayProps) {
   const { executeAction } = useAIExecutor()
 
@@ -51,15 +77,25 @@ export function ProactiveAlertsDisplay({
   const sortedAlerts = [...alerts].sort((a, b) => b.priority - a.priority)
   const visibleAlerts = sortedAlerts.slice(0, maxVisible)
 
-  const handleActionClick = async (actionType: string, params?: Record<string, unknown>) => {
-    await executeAction({
-      id: `action-${Date.now()}`,
+  const handleActionClick = async (alert: Alert) => {
+    const actionType = alert.action?.type
+    if (!actionType) return
+
+    const path = resolveNavigationPath(actionType, alert.action?.params)
+    // Navigation never needs a confirm dialog — previous bug set requiresConfirmation
+    // without onConfirm, so «Выполнить» silently no-op'd.
+    const result = await executeAction({
+      id: `alert-${alert.id}`,
       type: actionType,
-      label: actionType,
+      label: ACTION_LABELS[actionType] || actionType,
       confidence: 1,
-      params,
-      requiresConfirmation: true,
+      params: alert.action?.params || (path ? { path } : {}),
+      requiresConfirmation: false,
     })
+
+    if (result?.type === 'navigate' || path) {
+      onAcknowledge(alert.id)
+    }
   }
 
   return (
@@ -77,16 +113,16 @@ export function ProactiveAlertsDisplay({
             initial={{ opacity: 0, y: 20, x: -30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, x: 30, scale: 0.95 }}
-            transition={{ 
-              delay: i * 0.08, 
-              type: 'spring', 
-              stiffness: 400, 
-              damping: 28 
+            transition={{
+              delay: i * 0.08,
+              type: 'spring',
+              stiffness: 400,
+              damping: 28,
             }}
             className={cn(
-              'relative flex gap-3 p-3.5 rounded-2xl border transition-all duration-300',
+              'relative flex gap-3 p-3.5 rounded-2xl border transition-all duration-300 mb-2',
               COLORS[normalizeAlertTone(alert.type)],
-              'shadow-lg shadow-black/20'
+              'shadow-lg shadow-black/20',
             )}
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/[0.05]">
@@ -96,38 +132,41 @@ export function ProactiveAlertsDisplay({
                 return <AlertIcon size={16} className={cn(COLORS[tone].split(' ')[0])} />
               })()}
             </div>
-            
+
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium text-txt-primary pr-4">{alert.text}</p>
-                <div className="flex items-center gap-1">
-                  {alert.action && (
+                <div className="flex items-center gap-1 shrink-0">
+                  {alert.action?.type && (
                     <motion.button
-                      onClick={() => handleActionClick(alert.action!.type, alert.action!.params)}
+                      type="button"
+                      onClick={() => void handleActionClick(alert)}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white/10 text-txt-secondary hover:bg-white/20 transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium bg-dv-gold/15 text-dv-gold border border-dv-gold/25 hover:bg-dv-gold/25 transition-colors flex items-center gap-1"
                     >
                       <ChevronRight size={10} />
-                      Выполнить
+                      {ACTION_LABELS[alert.action.type] || 'Открыть'}
                     </motion.button>
                   )}
                   {!alert.acknowledged && (
                     <motion.button
+                      type="button"
                       onClick={() => onAcknowledge(alert.id)}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+                      aria-label="Скрыть"
                     >
                       <X size={12} />
                     </motion.button>
                   )}
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-2 mt-1.5">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-txt-muted capitalize">
-                  {alert.category}
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-txt-muted">
+                  {CATEGORY_LABELS[alert.category] || alert.category}
                 </span>
                 {alert.timestamp && (
                   <span className="text-[10px] text-txt-ghost">
@@ -139,14 +178,15 @@ export function ProactiveAlertsDisplay({
           </motion.div>
         ))}
       </AnimatePresence>
-      
+
       {sortedAlerts.length > maxVisible && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-4 md:mx-6 mt-2"
+          className="mt-2"
         >
           <motion.button
+            type="button"
             onClick={() => onResolve(sortedAlerts[0].id)}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -161,11 +201,11 @@ export function ProactiveAlertsDisplay({
   )
 }
 
-export function ProactiveAlertsCompact({ 
-  alerts, 
-  onAcknowledge, 
+export function ProactiveAlertsCompact({
+  alerts,
+  onAcknowledge,
   onAction,
-  maxVisible = 3 
+  maxVisible = 3,
 }: ProactiveAlertsDisplayProps & { onAction?: (type: string) => void }) {
   if (!alerts.length) return null
 
@@ -189,7 +229,7 @@ export function ProactiveAlertsCompact({
             transition={{ type: 'spring', stiffness: 300, damping: 25, delay: i * 0.1 }}
             className={cn(
               'flex items-start gap-2 px-3 py-2 rounded-xl border transition-all',
-              COLORS[normalizeAlertTone(alert.type)]
+              COLORS[normalizeAlertTone(alert.type)],
             )}
           >
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/[0.05]">
@@ -201,20 +241,24 @@ export function ProactiveAlertsCompact({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-txt-primary">{alert.text}</p>
-              <p className="text-2xs text-txt-muted mt-0.5 capitalize">{alert.category}</p>
+              <p className="text-2xs text-txt-muted mt-0.5">
+                {CATEGORY_LABELS[alert.category] || alert.category}
+              </p>
             </div>
             {alert.action && onAction && (
               <motion.button
+                type="button"
                 onClick={() => onAction(alert.action!.type)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="px-2 py-1 rounded-lg text-xs font-medium bg-white/10 text-txt-secondary hover:bg-white/20 transition-colors"
               >
-                Действие
+                {ACTION_LABELS[alert.action.type] || 'Открыть'}
               </motion.button>
             )}
             {onAcknowledge && (
               <motion.button
+                type="button"
                 onClick={() => onAcknowledge(alert.id)}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
