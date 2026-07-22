@@ -1558,6 +1558,9 @@ export interface AIChatResponse {
   proactive: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>;
   conversationContext: { turnCount: number; entities: Record<string, unknown> };
   sessionId?: string;
+  messageId?: string;
+  learnedHint?: string;
+  learnedLabels?: string[];
 }
 
 /** Stable UUID session id per user — prevents shared AI chat across accounts. */
@@ -1627,6 +1630,9 @@ export async function aiChat(
     proactive: Array.isArray(res?.proactive) ? res.proactive : [],
     conversationContext: res?.conversationContext || { turnCount: 0, entities: {} },
     sessionId: res?.sessionId || sessionId,
+    messageId: res?.messageId,
+    learnedHint: res?.learnedHint,
+    learnedLabels: Array.isArray(res?.learnedLabels) ? res.learnedLabels : [],
   } as AIChatResponse;
 }
 
@@ -1755,7 +1761,37 @@ async function aiChatSSE(
     suggestions: Array.isArray(donePayload.suggestions) ? donePayload.suggestions : [],
     proactive: Array.isArray(donePayload.proactive) ? donePayload.proactive : [],
     conversationContext: donePayload.conversationContext || { turnCount: 0, entities: {} },
+    sessionId: donePayload.sessionId || sessionId,
+    messageId: donePayload.messageId,
+    learnedHint: donePayload.learnedHint,
+    learnedLabels: Array.isArray(donePayload.learnedLabels) ? donePayload.learnedLabels : [],
   };
+}
+
+export async function aiFeedback(payload: {
+  rating: 'up' | 'down';
+  messageId?: string;
+  sessionId?: string;
+  assistantText?: string;
+  userText?: string;
+  intent?: string;
+}): Promise<{ messageId?: string; rating: string; message?: string }> {
+  return apiRequest('/api/ai/feedback', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getAiMemory(): Promise<{ items: Array<{ key: string; label: string; value: string; source: string }> }> {
+  return apiRequest('/api/ai/memory');
+}
+
+export async function deleteAiMemory(key: string): Promise<{ removed: boolean }> {
+  return apiRequest(`/api/ai/memory/${encodeURIComponent(key)}`, { method: 'DELETE' });
+}
+
+export async function clearAiMemory(): Promise<{ cleared: boolean }> {
+  return apiRequest('/api/ai/memory', { method: 'DELETE' });
 }
 
 export async function aiProactive(): Promise<{ alerts: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }> }> {

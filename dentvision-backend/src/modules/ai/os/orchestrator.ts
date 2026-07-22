@@ -48,6 +48,10 @@ export interface OrchestratorInput {
   isGuest?: boolean;
   /** Browser IANA timezone from the client (preferred for greetings / "today"). */
   timeZone?: string | null;
+  /** Personalization block from learning.service (prefs + twin). */
+  learningInstructions?: string;
+  /** Positive few-shot examples for similar past requests. */
+  fewShots?: Array<{ user: string; assistant: string }>;
 }
 
 export interface OrchestratorResult {
@@ -61,6 +65,10 @@ export interface OrchestratorResult {
   confirmData?: Record<string, unknown>;
   /** Which tools ran — provenance for the UI / audit. */
   toolsUsed: string[];
+  /** Persisted assistant message id for feedback thumbs. */
+  messageId?: string;
+  /** Labels of prefs applied this turn (for UI chip). */
+  learnedLabels?: string[];
 }
 
 export function orchestratorEnabled(): boolean {
@@ -128,7 +136,9 @@ ${mandates}
    Если предлагаешь несколько разделов — список с «•» по одному на строку.
 7. Не свети внутренние имена инструментов/агентов.
 8. Если пользователь только вошёл или просит «что важно» — приоритет: расписание сегодня, подтверждения, долги, склад, ближайшие 2 часа — по роли.
-9. ${clinicCurrencyPromptRule(currencyCode)}`;
+9. ${clinicCurrencyPromptRule(currencyCode)}
+10. Если пользователь говорит «запомни…» — подтверди кратко, что учёл правило.
+${input.learningInstructions ? `\n${input.learningInstructions}` : ''}`;
 }
 
 interface ResponsesAPIOutputItem {
@@ -187,16 +197,37 @@ function extractAssistantText(response: ResponsesAPIResult): string {
   );
 }
 
-async function saveMessage(sessionId: string, role: string, content: string): Promise<void> {
+async function saveMessage(
+  sessionId: string,
+  role: string,
+  content: string,
+  meta?: { userId?: string; clinicId?: string | null; prevUserText?: string | null },
+): Promise<string | undefined> {
   try {
-    await prisma.aIMessage.create({ data: { id: crypto.randomUUID(), sessionId, role, content } });
+    const id = crypto.randomUUID();
+    await prisma.aIMessage.create({
+      data: {
+        id,
+        sessionId,
+        role,
+        content,
+        userId: meta?.userId || null,
+        clinicId: meta?.clinicId || null,
+        prevUserText: meta?.prevUserText || null,
+      },
+    });
+    return id;
   } catch {
     /* history persistence must never break the answer */
+    return undefined;
   }
 }
 
 export async function orchestrate(input: OrchestratorInput): Promise<OrchestratorResult> {
-  await saveMessage(input.sessionId, 'user', input.text);
+  await saveMessage(input.sessionId, 'user', input.text, {
+    userId: input.userId,
+    clinicId: input.clinicId,
+  });
 
   // Jarvis entry briefing — deterministic live KPIs, not a chatty LLM opener.
   if (!input.isGuest && String(input.role).toUpperCase() !== 'GUEST' && isJarvisBriefingTrigger(input.text)) {
@@ -214,13 +245,18 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
         isGuest: false,
         timeZone: input.timeZone,
       });
-      await saveMessage(input.sessionId, 'assistant', briefing.message);
+      const messageId = await saveMessage(input.sessionId, 'assistant', briefing.message, {
+        userId: input.userId,
+        clinicId: input.clinicId,
+        prevUserText: input.text,
+      });
       return {
         message: briefing.message,
         intent: 'MORNING_BRIEFING',
         action: { type: 'SHOW_BRIEFING', payload: briefing.payload },
         suggestions: briefing.suggestions,
         toolsUsed: ['jarvis_briefing'],
+        messageId,
       };
     } catch (e) {
       console.warn('[AI OS] jarvis briefing failed, continuing to LLM', e);
@@ -234,7 +270,13 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   const currencyCode = await resolveClinicCurrency(input.clinicId);
   const instructions = systemPrompt(input, currencyCode);
 
+  const fewShotTurns = (input.fewShots || []).flatMap((ex) => [
+    { role: 'user', content: `[Пример прошлого успешного запроса]\n${ex.user}` },
+    { role: 'assistant', content: ex.assistant },
+  ]);
+
   const conversation: Array<Record<string, unknown>> = [
+    ...fewShotTurns,
     ...(input.history || []).slice(-12).map((m) => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: m.content,
@@ -325,7 +367,11 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
       const message = messageText || 'Готово.';
 
       const safeMessage = localizeNavKeysInMessage(preferClinicCurrency(message, currencyCode));
-      await saveMessage(input.sessionId, 'assistant', safeMessage);
+      const messageId = await saveMessage(input.sessionId, 'assistant', safeMessage, {
+        userId: input.userId,
+        clinicId: input.clinicId,
+        prevUserText: input.text,
+      });
 
       return {
         message: safeMessage,
@@ -336,6 +382,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
         needsConfirmation: Boolean(pendingConfirmation),
         confirmData: pendingConfirmation,
         toolsUsed,
+        messageId,
       };
     }
 
@@ -385,12 +432,17 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
 
   // Loop budget exhausted — respond with what we have rather than hang.
   const message = 'Я собрал данные, но задача оказалась слишком многошаговой. Уточните, что именно показать или сделать первым.';
-  await saveMessage(input.sessionId, 'assistant', message);
+  const messageId = await saveMessage(input.sessionId, 'assistant', message, {
+    userId: input.userId,
+    clinicId: input.clinicId,
+    prevUserText: input.text,
+  });
   return {
     message,
     intent: 'CHAT',
     suggestions: defaultSuggestions(input.role),
     toolsUsed,
+    messageId,
   };
 }
 

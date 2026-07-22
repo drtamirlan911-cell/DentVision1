@@ -248,6 +248,7 @@ export function DigitalTwin() {
   const { user } = useAuth()
   const isGuest = useGuestStore((s) => s.isGuest) || !user
   const [twin, setTwin] = useState<Twin | null>(isGuest ? GUEST_PLATFORM_TWIN : null)
+  const [preferences, setPreferences] = useState<Array<{ key: string; label: string; value: string; source: string }>>([])
   const [loading, setLoading] = useState(!isGuest)
   const [error, setError] = useState<string | null>(null)
 
@@ -258,6 +259,7 @@ export function DigitalTwin() {
       if (isGuest) {
         const res = await api.aiDigitalTwin().catch(() => null)
         const data = res?.twin || res
+        setPreferences([])
         if (data?.profileKind === 'platform' || String(data?.role || '').toUpperCase() === 'GUEST') {
           setTwin({
             ...GUEST_PLATFORM_TWIN,
@@ -273,6 +275,7 @@ export function DigitalTwin() {
       }
       const res = await api.aiDigitalTwin()
       const data = res?.twin || res
+      setPreferences(Array.isArray(res?.preferences) ? res.preferences : [])
       if (data) {
         setTwin({
           ...data,
@@ -353,6 +356,47 @@ export function DigitalTwin() {
           </Button>
         </div>
       </GlassCard>
+
+      {preferences.length > 0 && (
+        <GlassCard padding="md">
+          <div className="flex items-center gap-1.5 mb-3">
+            <Sparkles size={14} className="text-dv-gold" />
+            <h4 className="text-xs font-semibold text-txt-primary">Чему ИИ научился</h4>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto h-7 px-2 text-[10px]"
+              onClick={() => {
+                void api.clearAiMemory().then(() => load())
+              }}
+            >
+              Сбросить
+            </Button>
+          </div>
+          <ul className="space-y-2">
+            {preferences.slice(0, 8).map((p) => (
+              <li key={p.key} className="flex items-start gap-2 text-[11px] text-txt-secondary">
+                <span className="text-dv-gold mt-0.5">•</span>
+                <span className="min-w-0 flex-1">
+                  <span className="text-txt-primary font-medium">{p.label}: </span>
+                  {p.value}
+                </span>
+                <button
+                  type="button"
+                  className="text-txt-ghost hover:text-rose-400 shrink-0"
+                  title="Забыть"
+                  onClick={() => { void api.deleteAiMemory(p.key).then(() => load()) }}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[10px] text-txt-muted mt-2 m-0">
+            Скажите «запомни…», «коротко» или поставьте 👍/👎 в чате — предпочтения обновятся.
+          </p>
+        </GlassCard>
+      )}
 
       {skills.length > 0 && (
         <GlassCard padding="md">

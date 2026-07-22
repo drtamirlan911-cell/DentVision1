@@ -859,14 +859,21 @@ model AuditLog {
 }
 
 model AIMessage {
-  id        String   @id @default("")
-  sessionId String
-  role      String
-  content   String
-  createdAt DateTime @default(now())
+  id           String    @id @default("")
+  sessionId    String
+  role         String
+  content      String
+  /// Optional learning metadata (feedback loop)
+  userId       String?
+  clinicId     String?
+  feedback     String?   // up | down
+  feedbackAt   DateTime?
+  prevUserText String?
+  createdAt    DateTime  @default(now())
 
   @@index([sessionId])
   @@index([createdAt])
+  @@index([userId, feedback])
   @@map("ai_messages")
 }
 

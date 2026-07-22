@@ -30,6 +30,10 @@ export interface Message {
   actions?: Action[];
   data?: Record<string, unknown>;
   recommendations?: Array<Record<string, unknown>>;
+  /** Backend AIMessage id for 👍/👎 learning loop */
+  messageId?: string;
+  feedback?: 'up' | 'down';
+  learnedHint?: string;
 }
 
 export interface SuggestionChip {

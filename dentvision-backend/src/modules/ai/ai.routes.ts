@@ -102,6 +102,9 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
 interface ProcessedResponse extends AIResponse {
   toolsUsed?: string[];
   actions?: Array<{ type: string; label: string; params?: Record<string, unknown>; confidence?: number }>;
+  messageId?: string;
+  learnedHint?: string;
+  learnedLabels?: string[];
 }
 
 /**
@@ -242,13 +245,47 @@ async function processQuery(
     query: (req.query || {}) as Record<string, unknown>,
   });
 
+  const userId = req.user?.id || 'guest';
+  const clinicId = isGuest ? null : (req.user!.clinicId || null);
+
+  // Learn preferences from this utterance BEFORE the model runs (so «запомни» applies now).
+  let learnedLabels: string[] = [];
+  let learnedHint: string | undefined;
+  let learningInstructions = '';
+  let fewShots: Array<{ user: string; assistant: string }> = [];
+
+  if (!isGuest && userId !== 'guest') {
+    try {
+      const learning = await import('./learning/learning.service.js');
+      const justLearned = await learning.learnFromUserUtterance(text, userId, clinicId);
+      const ctx = await learning.buildLearningContext({
+        userId,
+        clinicId,
+        role: req.user!.role,
+        isGuest: false,
+        query: text,
+      });
+      learningInstructions = [ctx.twinBlock, ctx.prefsBlock].filter(Boolean).join('\n\n');
+      fewShots = ctx.fewShots;
+      learnedLabels = [
+        ...justLearned.map((p) => p.label),
+        ...ctx.rememberedLabels,
+      ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 6);
+      learnedHint = justLearned.length
+        ? `Запомнил: ${justLearned.map((p) => p.value).slice(0, 2).join('; ')}`
+        : ctx.learnedHint;
+    } catch (e) {
+      console.warn('[AI] learning context failed', e);
+    }
+  }
+
   // Guests get a product concierge (LLM) — not the clinic CRM intent router.
   if (orchestratorEnabled()) {
     try {
       const result = await orchestrate({
         text,
-        userId: req.user?.id || 'guest',
-        clinicId: isGuest ? null : (req.user!.clinicId || null),
+        userId,
+        clinicId,
         role: isGuest ? 'GUEST' : req.user!.role,
         userName: isGuest
           ? 'Гость'
@@ -257,7 +294,16 @@ async function processQuery(
         history,
         isGuest,
         timeZone,
+        learningInstructions: learningInstructions || undefined,
+        fewShots,
       });
+
+      if (!isGuest && result.toolsUsed?.length) {
+        void import('./learning/learning.service.js')
+          .then((learning) => learning.learnFromToolsUsed(userId, clinicId, result.toolsUsed))
+          .catch(() => undefined);
+      }
+
       return {
         message: result.message,
         intent: result.intent,
@@ -267,6 +313,9 @@ async function processQuery(
         needsConfirmation: result.needsConfirmation,
         confirmData: result.confirmData,
         toolsUsed: result.toolsUsed,
+        messageId: result.messageId,
+        learnedHint,
+        learnedLabels,
       };
     } catch (error) {
       console.error('[AI OS] orchestrator failed, falling back to intent router:', error);
@@ -274,8 +323,8 @@ async function processQuery(
   }
 
   const context = {
-    userId: req.user?.id || 'guest',
-    clinicId: isGuest ? '' : (req.user?.clinicId || DEMO_CLINIC_ID),
+    userId,
+    clinicId: isGuest ? '' : (clinicId || DEMO_CLINIC_ID),
     role: isGuest ? 'guest' : (req.user?.role || 'guest'),
     isGuest,
     sessionId,
@@ -283,7 +332,7 @@ async function processQuery(
   };
   const response = await aiService.processMessage(text, context, sessionId);
   response.message = (await improveResponseWithLLM(text, response, context)) || response.message;
-  return response;
+  return { ...response, learnedHint, learnedLabels };
 }
 
 aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {
@@ -300,6 +349,9 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
         reply: response.message,
         sessionId,
         actions: responseActions(response),
+        messageId: response.messageId,
+        learnedHint: response.learnedHint,
+        learnedLabels: response.learnedLabels,
       },
     });
   } catch (error) {
@@ -356,6 +408,9 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       suggestions: response.suggestions || [],
       toolsUsed: response.toolsUsed || [],
       sessionId,
+      messageId: response.messageId,
+      learnedHint: response.learnedHint,
+      learnedLabels: response.learnedLabels,
     })}\n\n`);
     res.end();
   } catch (error) {
@@ -735,9 +790,81 @@ aiRouter.get('/digital-twin', authenticate, async (req: AuthRequest, res) => {
     if (!twin) {
       return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
     }
-    res.json({ ok: true, data: { twin } });
+    let preferences: Array<{ key: string; label: string; value: string; source: string }> = [];
+    try {
+      const learning = await import('./learning/learning.service.js');
+      preferences = await learning.listPrefs(req.user!.id, req.user?.clinicId || null);
+    } catch { /* optional */ }
+    res.json({ ok: true, data: { twin, preferences } });
   } catch (error) {
     console.error('[AI Digital Twin Error]', error);
     res.status(500).json({ ok: false, error: 'Digital twin failed' });
+  }
+});
+
+/** 👍/👎 feedback — fuels few-shot personalization. */
+aiRouter.post('/feedback', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const rating = String(req.body?.rating || '').toLowerCase();
+    if (rating !== 'up' && rating !== 'down') {
+      return res.status(400).json({ ok: false, error: 'rating must be up|down' });
+    }
+    const learning = await import('./learning/learning.service.js');
+    const result = await learning.recordMessageFeedback({
+      userId: req.user!.id,
+      clinicId: req.user?.clinicId || null,
+      messageId: req.body?.messageId || null,
+      sessionId: req.body?.sessionId || null,
+      rating,
+      assistantText: req.body?.assistantText || null,
+      userText: req.body?.userText || null,
+      intent: req.body?.intent || null,
+    });
+    return res.json({
+      ok: result.ok,
+      data: {
+        messageId: result.messageId,
+        rating,
+        message: rating === 'up'
+          ? 'Спасибо — буду опираться на такие ответы'
+          : 'Принято — учту и отвечу иначе в похожих случаях',
+      },
+    });
+  } catch (error) {
+    console.error('[AI Feedback Error]', error);
+    return res.status(500).json({ ok: false, error: 'Feedback failed' });
+  }
+});
+
+aiRouter.get('/memory', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const learning = await import('./learning/learning.service.js');
+    const items = await learning.listPrefs(req.user!.id, req.user?.clinicId || null);
+    return res.json({ ok: true, data: { items } });
+  } catch (error) {
+    console.error('[AI Memory list]', error);
+    return res.status(500).json({ ok: false, error: 'Memory list failed' });
+  }
+});
+
+aiRouter.delete('/memory/:key', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const learning = await import('./learning/learning.service.js');
+    const removed = await learning.deletePref(req.user!.id, req.user?.clinicId || null, String(req.params.key));
+    return res.json({ ok: true, data: { removed } });
+  } catch (error) {
+    console.error('[AI Memory delete]', error);
+    return res.status(500).json({ ok: false, error: 'Memory delete failed' });
+  }
+});
+
+aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const learning = await import('./learning/learning.service.js');
+    await learning.clearPrefs(req.user!.id, req.user?.clinicId || null);
+    return res.json({ ok: true, data: { cleared: true } });
+  } catch (error) {
+    console.error('[AI Memory clear]', error);
+    return res.status(500).json({ ok: false, error: 'Memory clear failed' });
   }
 });
