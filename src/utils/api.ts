@@ -1688,8 +1688,11 @@ export async function getMyJobApplications(): Promise<any[]> {
 }
 
 // ─── Community (IG + Threads) ───
-export async function getCommunityPosts(topic?: string): Promise<any[]> {
-  const q = topic && topic !== 'Все' ? `?topic=${encodeURIComponent(topic)}` : '';
+export async function getCommunityPosts(topic?: string, opts?: { saved?: boolean }): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (topic && topic !== 'Все') params.set('topic', topic);
+  if (opts?.saved) params.set('saved', '1');
+  const q = params.toString() ? `?${params.toString()}` : '';
   return apiRequest(`/api/community/posts${q}`);
 }
 export async function createCommunityPost(data: { content: string; tags?: string[]; kind?: string }): Promise<any> {
@@ -1697,6 +1700,39 @@ export async function createCommunityPost(data: { content: string; tags?: string
 }
 export async function likeCommunityPost(id: string): Promise<any> {
   return apiRequest(`/api/community/posts/${id}/like`, { method: 'POST' });
+}
+export async function saveCommunityPost(id: string): Promise<{ saved: boolean }> {
+  return apiRequest(`/api/community/posts/${id}/save`, { method: 'POST' });
+}
+export async function getCommunityComments(postId: string): Promise<any[]> {
+  return apiRequest(`/api/community/posts/${postId}/comments`);
+}
+export async function addCommunityComment(postId: string, content: string): Promise<any> {
+  return apiRequest(`/api/community/posts/${postId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}
+export async function searchCommunityPeople(q: string): Promise<any[]> {
+  return apiRequest(`/api/community/people?q=${encodeURIComponent(q)}`);
+}
+export async function getDmInbox(): Promise<any[]> {
+  return apiRequest('/api/community/dm');
+}
+export async function getDmUnreadCount(): Promise<{ unread: number }> {
+  return apiRequest('/api/community/dm/unread-count');
+}
+export async function openDm(userId: string): Promise<{ id: string; peer: any }> {
+  return apiRequest('/api/community/dm/open', { method: 'POST', body: JSON.stringify({ userId }) });
+}
+export async function getDmMessages(conversationId: string): Promise<{ messages: any[]; peer: any }> {
+  return apiRequest(`/api/community/dm/${conversationId}/messages`);
+}
+export async function sendDmMessage(conversationId: string, body: string): Promise<any> {
+  return apiRequest(`/api/community/dm/${conversationId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  });
 }
 
 // ─── Admin (SuperAdmin) ───
