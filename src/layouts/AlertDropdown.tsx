@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, X, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNotificationStore } from '@/store/notification.store';
+import { useAuth } from '@/store/auth.store';
+import { useGuestStore } from '@/store/guest.store';
 
 const priorityIcon: Record<string, React.ReactNode> = {
   high: <AlertCircle size={14} className="text-red-400 shrink-0" />,
@@ -73,6 +75,8 @@ function resolveAlertPath(alert: BellAlert): string | undefined {
 export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, setIsOpen }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const isGuest = useGuestStore((s) => s.isGuest);
   const notifications = useNotificationStore((s) => s.notifications);
   const unreadNotifs = useNotificationStore((s) => s.unread);
   const markRead = useNotificationStore((s) => s.markAsRead);
@@ -80,8 +84,9 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
   const loadNotifications = useNotificationStore((s) => s.loadNotifications);
 
   useEffect(() => {
+    if (!isAuthenticated || isGuest) return;
     void loadNotifications();
-  }, [loadNotifications]);
+  }, [loadNotifications, isAuthenticated, isGuest]);
 
   useEffect(() => {
     if (!isOpen) return;

@@ -30,6 +30,11 @@ export function BottomNav() {
   const { isGuest, setRegistrationModal } = useGuestStore();
 
   const handleNavClick = useCallback((item: BottomNavItem) => {
+    // CRM for guests → same one-tap demo path as desktop sidebar / demo chip
+    if (item.id === 'crm' && (!isAuthenticated || isGuest)) {
+      navigate('/crm/schedule?demo=1');
+      return;
+    }
     if (item.requiresAuth && !isAuthenticated && !isGuest) {
       setRegistrationModal(true);
     } else if (item.requiresAuth && isGuest) {
@@ -51,7 +56,7 @@ export function BottomNav() {
       <div className="flex items-center justify-around h-[var(--dv-bottomnav-height,3.5rem)]">
         {ITEMS.map((item) => {
           const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
-          const isDisabled = item.requiresAuth && !isAuthenticated && !isGuest;
+          const isDisabled = item.id !== 'crm' && item.requiresAuth && !isAuthenticated && !isGuest;
           
           return (
             <motion.button

@@ -38,6 +38,12 @@ interface UseDataQueryReturn {
   visits: Visit[];
   documents: Document[];
   waitingList: WaitingListItem[];
+  /** True while core CRM lists (patients/appointments) are first-loading. */
+  isLoading: boolean;
+  /** True if any core CRM query failed. */
+  isError: boolean;
+  /** Re-fetch core CRM collections after an error. */
+  refetchCore: () => void;
   upsertPatient: (data: Partial<Patient>) => Promise<any>;
   deletePatient: (id: string) => Promise<void>;
   upsertAppointment: (data: Partial<Appointment>) => Promise<any>;
@@ -352,6 +358,12 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
     patients, appointments, receipts, labOrders, expenses, inventory, doctors,
     transactions: receipts, treatments, users, subscriptions, photos,
     promotions, bookings, medicalCards, visits, documents, waitingList,
+    isLoading: enabled && (patientsQ.isLoading || appointmentsQ.isLoading),
+    isError: Boolean(patientsQ.isError || appointmentsQ.isError),
+    refetchCore: () => {
+      void patientsQ.refetch();
+      void appointmentsQ.refetch();
+    },
     upsertPatient: (data) => upsertPatientM.mutateAsync(data),
     deletePatient: (id) => deletePatientM.mutateAsync(id),
     upsertAppointment: (data) => upsertAppointmentM.mutateAsync(data),

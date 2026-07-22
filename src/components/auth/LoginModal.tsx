@@ -62,12 +62,16 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
       setError('Введите имя');
       return;
     }
-    if (!loginInput.trim() || loginInput.length < 4) {
-      setError('Логин ≥ 4 символов');
+    if (!loginInput.trim() || !loginInput.includes('@')) {
+      setError('Укажите корректный email');
       return;
     }
-    if (password.length < 6) {
-      setError('Пароль ≥ 6 символов');
+    if (password.length < 8) {
+      setError('Пароль ≥ 8 символов');
+      return;
+    }
+    if (!/[A-Za-zА-Яа-я]/.test(password) || !/\d/.test(password)) {
+      setError('Пароль должен содержать буквы и цифры');
       return;
     }
     if (password !== confirmPassword) {
@@ -88,10 +92,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleLogin = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL || 'https://dentvision-api.onrender.com'}/api/auth/google`;
   };
 
   return (
@@ -256,16 +256,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={handleGoogleLogin}
+                    onClick={handleClose}
                     className="w-full py-3 px-4 rounded-xl border border-white/10 bg-surface-2 text-txt-primary hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
                   >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path d="M12.24 10.295v3.298h7.84c-.24 1.84-.853 3.18-1.693 4.1-1.02 1.02-2.7 1.85-4.19 1.85-3.22 0-5.88-2.22-5.88-5.58 0-3.36 2.66-5.58 5.88-5.58 1.73 0 3.04.73 3.93 1.57l-1.52 1.52c-.4-.38-1.04-.74-1.91-.74-1.63 0-2.95 1.4-2.95 2.82 0 1.42 1.32 2.82 2.95 2.82.85 0 1.5-.23 1.91-.5z" fill="#4285F4" />
-                      <path d="M5.355 14.243L4.064 12.04 1.207 12.04C.45 13.666-.02 15.66.02 17.7c0 2.15 1.23 4.02 3.22 4.96 1.99.94 4.32.44 5.98-.84l-2.86-2.58c-.85.56-1.99.8-3.12.8-2.4 0-4.34-1.54-5.36-3.7-.86-1.47-.86-3.3 0-4.77 1.02-2.15 3.01-3.68 5.41-3.68 2.17 0 4.01 1.15 5.02 2.68l1.8-1.68c-1.4-1.74-3.24-2.79-5.18-2.79-3.9 0-7.06 3.24-7.06 7.23 0 3.99 3.16 7.23 7.06 7.23 3.09 0 5.8-1.59 7.17-4.06l-2.03-1.87c-.67.71-1.55 1.16-2.54 1.16-1.74 0-3.15-1.41-3.15-3.15 0-1.74 1.41-3.15 3.15-3.15 1.0 0 1.87.45 2.54 1.16z" fill="#34A853" />
-                      <path d="M12.545 21.545c2.55 0 4.78-.86 6.57-2.32l-3.02-2.42c-.83.56-1.89.89-2.93.89-2.24 0-4.14-1.51-4.83-3.56-.33-.64-.53-1.33-.53-2.05 0-.72.2-1.41.53-2.05 1.64 2.04 4.57 3.44 7.73 3.44 1.21 0 2.33-.3 3.12-.89l2.86 2.58c-1.01 1.37-2.27 2.22-3.68 2.22-2.96 0-5.35-1.47-6.7-3.94-.88-1.42-.88-3.07 0-4.49 1.36-2.48 3.75-3.96 6.71-3.96 3.34 0 6.15 2.02 6.93 4.94.19.43.32.9.32 1.38 0 .48-.13.94-.35 1.34-.87 1.53-2.45 2.54-4.4 2.54-1.08 0-2.03-.37-2.81-1.0z" fill="#FBBC05" />
-                      <path d="M8.6 12.5l2.56-1.55L12.24 10.3v3.52c-1.47-.76-2.35-2.62-1.85-4.4-.5 1.78-.73 3.69-.5 5.23.4 2.09 1.84 3.85 3.68 4.5 1.84.65 3.82.16 5.0-1.0-1.47-1.6-2.38-3.89-1.95-6.1-2.5.2-4.5 2.15-5.15 5.15z" fill="#EA4335" />
-                    </svg>
-                    <span>Быстрый вход</span>
+                    <span>Продолжить как гость</span>
                   </motion.button>
                 </div>
               </>

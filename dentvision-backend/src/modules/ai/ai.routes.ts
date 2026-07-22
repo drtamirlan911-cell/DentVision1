@@ -454,6 +454,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       messageId: response.messageId,
       learnedHint: response.learnedHint,
       learnedLabels: response.learnedLabels,
+      aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
     })}\n\n`);
     res.end();
   } catch (error) {

@@ -20,6 +20,7 @@ import { alertDismissKey, filterDismissedAlerts } from '@/utils/dismissedAlerts'
 import { buildLiveClinicGreeting, isStaticRadarGreeting } from '@/lib/liveGreeting'
 import { answerJobsSearchQuery } from '@/lib/jobsAiQuery'
 import { AI_NAV_ACTIONS, getSmartSuggestions } from '@/lib/aiPlatformMap'
+import { useGuestStore } from '@/store/guest.store'
 
 import type { Message, Action } from '@/store/workspace.store'
 
@@ -67,6 +68,8 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   // Anonymous / guest: no signed-in user. Don't wait for guest-store hydrate
   // (that race previously showed a clinic "коллега" greeting to guests).
   const isGuest = !user || !isAuthenticated
+  const aiRequestsLeft = useGuestStore((s) => s.aiRequestsLeft)
+  const setAiRequestsLeft = useGuestStore((s) => s.setAiRequestsLeft)
   const clinicId = clinic?.id || null
   const initializedForUser = useRef<string | null>(null)
   const initGeneration = useRef(0)
@@ -561,6 +564,9 @@ const handleSend = useCallback(async (text: string) => {
               : getSmartSuggestions({ guest: true, pathname: location.pathname })).slice(0, 4)
           : nextSuggestions,
       )
+      if (isGuest && typeof (res as any).aiRequestsLeft === 'number') {
+        setAiRequestsLeft((res as any).aiRequestsLeft)
+      }
       historyRef.current.push({ role: 'assistant', content: res.reply || '' })
 
       if (voiceReplies && res.reply) {
@@ -659,7 +665,7 @@ const handleSend = useCallback(async (text: string) => {
     } finally {
       setProgress(0)
     }
-  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, executeAction, navigate, voiceReplies, isGuest])
+  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, executeAction, navigate, voiceReplies, isGuest, setAiRequestsLeft, location.pathname, contextFocus.focusType, contextFocus.focusId, user?.id, clinicId])
 
   const handleActionConfirm = useCallback(async (confirmed: boolean) => {
     const action = pendingConfirm
@@ -741,6 +747,18 @@ const result = await executeAction(
         </div>
 
         <div className="flex items-center gap-2">
+          {isGuest && (
+            <span
+              className={
+                aiRequestsLeft <= 3
+                  ? 'hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-semibold text-amber-300 bg-amber-400/10 border border-amber-400/20'
+                  : 'hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-semibold text-txt-muted bg-white/[0.04] border border-white/[0.06]'
+              }
+              title="Осталось бесплатных AI-запросов в гостевом режиме"
+            >
+              AI {aiRequestsLeft}
+            </span>
+          )}
           {unacknowledgedCount > 0 && (
             <motion.button
               whileHover={{ scale: 1.02 }}
@@ -812,7 +830,9 @@ const result = await executeAction(
                 DentVision Intelligence
               </h2>
               <p className="relative text-sm text-txt-muted max-w-sm leading-relaxed px-2">
-                AI-операционка клиники. Спросите о расписании, выручке или долгах — или выберите действие ниже.
+                {isGuest
+                  ? 'Jarvis покажет платформу: демо-клинику, маркетплейс, Academy и сеть. Спросите «что умеешь» или выберите действие ниже.'
+                  : 'AI-операционка клиники. Спросите о расписании, выручке или долгах — или выберите действие ниже.'}
               </p>
             </motion.div>
           )}

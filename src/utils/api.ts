@@ -32,19 +32,47 @@ let _accessToken: string | null = null;
 let _refreshToken: string | null = null;
 let _refreshPromise: Promise<string> | null = null;
 
+const REMEMBER_KEY = 'dv_remember_me';
+
+export function setRememberMe(remember: boolean): void {
+  try {
+    localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0');
+  } catch { /* ignore */ }
+}
+
+export function getRememberMe(): boolean {
+  try {
+    const v = localStorage.getItem(REMEMBER_KEY);
+    if (v === '0') return false;
+  } catch { /* ignore */ }
+  return true;
+}
+
+function tokenStorage(): Storage {
+  try {
+    return getRememberMe() ? localStorage : sessionStorage;
+  } catch {
+    return localStorage;
+  }
+}
+
 export function setTokens(access: string | null, refresh: string | null): void {
   _accessToken = access;
   _refreshToken = refresh;
+  try {
+    localStorage.removeItem('dv_tokens');
+    sessionStorage.removeItem('dv_tokens');
+  } catch { /* ignore */ }
   if (access && refresh) {
-    try { localStorage.setItem('dv_tokens', JSON.stringify({ access, refresh })); } catch { /* ignore */ }
-  } else {
-    try { localStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
+    try {
+      tokenStorage().setItem('dv_tokens', JSON.stringify({ access, refresh }));
+    } catch { /* ignore */ }
   }
 }
 
 export function loadTokens(): { accessToken: string; refreshToken: string } | null {
   try {
-    const stored = localStorage.getItem('dv_tokens');
+    const stored = localStorage.getItem('dv_tokens') || sessionStorage.getItem('dv_tokens');
     if (stored) {
       const { access, refresh } = JSON.parse(stored);
       _accessToken = access;
@@ -58,7 +86,10 @@ export function loadTokens(): { accessToken: string; refreshToken: string } | nu
 export function clearTokens(): void {
   _accessToken = null;
   _refreshToken = null;
-  try { localStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem('dv_tokens');
+    sessionStorage.removeItem('dv_tokens');
+  } catch { /* ignore */ }
 }
 
 export function getAccessToken(): string | null { return _accessToken; }
@@ -160,10 +191,20 @@ export async function login(loginStr: string, password: string): Promise<LoginRe
   });
 }
 
-export async function register(data: Partial<User> & { password: string }): Promise<any> {
+export async function register(data: Partial<User> & { password: string; login?: string; name?: string }): Promise<any> {
+  const name = String((data as any).name || '').trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  const email = String((data as any).email || (data as any).login || '').trim().toLowerCase();
+  const payload = {
+    email,
+    password: data.password,
+    firstName: String((data as any).firstName || parts[0] || 'Пользователь').trim(),
+    lastName: String((data as any).lastName || parts.slice(1).join(' ') || '').trim(),
+    phone: (data as any).phone || undefined,
+  };
   return apiRequest('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -1119,12 +1160,14 @@ function mapShopProduct(p: any) {
     created_at: p.created_at || p.createdAt,
     image_url: p.image_url || p.imageUrl,
     description: p.description || '',
+    city: p.city || p.supplier_city || null,
+    supplier_city: p.supplier_city || p.city || null,
   };
 }
 
-export async function getShopCategories(): Promise<any> {
+export async function getShopCategories(params: Record<string, string> = {}): Promise<any> {
   try {
-    const products = await getShopProducts();
+    const products = await getShopProducts({ limit: '200', ...params });
     const counts = new Map<string, number>();
     for (const p of products) {
       const cat = p.category || 'Прочее';
@@ -1142,15 +1185,23 @@ export async function getShopCategories(): Promise<any> {
 
 export async function getShopProducts(params: Record<string, string> = {}): Promise<any> {
   const q = new URLSearchParams();
+  if (!params.limit) q.set('limit', '200');
   Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
   const raw = await apiRequest(`/api/shop/products?${q}`);
   const rows = Array.isArray(raw) ? raw : (raw?.data ?? []);
   return (Array.isArray(rows) ? rows : []).map(mapShopProduct);
 }
 export async function getShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`); }
-export async function getShopSuppliers(): Promise<any> {
+export async function getShopSuppliers(params: Record<string, string> = {}): Promise<any> {
   try {
-    const raw = await apiRequest('/api/suppliers?limit=50');
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
+    let raw: any;
+    try {
+      raw = await apiRequest(`/api/shop/suppliers?${q}`);
+    } catch {
+      raw = await apiRequest(`/api/suppliers?limit=50&${q}`);
+    }
     const rows = Array.isArray(raw)
       ? raw
       : Array.isArray(raw?.data)
@@ -1162,15 +1213,15 @@ export async function getShopSuppliers(): Promise<any> {
       id: s.id,
       name: s.name,
       country: 'Казахстан',
-      city: String(s.legalAddress || 'Алматы').split(',')[0].trim() || 'Алматы',
+      city: s.city || String(s.legalAddress || '').split(',')[0].trim() || '',
       phone: s.phone,
       email: s.email,
       website: s.email ? `https://${String(s.email).split('@')[1] || 'dentvision.kz'}` : undefined,
-      rating: s.status === 'OFFICIAL_PARTNER' ? 4.9 : s.status === 'VERIFIED' ? 4.6 : 4.2,
-      deliveryDays: s.status === 'OFFICIAL_PARTNER' ? 1 : 2,
+      rating: s.rating ?? (s.status === 'OFFICIAL_PARTNER' ? 4.9 : s.status === 'VERIFIED' ? 4.6 : 4.2),
+      deliveryDays: s.delivery_days ?? s.deliveryDays ?? (s.status === 'OFFICIAL_PARTNER' ? 1 : 2),
       deliveryCost: s.status === 'OFFICIAL_PARTNER' ? 0 : 2500,
       status: s.status,
-      productCount: s._count?.products ?? 0,
+      productCount: s.product_count ?? s._count?.products ?? 0,
     }));
   } catch {
     return [];
@@ -1601,6 +1652,7 @@ export interface AIChatResponse {
   messageId?: string;
   learnedHint?: string;
   learnedLabels?: string[];
+  aiRequestsLeft?: number;
 }
 
 /** Stable AI session per user + clinic — chats must not mix across clinics. */
@@ -1697,6 +1749,7 @@ export async function aiChat(
     messageId: res?.messageId,
     learnedHint: res?.learnedHint,
     learnedLabels: Array.isArray(res?.learnedLabels) ? res.learnedLabels : [],
+    aiRequestsLeft: typeof res?.aiRequestsLeft === 'number' ? res.aiRequestsLeft : undefined,
   } as AIChatResponse;
 }
 
@@ -1846,6 +1899,7 @@ async function aiChatSSE(
     messageId: donePayload.messageId,
     learnedHint: donePayload.learnedHint,
     learnedLabels: Array.isArray(donePayload.learnedLabels) ? donePayload.learnedLabels : [],
+    aiRequestsLeft: typeof donePayload.aiRequestsLeft === 'number' ? donePayload.aiRequestsLeft : undefined,
   };
 }
 

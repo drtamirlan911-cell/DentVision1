@@ -18,6 +18,7 @@ import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard';
 import { estimateCashbackBps, formatCashbackPercent } from '@/lib/dentcash';
 import { buildClinicRestockSuggestions } from '@/lib/inventory-shop-match';
+import { CityFilter } from '@/components/ui/CityFilter';
 import type { InventoryItem } from '@/types';
 
 interface ShopProductItem {
@@ -91,6 +92,7 @@ export default function Shop() {
   const [suppliers, setSuppliers] = useState<ShopSupplier[]>([]);
   const [clinicInventory, setClinicInventory] = useState<InventoryItem[]>([]);
   const [search, setSearch] = useState(() => searchParams.get('q') || '');
+  const [city, setCity] = useState(() => searchParams.get('city') || '');
   const [selectedCat, setSelectedCat] = useState('');
   const [sortBy, setSortBy] = useState('');
   const [loading, setLoading] = useState(true);
@@ -102,15 +104,31 @@ export default function Shop() {
 
   useEffect(() => {
     const q = searchParams.get('q') || '';
-    if (q) setSearch(q);
+    const c = searchParams.get('city') || '';
+    if (q !== search) setSearch(q);
+    if (c !== city) setCity(c);
   }, [searchParams]);
 
   useEffect(() => {
-    Promise.all([api.getShopCategories(), api.getShopProducts(), api.getShopSuppliers()])
+    setLoading(true);
+    const params = city ? { city, limit: '200' } : { limit: '200' };
+    Promise.all([
+      api.getShopCategories(params),
+      api.getShopProducts(params),
+      api.getShopSuppliers(city ? { city } : {}),
+    ])
       .then(([c, p, s]) => { setCategories(c); setProducts(p); setSuppliers(s); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [city]);
+
+  const updateCity = (nextCity: string) => {
+    setCity(nextCity);
+    const next = new URLSearchParams(searchParams);
+    if (nextCity) next.set('city', nextCity);
+    else next.delete('city');
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     if (!canSeeClinicRestock || !clinicId) {
@@ -186,13 +204,15 @@ export default function Shop() {
         icon={<ShoppingBag size={22} />}
         actions={
           <>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/profile')}
-            >
-              Мой кэшбэк
-            </Button>
+            {isAuthenticated && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/profile')}
+              >
+                Мой кэшбэк
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -200,13 +220,15 @@ export default function Shop() {
             >
               Поставщики
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/supplier')}
-            >
-              Кабинет продавца
-            </Button>
+            {isAuthenticated && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/supplier')}
+              >
+                Кабинет продавца
+              </Button>
+            )}
             <Button
               variant={showAi ? 'outline' : 'ghost'}
               size="sm"
@@ -412,6 +434,25 @@ export default function Shop() {
       </motion.div>
 
       <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12 }}
+        className="mb-4 rounded-xl border border-bdr-subtle bg-white/[0.02] p-3"
+      >
+        <CityFilter
+          label="Город доставки / склад поставщика"
+          value={city}
+          onChange={updateCity}
+          showPopularChips
+        />
+        {city && (
+          <p className="mt-2 text-2xs text-txt-muted m-0">
+            Показаны поставщики и товары по городу «{city}». Смените на «Весь Казахстан», чтобы видеть весь каталог.
+          </p>
+        )}
+      </motion.div>
+
+      <motion.div
         variants={stagger}
         initial="hidden"
         animate="visible"
@@ -560,7 +601,12 @@ export default function Shop() {
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   ) : (
-                    <Package size={40} className="text-[var(--gold)]/40" />
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
+                      <Package size={36} className="text-[var(--gold)]/45" />
+                      <span className="text-[10px] font-medium text-txt-muted line-clamp-2">
+                        {product.brand || product.category_name || 'DentVision Shop'}
+                      </span>
+                    </div>
                   )}
                   {product.old_price && (
                     <div className="absolute top-2.5 left-2.5 bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded-md">

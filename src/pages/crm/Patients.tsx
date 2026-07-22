@@ -94,7 +94,7 @@ export default function Patients() {
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
   const navigate = useNavigate()
-  const { patients, appointments, receipts, upsertPatient, deletePatient, upsertReceipt } = useDataQuery(clinicId || undefined)
+  const { patients, appointments, receipts, upsertPatient, deletePatient, upsertReceipt, isLoading: crmLoading, isError: crmError, refetchCore } = useDataQuery(clinicId || undefined)
   const { toast, showToast, clearToast } = useToast()
   const [params] = useSearchParams()
 
@@ -476,6 +476,19 @@ export default function Patients() {
             </Button>
           ) : undefined}
         />
+
+        {crmLoading && (
+          <div className="mb-4 rounded-xl border border-bdr-subtle bg-surface-2/60 px-4 py-3 text-sm text-txt-secondary flex items-center gap-2">
+            <RefreshCw size={16} className="animate-spin text-dv-gold shrink-0" />
+            Загружаем базу пациентов…
+          </div>
+        )}
+        {crmError && !crmLoading && (
+          <div className="mb-4 rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3">
+            <span className="flex-1">Не удалось загрузить пациентов.</span>
+            <Button size="sm" variant="secondary" onClick={() => refetchCore()}>Повторить</Button>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2 mb-5 items-center">
           <div className="relative flex-1 min-w-[200px]">

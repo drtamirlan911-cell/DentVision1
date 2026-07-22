@@ -80,13 +80,21 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
   const handleQuickDemoLogin = async () => {
     setDemoLoading(true);
     setError('');
+    const demoLogin = String(import.meta.env.VITE_DEMO_LOGIN || 'owner@dentvision.kz').trim();
+    const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || 'Demo1234!').trim();
     try {
-      await login('owner@dentvision.kz', 'Demo1234!');
+      await login(demoLogin, demoPassword);
       toast.success('Демо-клиника открыта');
       handleClose();
       navigate('/crm/schedule');
-    } catch {
-      // Fall back to manual auth → createDemoClinic flow
+    } catch (err) {
+      // Fall back to manual auth → createDemoClinic flow with a clear message
+      const msg = err instanceof Error ? err.message : '';
+      setError(
+        msg.includes('401') || /неверн|invalid|password|парол/i.test(msg)
+          ? 'Демо-аккаунт недоступен на этом окружении. Войдите своим логином или зарегистрируйтесь — затем нажмите «Демо».'
+          : 'Не удалось открыть демо. Войдите или зарегистрируйтесь, затем попробуйте снова.',
+      );
       setPendingAction('demo');
       setStep('auth');
     } finally {
@@ -116,8 +124,11 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
     try {
       if (isRegister) {
         if (!authData.name.trim()) { setError('Введите имя'); setLoading(false); return; }
-        if (authData.login.length < 4) { setError('Логин ≥ 4 символов'); setLoading(false); return; }
-        if (authData.password.length < 6) { setError('Пароль ≥ 6 символов'); setLoading(false); return; }
+        if (!authData.login.includes('@')) { setError('Укажите корректный email'); setLoading(false); return; }
+        if (authData.password.length < 8) { setError('Пароль ≥ 8 символов'); setLoading(false); return; }
+        if (!/[A-Za-zА-Яа-я]/.test(authData.password) || !/\d/.test(authData.password)) {
+          setError('Пароль должен содержать буквы и цифры'); setLoading(false); return;
+        }
         if (authData.password !== authData.confirmPassword) { setError('Пароли не совпадают'); setLoading(false); return; }
         await register({ name: authData.name, login: authData.login, password: authData.password });
       } else {
@@ -278,7 +289,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                           <input
                             value={authData.login}
                             onChange={(e) => setAuthData(d => ({ ...d, login: e.target.value }))}
-                            placeholder="Логин"
+                            placeholder="email@clinic.kz"
                             className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                           />
                         </div>

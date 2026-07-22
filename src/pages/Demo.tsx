@@ -44,10 +44,10 @@ const DEMO_STEPS = [
 ];
 
 const STATS = [
-  { value: '500+', label: 'Клиник' },
-  { value: '12k+', label: 'Пользователей' },
-  { value: '99.9%', label: 'Uptime' },
-  { value: '4.9', label: 'Рейтинг' },
+  { value: 'CRM', label: 'Клиника' },
+  { value: 'Shop', label: 'Маркет' },
+  { value: 'AI', label: 'Jarvis' },
+  { value: 'Academy', label: 'Обучение' },
 ];
 
 export default function Demo() {
@@ -76,7 +76,7 @@ export default function Demo() {
             </h1>
             <p className="text-base md:text-lg text-txt-secondary max-w-2xl mx-auto mb-8">
               Полнофункциональная стоматологическая платформа с AI-интеграцией.
-              Попробуйте демо-режим без регистрации.
+              Откройте демо-клинику в один клик — готовые данные, без своей регистрации.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -86,7 +86,7 @@ export default function Demo() {
                 onClick={() => navigate('/crm/schedule?demo=1')}
                 className="flex items-center gap-2 px-6 py-3 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors"
               >
-                Войти в демо
+                Открыть демо-клинику
                 <ArrowRight size={16} />
               </motion.button>
               <motion.button

@@ -1,7 +1,7 @@
 # DentVision V2 — Release Checklist
 
 **Target version:** 2.0.0  
-**Date:** 2026-07-21
+**Date:** 2026-07-22 (world launch)
 
 ---
 
@@ -9,13 +9,10 @@
 
 | Check | Command | Status |
 |-------|---------|--------|
-| Frontend lint (0 errors) | `npm run lint` | Required |
 | Frontend build | `npm run build` | Required |
-| Frontend tests | `npm test` | Required (39 tests) |
-| Backend TypeScript | `cd dentvision-backend && npm run build` | Required |
+| Frontend tests | `npm test` | Required |
+| Backend TypeScript | `cd dentvision-backend && npx tsc --noEmit` | Required |
 | Prisma client | `cd dentvision-backend && npx prisma generate` | Required |
-
-CI runs all of the above on push/PR (`.github/workflows/ci.yml`).
 
 ---
 
@@ -28,83 +25,53 @@ CI runs all of the above on push/PR (`.github/workflows/ci.yml`).
 | Variable | Required | Notes |
 |----------|----------|-------|
 | `VITE_API_URL` | Yes | Production API URL (Render) |
+| `VITE_DEMO_LOGIN` | Recommended | Demo one-tap login (default `owner@dentvision.kz`) |
+| `VITE_DEMO_PASSWORD` | Recommended | Must match `DEMO_USER_PASSWORD` on API |
 
 **Backend (Render)**
 
 | Variable | Required | Notes |
 |----------|----------|-------|
 | `DATABASE_URL` | Yes | Neon PostgreSQL pooler |
-| `JWT_SECRET` | Yes | Strong random string |
-| `JWT_REFRESH_SECRET` | Yes | Strong random string |
-| `CORS_ORIGIN` | Yes | `https://dent-vision1.vercel.app` (comma-separated). Backend also always allows Vercel preview hosts matching `dent-vision`. Do not rely on `*` alone. |
-| `KASPI_CALLBACK_SECRET` | Yes (for paid SaaS / platform) | Shared secret / HMAC for platform `POST /api/payments/callbacks/kaspi`. Academy, Shop, SaaS tariff. |
-| `PUBLIC_API_URL` | Recommended | Public API origin for clinic webhook URLs in settings (e.g. `https://dentvision-api.onrender.com`). |
+| `JWT_SECRET` / `JWT_REFRESH_SECRET` | Yes | Strong random |
+| `CORS_ORIGIN` | Yes | Production Vercel origin(s) |
+| `DEMO_USER_PASSWORD` | Yes for demo | Seeds `owner@dentvision.kz` — must match frontend demo password |
+| `DEMO_CLINIC_ID` | Recommended | Ensures demo clinic AI bypass |
+| `OPENAI_API_KEY` | Recommended | Jarvis orchestrator |
+| `KASPI_CALLBACK_SECRET` | For paid flows | Platform Kaspi callbacks |
+| `PUBLIC_API_URL` | Recommended | Public API origin |
 | `NODE_ENV` | Yes | `production` |
-| `PORT` | Auto | Render sets to 10000 |
 
-**Clinic cashier Kaspi (per clinic, not platform)**
+### Smoke after deploy (presentation order)
 
-Money from CRM cashier / schedule / patient card goes to **each clinic’s own Kaspi/bank**.  
-Setup UI: `CRM → Настройки клиники → Оплата на кассе`.  
-Full guide: [`docs/KASPI_CLINIC_SETUP.md`](./KASPI_CLINIC_SETUP.md).
+1. `GET /api/health` → `{ ok: true }` (warm Render 30–60s first — cold start recovery)
+2. Open `/` as guest → Jarvis guest greeting (not clinic «выручка/долги»)
+3. Chip **«Открыть демо-клинику»** → schedule loads (spinner, then data)
+4. **Mobile:** bottom nav CRM → same demo path (`/crm/schedule?demo=1`)
+5. Ask Jarvis: «что умеешь», «открой прайс» — guest AI counter decreases
+6. Guest → «Создать аккаунт» (RegistrationModal) → `POST /api/guest/convert` works
+7. Trial copy everywhere says **30 дней** (Login / Pricing / Demo)
+8. Shop: guests see catalog + city filter; no «Кабинет продавца» / «Мой кэшбэк»
+9. Sidebar: photo, alert bell (no noisy guest notification fetch), clinic switcher after login
+10. Favicon + `/robots.txt` + OG image present
 
-### Database
+### Demo script (stage)
 
-```bash
-cd dentvision-backend
-npx prisma generate
-npx prisma db push   # against production DATABASE_URL — never use --accept-data-loss
-```
-
-⚠️ See `render.yaml` warning: `db push --accept-data-loss` dropped live tables on 2026-07-20.
-
-### Smoke tests after deploy
-
-1. `GET /api/health` → `{ ok: true }`
-2. Login → JWT issued
-3. CRM Schedule loads without crash
-4. `/book/:clinicId` public booking (if `onlineBookingEnabled`)
-5. Supplier Workspace: switch-context → `/api/supplier/me`
-6. School Workspace: switch-context → `/api/lecturer/me`
+1. Pre-warm API 30–60s before going live
+2. Prefer `/` → demo chip over cold CRM deep-link
+3. Stay on DEMO clinic for AI (starter plans correctly gate paid AI)
+4. Avoid Register mid-demo unless showing onboarding convert
+5. If guest session fails: banner «Повторить» — do not hard-refresh mid-pitch
 
 ---
 
-## 3. Security (before public release)
-
-From `docs/SECURITY_REPORT.md` — address or accept risk:
+## 3. Security
 
 | Priority | Item | Status |
 |----------|------|--------|
-| P0 | No committed `.env` / secrets | ✅ Verified |
-| P0 | CORS not `*` in production | ⚠️ Set `CORS_ORIGIN` on Render |
-| P1 | JWT_SECRET required (no fallback) | Verify `dentvision-backend/src/config.ts` |
-| P1 | Document signing auth | Legacy `server/` — new backend uses RBAC |
-| P2 | Refresh token rotation | Planned |
+| P0 | No committed `.env` / secrets | Verify |
+| P0 | CORS not `*` alone in production | Set `CORS_ORIGIN` |
+| P1 | `DEMO_USER_PASSWORD` set in prod | Required for one-tap demo |
+| P1 | Guest convert only upgrades `@guest.local` users | Shipped |
 
----
-
-## 4. Known limitations (2.0.0)
-
-- **TypeScript**: frontend `typecheck` has non-blocking errors; production build via Vite succeeds.
-- **Legacy `server/`**: still in repo; production uses `dentvision-backend/`.
-- **Analytics / Jobs / Community**: partial implementations; not release blockers for CRM core.
-- **AI multi-agent (TS backend)**: deployed via `dentvision-backend`; LLM integration optional.
-
----
-
-## 5. Release steps
-
-1. Merge release branch to `main`
-2. Tag: `git tag v2.0.0 && git push origin v2.0.0`
-3. Vercel: auto-deploy from `main`
-4. Render: auto-deploy from `main` (or manual trigger)
-5. Verify smoke tests (§2)
-6. Monitor `/api/health` and error logs for 24h
-
----
-
-## 6. Rollback
-
-- **Frontend**: Vercel → previous deployment
-- **Backend**: Render → previous deploy; DB schema is forward-only (avoid destructive migrations)
-- **Database**: Neon point-in-time restore if needed
+Full clinic Kaspi guide: [`docs/KASPI_CLINIC_SETUP.md`](./KASPI_CLINIC_SETUP.md).

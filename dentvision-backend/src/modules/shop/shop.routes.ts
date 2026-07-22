@@ -3,12 +3,13 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
+import { resolveSupplierCity } from '../../lib/kzCities.js';
 
 const shopRouter = Router();
 
 shopRouter.get('/products', async (req, res) => {
   try {
-    const { category, search, sort } = req.query;
+    const { category, search, sort, city } = req.query;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const { skip, take } = paginate(page, limit);
@@ -25,6 +26,16 @@ shopRouter.get('/products', async (req, res) => {
         { brand: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    const cityFilter = typeof city === 'string' ? city.trim() : '';
+    if (cityFilter && cityFilter !== 'all') {
+      where.supplier = {
+        OR: [
+          { city: { equals: cityFilter, mode: 'insensitive' } },
+          { legalAddress: { contains: cityFilter, mode: 'insensitive' } },
+        ],
+      };
     }
 
     let orderBy: Record<string, string>;
@@ -51,28 +62,33 @@ shopRouter.get('/products', async (req, res) => {
         skip,
         take,
         include: {
-          supplier: { select: { id: true, name: true, status: true } },
+          supplier: { select: { id: true, name: true, status: true, city: true, legalAddress: true } },
         },
       }),
       prisma.product.count({ where }),
     ]);
 
-    const mapped = products.map((p) => ({
-      ...p,
-      supplier_id: p.supplierId || p.supplier?.id || null,
-      supplier_name: p.supplier?.name || null,
-      supplier_status: p.supplier?.status || null,
-      own_brand: !!(p as any).ownBrand,
-      category_name: p.category || 'Прочее',
-      category_id: p.category || 'other',
-      brand: p.brand || '',
-      rating: p.rating ?? 4.5,
-      review_count: 0,
-      min_stock: 5,
-      old_price: null,
-      image_url: p.imageUrl || null,
-      imageUrl: p.imageUrl || null,
-    }));
+    const mapped = products.map((p) => {
+      const supplierCity = p.supplier ? resolveSupplierCity(p.supplier) : null;
+      return {
+        ...p,
+        supplier_id: p.supplierId || p.supplier?.id || null,
+        supplier_name: p.supplier?.name || null,
+        supplier_status: p.supplier?.status || null,
+        supplier_city: supplierCity,
+        city: supplierCity,
+        own_brand: !!(p as any).ownBrand,
+        category_name: p.category || 'Прочее',
+        category_id: p.category || 'other',
+        brand: p.brand || '',
+        rating: p.rating ?? 4.5,
+        review_count: 0,
+        min_stock: 5,
+        old_price: null,
+        image_url: p.imageUrl || null,
+        imageUrl: p.imageUrl || null,
+      };
+    });
 
     // Always return plain array for frontend compatibility
     res.json({ ok: true, data: mapped });
@@ -479,10 +495,21 @@ shopRouter.get('/categories', async (_req, res) => {
   }
 });
 
-shopRouter.get('/suppliers', async (_req, res) => {
+shopRouter.get('/suppliers', async (req, res) => {
   try {
+    const cityFilter = typeof req.query.city === 'string' ? req.query.city.trim() : '';
     const suppliers = await prisma.supplier.findMany({
-      where: { status: { in: ['VERIFIED', 'OFFICIAL_PARTNER', 'PENDING'] } },
+      where: {
+        status: { in: ['VERIFIED', 'OFFICIAL_PARTNER', 'PENDING'] },
+        ...(cityFilter && cityFilter !== 'all'
+          ? {
+              OR: [
+                { city: { equals: cityFilter, mode: 'insensitive' } },
+                { legalAddress: { contains: cityFilter, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
       include: {
         _count: { select: { products: true } },
         products: { select: { rating: true }, take: 50 },
@@ -501,7 +528,8 @@ shopRouter.get('/suppliers', async (_req, res) => {
         status: s.status,
         rating,
         product_count: s._count.products,
-        city: null,
+        city: resolveSupplierCity(s),
+        legalAddress: s.legalAddress,
         delivery_days: 2,
       };
     });

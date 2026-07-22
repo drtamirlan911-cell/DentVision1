@@ -14,6 +14,7 @@ import {
   getShopCategories, createShopCategory, deleteShopCategory,
   getShopSuppliers, createShopSupplier, deleteShopSupplier,
 } from '../../utils/api'
+import { CityFilter } from '@/components/ui/CityFilter'
 
 type Product = any
 type Category = any
@@ -356,7 +357,15 @@ function SuppliersManager() {
         <div className="grid grid-cols-2 gap-3">
           <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           <Input label="Страна" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} />
-          <Input label="Город" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
+          <div>
+            <CityFilter
+              label="Город"
+              value={form.city}
+              onChange={(c) => setForm({ ...form, city: c })}
+              required
+              showPopularChips={false}
+            />
+          </div>
           <Input label="Телефон" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
           <Input label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
           <Input label="Сайт" value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} />
