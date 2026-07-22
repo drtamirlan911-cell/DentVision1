@@ -28,7 +28,7 @@
     --dv-glass-strong: rgba(255, 255, 255, 0.06);
     --dv-radius: 0.75rem;
     --dv-sidebar-width: 15rem;
-    --dv-sidebar-collapsed: 4.5rem;
+    --dv-sidebar-collapsed: 4.75rem;
     --dv-topbar-height: 3.5rem;
     --dv-bottomnav-height: 3.5rem;
     --dv-safe-top: env(safe-area-inset-top, 0px);
