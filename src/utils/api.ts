@@ -1700,7 +1700,9 @@ export async function aiDigitalTwin(): Promise<any> {
 
 /** Jarvis role briefing on login / «Что важно сегодня?» */
 export async function aiBriefing(): Promise<AIChatResponse> {
-  const res = await apiRequest('/api/ai/briefing');
+  const tz = clientTimezone();
+  const qs = tz ? `?timezone=${encodeURIComponent(tz)}` : '';
+  const res = await apiRequest(`/api/ai/briefing${qs}`);
   const data = res?.data || res || {};
   return {
     reply: data.reply || data.message || '',

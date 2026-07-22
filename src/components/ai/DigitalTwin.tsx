@@ -246,7 +246,7 @@ function GuestTwinView({ twin }: { twin: Twin }) {
 
 export function DigitalTwin() {
   const { user } = useAuth()
-  const isGuest = useGuestStore((s) => s.isGuest) && !user
+  const isGuest = useGuestStore((s) => s.isGuest) || !user
   const [twin, setTwin] = useState<Twin | null>(isGuest ? GUEST_PLATFORM_TWIN : null)
   const [loading, setLoading] = useState(!isGuest)
   const [error, setError] = useState<string | null>(null)

@@ -43,7 +43,7 @@ export function ContextTab() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const isGuest = useGuestStore((s) => s.isGuest) && !user
+  const isGuest = useGuestStore((s) => s.isGuest) || !user
   const patientData = usePatientStore((s) => s.patientData)
   const selectedPatientId = usePatientStore((s) => s.selectedPatient)
 

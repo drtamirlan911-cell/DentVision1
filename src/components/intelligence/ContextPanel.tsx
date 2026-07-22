@@ -20,7 +20,7 @@ interface ContextPanelProps {
 
 export function ContextPanel({ onClose }: ContextPanelProps) {
   const { user } = useAuth()
-  const isGuest = useGuestStore((s) => s.isGuest) && !user
+  const isGuest = useGuestStore((s) => s.isGuest) || !user
   const [activeTab, setActiveTab] = useState<TabId>(isGuest ? 'digital-twin' : 'context')
   const alertCount = useAIStore((s) => s.proactiveAlerts.length)
 
