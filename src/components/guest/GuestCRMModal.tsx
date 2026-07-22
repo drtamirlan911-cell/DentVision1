@@ -80,13 +80,21 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
   const handleQuickDemoLogin = async () => {
     setDemoLoading(true);
     setError('');
+    const demoLogin = String(import.meta.env.VITE_DEMO_LOGIN || 'owner@dentvision.kz').trim();
+    const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || 'Demo1234!').trim();
     try {
-      await login('owner@dentvision.kz', 'Demo1234!');
+      await login(demoLogin, demoPassword);
       toast.success('Демо-клиника открыта');
       handleClose();
       navigate('/crm/schedule');
-    } catch {
-      // Fall back to manual auth → createDemoClinic flow
+    } catch (err) {
+      // Fall back to manual auth → createDemoClinic flow with a clear message
+      const msg = err instanceof Error ? err.message : '';
+      setError(
+        msg.includes('401') || /неверн|invalid|password|парол/i.test(msg)
+          ? 'Демо-аккаунт недоступен на этом окружении. Войдите своим логином или зарегистрируйтесь — затем нажмите «Демо».'
+          : 'Не удалось открыть демо. Войдите или зарегистрируйтесь, затем попробуйте снова.',
+      );
       setPendingAction('demo');
       setStep('auth');
     } finally {

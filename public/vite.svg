@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DentVision logo">
-  <rect width="64" height="64" rx="16" fill="#0F172A"/>
-  <path d="M22 18c-4 0-8 3-8 8 0 6 5 10 10 13 4 2 8 5 8 10 0 2 2 4 4 4h2c2 0 4-2 4-4 0-5 4-8 8-10 5-3 10-7 10-13 0-5-4-8-8-8-4 0-6 2-8 5-2-3-4-5-8-5z" fill="#C9A96E"/>
-  <path d="M26 30c2-2 4-3 6-4 2 1 4 2 6 4" stroke="#F8FAFC" stroke-width="2" stroke-linecap="round" fill="none"/>
-</svg>

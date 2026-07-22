@@ -11,7 +11,8 @@ const API_URL: string =
 
 const GUEST_STORAGE_KEY = 'dv_guest';
 let _initInProgress = false;
-let _initFailed = false;
+let _initFailedAt = 0;
+const INIT_RETRY_COOLDOWN_MS = 8_000;
 
 interface GuestState {
   guestId: string | null;
@@ -20,12 +21,15 @@ interface GuestState {
   aiRequestsLeft: number;
   showRegistrationModal: boolean;
   pendingAction: (() => void) | null;
+  initError: string | null;
 
   initGuest: () => Promise<void>;
+  retryGuest: () => Promise<void>;
   setRegistrationModal: (show: boolean, pendingAction?: (() => void) | null) => void;
   convertGuest: (login: string, password: string, name?: string) => Promise<boolean>;
   isGuestRoute: (pathname: string) => boolean;
   requiresAuth: (pathname: string) => boolean;
+  clearGuest: () => void;
 }
 
 const PUBLIC_ROUTES = [
@@ -53,6 +57,28 @@ const AUTH_REQUIRED_ROUTES = [
   '/supplier',
 ];
 
+async function createGuestSession(): Promise<{
+  guestId: string;
+  guestToken: string;
+  aiRequestsLeft: number;
+}> {
+  const res = await fetch(`${API_URL}/api/guest/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(`Guest session ${res.status}`);
+  const data = await res.json();
+  const guestId = data.guestId || data.data?.guestId;
+  const guestToken = data.token || data.data?.token;
+  if (!guestId || !guestToken) throw new Error('Guest session incomplete');
+  return {
+    guestId,
+    guestToken,
+    aiRequestsLeft: data.aiRequestsLeft ?? data.data?.aiRequestsLeft ?? 20,
+  };
+}
+
 export const useGuestStore = create<GuestState>((set, get) => ({
   guestId: null,
   guestToken: null,
@@ -60,9 +86,12 @@ export const useGuestStore = create<GuestState>((set, get) => ({
   aiRequestsLeft: 20,
   showRegistrationModal: false,
   pendingAction: null,
+  initError: null,
 
   initGuest: async () => {
-    if (_initInProgress || _initFailed) return;
+    if (_initInProgress) return;
+    if (get().guestToken) return;
+    if (_initFailedAt && Date.now() - _initFailedAt < INIT_RETRY_COOLDOWN_MS) return;
 
     // Restore from localStorage
     try {
@@ -75,6 +104,7 @@ export const useGuestStore = create<GuestState>((set, get) => ({
             guestToken: parsed.guestToken,
             isGuest: true,
             aiRequestsLeft: parsed.aiRequestsLeft ?? 20,
+            initError: null,
           });
           return;
         }
@@ -83,33 +113,38 @@ export const useGuestStore = create<GuestState>((set, get) => ({
 
     _initInProgress = true;
     try {
-      const res = await fetch(`${API_URL}/api/guest/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) throw new Error(`Guest session ${res.status}`);
-      const data = await res.json();
-
-      const state = {
-        guestId: data.guestId,
-        guestToken: data.token,
+      const session = await createGuestSession();
+      set({
+        guestId: session.guestId,
+        guestToken: session.guestToken,
         isGuest: true,
-        aiRequestsLeft: data.aiRequestsLeft ?? 20,
-      };
-      set(state);
+        aiRequestsLeft: session.aiRequestsLeft,
+        initError: null,
+      });
+      _initFailedAt = 0;
       try {
         localStorage.setItem(
           GUEST_STORAGE_KEY,
-          JSON.stringify({ guestId: data.guestId, guestToken: data.token, aiRequestsLeft: data.aiRequestsLeft })
+          JSON.stringify({
+            guestId: session.guestId,
+            guestToken: session.guestToken,
+            aiRequestsLeft: session.aiRequestsLeft,
+          }),
         );
       } catch { /* storage full, ignore */ }
     } catch (err) {
       console.warn('Guest init failed (server may be deploying):', (err as Error).message);
-      _initFailed = true;
+      _initFailedAt = Date.now();
+      set({ initError: (err as Error).message || 'guest_init_failed' });
     } finally {
       _initInProgress = false;
     }
+  },
+
+  retryGuest: async () => {
+    _initFailedAt = 0;
+    set({ initError: null });
+    await get().initGuest();
   },
 
   setRegistrationModal: (show, pendingAction = null) => {
@@ -145,6 +180,6 @@ export const useGuestStore = create<GuestState>((set, get) => ({
 
   clearGuest: () => {
     try { localStorage.removeItem(GUEST_STORAGE_KEY); } catch { /* storage may be unavailable */ }
-    set({ guestId: null, guestToken: null, isGuest: false, showRegistrationModal: false, pendingAction: null });
+    set({ guestId: null, guestToken: null, isGuest: false, showRegistrationModal: false, pendingAction: null, initError: null });
   },
 }));

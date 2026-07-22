@@ -44,10 +44,10 @@ const DEMO_STEPS = [
 ];
 
 const STATS = [
-  { value: '500+', label: 'Клиник' },
-  { value: '12k+', label: 'Пользователей' },
-  { value: '99.9%', label: 'Uptime' },
-  { value: '4.9', label: 'Рейтинг' },
+  { value: 'CRM', label: 'Клиника' },
+  { value: 'Shop', label: 'Маркет' },
+  { value: 'AI', label: 'Jarvis' },
+  { value: 'Academy', label: 'Обучение' },
 ];
 
 export default function Demo() {

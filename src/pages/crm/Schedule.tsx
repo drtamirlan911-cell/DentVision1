@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, XCircle,
   Clock, Search, ListOrdered, GripVertical, DollarSign, X, ArrowRight, User as UserIcon, Stethoscope,
-  WifiOff, CloudOff, Printer, ClipboardCheck, Globe, Wallet,
+  WifiOff, CloudOff, Printer, ClipboardCheck, Globe, Wallet, Loader2,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -91,6 +91,7 @@ export default function Schedule() {
     upsertAppointment: upsertAppointmentApi, deleteAppointment,
     upsertPatient, upsertReceipt,
     upsertWaitingListItem, deleteWaitingListItem,
+    isLoading: crmLoading, isError: crmError, refetchCore,
   } = useDataQuery(clinicId)
 
   const queryClient = useQueryClient()
@@ -736,6 +737,18 @@ export default function Schedule() {
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="dv-page max-w-7xl mx-auto space-y-4 py-4 md:py-6">
+      {crmLoading && (
+        <div className="rounded-xl border border-bdr-subtle bg-surface-2/60 px-4 py-3 text-sm text-txt-secondary flex items-center gap-2">
+          <Loader2 size={16} className="animate-spin text-dv-gold shrink-0" />
+          Загружаем расписание и пациентов…
+        </div>
+      )}
+      {crmError && !crmLoading && (
+        <div className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3">
+          <span className="flex-1">Не удалось загрузить данные клиники. Проверьте соединение и попробуйте снова.</span>
+          <Button size="sm" variant="secondary" onClick={() => refetchCore()}>Повторить</Button>
+        </div>
+      )}
       {toast && (
         <div className={cn('fixed dv-float-above-nav right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-fade-up max-w-[calc(100vw-2rem)]',
           toast.type === 'success' && 'bg-success text-white',

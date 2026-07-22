@@ -24,6 +24,22 @@ export type PlanEntitlementsSnapshot = {
 
 const DISMISS_KEY = 'dv_plan_banner_dismissed'
 
+const PLAN_LABELS: Record<string, string> = {
+  free: 'Бесплатный',
+  starter: 'Starter',
+  professional: 'Professional',
+  enterprise: 'Enterprise',
+  DEMO: 'Демо',
+  STANDARD: 'Starter',
+  PRO: 'Professional',
+  ENTERPRISE: 'Enterprise',
+}
+
+function planLabel(id?: string | null): string {
+  if (!id) return 'текущий'
+  return PLAN_LABELS[id] || PLAN_LABELS[String(id).toLowerCase()] || id
+}
+
 function dismissKey(snap: PlanEntitlementsSnapshot): string {
   const kind = snap.expired || snap.writeBlocked
     ? 'expired'
@@ -88,7 +104,7 @@ export function PlanAccessBanner({
       <div className={cn('rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 flex flex-wrap items-center gap-2 sm:gap-3', className)}>
         <AlertTriangle size={15} className="text-amber-300 shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-semibold text-txt-primary m-0">Лимит тарифа {snap.saasPlan}</p>
+          <p className="text-xs sm:text-sm font-semibold text-txt-primary m-0">Лимит тарифа «{planLabel(snap.saasPlan)}»</p>
           <p className="text-[11px] sm:text-xs text-txt-muted m-0">{parts.join(' · ')}. Обновите план.</p>
         </div>
         <Button size="sm" variant="secondary" onClick={() => navigate('/crm/billing')}>
@@ -115,7 +131,7 @@ export function PlanAccessBanner({
       <div className={cn('rounded-xl border border-dv-gold/25 bg-dv-gold/5 px-3 py-2 flex flex-wrap items-center gap-2 sm:gap-3', className)}>
         <AlertTriangle size={15} className="text-dv-gold shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-semibold text-txt-primary m-0">Близко к лимиту {snap.saasPlan}</p>
+          <p className="text-xs sm:text-sm font-semibold text-txt-primary m-0">Близко к лимиту «{planLabel(snap.saasPlan)}»</p>
           <p className="text-[11px] sm:text-xs text-txt-muted m-0">{parts.join(' · ')}</p>
         </div>
         <Button size="sm" variant="ghost" onClick={() => navigate('/crm/billing')}>

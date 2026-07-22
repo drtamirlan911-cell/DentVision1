@@ -64,7 +64,7 @@ export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth();
-  const { isGuest, isGuestRoute, requiresAuth, initGuest, showRegistrationModal, setRegistrationModal } = useGuestStore();
+  const { isGuest, isGuestRoute, requiresAuth, initGuest, retryGuest, initError, showRegistrationModal, setRegistrationModal } = useGuestStore();
   const {
     sidebarOpen,
     toggleSidebar,
@@ -257,17 +257,39 @@ export const IntelligenceLayout: React.FC = () => {
     }
   }, [location.pathname, firstRunPhase, completeFirstRun, setOnboardingComplete, setFirstRunPhase, setSidebarVisible]);
 
-  if (!isAuthenticated && !isGuest && !isPublicRoute) {
-    initGuest();
-  }
+  // Guest session: retry-friendly, never call during render.
+  useEffect(() => {
+    if (!isAuthenticated && !isGuest && !isPublicRoute) {
+      void initGuest();
+    }
+  }, [isAuthenticated, isGuest, isPublicRoute, initGuest]);
+
+  const isCRMRoute = location.pathname.startsWith('/crm');
+  const autoDemo = new URLSearchParams(location.search).get('demo') === '1';
+
+  useEffect(() => {
+    if (!needsAuth || !isGuest) return;
+    if (isCRMRoute) {
+      setGuestCRMOpen(true);
+      return;
+    }
+    if (!showRegistrationModal) {
+      const pendingPath = location.pathname;
+      setRegistrationModal(true, () => navigate(pendingPath));
+    }
+  }, [
+    needsAuth,
+    isGuest,
+    isCRMRoute,
+    showRegistrationModal,
+    location.pathname,
+    setRegistrationModal,
+    navigate,
+  ]);
 
   if (needsAuth) {
     if (isGuest) {
-      const isCRMRoute = location.pathname.startsWith('/crm');
       if (isCRMRoute) {
-        if (!guestCRMOpen) {
-          setGuestCRMOpen(true);
-        }
         return (
           <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex items-center justify-center">
             <div className="text-center space-y-4">
@@ -279,15 +301,11 @@ export const IntelligenceLayout: React.FC = () => {
             </div>
             <GuestCRMModal
               open={guestCRMOpen}
-              autoStartDemo={new URLSearchParams(location.search).get('demo') === '1'}
+              autoStartDemo={autoDemo}
               onClose={() => { setGuestCRMOpen(false); navigate('/'); }}
             />
           </div>
         );
-      }
-      const pendingPath = location.pathname;
-      if (!showRegistrationModal) {
-        setRegistrationModal(true, () => navigate(pendingPath));
       }
       return (
         <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex items-center justify-center">
@@ -298,16 +316,18 @@ export const IntelligenceLayout: React.FC = () => {
             <h2 className="text-lg font-semibold text-txt-primary">Требуется авторизация</h2>
             <p className="text-sm text-txt-secondary max-w-xs">Войдите или зарегистрируйтесь для доступа</p>
             <button
-              onClick={() => setRegistrationModal(true, () => navigate(pendingPath))}
-              className="px-6 py-2.5 rounded-lg bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors"
+              type="button"
+              className="text-sm text-dv-gold hover:underline"
+              onClick={() => setRegistrationModal(true, () => navigate(location.pathname))}
             >
-              Зарегистрироваться
+              Открыть вход
             </button>
           </div>
+          <RegistrationModal />
         </div>
       );
     }
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   return (
@@ -439,6 +459,29 @@ export const IntelligenceLayout: React.FC = () => {
           {billingSnap ? (
             <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0">
               <PlanAccessBanner snap={billingSnap} />
+            </div>
+          ) : null}
+          {!isAuthenticated && initError ? (
+            <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0">
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 flex flex-wrap items-center gap-2 sm:gap-3">
+                <p className="text-xs sm:text-sm text-txt-primary m-0 flex-1">
+                  Гостевая сессия не поднялась (API мог быть холодный). Можно повторить или войти.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { void retryGuest(); }}
+                  className="px-3 py-1.5 rounded-lg bg-dv-gold/15 text-dv-gold text-xs font-semibold hover:bg-dv-gold/25"
+                >
+                  Повторить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="px-3 py-1.5 rounded-lg border border-bdr-subtle text-txt-secondary text-xs hover:text-txt-primary"
+                >
+                  Войти
+                </button>
+              </div>
             </div>
           ) : null}
           <motion.div

@@ -1,7 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { useAuth } from '@/store/auth.store';
-import { GLOBAL_CSS } from '../../utils/constants';
-import { Loader2, UserPlus, AlertTriangle, Check, User, Stethoscope, Bot, GraduationCap, ShoppingBag } from 'lucide-react';
+import { Loader2, UserPlus, AlertTriangle, User, Stethoscope, Bot, GraduationCap, ShoppingBag } from 'lucide-react';
 
 interface RegisterProps {
   onBack: () => void;
@@ -59,30 +58,28 @@ export default function Register({ onBack }: RegisterProps) {
   const displayError = error || localError;
 
   return (
-    <>
-      <style>{GLOBAL_CSS}</style>
-      <div className="min-h-screen bg-[#080F1A] flex items-center justify-center p-5 relative overflow-hidden">
-        <div className="absolute w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,#C9A96E06_0%,transparent_70%)] -top-24 -right-24 pointer-events-none" />
-        <div className="absolute w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,#27AE6005_0%,transparent_70%)] -bottom-20 -left-20 pointer-events-none" />
+    <div className="min-h-screen bg-surface-0 flex items-center justify-center p-5 relative overflow-hidden">
+      <div className="absolute w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,rgba(201,169,110,0.06)_0%,transparent_70%)] -top-24 -right-24 pointer-events-none" />
+      <div className="absolute w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,rgba(39,174,96,0.05)_0%,transparent_70%)] -bottom-20 -left-20 pointer-events-none" />
 
-        <div className="w-full max-w-[480px] bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-[18px] py-9 px-8 shadow-[0_40px_80px_rgba(0,0,0,0.5)] relative z-10">
-          <div className="text-center mb-7">
-            <div className="mb-2.5 flex justify-center text-[#C9A96E]">
-              <UserPlus size={40} />
-            </div>
-            <h1 className="font-['Georgia',serif] text-[22px] font-bold text-white m-0">
-              Регистрация в DentVision
-            </h1>
-            <p className="text-xs text-[#7A8899] mt-1.5">
-              Присоединяйтесь к экосистеме — это бесплатно
-            </p>
+      <div className="w-full max-w-[480px] bg-surface-1 border border-dv-gold/15 rounded-[18px] py-9 px-8 shadow-[0_40px_80px_rgba(0,0,0,0.5)] relative z-10">
+        <div className="text-center mb-7">
+          <div className="mb-2.5 flex justify-center text-dv-gold">
+            <UserPlus size={40} />
           </div>
+          <h1 className="font-serif text-[22px] font-bold text-txt-primary m-0">
+            Регистрация в DentVision
+          </h1>
+          <p className="text-xs text-txt-muted mt-1.5">
+            Присоединяйтесь к экосистеме — это бесплатно
+          </p>
+        </div>
 
-          {displayError && (
-            <div className="bg-[#E74C3C]/15 border border-[#E74C3C]/30 rounded-lg px-3.5 py-2.5 mb-4 text-[13px] text-[#E74C3C] flex items-center gap-2">
-              <AlertTriangle size={16} />{displayError}
-            </div>
-          )}
+        {displayError && (
+          <div className="bg-error/15 border border-error/30 rounded-lg px-3.5 py-2.5 mb-4 text-[13px] text-error flex items-center gap-2">
+            <AlertTriangle size={16} />{displayError}
+          </div>
+        )}
 
           <div>
             <Field label="Имя *" value={form.name} onChange={(v) => set('name', v)} placeholder="Иван Иванов" />
@@ -101,22 +98,23 @@ export default function Register({ onBack }: RegisterProps) {
             </div>
           </div>
 
-          <div className="mt-4 p-3.5 bg-[#27AE60]/[0.08] border border-[#27AE60]/20 rounded-[10px] text-xs text-[#B0BEC5] leading-relaxed">
-            После регистрации вы сразу получаете доступ к <span className="text-[#C9A96E]">Магазину</span>, <span className="text-[#C9A96E]">Академии</span> и <span className="text-[#C9A96E]">AI-ассистенту</span>. Клинику можно создать или присоединиться к ней позже.
+          <div className="mt-4 p-3.5 bg-success/10 border border-success/20 rounded-[10px] text-xs text-txt-secondary leading-relaxed">
+            После регистрации вы сразу получаете доступ к <span className="text-dv-gold">Магазину</span>, <span className="text-dv-gold">Академии</span> и <span className="text-dv-gold">AI-ассистенту</span>. Клинику можно создать или присоединиться к ней позже.
           </div>
 
           <div className="mt-6 flex gap-2.5">
-            <button onClick={onBack} className="px-[18px] py-[11px] bg-white/[0.06] border border-[rgba(255,255,255,0.06)] rounded-lg text-[#7A8899] text-[13px] cursor-pointer">
+            <button type="button" onClick={onBack} className="px-[18px] py-[11px] bg-white/[0.06] border border-bdr-subtle rounded-lg text-txt-muted text-[13px] cursor-pointer">
               ← Назад
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={loading}
-              className={`flex-1 py-[11px] border-none rounded-lg text-[#080F1A] text-sm font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_#C9A96E30] ${
-                loading ? 'bg-[#8B6F3E] cursor-not-allowed' : 'bg-gradient-to-r from-[#C9A96E] to-[#8B6F3E] cursor-pointer'
+              className={`flex-1 py-[11px] border-none rounded-lg text-surface-0 text-sm font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(201,169,110,0.3)] ${
+                loading ? 'bg-dv-gold/60 cursor-not-allowed' : 'bg-gradient-to-r from-dv-gold to-[#8B6F3E] cursor-pointer'
               }`}
             >
-              {loading ? <><Loader2 size={16} className="animate-spin text-[#080F1A]" /> Создаём аккаунт…</> : 'Создать аккаунт'}
+              {loading ? <><Loader2 size={16} className="animate-spin" /> Создаём аккаунт…</> : 'Создать аккаунт'}
             </button>
           </div>
 
@@ -127,14 +125,13 @@ export default function Register({ onBack }: RegisterProps) {
               { icon: Bot, text: 'AI' },
               { icon: Stethoscope, text: 'CRM' },
             ].map((f, i) => (
-              <div key={i} className="px-2 py-2 bg-white/[0.03] border border-[rgba(255,255,255,0.06)] rounded-lg flex flex-col items-center gap-1 text-[10px] text-[#B0BEC5]">
-                <f.icon size={14} className="text-[#C9A96E]" />{f.text}
+              <div key={i} className="px-2 py-2 bg-white/[0.03] border border-bdr-subtle rounded-lg flex flex-col items-center gap-1 text-[10px] text-txt-secondary">
+                <f.icon size={14} className="text-dv-gold" />{f.text}
               </div>
             ))}
           </div>
         </div>
       </div>
-    </>
   );
 }
 
