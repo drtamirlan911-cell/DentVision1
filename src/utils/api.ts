@@ -138,7 +138,13 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
     }
   }
 
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err: any = new Error(data.error || data.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.code = data.code;
+    err.details = data.details;
+    throw err;
+  }
   // Only unwrap explicit API envelopes { ok, data }. Do NOT strip domain payloads that include a `data` field (e.g. AI chat).
   if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) {
     return data.data;

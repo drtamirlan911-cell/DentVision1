@@ -17,6 +17,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { trackProductEvent } from '@/utils/analytics'
 import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 import { alertDismissKey, filterDismissedAlerts } from '@/utils/dismissedAlerts'
+import { answerJobsSearchQuery } from '@/lib/jobsAiQuery'
 
 import type { Message, Action } from '@/store/workspace.store'
 
@@ -398,7 +399,9 @@ const handleSend = useCallback(async (text: string) => {
     }
 
     try {
-      const res = await aiChatStream(text, historyRef.current.slice(-20), (partial, done) => {
+      // Platform jobs search — works without paid AI (starter has features.ai=false).
+      const jobsRes = await answerJobsSearchQuery(text).catch(() => null)
+      const res = jobsRes || await aiChatStream(text, historyRef.current.slice(-20), (partial, done) => {
         // Create the assistant bubble only when the first non-empty token arrives —
         // otherwise the UI shows an empty grey bubble + thumbs/copy while thinking.
         if (!partial?.trim() && !done) return
@@ -407,6 +410,29 @@ const handleSend = useCallback(async (text: string) => {
         })
         if (!done) setAIStatus('thinking')
       }, { userId: user?.id, clinicId })
+
+      if (jobsRes?.reply) {
+        upsertAssistant({
+          content: jobsRes.reply,
+          skill: jobsRes.skill,
+          source: jobsRes.source,
+          actions: jobsRes.actions?.map((a: any) => ({
+            id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: a.type || a.action,
+            label: a.label,
+            confidence: a.confidence || 1,
+            params: a.params || {},
+            requiresConfirmation: false,
+          })),
+          data: jobsRes.data,
+        })
+        setSuggestionsFromStrings((jobsRes.suggestions || []).slice(0, 3))
+        historyRef.current.push({ role: 'assistant', content: jobsRes.reply })
+        setAIStatus('idle')
+        setProgress(100)
+        // Auto-offer navigation chip; user can click OpenJobs
+        return
+      }
 
       if (res.conversationContext?.entities) {
         setCurrentIntent({
@@ -547,9 +573,19 @@ const handleSend = useCallback(async (text: string) => {
       } else {
         setAIStatus('idle')
       }
-    } catch {
+    } catch (e: any) {
+      const msg = String(e?.message || '')
+      const isPlan =
+        /тариф|подписк|AI|лимит|PLAN_|402|feature/i.test(msg) ||
+        e?.status === 402 ||
+        e?.code === 'PLAN_FEATURE' ||
+        e?.code === 'PLAN_AI_QUOTA'
       upsertAssistant({
-        content: 'Извините, произошла ошибка. Попробуйте ещё раз.',
+        content: isPlan
+          ? (msg || 'AI недоступен на текущем тарифе. Обновите план в «Тариф и оплата» — или спросите про вакансии/маркет без AI.')
+          : (msg && msg !== 'Failed to fetch'
+            ? msg
+            : 'Извините, произошла ошибка. Попробуйте ещё раз.'),
       })
       setAIStatus('idle')
     } finally {

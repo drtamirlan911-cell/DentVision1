@@ -31,7 +31,13 @@ export default function JobsPage() {
   const navigate = useNavigate()
   const { user, clinic, isAuthenticated } = useAuth()
   const { showToast } = useToast()
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('q') || ''
+    } catch {
+      return ''
+    }
+  })
   const [city, setCity] = useState('all')
   const [vacancies, setVacancies] = useState<any[]>([])
   const [applied, setApplied] = useState<string[]>([])
@@ -41,6 +47,13 @@ export default function JobsPage() {
   const [postKind, setPostKind] = useState<PostKind>('vacancy')
   const [form, setForm] = useState({ ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get('q')
+      if (q != null) setSearch(q)
+    } catch { /* ignore */ }
+  }, [])
 
   const load = async () => {
     setLoading(true)
