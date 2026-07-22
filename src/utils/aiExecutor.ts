@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { aiAction } from '@/utils/api';
 import { useAuth } from '@/store/auth.store';
 import type { Message } from '@/store/workspace.store';
+import { AI_NAV_ACTIONS } from '@/lib/aiPlatformMap';
 
 export interface AIAction {
   id: string;
@@ -34,44 +35,7 @@ export interface ExecutorCallbacks {
 }
 
 const NAVIGATION_ACTIONS: Record<string, string> = {
-  OpenSchedule: '/crm/schedule',
-  OPEN_SCHEDULE: '/crm/schedule',
-  OpenPatients: '/crm/patients',
-  OPEN_PATIENTS: '/crm/patients',
-  OpenPatient: '/crm/patients',
-  OpenMedicalCard: '/crm/medical-card',
-  OPEN_MEDICAL_CARD: '/crm/medical-card',
-  OpenCashier: '/crm/finance',
-  OpenFinance: '/crm/finance',
-  OPEN_FINANCE: '/crm/finance',
-  OpenLab: '/crm/lab',
-  OPEN_LABORATORY: '/crm/lab',
-  OpenInventory: '/crm/inventory',
-  OPEN_INVENTORY: '/crm/inventory',
-  OpenStaff: '/crm/staff',
-  OpenVisits: '/crm/visits',
-  OpenDocuments: '/crm/documents',
-  OPEN_DOCUMENTS: '/crm/documents',
-  OpenReminders: '/crm/reminders',
-  OpenDentalChart: '/crm/dental-chart',
-  OpenTreatmentPlans: '/crm/treatment-plans',
-  OpenPriceList: '/crm/pricelist',
-  OpenPromotions: '/crm/promotions',
-  OpenShop: '/shop',
-  OPEN_SHOP: '/shop',
-  OpenSchool: '/school',
-  OPEN_SCHOOL: '/school',
-  OpenAnalytics: '/analytics',
-  OPEN_ANALYTICS: '/analytics',
-  OpenCRM: '/crm',
-  OPEN_CRM: '/crm',
-  OpenProfile: '/profile',
-  OpenSettings: '/settings',
-  OpenMyClinics: '/my-clinics',
-  OpenDemo: '/crm/schedule?demo=1',
-  OpenPricing: '/pricing',
-  OpenJobs: '/jobs',
-  OpenCommunity: '/community',
+  ...AI_NAV_ACTIONS,
   NAVIGATE: '', // path comes from params.path
 };
 

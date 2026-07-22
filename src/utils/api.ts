@@ -1604,7 +1604,14 @@ export function clearAiSessionId(userId?: string | null, clinicId?: string | nul
 export async function aiChat(
   message: string,
   history: Array<{ role: string; content: string }> = [],
-  opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null },
+  opts?: {
+    sessionId?: string
+    userId?: string | null
+    clinicId?: string | null
+    pathname?: string | null
+    focusType?: string | null
+    focusId?: string | null
+  },
 ): Promise<AIChatResponse> {
   const sessionId = opts?.sessionId || getAiSessionId(opts?.userId, opts?.clinicId);
   const res = await apiRequest('/api/ai/query', {
@@ -1615,6 +1622,9 @@ export async function aiChat(
       history: history.slice(-20),
       sessionId,
       timezone: clientTimezoneHeader(),
+      pathname: opts?.pathname || (typeof window !== 'undefined' ? window.location.pathname : undefined),
+      focusType: opts?.focusType || undefined,
+      focusId: opts?.focusId || undefined,
     }),
   });
 
@@ -1661,7 +1671,14 @@ export async function aiChatStream(
   message: string,
   history: Array<{ role: string; content: string }> = [],
   onChunk: (partial: string, done: boolean) => void,
-  opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null },
+  opts?: {
+    sessionId?: string
+    userId?: string | null
+    clinicId?: string | null
+    pathname?: string | null
+    focusType?: string | null
+    focusId?: string | null
+  },
 ): Promise<AIChatResponse> {
   try {
     const streamed = await aiChatSSE(message, history, onChunk, opts);
@@ -1694,7 +1711,14 @@ async function aiChatSSE(
   message: string,
   history: Array<{ role: string; content: string }>,
   onChunk: (partial: string, done: boolean) => void,
-  opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null },
+  opts?: {
+    sessionId?: string
+    userId?: string | null
+    clinicId?: string | null
+    pathname?: string | null
+    focusType?: string | null
+    focusId?: string | null
+  },
 ): Promise<AIChatResponse | null> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (_accessToken) headers.Authorization = `Bearer ${_accessToken}`;
@@ -1720,6 +1744,9 @@ async function aiChatSSE(
       history: history.slice(-20),
       sessionId,
       timezone: tz,
+      pathname: opts?.pathname || (typeof window !== 'undefined' ? window.location.pathname : undefined),
+      focusType: opts?.focusType || undefined,
+      focusId: opts?.focusId || undefined,
     }),
   });
   if (!res.ok || !res.body) return null;
@@ -1838,7 +1865,7 @@ export async function aiDigitalTwin(): Promise<any> {
 
 /** Jarvis role briefing on login / «Что важно сегодня?» */
 export async function aiBriefing(): Promise<AIChatResponse> {
-  const tz = clientTimezone();
+  const tz = clientTimezoneHeader();
   const qs = tz ? `?timezone=${encodeURIComponent(tz)}` : '';
   const res = await apiRequest(`/api/ai/briefing${qs}`);
   const data = res?.data || res || {};

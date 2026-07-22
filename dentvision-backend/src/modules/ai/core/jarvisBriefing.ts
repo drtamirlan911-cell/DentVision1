@@ -372,7 +372,10 @@ export async function buildJarvisBriefing(opts: {
   return {
     role,
     message: [...header, ...lines, '', closing].join('\n'),
-    suggestions: [...new Set(suggestions)].slice(0, 3),
+    suggestions: [...new Set([
+      ...suggestions,
+      ...(loadSignals?.suggestions || []),
+    ])].slice(0, 4),
     payload: {
       timeZone,
       apptsToday,

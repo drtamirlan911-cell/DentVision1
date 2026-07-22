@@ -40,7 +40,9 @@ describe('planEntitlements gate logic', () => {
   it('maps legacy clinic plans', () => {
     expect(normalizeSaasPlanId('pro')).toBe('professional')
     expect(entitlementsForPlan('PRO').saasPlan).toBe('professional')
-    expect(entitlementsForPlan('DEMO').maxPatients).toBe(25)
+    expect(entitlementsForPlan('DEMO').maxPatients).toBe(null)
+    expect(entitlementsForPlan('DEMO').saasPlan).toBe('professional')
+    expect(entitlementsForPlan('DEMO').features.ai).toBe(true)
   })
 
   it('blocks writes when subscription expired', () => {

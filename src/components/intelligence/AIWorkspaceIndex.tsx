@@ -19,6 +19,7 @@ import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
 import { alertDismissKey, filterDismissedAlerts } from '@/utils/dismissedAlerts'
 import { buildLiveClinicGreeting, isStaticRadarGreeting } from '@/lib/liveGreeting'
 import { answerJobsSearchQuery } from '@/lib/jobsAiQuery'
+import { AI_NAV_ACTIONS, getSmartSuggestions } from '@/lib/aiPlatformMap'
 
 import type { Message, Action } from '@/store/workspace.store'
 
@@ -200,7 +201,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
               historyRef.current = restored.map((m: any) => ({ role: m.role, content: m.content }))
               persistThread(user.id, clinicId, restored)
               trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
-              setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
+              setSuggestionsFromStrings(getSmartSuggestions({ user, guest: isGuest, pathname: location.pathname, focusType: 'workspace' }).slice(0, 4))
               if (shouldRefreshDailyBriefing(restored) || restored.some((m) => m.role === 'assistant' && isStaticRadarGreeting(m.content))) {
                 void pushDailyJarvisBriefing()
               }
@@ -231,7 +232,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           setMessages(localMsgs)
           historyRef.current = restored.map((m) => ({ role: m.role, content: m.content }))
           trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'local' })
-          setSuggestionsFromStrings(getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3))
+          setSuggestionsFromStrings(getSmartSuggestions({ user, guest: isGuest, pathname: location.pathname, focusType: 'workspace' }).slice(0, 4))
           if (!isGuest && user?.id && (
             shouldRefreshDailyBriefing(localMsgs)
             || localMsgs.some((m) => m.role === 'assistant' && isStaticRadarGreeting(m.content))
@@ -266,9 +267,14 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
   useEffect(() => {
     if (status === 'idle' || status === 'result' || status === 'confirmation') {
-      setSuggestionsFromStrings(getDefaultSuggestions(user, contextFocus.focusType, isGuest).slice(0, 3))
+      setSuggestionsFromStrings(getSmartSuggestions({
+        user,
+        guest: isGuest,
+        pathname: location.pathname,
+        focusType: contextFocus.focusType,
+      }).slice(0, 4))
     }
-  }, [contextFocus.focusType, user, isGuest])
+  }, [contextFocus.focusType, user, isGuest, location.pathname])
 
   const initializeWorkspace = async () => {
     const started = Date.now()
@@ -294,7 +300,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           latency_ms: Date.now() - started,
           data_complete: true,
         })
-        setSuggestionsFromStrings(getDefaultSuggestions(null, 'workspace', true).slice(0, 3))
+        setSuggestionsFromStrings(getSmartSuggestions({ guest: true, pathname: location.pathname }).slice(0, 4))
         // Prefetch platform twin + guest tips into context (non-blocking).
         void Promise.all([
           aiDigitalTwin().catch(() => null),
@@ -367,7 +373,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         live_fallback: usedLiveFallback,
       })
       setSuggestionsFromStrings(
-        (suggestions.length ? suggestions : getDefaultSuggestions(user, 'workspace', false)).slice(0, 3)
+        (suggestions.length ? suggestions : getSmartSuggestions({ user, pathname: location.pathname, focusType: 'workspace' })).slice(0, 4)
       )
       if (proactiveData?.alerts?.length) {
         setProactiveAlerts(mapProactiveAlerts(proactiveData.alerts))
@@ -379,7 +385,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     } catch {
       if (!stillCurrent()) return
       let fallback = isGuest ? buildGuestGreeting() : ''
-      let catchSuggestions = getDefaultSuggestions(user, 'workspace', isGuest).slice(0, 3)
+      let catchSuggestions = getSmartSuggestions({ user, guest: isGuest, pathname: location.pathname }).slice(0, 4)
       if (!fallback && !isGuest) {
         const live = await buildLiveClinicGreeting({ user, clinic }).catch(() => null)
         if (live?.reply) {
@@ -465,7 +471,13 @@ const handleSend = useCallback(async (text: string) => {
           content: partial,
         })
         if (!done) setAIStatus('thinking')
-      }, { userId: user?.id, clinicId })
+      }, {
+        userId: user?.id,
+        clinicId,
+        pathname: location.pathname,
+        focusType: contextFocus.focusType,
+        focusId: contextFocus.focusId,
+      })
 
       if (jobsRes?.reply) {
         upsertAssistant({
@@ -546,7 +558,7 @@ const handleSend = useCallback(async (text: string) => {
         isGuest
           ? (nextSuggestions.filter((s: string) => !crmChip.test(s)).length
               ? nextSuggestions.filter((s: string) => !crmChip.test(s))
-              : getDefaultSuggestions(null, 'workspace', true)).slice(0, 3)
+              : getSmartSuggestions({ guest: true, pathname: location.pathname })).slice(0, 4)
           : nextSuggestions,
       )
       historyRef.current.push({ role: 'assistant', content: res.reply || '' })
@@ -607,9 +619,9 @@ const handleSend = useCallback(async (text: string) => {
             setAIStatus('result')
             setTimeout(() => setAIStatus('idle'), 1500)
             if (result?.type === 'navigate' && result.path) navigate(result.path)
-            else if (NAV_ACTIONS[aiAction.type]) {
-              navigate(NAV_ACTIONS[aiAction.type])
-              onNavigate?.(NAV_ACTIONS[aiAction.type])
+            else if (AI_NAV_ACTIONS[aiAction.type]) {
+              navigate(AI_NAV_ACTIONS[aiAction.type])
+              onNavigate?.(AI_NAV_ACTIONS[aiAction.type])
             }
           } catch (e: any) {
             setAIStatus('error')
@@ -692,8 +704,8 @@ const result = await executeAction(
       setCurrentAction(null)
       if (result?.type === 'navigate' && result.path) {
         navigate(result.path)
-      } else if (NAV_ACTIONS[action.type]) {
-        navigate(NAV_ACTIONS[action.type])
+      } else if (AI_NAV_ACTIONS[action.type]) {
+        navigate(AI_NAV_ACTIONS[action.type])
       }
     } catch (e: any) {
       setAIStatus('error')
@@ -841,7 +853,7 @@ const result = await executeAction(
                     (a.params && typeof a.params === 'object' && 'path' in a.params
                       ? String((a.params as { path?: string }).path || '')
                       : '') || ''
-                  const path = NAV_ACTIONS[type] || (type === 'NAVIGATE' ? pathFromParams : '')
+                  const path = AI_NAV_ACTIONS[type] || (type === 'NAVIGATE' ? pathFromParams : '')
                   if (path) {
                     navigate(path)
                     onNavigate?.(path)
@@ -1086,71 +1098,6 @@ function shouldRefreshDailyBriefing(messages: Array<{ role: string; timestamp?: 
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
   if (!lastAssistant?.timestamp) return true
   return dayKey(lastAssistant.timestamp) !== dayKey()
-}
-
-function getDefaultSuggestions(u: any, focusType: string, guest = false) {
-  if (guest || !u) {
-    return ['Чем полезен DentVision?', 'Открыть демо-клинику', 'Что в Academy OS?']
-  }
-  const role = (u?.role || '').toLowerCase()
-  if (focusType === 'patient') {
-    return ['История лечения', 'План лечения', 'Зубная карта']
-  }
-  if (role === 'doctor' || role === 'assistant') {
-    return ['Показать расписание', 'Открыть зубную карту', 'Создать план лечения']
-  }
-  if (role === 'owner' || role === 'руководитель' || role === 'director' || role === 'manager') {
-    return ['Что важно сегодня?', 'Показать выручку', 'Проверить долги', 'Показать расписание']
-  }
-  if (role === 'admin' || role === 'администратор' || role === 'reception') {
-    return ['Показать расписание', 'Записать пациента', 'Открыть кассу']
-  }
-  if (role === 'buyer') {
-    return ['Что на складе', 'Открыть маркетплейс', 'Показать заказы']
-  }
-  return ['Что важно сегодня?', 'Показать расписание', 'Проверить долги']
-}
-
-const NAV_ACTIONS: Record<string, string> = {
-  OpenSchedule: '/crm/schedule',
-  OPEN_SCHEDULE: '/crm/schedule',
-  OpenPatients: '/crm/patients',
-  OPEN_PATIENTS: '/crm/patients',
-  OpenCashier: '/crm/finance',
-  OpenFinance: '/crm/finance',
-  OPEN_FINANCE: '/crm/finance',
-  OpenLab: '/crm/lab',
-  OPEN_LABORATORY: '/crm/lab',
-  OpenShop: '/shop',
-  OPEN_SHOP: '/shop',
-  OpenSchool: '/school',
-  OPEN_SCHOOL: '/school',
-  OpenAnalytics: '/analytics',
-  OPEN_ANALYTICS: '/analytics',
-  OpenDocuments: '/crm/documents',
-  OPEN_DOCUMENTS: '/crm/documents',
-  OpenReminders: '/crm/reminders',
-  OpenSettings: '/settings',
-  OpenProfile: '/profile',
-  OpenMedicalCard: '/crm/medical-card',
-  OPEN_MEDICAL_CARD: '/crm/medical-card',
-  OpenVisits: '/crm/visits',
-  OpenInventory: '/crm/inventory',
-  OPEN_INVENTORY: '/crm/inventory',
-  OpenStaff: '/crm/staff',
-  OpenPatient: '/crm/patients',
-  OpenDentalChart: '/crm/dental-chart',
-  OpenTreatmentPlans: '/crm/treatment-plans',
-  OpenJobs: '/jobs',
-  OpenCommunity: '/community',
-  OpenCRM: '/crm',
-  OPEN_CRM: '/crm',
-  OpenDemo: '/crm/schedule?demo=1',
-  OpenPricing: '/pricing',
-  OPEN_INVOICE: '/crm/finance',
-  OpenInvoice: '/crm/finance',
-  OPEN_BILLING: '/crm/billing',
-  OpenBilling: '/crm/billing',
 }
 
 export type { AIWorkspaceIndexProps }
