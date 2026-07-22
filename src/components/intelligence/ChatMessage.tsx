@@ -63,16 +63,40 @@ const ACTION_LABELS: Record<string, string> = {
   OpenInventory: 'Открыть склад',
   OPEN_CRM: 'Открыть CRM',
   OpenCRM: 'Открыть CRM',
-  OPEN_SHOP: 'Открыть магазин',
-  OpenShop: 'Открыть магазин',
-  OPEN_SCHOOL: 'Открыть школу',
-  OpenSchool: 'Открыть школу',
+  OPEN_SHOP: 'Открыть маркетплейс',
+  OpenShop: 'Открыть маркетплейс',
+  OPEN_SCHOOL: 'Открыть Academy OS',
+  OpenSchool: 'Открыть Academy OS',
   OPEN_ANALYTICS: 'Открыть аналитику',
   OpenAnalytics: 'Открыть аналитику',
   OPEN_FINANCE: 'Открыть финансы',
   OpenFinance: 'Открыть финансы',
   OPEN_PATIENTS: 'Открыть пациентов',
   OpenPatients: 'Открыть пациентов',
+  NAVIGATE: 'Открыть раздел',
+};
+
+const SECTION_KEY_RU: Record<string, string> = {
+  schedule: 'Расписание',
+  patients: 'Пациенты',
+  finance: 'Финансы',
+  inventory: 'Склад',
+  documents: 'Документы',
+  lab: 'Лаборатория',
+  reminders: 'Напоминания',
+  'dental-chart': 'Зубная карта',
+  'treatment-plans': 'Планы лечения',
+  visits: 'Визиты',
+  staff: 'Сотрудники',
+  shop: 'Маркетплейс',
+  school: 'Academy OS',
+  analytics: 'Аналитика',
+  settings: 'Настройки',
+  profile: 'Профиль',
+  demo: 'Демо-клиника',
+  pricing: 'Тарифы',
+  jobs: 'Вакансии',
+  community: 'Сообщество',
 };
 
 function skillLabel(skill?: string): string | null {
@@ -89,16 +113,24 @@ function skillLabel(skill?: string): string | null {
   return skill;
 }
 
-function actionLabel(a: { action?: string; type?: string; label?: string }): string {
+function actionLabel(a: { action?: string; type?: string; label?: string; params?: Record<string, unknown> }): string {
   const key = a.action || a.type || '';
+  if (key === 'NAVIGATE') {
+    const path = String(a.params?.path || '');
+    const section = path.replace(/^\/crm\//, '/').replace(/^\//, '');
+    const ru = SECTION_KEY_RU[section] || SECTION_KEY_RU[path.replace(/^\//, '')];
+    if (ru) return `Открыть ${ru.toLowerCase() === 'academy os' ? 'Academy OS' : ru.toLowerCase()}`;
+    if (a.label && !/^NAVIGATE$/i.test(a.label)) return a.label;
+    return 'Открыть раздел';
+  }
   if (a.label && !/^[A-Z][A-Z0-9_]+$/.test(a.label) && a.label !== key) return a.label;
   return ACTION_LABELS[key] || ACTION_LABELS[a.label || ''] || a.label || key || 'Действие';
 }
 
 const SOURCE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   crm: { label: 'CRM', icon: <Database size={10} /> },
-  shop: { label: 'Shop', icon: <ShoppingCart size={10} /> },
-  school: { label: 'School', icon: <GraduationCap size={10} /> },
+  shop: { label: 'Маркетплейс', icon: <ShoppingCart size={10} /> },
+  school: { label: 'Academy OS', icon: <GraduationCap size={10} /> },
   knowledge: { label: 'База знаний', icon: <BookOpen size={10} /> },
   external: { label: 'Внешний источник', icon: <Globe size={10} /> },
   market: { label: 'Рынок', icon: <BarChart3 size={10} /> },
@@ -118,8 +150,37 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
   });
 }
 
+/** Soft-rewrite English section key dumps the model sometimes echoes from tool schemas. */
+function localizeSectionKeys(text: string): string {
+  let out = text;
+  // Comma-separated English keys (the usual failure mode)
+  out = out.replace(
+    /\b(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community)(\s*,\s*(schedule|patients|finance|inventory|documents|lab|reminders|dental-chart|treatment-plans|visits|staff|shop|school|analytics|settings|profile|demo|pricing|jobs|community))+/gi,
+    (match) =>
+      match
+        .split(/\s*,\s*/)
+        .map((k) => SECTION_KEY_RU[k.trim().toLowerCase()] || k.trim())
+        .join(', '),
+  );
+  // After «разделы:» / «раздел:» even a single key
+  out = out.replace(
+    /(раздел(?:ы)?\s*:\s*)([a-z0-9_,\-\s]+)/gi,
+    (_m, prefix: string, list: string) =>
+      prefix +
+      list
+        .split(/[,\n]/)
+        .map((part) => {
+          const k = part.trim().toLowerCase();
+          return SECTION_KEY_RU[k] || part.trim();
+        })
+        .filter(Boolean)
+        .join(', '),
+  );
+  return out;
+}
+
 function renderContent(content: string) {
-  const blocks = content.split('\n\n');
+  const blocks = localizeSectionKeys(content).split('\n\n');
   return blocks.map((block, i) => {
     if (block.startsWith('•') || block.startsWith('-') || block.includes('\n•') || block.includes('\n-')) {
       return (

@@ -115,10 +115,10 @@ const ACTION_LABELS: Record<string, string> = {
   OpenCRM: 'Открыть CRM',
   OPEN_PATIENTS: 'Открыть пациентов',
   OpenPatients: 'Открыть пациентов',
-  OPEN_SCHOOL: 'Открыть школу',
-  OpenSchool: 'Открыть школу',
-  OPEN_SHOP: 'Открыть магазин',
-  OpenShop: 'Открыть магазин',
+  OPEN_SCHOOL: 'Открыть Academy OS',
+  OpenSchool: 'Открыть Academy OS',
+  OPEN_SHOP: 'Открыть маркетплейс',
+  OpenShop: 'Открыть маркетплейс',
   OPEN_FINANCE: 'Открыть финансы',
   OpenFinance: 'Открыть финансы',
   OPEN_LABORATORY: 'Открыть лабораторию',
@@ -133,7 +133,41 @@ const ACTION_LABELS: Record<string, string> = {
   OpenMedicalCard: 'Открыть карту',
   OpenReminders: 'Открыть напоминания',
   OPEN_INVOICE: 'Открыть счёт',
+  NAVIGATE: 'Открыть раздел',
 };
+
+const PATH_ACTION_LABELS: Record<string, string> = {
+  '/crm/schedule': 'Открыть расписание',
+  '/crm/patients': 'Открыть пациентов',
+  '/crm/finance': 'Открыть финансы',
+  '/crm/inventory': 'Открыть склад',
+  '/crm/documents': 'Открыть документы',
+  '/crm/lab': 'Открыть лабораторию',
+  '/crm/reminders': 'Открыть напоминания',
+  '/crm/dental-chart': 'Открыть зубную карту',
+  '/crm/treatment-plans': 'Открыть планы лечения',
+  '/crm/visits': 'Открыть визиты',
+  '/crm/staff': 'Открыть сотрудников',
+  '/shop': 'Открыть маркетплейс',
+  '/school': 'Открыть Academy OS',
+  '/analytics': 'Открыть аналитику',
+  '/settings': 'Открыть настройки',
+  '/profile': 'Открыть профиль',
+  '/demo': 'Открыть демо-клинику',
+  '/pricing': 'Открыть тарифы',
+  '/jobs': 'Открыть вакансии',
+  '/community': 'Открыть сообщество',
+};
+
+function navigateActionLabel(payload: unknown): string {
+  const path =
+    typeof payload === 'string'
+      ? payload
+      : payload && typeof payload === 'object' && 'path' in payload
+        ? String((payload as { path?: string }).path || '')
+        : '';
+  return PATH_ACTION_LABELS[path] || 'Открыть раздел';
+}
 
 /** Display-only payloads (SHOW_*) are not clickable navigation — keep them out of chips. */
 const DISPLAY_ONLY_ACTIONS = new Set([
@@ -147,9 +181,13 @@ function responseActions(response: ProcessedResponse): Array<Record<string, unkn
   const actions: Array<Record<string, unknown>> = [];
   if (response.action && !DISPLAY_ONLY_ACTIONS.has(response.action.type)) {
     const type = response.action.type;
+    const label =
+      type === 'NAVIGATE'
+        ? navigateActionLabel(response.action.payload)
+        : ACTION_LABELS[type] || response.action.type.replace(/^Open/, 'Открыть ');
     actions.push({
       type,
-      label: ACTION_LABELS[type] || response.action.type.replace(/^Open/, 'Открыть '),
+      label,
       params: response.action.payload,
       confidence: 1,
       requiresConfirmation: false,
@@ -432,6 +470,10 @@ aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
   const path = NAVIGATION_ACTION_PATHS[action];
   if (path) {
     return res.json({ ok: true, data: { type: 'navigate', path, query: params } });
+  }
+
+  if (action === 'NAVIGATE' && params?.path) {
+    return res.json({ ok: true, data: { type: 'navigate', path: String(params.path), query: params } });
   }
 
   // Confirmed mutations coming back from an orchestrator confirm card

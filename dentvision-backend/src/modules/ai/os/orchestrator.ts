@@ -20,7 +20,7 @@
 import { env } from '../../../config.js';
 import prisma from '../../../lib/prisma.js';
 import { agentsForRole, toolsForRole } from './registry.js';
-import { executeTool, toolSchemasFor, type ToolContext } from './tools.js';
+import { executeTool, toolSchemasFor, localizeNavKeysInMessage, type ToolContext } from './tools.js';
 import {
   clinicCurrencyPromptRule,
   preferClinicCurrency,
@@ -92,8 +92,9 @@ function systemPrompt(input: OrchestratorInput, currencyCode: string): string {
 2. НЕ выдумывай расписание, выручку, долги, пациентов — у гостя нет клиники.
 3. Если просят «что важно сегодня / выручку / долги / расписание» — мягко объясни, что это появится после входа или демо, и предложи зарегистрироваться / открыть демо.
 4. Подсвечивай преимущества DentVision, когда гость знакомится с продуктом.
-5. Можно подсказать маркетплейс, академию, демо-клинику через navigate.
-6. Не упоминай внутренние инструменты.`;
+5. Можно подсказать маркетплейс, академию, демо-клинику, тарифы через navigate.
+6. Не упоминай внутренние инструменты и не перечисляй английские ключи разделов (schedule, patients…). Только русские названия: «Расписание», «Маркетплейс», «Academy OS», «Демо-клиника» и т.п.
+7. Если неясно куда открыть — спроси коротко и предложи 3–5 пунктов по-русски, без сырого списка ключей.`;
   }
 
   const agents = agentsForRole(input.role);
@@ -113,7 +114,7 @@ ${mandates}
 3. Мутации (запись, счёт, план) — confirmed=false, пока пользователь явно не подтвердил.
 4. Клинические выводы — черновик для врача, не диагноз.
 5. Ошибки инструментов признавай прямо и предлагай следующий шаг.
-6. Раздел открывай через navigate.
+6. Раздел открывай через navigate. В тексте пользователю — только русские названия разделов, никогда английские ключи (schedule, patients, finance…).
 7. Не свети внутренние имена инструментов/агентов.
 8. Если пользователь только вошёл или просит «что важно» — приоритет: расписание сегодня, подтверждения, долги, склад, ближайшие 2 часа — по роли.
 9. ${clinicCurrencyPromptRule(currencyCode)}`;
@@ -311,7 +312,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
       // MERGE RESULTS → RESPOND
       const message = messageText || 'Готово.';
 
-      const safeMessage = preferClinicCurrency(message, currencyCode);
+      const safeMessage = localizeNavKeysInMessage(preferClinicCurrency(message, currencyCode));
       await saveMessage(input.sessionId, 'assistant', safeMessage);
 
       return {
