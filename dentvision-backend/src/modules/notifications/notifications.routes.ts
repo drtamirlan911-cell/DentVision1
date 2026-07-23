@@ -16,7 +16,7 @@ notificationsRouter.get('/', async (req: AuthRequest, res) => {
     const skip = (page - 1) * limit;
     const type = req.query.type as string | undefined;
 
-    const where = { userId: req.user!.id, ...(type ? { type } : {}) };
+    const where: any = { userId: req.user!.id, ...(type ? { type } : {}) };
 
     const [notifications, total] = await Promise.all([
       prisma.notification.findMany({
@@ -69,7 +69,7 @@ notificationsRouter.post('/', async (req: AuthRequest, res) => {
       data: {
         id: uid(),
         userId: req.user!.id,
-        type,
+        type: type as any,
         title,
         message,
         link: link || null,

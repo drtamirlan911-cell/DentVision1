@@ -360,7 +360,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 
       const payment = await prisma.payment.create({
         data: {
-          provider: created.provider,
+          provider: created.provider as any,
           externalId: created.externalId,
           amount: minor,
           status: 'pending',

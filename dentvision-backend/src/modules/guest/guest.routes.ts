@@ -1,4 +1,4 @@
-﻿// Guest Routes — anonymous sessions (Public-First / Guest Mode)
+// Guest Routes — anonymous sessions (Public-First / Guest Mode)
 // POST /api/guest/session → creates a guest user + returns JWT
 import { Router } from 'express';
 import crypto from 'crypto';

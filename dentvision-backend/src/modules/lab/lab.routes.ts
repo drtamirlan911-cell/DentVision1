@@ -124,7 +124,7 @@ labRouter.post('/', async (req: AuthRequest, res) => {
     );
     const files = { meta } as any;
 
-    const data = {
+    const data: any = {
       patientId: patientId || null,
       type: labType || null,
       notes: notes || null,
@@ -157,7 +157,7 @@ labRouter.patch('/:id/status', async (req: AuthRequest, res) => {
 
     const order = await prisma.labOrder.update({
       where: { id: req.params.id as string },
-      data: { status },
+      data: { status: status as any },
     });
 
     return res.json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);

@@ -11,6 +11,28 @@ import prisma from '../lib/prisma.js';
 
 const ORG_ROLES = ['owner', 'director', 'admin', 'doctor', 'assistant', 'reception', 'cashier', 'accountant', 'laboratory', 'manager', 'intern'];
 
+function setAuthCookies(res, accessToken, refreshToken) {
+  res.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+}
+
+function clearAuthCookies(res) {
+  res.clearCookie('accessToken', { path: '/' });
+  res.clearCookie('refreshToken', { path: '/' });
+}
+
 async function buildUserPayload(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -51,6 +73,7 @@ export default function authRoutes(authLimiter) {
         active?.clinicId || null,
         active?.role || null
       );
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       res.json({ ...tokens, user: publicUser(user), memberships: memberships.map(m => ({ ...m, clinic: undefined })), activeMembership: active || null });
     } catch (e) {
       console.error('LOGIN ERROR:', e);
@@ -76,6 +99,7 @@ export default function authRoutes(authLimiter) {
         },
       });
       const tokens = generateTokens({ ...user, platformRole: 'user' }, null, null);
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       res.json({ ...tokens, user: publicUser(user), memberships: [], activeMembership: null });
     } catch {
       res.status(500).json({ error: 'Internal server error' });
@@ -96,6 +120,7 @@ export default function authRoutes(authLimiter) {
         decoded.activeClinicId || user.clinicId || null,
         decoded.activeRole || user.role || null
       );
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       res.json(tokens);
     } catch (e) {
       res.status(500).json({ error: 'Internal server error', detail: (e && e.message) || 'unknown' });
@@ -139,6 +164,7 @@ export default function authRoutes(authLimiter) {
         active?.clinicId || null,
         active?.role || null
       );
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       res.json({ ...tokens, activeMembership: active ? { id: active.id, clinicId: active.clinicId, role: active.role, spec: active.spec } : null });
     } catch {
       res.status(500).json({ error: 'Internal server error' });
@@ -177,6 +203,7 @@ export default function authRoutes(authLimiter) {
       });
       const user = await prisma.user.findUnique({ where: { id: userId } });
       const tokens = generateTokens({ ...user, platformRole: user.platformRole || 'user' }, clinicId, 'owner');
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       res.json({ ...tokens, clinic: { id: clinicId, name, plan: plan || 'starter', active: true, color: '#C9A96E' }, activeMembership: { id: membershipId, clinicId, role: 'owner' } });
     } catch {
       res.status(500).json({ error: 'Internal server error' });
@@ -202,6 +229,7 @@ export default function authRoutes(authLimiter) {
       ]);
       const user = await prisma.user.findUnique({ where: { id: userId } });
       const tokens = generateTokens({ ...user, platformRole: user.platformRole || 'user' }, inv.clinicId, inv.role || 'doctor');
+      setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       res.json({ ...tokens, clinic: { id: inv.clinicId }, activeMembership: { id: membershipId, clinicId: inv.clinicId, role: inv.role || 'doctor' } });
     } catch {
       res.status(500).json({ error: 'Internal server error' });

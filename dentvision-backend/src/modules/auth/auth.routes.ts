@@ -9,6 +9,28 @@ import { createSession } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
 import crypto from 'node:crypto';
 
+function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
+  res.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+}
+
+function clearAuthCookies(res: any) {
+  res.clearCookie('accessToken', { path: '/' });
+  res.clearCookie('refreshToken', { path: '/' });
+}
+
 export const authRouter = Router();
 
 authRouter.post('/register', async (req, res) => {
@@ -63,6 +85,8 @@ authRouter.post('/register', async (req, res) => {
     });
 
     createSession(user.id, req.ip, req.headers['user-agent']).catch(() => {});
+
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 
     const response: ApiResponse = {
       ok: true,
@@ -155,6 +179,8 @@ authRouter.post('/login', async (req, res) => {
     // Record login session
     createSession(user.id, req.ip, req.headers['user-agent']).catch(() => {});
 
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
     const response: ApiResponse = {
       ok: true,
       data: {
@@ -202,6 +228,8 @@ authRouter.post('/refresh', async (req, res) => {
       role: user.role,
       clinicId: payload.clinicId,
     });
+
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 
     const response: ApiResponse = {
       ok: true,
@@ -297,6 +325,8 @@ authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) =>
       clinic,
     };
 
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
     const response: ApiResponse = {
       ok: true,
       data: {
@@ -365,6 +395,8 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
       clinicId,
     });
 
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
     const response: ApiResponse = {
       ok: true,
       data: { clinic, tokens, subscription },
@@ -426,22 +458,22 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
 
     await prisma.$transaction([
       prisma.appointment.create({
-        data: { id: uid(), clinicId, patientId: p1.id, doctorId: userId, date: new Date(now + day), time: '10:00', duration: 30, status: 'CONFIRMED', type: 'Консультация', notes: 'Первичный осмотр, рентген' },
+        data: { id: uid(), clinicId, patientId: p1.id, doctorId: userId, date: new Date(now + day), time: '10:00', duration: 30, status: 'confirmed', type: 'Консультация', notes: 'Первичный осмотр, рентген' },
       }),
       prisma.appointment.create({
-        data: { id: uid(), clinicId, patientId: p2.id, doctorId: userId, date: new Date(now + day), time: '11:00', duration: 45, status: 'CONFIRMED', type: 'Лечение', notes: 'Лечение кариеса 46 зуба' },
+        data: { id: uid(), clinicId, patientId: p2.id, doctorId: userId, date: new Date(now + day), time: '11:00', duration: 45, status: 'confirmed', type: 'Лечение', notes: 'Лечение кариеса 46 зуба' },
       }),
       prisma.appointment.create({
-        data: { id: uid(), clinicId, patientId: p3.id, doctorId: userId, date: new Date(now + 2 * day), time: '14:00', duration: 60, status: 'PENDING', type: 'Протезирование', notes: 'Снятие слепков' },
+        data: { id: uid(), clinicId, patientId: p3.id, doctorId: userId, date: new Date(now + 2 * day), time: '14:00', duration: 60, status: 'pending', type: 'Протезирование', notes: 'Снятие слепков' },
       }),
       prisma.appointment.create({
-        data: { id: uid(), clinicId, patientId: p4.id, doctorId: userId, date: new Date(now + 3 * day), time: '09:30', duration: 30, status: 'CONFIRMED', type: 'Гигиена', notes: 'Профессиональная чистка' },
+        data: { id: uid(), clinicId, patientId: p4.id, doctorId: userId, date: new Date(now + 3 * day), time: '09:30', duration: 30, status: 'confirmed', type: 'Гигиена', notes: 'Профессиональная чистка' },
       }),
       prisma.appointment.create({
-        data: { id: uid(), clinicId, patientId: p5.id, doctorId: userId, date: new Date(now - day), time: '15:00', duration: 45, status: 'COMPLETED', type: 'Эндодонтия', notes: 'Пульпит 11 зуба — лечение завершено' },
+        data: { id: uid(), clinicId, patientId: p5.id, doctorId: userId, date: new Date(now - day), time: '15:00', duration: 45, status: 'completed', type: 'Эндодонтия', notes: 'Пульпит 11 зуба — лечение завершено' },
       }),
       prisma.appointment.create({
-        data: { id: uid(), clinicId, patientId: p1.id, doctorId: userId, date: new Date(now - 2 * day), time: '10:30', duration: 30, status: 'COMPLETED', type: 'Консультация', notes: 'Первичный осмотр выполнен' },
+        data: { id: uid(), clinicId, patientId: p1.id, doctorId: userId, date: new Date(now - 2 * day), time: '10:30', duration: 30, status: 'completed', type: 'Консультация', notes: 'Первичный осмотр выполнен' },
       }),
     ]);
 
@@ -525,28 +557,28 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
     await prisma.$transaction([
       prisma.invoice.create({
         data: {
-          id: uid(), clinicId, patientId: p1.id, amount: 26000, status: 'PAID',
+          id: uid(), clinicId, patientId: p1.id, amount: 26000, status: 'paid',
           items: [{ description: 'Консультация + рентген', amount: 6000 }, { description: 'Приём контрольный', amount: 5000 }, { description: 'Лечение кариеса (предоплата)', amount: 15000 }],
           notes: 'Предоплата за лечение 46', paidAt: new Date(now - 2 * day),
         },
       }),
       prisma.invoice.create({
         data: {
-          id: uid(), clinicId, patientId: p2.id, amount: 25000, status: 'UNPAID',
+          id: uid(), clinicId, patientId: p2.id, amount: 25000, status: 'unpaid',
           items: [{ description: 'Лечение кариеса 46', amount: 25000 }],
           notes: 'Выставлен после осмотра',
         },
       }),
       prisma.invoice.create({
         data: {
-          id: uid(), clinicId, patientId: p3.id, amount: 120000, status: 'PAID',
+          id: uid(), clinicId, patientId: p3.id, amount: 120000, status: 'paid',
           items: [{ description: 'Мостовидный протез 36-38', amount: 120000 }],
           paidAt: new Date(now - 5 * day),
         },
       }),
       prisma.invoice.create({
         data: {
-          id: uid(), clinicId, patientId: p5.id, amount: 45000, status: 'PARTIAL',
+          id: uid(), clinicId, patientId: p5.id, amount: 45000, status: 'partial',
           items: [{ description: 'Эндодонтическое лечение 11', amount: 45000 }, { description: 'Оплата частями', amount: 25000 }],
           notes: 'Оплачено 25 000 из 45 000', paidAt: new Date(now - day),
         },
@@ -599,6 +631,7 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
       clinicId,
     });
 
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
     res.status(201).json({ ok: true, data: { clinic, tokens } });
   } catch (error) {
     console.error('[Demo Clinic Error]', error);

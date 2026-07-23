@@ -1,4 +1,5 @@
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -59,6 +60,7 @@ import { complianceRouter } from './modules/compliance/compliance.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
 import { dentcashRouter } from './modules/dentcash/dentcash.routes.js';
 import { biRouter } from './modules/bi/bi.routes.js';
+import compatRouter from './compat/compatRouter.js';
 import { registerSubscribers } from './events/subscribers.js';
 
 // Wire up domain-event subscribers (audit, etc.) once at import time.
@@ -105,6 +107,7 @@ app.use(cors({
   maxAge: 86400,
 }));
 
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -166,6 +169,9 @@ app.use('/api/guest/convert', authLimiter);
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString() });
 });
+
+// ─── Legacy Compatibility Routes (from server/) ───
+app.use('/api', compatRouter);
 
 // ─── Routes ───
 app.use('/api/auth', authRouter);

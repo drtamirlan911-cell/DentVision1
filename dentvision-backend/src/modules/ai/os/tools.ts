@@ -301,7 +301,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         where: {
           clinicId,
           date: { gte: dayStart, lte: dayEnd },
-          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+          status: { notIn: ['cancelled', 'no_show'] },
         },
       });
       const conflicts = findScheduleConflicts({
@@ -330,7 +330,7 @@ export const TOOLS: Record<string, ToolSpec> = {
           date: new Date(date),
           time,
           duration,
-          status: 'PENDING',
+          status: 'pending',
           type: args.type ? String(args.type) : null,
           meta: meta as any,
         },
@@ -431,7 +431,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const appointment = await prisma.appointment.update({
         where: { id: existing.id },
         data: {
-          status: 'CANCELLED',
+          status: 'cancelled',
           notes: args.reason
             ? `${existing.notes || ''}\n[Отмена] ${String(args.reason)}`.trim()
             : existing.notes,
@@ -492,7 +492,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         where: {
           clinicId,
           date: { gte: dayStart, lte: dayEnd },
-          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+          status: { notIn: ['cancelled', 'no_show'] },
           id: { not: existing.id },
         },
       });
@@ -623,7 +623,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const now = new Date();
       const from = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
       const invoices = await prisma.invoice.findMany({
-        where: { clinicId, status: 'PAID', createdAt: { gte: from } },
+        where: { clinicId, status: 'paid', createdAt: { gte: from } },
         select: { amount: true, createdAt: true },
       });
       const byMonth = new Map<string, number>();
@@ -643,7 +643,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(_args, ctx) {
       const clinicId = requireClinic(ctx);
       const invoices = await prisma.invoice.findMany({
-        where: { clinicId, status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
+        where: { clinicId, status: { in: ['unpaid', 'partial', 'overdue'] } },
         orderBy: { createdAt: 'desc' },
         take: 30,
       });
@@ -715,7 +715,7 @@ export const TOOLS: Record<string, ToolSpec> = {
           clinicId,
           patientId: patient.id,
           amount,
-          status: 'UNPAID',
+          status: 'unpaid',
           items: [],
           notes: args.notes ? String(args.notes) : null,
         },
@@ -763,10 +763,10 @@ export const TOOLS: Record<string, ToolSpec> = {
       const [totalPatients, appointmentsToday, revenue, activeLabOrders] = await Promise.all([
         prisma.patient.count({ where: { clinicId } }),
         prisma.appointment.count({
-          where: { clinicId, date: { gte: startOfToday, lt: endOfToday }, status: { notIn: ['CANCELLED', 'NO_SHOW'] } },
+          where: { clinicId, date: { gte: startOfToday, lt: endOfToday }, status: { notIn: ['cancelled', 'no_show'] } },
         }),
         prisma.invoice.aggregate({
-          where: { clinicId, status: 'PAID', createdAt: { gte: startOfMonth } },
+          where: { clinicId, status: 'paid', createdAt: { gte: startOfMonth } },
           _sum: { amount: true },
         }),
         prisma.labOrder.count({ where: { clinicId, status: { notIn: ['completed', 'delivered'] } } }),
@@ -796,7 +796,7 @@ export const TOOLS: Record<string, ToolSpec> = {
           clinicId,
           doctorId: { in: members.map((m) => m.user.id) },
           date: { gte: startOfMonth },
-          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+          status: { notIn: ['cancelled', 'no_show'] },
         },
         _count: { id: true },
       });

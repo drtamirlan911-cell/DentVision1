@@ -21,7 +21,7 @@ ecosystemRouter.get('/ecosystem', requirePermission('platform.analytics'), async
       prisma.user.count(),
       prisma.patient.count(),
       prisma.supplier.count(),
-      prisma.supplier.count({ where: { status: { in: ['VERIFIED', 'OFFICIAL_PARTNER'] } } }),
+      prisma.supplier.count({ where: { status: { in: ['verified', 'official_partner'] } } }),
       prisma.academy.count(),
       prisma.lecturer.count(),
       prisma.course.count(),

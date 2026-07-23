@@ -78,7 +78,7 @@ billingRouter.post('/invoices', async (req: AuthRequest, res) => {
           req.body?.payMethod ? `[payMethod:${req.body.payMethod}]` : '',
           notes || '',
         ].filter(Boolean).join(' ').trim() || null,
-        status: 'PENDING',
+        status: 'pending',
       },
     });
 
@@ -139,7 +139,7 @@ billingRouter.post('/invoices/:id/pay', async (req: AuthRequest, res) => {
       return;
     }
 
-    if (existing.status === 'PAID') {
+    if (existing.status === 'paid') {
       res.status(400).json({ ok: false, error: 'Invoice is already paid' });
       return;
     }
@@ -147,7 +147,7 @@ billingRouter.post('/invoices/:id/pay', async (req: AuthRequest, res) => {
     const invoice = await prisma.invoice.update({
       where: { id },
       data: {
-        status: 'PAID',
+        status: 'paid',
         paidAt: new Date(),
       },
     });
@@ -192,17 +192,17 @@ billingRouter.get('/summary', async (req: AuthRequest, res) => {
 
     const [totalRevenue, unpaidTotal, paidThisMonth] = await Promise.all([
       prisma.invoice.aggregate({
-        where: { clinicId, status: 'PAID' },
+        where: { clinicId, status: 'paid' },
         _sum: { amount: true },
       }),
       prisma.invoice.aggregate({
-        where: { clinicId, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
+        where: { clinicId, status: { in: ['pending', 'partial', 'overdue'] } },
         _sum: { amount: true },
       }),
       prisma.invoice.aggregate({
         where: {
           clinicId,
-          status: 'PAID',
+          status: 'paid',
           paidAt: { gte: startOfMonth, lte: endOfMonth },
         },
         _sum: { amount: true },
@@ -250,7 +250,7 @@ billingRouter.get('/my-payroll', async (req: AuthRequest, res) => {
       where: {
         clinicId,
         doctorId: userId,
-        status: 'COMPLETED',
+        status: 'completed',
         date: { gte: from, lte: to },
       },
       include: {
@@ -304,8 +304,8 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    const paid = invoices.filter((i) => i.status === 'PAID');
-    const unpaid = invoices.filter((i) => ['PENDING', 'UNPAID', 'PARTIAL', 'OVERDUE'].includes(i.status));
+    const paid = invoices.filter((i) => i.status === 'paid');
+    const unpaid = invoices.filter((i) => ['pending', 'unpaid', 'partial', 'overdue'].includes(i.status));
 
     const byDay: Record<string, { revenue: number; count: number }> = {};
     const byService: Record<string, { revenue: number; count: number }> = {};
@@ -350,7 +350,7 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
     const completedAppts = await prisma.appointment.findMany({
       where: {
         clinicId,
-        status: 'COMPLETED',
+        status: 'completed',
         date: { gte: from, lte: to },
       },
       include: {

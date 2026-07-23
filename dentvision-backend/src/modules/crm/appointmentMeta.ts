@@ -20,37 +20,37 @@ export interface AppointmentMeta {
 }
 
 const TO_DB: Record<string, AppointmentStatus> = {
-  scheduled: 'PENDING',
-  pending: 'PENDING',
-  confirmed: 'CONFIRMED',
-  remindersent: 'CONFIRMED',
-  reminderSent: 'CONFIRMED',
-  arrived: 'CONFIRMED',
-  in_chair: 'CONFIRMED',
-  done: 'COMPLETED',
-  completed: 'COMPLETED',
-  cancelled: 'CANCELLED',
-  canceled: 'CANCELLED',
-  noshow: 'NO_SHOW',
-  noShow: 'NO_SHOW',
-  NO_SHOW: 'NO_SHOW',
-  PENDING: 'PENDING',
-  CONFIRMED: 'CONFIRMED',
-  COMPLETED: 'COMPLETED',
-  CANCELLED: 'CANCELLED',
+  scheduled: 'pending',
+  pending: 'pending',
+  confirmed: 'confirmed',
+  remindersent: 'confirmed',
+  reminderSent: 'confirmed',
+  arrived: 'confirmed',
+  in_chair: 'confirmed',
+  done: 'completed',
+  completed: 'completed',
+  cancelled: 'cancelled',
+  canceled: 'cancelled',
+  noshow: 'no_show',
+  noShow: 'no_show',
+  NO_SHOW: 'no_show',
+  PENDING: 'pending',
+  CONFIRMED: 'confirmed',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
 };
 
 const FROM_DB: Record<AppointmentStatus, string> = {
-  PENDING: 'scheduled',
-  CONFIRMED: 'confirmed',
-  COMPLETED: 'done',
-  CANCELLED: 'cancelled',
-  NO_SHOW: 'noShow',
+  pending: 'scheduled',
+  confirmed: 'confirmed',
+  completed: 'done',
+  cancelled: 'cancelled',
+  no_show: 'noShow',
 };
 
 export function toDbStatus(status?: string | null): AppointmentStatus {
-  if (!status) return 'PENDING';
-  return TO_DB[status] || TO_DB[status.toLowerCase()] || 'PENDING';
+  if (!status) return 'pending';
+  return TO_DB[status] || TO_DB[status.toLowerCase()] || 'pending';
 }
 
 export function fromDbStatus(status: AppointmentStatus): string {

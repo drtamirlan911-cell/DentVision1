@@ -18,11 +18,11 @@ opsSuppliersRouter.use(authenticate);
 opsSuppliersRouter.use(requirePlatformOps);
 
 const STATUS_TRANSITIONS: Record<SupplierStatus, SupplierStatus[]> = {
-  PENDING: ['DOCUMENTS_REVIEW', 'SUSPENDED'],
-  DOCUMENTS_REVIEW: ['VERIFIED', 'PENDING', 'SUSPENDED'],
-  VERIFIED: ['OFFICIAL_PARTNER', 'SUSPENDED'],
-  OFFICIAL_PARTNER: ['SUSPENDED'],
-  SUSPENDED: ['VERIFIED', 'PENDING'],
+  pending: ['documents_review', 'suspended'],
+  documents_review: ['verified', 'pending', 'suspended'],
+  verified: ['official_partner', 'suspended'],
+  official_partner: ['suspended'],
+  suspended: ['verified', 'pending'],
 };
 
 opsSuppliersRouter.get('/', async (req: AuthRequest, res) => {

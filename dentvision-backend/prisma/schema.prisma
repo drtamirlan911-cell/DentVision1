@@ -29,20 +29,20 @@ enum ClinicPlan {
 }
 
 enum AppointmentStatus {
-  PENDING
-  CONFIRMED
-  COMPLETED
-  CANCELLED
-  NO_SHOW
+  pending
+  confirmed
+  completed
+  cancelled
+  no_show
 }
 
 enum InvoiceStatus {
-  PAID
-  UNPAID
-  PARTIAL
-  REFUND
-  PENDING
-  OVERDUE
+  paid
+  unpaid
+  partial
+  refund
+  pending
+  overdue
 }
 
 enum ImageType {
@@ -54,60 +54,70 @@ enum ImageType {
 }
 
 enum BookingStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  COMPLETED
+  pending
+  confirmed
+  cancelled
+  completed
 }
 
 enum WaitingListStatus {
-  WAITING
-  CALLED
-  CANCELLED
+  waiting
+  called
+  cancelled
 }
 
 enum PlanStatus {
-  DRAFT
-  ACTIVE
-  COMPLETED
-  CANCELLED
+  draft
+  active
+  completed
+  cancelled
+  proposed
+  accepted
+  in_progress
 }
 
 enum LabOrderStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
+  pending
+  in_progress
+  completed
+  cancelled
+  delivered
 }
 
 enum ActionStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  CANCELLED
+  pending
+  completed
+  failed
+  cancelled
 }
 
 enum NotificationType {
-  INFO
-  WARNING
-  ERROR
-  APPOINTMENT
-  PROMOTION
-  SYSTEM
+  info
+  warning
+  error
+  appointment
+  promotion
+  system
+  subscription
+  workflow
 }
 
 enum PaymentProvider {
-  KASPI
-  CARD
-  CASH
-  OTHER
+  kaspi
+  card
+  cash
+  other
+  kaspi_qr
+  clinic_kaspi
 }
 
 enum PaymentStatus {
-  PENDING
-  PAID
-  FAILED
-  REFUNDED
+  pending
+  paid
+  failed
+  refunded
+  created
+  expired
 }
 
 // --- USER SYSTEM ---
@@ -190,8 +200,9 @@ model Clinic {
   bookings      Booking[]
   documents     Document[]
   aiMessages    AIMessage[]
-  jobVacancies  JobVacancy[]
+  jobVacancies    JobVacancy[]
   customerMetrics CustomerMetrics[]
+  serviceAccesses ServiceAccess[]
 
   @@map("clinics")
 }
@@ -208,7 +219,7 @@ model Booking {
   date        DateTime      @db.Date
   time        String
   notes       String?
-  status      BookingStatus @default(PENDING)
+  status      BookingStatus @default(pending)
   source      String        @default("online")
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -305,7 +316,7 @@ model Appointment {
   date      DateTime
   time      String?
   duration  Int?                @default(30)
-  status    AppointmentStatus   @default(PENDING)
+  status    AppointmentStatus   @default(pending)
   type      String?
   notes     String?
   meta      Json?
@@ -337,7 +348,7 @@ model WaitingList {
   preferredTime    String?
   preferredService String?
   notes            String?
-  status           WaitingListStatus @default(WAITING)
+  status           WaitingListStatus @default(waiting)
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -481,7 +492,7 @@ model TreatmentPlan {
   id        String    @id @default("")
   patientId String
   title     String
-  status    PlanStatus @default(DRAFT)
+  status    PlanStatus @default(draft)
   items     Json
   price     Int?
   notes     String?
@@ -542,7 +553,7 @@ model LabOrder {
   patientId String?
   clinicId  String
   labName   String?
-  status    LabOrderStatus @default(PENDING)
+  status    LabOrderStatus @default(pending)
   type      String?
   notes     String?
   files     Json?
@@ -567,7 +578,7 @@ model Invoice {
   clinicId  String
   patientId String?
   amount    Int
-  status    InvoiceStatus @default(UNPAID)
+  status    InvoiceStatus @default(unpaid)
   items     Json
   notes     String?
   paidAt    DateTime?
@@ -631,7 +642,7 @@ model AIAction {
   userId   String
   intent   String
   payload  Json
-  status   ActionStatus @default(PENDING)
+  status   ActionStatus @default(pending)
   result   Json?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -665,11 +676,11 @@ model AIAlert {
 // --- ECOSYSTEM: SUPPLIERS ---
 
 enum SupplierStatus {
-  PENDING
-  DOCUMENTS_REVIEW
-  VERIFIED
-  OFFICIAL_PARTNER
-  SUSPENDED
+  pending
+  documents_review
+  verified
+  official_partner
+  suspended
 }
 
 enum SupplierKind {
@@ -689,7 +700,7 @@ model Supplier {
   contactPerson String?
   phone         String?
   email         String?
-  status        SupplierStatus @default(PENDING)
+  status        SupplierStatus @default(pending)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -812,10 +823,10 @@ model ICD10Code {
 // --- SCHOOL GOVERNANCE: LECTURERS & ACADEMIES ---
 
 enum ExpertLevel {
-  NEW
-  VERIFIED
-  EXPERT
-  INTERNATIONAL_SPEAKER
+  new
+  verified
+  expert
+  international_speaker
 }
 
 model Academy {
@@ -838,7 +849,7 @@ model Academy {
 model Lecturer {
   id        String      @id @default(uuid())
   userId    String      @unique
-  level     ExpertLevel @default(NEW)
+  level     ExpertLevel @default(new)
   bio       String?
   academyId String?
 
@@ -1157,10 +1168,10 @@ enum CashbackScope {
 }
 
 enum TxStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  REVERSED
+  pending
+  completed
+  failed
+  reversed
 }
 
 model Wallet {
@@ -1182,7 +1193,7 @@ model Wallet {
 model Transaction {
   id        String   @id @default(uuid())
   type      String
-  status    TxStatus @default(COMPLETED)
+  status    TxStatus @default(completed)
   amount    BigInt
   currency  String   @default("KZT")
   refType   String?
@@ -1233,11 +1244,11 @@ model CommissionRule {
 
 model Payment {
   id         String          @id @default(uuid())
-  provider   PaymentProvider @default(KASPI)
+  provider   PaymentProvider @default(kaspi)
   externalId String?         @unique
   amount     BigInt
   currency   String          @default("KZT")
-  status     PaymentStatus   @default(PENDING)
+  status     PaymentStatus   @default(pending)
   refType    String?
   refId      String?
   domain     String?
@@ -1642,10 +1653,10 @@ model JobApplication {
 // --- AI EVENT BUS ---
 
 enum AIEventStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
+  pending
+  processing
+  completed
+  failed
 }
 
 model AIEvent {
@@ -1655,7 +1666,7 @@ model AIEvent {
   clinicId    String
   userId      String
   payload     Json
-  status      AIEventStatus @default(PENDING)
+  status      AIEventStatus @default(pending)
   retries     Int           @default(0)
   maxRetries  Int           @default(3)
   result      Json?
@@ -1878,4 +1889,18 @@ model AIActionLog {
   @@index([agent])
   @@index([createdAt])
   @@map("ai_action_logs")
+}
+
+model ServiceAccess {
+  id        String   @id @default(uuid())
+  clinicId  String   @map("clinic_id")
+  service   String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, service])
+  @@index([clinicId])
+  @@map("service_access")
 }

@@ -156,7 +156,7 @@ export async function buildJarvisBriefing(opts: {
             clinicId,
             doctorId: opts.userId,
             date: { gte: dayStart, lte: dayEnd },
-            status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+            status: { notIn: ['cancelled', 'no_show'] },
           },
         }).catch(() => 0)
       : Promise.resolve(0),
@@ -164,7 +164,7 @@ export async function buildJarvisBriefing(opts: {
       where: {
         clinicId,
         date: { gte: now, lte: in2h },
-        status: { in: ['CONFIRMED', 'PENDING'] },
+        status: { in: ['confirmed', 'pending'] },
         ...(doctorScoped ? { doctorId: opts.userId } : {}),
       },
     }),
@@ -172,18 +172,18 @@ export async function buildJarvisBriefing(opts: {
       where: {
         clinicId,
         date: { gte: dayStart, lte: dayEnd },
-        status: 'PENDING',
+        status: 'pending',
       },
     }),
     prisma.invoice.findMany({
-      where: { clinicId, status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
+      where: { clinicId, status: { in: ['unpaid', 'partial', 'overdue'] } },
       select: { amount: true, status: true },
       take: 200,
     }),
     prisma.invoice.findMany({
       where: {
         clinicId,
-        status: 'PAID',
+        status: 'paid',
         createdAt: { gte: yesterdayStart, lte: yesterdayEnd },
       },
       select: { amount: true },
@@ -217,7 +217,7 @@ export async function buildJarvisBriefing(opts: {
             clinicId,
             doctorId: opts.userId,
             date: { gte: now, lte: dayEnd },
-            status: { in: ['CONFIRMED', 'PENDING'] },
+            status: { in: ['confirmed', 'pending'] },
           },
           orderBy: { date: 'asc' },
           include: { patient: { select: { firstName: true, lastName: true } } },
@@ -231,7 +231,7 @@ export async function buildJarvisBriefing(opts: {
     : [];
 
   const debtTotal = unpaidInvoices.reduce((s, i) => s + Number(i.amount || 0), 0);
-  const overdueCount = unpaidInvoices.filter((i) => i.status === 'OVERDUE').length;
+  const overdueCount = unpaidInvoices.filter((i) => i.status === 'overdue').length;
   const revenueYesterday = paidYesterday.reduce((s, i) => s + Number(i.amount || 0), 0);
   const money = await resolveClinicCurrency(clinicId);
   const fmt = (n: number) => formatClinicMoney(n, money);

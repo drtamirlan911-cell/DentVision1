@@ -154,7 +154,7 @@ publicRouter.get('/clinic/:clinicId/slots', async (req, res) => {
         where: {
           clinicId,
           date: { gte: dayStart, lte: dayEnd },
-          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+          status: { notIn: ['cancelled', 'no_show'] },
           ...(doctorId ? { doctorId } : {}),
         },
         select: { time: true, doctorId: true },
@@ -248,7 +248,7 @@ publicRouter.post('/booking', publicBookingLimiter, async (req, res) => {
         clinicId,
         date: { gte: dayStart, lte: dayEnd },
         time,
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        status: { notIn: ['cancelled', 'no_show'] },
         ...(doctorId ? { doctorId } : {}),
       },
     });

@@ -88,7 +88,7 @@ export class OwnerAgent implements Agent {
 
     if (type === 'revenue' || type === 'overview') {
       const invoices = await prisma.invoice.findMany({
-        where: { clinicId: context.clinicId, status: 'PAID' },
+        where: { clinicId: context.clinicId, status: 'paid' },
         select: { amount: true, createdAt: true },
       });
       const total = invoices.reduce((sum, i) => sum + i.amount, 0);
@@ -117,7 +117,7 @@ export class OwnerAgent implements Agent {
 
     if (type === 'doctors') {
       const appointments = await prisma.appointment.findMany({
-        where: { clinicId: context.clinicId, status: { in: ['CONFIRMED', 'COMPLETED'] } },
+        where: { clinicId: context.clinicId, status: { in: ['confirmed', 'completed'] } },
         select: { doctorId: true, duration: true },
         take: 1000,
       });
@@ -151,7 +151,7 @@ export class OwnerAgent implements Agent {
 
   private async getDebtors(context: AIContext) {
     const invoices = await prisma.invoice.findMany({
-      where: { clinicId: context.clinicId, status: { in: ['UNPAID', 'PARTIAL'] } },
+      where: { clinicId: context.clinicId, status: { in: ['unpaid', 'partial'] } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
@@ -220,7 +220,7 @@ export class OwnerAgent implements Agent {
         clinicId: context.clinicId,
         patientId: patientId as string,
         amount: Number(amount),
-        status: 'UNPAID',
+        status: 'unpaid',
         items: items as any || [],
         notes: notes as string || '',
       },

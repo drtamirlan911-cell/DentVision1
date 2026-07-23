@@ -87,7 +87,7 @@ export async function balancedTransfer(opts: {
     const transaction = await tx.transaction.create({
       data: {
         type: opts.type,
-        status: 'COMPLETED',
+        status: 'completed',
         amount: opts.amountMinor,
         currency,
         refType: opts.refType || null,

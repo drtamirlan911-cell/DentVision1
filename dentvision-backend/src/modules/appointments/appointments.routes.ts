@@ -90,7 +90,7 @@ appointmentsRouter.get('/conflicts', async (req: AuthRequest, res) => {
       where: {
         clinicId,
         date: { gte: dayStart, lte: dayEnd },
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        status: { notIn: ['cancelled', 'no_show'] },
         ...(excludeId ? { id: { not: excludeId } } : {}),
       },
       include: { patient: { select: patientSelect } },
@@ -178,7 +178,7 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
         where: {
           clinicId,
           date: { gte: dayStart, lte: dayEnd },
-          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+          status: { notIn: ['cancelled', 'no_show'] },
           ...(id ? { id: { not: id } } : {}),
         },
       });
@@ -345,7 +345,7 @@ appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthReq
     const appointment = await prisma.appointment.update({
       where: { id: existing.id },
       data: {
-        status: 'COMPLETED',
+        status: 'completed',
         notes: body.notes !== undefined ? String(body.notes) : existing.notes,
         type: meta.serviceName || existing.type,
         meta: meta as any,
@@ -382,7 +382,7 @@ appointmentsRouter.delete('/:id', requirePermission('appointment.write'), requir
 
     const appointment = await prisma.appointment.update({
       where: { id: existing.id },
-      data: { status: 'CANCELLED' },
+      data: { status: 'cancelled' },
       include: { patient: { select: patientSelect } },
     });
 

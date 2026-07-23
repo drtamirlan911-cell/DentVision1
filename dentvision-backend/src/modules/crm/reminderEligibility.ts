@@ -2,7 +2,7 @@
  * Server-side reminder eligibility (mirrors src/utils/reminders.ts).
  */
 
-const APPT_REMINDER_STATUSES = new Set(['PENDING', 'CONFIRMED', 'scheduled', 'confirmed', 'pending', 'reminderSent']);
+const APPT_REMINDER_STATUSES = new Set(['pending', 'confirmed', 'scheduled', 'confirmed', 'pending', 'reminderSent']);
 
 export function normalizePhone(phone: string | undefined | null): string {
   if (!phone) return '';

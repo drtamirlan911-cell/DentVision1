@@ -24,7 +24,7 @@ export const appointmentFunctions = {
         date: { type: 'string', format: 'date-time' },
         doctorId: { type: 'string' },
         service: { type: 'string' },
-        status: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'] },
+        status: { type: 'string', enum: ['pending', 'confirmed', 'completed', 'cancelled'] },
       },
       required: ['appointmentId'],
     },

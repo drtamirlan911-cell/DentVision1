@@ -16,10 +16,10 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // Expert verification pipeline (linear).
 const LEVEL_TRANSITIONS: Record<ExpertLevel, ExpertLevel[]> = {
-  NEW: ['VERIFIED'],
-  VERIFIED: ['EXPERT'],
-  EXPERT: ['INTERNATIONAL_SPEAKER'],
-  INTERNATIONAL_SPEAKER: [],
+  new: ['verified'],
+  verified: ['expert'],
+  expert: ['international_speaker'],
+  international_speaker: [],
 };
 
 // ─── Academies ───

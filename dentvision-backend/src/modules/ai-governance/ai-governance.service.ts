@@ -45,8 +45,8 @@ export async function aiSupplierSuggest(supplierId: string) {
   const suggestions: string[] = [];
   if (!supplier.bin) suggestions.push('Заполните БИН для прохождения верификации.');
   if (supplier._count.documents === 0) suggestions.push('Загрузите документы (лицензии, сертификаты).');
-  if (supplier.status === 'PENDING') suggestions.push('Отправьте документы на проверку, чтобы перейти в Documents Review.');
-  if (supplier.status === 'VERIFIED') suggestions.push('Наращивайте продажи и рейтинг для статуса Official Partner.');
+  if (supplier.status === 'pending') suggestions.push('Отправьте документы на проверку, чтобы перейти в Documents Review.');
+  if (supplier.status === 'verified') suggestions.push('Наращивайте продажи и рейтинг для статуса Official Partner.');
 
   // Naive price comparison per product vs its category average.
   const priceInsights: Array<{ product: string; price: number; categoryAvg: number; deltaPct: number }> = [];

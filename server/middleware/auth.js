@@ -33,14 +33,19 @@ export function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-// Express middleware: verifies Authorization: Bearer <token>
+// Express middleware: verifies Authorization: Bearer <token> or httpOnly cookie
 export function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  let token = '';
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else if (req.cookies?.accessToken) {
+    token = req.cookies.accessToken;
+  }
+  if (!token) {
     return res.status(401).json({ error: 'Authentication required' });
   }
   try {
-    const token = authHeader.slice(7);
     const decoded = verifyToken(token);
     if (decoded.type === 'refresh') {
       return res.status(401).json({ error: 'Access token required, not refresh token' });
@@ -55,12 +60,15 @@ export function authenticate(req, res, next) {
   }
 }
 
-// Optional auth: sets req.user if token present, but doesn't fail
+// Optional auth: sets req.user if token present (from header or cookie), but doesn't fail
 export function optionalAuth(req, _res, next) {
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : req.cookies?.accessToken || '';
+  if (token) {
     try {
-      req.user = verifyToken(authHeader.slice(7));
+      req.user = verifyToken(token);
     } catch {}
   }
   next();

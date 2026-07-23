@@ -284,7 +284,7 @@ export class AIService {
     const alerts = [];
 
     const unpaidCount = await prisma.invoice.count({
-      where: { clinicId: context.clinicId, status: 'UNPAID' },
+      where: { clinicId: context.clinicId, status: 'unpaid' },
     });
     if (unpaidCount > 0) {
       alerts.push({ type: 'error', priority: 'high', message: `Неоплаченных счетов: ${unpaidCount}` });
@@ -293,7 +293,7 @@ export class AIService {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const upcoming = await prisma.appointment.count({
-      where: { clinicId: context.clinicId, date: { gte: new Date(), lte: tomorrow }, status: 'CONFIRMED' },
+      where: { clinicId: context.clinicId, date: { gte: new Date(), lte: tomorrow }, status: 'confirmed' },
     });
     if (upcoming > 0) {
       alerts.push({ type: 'warning', priority: 'medium', message: `Завтра записей: ${upcoming}` });

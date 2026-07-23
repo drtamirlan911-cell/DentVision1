@@ -14,7 +14,7 @@ export class EventStore {
           clinicId: event.clinicId,
           userId: event.userId,
           payload: event.payload as unknown as Prisma.InputJsonValue,
-          status: 'PENDING',
+          status: 'pending',
         },
       });
     } catch (err) {
@@ -26,7 +26,7 @@ export class EventStore {
     try {
       await prisma.aIEvent.update({
         where: { id: eventId },
-        data: { status: 'PROCESSING' },
+        data: { status: 'processing' },
       });
     } catch (err) {
       console.error('[EventStore] Failed to mark processing:', err);
@@ -38,7 +38,7 @@ export class EventStore {
       await prisma.aIEvent.update({
         where: { id: eventId },
         data: {
-          status: 'COMPLETED',
+          status: 'completed',
           result: result ? (result as unknown as Prisma.InputJsonValue) : undefined,
           processedAt: new Date(),
         },
@@ -55,7 +55,7 @@ export class EventStore {
       await prisma.aIEvent.update({
         where: { id: eventId },
         data: {
-          status: event && event.retries >= event.maxRetries ? 'FAILED' : 'PENDING',
+          status: event && event.retries >= event.maxRetries ? 'failed' : 'pending',
           error,
           retries: { increment: 1 },
         },
@@ -109,10 +109,10 @@ export class EventStore {
 
     const [total, pending, processing, completed, failed] = await Promise.all([
       prisma.aIEvent.count({ where }),
-      prisma.aIEvent.count({ where: { ...where, status: 'PENDING' } }),
-      prisma.aIEvent.count({ where: { ...where, status: 'PROCESSING' } }),
-      prisma.aIEvent.count({ where: { ...where, status: 'COMPLETED' } }),
-      prisma.aIEvent.count({ where: { ...where, status: 'FAILED' } }),
+      prisma.aIEvent.count({ where: { ...where, status: 'pending' } }),
+      prisma.aIEvent.count({ where: { ...where, status: 'processing' } }),
+      prisma.aIEvent.count({ where: { ...where, status: 'completed' } }),
+      prisma.aIEvent.count({ where: { ...where, status: 'failed' } }),
     ]);
 
     return { total, pending, processing, completed, failed };
@@ -120,11 +120,11 @@ export class EventStore {
 
   async retryEvent(eventId: string): Promise<boolean> {
     const event = await prisma.aIEvent.findUnique({ where: { id: eventId } });
-    if (!event || event.status !== 'FAILED') return false;
+    if (!event || event.status !== 'failed') return false;
 
     await prisma.aIEvent.update({
       where: { id: eventId },
-      data: { status: 'PENDING', retries: 0, error: null },
+      data: { status: 'pending', retries: 0, error: null },
     });
 
     return true;

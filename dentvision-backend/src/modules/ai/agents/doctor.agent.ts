@@ -91,7 +91,7 @@ export class DoctorAgent implements Agent {
         doctorId: (doctorId as string) || context.userId,
         date: new Date(date as string),
         duration: (duration as number) || 30,
-        status: 'PENDING',
+        status: 'pending',
         type: service as string,
       },
     });
@@ -146,7 +146,7 @@ if (!patientId || !items) {
         title: params.title as string || 'План лечения',
         items: items as any,
         price: (items as any[]).reduce((sum, item) => sum + (item.price || 0), 0),
-        status: 'DRAFT',
+        status: 'draft',
       },
     });
 

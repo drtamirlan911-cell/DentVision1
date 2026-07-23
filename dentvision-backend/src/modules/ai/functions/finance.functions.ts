@@ -31,7 +31,7 @@ export const financeFunctions = {
       type: 'object',
       properties: {
         patientId: { type: 'string' },
-        status: { type: 'string', enum: ['PAID', 'UNPAID', 'PARTIAL', 'REFUND'] },
+        status: { type: 'string', enum: ['paid', 'unpaid', 'partial', 'refund'] },
         limit: { type: 'number', default: 20 },
       },
     },

@@ -43,7 +43,7 @@ export async function getTwinEventOSData(
     agent: e.source,
     action: e.type,
     timestamp: e.createdAt,
-    success: e.status === 'COMPLETED',
+    success: e.status === 'completed',
   }));
 
   // Build agent status
@@ -71,7 +71,7 @@ export async function getTwinEventOSData(
   const pendingAlerts = await prisma.aIEvent.count({
     where: {
       clinicId,
-      status: 'PENDING',
+      status: 'pending',
     },
   });
 

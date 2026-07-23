@@ -274,7 +274,7 @@ patientsRouter.get('/:id/summary', async (req: AuthRequest, res) => {
           patientId: patient.id,
           clinicId,
           date: { gte: now },
-          status: { notIn: ['CANCELLED', 'NO_SHOW', 'COMPLETED'] },
+          status: { notIn: ['cancelled', 'no_show', 'completed'] },
         },
         orderBy: [{ date: 'asc' }, { time: 'asc' }],
       }),
@@ -288,12 +288,12 @@ patientsRouter.get('/:id/summary', async (req: AuthRequest, res) => {
         where: {
           clinicId,
           patientId: patient.id,
-          status: { in: ['PENDING', 'UNPAID', 'PARTIAL', 'OVERDUE'] },
+          status: { in: ['pending', 'unpaid', 'partial', 'overdue'] },
         },
         _sum: { amount: true },
       }),
       prisma.invoice.aggregate({
-        where: { clinicId, patientId: patient.id, status: 'PAID' },
+        where: { clinicId, patientId: patient.id, status: 'paid' },
         _sum: { amount: true },
       }),
     ]);

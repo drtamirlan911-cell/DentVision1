@@ -53,7 +53,7 @@ export async function spendDentCash(opts: {
     await tx.transaction.create({
       data: {
         type: 'dentcash_spend',
-        status: 'COMPLETED',
+        status: 'completed',
         amount: spend,
         refType: opts.refType,
         refId: opts.refId,

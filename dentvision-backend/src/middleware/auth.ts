@@ -7,11 +7,15 @@ import type { AuthRequest, AuthUser } from '../types/index.js';
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const header = req.headers.authorization;
-    if (!header?.startsWith('Bearer ')) {
+    let token = '';
+    if (header?.startsWith('Bearer ')) {
+      token = header.slice(7);
+    } else if (req.cookies?.accessToken) {
+      token = req.cookies.accessToken;
+    }
+    if (!token) {
       return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
     }
-
-    const token = header.slice(7);
     const payload = verifyAccessToken(token);
 
     const user = await prisma.user.findUnique({
@@ -68,8 +72,11 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
 export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunction) {
   try {
     const header = req.headers.authorization;
-    if (header?.startsWith('Bearer ')) {
-      const payload = verifyAccessToken(header.slice(7));
+    const token = header?.startsWith('Bearer ')
+      ? header.slice(7)
+      : req.cookies?.accessToken || '';
+    if (token) {
+      const payload = verifyAccessToken(token);
       const email = String(payload.email || '');
       const guestByEmail = isGuestEmail(email);
       const roleUpper = String(payload.role || '').toUpperCase();

@@ -372,7 +372,7 @@ crmOpsRouter.get('/bookings', async (req: AuthRequest, res) => {
     const rows = await prisma.booking.findMany({
       where: {
         clinicId,
-        ...(status ? { status } : {}),
+        ...(status ? { status: status as any } : {}),
       },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
       take: 300,
@@ -471,7 +471,7 @@ crmOpsRouter.post('/bookings/:id/confirm', async (req: AuthRequest, res) => {
         doctorId,
         date: new Date(`${dateStr}T12:00:00.000Z`),
         time: booking.time,
-        status: 'CONFIRMED',
+        status: 'confirmed',
         type: booking.serviceName || 'Приём',
         notes: booking.notes || `Онлайн-запись: ${booking.patientName}`,
         meta: {

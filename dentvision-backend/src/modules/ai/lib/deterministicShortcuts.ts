@@ -142,7 +142,7 @@ export async function tryDeterministicStats(
 
   if (wantsSchedule) {
     const appts = await prisma.appointment.findMany({
-      where: { clinicId, date: { gte: start, lt: end }, status: { notIn: ['CANCELLED', 'NO_SHOW'] } },
+      where: { clinicId, date: { gte: start, lt: end }, status: { notIn: ['cancelled', 'no_show'] } },
       take: 40,
       orderBy: { time: 'asc' },
       include: { patient: { select: { firstName: true, lastName: true } } },
@@ -167,7 +167,7 @@ export async function tryDeterministicStats(
 
   if (wantsDebt) {
     const unpaid = await prisma.invoice.findMany({
-      where: { clinicId, status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
+      where: { clinicId, status: { in: ['unpaid', 'partial', 'overdue'] } },
       take: 50,
       select: { amount: true, status: true },
     });
@@ -188,7 +188,7 @@ export async function tryDeterministicStats(
     const paid = await prisma.invoice.findMany({
       where: {
         clinicId,
-        status: 'PAID',
+        status: 'paid',
         OR: [
           { paidAt: { gte: start, lt: end } },
           { paidAt: null, updatedAt: { gte: start, lt: end } },

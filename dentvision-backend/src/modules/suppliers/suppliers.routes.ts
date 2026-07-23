@@ -21,11 +21,11 @@ suppliersRouter.use(authenticate);
 
 // Allowed verification-status transitions (state machine).
 const STATUS_TRANSITIONS: Record<SupplierStatus, SupplierStatus[]> = {
-  PENDING: ['DOCUMENTS_REVIEW', 'SUSPENDED'],
-  DOCUMENTS_REVIEW: ['VERIFIED', 'PENDING', 'SUSPENDED'],
-  VERIFIED: ['OFFICIAL_PARTNER', 'SUSPENDED'],
-  OFFICIAL_PARTNER: ['SUSPENDED'],
-  SUSPENDED: ['VERIFIED', 'PENDING'],
+  pending: ['documents_review', 'suspended'],
+  documents_review: ['verified', 'pending', 'suspended'],
+  verified: ['official_partner', 'suspended'],
+  official_partner: ['suspended'],
+  suspended: ['verified', 'pending'],
 };
 
 // GET /api/suppliers — list (filter by status/kind).
@@ -86,7 +86,7 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
         contactPerson: contactPerson || [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || null,
         phone: phone || req.user!.email || null,
         email: email || req.user!.email || null,
-        status: 'PENDING',
+        status: 'pending',
         members: {
           create: { userId: req.user!.id, role: 'owner' },
         },
@@ -96,9 +96,9 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
 
     publish('supplier.status_changed', {
       supplierId: supplier.id,
-      status: 'PENDING',
-      from: 'PENDING',
-      to: 'PENDING',
+      status: 'pending',
+      from: 'pending',
+      to: 'pending',
       userId: req.user?.id,
     });
 

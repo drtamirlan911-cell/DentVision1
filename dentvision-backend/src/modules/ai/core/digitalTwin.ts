@@ -171,7 +171,7 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null,
             clinicId: activeClinicId,
             ...(isClinicalDoctor(role) ? { doctorId: userId } : {}),
             date: { gte: monthStart },
-            status: { notIn: ['CANCELLED'] },
+            status: { notIn: ['cancelled'] },
           },
         }).catch(() => 0)
       : Promise.resolve(0),
@@ -180,14 +180,14 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null,
           where: {
             clinicId: activeClinicId,
             ...(isClinicalDoctor(role) ? { doctorId: userId } : {}),
-            status: 'COMPLETED',
+            status: 'completed',
             date: { gte: monthStart },
           },
         }).catch(() => 0)
       : Promise.resolve(0),
     activeClinicId
       ? prisma.invoice.count({
-          where: { clinicId: activeClinicId, status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
+          where: { clinicId: activeClinicId, status: { in: ['unpaid', 'partial', 'overdue'] } },
         }).catch(() => 0)
       : Promise.resolve(0),
     activeClinicId
@@ -195,7 +195,7 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null,
           where: {
             clinicId: activeClinicId,
             date: { gte: dayStart, lt: dayEnd },
-            status: { notIn: ['CANCELLED'] },
+            status: { notIn: ['cancelled'] },
           },
         }).catch(() => 0)
       : Promise.resolve(0),
@@ -529,20 +529,20 @@ export async function buildProactiveAlerts(opts: {
     inProgressCourses,
     dentCashWallet,
   ] = await Promise.all([
-    prisma.invoice.count({ where: { clinicId, status: { in: ['UNPAID', 'PARTIAL'] } } }),
-    prisma.invoice.count({ where: { clinicId, status: 'OVERDUE' } }),
+    prisma.invoice.count({ where: { clinicId, status: { in: ['unpaid', 'partial'] } } }),
+    prisma.invoice.count({ where: { clinicId, status: 'overdue' } }),
     prisma.appointment.count({
       where: {
         clinicId,
         date: { gte: now, lte: in2h },
-        status: { in: ['CONFIRMED', 'PENDING'] },
+        status: { in: ['confirmed', 'pending'] },
       },
     }),
     prisma.appointment.count({
       where: {
         clinicId,
         date: { gte: dayStart, lte: tomorrow },
-        status: 'PENDING',
+        status: 'pending',
       },
     }),
     prisma.inventoryItem.findMany({

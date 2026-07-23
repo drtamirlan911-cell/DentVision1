@@ -61,7 +61,7 @@ export async function recordSale(input: SaleInput) {
     const transaction = await tx.transaction.create({
       data: {
         type: 'sale',
-        status: 'COMPLETED',
+        status: 'completed',
         amount: input.amountMinor,
         currency,
         refType: input.refType || input.domain,

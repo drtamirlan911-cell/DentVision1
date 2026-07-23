@@ -30,7 +30,7 @@ lecturerRouter.post('/register', async (req: AuthRequest, res) => {
       data: {
         id: uid(),
         userId,
-        level: 'NEW',
+        level: 'new',
         bio: typeof req.body?.bio === 'string' ? req.body.bio : null,
         academyId: typeof req.body?.academyId === 'string' ? req.body.academyId : null,
       },

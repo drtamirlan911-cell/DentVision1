@@ -5,18 +5,10 @@
 import prisma from '../../../lib/prisma.js';
 
 const OPEN_PLAN_STATUSES = [
-  'draft',
   'proposed',
   'accepted',
   'in_progress',
-  'in-progress',
   'active',
-  'DRAFT',
-  'PROPOSED',
-  'ACCEPTED',
-  'IN_PROGRESS',
-  'IN-PROGRESS',
-  'ACTIVE',
 ] as const;
 
 /** Typical chair hours; lunch 13:00 skipped. */
@@ -87,7 +79,7 @@ export async function buildClinicLoadPlan(
       where: {
         clinicId,
         date: { lt: startToday },
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        status: { notIn: ['cancelled', 'no_show'] },
       },
       _max: { date: true },
     }),
@@ -95,7 +87,7 @@ export async function buildClinicLoadPlan(
       where: {
         clinicId,
         date: { gte: startToday, lt: endHorizon },
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        status: { notIn: ['cancelled', 'no_show'] },
       },
       select: {
         id: true,
@@ -168,7 +160,7 @@ export async function buildClinicLoadPlan(
     const items = (p.items && typeof p.items === 'object' ? p.items : {}) as Record<string, any>;
     const stages = Array.isArray(items.stages) ? items.stages : [];
     const next = stages.find(
-      (s: any) => !['done', 'completed', 'DONE', 'COMPLETED'].includes(String(s.status || '')),
+      (s: any) => !['done', 'completed', 'DONE', 'completed'].includes(String(s.status || '')),
     );
     return {
       planId: p.id,

@@ -51,10 +51,10 @@ const CLINIC_TO_SAAS: Record<string, string> = {
 };
 
 const LEVEL_TRANSITIONS: Record<ExpertLevel, ExpertLevel[]> = {
-  NEW: ['VERIFIED'],
-  VERIFIED: ['EXPERT', 'NEW'],
-  EXPERT: ['INTERNATIONAL_SPEAKER', 'VERIFIED'],
-  INTERNATIONAL_SPEAKER: ['EXPERT'],
+  new: ['verified'],
+  verified: ['expert', 'new'],
+  expert: ['international_speaker', 'verified'],
+  international_speaker: ['expert'],
 };
 
 async function upsertClinicSubscription(clinicId: string, plan: ClinicPlan, periodEnd?: Date | null, status?: string) {
@@ -93,11 +93,11 @@ opsHubRouter.get('/overview', async (_req: AuthRequest, res) => {
       prisma.user.count(),
       prisma.patient.count(),
       prisma.supplier.count(),
-      prisma.supplier.count({ where: { status: { in: ['PENDING', 'DOCUMENTS_REVIEW'] } } }),
-      prisma.supplier.count({ where: { status: { in: ['VERIFIED', 'OFFICIAL_PARTNER'] } } }),
+      prisma.supplier.count({ where: { status: { in: ['pending', 'documents_review'] } } }),
+      prisma.supplier.count({ where: { status: { in: ['verified', 'official_partner'] } } }),
       prisma.academy.count(),
       prisma.lecturer.count(),
-      prisma.lecturer.count({ where: { level: 'NEW' } }),
+      prisma.lecturer.count({ where: { level: 'new' } }),
       prisma.course.count(),
       prisma.product.count(),
       prisma.subscription.count({
@@ -123,13 +123,13 @@ opsHubRouter.get('/overview', async (_req: AuthRequest, res) => {
 
     const [pendingSupplierRows, newLecturerRows, expiringClinicRows] = await Promise.all([
       prisma.supplier.findMany({
-        where: { status: { in: ['PENDING', 'DOCUMENTS_REVIEW'] } },
+        where: { status: { in: ['pending', 'documents_review'] } },
         orderBy: { createdAt: 'asc' },
         take: 20,
         include: { _count: { select: { documents: true, members: true } } },
       }),
       prisma.lecturer.findMany({
-        where: { level: 'NEW' },
+        where: { level: 'new' },
         orderBy: { createdAt: 'asc' },
         take: 20,
         include: { academy: { select: { id: true, name: true } }, _count: { select: { courses: true, verifications: true } } },
@@ -367,18 +367,18 @@ opsHubRouter.post('/automations/advance-supplier-reviews', async (req: AuthReque
   try {
     // PENDING with ≥1 document → DOCUMENTS_REVIEW; DOCUMENTS_REVIEW → VERIFIED (ops one-click batch)
     const pending = await prisma.supplier.findMany({
-      where: { status: 'PENDING' },
+      where: { status: 'pending' },
       include: { _count: { select: { documents: true } } },
     });
     const toReview = pending.filter((s) => s._count.documents > 0);
     let advanced = 0;
     for (const s of toReview) {
-      await prisma.supplier.update({ where: { id: s.id }, data: { status: 'DOCUMENTS_REVIEW' } });
+      await prisma.supplier.update({ where: { id: s.id }, data: { status: 'documents_review' } });
       publish('supplier.status_changed', {
         supplierId: s.id,
-        status: 'DOCUMENTS_REVIEW',
-        from: 'PENDING',
-        to: 'DOCUMENTS_REVIEW',
+        status: 'documents_review',
+        from: 'pending',
+        to: 'documents_review',
         userId: req.user?.id,
       });
       advanced += 1;
@@ -387,14 +387,14 @@ opsHubRouter.post('/automations/advance-supplier-reviews', async (req: AuthReque
     const autoVerify = req.body?.verify === true || req.body?.verifyReviewed === true;
     let verified = 0;
     if (autoVerify) {
-      const reviewed = await prisma.supplier.findMany({ where: { status: 'DOCUMENTS_REVIEW' } });
+      const reviewed = await prisma.supplier.findMany({ where: { status: 'documents_review' } });
       for (const s of reviewed) {
-        await prisma.supplier.update({ where: { id: s.id }, data: { status: 'VERIFIED' } });
+        await prisma.supplier.update({ where: { id: s.id }, data: { status: 'verified' } });
         publish('supplier.status_changed', {
           supplierId: s.id,
-          status: 'VERIFIED',
-          from: 'DOCUMENTS_REVIEW',
-          to: 'VERIFIED',
+          status: 'verified',
+          from: 'documents_review',
+          to: 'verified',
           userId: req.user?.id,
         });
         verified += 1;
@@ -415,18 +415,18 @@ opsHubRouter.post('/automations/verify-new-lecturers', async (req: AuthRequest, 
   try {
     // NEW lecturers with ≥1 verification doc → VERIFIED
     const news = await prisma.lecturer.findMany({
-      where: { level: 'NEW' },
+      where: { level: 'new' },
       include: { _count: { select: { verifications: true } } },
     });
     const ready = news.filter((l) => l._count.verifications > 0);
     let verified = 0;
     for (const l of ready) {
-      await prisma.lecturer.update({ where: { id: l.id }, data: { level: 'VERIFIED' } });
+      await prisma.lecturer.update({ where: { id: l.id }, data: { level: 'verified' } });
       publish('lecturer.level_changed', {
         lecturerId: l.id,
-        level: 'VERIFIED',
-        from: 'NEW',
-        to: 'VERIFIED',
+        level: 'verified',
+        from: 'new',
+        to: 'verified',
         userId: req.user?.id,
       });
       verified += 1;

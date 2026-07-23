@@ -22,7 +22,7 @@ async function monthRevenue(clinicId: string): Promise<{ total: number; count: n
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const invoices = await prisma.invoice.findMany({
-    where: { clinicId, status: 'PAID', createdAt: { gte: from } },
+    where: { clinicId, status: 'paid', createdAt: { gte: from } },
     select: { amount: true },
   });
   return {
@@ -33,7 +33,7 @@ async function monthRevenue(clinicId: string): Promise<{ total: number; count: n
 
 async function debtSnapshot(clinicId: string): Promise<{ total: number; count: number }> {
   const invoices = await prisma.invoice.findMany({
-    where: { clinicId, status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
+    where: { clinicId, status: { in: ['unpaid', 'partial', 'overdue'] } },
     select: { amount: true },
     take: 200,
   });

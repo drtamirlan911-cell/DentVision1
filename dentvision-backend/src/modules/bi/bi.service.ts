@@ -451,7 +451,7 @@ export async function getPartnerROI(): Promise<PartnerROI[]> {
         refType: partner.refType,
         refId: partner.refId,
         type: 'sale',
-        status: 'COMPLETED',
+        status: 'completed',
       },
     });
 
@@ -630,8 +630,8 @@ export async function getClinicBI(clinicId: string): Promise<ClinicBIDashboard> 
   const returningPatients = appointments.filter((a) => patientIds.has(a.id)).length;
 
   // Appointments
-  const completed = appointments.filter((a) => a.status === 'COMPLETED').length;
-  const cancelled = appointments.filter((a) => a.status === 'CANCELLED').length;
+  const completed = appointments.filter((a) => a.status === 'completed').length;
+  const cancelled = appointments.filter((a) => a.status === 'cancelled').length;
 
   // Doctors (simplified: count revenue by appointment)
   const doctorName = members.length > 0 ? `${members[0].user.firstName} ${members[0].user.lastName}` : null;

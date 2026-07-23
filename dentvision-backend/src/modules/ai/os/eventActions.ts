@@ -429,7 +429,7 @@ async function generateDailySummary(event: CRMEvent): Promise<EventActionResult>
         date: { gte: new Date(), lte: new Date(Date.now() + 24 * 60 * 60 * 1000) },
       },
     }),
-    prisma.invoice.count({ where: { clinicId, status: 'UNPAID' } }),
+    prisma.invoice.count({ where: { clinicId, status: 'unpaid' } }),
   ]);
 
   return {

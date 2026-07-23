@@ -102,10 +102,10 @@ router.get('/stats', authenticate, async (req: AuthRequest, res: Response) => {
           where: { clinicId, createdAt: { gte: todayStart } },
         }),
         prisma.aIEvent.count({
-          where: { clinicId, status: 'COMPLETED' },
+          where: { clinicId, status: 'completed' },
         }),
         prisma.aIEvent.count({
-          where: { clinicId, status: 'FAILED' },
+          where: { clinicId, status: 'failed' },
         }),
       ]);
 

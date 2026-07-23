@@ -500,7 +500,7 @@ shopRouter.get('/suppliers', async (req, res) => {
     const cityFilter = typeof req.query.city === 'string' ? req.query.city.trim() : '';
     const suppliers = await prisma.supplier.findMany({
       where: {
-        status: { in: ['VERIFIED', 'OFFICIAL_PARTNER', 'PENDING'] },
+        status: { in: ['verified', 'official_partner', 'pending'] },
         ...(cityFilter && cityFilter !== 'all'
           ? {
               OR: [

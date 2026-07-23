@@ -37,7 +37,7 @@ export async function runReminderCron(opts: {
     where: {
       ...(opts.clinicId ? { clinicId: opts.clinicId } : {}),
       date: { gte: from, lte: to },
-      status: { notIn: ['CANCELLED', 'NO_SHOW', 'COMPLETED'] },
+      status: { notIn: ['cancelled', 'no_show', 'completed'] },
     },
     include: {
       patient: { select: { id: true, firstName: true, lastName: true, phone: true } },
@@ -59,7 +59,7 @@ export async function runReminderCron(opts: {
   const doctorMap = new Map(doctors.map((d) => [d.id, `${d.firstName} ${d.lastName}`.trim()]));
 
   for (const appt of appointments) {
-    if (!isReminderEligibleDbStatus(appt.status) && !['PENDING', 'CONFIRMED'].includes(appt.status)) {
+    if (!isReminderEligibleDbStatus(appt.status) && !['pending', 'confirmed'].includes(appt.status)) {
       result.skipped += 1;
       continue;
     }

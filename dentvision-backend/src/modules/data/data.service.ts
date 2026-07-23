@@ -27,7 +27,7 @@ const COMPUTATIONS: Record<string, (scopeId?: string) => Promise<MetricValue>> =
   revenue_month: async (scopeId) => {
     const { start, end } = monthRange();
     const agg = await prisma.invoice.aggregate({
-      where: { status: 'PAID', createdAt: { gte: start, lte: end }, ...(scopeId ? { clinicId: scopeId } : {}) },
+      where: { status: 'paid', createdAt: { gte: start, lte: end }, ...(scopeId ? { clinicId: scopeId } : {}) },
       _sum: { amount: true },
     });
     return { value: agg._sum.amount ?? 0, unit: 'KZT', scope: scopeId ? 'clinic' : 'platform' };

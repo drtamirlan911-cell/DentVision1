@@ -132,9 +132,9 @@ crmRouter.get('/:clinicId/treatment-plans', async (req: AuthRequest, res) => {
 
     const plans = await prisma.treatmentPlan.findMany({
       where: {
-        patient: { clinicId },
+        patient: { clinicId } as any,
         ...(patientId && { patientId }),
-        ...(status && { status }),
+        ...(status && { status: status as any }),
       },
       include: { patient: { select: { firstName: true, lastName: true } } },
       orderBy: { createdAt: 'desc' },
@@ -191,7 +191,7 @@ crmRouter.post('/treatment-plans', async (req: AuthRequest, res) => {
           where: { id },
           data: {
             title: title || undefined,
-            status: status || undefined,
+            status: (status || undefined) as any,
             items,
             price: resolvedBudget ?? undefined,
             notes: notes ?? diagnosis ?? undefined,
@@ -203,7 +203,7 @@ crmRouter.post('/treatment-plans', async (req: AuthRequest, res) => {
             id: uid(),
             patientId,
             title: title || 'План лечения',
-            status: status || 'proposed',
+            status: (status || 'proposed') as any,
             items,
             price: resolvedBudget ?? null,
             notes: notes ?? diagnosis ?? null,

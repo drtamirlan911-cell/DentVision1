@@ -30,13 +30,13 @@ analyticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
         where: {
           clinicId,
           date: { gte: startOfToday, lt: endOfToday },
-          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+          status: { notIn: ['cancelled', 'no_show'] },
         },
       }),
       prisma.invoice.aggregate({
         where: {
           clinicId,
-          status: 'PAID',
+          status: 'paid',
           createdAt: { gte: startOfMonth, lte: endOfMonth },
         },
         _sum: { amount: true },
@@ -80,7 +80,7 @@ analyticsRouter.get('/revenue', async (req: AuthRequest, res) => {
     const invoices = await prisma.invoice.findMany({
       where: {
         clinicId,
-        status: 'PAID',
+        status: 'paid',
         createdAt: { gte: twelveMonthsAgo },
       },
       select: { amount: true, createdAt: true },
@@ -144,7 +144,7 @@ analyticsRouter.get('/doctors', async (req: AuthRequest, res) => {
         clinicId,
         doctorId: { in: doctorIds },
         date: { gte: startOfMonth, lte: endOfMonth },
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        status: { notIn: ['cancelled', 'no_show'] },
       },
       _count: { id: true },
     });
