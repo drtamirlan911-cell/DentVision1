@@ -2,8 +2,11 @@ import app from './app.js';
 import { env } from './config.js';
 import prisma from './lib/prisma.js';
 import { eventBus } from './modules/events/index.js';
+import { getEventOrchestrator } from './modules/ai/os/index.js';
 import { startReminderCronInterval } from './jobs/reminderCron.js';
 import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
+
+const orchestrator = getEventOrchestrator({ logLevel: 'info' });
 
 async function main() {
   try {
@@ -23,6 +26,10 @@ async function main() {
     // Don't exit — fallback to in-memory mode
   }
 
+  // Initialize Event Orchestrator (subscribes to all events)
+  orchestrator.start();
+  console.log('[AI_ORCHESTRATOR] Event-driven layer started');
+
   app.listen(env.PORT, () => {
     console.log(`[SERVER] DentVision Backend running on http://localhost:${env.PORT}`);
     console.log(`[ENV] ${env.NODE_ENV}`);
@@ -35,6 +42,7 @@ async function main() {
 
 process.on('SIGTERM', async () => {
   console.log('[SERVER] Shutting down...');
+  orchestrator.stop();
   await eventBus.disconnect();
   await prisma.$disconnect();
   process.exit(0);
@@ -42,6 +50,7 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   console.log('[SERVER] Shutting down...');
+  orchestrator.stop();
   await eventBus.disconnect();
   await prisma.$disconnect();
   process.exit(0);
