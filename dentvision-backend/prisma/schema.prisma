@@ -1468,3 +1468,34 @@ model JobApplication {
   @@map("job_applications")
 }
 
+// ─── AI EVENT BUS ───
+
+enum AIEventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model AIEvent {
+  id          String        @id @default(uuid())
+  type        String
+  source      String
+  clinicId    String
+  userId      String
+  payload     Json
+  status      AIEventStatus @default(PENDING)
+  retries     Int           @default(0)
+  maxRetries  Int           @default(3)
+  result      Json?
+  error       String?
+  createdAt   DateTime      @default(now())
+  processedAt DateTime?
+
+  @@index([clinicId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("ai_events")
+}
+

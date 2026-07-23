@@ -1,6 +1,7 @@
 import app from './app.js';
 import { env } from './config.js';
 import prisma from './lib/prisma.js';
+import { eventBus } from './modules/events/index.js';
 import { startReminderCronInterval } from './jobs/reminderCron.js';
 import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
 
@@ -11,6 +12,15 @@ async function main() {
   } catch (err) {
     console.error('[DB] Connection failed:', err);
     process.exit(1);
+  }
+
+  // Initialize Event Bus
+  try {
+    await eventBus.connect();
+    console.log('[EVENT_BUS] Initialized');
+  } catch (err) {
+    console.error('[EVENT_BUS] Connection failed:', err);
+    // Don't exit — fallback to in-memory mode
   }
 
   app.listen(env.PORT, () => {
@@ -25,12 +35,14 @@ async function main() {
 
 process.on('SIGTERM', async () => {
   console.log('[SERVER] Shutting down...');
+  await eventBus.disconnect();
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('[SERVER] Shutting down...');
+  await eventBus.disconnect();
   await prisma.$disconnect();
   process.exit(0);
 });
