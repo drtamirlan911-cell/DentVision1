@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Stethoscope, ChevronLeft, ChevronRight, LogOut, Brain,
   ShoppingCart, GraduationCap, Briefcase, BarChart3, Users, User,
-  Shield, FileText, Database, Settings, FlaskConical, Star, LogIn, Store,
+  Shield, ShieldCheck, FileText, Database, Settings, FlaskConical, Star, LogIn, Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/ds/Avatar';
