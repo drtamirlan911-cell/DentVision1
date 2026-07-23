@@ -123,8 +123,15 @@ crmOpsRouter.get('/expenses', async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
     const rows = await prisma.expense.findMany({
-      where: { clinicId },
+      where: {
+        clinicId,
+        ...(from || to
+          ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+          : {}),
+      },
       orderBy: { date: 'desc' },
       take: 300,
     });

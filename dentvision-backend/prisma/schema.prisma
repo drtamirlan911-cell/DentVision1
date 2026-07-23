@@ -148,6 +148,10 @@ model ClinicMember {
   role               UserRole @default(DOCTOR)
   /// Doctor commission % (KazDent donor: User.percent)
   commissionPercent  Int      @default(30)
+  /// Fixed monthly salary (оклад) in clinic currency
+  baseSalary         Float    @default(0)
+  /// commission | salary | mixed
+  payType            String   @default("commission")
 
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "clinic_members" ADD COLUMN IF NOT EXISTS "baseSalary" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "clinic_members" ADD COLUMN IF NOT EXISTS "payType" TEXT NOT NULL DEFAULT 'commission';

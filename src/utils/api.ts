@@ -444,6 +444,8 @@ export async function getClinicStaff(clinicId: string): Promise<ClinicStaffMembe
     email: m.user?.email || null,
     phone: m.user?.phone || null,
     commissionPercent: m.commissionPercent ?? 30,
+    baseSalary: m.baseSalary ?? 0,
+    payType: m.payType || 'commission',
     joinedAt: m.joinedAt,
   }));
 }
@@ -824,6 +826,9 @@ export async function upsertClinicStaff(clinicId: string, data: {
   phone?: string;
   role?: string;
   spec?: string;
+  commissionPercent?: number;
+  baseSalary?: number;
+  payType?: string;
 }): Promise<any> {
   return apiRequest(`/api/clinics/${clinicId}/staff`, {
     method: 'POST',
@@ -842,6 +847,9 @@ export async function updateClinicStaff(
     role?: string;
     spec?: string;
     password?: string;
+    commissionPercent?: number;
+    baseSalary?: number;
+    payType?: string;
   },
 ): Promise<any> {
   return apiRequest(`/api/clinics/${clinicId}/staff/${userId}`, {

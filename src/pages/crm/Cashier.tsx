@@ -3,8 +3,8 @@ import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   CreditCard, TrendingUp, TrendingDown, Wallet, AlertTriangle, Plus,
-  DollarSign, Package, Receipt, Send, ShoppingCart, CheckCircle, Clock,
-  User, Stethoscope, Search, Trash2,
+  DollarSign, Receipt, Send, CheckCircle, Clock,
+  User, Stethoscope, Search, Trash2, Settings2, ExternalLink, Download,
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -22,12 +22,18 @@ import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
 import { Tabs } from '../../components/ui/ds/Misc'
 import { Switch } from '../../components/ui/ds/Misc'
 import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel'
+import { FinancePeriodBar } from '@/components/crm/finance/FinancePeriodBar'
+import { FinancePnLStrip } from '@/components/crm/finance/FinancePnLStrip'
+import { FinancePayrollPanel } from '@/components/crm/finance/FinancePayrollPanel'
+import { FinanceExpensesPanel } from '@/components/crm/finance/FinanceExpensesPanel'
+import { buildPeriod, EXPENSE_CATEGORIES, downloadCsv, type FinancePeriod } from '@/lib/financePeriod'
 import { tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency, TOOTH_NAMES } from '../../utils/constants'
 import { buildWaLink } from '../../utils/reminders'
 import { cn, formatMoney } from '../../lib/utils'
 import { isOnlineQrMethod } from '@/utils/payMethod'
 import { extractPaymentQrUrl } from '@/utils/paymentQr'
-import type { Receipt, Appointment, Patient, Expense, InventoryItem, Clinic, User as UserType, RoleInfo } from '../../types'
+import { useNavigate } from 'react-router-dom'
+import type { Receipt, Appointment, Patient, Expense, Clinic, User as UserType, RoleInfo } from '../../types'
 
 const TABS = [
   { id: 'unpaid', label: 'К оплате', icon: <Clock size={14} /> },
@@ -35,7 +41,6 @@ const TABS = [
   { id: 'receivables', label: 'Долги', icon: <AlertTriangle size={14} /> },
   { id: 'reports', label: 'Отчёты', icon: <TrendingUp size={14} /> },
   { id: 'payroll', label: 'Зарплата', icon: <Wallet size={14} /> },
-  { id: 'inventory', label: 'Склад', icon: <Package size={14} /> },
   { id: 'expenses', label: 'Расходы', icon: <Receipt size={14} /> },
 ]
 
@@ -50,18 +55,6 @@ const PAY_TYPES = [
   { value: 'installment', label: 'Рассрочка' },
   { value: 'credit', label: 'Долг' },
 ]
-
-const EXPENSE_CATEGORIES = [
-  { value: 'Аренда', label: 'Аренда' },
-  { value: 'Коммунальные', label: 'Коммунальные услуги' },
-  { value: 'Материалы', label: 'Закупка материалов' },
-  { value: 'Маркетинг', label: 'Маркетинг' },
-  { value: 'Зарплата', label: 'Зарплата' },
-  { value: 'Прочее', label: 'Прочее' },
-]
-
-const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } }
-const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 interface OutletContext {
   clinic: Clinic
@@ -87,14 +80,16 @@ interface ExpenseForm {
   category: string
   amount: string
   notes: string
+  date: string
 }
 
 export default function Cashier() {
+  const navigate = useNavigate()
   const outlet = useOutletContext<OutletContext>() || ({} as OutletContext)
   const { user, clinic: authClinic } = useAuth()
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
-  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense, inventory } = useDataQuery(clinicId || undefined)
+  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense } = useDataQuery(clinicId || undefined)
   const queryClient = useQueryClient()
   const { toast, showToast, clearToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -109,28 +104,44 @@ export default function Cashier() {
       showToast(err?.message || 'Не удалось удалить', 'error')
     }
   }
-  const [activeTab, setActiveTab] = useState('unpaid')
+  const tabFromUrl = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(
+    TABS.some((t) => t.id === tabFromUrl) ? String(tabFromUrl) : 'unpaid',
+  )
   const [modalOpen, setModalOpen] = useState(false)
   const [pendingPay, setPendingPay] = useState<any>(null)
   const [payBusy, setPayBusy] = useState(false)
   const [form, setForm] = useState<CashierForm>(EMPTY_FORM)
-  const [expenseForm, setExpenseForm] = useState<ExpenseForm>({ category: '', amount: '', notes: '' })
+  const [expenseForm, setExpenseForm] = useState<ExpenseForm>({
+    category: 'Прочее',
+    amount: '',
+    notes: '',
+    date: today(),
+  })
   const [expModalOpen, setExpModalOpen] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [cashSettings, setCashSettings] = useState({ defaultMethod: 'QR-оплата', autoReceipt: true, reminders: true })
   const [searchUnpaid, setSearchUnpaid] = useState('')
   const [financeReport, setFinanceReport] = useState<any>(null)
   const [reportLoading, setReportLoading] = useState(false)
+  const [period, setPeriod] = useState<FinancePeriod>(() => buildPeriod('month'))
   const money = (value: number) => tg(value, clinic)
   const { currency } = getClinicCurrency(clinic)
 
+  const setTab = (id: string) => {
+    setActiveTab(id)
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', id)
+    setSearchParams(next, { replace: true })
+  }
+
   useEffect(() => {
-    if (activeTab !== 'reports' || !clinic?.id) return
+    if (!clinic?.id) return
     let cancelled = false
     ;(async () => {
       setReportLoading(true)
       try {
-        const monthStart = `${today().slice(0, 7)}-01`
-        const data = await api.getFinanceReport({ from: monthStart, to: today() })
+        const data = await api.getFinanceReport({ from: period.from, to: period.to })
         if (!cancelled) setFinanceReport(data)
       } catch {
         if (!cancelled) setFinanceReport(null)
@@ -139,7 +150,7 @@ export default function Cashier() {
       }
     })()
     return () => { cancelled = true }
-  }, [activeTab, clinic?.id])
+  }, [clinic?.id, period.from, period.to])
 
   useEffect(() => {
     const patientId = searchParams.get('patient')
@@ -325,38 +336,73 @@ export default function Cashier() {
 
   const handleExpenseSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    await upsertExpense({ ...expenseForm, amount: Number(expenseForm.amount), date: today() } as any)
+    await upsertExpense({
+      ...expenseForm,
+      amount: Number(expenseForm.amount),
+      date: expenseForm.date || today(),
+    } as any)
     showToast('Расход добавлен', 'success')
     setExpModalOpen(false)
-    setExpenseForm({ category: '', amount: '', notes: '' })
+    setExpenseForm({ category: 'Прочее', amount: '', notes: '', date: today() })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.expenses })
+    // Refresh P&L
+    try {
+      const data = await api.getFinanceReport({ from: period.from, to: period.to })
+      setFinanceReport(data)
+    } catch { /* ignore */ }
   }
 
-  const quickPresets = [
-    { name: 'Профгигиена', price: 45000 },
-    { name: 'Лечение кариеса', price: 120000 },
-    { name: 'Имплантация', price: 650000 },
-  ]
+  const handleDeleteExpense = async (id: string) => {
+    try {
+      await api.deleteExpense(id)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.expenses })
+      showToast('Расход удалён', 'success')
+      const data = await api.getFinanceReport({ from: period.from, to: period.to })
+      setFinanceReport(data)
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось удалить', 'error')
+    }
+  }
 
-  const payrollRows = (financeReport?.payroll || []).length
-    ? (financeReport.payroll as any[]).map((row) => ({
-        name: row.name,
-        role: `${row.role || 'DOCTOR'} · ${row.percent || 30}%`,
-        salary: Number(row.earned || 0),
-        paid: 0,
-        visits: row.visits,
-        gross: row.gross,
-        matCost: row.matCost,
-        net: row.net,
-        percent: row.percent,
-      }))
-    : doctors
-      .filter((doctor: any) => Number(doctor.salary || 0) > 0 || Number(doctor.commissionPercent || 0) > 0)
-      .map((doctor: any) => ({
-        name: doctor.name,
-        role: doctor.spec || `Врач · ${doctor.commissionPercent ?? 30}%`,
-        salary: Number(doctor.salary || 0),
-        paid: Number(doctor.paid || 0),
-      }))
+  const openDebtPayment = (debt: { patientId?: string; patient: string; amount: number }) => {
+    setPendingPay(null)
+    setForm({
+      ...EMPTY_FORM,
+      patientId: debt.patientId || '',
+      patientName: debt.patient,
+      amount: String(debt.amount || ''),
+      service: 'Погашение долга',
+      paymentMethod: cashSettings.defaultMethod,
+      paymentType: 'full',
+      notes: 'Погашение долга',
+    })
+    setTab('transactions')
+    setModalOpen(true)
+  }
+
+  const payrollRows = (financeReport?.payroll || []).map((row: any) => ({
+    userId: row.userId,
+    name: row.name,
+    role: row.role || 'DOCTOR',
+    percent: row.percent,
+    payType: row.payType || 'commission',
+    baseSalary: row.baseSalary,
+    salaryPart: row.salaryPart,
+    commissionPart: row.commissionPart,
+    visits: row.visits,
+    gross: row.gross,
+    matCost: row.matCost,
+    net: row.net,
+    earned: Number(row.earned || 0),
+  }))
+
+  const periodLabel = `${period.from} — ${period.to}`
+  const pnlRevenue = Number(financeReport?.totals?.revenue ?? 0)
+  const pnlExpenses = Number(financeReport?.totals?.expenses ?? 0)
+  const pnlPayroll = Number(financeReport?.totals?.payroll ?? 0)
+  const pnlProfit = Number(
+    financeReport?.totals?.profit ?? (pnlRevenue - pnlExpenses - pnlPayroll),
+  )
 
   const debtRows = debts.map((debt) => {
     const patient = patients.find((p) => p.id === debt.patientId)
@@ -369,14 +415,36 @@ export default function Cashier() {
     }
   })
 
+  const quickPresets = [
+    { name: 'Профгигиена', price: 45000 },
+    { name: 'Лечение кариеса', price: 120000 },
+    { name: 'Имплантация', price: 650000 },
+  ]
+
   return (
     <div className="dv-page py-4 md:py-6">
       <PageHeader
-        title="Касса"
-        subtitle="Оплата из расписания, операции, расходы"
+        title="Финансы"
+        subtitle="Касса, зарплаты, расходы и P&L клиники"
         icon={<DollarSign size={20} />}
         actions={
           <>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Settings2 size={16} />}
+              onClick={() => setShowSettings((v) => !v)}
+            >
+              Касса
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<ExternalLink size={16} />}
+              onClick={() => navigate('/crm/inventory')}
+            >
+              Склад
+            </Button>
             <Button variant="secondary" icon={<Plus size={16} />} onClick={() => setExpModalOpen(true)}>
               Расход
             </Button>
@@ -387,74 +455,69 @@ export default function Cashier() {
         }
       />
 
-      {/* Quick payment bar */}
-      <Card padding="md" className="mb-5">
-        <p className="text-sm font-bold text-txt-primary mb-3">Быстрый приём оплаты</p>
-        <div className="flex flex-wrap gap-2">
-          {quickPresets.map((preset) => (
-            <Button
-              key={preset.name}
-              variant="outline"
-              size="sm"
-              icon={<CreditCard size={14} />}
-              onClick={() => handleQuickPayment(preset)}
-            >
-              {preset.name} · {money(preset.price)}
-            </Button>
-          ))}
-        </div>
-      </Card>
+      <div className="mb-4">
+        <FinancePeriodBar period={period} onChange={setPeriod} />
+      </div>
 
-      {/* KPIs */}
-      <motion.div
-        className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"
-        variants={stagger}
-        initial="hidden"
-        animate="show"
-      >
-        <motion.div variants={fadeUp}>
-          <StatCard label="Доход сегодня" value={money(todayRevenue)} icon={<TrendingUp size={18} />} />
-        </motion.div>
-        <motion.div variants={fadeUp}>
-          <StatCard label="Расход сегодня" value={money(todayExpenseAmount)} icon={<TrendingDown size={18} />} />
-        </motion.div>
-        <motion.div variants={fadeUp}>
-          <StatCard label="Доход за месяц" value={money(totalIncome)} icon={<DollarSign size={18} />} />
-        </motion.div>
-        <motion.div variants={fadeUp}>
-          <StatCard label="К оплате" value={String(unpaidCount)} icon={<Clock size={18} />} className={unpaidCount > 0 ? 'ring-1 ring-warning/30' : ''} />
-        </motion.div>
-      </motion.div>
+      <FinancePnLStrip
+        money={money}
+        revenue={pnlRevenue}
+        expenses={pnlExpenses}
+        payroll={pnlPayroll}
+        profit={pnlProfit}
+        debts={debtBalance}
+        loading={reportLoading}
+      />
 
-      {/* Settings */}
+      {/* Compact quick pay */}
       <Card padding="md" className="mb-5">
-        <p className="text-sm font-bold text-txt-primary mb-3">Настройки кассы</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="p-3 rounded-lg border border-bdr-subtle bg-white/[0.02]">
-            <p className="text-xs text-txt-secondary mb-2">Способ оплаты по умолчанию</p>
-            <Select
-              value={cashSettings.defaultMethod}
-              onChange={(e) => setCashSettings({ ...cashSettings, defaultMethod: e.target.value })}
-              options={PAY_METHODS.map((m) => ({ value: m, label: m }))}
-            />
-          </div>
-          <div className="p-3 rounded-lg border border-bdr-subtle bg-white/[0.02] space-y-3">
-            <Switch
-              checked={cashSettings.autoReceipt}
-              onCheckedChange={(v) => setCashSettings({ ...cashSettings, autoReceipt: v })}
-              label="Авто-чеки"
-            />
-            <Switch
-              checked={cashSettings.reminders}
-              onCheckedChange={(v) => setCashSettings({ ...cashSettings, reminders: v })}
-              label="Напоминания по долгам"
-            />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm font-bold text-txt-primary">Быстрая оплата</p>
+          <div className="flex flex-wrap gap-2">
+            {quickPresets.map((preset) => (
+              <Button
+                key={preset.name}
+                variant="outline"
+                size="sm"
+                icon={<CreditCard size={14} />}
+                onClick={() => handleQuickPayment(preset)}
+              >
+                {preset.name} · {money(preset.price)}
+              </Button>
+            ))}
           </div>
         </div>
       </Card>
 
-      {/* Tabs */}
-      <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} className="mb-5" />
+      {showSettings && (
+        <Card padding="md" className="mb-5">
+          <p className="text-sm font-bold text-txt-primary mb-3">Настройки кассы</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg border border-bdr-subtle bg-white/[0.02]">
+              <p className="text-xs text-txt-secondary mb-2">Способ оплаты по умолчанию</p>
+              <Select
+                value={cashSettings.defaultMethod}
+                onChange={(e) => setCashSettings({ ...cashSettings, defaultMethod: e.target.value })}
+                options={PAY_METHODS.map((m) => ({ value: m, label: m }))}
+              />
+            </div>
+            <div className="p-3 rounded-lg border border-bdr-subtle bg-white/[0.02] space-y-3">
+              <Switch
+                checked={cashSettings.autoReceipt}
+                onCheckedChange={(v) => setCashSettings({ ...cashSettings, autoReceipt: v })}
+                label="Авто-чеки"
+              />
+              <Switch
+                checked={cashSettings.reminders}
+                onCheckedChange={(v) => setCashSettings({ ...cashSettings, reminders: v })}
+                label="Напоминания по долгам"
+              />
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <Tabs tabs={TABS} active={activeTab} onChange={setTab} className="mb-5" />
 
       {/* Content */}
       <Card padding="none">
@@ -611,8 +674,15 @@ export default function Cashier() {
                       <p className="text-sm font-semibold text-txt-primary">{d.patient}</p>
                       <p className="text-xs text-txt-muted mt-0.5">от {fd(d.date)}</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <span className="text-lg font-bold text-error">{money(d.amount)}</span>
+                      <Button
+                        size="sm"
+                        icon={<CreditCard size={14} />}
+                        onClick={() => openDebtPayment(d)}
+                      >
+                        Оплатить
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -638,7 +708,30 @@ export default function Cashier() {
 
           {activeTab === 'reports' && (
             <div className="space-y-4">
-              <p className="text-sm font-bold text-txt-primary">Отчёт за текущий месяц</p>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-sm font-bold text-txt-primary">Отчёт · {periodLabel}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<Download size={14} />}
+                  disabled={!financeReport}
+                  onClick={() => {
+                    downloadCsv(
+                      `finance-${period.from}_${period.to}.csv`,
+                      ['Метрика', 'Значение'],
+                      [
+                        ['Выручка', pnlRevenue],
+                        ['Расходы', pnlExpenses],
+                        ['ФОТ', pnlPayroll],
+                        ['Прибыль', pnlProfit],
+                        ['Долги', debtBalance],
+                      ],
+                    )
+                  }}
+                >
+                  CSV
+                </Button>
+              </div>
               {reportLoading ? (
                 <div className="flex justify-center py-10">
                   <div className="w-8 h-8 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
@@ -650,8 +743,8 @@ export default function Cashier() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <StatCard label="Выручка" value={money(financeReport.totals?.revenue || 0)} icon={<DollarSign size={16} />} />
                     <StatCard label="Оплат" value={String(financeReport.totals?.paidCount || 0)} icon={<CheckCircle size={16} />} />
-                    <StatCard label="Долг" value={money(financeReport.totals?.unpaid || 0)} icon={<AlertTriangle size={16} />} />
-                    <StatCard label="Неоплаченных" value={String(financeReport.totals?.unpaidCount || 0)} icon={<Clock size={16} />} />
+                    <StatCard label="Расходы" value={money(financeReport.totals?.expenses || 0)} icon={<TrendingDown size={16} />} />
+                    <StatCard label="Прибыль" value={money(financeReport.totals?.profit ?? pnlProfit)} icon={<Wallet size={16} />} />
                   </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <Card>
@@ -679,123 +772,42 @@ export default function Cashier() {
                       </CardContent>
                     </Card>
                   </div>
+                  {(financeReport.byMethod || []).length > 0 && (
+                    <Card>
+                      <CardHeader><CardTitle>По способам оплаты</CardTitle></CardHeader>
+                      <CardContent className="space-y-2">
+                        {(financeReport.byMethod || []).map((m: any) => (
+                          <div key={m.method} className="flex justify-between text-sm">
+                            <span className="text-txt-muted">{m.method}</span>
+                            <span className="font-semibold text-txt-primary">{money(m.revenue)} · {m.count}</span>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
                 </>
               )}
             </div>
           )}
 
           {activeTab === 'payroll' && (
-            <div>
-              <p className="text-sm font-bold text-txt-primary mb-4">Зарплата по %</p>
-              <p className="text-xs text-txt-muted mb-4">
-                Начисление = (сумма услуг − себестоимость материалов) × % врача за выбранный период отчёта.
-              </p>
-              {payrollRows.length === 0 && (
-                <EmptyState
-                  icon={<Wallet size={32} />}
-                  title="Нет начислений"
-                  description="Закройте приёмы с услугами и укажите % сотрудникам"
-                />
-              )}
-              <div className="space-y-3">
-                {payrollRows.map((emp: any, i) => {
-                  const pct = emp.salary > 0 && emp.paid != null && emp.paid > 0
-                    ? Math.round((emp.paid / emp.salary) * 100)
-                    : emp.percent || 0
-                  return (
-                    <div key={i} className="p-4 rounded-xl border border-bdr-subtle bg-white/[0.02]">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="text-sm font-semibold text-txt-primary">{emp.name}</p>
-                          <p className="text-xs text-txt-muted">{emp.role}</p>
-                          {emp.visits != null && (
-                            <p className="text-2xs text-txt-muted mt-1">
-                              Приёмов: {emp.visits} · Валово: {money(emp.gross || 0)} · Материалы: {money(emp.matCost || 0)}
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-dv-gold">{money(emp.salary)}</p>
-                          <p className="text-2xs text-txt-muted">к выплате</p>
-                        </div>
-                      </div>
-                      {pct > 0 && emp.paid > 0 && (
-                        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                          <div className="h-full bg-dv-gold/60" style={{ width: `${Math.min(100, pct)}%` }} />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'inventory' && (
-            <div>
-              <p className="text-sm font-bold text-txt-primary mb-4">Склад материалов</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {inventory.map((item, i) => {
-                  const isLow = item.quantity <= item.min
-                  return (
-                    <div key={item.id || i} className={cn(
-                      'p-4 rounded-xl border transition-colors',
-                      isLow ? 'border-error/30 bg-error/5' : 'border-bdr-subtle bg-white/[0.02]'
-                    )}>
-                      <p className="text-sm font-semibold text-txt-primary mb-2">{item.name}</p>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className={cn('text-lg font-bold', isLow ? 'text-error' : 'text-txt-primary')}>
-                          {item.quantity} {item.unit}
-                        </span>
-                        <Badge variant={isLow ? 'error' : 'success'} size="sm">
-                          {isLow ? 'Заканчивается' : 'В норме'}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-txt-muted mb-2">Минимум: {item.min} {item.unit}</p>
-                      {isLow && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          icon={<ShoppingCart size={14} />}
-                          onClick={() => showToast(`Заявка на ${item.name} отправлена`, 'success')}
-                        >
-                          Заказать
-                        </Button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+            <FinancePayrollPanel
+              rows={payrollRows}
+              money={money}
+              loading={reportLoading}
+              periodLabel={periodLabel}
+            />
           )}
 
           {activeTab === 'expenses' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-bold text-txt-primary">Расходы клиники</p>
-                <Button variant="danger" size="sm" icon={<Plus size={14} />} onClick={() => setExpModalOpen(true)}>
-                  Расход
-                </Button>
-              </div>
-              {expenses.length === 0 && (
-                <EmptyState
-                  icon={<Receipt size={32} />}
-                  title="Нет расходов"
-                  description="Добавьте расход для текущей клиники"
-                />
-              )}
-              <div className="space-y-2">
-                {expenses.map((exp, i) => (
-                  <div key={i} className="flex items-center justify-between p-3.5 rounded-xl border border-bdr-subtle bg-white/[0.02]">
-                    <div>
-                      <p className="text-sm font-semibold text-txt-primary">{exp.category}</p>
-                      <p className="text-xs text-txt-muted">{fd(exp.date)}</p>
-                    </div>
-                    <span className="text-lg font-bold text-error">-{money(exp.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <FinanceExpensesPanel
+              expenses={expenses}
+              money={money}
+              periodFrom={period.from}
+              periodTo={period.to}
+              onAdd={() => setExpModalOpen(true)}
+              onDelete={handleDeleteExpense}
+            />
           )}
         </div>
       </Card>
@@ -916,6 +928,13 @@ export default function Cashier() {
             type="number"
             value={expenseForm.amount}
             onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+            required
+          />
+          <Input
+            label="Дата"
+            type="date"
+            value={expenseForm.date}
+            onChange={e => setExpenseForm({ ...expenseForm, date: e.target.value })}
             required
           />
           <Input
