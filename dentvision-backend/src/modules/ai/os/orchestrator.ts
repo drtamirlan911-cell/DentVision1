@@ -22,6 +22,11 @@ import prisma from '../../../lib/prisma.js';
 import { agentsForRole, toolsForRole } from './registry.js';
 import { executeTool, toolSchemasFor, localizeNavKeysInMessage, type ToolContext } from './tools.js';
 import {
+  personaLabel,
+  resolveActivePersona,
+  type PersonaId,
+} from './persona.js';
+import {
   clinicCurrencyPromptRule,
   preferClinicCurrency,
   resolveClinicCurrency,
@@ -33,7 +38,7 @@ import {
   type ModelChoice,
 } from '../lib/modelRouter.js';
 import { isClinicLoadQuery } from '../core/clinicLoadPlan.js';
-import { rolePromptFor } from '../prompts/system.prompts.js';
+import { personaPromptFor, rolePromptFor } from '../prompts/system.prompts.js';
 import { platformMapPromptBlock, stageFromPath, stageAwareSuggestions } from '../lib/platformMap.js';
 import {
   tryDeterministicNavigate,
@@ -82,6 +87,20 @@ export interface OrchestratorResult {
   messageId?: string;
   /** Labels of prefs applied this turn (for UI chip). */
   learnedLabels?: string[];
+  /** Active operational persona (§16) — UI badge «Сейчас: AI Finance». */
+  activePersona?: PersonaId;
+  activePersonaLabel?: string;
+}
+
+function isCeoBriefTrigger(text: string, persona: PersonaId): boolean {
+  if (persona !== 'ceo') return false;
+  const t = String(text || '').trim().toLowerCase();
+  return (
+    /^(привет|здравствуй|добрый|hello|hi)\b/i.test(t)
+    || /что\s+важно|приоритет|брифинг|сводка|executive|как\s+ceo|ceo\s+brief|обзор\s+(дня|недели)/i.test(t)
+    || t === 'jarvis briefing'
+    || t === 'сводка при входе'
+  );
 }
 
 export function orchestratorEnabled(): boolean {
@@ -99,7 +118,11 @@ function isJarvisBriefingTrigger(text: string): boolean {
   );
 }
 
-function systemPrompt(input: OrchestratorInput, currencyCode: string): string {
+function systemPrompt(
+  input: OrchestratorInput,
+  currencyCode: string,
+  activePersona: PersonaId,
+): string {
   if (input.isGuest || String(input.role).toUpperCase() === 'GUEST') {
     const mapBlock = platformMapPromptBlock('GUEST', true);
     return `Ты — DentVision Intelligence, дружелюбный ассистент стоматологической SuperApp.
@@ -117,9 +140,10 @@ ${mapBlock}
   }
 
   const agents = agentsForRole(input.role);
-  const mandates = agents.map((a) => `- ${a.name}: ${a.mandate}`).join('\n');
+  const mandates = agents.map((a) => `- ${a.name}${a.persona ? ` [${a.persona}]` : ''}: ${a.mandate}`).join('\n');
   const stage = stageFromPath(input.pathname) || input.focusType || 'workspace';
   const roleBlock = rolePromptFor(input.role);
+  const personaBlock = personaPromptFor(activePersona);
   const mapBlock = platformMapPromptBlock(input.role, false);
   const stageHints = stageAwareSuggestions({
     role: input.role,
@@ -128,14 +152,16 @@ ${mapBlock}
     focusType: input.focusType,
   }).join(' · ');
 
-  return `Ты — DentVision Intelligence, операционный ИИ клиники в духе Jarvis:
+  return `Ты — DentVision Intelligence (Jarvis), операционный ИИ клиники:
 проактивный, спокойный, точный. Экономичный: коротко, факты из инструментов, один next step.
+Активная персона сейчас: ${personaLabel(activePersona)} (${activePersona}).
 
 Пользователь: ${input.userName || 'сотрудник клиники'}, роль: ${input.role}.
 Сейчас на экране: этап «${stage}»${input.pathname ? ` (${input.pathname})` : ''}${input.focusType ? `, фокус: ${input.focusType}${input.focusId ? `/${input.focusId}` : ''}` : ''}.
 Подсказки по этапу: ${stageHints || '—'}.
 
 ${roleBlock ? `РОЛЬ:\n${roleBlock}\n` : ''}
+${personaBlock ? `${personaBlock}\n` : ''}
 Ты оркестрируешь агентов:
 ${mandates}
 
@@ -148,14 +174,15 @@ ${mapBlock}
 4. Клинические выводы — черновик для врача, не диагноз.
 5. Ошибки инструментов признавай прямо и предлагай следующий шаг.
 6. Раздел открывай через navigate. В тексте — только русские названия. Когда советуешь куда перейти — вызови navigate И напиши «Откройте …».
-7. Не свети внутренние имена инструментов/агентов.
-8. Если пользователь только вошёл или просит «что важно» — приоритет по роли: расписание/подтверждения/долги/склад/ближайшие 2 часа.
+7. Не свети внутренние имена инструментов/агентов. Персону можно назвать по-человечески («сейчас как Finance»).
+8. Если пользователь только вошёл или просит «что важно» — для CEO вызывай composeCeoBrief; иначе приоритет по роли.
 9. ${clinicCurrencyPromptRule(currencyCode)}
 10. Если «запомни…» — подтверди кратко.
 11. Загрузка клиники / обзвон / пустые слоты — СРАЗУ getClinicLoadPlan с именами и цифрами.
 12. Учитывай этап экрана: предлагай действия, уместные ТАМ, где пользователь сейчас.
 13. Свобода платформы: можешь вести по CRM + маркет + академия + кабинеты, если роль позволяет.
 14. Экономия: не вызывай лишние инструменты; для «открой X» достаточно navigate.
+15. Marketing: getPromotions / getRecallList / draftPromoCopy — draft only, без авторассылки.
 ${input.learningInstructions ? `\n${input.learningInstructions}` : ''}`;
 }
 
@@ -248,6 +275,18 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   });
 
   const isGuest = Boolean(input.isGuest || String(input.role).toUpperCase() === 'GUEST');
+  const stage = stageFromPath(input.pathname);
+  const activePersona = resolveActivePersona({
+    role: input.role,
+    stage,
+    pathname: input.pathname,
+    text: input.text,
+    isGuest,
+  });
+  const personaMeta = {
+    activePersona,
+    activePersonaLabel: personaLabel(activePersona),
+  };
 
   // Cheap deterministic paths — skip OpenAI entirely when we can.
   const mapHit = tryPlatformMapQuery(input.text, { role: input.role, isGuest });
@@ -257,7 +296,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
       clinicId: input.clinicId,
       prevUserText: input.text,
     });
-    return { ...mapHit, messageId };
+    return { ...mapHit, messageId, ...personaMeta };
   }
 
   const navHit = tryDeterministicNavigate(input.text, { role: input.role, isGuest });
@@ -267,7 +306,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
       clinicId: input.clinicId,
       prevUserText: input.text,
     });
-    return { ...navHit, messageId };
+    return { ...navHit, messageId, ...personaMeta };
   }
 
   try {
@@ -283,10 +322,44 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
         clinicId: input.clinicId,
         prevUserText: input.text,
       });
-      return { ...statsHit, messageId };
+      return { ...statsHit, messageId, ...personaMeta };
     }
   } catch (e) {
     console.warn('[AI OS] deterministic stats failed', e);
+  }
+
+  // CEO executive brief — synthesize Analyst+Finance+Marketing without LLM.
+  if (!isGuest && isCeoBriefTrigger(input.text, activePersona)) {
+    try {
+      const { composeCeoBrief } = await import('../core/ceoBrief.js');
+      const clinic = input.clinicId
+        ? await prisma.clinic.findUnique({ where: { id: input.clinicId }, select: { name: true } }).catch(() => null)
+        : null;
+      const brief = await composeCeoBrief({
+        userId: input.userId,
+        clinicId: input.clinicId,
+        role: input.role,
+        firstName: input.userName,
+        clinicName: clinic?.name,
+        timeZone: input.timeZone,
+      });
+      const messageId = await saveMessage(input.sessionId, 'assistant', brief.message, {
+        userId: input.userId,
+        clinicId: input.clinicId,
+        prevUserText: input.text,
+      });
+      return {
+        message: brief.message,
+        intent: 'CEO_BRIEF',
+        action: { type: 'SHOW_BRIEFING', payload: brief.payload },
+        suggestions: brief.suggestions,
+        toolsUsed: ['composeCeoBrief'],
+        messageId,
+        ...personaMeta,
+      };
+    } catch (e) {
+      console.warn('[AI OS] CEO brief failed, continuing', e);
+    }
   }
 
   // Jarvis entry briefing — deterministic live KPIs, not a chatty LLM opener.
@@ -317,6 +390,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
         suggestions: briefing.suggestions,
         toolsUsed: ['jarvis_briefing'],
         messageId,
+        ...personaMeta,
       };
     } catch (e) {
       console.warn('[AI OS] jarvis briefing failed, continuing to LLM', e);
@@ -344,6 +418,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
         suggestions: plan.suggestions,
         toolsUsed: ['getClinicLoadPlan'],
         messageId,
+        ...personaMeta,
       };
     } catch (e) {
       console.warn('[AI OS] clinic load plan failed, continuing to LLM', e);
@@ -355,7 +430,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   const toolSchemas = toolSchemasFor(allowedTools);
   const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role };
   const currencyCode = await resolveClinicCurrency(input.clinicId);
-  const instructions = systemPrompt(input, currencyCode);
+  const instructions = systemPrompt(input, currencyCode, activePersona);
 
   const fewShotTurns = (input.fewShots || []).flatMap((ex) => [
     { role: 'user', content: `[Пример прошлого успешного запроса]\n${ex.user}` },
@@ -470,6 +545,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
         confirmData: pendingConfirmation,
         toolsUsed,
         messageId,
+        ...personaMeta,
       };
     }
 
@@ -530,6 +606,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
     suggestions: defaultSuggestions(input.role),
     toolsUsed,
     messageId,
+    ...personaMeta,
   };
 }
 

@@ -80,6 +80,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const [pendingConfirm, setPendingConfirm] = useState<Action | null>(null)
   const [voiceReplies, setVoiceReplies] = useState(() => isVoiceRepliesEnabled())
   const [voiceResumeToken, setVoiceResumeToken] = useState(0)
+  const [activePersonaLabel, setActivePersonaLabel] = useState<string | null>(null)
   const ttsSupported = voiceOutputSupported()
 
   const toggleVoiceReplies = useCallback(() => {
@@ -555,6 +556,10 @@ const handleSend = useCallback(async (text: string) => {
         try { localStorage.setItem(aiSessionStorageKey(user.id, clinicId), res.sessionId) } catch { /* ignore */ }
       }
 
+      if (res.activePersonaLabel) {
+        setActivePersonaLabel(res.activePersonaLabel)
+      }
+
       const nextSuggestions = (res.suggestions || []).slice(0, 4)
       const crmChip = /расписан|долг|выручк|касс|что важно/i
       setSuggestionsFromStrings(
@@ -737,7 +742,11 @@ const result = await executeAction(
           <div className="min-w-0">
             <h1 className="font-serif text-[14px] sm:text-[15px] font-semibold text-txt-primary tracking-tight truncate">DentVision Intelligence</h1>
             <p className="dv-ai-header-meta text-[11px] text-txt-muted truncate">
-              {status === 'idle' ? 'AI Operating System · стоматология' :
+              {status === 'idle' ? (
+                activePersonaLabel
+                  ? <>Сейчас: <span className="text-dv-gold/90">{activePersonaLabel}</span></>
+                  : 'AI Operating System · стоматология'
+              ) :
                status === 'thinking' ? 'AI анализирует...' :
                status === 'executing' ? 'Выполняю...' :
                status === 'confirmation' ? 'Ожидаю подтверждение' :
@@ -747,6 +756,14 @@ const result = await executeAction(
         </div>
 
         <div className="flex items-center gap-2">
+          {activePersonaLabel && !isGuest && (
+            <span
+              className="hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-semibold text-dv-gold bg-dv-gold/10 border border-dv-gold/20"
+              title="Активная операционная персона Jarvis (§16)"
+            >
+              {activePersonaLabel}
+            </span>
+          )}
           {isGuest && (
             <span
               className={

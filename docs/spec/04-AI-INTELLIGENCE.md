@@ -71,6 +71,8 @@ AI обязан помнить:
 
 ## 4.4 Agent Roster (canonical)
 
+> **Слои:** пользовательский контракт верхнего уровня — **8 операционных персон Jarvis** ([§16 — AI Strategy](./16-AI-STRATEGY.md)). Таблица ниже — **клинические specialty + legacy public IDs**; Radiology / Ortho / Endo… **подчинены AI Doctor**, а не конкурируют с 8 персонами. Внутренний OS — [§15](./15-AI-AGENTS-OS.md).
+
 Все агенты доступны через единый AI Workspace. Router выбирает агента; пользователь может вызвать явно («спроси Orthodontic AI»).
 
 | Agent | ID | Mandate |
@@ -197,5 +199,5 @@ Proactive cards появляются в chat/context panel, не как spam pus
 
 ## 4.11 Internal Multi-Agent OS
 
-Публичный roster (§4.4) — то, что видит и явно вызывает пользователь.
+Публичный roster (§4.4) — specialty и legacy IDs; **операционные персоны Jarvis** — **[§16](./16-AI-STRATEGY.md)**.
 Внутренняя оркестрация, полная сеть специализированных агентов (Clinical / Business / Marketplace / Education / Compliance / Security / Communication / Automation / Knowledge / Infrastructure), их жизненный цикл, governance и реестр определены в **[§15 — AI Agents Operating System](./15-AI-AGENTS-OS.md)**.

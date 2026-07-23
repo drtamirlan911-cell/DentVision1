@@ -1660,6 +1660,8 @@ export interface AIChatResponse {
   messageId?: string;
   learnedHint?: string;
   learnedLabels?: string[];
+  activePersona?: string;
+  activePersonaLabel?: string;
   aiRequestsLeft?: number;
 }
 
@@ -1757,6 +1759,8 @@ export async function aiChat(
     messageId: res?.messageId,
     learnedHint: res?.learnedHint,
     learnedLabels: Array.isArray(res?.learnedLabels) ? res.learnedLabels : [],
+    activePersona: res?.activePersona,
+    activePersonaLabel: res?.activePersonaLabel,
     aiRequestsLeft: typeof res?.aiRequestsLeft === 'number' ? res.aiRequestsLeft : undefined,
   } as AIChatResponse;
 }
@@ -1907,6 +1911,8 @@ async function aiChatSSE(
     messageId: donePayload.messageId,
     learnedHint: donePayload.learnedHint,
     learnedLabels: Array.isArray(donePayload.learnedLabels) ? donePayload.learnedLabels : [],
+    activePersona: donePayload.activePersona,
+    activePersonaLabel: donePayload.activePersonaLabel,
     aiRequestsLeft: typeof donePayload.aiRequestsLeft === 'number' ? donePayload.aiRequestsLeft : undefined,
   };
 }
