@@ -972,14 +972,16 @@ model Notification {
 // --- AUDIT ---
 
 model AuditLog {
-  id       String @id @default("")
-  userId   String?
-  clinicId String?
-  action   String
-  entity   String?
-  entityId String?
-  details  Json?
-  ip       String?
+  id         String @id @default("")
+  userId     String?
+  clinicId   String?
+  userName   String?
+  action     String
+  entityType String?
+  entity     String?
+  entityId   String?
+  details    Json?
+  ip         String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt

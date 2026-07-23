@@ -16,7 +16,7 @@ services:
     name: dentvision-api
     runtime: node
     plan: free
-    buildCommand: cd dentvision-backend && npm install && npx prisma generate
+    buildCommand: cd dentvision-backend && npm install && npx prisma generate && cd ../server && npm install && npx prisma generate
     startCommand: cd dentvision-backend && npx tsx src/index.ts
     healthCheckPath: /api/health
     envVars:

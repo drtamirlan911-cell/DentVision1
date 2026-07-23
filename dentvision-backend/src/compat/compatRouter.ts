@@ -1,8 +1,6 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
-
-// @ts-expect-error - server prisma has the legacy AuditLog schema with userName/entityType
-const serverPrisma = (await import('../../../server/lib/prisma.js')).default;
+import prisma from '../../lib/prisma.js';
 
 const compatRouter = Router();
 
@@ -16,7 +14,7 @@ async function writeAuditLog(
   details: Record<string, unknown> | undefined,
 ) {
   try {
-    await serverPrisma.auditLog.create({
+    await prisma.auditLog.create({
       data: {
         id: crypto.randomUUID(),
         clinicId: clinicId ?? null,
@@ -57,7 +55,7 @@ compatRouter.use('/clinic', createClinicRoutes(writeAuditLog));
 compatRouter.get('/service-access/public/:clinicId', async (req: Request, res: Response) => {
   try {
     const clinicId = String(req.params.clinicId);
-    const access = await serverPrisma.serviceAccess.findMany({ where: { clinicId } });
+    const access = await prisma.serviceAccess.findMany({ where: { clinicId } });
     const ALL_SERVICES = ['crm', 'shop', 'school', 'ai', 'analytics', 'settings'];
     const map: Record<string, boolean> = {};
     for (const svc of ALL_SERVICES) {
