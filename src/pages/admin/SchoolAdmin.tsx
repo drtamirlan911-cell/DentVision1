@@ -165,7 +165,7 @@ function CoursesManager() {
                       </div>
                     </div>
                     <div className="flex gap-2 mt-2 text-xs text-muted-foreground">
-                      <Badge variant="secondary">{c.difficulty}</Badge>
+                      <Badge variant="default">{c.difficulty}</Badge>
                       <span>{c.durationHours} ч</span>
                       <span>· {c.lessonCount} ур.</span>
                       {c.price > 0 ? <span>· {c.price.toLocaleString()} ₸</span> : <Badge variant="success">Бесплатно</Badge>}
@@ -365,7 +365,7 @@ function LibraryManager() {
                     {items.map(l => (
                       <tr key={l.id} className="border-b last:border-0">
                         <td className="py-2 pr-2 font-medium">{l.title}</td>
-                        <td className="pr-2"><Badge variant="secondary">{l.type}</Badge></td>
+                        <td className="pr-2"><Badge variant="default">{l.type}</Badge></td>
                         <td className="pr-2">{l.category || '—'}</td>
                         <td className="text-right whitespace-nowrap">
                           <Button variant="ghost" size="icon" onClick={() => openEdit(l)}><Pencil size={16} /></Button>

@@ -301,8 +301,8 @@ export default function Inventory() {
                     )}
 
                     <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
-                      <Button variant="danger" size="icon-xs" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} />
-                      <Button variant="primary" size="icon-xs" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} />
+                      <Button variant="danger" size="icon-xs" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} aria-label="Уменьшить на 1" />
+                      <Button variant="primary" size="icon-xs" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} aria-label="Увеличить на 1" />
                       <Button variant="primary" size="icon-xs" onClick={() => quickAdjust(item, 10)}>+10</Button>
                       {isLow && (
                         <Button
@@ -315,6 +315,7 @@ export default function Inventory() {
                               ? `/shop/${shopMatch.id}`
                               : `/shop?q=${encodeURIComponent(item.name || '')}`,
                           )}
+                          aria-label="Заказать в маркетплейсе"
                         />
                       )}
                     </div>
@@ -348,7 +349,7 @@ export default function Inventory() {
               onChange={e => setForm({ ...form, quantity: e.target.value })} />
             <Select label="Ед. изм." value={form.unit}
               onChange={e => setForm({ ...form, unit: e.target.value })}
-              options={INVENTORY_UNITS} />
+              options={INVENTORY_UNITS as any} />
             <Input label="Мин. кол-во" type="number" min="0" value={form.minQuantity}
               onChange={e => setForm({ ...form, minQuantity: e.target.value })} />
           </div>

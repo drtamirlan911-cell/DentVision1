@@ -1,10 +1,11 @@
-﻿import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   CreditCard, TrendingUp, TrendingDown, Wallet, AlertTriangle, Plus,
-  DollarSign, Receipt, Send, CheckCircle, Clock,
+  DollarSign, Send, CheckCircle, Clock,
   User, Stethoscope, Search, Trash2, Settings2, ExternalLink, Download,
+  Receipt as ReceiptIcon,
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -33,6 +34,7 @@ import { cn, formatMoney } from '../../lib/utils'
 import { isOnlineQrMethod } from '@/utils/payMethod'
 import { extractPaymentQrUrl } from '@/utils/paymentQr'
 import { useNavigate } from 'react-router-dom'
+// type imports
 import type { Receipt, Appointment, Patient, Expense, Clinic, User as UserType, RoleInfo } from '../../types'
 
 const TABS = [
@@ -41,7 +43,7 @@ const TABS = [
   { id: 'receivables', label: 'Долги', icon: <AlertTriangle size={14} /> },
   { id: 'reports', label: 'Отчёты', icon: <TrendingUp size={14} /> },
   { id: 'payroll', label: 'Зарплата', icon: <Wallet size={14} /> },
-  { id: 'expenses', label: 'Расходы', icon: <Receipt size={14} /> },
+  { id: 'expenses', label: 'Расходы', icon: <ReceiptIcon size={14} /> },
 ]
 
 const EMPTY_FORM = {
@@ -224,7 +226,7 @@ export default function Cashier() {
 
   const handleQuickPayment = (service: { name: string; price: number }) => {
     setPendingPay(null)
-    setForm({ ...EMPTY_FORM, service: service.name, amount: service.price, paymentMethod: cashSettings.defaultMethod })
+    setForm({ ...EMPTY_FORM, service: service.name, amount: String(service.price), paymentMethod: cashSettings.defaultMethod })
     setModalOpen(true)
   }
 
@@ -645,6 +647,7 @@ export default function Cashier() {
                                 icon={<Trash2 size={14} />}
                                 className="text-error/60 hover:text-error"
                                 onClick={() => voidReceipt(r.id)}
+                                aria-label="Удалить операцию"
                               />
                             </td>
                           </tr>

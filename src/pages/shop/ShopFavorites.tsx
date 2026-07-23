@@ -21,7 +21,7 @@ export default function ShopFavorites() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getShopFavorites()
+    api.getShopFavorites('')
       .then((data: Fav[]) => setFavs(data.map(f => ({ ...f, productId: f.productId || f.id }))))
       .catch(() => {})
       .finally(() => setLoading(false));

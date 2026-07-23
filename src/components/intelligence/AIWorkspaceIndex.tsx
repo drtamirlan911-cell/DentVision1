@@ -206,7 +206,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
               persistThread(user.id, clinicId, restored)
               trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: true, source: 'server' })
               setSuggestionsFromStrings(getSmartSuggestions({ user, guest: isGuest, pathname: location.pathname, focusType: 'workspace' }).slice(0, 4))
-              if (shouldRefreshDailyBriefing(restored) || restored.some((m) => m.role === 'assistant' && isStaticRadarGreeting(m.content))) {
+              if (shouldRefreshDailyBriefing(restored) || restored.some((m: any) => m.role === 'assistant' && isStaticRadarGreeting(m.content))) {
                 void pushDailyJarvisBriefing()
               }
               return

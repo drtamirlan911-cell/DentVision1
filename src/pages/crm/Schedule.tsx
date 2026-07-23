@@ -37,7 +37,7 @@ import { tg } from '@/utils/constants'
 import { AcceptPaymentModal, type AcceptPaymentPayload } from '@/components/crm/AcceptPaymentModal'
 import type { Appointment, Patient, WaitingListItem, User, Booking } from '@/types'
 
-const STATUS_CFG = APPOINTMENT_STATUS
+const STATUS_CFG: Record<string, { l: string; label: string; dot: string; bg: string }> = APPOINTMENT_STATUS
 const WORK_START = '08:00'
 const WORK_END = '20:00'
 const HOUR_HEIGHT = 64
@@ -309,7 +309,7 @@ export default function Schedule() {
       notes: a.notes || '',
       duration: a.duration || 60,
       diagnosis: a.diagnosis || '',
-      toothNumber: a.toothNumber || '',
+      toothNumber: String(a.toothNumber || ''),
       chairId: a.chairId || '',
     })
     setShowNewPatient(false)
@@ -318,8 +318,8 @@ export default function Schedule() {
 
   const handleCreatePatient = async (): Promise<Patient | null> => {
     if (!newPatient.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return null }
-    const patientData = { ...newPatient, id: gid(), clinicId: clinic?.id, category: 'new' }
-    const created = await upsertPatient(patientData)
+    const patientData = { ...newPatient, id: gid(), clinicId: clinic?.id, category: 'new' as const }
+    const created = await upsertPatient(patientData as Partial<Patient>)
     showToast('Пациент добавлен', 'success')
     return created
   }
@@ -348,7 +348,7 @@ export default function Schedule() {
       paymentStatus: editAppt?.paymentStatus || 'unpaid',
     }
     try {
-      await upsertAppointment(payload)
+      await upsertAppointment(payload as any)
       showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
       setModalOpen(false)
     } catch (err: any) {
@@ -357,7 +357,7 @@ export default function Schedule() {
         const force = window.confirm(`${msg}\n\nСохранить запись всё равно (овербукинг)?`)
         if (!force) return
         try {
-          await upsertAppointment({ ...payload, force: true })
+          await upsertAppointment({ ...payload, force: true } as any)
           showToast('Запись сохранена с овербукингом', 'warning')
           setModalOpen(false)
         } catch {
@@ -545,7 +545,7 @@ export default function Schedule() {
     }).join('')
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Расписание ${selDate}</title>
       <style>body{font-family:sans-serif;padding:24px} table{width:100%;border-collapse:collapse;margin-top:16px} th,td{border:1px solid #333;padding:8px;text-align:left} th{background:#eee}</style></head>
-      <body><h1>Расписание на ${selDate}</h1><p>${activeClinic?.name || 'Клиника'}</p>
+      <body><h1>Расписание на ${selDate}</h1><p>${(activeClinic as any)?.name || 'Клиника'}</p>
       <table><thead><tr><th>Время</th><th>Врач</th><th>Пациент</th><th>Услуга</th><th>Телефон</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Нет записей</td></tr>'}</tbody></table>
       <script>window.onload=()=>window.print()</script></body></html>`
     const w = window.open('', '_blank')
@@ -580,7 +580,7 @@ export default function Schedule() {
     const methodRows = Object.entries(byMethod).map(([m, v]) => `<tr><td>${m}</td><td style="text-align:right">${v.toLocaleString('ru-RU')} ₸</td></tr>`).join('')
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Z-отчёт ${selDate}</title>
       <style>body{font-family:sans-serif;padding:24px} table{width:100%;border-collapse:collapse;margin-top:12px} th,td{border:1px solid #333;padding:8px}</style></head>
-      <body><h1>Z-отчёт кассы</h1><p>${activeClinic?.name || ''} · ${selDate}</p>
+      <body><h1>Z-отчёт кассы</h1><p>${(activeClinic as any)?.name || ''} · ${selDate}</p>
       <p>Завершённых приёмов: <b>${doneAppts.length}</b> · Без оплаты: <b>${unpaid.length}</b></p>
       <h3>По способам оплаты</h3>
       <table><thead><tr><th>Способ</th><th>Сумма</th></tr></thead><tbody>${methodRows || '<tr><td colspan="2">Нет оплат</td></tr>'}</tbody>
@@ -622,7 +622,7 @@ export default function Schedule() {
   const handleSaveWait = async (): Promise<void> => {
     if (!waitForm.patientName.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
     const doctor = doctors.find(d => d.id === waitForm.doctorId)
-    await upsertWaitingListItem({ id: editWaitId || gid(), clinicId: clinic?.id, patientId: waitForm.patientId || null, patientName: waitForm.patientName, patientPhone: waitForm.patientPhone, doctorId: waitForm.doctorId || null, doctorName: doctor?.name || '', preferredDate: waitForm.preferredDate || null, preferredTime: waitForm.preferredTime || null, preferredService: waitForm.preferredService || '', notes: waitForm.notes || '', status: 'waiting' })
+    await upsertWaitingListItem({ id: editWaitId || gid(), clinicId: clinic?.id, patientId: waitForm.patientId || undefined, patientName: waitForm.patientName, patientPhone: waitForm.patientPhone, doctorId: waitForm.doctorId || undefined, doctorName: doctor?.name || '', preferredDate: waitForm.preferredDate || undefined, preferredTime: waitForm.preferredTime || undefined, preferredService: waitForm.preferredService || '', notes: waitForm.notes || '', status: 'waiting' })
     showToast(editWaitId ? 'Запись обновлена' : 'Пациент добавлен в лист ожидания', 'success')
     setWaitModalOpen(false); setEditWaitId(null); setWaitForm(EMPTY_WAIT)
   }
@@ -652,7 +652,7 @@ export default function Schedule() {
   }
 
   const handlePromoteFromWait = async (w: any): Promise<void> => {
-    setForm({ ...EMPTY_FORM, patientId: w.patient_id || '', doctorId: w.doctor_id || '', time: w.preferred_time || '09:00', service: w.preferred_service || '' })
+    setForm({ ...EMPTY_FORM, patientId: w.patientId || w.patient_id || '', doctorId: w.doctorId || w.doctor_id || '', time: w.preferredTime || w.preferred_time || '09:00', service: w.preferredService || w.preferred_service || '' })
     setShowNewPatient(false); setModalOpen(true)
     await deleteWaitingListItem(w.id)
     showToast('Перенесён в форму записи', 'info')
@@ -717,7 +717,7 @@ export default function Schedule() {
                 onClick={(e) => advanceStatus(appt, e)}
                 className="inline-flex"
               >
-                <Badge variant="default" size="xs">{sc.label || sc.l}</Badge>
+                <Badge variant="default" size="xs">{sc.label || (sc as any).l}</Badge>
               </button>
             </div>
           </div>
@@ -1108,15 +1108,15 @@ export default function Schedule() {
                   <tbody>
                     {dayWaitList.map(w => (
                       <tr key={w.id} className="border-b border-bdr-subtle hover:bg-white/[0.02] transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-txt-primary">{w.patientName || w.patient_name || '—'}</td>
-                        <td className="px-4 py-2.5 text-txt-secondary">{w.patientPhone || w.patient_phone || '—'}</td>
-                        <td className="px-4 py-2.5 text-dv-gold">{w.doctorName || w.doctor_name || 'Любой'}</td>
-                        <td className="px-4 py-2.5 text-txt-secondary">{w.preferredTime || w.preferred_time || '—'} {(w.preferredDate || w.preferred_date) ? `(${w.preferredDate || w.preferred_date})` : ''}</td>
-                        <td className="px-4 py-2.5 text-txt-secondary">{w.preferredService || w.preferred_service || '—'}</td>
+                        <td className="px-4 py-2.5 font-medium text-txt-primary">{(w as any).patientName || '—'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{(w as any).patientPhone || '—'}</td>
+                        <td className="px-4 py-2.5 text-dv-gold">{(w as any).doctorName || 'Любой'}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{(w as any).preferredTime || '—'} {(w as any).preferredDate ? `(${(w as any).preferredDate})` : ''}</td>
+                        <td className="px-4 py-2.5 text-txt-secondary">{(w as any).preferredService || '—'}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex gap-1">
                             <Button size="icon-xs" variant="ghost" onClick={() => handlePromoteFromWait(w)} title="Записать"><CheckCircle size={13} className="text-success" /></Button>
-                            <Button size="icon-xs" variant="ghost" onClick={() => { setEditWaitId(w.id); setWaitForm({ patientId: w.patientId || w.patient_id || '', patientName: w.patientName || w.patient_name || '', patientPhone: w.patientPhone || w.patient_phone || '', doctorId: w.doctorId || w.doctor_id || '', preferredDate: w.preferredDate || w.preferred_date || '', preferredTime: w.preferredTime || w.preferred_time || '', preferredService: w.preferredService || w.preferred_service || '', notes: w.notes || '' }); setWaitModalOpen(true) }} title="Редактировать"><GripVertical size={13} className="text-dv-gold" /></Button>
+                            <Button size="icon-xs" variant="ghost" onClick={() => { const ww = w as any; setEditWaitId(w.id); setWaitForm({ patientId: ww.patientId || '', patientName: ww.patientName || '', patientPhone: ww.patientPhone || '', doctorId: ww.doctorId || '', preferredDate: ww.preferredDate || '', preferredTime: ww.preferredTime || '', preferredService: ww.preferredService || '', notes: ww.notes || '' }); setWaitModalOpen(true) }} title="Редактировать"><GripVertical size={13} className="text-dv-gold" /></Button>
                             <Button size="icon-xs" variant="ghost" onClick={() => handleDeleteWait(w.id)} title="Удалить"><Trash2 size={13} className="text-error" /></Button>
                           </div>
                         </td>
@@ -1226,7 +1226,7 @@ export default function Schedule() {
 
           <div className="grid grid-cols-3 gap-2">
             <Select label="Время" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} options={HOURS.map(h => ({ value: h, label: h }))} required />
-            <Select label="Длительность" value={form.duration} onChange={e => setForm({ ...form, duration: Number(e.target.value) })} options={[{ value: 30, label: '30 мин' }, { value: 45, label: '45 мин' }, { value: 60, label: '1 час' }, { value: 90, label: '1.5 ч' }, { value: 120, label: '2 часа' }]} />
+            <Select label="Длительность" value={String(form.duration)} onChange={e => setForm({ ...form, duration: Number(e.target.value) })} options={[{ value: '30', label: '30 мин' }, { value: '45', label: '45 мин' }, { value: '60', label: '1 час' }, { value: '90', label: '1.5 ч' }, { value: '120', label: '2 часа' }]} />
             <Select label="Статус" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
           </div>
 
@@ -1338,7 +1338,7 @@ export default function Schedule() {
                 Закрыть приём
               </Button>
             )}
-            {editAppt && <Button type="button" variant="danger" onClick={handleDelete} icon={<Trash2 size={14} />} />}
+            {editAppt && <Button type="button" variant="danger" onClick={handleDelete} icon={<Trash2 size={14} />} aria-label="Удалить запись" />}
             <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
           </div>
         </form>
@@ -1381,7 +1381,7 @@ export default function Schedule() {
                     }}
                     className="w-28"
                   />
-                  <Button variant="ghost" size="icon-sm" icon={<Trash2 size={14} />} onClick={() => setCloseServices(closeServices.filter((_, i) => i !== idx))} />
+                  <Button variant="ghost" size="icon-sm" icon={<Trash2 size={14} />} onClick={() => setCloseServices(closeServices.filter((_, i) => i !== idx))} aria-label="Удалить услугу" />
                 </div>
               ))}
               <div className="flex gap-2 flex-wrap">

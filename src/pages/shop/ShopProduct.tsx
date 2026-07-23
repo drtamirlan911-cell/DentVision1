@@ -103,7 +103,7 @@ export default function ShopProduct() {
   };
 
   useEffect(() => {
-    api.getShopProduct(id).then(setProduct).catch(() => {}).finally(() => setLoading(false));
+    api.getShopProduct(id || '').then(setProduct).catch(() => {}).finally(() => setLoading(false));
   }, [id]);
 
   useEffect(() => {

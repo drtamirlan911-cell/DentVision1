@@ -171,7 +171,7 @@ interface AuthState {
   restoreSession: () => Promise<void>
   setActiveClinic: (clinicId: string) => Promise<void>
   switchClinic: (clinicId: string | null) => Promise<void>
-  addStaffMember: (staffData: StaffData) => Promise<Record<string, unknown> | false>
+  addStaffMember: (staffData: StaffData) => Promise<User | false>
   getClinicStaff: (clinicId: string) => User[]
 
   can: (action: string) => boolean

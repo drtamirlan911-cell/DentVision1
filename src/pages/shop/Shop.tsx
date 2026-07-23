@@ -1,6 +1,6 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import {
   ShoppingCart, Search, Heart, Star, Package, Truck, TrendingUp,
   X, Plus, Minus, Eye, Sparkles, BarChart3, AlertTriangle, ShoppingBag,
@@ -64,9 +64,9 @@ interface AiResponse {
   summary: string;
 }
 
-const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };
-const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } } };
-const scaleIn = { hidden: { opacity: 0, scale: 0.92 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
+const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } } as Variants;
+const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } } } as Variants;
+const scaleIn = { hidden: { opacity: 0, scale: 0.92 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } } as Variants;
 
 const SORT_OPTIONS = [
   { value: '', label: 'По рейтингу' },
@@ -111,7 +111,7 @@ export default function Shop() {
 
   useEffect(() => {
     setLoading(true);
-    const params = city ? { city, limit: '200' } : { limit: '200' };
+    const params: Record<string, string> = city ? { city, limit: '200' } : { limit: '200' };
     Promise.all([
       api.getShopCategories(params),
       api.getShopProducts(params),

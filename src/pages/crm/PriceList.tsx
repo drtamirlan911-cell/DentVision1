@@ -250,10 +250,10 @@ export default function PriceList() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex gap-1 justify-end">
-                        <Button variant="ghost" size="icon-sm" icon={<Edit size={14} />} onClick={() => openEdit(service)} />
+                        <Button variant="ghost" size="icon-sm" icon={<Edit size={14} />} onClick={() => openEdit(service)} aria-label="Редактировать цену" />
                         {isCustomPrice && (
                           <Button variant="ghost" size="icon-sm" icon={<RotateCcw size={14} />}
-                            onClick={() => handleReset(service.id)} className="text-error/60 hover:text-error" />
+                            onClick={() => handleReset(service.id)} className="text-error/60 hover:text-error" aria-label="Сбросить цену" />
                         )}
                       </div>
                     </td>

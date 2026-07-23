@@ -638,7 +638,7 @@ export function ChatMessage({
           </div>
         )}
 
-        {msg.data?.products && Array.isArray(msg.data.products) && msg.data.products.length > 0 && (
+        {(Array.isArray(msg.data?.products) && (msg.data.products as any[]).length > 0) ? (
           <div className="grid gap-1.5 w-full">
             {(msg.data.products as Array<any>).slice(0, 4).map((p: any, i: number) => (
               <motion.div
@@ -666,9 +666,9 @@ export function ChatMessage({
               </motion.div>
             ))}
           </div>
-        )}
+        ) : null}
 
-        {msg.data?.courses && Array.isArray(msg.data.courses) && msg.data.courses.length > 0 && (
+        {Array.isArray(msg.data?.courses) && (msg.data.courses as any[]).length > 0 && (
           <div className="grid gap-1.5 w-full">
             {(msg.data.courses as Array<any>).slice(0, 4).map((c: any, i: number) => (
               <motion.div

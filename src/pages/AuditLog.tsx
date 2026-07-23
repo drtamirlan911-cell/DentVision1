@@ -11,27 +11,27 @@ import { PageHeader } from '../components/ui/ds/StatCard';
 import type { Clinic, User, RoleInfo, AuditLogEntry } from '../types';
 
 const ACTION_LABELS: Record<string, { l: string; v: string }> = {
-  create_patient: { l: 'Создал пациента', v: 'emerald' },
-  update_patient: { l: 'Обновил пациента', v: 'sky' },
-  upsert_patient: { l: 'Изменил пациента', v: 'sky' },
+  create_patient: { l: 'Создал пациента', v: 'success' },
+  update_patient: { l: 'Обновил пациента', v: 'info' },
+  upsert_patient: { l: 'Изменил пациента', v: 'info' },
   delete_patient: { l: 'Удалил пациента', v: 'error' },
   create_visit: { l: 'Добавил посещение', v: 'gold' },
   upsert_visit: { l: 'Обновил посещение', v: 'gold' },
-  upsert_appointment: { l: 'Записал приём', v: 'sky' },
+  upsert_appointment: { l: 'Записал приём', v: 'info' },
   delete_appointment: { l: 'Отменил приём', v: 'error' },
-  upsert_receipt: { l: 'Создал чек', v: 'emerald' },
-  update_receipt: { l: 'Обновил чек', v: 'emerald' },
-  upsert_document: { l: 'Создал документ', v: 'purple' },
+  upsert_receipt: { l: 'Создал чек', v: 'success' },
+  update_receipt: { l: 'Обновил чек', v: 'success' },
+  upsert_document: { l: 'Создал документ', v: 'info' },
   upsert_medical_card: { l: 'Обновил мед. карту', v: 'gold' },
-  backup: { l: 'Резервное копирование', v: 'teal' },
-  upsert_promotion: { l: 'Изменил акцию', v: 'pink' },
+  backup: { l: 'Резервное копирование', v: 'info' },
+  upsert_promotion: { l: 'Изменил акцию', v: 'info' },
   upsert_booking: { l: 'Изменил бронирование', v: 'gold' },
-  upsert_inventory: { l: 'Обновил склад', v: 'slate' },
-  upsert_user: { l: 'Изменил сотрудника', v: 'sky' },
+  upsert_inventory: { l: 'Обновил склад', v: 'default' },
+  upsert_user: { l: 'Изменил сотрудника', v: 'info' },
 };
 
 function getActionInfo(action: string): { l: string; v: string } {
-  return ACTION_LABELS[action] || { l: action, v: 'slate' };
+  return ACTION_LABELS[action] || { l: action, v: 'default' };
 }
 
 export default function AuditLog() {
@@ -61,10 +61,10 @@ export default function AuditLog() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(l =>
-        l.user_name?.toLowerCase().includes(q) ||
-        l.entity_type?.toLowerCase().includes(q) ||
+        l.userName?.toLowerCase().includes(q) ||
+        l.entityType?.toLowerCase().includes(q) ||
         l.action?.toLowerCase().includes(q) ||
-        l.entity_id?.toLowerCase().includes(q)
+        l.entityId?.toLowerCase().includes(q)
       );
     }
     return result;
@@ -73,7 +73,7 @@ export default function AuditLog() {
   const exportLogs = () => {
     const csv = ['Дата,Пользователь,Действие,Тип сущности,ID сущности,Детали'].concat(
       filteredLogs.map(l => [
-        l.created_at, l.user_name, l.action, l.entity_type, l.entity_id,
+        l.createdAt, l.userName, l.action, l.entityType, l.entityId,
         l.details ? l.details.replace(/"/g, '""') : ''
       ].map(v => `"${v || ''}"`).join(','))
     ).join('\n');
@@ -145,20 +145,20 @@ export default function AuditLog() {
                       <td className="px-4 py-3 text-xs text-txt-secondary whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <Clock size={12} className="text-txt-ghost" />
-                          {log.created_at ? new Date(log.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          {log.createdAt ? new Date(log.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <UserIcon size={12} className="text-txt-ghost" />
-                          <span className="text-xs text-txt-primary">{log.user_name || '—'}</span>
+                          <span className="text-xs text-txt-primary">{log.userName || '—'}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={actionInfo.v as any} size="xs">{actionInfo.l}</Badge>
                       </td>
-                      <td className="px-4 py-3 text-xs text-txt-secondary">{log.entity_type || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-txt-ghost font-mono truncate max-w-[120px]">{log.entity_id || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-txt-secondary">{log.entityType || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-txt-ghost font-mono truncate max-w-[120px]">{log.entityId || '—'}</td>
                     </tr>
                   );
                 })}

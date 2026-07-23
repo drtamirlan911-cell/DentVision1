@@ -14,9 +14,9 @@ describe('auth flow', () => {
     const reply = buildAiReply({
       message: 'Какая цена на имплантацию?',
       clinicName: 'DentVision Almaty',
-      patients: [{ id: 1 }],
-      appointments: [{ id: 1 }],
-      receipts: [{ total: 100000, status: 'paid' }],
+      patients: [{ id: 1 }] as any[],
+      appointments: [{ id: 1 }] as any[],
+      receipts: [{ total: 100000, status: 'paid' }] as any[],
       doctors: INIT_USERS.filter(u => u.role === 'doctor'),
     })
     expect(reply).toMatch(/DentVision Almaty/i)

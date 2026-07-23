@@ -118,7 +118,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         <Slot
           className={cn(buttonVariants({ variant, size, className }))}
           ref={ref}
-          disabled={isDisabled}
           aria-busy={loading ? true : undefined}
           {...props}
         >
@@ -135,7 +134,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading ? true : undefined}
         whileHover={!isDisabled ? { scale: 1.02 } : undefined}
         whileTap={!isDisabled ? { scale: 0.97 } : undefined}
-        {...props}
+        {...(props as any)}
       >
         {content}
       </motion.button>

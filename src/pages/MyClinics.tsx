@@ -112,7 +112,7 @@ export default function MyClinics() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-white m-0 truncate">{m.clinic?.name}</p>
-                    <p className="text-xs text-[#7A8899] m-0">{m.clinic?.city}{m.clinic?.city && m.clinic?.type ? ' · ' : ''}{m.clinic?.type === 'clinic' ? 'Клиника' : m.clinic?.type}</p>
+                    <p className="text-xs text-[#7A8899] m-0">{m.clinic?.city}{m.clinic?.city && (m.clinic as any)?.type ? ' · ' : ''}{(m.clinic as any)?.type === 'clinic' ? 'Клиника' : (m.clinic as any)?.type}</p>
                   </div>
                   <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/[0.06] text-[#C9A96E] font-semibold shrink-0">
                     {m.role === 'owner' ? <><Crown size={11} className="inline mr-1" />Владелец</> : m.role}

@@ -47,8 +47,8 @@ export function formatMoney(n: number | string, clinicOrCurrency: string | Clini
   }).format(Number(n) || 0);
 }
 
-export function tg(n: number | string, clinicOrCurrency: string | Clinic): string {
-  return formatMoney(n, clinicOrCurrency);
+export function tg(n: number | string, clinicOrCurrency?: string | Clinic): string {
+  return formatMoney(n, clinicOrCurrency || 'KZT');
 }
 
 export function gid(): string {
@@ -70,7 +70,7 @@ export function calculateAge(dob: string): string | number {
   return age;
 }
 
-export function formatPhone(phone: string): string {
+export function formatPhone(phone: string | undefined | null): string {
   if (!phone) return "";
   const cleaned = phone.replace(/\D/g, "");
   if (cleaned.length === 11 && cleaned.startsWith("7")) {
@@ -107,6 +107,6 @@ export function addDays(dateStr: string, days: number): string {
 export function formatDateRange(start: string, end: string): string {
   const startDate = new Date(start);
   const endDate = new Date(end);
-  const options = { day: 'numeric', month: 'long' };
+  const options = { day: 'numeric', month: 'long' } as const;
   return `${startDate.toLocaleDateString('ru-RU', options)} — ${endDate.toLocaleDateString('ru-RU', options)}`;
 }

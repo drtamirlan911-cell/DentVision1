@@ -100,7 +100,7 @@ export function FinanceExpensesPanel({
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-txt-primary truncate">{exp.category}</p>
                 <p className="text-xs text-txt-muted">
-                  {fd(exp.date)}
+                  {fd(exp.date || '')}
                   {exp.notes ? ` · ${exp.notes}` : ''}
                 </p>
               </div>

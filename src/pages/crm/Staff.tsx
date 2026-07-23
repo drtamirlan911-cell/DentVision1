@@ -529,7 +529,7 @@ export default function Staff() {
             label="Видимость профиля"
             value={form.visibility}
             onChange={e => setForm({ ...form, visibility: e.target.value })}
-            options={VISIBILITY_OPTIONS}
+            options={VISIBILITY_OPTIONS as any}
           />
         )}
 

@@ -18,11 +18,11 @@ import { useAutosaveDraft } from '@/hooks/useAutosaveDraft';
 import type { Document, Patient, User as UserType, Clinic, RoleInfo } from '../../types';
 
 const DOC_STATUS: Record<string, { l: string; v: string }> = {
-  draft: { l: 'Черновик', v: 'slate' },
-  active: { l: 'Действующий', v: 'emerald' },
+  draft: { l: 'Черновик', v: 'default' },
+  active: { l: 'Действующий', v: 'success' },
   pending_signature: { l: 'Ожидает подписи', v: 'gold' },
   signed: { l: 'Подписан', v: 'gold' },
-  archived: { l: 'Архив', v: 'sapphire' },
+  archived: { l: 'Архив', v: 'info' },
 };
 
 const DOC_TEMPLATES = [
@@ -468,7 +468,7 @@ export default function Documents() {
   );
 
   const allTypes = useMemo(() => {
-    const types = new Set<string>((documents || []).map(d => d.doc_type || d.docType).filter(Boolean) as string[]);
+    const types = new Set<string>((documents || []).map(d => d.docType).filter(Boolean) as string[]);
     DOC_TEMPLATES.forEach(cat => cat.items.forEach(t => types.add(t.type)));
     return ['all', ...Array.from(types).sort()];
   }, [documents]);
@@ -476,17 +476,17 @@ export default function Documents() {
   const filteredDocs = useMemo(() => {
     if (!documents) return [];
     let result = documents;
-    if (filterType !== 'all') result = result.filter(d => (d.doc_type || d.docType) === filterType);
+    if (filterType !== 'all') result = result.filter(d => d.docType === filterType);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(d => {
-        const patientName = d.patient_name
-          || d.patientName
-          || patients.find(p => p.id === (d.patient_id || d.patientId))?.name
+        const patientName = (d as any).patient_name
+          || (d as any).patientName
+          || patients.find(p => p.id === ((d as any).patient_id || (d as any).patientId))?.name
           || '';
         return (d.title || '').toLowerCase().includes(q)
           || patientName.toLowerCase().includes(q)
-          || (d.doc_type || d.docType || '').toLowerCase().includes(q)
+          || (d.docType || '').toLowerCase().includes(q)
           || (d.content || '').toLowerCase().includes(q);
       });
     }
@@ -494,9 +494,8 @@ export default function Documents() {
   }, [documents, searchQuery, filterType, patients]);
 
   const resolveDocPatient = (doc: Document & Record<string, any>) =>
-    doc.patient_name
-    || doc.patientName
-    || patients.find(p => p.id === (doc.patient_id || doc.patientId))?.name
+    doc.patientName
+    || patients.find(p => p.id === (doc.patientId || (doc as any).patient_id))?.name
     || 'Без пациента';
 
   const resetForm = () => {
@@ -521,7 +520,7 @@ export default function Documents() {
       filled = filled.replace(/_{10,}\s*\(ФИО\)/g, pName.padEnd(25, ' '));
       if (patient.dob) filled = filled.replace(/дата рождения: _________________/g, `дата рождения: ${patient.dob}`);
       if (patient.phone) filled = filled.replace(/Телефон: _________________/g, `Телефон: ${patient.phone}`);
-      if (patient.passport) filled = filled.replace(/паспорт: _________________/g, `паспорт: ${patient.passport}`);
+      if ((patient as any).passport) filled = filled.replace(/паспорт: _________________/g, `паспорт: ${(patient as any).passport}`);
       if (patient.address) filled = filled.replace(/Адрес: _________________/g, `Адрес: ${patient.address}`);
     }
     if (doctor) {
@@ -547,9 +546,9 @@ export default function Documents() {
 
   const startEdit = (doc: Document) => {
     setForm({
-      patient_id: doc.patient_id || doc.patientId || '',
-      doctor_id: doc.doctor_id || doc.doctorId || '',
-      doc_type: doc.doc_type || doc.docType || '',
+      patient_id: (doc as any).patient_id || doc.patientId || '',
+      doctor_id: (doc as any).doctor_id || doc.doctorId || '',
+      doc_type: doc.docType || '',
       title: doc.title || '',
       content: doc.content || '',
       status: doc.status || 'draft',
@@ -683,7 +682,7 @@ export default function Documents() {
                 <span className="flex items-center gap-2">
                   <Copy size={16} className="text-dv-gold" /> Выберите шаблон документа
                 </span>
-                <Button variant="ghost" size="icon-sm" icon={<X size={18} />} onClick={() => setShowTemplates(false)} />
+                <Button variant="ghost" size="icon-sm" icon={<X size={18} />} onClick={() => setShowTemplates(false)} aria-label="Закрыть шаблоны" />
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -716,7 +715,7 @@ export default function Documents() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>{editingId ? 'Редактирование' : 'Новый документ'}</span>
-                <Button variant="ghost" size="icon-sm" icon={<X size={18} />} onClick={resetForm} />
+                <Button variant="ghost" size="icon-sm" icon={<X size={18} />} onClick={resetForm} aria-label="Закрыть форму" />
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -792,20 +791,20 @@ export default function Documents() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-bold text-txt-primary">{previewDoc.title}</h3>
-                <p className="text-xs text-txt-muted">{previewDoc.doc_type || previewDoc.docType} · {resolveDocPatient(previewDoc)}</p>
+                <p className="text-xs text-txt-muted">{previewDoc.docType} · {resolveDocPatient(previewDoc)}</p>
               </div>
-              <Button variant="ghost" size="icon-sm" icon={<X size={20} />} onClick={() => setPreviewDoc(null)} />
+              <Button variant="ghost" size="icon-sm" icon={<X size={20} />} onClick={() => setPreviewDoc(null)} aria-label="Закрыть просмотр" />
             </div>
             <div className="whitespace-pre-wrap rounded-lg bg-white/5 p-6 text-sm text-txt-secondary font-mono leading-relaxed border border-bdr-subtle">
               {previewDoc.content || 'Нет содержания'}
             </div>
-            {previewDoc.signature_data && (
+            {(previewDoc as any).signature_data && (
               <div className="mt-4 rounded-lg border border-dv-gold/20 bg-dv-gold/5 p-4">
                 <p className="mb-2 text-xs font-semibold text-dv-gold">Электронная подпись</p>
-                <img src={previewDoc.signature_data} alt="Подпись" className="max-h-20 bg-white rounded-md p-1" />
+                <img src={(previewDoc as any).signature_data} alt="Подпись" className="max-h-20 bg-white rounded-md p-1" />
                 <p className="mt-2 text-xs text-txt-muted">
-                  {previewDoc.signed_by_name && `Подпись: ${previewDoc.signed_by_name}`}
-                  {previewDoc.signed_at && ` · ${new Date(previewDoc.signed_at).toLocaleString('ru-RU')}`}
+                  {(previewDoc as any).signed_by_name && `Подпись: ${(previewDoc as any).signed_by_name}`}
+                  {previewDoc.signedAt && ` · ${new Date(previewDoc.signedAt).toLocaleString('ru-RU')}`}
                 </p>
               </div>
             )}
@@ -846,20 +845,20 @@ export default function Documents() {
                           <Badge variant={statusInfo.v as any} size="xs">{statusInfo.l}</Badge>
                         </div>
                         <p className="text-xs text-txt-muted mt-0.5">
-                          {doc.doc_type || doc.docType} · {resolveDocPatient(doc)} · {(doc.created_at || doc.createdAt) ? new Date(doc.created_at || doc.createdAt).toLocaleDateString('ru-RU') : '—'}
+                          {doc.docType} · {resolveDocPatient(doc)} · {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString('ru-RU') : '—'}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon-xs" icon={<Eye size={14} />} onClick={() => setPreviewDoc(doc)} title="Просмотр" />
-                      <Button variant="ghost" size="icon-xs" icon={<Copy size={14} />} onClick={() => copyDoc(doc.content || '')} title="Копировать" />
-                      <Button variant="ghost" size="icon-xs" icon={<Download size={14} />} onClick={() => downloadDoc(doc)} title="Скачать" />
-                      <Button variant="ghost" size="icon-xs" icon={<Edit3 size={14} />} onClick={() => startEdit(doc)} title="Редактировать" />
-                      <Button variant="ghost" size="icon-xs" icon={<Trash2 size={14} />} onClick={() => handleDelete(doc.id)} title="Удалить" className="text-txt-muted hover:text-error" />
-                      {doc.status !== 'signed' && (
+                      <Button variant="ghost" size="icon-xs" icon={<Eye size={14} />} onClick={() => setPreviewDoc(doc)} title="Просмотр" aria-label="Просмотр" />
+                      <Button variant="ghost" size="icon-xs" icon={<Copy size={14} />} onClick={() => copyDoc(doc.content || '')} title="Копировать" aria-label="Копировать" />
+                      <Button variant="ghost" size="icon-xs" icon={<Download size={14} />} onClick={() => downloadDoc(doc)} title="Скачать" aria-label="Скачать" />
+                      <Button variant="ghost" size="icon-xs" icon={<Edit3 size={14} />} onClick={() => startEdit(doc)} title="Редактировать" aria-label="Редактировать" />
+                      <Button variant="ghost" size="icon-xs" icon={<Trash2 size={14} />} onClick={() => handleDelete(doc.id)} title="Удалить" aria-label="Удалить" className="text-txt-muted hover:text-error" />
+                      {(doc.status as string) !== 'signed' && (
                         <>
-                          <Button variant="ghost" size="icon-xs" icon={<Send size={14} />} onClick={() => handleSendForSignature(doc)} title="Отправить на подпись" />
-                          <Button variant="ghost" size="icon-xs" icon={<PenTool size={14} />} onClick={() => handleSignInline(doc)} title="Подписать на планшете" className="text-txt-muted hover:text-emerald-400" />
+                          <Button variant="ghost" size="icon-xs" icon={<Send size={14} />} onClick={() => handleSendForSignature(doc)} title="Отправить на подпись" aria-label="Отправить на подпись" />
+                          <Button variant="ghost" size="icon-xs" icon={<PenTool size={14} />} onClick={() => handleSignInline(doc)} title="Подписать на планшете" aria-label="Подписать на планшете" className="text-txt-muted hover:text-emerald-400" />
                         </>
                       )}
                     </div>
@@ -872,7 +871,7 @@ export default function Documents() {
                       <div className="flex items-center gap-2">
                         <code className="flex-1 truncate text-xs text-txt-secondary">{signLink}</code>
                         <Button variant="primary" size="xs" onClick={() => { navigator.clipboard.writeText(signLink); toast.success('Скопировано'); }}>Копировать</Button>
-                        <Button variant="ghost" size="icon-xs" icon={<X size={12} />} onClick={() => setSignLink(null)} />
+                        <Button variant="ghost" size="icon-xs" icon={<X size={12} />} onClick={() => setSignLink(null)} aria-label="Закрыть" />
                       </div>
                     </div>
                   )}

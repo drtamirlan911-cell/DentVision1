@@ -50,7 +50,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const dismissAll = useCallback(() => setToasts([]), [])
 
   const toast = useCallback(
-    ({ type = 'info', title, description, duration = 4000 }: Omit<ToastItem, 'id'>) => {
+    ({ type = 'info', title, description, duration = 4000 }: { type?: ToastType; title: string; description?: string; duration?: number }) => {
       const id = `toast-${++_counter}`
       setToasts(prev => [...prev.slice(-4), { id, type, title, description, duration }])
       if (duration > 0) {
@@ -61,7 +61,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [dismiss]
   )
 
-  const value = useMemo(() => ({ toast, dismiss, dismissAll }), [toast, dismiss, dismissAll])
+  const value = useMemo<ToastContextValue>(() => ({ toast, dismiss, dismissAll }), [toast, dismiss, dismissAll])
 
   return (
     <ToastContext.Provider value={value}>

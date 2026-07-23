@@ -31,16 +31,16 @@ interface OutletContext {
 }
 
 interface MedicalCardForm {
-  blood_type: string
+  bloodType: string
   allergies: string
-  chronic_diseases: string
+  chronicDiseases: string
   medications: string
-  past_surgeries: string
-  family_history: string
-  emergency_contact: string
-  emergency_phone: string
-  insurance_provider: string
-  insurance_number: string
+  pastSurgeries: string
+  familyHistory: string
+  emergencyContact: string
+  emergencyPhone: string
+  insuranceProvider: string
+  insuranceNumber: string
   notes: string
 }
 
@@ -67,9 +67,9 @@ export default function MedicalCard() {
   const [editing, setEditing] = useState(false);
   const [activeSection, setActiveSection] = useState('personal');
   const [form, setForm] = useState<MedicalCardForm>({
-    blood_type: '', allergies: '', chronic_diseases: '', medications: '',
-    past_surgeries: '', family_history: '', emergency_contact: '', emergency_phone: '',
-    insurance_provider: '', insurance_number: '', notes: '',
+    bloodType: '', allergies: '', chronicDiseases: '', medications: '',
+    pastSurgeries: '', familyHistory: '', emergencyContact: '', emergencyPhone: '',
+    insuranceProvider: '', insuranceNumber: '', notes: '',
   });
 
   const filteredPatients = useMemo(() => {
@@ -79,21 +79,21 @@ export default function MedicalCard() {
   }, [patients, searchQuery]);
 
   const selectedPatient = patients?.find(p => p.id === selectedPatientId);
-  const existingCard = medicalCards?.find(m => m.patient_id === selectedPatientId || m.patientId === selectedPatientId);
-  const patientVisits = useMemo(() => (visits || []).filter(v => v.patient_id === selectedPatientId || v.patientId === selectedPatientId), [visits, selectedPatientId]);
+  const existingCard = medicalCards?.find(m => m.patientId === selectedPatientId);
+  const patientVisits = useMemo(() => (visits || []).filter(v => v.patientId === selectedPatientId), [visits, selectedPatientId]);
 
   const startEdit = () => {
     setForm({
-      blood_type: existingCard?.blood_type || existingCard?.bloodType || '',
+      bloodType: existingCard?.bloodType || '',
       allergies: existingCard?.allergies || '',
-      chronic_diseases: existingCard?.chronic_diseases || existingCard?.chronicDiseases || '',
-      medications: existingCard?.medications || '',
-      past_surgeries: existingCard?.past_surgeries || existingCard?.pastSurgeries || '',
-      family_history: existingCard?.family_history || existingCard?.familyHistory || '',
-      emergency_contact: existingCard?.emergency_contact || existingCard?.emergencyContact || '',
-      emergency_phone: existingCard?.emergency_phone || existingCard?.emergencyPhone || '',
-      insurance_provider: existingCard?.insurance_provider || existingCard?.insuranceProvider || '',
-      insurance_number: existingCard?.insurance_number || existingCard?.insuranceNumber || '',
+      chronicDiseases: existingCard?.chronicDiseases || '',
+      medications: (existingCard as any)?.medications || '',
+      pastSurgeries: existingCard?.pastSurgeries || '',
+      familyHistory: existingCard?.familyHistory || '',
+      emergencyContact: existingCard?.emergencyContact || '',
+      emergencyPhone: existingCard?.emergencyPhone || '',
+      insuranceProvider: existingCard?.insuranceProvider || '',
+      insuranceNumber: existingCard?.insuranceNumber || '',
       notes: existingCard?.notes || '',
     });
     setEditing(true);
@@ -102,12 +102,11 @@ export default function MedicalCard() {
   const saveCard = async () => {
     const data = {
       id: existingCard?.id || gid(),
-      patient_id: selectedPatientId,
-      clinic_id: clinic.id,
+      patientId: selectedPatientId,
+      clinicId: clinic.id,
       ...form,
-      user_id: user?.id,
-      user_name: user?.name,
-    };
+      userId: user?.id,
+    } as any;
     try {
       await upsertMedicalCard(data as any);
       toast.success('Медицинская карта сохранена');
@@ -236,31 +235,31 @@ export default function MedicalCard() {
                     {editing ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Field label="Группа крови">
-                          <select className="dv-select" value={form.blood_type} onChange={e => setForm(f => ({ ...f, blood_type: e.target.value }))}>
+                          <select className="dv-select" value={form.bloodType} onChange={e => setForm(f => ({ ...f, bloodType: e.target.value }))}>
                             <option value="">—</option>
                             {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
                           </select>
                         </Field>
                         <Field label="Страховая компания">
-                          <input value={form.insurance_provider} onChange={e => setForm(f => ({ ...f, insurance_provider: e.target.value }))} placeholder="Название страховщика" />
+                          <input value={form.insuranceProvider} onChange={e => setForm(f => ({ ...f, insuranceProvider: e.target.value }))} placeholder="Название страховщика" />
                         </Field>
                         <Field label="Номер полиса">
-                          <input value={form.insurance_number} onChange={e => setForm(f => ({ ...f, insurance_number: e.target.value }))} placeholder="Номер полиса" />
+                          <input value={form.insuranceNumber} onChange={e => setForm(f => ({ ...f, insuranceNumber: e.target.value }))} placeholder="Номер полиса" />
                         </Field>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <p className="text-xs text-txt-muted">Группа крови</p>
-                          <p className="text-sm text-txt-primary font-bold">{existingCard?.blood_type || existingCard?.bloodType || '—'}</p>
+                          <p className="text-sm text-txt-primary font-bold">{existingCard?.bloodType || '—'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-txt-muted">Страховая</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.insurance_provider || existingCard?.insuranceProvider || '—'}</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.insuranceProvider || '—'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-txt-muted">Полис</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.insurance_number || existingCard?.insuranceNumber || '—'}</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.insuranceNumber || '—'}</p>
                         </div>
                       </div>
                     )}
@@ -287,7 +286,7 @@ export default function MedicalCard() {
                         </div>
                         <div className="rounded-lg bg-sky-500/8 border border-sky-500/15 p-3">
                           <p className="text-xs font-semibold text-sky-400 mb-1">Лекарства</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.medications || 'Не принимает'}</p>
+                          <p className="text-sm text-txt-primary">{(existingCard as any)?.medications || 'Не принимает'}</p>
                         </div>
                       </div>
                     )}
@@ -300,13 +299,13 @@ export default function MedicalCard() {
                     {editing ? (
                       <div className="space-y-4">
                         <Field label="Хронические заболевания">
-                          <textarea rows={3} value={form.chronic_diseases} onChange={e => setForm(f => ({ ...f, chronic_diseases: e.target.value }))} placeholder="Хронические заболевания..." />
+                          <textarea rows={3} value={form.chronicDiseases} onChange={e => setForm(f => ({ ...f, chronicDiseases: e.target.value }))} placeholder="Хронические заболевания..." />
                         </Field>
                         <Field label="Перенесённые операции">
-                          <textarea rows={3} value={form.past_surgeries} onChange={e => setForm(f => ({ ...f, past_surgeries: e.target.value }))} placeholder="Операции и вмешательства..." />
+                          <textarea rows={3} value={form.pastSurgeries} onChange={e => setForm(f => ({ ...f, pastSurgeries: e.target.value }))} placeholder="Операции и вмешательства..." />
                         </Field>
                         <Field label="Семейный анамнез">
-                          <textarea rows={2} value={form.family_history} onChange={e => setForm(f => ({ ...f, family_history: e.target.value }))} placeholder="Наследственные заболевания..." />
+                          <textarea rows={2} value={form.familyHistory} onChange={e => setForm(f => ({ ...f, familyHistory: e.target.value }))} placeholder="Наследственные заболевания..." />
                         </Field>
                         <Field label="Примечания">
                           <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Доп. информация..." />
@@ -316,15 +315,15 @@ export default function MedicalCard() {
                       <div className="space-y-3">
                         <div className="rounded-lg bg-white/5 border border-bdr-subtle p-3">
                           <p className="text-xs font-semibold text-txt-muted mb-1">Хронические заболевания</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.chronic_diseases || existingCard?.chronicDiseases || '—'}</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.chronicDiseases || '—'}</p>
                         </div>
                         <div className="rounded-lg bg-white/5 border border-bdr-subtle p-3">
                           <p className="text-xs font-semibold text-txt-muted mb-1">Операции</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.past_surgeries || existingCard?.pastSurgeries || '—'}</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.pastSurgeries || '—'}</p>
                         </div>
                         <div className="rounded-lg bg-white/5 border border-bdr-subtle p-3">
                           <p className="text-xs font-semibold text-txt-muted mb-1">Семейный анамнез</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.family_history || existingCard?.familyHistory || '—'}</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.familyHistory || '—'}</p>
                         </div>
                       </div>
                     )}
@@ -341,11 +340,11 @@ export default function MedicalCard() {
                           {patientVisits.map(v => (
                             <div key={v.id} className="rounded-lg border border-bdr-subtle bg-surface-raised p-3">
                               <div className="flex justify-between items-center">
-                                <span className="text-xs text-txt-muted">{v.visit_date ? new Date(v.visit_date).toLocaleDateString('ru-RU') : '—'}</span>
-                                <span className="text-xs font-semibold text-dv-gold">{v.doctor_name || '—'}</span>
+                                <span className="text-xs text-txt-muted">{v.visitDate ? new Date(v.visitDate).toLocaleDateString('ru-RU') : '—'}</span>
+                                <span className="text-xs font-semibold text-dv-gold">{(v as any).doctor_name || '—'}</span>
                               </div>
-                              <p className="text-sm text-txt-primary mt-1">{v.diagnosis || 'Без диагноза'}</p>
-                              {v.icd10_codes && <p className="text-xs text-dv-gold mt-0.5">МКБ-10: {v.icd10_codes}</p>}
+                              <p className="text-sm text-txt-primary mt-1">{(v as any).diagnosis || 'Без диагноза'}</p>
+                              {v.icd10Codes && <p className="text-xs text-dv-gold mt-0.5">МКБ-10: {v.icd10Codes}</p>}
                             </div>
                           ))}
                         </div>
@@ -360,21 +359,21 @@ export default function MedicalCard() {
                     {editing ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Field label="Контактное лицо">
-                          <input value={form.emergency_contact} onChange={e => setForm(f => ({ ...f, emergency_contact: e.target.value }))} placeholder="ФИО контактного лица" />
+                          <input value={form.emergencyContact} onChange={e => setForm(f => ({ ...f, emergencyContact: e.target.value }))} placeholder="ФИО контактного лица" />
                         </Field>
                         <Field label="Телефон">
-                          <input value={form.emergency_phone} onChange={e => setForm(f => ({ ...f, emergency_phone: e.target.value }))} placeholder="+7..." />
+                          <input value={form.emergencyPhone} onChange={e => setForm(f => ({ ...f, emergencyPhone: e.target.value }))} placeholder="+7..." />
                         </Field>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="rounded-lg bg-amber-500/8 border border-amber-500/15 p-3">
                           <p className="text-xs font-semibold text-amber-400 mb-1">Контактное лицо</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.emergency_contact || existingCard?.emergencyContact || '—'}</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.emergencyContact || '—'}</p>
                         </div>
                         <div className="rounded-lg bg-amber-500/8 border border-amber-500/15 p-3">
                           <p className="text-xs font-semibold text-amber-400 mb-1">Телефон</p>
-                          <p className="text-sm text-txt-primary">{existingCard?.emergency_phone || existingCard?.emergencyPhone || '—'}</p>
+                          <p className="text-sm text-txt-primary">{existingCard?.emergencyPhone || '—'}</p>
                         </div>
                       </div>
                     )}

@@ -70,12 +70,12 @@ function GlassCard({
       )
     : ''
 
-  const Content = motionProps ? motion.div : 'div'
+  const Content = motion.div
 
   return (
     <Content
-      {...motionProps}
-      {...props}
+      {...(motionProps || {})}
+      {...(props as any)}
       className={cn(baseStyles, interactiveStyles)}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] to-transparent pointer-events-none" />

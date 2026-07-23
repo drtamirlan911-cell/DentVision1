@@ -125,11 +125,11 @@ export default function NotificationCenter() {
                 </div>
               ) : (
                 list.map((n) => {
-                  const meta = TYPE_META[n.type] || TYPE_META.system
+                  const meta = TYPE_META[n.type as NotificationType] || TYPE_META.system
                   return (
                     <button
                       key={n.id}
-                      onClick={() => handleOpen(n)}
+                      onClick={() => handleOpen(n as AppNotification)}
                       className={cn(
                         'group mb-1 flex w-full items-start gap-3 rounded-xl p-3 text-left transition-colors hover:bg-surface-2',
                         !n.read && 'bg-surface-2/50'

@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 export interface ServiceCardDef {
@@ -197,7 +197,7 @@ export function AIServiceCards({
         delayChildren: delayBase,
       },
     },
-  };
+  } as Variants;
 
   const itemVariants = {
     hidden: { opacity: 0, scale: 0.8, y: 20 },
@@ -207,7 +207,7 @@ export function AIServiceCards({
       y: 0,
       transition: { type: 'spring', stiffness: 300, damping: 25 },
     },
-  };
+  } as Variants;
 
   const ringVariants = {
     hidden: { opacity: 0, scale: 0.5 },
@@ -221,7 +221,7 @@ export function AIServiceCards({
         delay: delayBase + i * 0.08,
       },
     }),
-  };
+  } as Variants;
 
   if (variant === 'ring') {
     return (

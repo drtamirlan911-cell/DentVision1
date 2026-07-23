@@ -384,24 +384,24 @@ export default function ClinicSettingsPage() {
               <Input label="Обед до" type="time" value={settings.lunchEnd || '13:00'} onChange={(e) => setSettings({ ...settings, lunchEnd: e.target.value })} />
               <Select
                 label="Шаг слота"
-                value={settings.bookingSlotMinutes || 30}
+                value={String(settings.bookingSlotMinutes || 30)}
                 onChange={(e) => setSettings({ ...settings, bookingSlotMinutes: Number(e.target.value) })}
                 options={[
-                  { value: 15, label: '15 мин' },
-                  { value: 30, label: '30 мин' },
-                  { value: 45, label: '45 мин' },
-                  { value: 60, label: '60 мин' },
+                  { value: '15', label: '15 мин' },
+                  { value: '30', label: '30 мин' },
+                  { value: '45', label: '45 мин' },
+                  { value: '60', label: '60 мин' },
                 ]}
               />
               <Select
                 label="Длительность записи по умолчанию"
-                value={settings.defaultAppointmentDuration || 60}
+                value={String(settings.defaultAppointmentDuration || 60)}
                 onChange={(e) => setSettings({ ...settings, defaultAppointmentDuration: Number(e.target.value) })}
                 options={[
-                  { value: 30, label: '30 мин' },
-                  { value: 45, label: '45 мин' },
-                  { value: 60, label: '1 час' },
-                  { value: 90, label: '1.5 ч' },
+                  { value: '30', label: '30 мин' },
+                  { value: '45', label: '45 мин' },
+                  { value: '60', label: '1 час' },
+                  { value: '90', label: '1.5 ч' },
                 ]}
               />
             </div>

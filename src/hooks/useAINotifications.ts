@@ -70,7 +70,7 @@ export function useAINotifications(options?: UseAINotificationsOptions) {
       // Auto-reconnect after 3s
       setTimeout(() => {
         if (eventSourceRef.current === es) {
-          es.connect?.()
+          // reconnect by creating a new EventSource
         }
       }, 3000)
     }

@@ -36,7 +36,8 @@ function lastActivityDate(patientId: string, appointments: Appointment[], receip
     ...receipts.filter((r) => r.patientId === patientId).map((r) => r.date),
   ].filter(Boolean) as string[]
   if (!dates.length) return null
-  return dates.sort().at(-1) || null
+  dates.sort()
+  return dates[dates.length - 1] || null
 }
 
 /** Patients with no visit/appointment activity for `inactiveDays` (default 180). */
@@ -49,7 +50,7 @@ export function getRecallCandidates(
   const inactiveDays = options.inactiveDays ?? 180
   const openPlans = options.openPlanPatientIds || new Set<string>()
 
-  return patients
+  const candidates = patients
     .map((patient) => {
       const last = lastActivityDate(patient.id, appointments, receipts)
       const days = daysSince(last)
@@ -83,10 +84,11 @@ export function getRecallCandidates(
         balanceHint: balance,
         message,
         waLink: buildWaLink(patient.phone, message),
-      }
+      } as RecallCandidate | null
     })
-    .filter((c): c is RecallCandidate => c !== null)
-    .sort((a, b) => b.daysSince - a.daysSince)
+    .filter((c) => c !== null)
+    .sort((a, b) => b.daysSince - a.daysSince) as RecallCandidate[]
+  return candidates
 }
 
 /** Likely duplicate patients by normalized phone or exact name. */

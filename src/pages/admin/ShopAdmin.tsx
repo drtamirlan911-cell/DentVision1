@@ -154,7 +154,7 @@ function ProductsManager() {
                         <td className="pr-2">{i.category_name || '—'}</td>
                         <td className="pr-2">{i.price?.toLocaleString()} ₸</td>
                         <td className="pr-2">
-                          <Badge variant={i.stock > i.minStock ? 'success' : 'danger'}>{i.stock}</Badge>
+                          <Badge variant={i.stock > i.minStock ? 'success' : 'error'}>{i.stock}</Badge>
                         </td>
                         <td className="text-right whitespace-nowrap">
                           <Button variant="ghost" size="icon" onClick={() => openEdit(i)}><Pencil size={16} /></Button>

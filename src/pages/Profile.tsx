@@ -247,8 +247,8 @@ export default function Profile() {
 
           <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-2">
             {clinic && <Badge variant="gold" size="sm" className="max-w-full"><Building2 size={12} className="mr-1 shrink-0" /> <span className="truncate">{clinic.name}</span></Badge>}
-            {activeClinic && activeClinic.id !== clinic?.id && <Badge variant="sky" size="sm" className="max-w-full"><Building2 size={12} className="mr-1 shrink-0" /> <span className="truncate">{activeClinic.name}</span></Badge>}
-            {profile?.visibility === 'private' && <Badge variant="slate" size="sm">Профиль скрыт</Badge>}
+            {activeClinic && activeClinic.id !== clinic?.id && <Badge variant="info" size="sm" className="max-w-full"><Building2 size={12} className="mr-1 shrink-0" /> <span className="truncate">{activeClinic.name}</span></Badge>}
+            {profile?.visibility === 'private' && <Badge variant="default" size="sm">Профиль скрыт</Badge>}
             {profile?.username && <Badge variant="outline" size="sm">@{profile.username}</Badge>}
           </div>
         </CardContent>
@@ -347,7 +347,7 @@ export default function Profile() {
                   {k.beforeImage && <div className="flex-1"><p className="text-[10px] text-txt-muted mb-1">До</p><img src={k.beforeImage} className="h-24 w-full object-cover rounded" /></div>}
                   {k.afterImage && <div className="flex-1"><p className="text-[10px] text-txt-muted mb-1">После</p><img src={k.afterImage} className="h-24 w-full object-cover rounded" /></div>}
                 </div>
-                {k.tags?.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{k.tags.map((t: string) => <Badge key={t} variant="slate" size="xs">{t}</Badge>)}</div>}
+                {k.tags?.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{k.tags.map((t: string) => <Badge key={t} variant="default" size="xs">{t}</Badge>)}</div>}
               </div>
             ))}
           </div>

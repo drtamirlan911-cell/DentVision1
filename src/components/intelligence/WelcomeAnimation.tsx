@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Brain, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { useAuth } from '@/store/auth.store'
 import { aiProactive } from '@/utils/api'
 import { AI_SERVICES } from '@/components/intelligence/AIServiceCards'
@@ -116,8 +116,8 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
   const [stats, setStats] = useState<string[]>([])
   const [cardTexts, setCardTexts] = useState<Record<string, string>>({})
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-  const typingRef = useRef<NodeJS.Timeout | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const typingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearAllTimers = () => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }

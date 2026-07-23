@@ -442,7 +442,7 @@ export default function CommunityPage() {
                   }
                 }}
               />
-              <Button size="sm" icon={<Send size={14} />} onClick={() => void sendComment()} disabled={!commentDraft.trim()} />
+              <Button size="sm" icon={<Send size={14} />} onClick={() => void sendComment()} disabled={!commentDraft.trim()} aria-label="Отправить комментарий" />
             </div>
           </div>
         </div>

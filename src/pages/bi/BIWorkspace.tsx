@@ -26,7 +26,7 @@ function fmtDate(d: string | Date | null | undefined): string {
   return String(d).slice(0, 10)
 }
 
-// type Tab = 'dashboard' | 'clinic' | 'network' | 'platform' | 'cfo' | 'command'
+type Tab = 'dashboard' | 'clinic' | 'network' | 'platform' | 'cfo' | 'command'
 
 const OPS_KEY_SESSION = 'dv_ops_key'
 

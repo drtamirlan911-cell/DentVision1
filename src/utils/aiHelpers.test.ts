@@ -19,10 +19,10 @@ describe('buildAiReply', () => {
     const reply = buildAiReply({
       message: 'Сделай отчёт за сегодня',
       clinicName: 'DentVision Almaty',
-      patients: [{ id: 1 }, { id: 2 }],
-      appointments: [{ id: 1 }, { id: 2 }, { id: 3 }],
-      receipts: [{ status: 'paid', total: 150000 }, { status: 'paid', total: 300000 }],
-      doctors: [{ id: 1 }, { id: 2 }],
+      patients: [{ id: 1 }, { id: 2 }] as any[],
+      appointments: [{ id: 1 }, { id: 2 }, { id: 3 }] as any[],
+      receipts: [{ status: 'paid', total: 150000 }, { status: 'paid', total: 300000 }] as any[],
+      doctors: [{ id: 1 }, { id: 2 }] as any[],
     })
     expect(reply).toMatch(/2 пациента/i)
     expect(reply).toMatch(/3 записи/i)

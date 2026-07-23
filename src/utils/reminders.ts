@@ -110,7 +110,7 @@ export function getAppointmentReminders(
       const doctor = doctors.find(d => d.id === a.doctorId);
       if (!patient) return null;
       const id = `appt_${a.id}`;
-      const message = `Здравствуйте, ${patient.name}!\n\nНапоминаем о вашей записи:\n📅 ${a.date} в ${a.time}\n👨‍⚕️ Врач: ${doctor?.name || a.doctorName || '—'}\n${a.reason ? `📝 ${a.reason}\n` : ''}\nЕсли не сможете прийти — сообщите заранее. Ждём вас!`;
+      const message = `Здравствуйте, ${patient.name}!\n\nНапоминаем о вашей записи:\n📅 ${a.date} в ${a.time}\n👨‍⚕️ Врач: ${doctor?.name || (a as any).doctorName || '—'}\n${a.reason ? `📝 ${a.reason}\n` : ''}\nЕсли не сможете прийти — сообщите заранее. Ждём вас!`;
       return {
         id, type: 'appointment', appointment: a, patient, doctor,
         dueAt: dt, message,

@@ -1,4 +1,5 @@
-import { motion, type HTMLMotionProps } from 'framer-motion'
+import React from 'react'
+import { motion, type HTMLMotionProps, type Variants } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 interface PageTransitionProps extends HTMLMotionProps<'div'> {
@@ -59,7 +60,7 @@ export function StaggerContainer({
         delayChildren,
       },
     },
-  }
+  } as Variants
 
   return (
     <motion.div
@@ -92,7 +93,7 @@ export function StaggerItem({
       scale: 1,
       transition: { type: 'spring', stiffness: 300, damping: 25 },
     },
-  }
+  } as Variants
 
   return (
     <motion.div variants={itemVariants} className={cn('w-full', className)} {...props}>

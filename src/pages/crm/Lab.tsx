@@ -20,7 +20,7 @@ import { PageHeader } from '../../components/ui/ds/StatCard'
 import { Tabs } from '../../components/ui/ds/Misc'
 import { gid, fd, today } from '../../utils/constants'
 import { cn } from '../../lib/utils'
-import type { LabOrder, User as UserType, Clinic, RoleInfo } from '../../types'
+import type { LabOrder, LabOrderStatus, User as UserType, Clinic, RoleInfo } from '../../types'
 
 const STATUS_CFG: Record<string, { label: string; variant: string }> = {
   pending: { label: 'Ожидает', variant: 'default' },
@@ -112,7 +112,7 @@ function printWorkOrder(order: Partial<LabOrder>): void {
     <div class="section"><div class="section-title">Общая информация</div>
     <div class="row"><span class="label">№ заказа:</span><span class="value highlight">${escapeHtml(order.id?.slice(-6) || 'NEW')}</span></div>
     <div class="row"><span class="label">Дата создания:</span><span class="value">${escapeHtml(fd(order.createdAt || today()))}</span></div>
-    <div class="row"><span class="label">Срок готовности:</span><span class="value highlight">${escapeHtml(fd(order.dueDate))}</span></div>
+    <div class="row"><span class="label">Срок готовности:</span><span class="value highlight">${escapeHtml(fd(order.dueDate || ''))}</span></div>
     <div class="row"><span class="label">Статус:</span><span class="value">${escapeHtml(STATUS_CFG[order.status || '']?.label || order.status || '')}</span></div></div>
     <div class="section"><div class="section-title">Пациент</div><div class="row"><span class="label">ФИО:</span><span class="value">${escapeHtml(order.patientName || '')}</span></div></div>
     <div class="section"><div class="section-title">Параметры работы</div>
@@ -188,8 +188,8 @@ export default function Lab() {
       return
     }
     try {
-      const newOrder = { ...form, id: editOrder?.id || gid(), clinicId: clinic?.id }
-      await upsertLabOrder(newOrder)
+      const newOrder = { ...form, id: editOrder?.id || gid(), clinicId: clinic?.id, status: form.status as LabOrderStatus }
+      await upsertLabOrder(newOrder as LabOrder)
       showToast(editOrder ? 'Заказ обновлён' : 'Заказ создан', 'success')
       if ((form.labType === 'crown' || form.labType === 'bridge') && form.material) {
         printWorkOrder(newOrder)
@@ -201,7 +201,7 @@ export default function Lab() {
   }
 
   const changeStatus = async (order: LabOrder, newStatus: string) => {
-    await upsertLabOrder({ ...order, status: newStatus as any })
+    await upsertLabOrder({ ...order, status: newStatus as LabOrderStatus })
     showToast(`Статус изменён: ${STATUS_CFG[newStatus]?.label}`, 'success')
   }
 

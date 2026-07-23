@@ -22,6 +22,9 @@ export interface User {
   salary?: number
   paid?: number
   password?: string
+  platformRole?: string
+  memberships?: Array<{ id: string; clinicId: string; role: string }>
+  activeMembership?: { id: string; clinicId: string; role: string }
   createdAt?: string
 }
 
@@ -109,6 +112,8 @@ export interface Patient {
   id: string
   clinicId?: string
   name: string
+  firstName?: string
+  lastName?: string
   dob?: string
   phone?: string
   email?: string
@@ -138,6 +143,8 @@ export interface Appointment {
   clinicId?: string
   patientId: string
   doctorId: string
+  patientName?: string
+  patientPhone?: string
   date: string
   time: string
   duration?: number
@@ -146,6 +153,7 @@ export interface Appointment {
   serviceId?: string
   serviceName?: string
   servicePrice?: number
+  price?: number
   status: AppointmentStatus
   notes?: string
   diagnosis?: string
@@ -489,4 +497,6 @@ export interface LoginResponse {
   clinic?: Clinic
   tokens: AuthTokens
   roleInfo?: RoleInfo
+  memberships?: Array<{ id: string; clinicId: string; role: string }>
+  activeMembership?: { id: string; clinicId: string; role: string }
 }

@@ -8,7 +8,8 @@ type ProductEvent =
   | 'first_user_message_sent'
   | 'first_navigation'
   | 'ai_action_confirmed'
-  | 'ai_action_cancelled';
+  | 'ai_action_cancelled'
+  | 'ai_jarvis_daily_briefing';
 
 type EventPayload = Record<string, string | number | boolean | null | undefined>;
 

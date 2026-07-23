@@ -93,7 +93,7 @@ export function Tooltip({ children, content, side = 'top', delay = 300, classNam
           <motion.div
             initial={getInitial(side)}
             animate={{ opacity: 1, x: 0, y: 0 }}
-            exit={{ opacity: 0, ...getInitial(side) }}
+            exit={{ ...getInitial(side) }}
             transition={{ duration: 0.15 }}
             className={cn(
               'fixed z-[9999] px-2.5 py-1.5 rounded-lg text-xs font-medium',

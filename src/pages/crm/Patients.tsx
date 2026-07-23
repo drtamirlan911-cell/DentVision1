@@ -245,7 +245,7 @@ export default function Patients() {
     e.preventDefault()
     if (!form.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
     try {
-      await upsertPatient({ ...form, id: editPatient?.id, clinicId: clinic?.id })
+      await upsertPatient({ ...form, id: editPatient?.id, clinicId: clinic?.id } as Partial<Patient>)
       showToast(editPatient ? 'Данные обновлены' : 'Пациент добавлен', 'success')
       setModalOpen(false)
       if (selected && selected.id === editPatient?.id) {
@@ -588,7 +588,7 @@ export default function Patients() {
             {filtered.map(p => {
               const catKey = p.category || 'regular'
               const cat = CAT_CFG[catKey] || CAT_CFG.regular
-              const age = calculateAge(p.dob)
+              const age = calculateAge(p.dob || '')
               const pAppts = appointments.filter(a => a.patientId === p.id)
               const lastAppt = [...pAppts]
                 .filter((a) => a?.date)
@@ -620,7 +620,7 @@ export default function Patients() {
                           {age && <p className="text-xs text-txt-muted">{age} лет</p>}
                         </div>
                       </div>
-                      <Badge variant={CAT_BADGE[catKey] || 'default'} size="sm">
+                      <Badge variant={(CAT_BADGE[catKey] || 'default') as any} size="sm">
                         {cat.l}
                       </Badge>
                     </div>
@@ -628,7 +628,7 @@ export default function Patients() {
                     <div className="space-y-1.5 text-xs text-txt-secondary">
                       <div className="flex items-center gap-2">
                         <Phone size={12} className="text-txt-muted shrink-0" />
-                        <span>{formatPhone(p.phone) || '---'}</span>
+                        <span>{formatPhone(p.phone || '') || '---'}</span>
                       </div>
                       {p.email && (
                         <div className="flex items-center gap-2">
@@ -709,7 +709,7 @@ export default function Patients() {
             <div className="text-center mb-5">
               <Avatar name={selected.name} size="xl" className="mx-auto mb-3" />
               <p className="text-base font-bold text-txt-primary">{selected.name}</p>
-              <Badge variant={CAT_BADGE[catKey] || 'default'} size="md" className="mt-2">
+              <Badge variant={(CAT_BADGE[catKey] || 'default') as any} size="md" className="mt-2">
                 {cat.l}
               </Badge>
             </div>
@@ -776,7 +776,7 @@ export default function Patients() {
             <div className="space-y-2">
               {[
                 { label: 'Визитов всего', value: patientAppts.length },
-                { label: 'Завершено', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').length },
+                { label: 'Завершено', value: patientAppts.filter(a => a.status === 'done' || (a as any).status === 'completed').length },
                 { label: 'Отменено', value: patientAppts.filter(a => a.status === 'cancelled').length },
               ].map((s, i) => (
                 <div key={i} className="flex justify-between items-center py-1.5 border-b border-bdr-subtle last:border-b-0">
@@ -863,7 +863,7 @@ export default function Patients() {
 
                   <div className="grid grid-cols-3 gap-3 mb-5">
                     {[
-                      { label: 'Всего оплачено', value: patientAppts.filter(a => a.status === 'done' || a.status === 'completed').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-success' },
+                      { label: 'Всего оплачено', value: patientAppts.filter(a => a.status === 'done' || (a as any).status === 'completed').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-success' },
                       { label: 'Ожидает оплаты', value: patientAppts.filter(a => a.status === 'confirmed' || a.status === 'scheduled').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-warning' },
                       { label: 'Скидки', value: catKey === 'vip' ? '15%' : catKey === 'regular' ? '5%' : '0%', color: 'text-info' },
                     ].map((s, i) => (
@@ -1050,7 +1050,7 @@ export default function Patients() {
                               <p className="text-sm font-semibold text-txt-primary">{a.reason || a.service || '---'}</p>
                               <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} · {a.time}</p>
                             </div>
-                            <Badge variant="info" size="sm">+{a.price.toLocaleString()} ₸</Badge>
+                            <Badge variant="info" size="sm">+{(a.price || 0).toLocaleString()} ₸</Badge>
                           </div>
                         ))}
                       </div>
@@ -1131,7 +1131,7 @@ export default function Patients() {
                           className={cn(
                             'flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]',
                             'border-l-3',
-                            (a.status === 'done' || a.status === 'completed') && 'border-l-success',
+                            (a.status === 'done' || (a as any).status === 'completed') && 'border-l-success',
                             a.status === 'scheduled' && 'border-l-info',
                             a.status === 'confirmed' && 'border-l-success',
                             a.status === 'cancelled' && 'border-l-error',
@@ -1141,7 +1141,7 @@ export default function Patients() {
                             <p className="text-sm font-semibold text-txt-primary">{a.reason || a.service || '---'}</p>
                             <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} · {a.time}</p>
                           </div>
-                          <Badge variant={STATUS_BADGE[a.status] || 'default'} size="sm" dot>
+                          <Badge variant={(STATUS_BADGE[a.status] || 'default') as any} size="sm" dot>
                             {STATUS_LABEL[a.status] || a.status}
                           </Badge>
                         </div>
