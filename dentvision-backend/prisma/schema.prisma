@@ -135,7 +135,7 @@ model User {
   role      UserRole @default(DOCTOR)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   memberships     ClinicMember[]
   aiSessions      AISession[]
@@ -181,7 +181,7 @@ model Clinic {
   settings Json?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   members       ClinicMember[]
   invitations   ClinicInvitation[]
@@ -225,7 +225,7 @@ model Booking {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId, status, date])
   @@map("bookings")
@@ -244,7 +244,7 @@ model ClinicMember {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   joinedAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([userId, clinicId])
   @@index([clinicId])
@@ -264,7 +264,7 @@ model ClinicInvitation {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@map("clinic_invitations")
@@ -300,7 +300,7 @@ model Patient {
   medicalFileAccesses MedicalFileAccess[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@map("patients")
@@ -327,7 +327,7 @@ model Appointment {
   doctor  User    @relation(fields: [doctorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId, date])
   @@index([doctorId, date])
@@ -353,7 +353,7 @@ model WaitingList {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId, status])
   @@map("waiting_list")
@@ -371,7 +371,7 @@ model Expense {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId, date])
   @@map("expenses")
@@ -392,7 +392,7 @@ model Promotion {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@map("promotions")
@@ -410,7 +410,7 @@ model PriceListItem {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([clinicId, serviceCode])
   @@index([clinicId])
@@ -441,7 +441,7 @@ model Chair {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId, active])
   @@map("chairs")
@@ -464,7 +464,7 @@ model Visit {
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([patientId])
   @@index([doctorId])
@@ -482,7 +482,7 @@ model Tooth {
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([patientId, number])
   @@map("teeth")
@@ -501,7 +501,7 @@ model TreatmentPlan {
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([patientId])
   @@map("treatment_plans")
@@ -519,7 +519,7 @@ model PatientImage {
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([patientId])
   @@map("patient_images")
@@ -540,7 +540,7 @@ model Document {
   clinic  Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([patientId])
   @@map("documents")
@@ -564,7 +564,7 @@ model LabOrder {
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@index([patientId])
@@ -588,7 +588,7 @@ model Invoice {
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@index([patientId])
@@ -611,7 +611,7 @@ model InventoryItem {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@map("inventory")
@@ -629,7 +629,7 @@ model AISession {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   aiMessages AIMessage[]
 
@@ -648,7 +648,7 @@ model AIAction {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([userId])
   @@map("ai_actions")
@@ -665,7 +665,7 @@ model AIAlert {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([userId, resolved])
   @@map("ai_alerts")
@@ -703,7 +703,7 @@ model Supplier {
   status        SupplierStatus @default(pending)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   products  Product[]
   documents SupplierDocument[]
@@ -737,7 +737,7 @@ model SupplierDocument {
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([supplierId])
   @@map("supplier_documents")
@@ -765,7 +765,7 @@ model Product {
   supplier  Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([supplierId])
   @@map("products")
@@ -784,7 +784,7 @@ model Order {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([userId])
   @@index([clinicId])
@@ -800,7 +800,7 @@ model Favorite {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([userId, productId])
   @@index([userId])
@@ -838,7 +838,7 @@ model Academy {
   owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   lecturers Lecturer[]
   courses   Course[]
@@ -854,7 +854,7 @@ model Lecturer {
   academyId String?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   academy       Academy?             @relation(fields: [academyId], references: [id], onDelete: SetNull)
   verifications ExpertVerification[]
@@ -874,7 +874,7 @@ model ExpertVerification {
   lecturer Lecturer @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([lecturerId])
   @@map("expert_verifications")
@@ -905,7 +905,7 @@ model Course {
   academy    Academy?  @relation(fields: [academyId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([lecturerId])
   @@index([academyId])
@@ -925,7 +925,7 @@ model Lesson {
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([courseId])
   @@map("lessons")
@@ -943,7 +943,7 @@ model SchoolEnrollment {
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([userId, courseId])
   @@map("school_enrollments")
@@ -954,7 +954,7 @@ model SchoolEnrollment {
 model Notification {
   id       String           @id @default("")
   userId   String
-  type     NotificationType
+  type     String
   title    String
   message  String
   read     Boolean          @default(false)
@@ -963,7 +963,7 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([userId, read])
   @@map("notifications")
@@ -982,7 +982,7 @@ model AuditLog {
   ip       String?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@map("audit_logs")
@@ -1004,7 +1004,7 @@ model AIMessage {
   clinic  Clinic?   @relation(fields: [clinicId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([sessionId])
   @@index([createdAt])
@@ -1020,7 +1020,7 @@ model AIMemory {
   userId    String
   clinicId  String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([key, userId, clinicId, scope])
   @@index([userId, clinicId, scope])
@@ -1043,7 +1043,7 @@ model CommunityPost {
   author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   likes     CommunityLike[]
   comments  CommunityComment[]
@@ -1062,7 +1062,7 @@ model CommunityLike {
   user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([postId, userId])
   @@map("community_likes")
@@ -1079,7 +1079,7 @@ model CommunityComment {
   author User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([postId, createdAt])
   @@map("community_comments")
@@ -1094,7 +1094,7 @@ model CommunitySave {
   user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([postId, userId])
   @@index([userId, createdAt])
@@ -1105,7 +1105,7 @@ model DmConversation {
   id        String   @id @default("")
   pairKey   String   @unique
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   participants DmParticipant[]
   messages     DmMessage[]
@@ -1124,7 +1124,7 @@ model DmParticipant {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([conversationId, userId])
   @@index([userId])
@@ -1141,7 +1141,7 @@ model DmMessage {
   sender       User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([conversationId, createdAt])
   @@map("dm_messages")
@@ -1203,7 +1203,7 @@ model Transaction {
   ledgerEntries LedgerEntry[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([refType, refId])
   @@map("transactions")
@@ -1220,7 +1220,7 @@ model LedgerEntry {
   wallet      Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([walletId])
   @@index([transactionId])
@@ -1285,7 +1285,7 @@ model Payout {
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([walletId])
   @@map("payouts")
@@ -1298,7 +1298,7 @@ model Dispute {
   reason    String
   status    String   @default("open")
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([refType, refId])
   @@map("disputes")
@@ -1342,7 +1342,7 @@ model DentCashLedger {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([userId, status])
   @@index([refType, refId])
@@ -1359,7 +1359,7 @@ model ComplianceCheck {
   findings   Json?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([entityType, entityId])
   @@map("compliance_checks")
@@ -1377,7 +1377,7 @@ model DeveloperApp {
   owner User @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   apiKeys  ApiKey[]
   webhooks Webhook[]
@@ -1398,7 +1398,7 @@ model ApiKey {
   app DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([appId])
   @@map("api_keys")
@@ -1416,7 +1416,7 @@ model Webhook {
   deliveries WebhookDelivery[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([appId])
   @@map("webhooks")
@@ -1434,7 +1434,7 @@ model WebhookDelivery {
   webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([webhookId, status])
   @@map("webhook_deliveries")
@@ -1452,7 +1452,7 @@ model Workflow {
   graph     Json
   createdBy String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   runs WorkflowRun[]
 
@@ -1497,7 +1497,7 @@ model Dashboard {
   layout    Json
   createdBy String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([scopeType, scopeId])
   @@map("dashboards")
@@ -1527,7 +1527,7 @@ model Partner {
   campaigns MarketingCampaign[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([type, status])
   @@index([tierId])
@@ -1544,7 +1544,7 @@ model PartnerTier {
   partners Partner[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@map("partner_tiers")
 }
@@ -1559,7 +1559,7 @@ model PartnerKPI {
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([partnerId, period])
   @@map("partner_kpis")
@@ -1576,7 +1576,7 @@ model PartnerSLA {
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([partnerId])
   @@map("partner_slas")
@@ -1595,7 +1595,7 @@ model MarketingCampaign {
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([partnerId])
   @@map("marketing_campaigns")
@@ -1624,7 +1624,7 @@ model JobVacancy {
   applications JobApplication[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([status, city])
   @@index([userId])
@@ -1643,7 +1643,7 @@ model JobApplication {
   user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([userId])
   @@index([vacancyId, userId])
@@ -1691,7 +1691,7 @@ model BISnapshot {
   period    String
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([scopeType, scopeId, period])
   @@index([createdAt])
@@ -1796,7 +1796,7 @@ model CustomerMetrics {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([clinicId, period])
   @@map("customer_metrics")
@@ -1818,7 +1818,7 @@ model UserSession {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([userId])
   @@index([userId, expiredAt])
@@ -1836,7 +1836,7 @@ model Consent {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@unique([userId, type])
   @@map("consents")
@@ -1858,7 +1858,7 @@ model MedicalFileAccess {
   downloader User?   @relation("DownloadedFiles", fields: [downloadedBy], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([patientId])
   @@index([uploadedBy])
@@ -1882,7 +1882,7 @@ model AIActionLog {
   confirmor User?   @relation("ConfirmedActions", fields: [confirmedBy], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   @@index([userId])
   @@index([patientId])
