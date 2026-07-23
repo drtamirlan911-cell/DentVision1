@@ -1514,3 +1514,103 @@ model BISnapshot {
   @@map("bi_snapshots")
 }
 
+// ─── BI FINANCIAL MODELS ───
+
+enum FinancialTxType {
+  INCOME
+  EXPENSE
+  REFUND
+  COMMISSION
+}
+
+enum RevenueSource {
+  SaaS
+  SHOP
+  ACADEMY
+  MARKETPLACE
+  AI
+}
+
+enum ExpenseCategory {
+  SERVER
+  AI_API
+  MARKETING
+  SALARY
+  SUPPORT
+  PAYMENT_FEES
+}
+
+model FinancialTransaction {
+  id         String           @id @default(uuid())
+  tenantId   String
+  type       FinancialTxType
+  category   String
+  amount     BigInt
+  currency   String           @default("KZT")
+  source     RevenueSource
+  refType    String?
+  refId      String?
+  meta       Json?
+  createdAt  DateTime         @default(now())
+
+  @@index([tenantId, source])
+  @@index([tenantId, type])
+  @@index([createdAt])
+  @@map("financial_transactions")
+}
+
+model Revenue {
+  id        String       @id @default(uuid())
+  tenantId  String
+  source    RevenueSource
+  amount    BigInt
+  date      DateTime     @default(now())
+  meta      Json?
+
+  @@index([tenantId, source, date])
+  @@index([date])
+  @@map("revenues")
+}
+
+model PlatformExpense {
+  id         String          @id @default(uuid())
+  tenantId   String
+  category   ExpenseCategory
+  amount     BigInt
+  date       DateTime        @default(now())
+  meta       Json?
+
+  @@index([tenantId, category, date])
+  @@index([date])
+  @@map("platform_expenses")
+}
+
+model SaaSMetrics {
+  id            String   @id @default(uuid())
+  tenantId      String   @default("platform")
+  mrr           BigInt
+  arr           BigInt
+  cac           BigInt
+  ltv           BigInt
+  churn         Float
+  activeUsers   Int      @default(0)
+  date          DateTime @default(now())
+
+  @@index([tenantId, date])
+  @@map("saas_metrics")
+}
+
+model CustomerMetrics {
+  id          String   @id @default(uuid())
+  clinicId    String
+  revenue     BigInt
+  cost        BigInt
+  profit      BigInt
+  lifetimeValue BigInt
+  period      String
+  createdAt   DateTime @default(now())
+
+  @@index([clinicId, period])
+  @@map("customer_metrics")
+}
+

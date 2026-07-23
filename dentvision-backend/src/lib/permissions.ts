@@ -37,23 +37,30 @@ export const PERMISSIONS = {
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 // Role → granted permissions. SUPERADMIN is a wildcard handled in roleHasPermission().
-// The grants intentionally mirror the frontend role capabilities (ORG_ROLES in
-// src/store/auth.store.ts) so legitimate flows keep working while low-privilege
-// roles (ASSISTANT/CASHIER/LAB/STUDENT) can no longer mutate clinical data.
+//
+// BI access matrix:
+//   OWNER         → bi.clinic (full clinic BI)
+//   ADMIN         → bi.clinic (clinic BI, payments/expenses)
+//   MANAGER       → bi.clinic (limited: CAC/ROI/conversion)
+//   DOCTOR        → (personal revenue/KPI only, no BI perm needed — frontend filter)
+//   ASSISTANT     → (none)
+//   CASHIER       → (payments view only, no BI perm)
+//   LAB           → (none)
+//   SUPERADMIN    → bi.clinic + bi.network + bi.platform + bi.finance (all)
 const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   OWNER: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
     'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
-    'bi.clinic',
+    'bi.clinic', 'bi.finance',
   ],
   ADMIN: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
     'inventory.read', 'inventory.write', 'inventory.delete',
     'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
-    'bi.clinic',
+    'bi.clinic', 'bi.finance',
   ],
   MANAGER: [
     'patient.read', 'patient.write',
@@ -75,6 +82,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
 export function roleHasPermission(role: UserRole | string | undefined | null, key: PermissionKey): boolean {
   if (!role) return false;
   if (role === 'SUPERADMIN') return true;
+  // Platform-only permissions: restricted to SUPERADMIN
   if (key === 'platform.analytics' || key === 'compliance.manage' || key === 'partner.manage' || key === 'bi.platform' || key === 'bi.network') {
     return role === 'SUPERADMIN';
   }
@@ -84,7 +92,7 @@ export function roleHasPermission(role: UserRole | string | undefined | null, ke
 export function permissionsForRole(role: UserRole | string | undefined | null): PermissionKey[] {
   if (!role) return [];
   if (role === 'SUPERADMIN') {
-    return Array.from(new Set(Object.values(ROLE_PERMISSIONS).flat()));
+    return Array.from(new Set(Object.values(PERMISSIONS)));
   }
   return ROLE_PERMISSIONS[role] || [];
 }

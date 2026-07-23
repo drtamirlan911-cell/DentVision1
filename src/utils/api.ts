@@ -1696,6 +1696,22 @@ export async function biPartnerROI(): Promise<any> {
   return biRequest('/api/bi/partner-roi');
 }
 
+export async function biClinic(clinicId?: string): Promise<any> {
+  const path = clinicId ? `/api/bi/clinic/${clinicId}` : '/api/bi/clinic';
+  return biRequest(path);
+}
+
+export async function biNetwork(): Promise<any> {
+  return biRequest('/api/bi/network');
+}
+
+export async function biCfoChat(question: string): Promise<{ reply: string }> {
+  return biRequest('/api/bi/cfo/chat', {
+    method: 'POST',
+    body: JSON.stringify({ question }),
+  });
+}
+
 // ─── AI Intelligence ───
 export interface AIChatResponse {
   reply: string;

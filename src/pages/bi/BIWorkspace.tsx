@@ -32,7 +32,7 @@ function fmtPct(n: number | undefined): string {
   return (v > 0 ? '+' : '') + v.toFixed(1) + '%'
 }
 
-type Tab = 'dashboard' | 'cfo' | 'command'
+type Tab = 'dashboard' | 'clinic' | 'network' | 'platform' | 'cfo' | 'command'
 
 const OPS_KEY_SESSION = 'dv_ops_key'
 
@@ -153,7 +153,7 @@ export default function BIWorkspace() {
   // ─── Effects ───
 
   useEffect(() => {
-    if (tab === 'dashboard' && !dashboard) loadDashboard()
+    if ((tab === 'dashboard' || tab === 'clinic' || tab === 'network' || tab === 'platform') && !dashboard) loadDashboard()
   }, [tab, dashboard, loadDashboard])
 
   useEffect(() => {
@@ -199,7 +199,7 @@ export default function BIWorkspace() {
     setCfoMessages((m) => [...m, { role: 'user', text }])
     setCfoLoading(true)
     try {
-      const data = await api.aiChat(text)
+      const data = await api.biCfoChat(text)
       setCfoMessages((m) => [...m, { role: 'cfo', text: data.reply || 'Нет ответа' }])
     } catch {
       setCfoMessages((m) => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])
@@ -214,11 +214,29 @@ export default function BIWorkspace() {
   const stats = overview?.stats || {}
   const queues = overview?.queues || {}
 
-  const TABS: Array<{ id: Tab; label: string; icon: React.ReactNode; superOnly?: boolean }> = [
-    { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={16} /> },
+  type BITab = 'clinic' | 'network' | 'platform' | 'cfo' | 'command'
+  const biTabs: Array<{ id: BITab; label: string; icon: React.ReactNode; minRole?: string }> = [
+    { id: 'clinic', label: 'Клиника', icon: <Building2 size={16} /> },
+    ...(isSuper ? [
+      { id: 'network' as BITab, label: 'Сеть', icon: <Users size={16} /> },
+      { id: 'platform' as BITab, label: 'Платформа', icon: <BarChart3 size={16} /> },
+    ] : []),
     { id: 'cfo', label: 'AI CFO', icon: <Brain size={16} /> },
-    ...(isSuper ? [{ id: 'command' as Tab, label: 'Command Center', icon: <ShieldCheck size={16} />, superOnly: true }] : []),
+    ...(isSuper ? [{ id: 'command' as BITab, label: 'Command Center', icon: <ShieldCheck size={16} /> }] : []),
   ]
+
+  const activeBiTab = (['clinic', 'network', 'platform'].includes(tab) ? tab : 'clinic') as 'clinic' | 'network' | 'platform'
+
+  const userName = user?.name || user?.login || 'Руководитель'
+  const greetingHour = new Date().getHours()
+  const greeting = greetingHour < 12 ? 'Доброе утро' : greetingHour < 18 ? 'Добрый день' : 'Добрый вечер'
+
+  const TABS: Array<{ id: Tab; label: string; icon: React.ReactNode; superOnly?: boolean }> = biTabs.map(t => ({
+    id: t.id as Tab,
+    label: t.label,
+    icon: t.icon,
+    superOnly: t.minRole === 'superadmin',
+  }))
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-4">
@@ -228,7 +246,7 @@ export default function BIWorkspace() {
         icon={<BarChart3 size={20} />}
         actions={
           <Button size="sm" variant="secondary" icon={<RefreshCw size={14} />}
-            onClick={tab === 'dashboard' ? loadDashboard : refreshCommand}
+            onClick={tab === 'dashboard' || tab === 'clinic' || tab === 'network' || tab === 'platform' ? loadDashboard : refreshCommand}
             disabled={loading}>
             Обновить
           </Button>
@@ -247,10 +265,65 @@ export default function BIWorkspace() {
         ))}
       </div>
 
+      {/* ═══ AI GREETING ═══ */}
+      {tab !== 'cfo' && tab !== 'command' && (
+        <Card className="border-dv-gold/20 bg-gradient-to-br from-dv-gold/8 via-dv-gold/3 to-transparent">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(201,169,110,0.35), rgba(201,169,110,0.12))',
+                  boxShadow: 'inset 0 0 0 1px rgba(201,169,110,0.5), 0 0 22px rgba(201,169,110,0.22)',
+                }}>
+                <Brain size={18} className="text-dv-gold" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-txt-primary">{greeting}, {userName}.</p>
+                <p className="text-xs text-txt-muted mt-0.5">Сегодня:</p>
+                <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2">
+                  <div className="text-xs">
+                    <span className="text-txt-muted">Revenue: </span>
+                    <span className="font-semibold text-green-400">{d ? fmtMoney(d.mrr?.mrr) : '—'}</span>
+                  </div>
+                  <div className="text-xs">
+                    <span className="text-txt-muted">Churn: </span>
+                    <span className={`font-semibold ${(d?.churn?.churnRate || 0) > 5 ? 'text-red-400' : 'text-green-400'}`}>
+                      {d ? `${d.churn?.churnRate?.toFixed(1) || 0}%` : '—'}
+                    </span>
+                  </div>
+                  <div className="text-xs">
+                    <span className="text-txt-muted">LTV/CAC: </span>
+                    <span className={`font-semibold ${(d?.ltv?.ltvCacRatio || 0) < 3 ? 'text-yellow-400' : 'text-green-400'}`}>
+                      {d ? `${d.ltv?.ltvCacRatio?.toFixed(1) || 0}x` : '—'}
+                    </span>
+                  </div>
+                  <div className="text-xs">
+                    <span className="text-txt-muted">Маржа: </span>
+                    <span className={`font-semibold ${(d?.unitEconomics?.netMargin || 0) < 20 ? 'text-yellow-400' : 'text-green-400'}`}>
+                      {d ? `${d.unitEconomics?.netMargin || 0}%` : '—'}
+                    </span>
+                  </div>
+                </div>
+                {d && (d.churn?.churnRate > 5 || d.ltv?.ltvCacRatio < 3 || d.unitEconomics?.netMargin < 20) && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-yellow-400">
+                    <AlertTriangle size={13} />
+                    <span>
+                      {d.churn?.churnRate > 5 && 'Churn выше нормы · '}
+                      {d.ltv?.ltvCacRatio < 3 && 'LTV/CAC ниже 3x · '}
+                      {d.unitEconomics?.netMargin < 20 && 'Маржа ниже 20%'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* ─── DASHBOARD TAB ─── */}
+      {/* ─── DASHBOARD / CLINIC / NETWORK / PLATFORM TAB ─── */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {tab === 'dashboard' && (
+      {(tab === 'dashboard' || tab === 'clinic' || tab === 'network' || tab === 'platform') && (
         <div className="space-y-4">
           {loading && !d ? (
             <p className="text-sm text-txt-muted py-16 text-center">Загрузка…</p>
@@ -426,15 +499,15 @@ export default function BIWorkspace() {
                 Задайте вопрос по финансам или получите ежедневный брифинг
               </p>
               <div className="flex gap-2 mb-4">
-                <Button size="sm" onClick={() => { setCfoInput('Дай ежедневный брифинг'); }}
+                <Button size="sm" onClick={() => { setCfoInput(''); setCfoMessages(m => [...m, { role: 'user', text: 'Дай ежедневный брифинг' }]); setCfoLoading(true); api.biCfoChat('Дай ежедневный брифинг').then(d => setCfoMessages(m => [...m, { role: 'cfo', text: d.reply || 'Нет ответа' }])).catch(() => setCfoMessages(m => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])).finally(() => setCfoLoading(false)); }}
                   disabled={cfoLoading}>
                   Ежедневный брифинг
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => { setCfoInput('Проанализируй MRR и churn'); }}
+                <Button size="sm" variant="secondary" onClick={() => { setCfoInput(''); setCfoMessages(m => [...m, { role: 'user', text: 'Проанализируй MRR и churn' }]); setCfoLoading(true); api.biCfoChat('Проанализируй MRR и churn').then(d => setCfoMessages(m => [...m, { role: 'cfo', text: d.reply || 'Нет ответа' }])).catch(() => setCfoMessages(m => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])).finally(() => setCfoLoading(false)); }}
                   disabled={cfoLoading}>
                   Анализ MRR
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => { setCfoInput('Прогноз на 12 месяцев'); }}
+                <Button size="sm" variant="secondary" onClick={() => { setCfoInput(''); setCfoMessages(m => [...m, { role: 'user', text: 'Прогноз на 12 месяцев' }]); setCfoLoading(true); api.biCfoChat('Прогноз на 12 месяцев').then(d => setCfoMessages(m => [...m, { role: 'cfo', text: d.reply || 'Нет ответа' }])).catch(() => setCfoMessages(m => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])).finally(() => setCfoLoading(false)); }}
                   disabled={cfoLoading}>
                   Прогноз
                 </Button>
