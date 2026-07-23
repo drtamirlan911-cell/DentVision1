@@ -336,7 +336,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       transition={{ type: 'tween', duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
         'h-full flex flex-col flex-shrink-0 z-50 relative overflow-hidden origin-left',
-        'bg-gradient-to-b from-[#0E1A2C] via-[#0B1524] to-[#09101C]',
         'border-r border-white/[0.05]',
         isMobile && 'fixed top-0 left-0 bottom-0 dv-safe-sidebar',
         !sidebarVisible && !isMobile && 'pointer-events-none border-transparent',
@@ -345,16 +344,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         width: sidebarWidth,
         minWidth: sidebarWidth,
         maxWidth: sidebarWidth,
+        background: 'linear-gradient(180deg, var(--dv-sidebar-bg) 0%, var(--dv-sidebar-bg-end) 100%)',
       }}
     >
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
         <div
           className="absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full opacity-30 blur-3xl"
-          style={{ background: 'radial-gradient(circle, rgba(201,169,110,0.45) 0%, transparent 70%)' }}
+          style={{ background: 'radial-gradient(circle, var(--dv-sidebar-glow-gold) 0%, transparent 70%)' }}
         />
         <div
           className="absolute bottom-24 -left-10 h-32 w-32 rounded-full opacity-20 blur-3xl"
-          style={{ background: 'radial-gradient(circle, rgba(56,189,248,0.35) 0%, transparent 70%)' }}
+          style={{ background: 'radial-gradient(circle, var(--dv-sidebar-glow-blue) 0%, transparent 70%)' }}
         />
       </div>
 
@@ -369,8 +369,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
             style={{
-              background: 'linear-gradient(145deg, rgba(201,169,110,0.28), rgba(201,169,110,0.08))',
-              boxShadow: 'inset 0 0 0 1px rgba(201,169,110,0.35), 0 4px 16px rgba(201,169,110,0.12)',
+              background: 'linear-gradient(145deg, var(--dv-sidebar-brand-bg), rgba(201,169,110,0.08))',
+              boxShadow: 'inset 0 0 0 1px var(--dv-sidebar-brand-border), 0 4px 16px rgba(201,169,110,0.12)',
             }}
           >
             <Stethoscope size={17} className="text-dv-gold" strokeWidth={1.75} />
@@ -441,9 +441,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 color: '#C9A96E',
                 background: intelligenceActive
                   ? 'linear-gradient(145deg, rgba(201,169,110,0.35), rgba(201,169,110,0.12))'
-                  : 'linear-gradient(145deg, rgba(201,169,110,0.18), rgba(201,169,110,0.06))',
+                  : 'linear-gradient(145deg, var(--dv-sidebar-brand-bg), rgba(201,169,110,0.06))',
                 boxShadow: intelligenceActive
-                  ? 'inset 0 0 0 1px rgba(201,169,110,0.5), 0 0 22px rgba(201,169,110,0.22)'
+                  ? 'inset 0 0 0 1px var(--dv-sidebar-brand-border), 0 0 22px rgba(201,169,110,0.22)'
                   : 'inset 0 0 0 1px rgba(201,169,110,0.22)',
               }}
             >
