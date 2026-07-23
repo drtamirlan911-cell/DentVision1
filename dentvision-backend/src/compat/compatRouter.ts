@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
-import prisma from '../../lib/prisma.js';
+import prisma from '../lib/prisma.js';
 
 const compatRouter = Router();
 
