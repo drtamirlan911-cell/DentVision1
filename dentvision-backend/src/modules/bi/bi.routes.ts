@@ -30,12 +30,16 @@ export const biRouter = Router();
 biRouter.use(authenticate);
 
 // ═══════════════════════════════════════════════════════════════
-// PLATFORM BI — superadmin only
+// CLINIC / PLATFORM BI — dual-mode
+// owner/admin/manager → clinic-level dashboard (bi.clinic)
+// superadmin → full platform dashboard
 // ═══════════════════════════════════════════════════════════════
 
-biRouter.get('/dashboard', requirePermission('bi.platform'), async (_req: AuthRequest, res) => {
+biRouter.get('/dashboard', requirePermission('bi.clinic'), async (req: AuthRequest, res) => {
   try {
-    const data = await getBIDashboard();
+    const isSuper = req.user?.role === 'SUPERADMIN';
+    const clinicId = isSuper ? undefined : req.user?.clinicId;
+    const data = await getBIDashboard(clinicId);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (error) {
     console.error('[bi/dashboard]', error);

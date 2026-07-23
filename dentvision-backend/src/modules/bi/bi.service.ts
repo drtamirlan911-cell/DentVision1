@@ -497,7 +497,24 @@ export async function getPartnerROI(): Promise<PartnerROI[]> {
 
 // ─── Full BI Dashboard ───
 
-export async function getBIDashboard() {
+export async function getBIDashboard(clinicId?: string) {
+  if (clinicId) {
+    // Clinic-level dashboard: owner/admin/manager sees their clinic data
+    // with platform benchmark context — same top-level shape as platform mode
+    const clinicData = await getClinicBI(clinicId);
+
+    return {
+      mode: 'clinic',
+      clinicData,
+      mrr: { mrr: clinicData.revenue.total, arr: clinicData.revenue.total * 12, activeClinics: 1, activeDoctors: clinicData.doctors.total, payingUsers: 1, freeUsers: 0, conversionRate: 100, mrrGrowthPct: 0, previousMrr: 0, currency: 'KZT' },
+      churn: { churnRate: clinicData.appointments.total > 0 ? (clinicData.appointments.cancelled / clinicData.appointments.total) * 100 : 0, churnedClinics: 0, totalClinics: 1, newClinics: 0, netGrowth: 0, periodStart: new Date(), periodEnd: new Date() },
+      ltv: { ltv: clinicData.revenue.total, avgRevenuePerClinic: clinicData.revenue.total, avgLifetimeMonths: 12, cac: Math.round(clinicData.profit * 0.2), ltvCacRatio: clinicData.profit > 0 ? clinicData.revenue.total / Math.max(clinicData.profit * 0.2, 1) : 0 },
+      unitEconomics: { revenuePerClinic: clinicData.revenue.total, revenuePerDoctor: clinicData.doctors.total > 0 ? Math.round(clinicData.revenue.total / clinicData.doctors.total) : 0, revenuePerPatient: clinicData.patients.total > 0 ? Math.round(clinicData.revenue.total / clinicData.patients.total) : 0, revenuePerAiRequest: clinicData.aiUsage.requests > 0 ? Math.round(clinicData.revenue.total / clinicData.aiUsage.requests) : 0, grossProfit: clinicData.profit, grossMargin: clinicData.profitMargin, operatingCosts: clinicData.expenses.total, netProfit: clinicData.profit, netMargin: clinicData.profitMargin },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  // Full platform dashboard: superadmin sees everything
   const [mrr, churn, ltv, cac, unitEconomics, cashFlow, scenarios, partnerROI] = await Promise.all([
     getMRR(),
     getChurn(),
@@ -510,6 +527,7 @@ export async function getBIDashboard() {
   ]);
 
   return {
+    mode: 'platform',
     mrr,
     churn,
     ltv,
