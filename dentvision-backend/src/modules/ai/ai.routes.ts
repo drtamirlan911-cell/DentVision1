@@ -924,3 +924,7 @@ aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
     return res.status(500).json({ ok: false, error: 'Memory clear failed' });
   }
 });
+
+// ─── AI Timeline ───
+import timelineRouter from './ai.timeline.routes.js';
+aiRouter.use('/timeline', authenticate, timelineRouter);
