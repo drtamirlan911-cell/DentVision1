@@ -30,6 +30,7 @@ export const PATH_PAGE_ID: Record<string, string> = {
   '/shop': 'shop',
   '/school': 'school',
   '/settings': 'settings',
+  '/bi': 'bi',
 }
 
 /** CRM sidebar order (ids must match ORG_ROLES.pages). */
