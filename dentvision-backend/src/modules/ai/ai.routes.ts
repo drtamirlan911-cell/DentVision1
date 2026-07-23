@@ -928,3 +928,7 @@ aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
 // ─── AI Timeline ───
 import timelineRouter from './ai.timeline.routes.js';
 aiRouter.use('/timeline', authenticate, timelineRouter);
+
+// ─── AI Notifications (SSE) ───
+import notificationsRouter from './ai.notifications.routes.js';
+aiRouter.use('/notifications', optionalAuth, notificationsRouter);
