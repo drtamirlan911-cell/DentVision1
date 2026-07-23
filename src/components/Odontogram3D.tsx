@@ -38,9 +38,10 @@ interface Tooth3DProps {
   surfaces?: ToothSurfaces | null
   onClick: (toothNumber: number) => void
   selected?: number
+  toothSize: number
 }
 
-export function Tooth3D({ toothNumber, status, surfaces, onClick, selected }: Tooth3DProps) {
+export function Tooth3D({ toothNumber, status, surfaces, onClick, selected, toothSize }: Tooth3DProps) {
   return (
     <AnatomicalToothSvg
       toothNumber={toothNumber}
@@ -48,7 +49,7 @@ export function Tooth3D({ toothNumber, status, surfaces, onClick, selected }: To
       surfaces={surfaces}
       selected={selected === toothNumber}
       onClick={() => onClick(toothNumber)}
-      size={40}
+      size={toothSize}
     />
   )
 }
@@ -60,18 +61,20 @@ interface Odontogram3DProps {
 }
 
 export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }: Odontogram3DProps) {
+  const toothSize = typeof window !== 'undefined' && window.innerWidth < 480 ? 24 : window.innerWidth < 768 ? 30 : 40
+
   const renderArch = (teeth: readonly number[], label: string, upper: boolean) => {
     const right = teeth.slice(0, 8)
     const left = teeth.slice(8)
     return (
-      <div className="space-y-2">
-        <div className="text-center text-[10px] uppercase tracking-[0.12em] text-txt-muted font-semibold">
+      <div className="space-y-1.5 sm:space-y-2">
+        <div className="text-center text-[9px] sm:text-[10px] uppercase tracking-[0.12em] text-txt-muted font-semibold">
           {label}
         </div>
         <div className="overflow-x-auto overscroll-x-contain -mx-1 px-1">
           <div
             className={cn(
-              'inline-flex min-w-full justify-center items-end gap-0.5 sm:gap-1 py-1',
+              'inline-flex min-w-full justify-center items-end gap-px sm:gap-0.5 md:gap-1 py-1',
               !upper && 'items-start',
             )}
           >
@@ -85,11 +88,12 @@ export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }:
                   surfaces={t.surfaces}
                   onClick={onToothClick}
                   selected={selectedTooth}
+                  toothSize={toothSize}
                 />
               )
             })}
             <div
-              className="w-px self-stretch mx-1 sm:mx-1.5 bg-gradient-to-b from-transparent via-dv-gold/50 to-transparent shrink-0"
+              className="w-px self-stretch mx-0.5 sm:mx-1 md:mx-1.5 bg-gradient-to-b from-transparent via-dv-gold/50 to-transparent shrink-0"
               aria-hidden
             />
             {left.map((n) => {
@@ -102,12 +106,13 @@ export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }:
                   surfaces={t.surfaces}
                   onClick={onToothClick}
                   selected={selectedTooth}
+                  toothSize={toothSize}
                 />
               )
             })}
           </div>
         </div>
-        <div className="flex justify-between text-[9px] text-txt-muted/50 px-2">
+        <div className="flex justify-between text-[8px] sm:text-[9px] text-txt-muted/50 px-1 sm:px-2">
           <span>{upper ? 'Q1 (UR)' : 'Q4 (LR)'}</span>
           <span className="text-dv-gold/70">средняя линия</span>
           <span>{upper ? 'Q2 (UL)' : 'Q3 (LL)'}</span>
@@ -119,19 +124,19 @@ export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }:
   const selectedMorph = selectedTooth ? getToothMorphology(selectedTooth) : null
 
   return (
-    <Card className="p-3 sm:p-5 overflow-hidden max-w-full">
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] text-txt-muted">
-        <span className="rounded-md border border-bdr-subtle px-2 py-0.5">Клик по зубу → статус / поверхности</span>
-        <span className="rounded-md border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 px-2 py-0.5">имплант</span>
-        <span className="rounded-md border border-emerald-400/30 bg-emerald-400/10 text-emerald-300 px-2 py-0.5">эндо ✓/✗</span>
+    <Card className="p-2 sm:p-3 md:p-5 overflow-hidden max-w-full">
+      <div className="mb-2 sm:mb-3 flex flex-wrap items-center gap-1 sm:gap-2 text-[9px] sm:text-[10px] text-txt-muted">
+        <span className="rounded-md border border-bdr-subtle px-1.5 sm:px-2 py-0.5">Клик → статус</span>
+        <span className="rounded-md border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 px-1.5 sm:px-2 py-0.5">имплант</span>
+        <span className="rounded-md border border-emerald-400/30 bg-emerald-400/10 text-emerald-300 px-1.5 sm:px-2 py-0.5">эндо</span>
       </div>
 
       {renderArch(UPPER, 'Верхняя челюсть', true)}
-      <div className="h-px my-3 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      <div className="h-px my-2 sm:my-3 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       {renderArch(LOWER, 'Нижняя челюсть', false)}
 
       {selectedMorph && selectedTooth && (
-        <p className="mt-3 text-center text-[11px] text-txt-secondary">
+        <p className="mt-2 sm:mt-3 text-center text-[10px] sm:text-[11px] text-txt-secondary">
           Зуб <span className="text-dv-gold font-semibold">{selectedTooth}</span>
           {' · '}
           {selectedMorph.label}
@@ -191,19 +196,19 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
   }
 
   return (
-    <Card className="p-4 mt-3 space-y-4">
+    <Card className="p-3 sm:p-4 mt-2 sm:mt-3 space-y-3 sm:space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-dv-gold">Зуб {toothNumber}</span>
           <Badge variant="info">{STATUS_META[status]?.label || status}</Badge>
         </div>
-        <p className="text-[11px] text-txt-muted m-0">Сначала статус зуба · затем покраска поверхностей</p>
+        <p className="text-[10px] sm:text-[11px] text-txt-muted m-0">Статус → покраска поверхностей</p>
       </div>
 
       {/* Whole-tooth statuses */}
       <div>
-        <p className="text-[10px] uppercase tracking-wide text-txt-muted font-semibold mb-2">Статус зуба</p>
-        <div className="flex flex-wrap gap-1.5">
+        <p className="text-[9px] sm:text-[10px] uppercase tracking-wide text-txt-muted font-semibold mb-1.5 sm:mb-2">Статус зуба</p>
+        <div className="flex flex-wrap gap-1 sm:gap-1.5">
           {WHOLE_TOOTH_STATUSES.map((key) => {
             const meta = STATUS_META[key]
             const active = status === key
@@ -213,12 +218,12 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
                 type="button"
                 onClick={() => applyWhole(key)}
                 className={cn(
-                  'px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors flex items-center gap-1.5',
+                  'px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-[11px] font-semibold border transition-colors flex items-center gap-1 sm:gap-1.5',
                   active ? 'border-transparent text-white' : 'border-bdr-subtle text-txt-secondary hover:bg-white/5',
                 )}
                 style={active ? { background: meta.color, borderColor: meta.color } : undefined}
               >
-                <span className="w-2 h-2 rounded-sm" style={{ background: active ? 'rgba(255,255,255,0.9)' : meta.color }} />
+                <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: active ? 'rgba(255,255,255,0.9)' : meta.color }} />
                 {meta.label}
               </button>
             )
@@ -229,10 +234,10 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
       {/* Surface paint */}
       {status !== 'missing' && status !== 'implant' && (
         <div>
-          <p className="text-[10px] uppercase tracking-wide text-txt-muted font-semibold mb-2">
-            Поверхности — выберите краску, затем нажмите M / O / D / B / L
+          <p className="text-[9px] sm:text-[10px] uppercase tracking-wide text-txt-muted font-semibold mb-1.5 sm:mb-2">
+            Поверхности — краска, затем M / O / D / B / L
           </p>
-          <div className="flex flex-wrap gap-1.5 mb-3">
+          <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2 sm:mb-3">
             {SURFACE_STATUSES.map((key) => {
               const meta = STATUS_META[key]
               const active = paint === key
@@ -242,7 +247,7 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
                   type="button"
                   onClick={() => setPaint(key)}
                   className={cn(
-                    'px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors',
+                    'px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-[11px] font-semibold border transition-colors',
                     active ? 'ring-2 ring-dv-gold/50 border-transparent text-white' : 'border-bdr-subtle text-txt-secondary',
                   )}
                   style={active ? { background: meta.color } : undefined}
@@ -253,7 +258,7 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
             })}
           </div>
 
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
             {SURFACE_KEYS.map((surface) => {
               const current = normalizeSurfaceStatus(editedSurfaces[surface])
               const color = current && current !== 'healthy' ? statusColor(current) : undefined
@@ -263,20 +268,20 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
                   type="button"
                   onClick={() => paintSurface(surface)}
                   className={cn(
-                    'px-2 py-3 rounded-xl border transition-all flex flex-col items-center gap-1',
+                    'px-1 sm:px-2 py-2 sm:py-3 rounded-lg sm:rounded-xl border transition-all flex flex-col items-center gap-0.5 sm:gap-1',
                     color ? 'border-white/20' : 'border-bdr-subtle bg-white/[0.04] hover:bg-white/[0.07]',
                   )}
                   style={color ? { background: `${color}33`, boxShadow: `inset 0 0 0 1px ${color}` } : undefined}
                 >
-                  <span className="text-sm font-bold text-white">{surface}</span>
-                  <span className="text-[9px] text-txt-muted">
+                  <span className="text-xs sm:text-sm font-bold text-white">{surface}</span>
+                  <span className="text-[7px] sm:text-[9px] text-txt-muted leading-none">
                     {surface === 'M' && 'мед.'}
                     {surface === 'O' && 'оккл.'}
                     {surface === 'D' && 'дист.'}
                     {surface === 'B' && 'букк.'}
                     {surface === 'L' && 'лингв.'}
                   </span>
-                  <span className="text-[10px] font-semibold" style={{ color: color || T.slate }}>
+                  <span className="text-[8px] sm:text-[10px] font-semibold leading-none" style={{ color: color || T.slate }}>
                     {current && current !== 'healthy' ? statusLabel(current) : '—'}
                   </span>
                 </button>
@@ -402,10 +407,10 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onA
 
 export function ToothLegend() {
   return (
-    <div className="flex gap-2 sm:gap-3 flex-wrap py-2">
+    <div className="flex gap-1.5 sm:gap-2 md:gap-3 flex-wrap py-1 sm:py-2">
       {Object.entries(STATUS_META).map(([key, value]) => (
-        <div key={key} className="flex items-center gap-1.5 text-[11px] text-txt-muted">
-          <div className="w-3 h-3 rounded-sm shrink-0" style={{ background: value.color }} />
+        <div key={key} className="flex items-center gap-1 sm:gap-1.5 text-[9px] sm:text-[10px] md:text-[11px] text-txt-muted">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-sm shrink-0" style={{ background: value.color }} />
           {value.label}
         </div>
       ))}

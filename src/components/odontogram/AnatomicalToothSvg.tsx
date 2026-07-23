@@ -141,25 +141,60 @@ function ImplantGlyph({ upper, fill }: { upper: boolean; fill: string }) {
   )
 }
 
-/** Occlusal surface zones for visual MODBL feedback (crown bbox ~ x 8–32, y 28–52). */
-const SURFACE_REGIONS: Record<SurfaceKey, { x: number; y: number; w: number; h: number }> = {
-  M: { x: 8, y: 34, w: 5, h: 14 },
-  O: { x: 14, y: 34, w: 12, h: 12 },
-  D: { x: 27, y: 34, w: 5, h: 14 },
-  B: { x: 14, y: 28, w: 12, h: 5 },
-  L: { x: 14, y: 47, w: 12, h: 5 },
+/** Occlusal surface zones for visual MODBL feedback — scaled per crown width. */
+function surfaceRegions(pattern: RootPattern): Record<SurfaceKey, { x: number; y: number; w: number; h: number }> {
+  switch (pattern) {
+    case 'molarUpper':
+    case 'molarLower':
+      return {
+        M: { x: 5, y: 33, w: 6, h: 15 },
+        O: { x: 12, y: 33, w: 16, h: 12 },
+        D: { x: 29, y: 33, w: 6, h: 15 },
+        B: { x: 12, y: 27, w: 16, h: 6 },
+        L: { x: 12, y: 48, w: 16, h: 6 },
+      }
+    case 'premolar1':
+    case 'premolar2':
+      return {
+        M: { x: 8, y: 34, w: 5, h: 14 },
+        O: { x: 14, y: 34, w: 12, h: 12 },
+        D: { x: 27, y: 34, w: 5, h: 14 },
+        B: { x: 14, y: 28, w: 12, h: 5 },
+        L: { x: 14, y: 47, w: 12, h: 5 },
+      }
+    case 'canine':
+      return {
+        M: { x: 10, y: 32, w: 5, h: 16 },
+        O: { x: 16, y: 32, w: 8, h: 12 },
+        D: { x: 25, y: 32, w: 5, h: 16 },
+        B: { x: 16, y: 27, w: 8, h: 5 },
+        L: { x: 16, y: 47, w: 8, h: 5 },
+      }
+    case 'incisor':
+    default:
+      return {
+        M: { x: 11, y: 33, w: 5, h: 15 },
+        O: { x: 17, y: 33, w: 6, h: 12 },
+        D: { x: 24, y: 33, w: 5, h: 15 },
+        B: { x: 17, y: 28, w: 6, h: 5 },
+        L: { x: 17, y: 46, w: 6, h: 5 },
+      }
+  }
 }
 
 function SurfaceOverlays({
   surfaces,
   upper,
+  pattern,
 }: {
   surfaces?: ToothSurfaces | null
   upper: boolean
+  pattern: RootPattern
 }) {
   if (!surfaces) return null
   const entries = Object.entries(surfaces) as [SurfaceKey, string][]
   if (!entries.length) return null
+  const regions = surfaceRegions(pattern)
 
   return (
     <g>
@@ -167,12 +202,11 @@ function SurfaceOverlays({
         const st = normalizeSurfaceStatus(raw)
         if (!st || st === 'healthy') return null
         const color = statusColor(st)
-        const r = SURFACE_REGIONS[key]
+        const r = regions[key]
         if (!r) return null
-        // Flip B/L for lower arch visual orientation
         let y = r.y
         if (!upper && (key === 'B' || key === 'L')) {
-          y = key === 'B' ? SURFACE_REGIONS.L.y : SURFACE_REGIONS.B.y
+          y = key === 'B' ? regions.L.y : regions.B.y
         }
         return (
           <rect
@@ -309,7 +343,7 @@ export function AnatomicalToothSvg({
               />
             )}
 
-            <SurfaceOverlays surfaces={surfaces} upper={upper} />
+            <SurfaceOverlays surfaces={surfaces} upper={upper} pattern={morph.pattern} />
 
             {/* Endo marker on crown center */}
             {(isEndoOk || isEndoFail) && (

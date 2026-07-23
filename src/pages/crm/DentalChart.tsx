@@ -101,7 +101,7 @@ export default function DentalChart() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="dv-page max-w-6xl mx-auto space-y-6 py-4 md:py-6"
+      className="dv-page max-w-6xl mx-auto space-y-3 sm:space-y-4 md:space-y-6 py-3 md:py-6"
     >
       <PageHeader
         title="Зубная карта"
@@ -162,7 +162,7 @@ export default function DentalChart() {
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             {!selected ? (
               <EmptyState
                 icon={<Smile size={28} />}
@@ -170,10 +170,10 @@ export default function DentalChart() {
                 description="Зубная карта открывается в контексте пациента. Можно также попросить AI: «Открой зубную карту»."
               />
             ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold text-txt-primary">{selected.name || (selected as any).fullName}</h2>
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex items-center justify-between gap-2 sm:gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-sm sm:text-base font-semibold text-txt-primary truncate">{selected.name || (selected as any).fullName}</h2>
                     <p className="text-xs text-txt-muted">
                       {selectedTooth ? `Зуб ${selectedTooth} · выберите статус` : 'Клик по зубу для выбора'}
                       {dirty ? ' · есть несохранённые изменения' : ''}
