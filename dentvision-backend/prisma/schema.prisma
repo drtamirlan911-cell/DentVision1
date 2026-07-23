@@ -1614,3 +1614,75 @@ model CustomerMetrics {
   @@map("customer_metrics")
 }
 
+// ═══════════════════════════════════════════════════════════════
+// COMPLIANCE & SECURITY MODELS
+// ═══════════════════════════════════════════════════════════════
+
+/// Active user sessions with device/browser tracking
+model UserSession {
+  id           String   @id @default(uuid())
+  userId       String
+  device       String?
+  browser      String?
+  ipAddress    String?
+  lastActivity DateTime @default(now())
+  expiredAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, expiredAt])
+  @@map("user_sessions")
+}
+
+/// Consent records for data processing (GDPR/152-ФЗ)
+model Consent {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   // PERSONAL_DATA | MEDICAL_DATA | PHOTO_PROCESSING | AI_ANALYSIS | MARKETING | EDUCATION
+  version   String   @default("1.0")
+  accepted  Boolean  @default(false)
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, type])
+  @@map("consents")
+}
+
+/// Medical file access tracking (who uploaded / viewed / downloaded)
+model MedicalFileAccess {
+  id         String   @id @default(uuid())
+  patientId  String
+  fileType   String   // CT | PHOTO | DOCUMENT | TREATMENT_PLAN
+  storagePath String
+  uploadedBy String
+  viewedBy   String?
+  downloadedBy String?
+  action     String   // UPLOAD | VIEW | DOWNLOAD
+  createdAt  DateTime @default(now())
+
+  @@index([patientId])
+  @@index([uploadedBy])
+  @@map("medical_file_access")
+}
+
+/// AI governance — every AI decision logged for auditability
+model AIActionLog {
+  id               String   @id @default(uuid())
+  userId           String
+  patientId        String?
+  agent            String
+  model            String?
+  request          Json
+  response         Json?
+  doctorConfirmed  Boolean  @default(false)
+  confirmedBy      String?
+  confirmedAt      DateTime?
+  createdAt        DateTime @default(now())
+
+  @@index([userId])
+  @@index([patientId])
+  @@index([agent])
+  @@index([createdAt])
+  @@map("ai_action_logs")
+}
+

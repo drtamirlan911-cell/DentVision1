@@ -5,6 +5,7 @@ import { hashPassword, comparePassword, assertPasswordPolicy } from '../../lib/p
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { createSession } from '../compliance/session.service.js';
 
 export const authRouter = Router();
 
@@ -129,6 +130,9 @@ authRouter.post('/login', async (req, res) => {
     });
 
     const { password: _, memberships, ...userWithoutPassword } = user;
+
+    // Record login session
+    createSession(user.id, req.ip, req.headers['user-agent']).catch(() => {});
 
     const response: ApiResponse = {
       ok: true,

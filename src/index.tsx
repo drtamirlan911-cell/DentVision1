@@ -20,6 +20,7 @@ import { reportWebVitals } from './utils/vitals';
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
 const SuperAdmin = lazyWithRetry(() => import('./pages/SuperAdmin'));
 const BIWorkspace = lazyWithRetry(() => import('./pages/bi/BIWorkspace'));
+const SecurityCompliance = lazyWithRetry(() => import('./pages/SecurityCompliance'));
 const AuditLog = lazyWithRetry(() => import('./pages/AuditLog'));
 const Backup = lazyWithRetry(() => import('./pages/Backup'));
 const Analytics = lazyWithRetry(() => import('./pages/Analytics'));
@@ -118,6 +119,7 @@ if (container) {
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
                   <Route path="admin" element={guarded('admin', <SuperAdmin />)} />
                   <Route path="bi" element={<Suspense fallback={<PageLoader />}><BIWorkspace /></Suspense>} />
+                  <Route path="security" element={<Suspense fallback={<PageLoader />}><SecurityCompliance /></Suspense>} />
                   <Route path="audit" element={guarded('audit', <AuditLog />)} />
                   <Route path="backup" element={guarded('backup', <Backup />)} />
                   <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />

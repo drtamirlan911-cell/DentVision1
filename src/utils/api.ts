@@ -2143,3 +2143,32 @@ export async function deleteAdminUser(id: string): Promise<any> { return apiRequ
 export async function getAdminSupport(): Promise<any> { return apiRequest('/api/admin/support'); }
 export async function createAdminSupport(data: any): Promise<any> { return apiRequest('/api/admin/support', { method: 'POST', body: JSON.stringify(data) }); }
 export async function deleteAdminSupport(id: string): Promise<any> { return apiRequest(`/api/admin/support/${id}`, { method: 'DELETE' }); }
+
+// ─── Compliance & Security ───
+export async function getComplianceDashboard(): Promise<any> {
+  return apiRequest('/api/compliance/dashboard');
+}
+export async function getSessions(): Promise<any> {
+  return apiRequest('/api/compliance/sessions');
+}
+export async function expireSession(id: string): Promise<any> {
+  return apiRequest(`/api/compliance/sessions/${id}/expire`, { method: 'POST', body: '{}' });
+}
+export async function expireAllSessions(): Promise<any> {
+  return apiRequest('/api/compliance/sessions/expire-all', { method: 'POST', body: '{}' });
+}
+export async function getConsents(): Promise<any> {
+  return apiRequest('/api/compliance/consents');
+}
+export async function updateConsent(type: string, accepted: boolean): Promise<any> {
+  return apiRequest('/api/compliance/consents', { method: 'POST', body: JSON.stringify({ type, accepted }) });
+}
+export async function getMedicalAccessLogs(patientId: string): Promise<any> {
+  return apiRequest(`/api/compliance/medical/${patientId}`);
+}
+export async function getAIActions(): Promise<any> {
+  return apiRequest('/api/compliance/ai');
+}
+export async function confirmAIAction(id: string): Promise<any> {
+  return apiRequest(`/api/compliance/ai/${id}/confirm`, { method: 'POST', body: '{}' });
+}

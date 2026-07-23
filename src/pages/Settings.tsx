@@ -1,7 +1,7 @@
 ﻿import React from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Settings as SettingsIcon, User, Shield, Palette, LayoutGrid, Building2, CreditCard } from 'lucide-react'
+import { Settings as SettingsIcon, User, Shield, Palette, LayoutGrid, Building2, CreditCard, ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
@@ -274,6 +274,9 @@ export default function SettingsPage() {
             <div className="space-y-3">
               <Button variant="secondary" size="sm" onClick={() => navigate('/forgot-password')}>
                 Изменить пароль
+              </Button>
+              <Button variant="secondary" size="sm" icon={<ExternalLink size={14} />} onClick={() => navigate('/security')}>
+                Security & Compliance
               </Button>
               <Button
                 variant="ghost"
