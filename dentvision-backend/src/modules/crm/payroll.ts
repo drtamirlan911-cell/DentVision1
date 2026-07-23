@@ -1,5 +1,7 @@
 import { parseMeta, type AppointmentMeta } from './appointmentMeta.js';
 
+export type PayType = 'commission' | 'salary' | 'mixed';
+
 export interface PayrollServiceLine {
   name: string;
   price: number;
@@ -23,12 +25,36 @@ export interface PayrollSummary {
   name: string;
   role: string;
   percent: number;
+  payType: PayType;
+  baseSalary: number;
+  salaryPart: number;
+  commissionPart: number;
   visits: number;
   gross: number;
   matCost: number;
   net: number;
+  /** Total to pay = salaryPart + commissionPart */
   earned: number;
   visitDetails: PayrollVisit[];
+}
+
+export function normalizePayType(raw?: string | null): PayType {
+  const v = String(raw || 'commission').toLowerCase();
+  if (v === 'salary' || v === 'оклад') return 'salary';
+  if (v === 'mixed' || v === 'mix' || v === 'комби') return 'mixed';
+  return 'commission';
+}
+
+/** Prorate monthly оклад across [from, to] (inclusive-ish calendar days). */
+export function prorateBaseSalary(baseSalary: number, from: Date, to: Date): number {
+  const base = Number(baseSalary) || 0;
+  if (base <= 0) return 0;
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+  // Cap at one month equivalent so custom year ranges don't explode.
+  const ratio = Math.min(1, days / 30);
+  return Math.round(base * ratio);
 }
 
 export function appointmentRevenue(meta: AppointmentMeta): { gross: number; matCost: number; services: PayrollServiceLine[] } {
@@ -60,6 +86,10 @@ export function buildDoctorPayroll(input: {
   name: string;
   role: string;
   percent: number;
+  baseSalary?: number;
+  payType?: string | null;
+  from?: Date;
+  to?: Date;
   appointments: Array<{
     id: string;
     date: Date;
@@ -68,47 +98,65 @@ export function buildDoctorPayroll(input: {
     patient?: { firstName: string; lastName: string } | null;
   }>;
 }): PayrollSummary {
+  const payType = normalizePayType(input.payType);
+  const percent = payType === 'salary' ? 0 : Number(input.percent) || 0;
   const visitDetails: PayrollVisit[] = [];
   let gross = 0;
   let matCost = 0;
 
-  for (const appt of input.appointments) {
-    const meta = parseMeta(appt.meta);
-    const revenue = appointmentRevenue(meta);
-    if (revenue.gross <= 0 && revenue.matCost <= 0) continue;
+  if (payType !== 'salary') {
+    for (const appt of input.appointments) {
+      const meta = parseMeta(appt.meta);
+      const revenue = appointmentRevenue(meta);
+      if (revenue.gross <= 0 && revenue.matCost <= 0) continue;
 
-    const net = Math.max(0, revenue.gross - revenue.matCost);
-    const earned = Math.round(net * (input.percent / 100));
-    gross += revenue.gross;
-    matCost += revenue.matCost;
+      const net = Math.max(0, revenue.gross - revenue.matCost);
+      const earned = Math.round(net * (percent / 100));
+      gross += revenue.gross;
+      matCost += revenue.matCost;
 
-    visitDetails.push({
-      appointmentId: appt.id,
-      date: appt.date instanceof Date ? appt.date.toISOString().slice(0, 10) : String(appt.date).slice(0, 10),
-      time: appt.time,
-      patientName: appt.patient
-        ? `${appt.patient.firstName} ${appt.patient.lastName}`.trim()
-        : undefined,
-      services: revenue.services,
-      gross: revenue.gross,
-      matCost: revenue.matCost,
-      net,
-      earned,
-    });
+      visitDetails.push({
+        appointmentId: appt.id,
+        date: appt.date instanceof Date ? appt.date.toISOString().slice(0, 10) : String(appt.date).slice(0, 10),
+        time: appt.time,
+        patientName: appt.patient
+          ? `${appt.patient.firstName} ${appt.patient.lastName}`.trim()
+          : undefined,
+        services: revenue.services,
+        gross: revenue.gross,
+        matCost: revenue.matCost,
+        net,
+        earned,
+      });
+    }
   }
 
   const net = Math.max(0, gross - matCost);
+  const commissionPart = payType === 'salary' ? 0 : Math.round(net * (percent / 100));
+  const from = input.from || new Date();
+  const to = input.to || new Date();
+  const salaryPart =
+    payType === 'commission'
+      ? 0
+      : prorateBaseSalary(Number(input.baseSalary) || 0, from, to);
+
   return {
     userId: input.userId,
     name: input.name,
     role: input.role,
-    percent: input.percent,
+    percent,
+    payType,
+    baseSalary: Number(input.baseSalary) || 0,
+    salaryPart,
+    commissionPart,
     visits: visitDetails.length,
     gross,
     matCost,
     net,
-    earned: Math.round(net * (input.percent / 100)),
-    visitDetails: visitDetails.sort((a, b) => b.date.localeCompare(a.date) || String(b.time || '').localeCompare(String(a.time || ''))),
+    earned: salaryPart + commissionPart,
+    visitDetails: visitDetails.sort(
+      (a, b) => b.date.localeCompare(a.date) || String(b.time || '').localeCompare(String(a.time || '')),
+    ),
   };
 }
 

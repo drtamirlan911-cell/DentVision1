@@ -110,6 +110,8 @@ clinicsRouter.get('/:id', authenticate, async (req, res) => {
             role: true,
             joinedAt: true,
             commissionPercent: true,
+            baseSalary: true,
+            payType: true,
             user: {
               select: { id: true, firstName: true, lastName: true, avatar: true, spec: true, email: true, phone: true },
             },
@@ -434,12 +436,24 @@ clinicsRouter.post('/:id/staff', authenticate, guardUserCreate, async (req: Auth
       return res.status(409).json({ ok: false, error: 'Сотрудник уже в этой клинике' });
     }
 
+    const commissionPercent = Number.isFinite(Number(body.commissionPercent))
+      ? Math.min(100, Math.max(0, Math.round(Number(body.commissionPercent))))
+      : 30;
+    const baseSalary = Number.isFinite(Number(body.baseSalary))
+      ? Math.max(0, Number(body.baseSalary))
+      : 0;
+    const payTypeRaw = String(body.payType || 'commission').toLowerCase();
+    const payType = ['salary', 'mixed', 'commission'].includes(payTypeRaw) ? payTypeRaw : 'commission';
+
     const member = await prisma.clinicMember.create({
       data: {
         id: uid(),
         userId: user.id,
         clinicId,
         role,
+        commissionPercent,
+        baseSalary,
+        payType,
       },
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, spec: true, avatar: true } },
@@ -488,11 +502,27 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest,
     }
 
     let role = member.role;
+    const memberData: Record<string, unknown> = {};
     if (body.role != null) {
       role = normalizeStaffRole(body.role);
+      memberData.role = role;
+    }
+    if (body.commissionPercent != null && Number.isFinite(Number(body.commissionPercent))) {
+      memberData.commissionPercent = Math.min(100, Math.max(0, Math.round(Number(body.commissionPercent))));
+    }
+    if (body.baseSalary != null && Number.isFinite(Number(body.baseSalary))) {
+      memberData.baseSalary = Math.max(0, Number(body.baseSalary));
+    }
+    if (body.payType != null) {
+      const payTypeRaw = String(body.payType).toLowerCase();
+      if (['salary', 'mixed', 'commission'].includes(payTypeRaw)) {
+        memberData.payType = payTypeRaw;
+      }
+    }
+    if (Object.keys(memberData).length) {
       await prisma.clinicMember.update({
         where: { userId_clinicId: { userId, clinicId } },
-        data: { role },
+        data: memberData as any,
       });
     }
 

@@ -112,6 +112,8 @@ interface StaffForm {
   visibility: string
   experienceYears: number | string
   commissionPercent: number | string
+  baseSalary: number | string
+  payType: string
   workSchedule?: {
     start: string
     end: string
@@ -123,6 +125,8 @@ const EMPTY_FORM: StaffForm = {
   name: '', login: '', password: '', role: 'doctor', spec: '', phone: '',
   email: '', bio: '', photoUrl: '', visibility: 'public', experienceYears: 0,
   commissionPercent: 30,
+  baseSalary: 0,
+  payType: 'commission',
 }
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
@@ -236,6 +240,9 @@ export default function Staff() {
           role: form.role,
           spec: form.spec || undefined,
           password: form.password && form.password.length >= 6 ? form.password : undefined,
+          commissionPercent: Number(form.commissionPercent) || 0,
+          baseSalary: Number(form.baseSalary) || 0,
+          payType: form.payType || 'commission',
         })
         showToast('Сотрудник обновлён', 'success')
         setModalOpen(false)
@@ -265,6 +272,9 @@ export default function Staff() {
         phone: form.phone || undefined,
         role: form.role,
         spec: form.spec || undefined,
+        commissionPercent: Number(form.commissionPercent) || 0,
+        baseSalary: Number(form.baseSalary) || 0,
+        payType: form.payType || 'commission',
       })
       showToast(`${ROLE_LABELS[form.role] || 'Сотрудник'} добавлен`, 'success')
       setModalOpen(false)
@@ -291,6 +301,8 @@ export default function Staff() {
       visibility: member.visibility || 'public',
       experienceYears: member.experienceYears || 0,
       commissionPercent: (member as any).commissionPercent ?? 30,
+      baseSalary: (member as any).baseSalary ?? 0,
+      payType: (member as any).payType || 'commission',
       workSchedule: (member as any).workSchedule || { start: '09:00', end: '18:00', workDays: ['пн', 'вт', 'ср', 'чт', 'пт'] },
     })
     setModalOpen(true)
@@ -422,14 +434,39 @@ export default function Staff() {
           options={ROLE_OPTIONS}
         />
 
-        <Input
-          label="% от услуг (зарплата)"
-          type="number"
-          value={form.commissionPercent}
-          onChange={e => setForm({ ...form, commissionPercent: e.target.value })}
-          placeholder="30"
+        <Select
+          label="Тип оплаты"
+          value={form.payType}
+          onChange={e => setForm({ ...form, payType: e.target.value })}
+          options={[
+            { value: 'commission', label: '% от услуг' },
+            { value: 'salary', label: 'Фиксированный оклад' },
+            { value: 'mixed', label: 'Оклад + %' },
+          ]}
         />
-        <p className="text-2xs text-txt-muted -mt-2">Врач получает % от (цена − материалы)</p>
+        <div className="grid grid-cols-2 gap-3">
+          {(form.payType === 'commission' || form.payType === 'mixed') && (
+            <Input
+              label="% от услуг"
+              type="number"
+              value={form.commissionPercent}
+              onChange={e => setForm({ ...form, commissionPercent: e.target.value })}
+              placeholder="30"
+            />
+          )}
+          {(form.payType === 'salary' || form.payType === 'mixed') && (
+            <Input
+              label="Оклад / мес."
+              type="number"
+              value={form.baseSalary}
+              onChange={e => setForm({ ...form, baseSalary: e.target.value })}
+              placeholder="0"
+            />
+          )}
+        </div>
+        <p className="text-2xs text-txt-muted -mt-2">
+          Зарплата считается в «Финансы → Зарплата»: оклад за период + % от (цена − материалы)
+        </p>
 
         <div className={cn(
           'p-3 rounded-lg border text-xs text-txt-secondary',

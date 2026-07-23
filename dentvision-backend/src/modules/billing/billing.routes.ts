@@ -264,6 +264,10 @@ billingRouter.get('/my-payroll', async (req: AuthRequest, res) => {
       name: `${member.user.firstName} ${member.user.lastName}`.trim(),
       role: member.role,
       percent: member.commissionPercent ?? 30,
+      baseSalary: (member as any).baseSalary ?? 0,
+      payType: (member as any).payType ?? 'commission',
+      from,
+      to,
       appointments: completedAppts,
     });
 
@@ -357,16 +361,37 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
       where: { clinicId },
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
     });
+    const expenseAgg = await prisma.expense.aggregate({
+      where: { clinicId, date: { gte: from, lte: to } },
+      _sum: { amount: true },
+      _count: true,
+    });
+    const expensesByCategory = await prisma.expense.groupBy({
+      by: ['category'],
+      where: { clinicId, date: { gte: from, lte: to } },
+      _sum: { amount: true },
+      _count: true,
+    });
+
     const payroll = members
       .map((m) => buildDoctorPayroll({
         userId: m.userId,
         name: `${m.user.firstName} ${m.user.lastName}`.trim(),
         role: m.role,
         percent: m.commissionPercent ?? 30,
+        baseSalary: (m as any).baseSalary ?? 0,
+        payType: (m as any).payType ?? 'commission',
+        from,
+        to,
         appointments: completedAppts.filter((a) => a.doctorId === m.userId),
       }))
-      .filter((r) => r.visits > 0 || r.earned > 0)
-      .map(({ visitDetails, ...row }) => row);
+      .filter((r) => r.visits > 0 || r.earned > 0 || r.salaryPart > 0)
+      .map(({ visitDetails, ...row }) => row)
+      .sort((a, b) => b.earned - a.earned);
+
+    const revenue = paid.reduce((s, i) => s + (i.amount || 0), 0);
+    const expensesTotal = Number(expenseAgg._sum.amount || 0);
+    const payrollTotal = payroll.reduce((s, r) => s + (r.earned || 0), 0);
 
     res.json({
       ok: true,
@@ -374,10 +399,14 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
         from: from.toISOString(),
         to: to.toISOString(),
         totals: {
-          revenue: paid.reduce((s, i) => s + (i.amount || 0), 0),
+          revenue,
           paidCount: paid.length,
           unpaid: unpaid.reduce((s, i) => s + (i.amount || 0), 0),
           unpaidCount: unpaid.length,
+          expenses: expensesTotal,
+          expenseCount: expenseAgg._count || 0,
+          payroll: payrollTotal,
+          profit: revenue - expensesTotal - payrollTotal,
         },
         byDay: Object.entries(byDay)
           .map(([date, v]) => ({ date, ...v }))
@@ -388,6 +417,13 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
         byMethod: Object.entries(byMethod)
           .map(([method, v]) => ({ method, ...v }))
           .sort((a, b) => b.revenue - a.revenue),
+        expensesByCategory: expensesByCategory
+          .map((r) => ({
+            category: r.category || 'Прочее',
+            amount: Number(r._sum.amount || 0),
+            count: r._count,
+          }))
+          .sort((a, b) => b.amount - a.amount),
         payroll,
       },
     });
