@@ -846,12 +846,23 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     if (!twin) {
       return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
     }
+
+    // Enrich with Event OS data
+    let enrichedTwin = twin as Record<string, unknown>;
+    try {
+      const { getTwinEventOSData, enrichTwinWithEventOS } = await import('./core/digitalTwinEventOS.js');
+      if (req.user.clinicId) {
+        const eventOSData = await getTwinEventOSData(req.user.clinicId);
+        enrichedTwin = enrichTwinWithEventOS(twin as Record<string, unknown>, eventOSData);
+      }
+    } catch { /* optional */ }
+
     let preferences: Array<{ key: string; label: string; value: string; source: string }> = [];
     try {
       const learning = await import('./learning/learning.service.js');
       preferences = await learning.listPrefs(req.user.id, req.user.clinicId || null);
     } catch { /* optional */ }
-    res.json({ ok: true, data: { twin, preferences } });
+    res.json({ ok: true, data: { twin: enrichedTwin, preferences } });
   } catch (error) {
     console.error('[AI Digital Twin Error]', error);
     res.status(500).json({ ok: false, error: 'Digital twin failed' });
