@@ -226,7 +226,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
 
   const skip = () => {
     clearAllTimers()
-    sessionStorage.setItem('dv_welcomed', '1')
+    try { sessionStorage.setItem('dv_welcomed', '1') } catch (e) { console.warn('localStorage unavailable:', e) }
     onComplete()
   }
 

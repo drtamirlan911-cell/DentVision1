@@ -6,6 +6,8 @@ import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { createSession } from '../compliance/session.service.js';
+import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
+import crypto from 'node:crypto';
 
 export const authRouter = Router();
 
@@ -35,7 +37,7 @@ authRouter.post('/register', async (req, res) => {
 
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
-      return res.status(409).json({ ok: false, error: 'Пользователь с таким email уже существует' });
+      return res.status(409).json({ ok: false, error: 'Если указанный email зарегистрирован, вы получите письмо' });
     }
 
     const hashedPassword = await hashPassword(password);
@@ -60,6 +62,8 @@ authRouter.post('/register', async (req, res) => {
       role: user.role,
     });
 
+    createSession(user.id, req.ip, req.headers['user-agent']).catch(() => {});
+
     const response: ApiResponse = {
       ok: true,
       data: { user, ...tokens },
@@ -77,6 +81,18 @@ authRouter.post('/login', async (req, res) => {
 
     if (!email || !password) {
       return res.status(400).json({ ok: false, error: 'Email и пароль обязательны' });
+    }
+
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+
+    const { allowed, remainingAttempts, lockoutMinutes } = await checkLoginAttempts(email, ip);
+    if (!allowed) {
+      return res.status(429).json({
+        ok: false,
+        error: `Слишком много попыток входа. Повторите через ${lockoutMinutes} мин.`,
+        remainingAttempts: 0,
+        lockoutMinutes,
+      });
     }
 
     const user = await prisma.user.findUnique({
@@ -103,13 +119,18 @@ authRouter.post('/login', async (req, res) => {
     });
 
     if (!user) {
+      await recordFailedAttempt(email, ip);
       return res.status(401).json({ ok: false, error: 'Неверный email или пароль' });
     }
 
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ ok: false, error: 'Неверный email или пароль' });
+      await recordFailedAttempt(email, ip);
+      const { remainingAttempts: remaining } = await checkLoginAttempts(email, ip);
+      return res.status(401).json({ ok: false, error: 'Неверный email или пароль', remainingAttempts: remaining });
     }
+
+    await resetAttempts(email, ip);
 
     const clinicId = user.memberships[0]?.clinicId;
     const activeMembership = user.memberships[0]
@@ -615,6 +636,12 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
       if (!role) role = invitation.role;
     }
 
+    // When joining directly by clinicId (no code), never allow elevated roles
+    if (!code) {
+      const SAFE_ROLES: string[] = ['DOCTOR', 'STAFF', 'ASSISTANT'];
+      role = SAFE_ROLES.includes(role || '') ? role : 'DOCTOR';
+    }
+
     if (!targetClinicId) {
       return res.status(400).json({ ok: false, error: 'clinicId или code обязательны' });
     }
@@ -720,7 +747,7 @@ authRouter.post('/invitations', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-authRouter.get('/invitations/lookup', async (req: AuthRequest, res) => {
+authRouter.get('/invitations/lookup', authenticate, async (req: AuthRequest, res) => {
   try {
     const code = req.query.code as string;
     if (!code) {
@@ -783,12 +810,25 @@ authRouter.get('/my-clinics', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+const resetTokens = new Map<string, { email: string; expiresAt: Date }>();
+
 authRouter.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body as { email: string };
 
     if (!email) {
       return res.status(400).json({ ok: false, error: 'Email обязателен' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+    if (user) {
+      const token = crypto.randomBytes(32).toString('hex');
+      resetTokens.set(token, { email: normalizedEmail, expiresAt: new Date(Date.now() + 60 * 60 * 1000) });
+
+      console.log(`[Password Reset] Token for ${normalizedEmail}: ${token}`);
+      console.log(`[Password Reset] Reset URL: /reset-password?token=${token}`);
     }
 
     const response: ApiResponse = {
@@ -809,6 +849,29 @@ authRouter.post('/reset-password', async (req, res) => {
     if (!token || !password) {
       return res.status(400).json({ ok: false, error: 'Токен и новый пароль обязательны' });
     }
+
+    const entry = resetTokens.get(token);
+    if (!entry) {
+      return res.status(400).json({ ok: false, error: 'Невалидный или истекший токен' });
+    }
+
+    if (entry.expiresAt < new Date()) {
+      resetTokens.delete(token);
+      return res.status(400).json({ ok: false, error: 'Токен истек' });
+    }
+
+    const passwordError = assertPasswordPolicy(password);
+    if (passwordError) {
+      return res.status(400).json({ ok: false, error: passwordError });
+    }
+
+    const hashedPassword = await hashPassword(password);
+    await prisma.user.update({
+      where: { email: entry.email },
+      data: { password: hashedPassword },
+    });
+
+    resetTokens.delete(token);
 
     const response: ApiResponse = {
       ok: true,

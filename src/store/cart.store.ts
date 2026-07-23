@@ -65,7 +65,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         : [...prev.cart, { ...product, qty: 1 }]
       const cartCount = cart.reduce((s, i) => s + i.qty, 0)
       const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
-      localStorage.setItem(CART_KEY, JSON.stringify(cart))
+      try { localStorage.setItem(CART_KEY, JSON.stringify(cart)) } catch (e) { console.warn('localStorage unavailable:', e) }
       return { cart, cartCount, cartTotal }
     })
   },
@@ -75,7 +75,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       const cart = prev.cart.filter(i => i.id !== id)
       const cartCount = cart.reduce((s, i) => s + i.qty, 0)
       const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
-      localStorage.setItem(CART_KEY, JSON.stringify(cart))
+      try { localStorage.setItem(CART_KEY, JSON.stringify(cart)) } catch (e) { console.warn('localStorage unavailable:', e) }
       return { cart, cartCount, cartTotal }
     })
   },
@@ -85,13 +85,13 @@ export const useCartStore = create<CartState>((set, get) => ({
       const cart = prev.cart.map(i => i.id === id ? { ...i, qty: Math.max(1, qty) } : i)
       const cartCount = cart.reduce((s, i) => s + i.qty, 0)
       const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
-      localStorage.setItem(CART_KEY, JSON.stringify(cart))
+      try { localStorage.setItem(CART_KEY, JSON.stringify(cart)) } catch (e) { console.warn('localStorage unavailable:', e) }
       return { cart, cartCount, cartTotal }
     })
   },
 
   clearCart: () => {
-    localStorage.removeItem(CART_KEY)
+    try { localStorage.removeItem(CART_KEY) } catch (e) { console.warn('localStorage unavailable:', e) }
     set({ cart: [], cartCount: 0, cartTotal: 0 })
   },
 
@@ -101,7 +101,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       const favorites = exists
         ? prev.favorites.filter(f => f.id !== product.id)
         : [...prev.favorites, product]
-      localStorage.setItem(FAV_KEY, JSON.stringify(favorites))
+      try { localStorage.setItem(FAV_KEY, JSON.stringify(favorites)) } catch (e) { console.warn('localStorage unavailable:', e) }
       return { favorites }
     })
   },

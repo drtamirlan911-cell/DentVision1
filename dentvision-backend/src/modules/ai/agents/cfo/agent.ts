@@ -87,7 +87,7 @@ export class CFOAgent extends AbstractAgent {
         `**Активные клиники:** ${dashboard.mrr.activeClinics} из ${dashboard.mrr.payingUsers + dashboard.mrr.freeUsers}`,
         ``,
         `**Churn Rate:** ${dashboard.churn.churnRate.toFixed(1)}% (-net: ${dashboard.churn.netGrowth > 0 ? '+' : ''}${dashboard.churn.netGrowth})`,
-        `**LTV:** ${dashboard.ltv.ltv.toLocaleString('ru-RU')} ₸ | **CAC:** ${dashboard.cac.cac.toLocaleString('ru-RU')} ₸`,
+        `**LTV:** ${dashboard.ltv.ltv.toLocaleString('ru-RU')} ₸ | **CAC:** ${dashboard.cac?.cac.toLocaleString('ru-RU') || '—'} ₸`,
         `**LTV/CAC:** ${dashboard.ltv.ltvCacRatio.toFixed(1)}x`,
         ``,
         `**Unit Economics (30д):**`,
@@ -208,7 +208,7 @@ export class CFOAgent extends AbstractAgent {
     try {
       const dashboard = await getBIDashboard();
 
-      const systemPrompt = `Ты — AI CFO стоматологической платформы DentVision. Данные:\nMRR: ${dashboard.mrr.mrr} ₸\nChurn: ${dashboard.churn.churnRate}%\nLTV: ${dashboard.ltv.ltv} ₸\nCAC: ${dashboard.cac.cac} ₸\nЧистая маржа: ${dashboard.unitEconomics.netMargin}%\nОтвечай на русском, кратко, с конкретными рекомендациями.`;
+      const systemPrompt = `Ты — AI CFO стоматологической платформы DentVision. Данные:\nMRR: ${dashboard.mrr.mrr} ₸\nChurn: ${dashboard.churn.churnRate}%\nLTV: ${dashboard.ltv.ltv} ₸\nCAC: ${dashboard.cac?.cac || '—'} ₸\nЧистая маржа: ${dashboard.unitEconomics.netMargin}%\nОтвечай на русском, кратко, с конкретными рекомендациями.`;
 
       const response = await simpleChat(systemPrompt, question);
 

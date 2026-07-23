@@ -211,7 +211,7 @@ export default function Patients() {
       return
     }
     loadPhotos(selected.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps — loadPhotos defined inline, varies per render
   }, [selected?.id])
 
   const filtered = patients.filter(p => {

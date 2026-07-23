@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import {
-  BarChart3, TrendingUp, TrendingDown, Users, Building2, GraduationCap,
+  BarChart3, TrendingUp, Users, Building2, GraduationCap,
   Store, RefreshCw, ShieldCheck, Lock, Zap, AlertTriangle, CheckCircle2,
   Ban, CalendarPlus, DollarSign, Target, Activity, Brain,
 } from 'lucide-react'
@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/ds/Input'
 import { Card, CardContent } from '@/components/ui/ds/Card'
 import { Badge } from '@/components/ui/ds/Badge'
 import { StatCard, PageHeader } from '@/components/ui/ds/StatCard'
-import { GlassCard } from '@/components/ui/ds/GlassCard'
 import { useToast } from '@/components/ui/ds/Toast'
 import * as api from '@/utils/api'
 
@@ -27,12 +26,7 @@ function fmtDate(d: string | Date | null | undefined): string {
   return String(d).slice(0, 10)
 }
 
-function fmtPct(n: number | undefined): string {
-  const v = Number(n || 0)
-  return (v > 0 ? '+' : '') + v.toFixed(1) + '%'
-}
-
-type Tab = 'dashboard' | 'clinic' | 'network' | 'platform' | 'cfo' | 'command'
+// type Tab = 'dashboard' | 'clinic' | 'network' | 'platform' | 'cfo' | 'command'
 
 const OPS_KEY_SESSION = 'dv_ops_key'
 
@@ -224,8 +218,6 @@ export default function BIWorkspace() {
     { id: 'cfo', label: 'AI CFO', icon: <Brain size={16} /> },
     ...(isSuper ? [{ id: 'command' as BITab, label: 'Command Center', icon: <ShieldCheck size={16} /> }] : []),
   ]
-
-  const activeBiTab = (['clinic', 'network', 'platform'].includes(tab) ? tab : 'clinic') as 'clinic' | 'network' | 'platform'
 
   const userName = user?.name || user?.login || 'Руководитель'
   const greetingHour = new Date().getHours()

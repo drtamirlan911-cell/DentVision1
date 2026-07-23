@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── ENUMS ───
+// --- ENUMS ---
 
 enum UserRole {
   OWNER
@@ -53,7 +53,64 @@ enum ImageType {
   SCAN
 }
 
-// ─── USER SYSTEM ───
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum WaitingListStatus {
+  WAITING
+  CALLED
+  CANCELLED
+}
+
+enum PlanStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum LabOrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+  APPOINTMENT
+  PROMOTION
+  SYSTEM
+}
+
+enum PaymentProvider {
+  KASPI
+  CARD
+  CASH
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+// --- USER SYSTEM ---
 
 model User {
   id        String   @id @default("")
@@ -70,13 +127,34 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships  ClinicMember[]
-  aiSessions   AISession[]
-  notifications Notification[]
-  aiActions    AIAction[]
-  aiAlerts     AIAlert[]
-  orders       Order[]
-  enrollments  SchoolEnrollment[]
+  memberships     ClinicMember[]
+  aiSessions      AISession[]
+  notifications   Notification[]
+  aiActions       AIAction[]
+  aiAlerts        AIAlert[]
+  orders          Order[]
+  enrollments     SchoolEnrollment[]
+  appointments    Appointment[]
+  academies       Academy[]
+  aiMessages      AIMessage[]
+  communityPosts  CommunityPost[]
+  communityLikes  CommunityLike[]
+  communityComments CommunityComment[]
+  communitySaves  CommunitySave[]
+  dmParticipants  DmParticipant[]
+  dmMessages      DmMessage[]
+  favorites       Favorite[]
+  dentCashLedgers  DentCashLedger[]
+  developerApps   DeveloperApp[]
+  userSessions    UserSession[]
+  consents        Consent[]
+  uploadedMedicalFiles MedicalFileAccess[] @relation("UploadedFiles")
+  viewedMedicalFiles   MedicalFileAccess[] @relation("ViewedFiles")
+  downloadedMedicalFiles MedicalFileAccess[] @relation("DownloadedFiles")
+  aiActionLogs         AIActionLog[] @relation("UserActions")
+  confirmedAiActions   AIActionLog[] @relation("ConfirmedActions")
+  jobVacancies         JobVacancy[]
+  jobApplications      JobApplication[]
 
   @@map("users")
 }
@@ -89,9 +167,7 @@ model Clinic {
   phone   String?
   logo    String?
   plan    ClinicPlan  @default(DEMO)
-  /// Platform ops: false = suspended / blocked from service.
   active  Boolean     @default(true)
-  /// Per-clinic CRM settings: hours, reminders, currency, etc.
   settings Json?
 
   createdAt DateTime @default(now())
@@ -112,13 +188,16 @@ model Clinic {
   reminderLogs  ReminderLog[]
   chairs        Chair[]
   bookings      Booking[]
+  documents     Document[]
+  aiMessages    AIMessage[]
+  jobVacancies  JobVacancy[]
+  customerMetrics CustomerMetrics[]
 
   @@map("clinics")
 }
 
-/// Online booking requests from public /book/:clinicId page (KazDent donor).
 model Booking {
-  id          String   @id @default("")
+  id          String        @id @default("")
   clinicId    String
   patientName String
   phone       String
@@ -126,11 +205,11 @@ model Booking {
   doctorId    String?
   doctorName  String?
   serviceName String?
-  date        DateTime @db.Date
+  date        DateTime      @db.Date
   time        String
   notes       String?
-  status      String   @default("pending")
-  source      String   @default("online")
+  status      BookingStatus @default(PENDING)
+  source      String        @default("online")
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -146,19 +225,18 @@ model ClinicMember {
   userId             String
   clinicId           String
   role               UserRole @default(DOCTOR)
-  /// Doctor commission % (KazDent donor: User.percent)
   commissionPercent  Int      @default(30)
-  /// Fixed monthly salary (оклад) in clinic currency
-  baseSalary         Float    @default(0)
-  /// commission | salary | mixed
+  baseSalary         Int      @default(0)
   payType            String   @default("commission")
 
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   joinedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, clinicId])
+  @@index([clinicId])
   @@map("clinic_members")
 }
 
@@ -177,10 +255,11 @@ model ClinicInvitation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([clinicId])
   @@map("clinic_invitations")
 }
 
-// ─── PATIENT CRM ───
+// --- PATIENT CRM ---
 
 model Patient {
   id        String  @id @default("")
@@ -194,8 +273,8 @@ model Patient {
   address   String?
   notes     String?
   medicalHistory Json?
-  /// Prepaid clinic credit (KazDent donor: Patient.balance)
-  prepaidBalance Float @default(0)
+  prepaidBalance Int  @default(0)
+  deletedAt DateTime?
 
   clinic      Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   visits      Visit[]
@@ -204,6 +283,10 @@ model Patient {
   treatmentPlans TreatmentPlan[]
   images      PatientImage[]
   documents   Document[]
+  labOrders   LabOrder[]
+  invoices    Invoice[]
+  aiActionLogs AIActionLog[]
+  medicalFileAccesses MedicalFileAccess[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -212,7 +295,7 @@ model Patient {
   @@map("patients")
 }
 
-// ─── APPOINTMENTS ───
+// --- APPOINTMENTS ---
 
 model Appointment {
   id        String              @id @default("")
@@ -225,11 +308,12 @@ model Appointment {
   status    AppointmentStatus   @default(PENDING)
   type      String?
   notes     String?
-  /// CRM extras: serviceName, servicePrice, paymentStatus, diagnosis, toothNumber, receiptId
   meta      Json?
+  deletedAt DateTime?
 
   clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor  User    @relation(fields: [doctorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -239,10 +323,10 @@ model Appointment {
   @@map("appointments")
 }
 
-// ─── CRM OPS (waiting list, expenses, promotions, price list) ───
+// --- CRM OPS ---
 
 model WaitingList {
-  id               String    @id @default("")
+  id               String            @id @default("")
   clinicId         String
   patientId        String?
   patientName      String?
@@ -253,7 +337,7 @@ model WaitingList {
   preferredTime    String?
   preferredService String?
   notes            String?
-  status           String    @default("waiting")
+  status           WaitingListStatus @default(WAITING)
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -268,7 +352,7 @@ model Expense {
   id          String   @id @default("")
   clinicId    String
   category    String?
-  amount      Float
+  amount      Int
   description String?
   notes       String?
   date        DateTime @default(now())
@@ -308,9 +392,8 @@ model PriceListItem {
   clinicId    String
   serviceCode String
   name        String?
-  price       Float
-  /// Material / consumable cost for payroll net (KazDent: mat_cost)
-  matCost     Float   @default(0)
+  price       Int
+  matCost     Int     @default(0)
   active      Boolean @default(true)
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -353,10 +436,10 @@ model Chair {
   @@map("chairs")
 }
 
-// ─── MEDICAL RECORDS ───
+// --- MEDICAL RECORDS ---
 
 model Visit {
-  id         String  @id @default("")
+  id         String   @id @default("")
   patientId  String
   doctorId   String
   date       DateTime @default(now())
@@ -365,10 +448,15 @@ model Visit {
   anamnesis  String?
   treatment  Json?
   notes      String?
+  deletedAt  DateTime?
 
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([patientId])
+  @@index([doctorId])
   @@map("visits")
 }
 
@@ -382,24 +470,29 @@ model Tooth {
 
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([patientId, number])
   @@map("teeth")
 }
 
 model TreatmentPlan {
-  id        String  @id @default("")
+  id        String    @id @default("")
   patientId String
   title     String
-  status    String  @default("draft")
+  status    PlanStatus @default(DRAFT)
   items     Json
-  price     Float?
+  price     Int?
   notes     String?
+  deletedAt DateTime?
 
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([patientId])
   @@map("treatment_plans")
 }
 
@@ -410,76 +503,88 @@ model PatientImage {
   url       String
   name      String?
   metadata  Json?
+  deletedAt DateTime?
 
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  @@index([patientId])
   @@map("patient_images")
 }
 
 model Document {
-  id        String  @id @default("")
+  id        String   @id @default("")
   patientId String?
   clinicId  String?
   type      String
   name      String?
   url       String
-  signed    Boolean @default(false)
+  signed    Boolean  @default(false)
   signedAt  DateTime?
+  deletedAt DateTime?
 
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  clinic  Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  @@index([patientId])
   @@map("documents")
 }
 
-// ─── LAB ORDERS ───
+// --- LAB ORDERS ---
 
 model LabOrder {
-  id        String   @id @default("")
+  id        String         @id @default("")
   patientId String?
   clinicId  String
   labName   String?
-  status    String   @default("pending")
+  status    LabOrderStatus @default(PENDING)
   type      String?
   notes     String?
   files     Json?
   deadline  DateTime?
-  price     Float?
+  price     Int?
 
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([clinicId])
+  @@index([patientId])
   @@map("lab_orders")
 }
 
-// ─── BILLING ───
+// --- BILLING ---
 
 model Invoice {
   id        String        @id @default("")
   clinicId  String
   patientId String?
-  amount    Float
+  amount    Int
   status    InvoiceStatus @default(UNPAID)
   items     Json
   notes     String?
   paidAt    DateTime?
+  deletedAt DateTime?
 
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([clinicId])
+  @@index([patientId])
   @@map("invoices")
 }
 
-// ─── INVENTORY ───
+// --- INVENTORY ---
 
 model InventoryItem {
   id       String @id @default("")
@@ -488,7 +593,7 @@ model InventoryItem {
   category String?
   quantity Int    @default(0)
   minimum  Int    @default(0)
-  price    Float?
+  price    Int?
   unit     String?
   supplier String?
 
@@ -501,7 +606,7 @@ model InventoryItem {
   @@map("inventory")
 }
 
-// ─── AI CORE ───
+// --- AI CORE ---
 
 model AISession {
   id       String @id @default("")
@@ -515,21 +620,24 @@ model AISession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  aiMessages AIMessage[]
+
   @@index([userId])
   @@map("ai_sessions")
 }
 
 model AIAction {
-  id       String @id @default("")
+  id       String       @id @default("")
   userId   String
   intent   String
   payload  Json
-  status   String @default("pending")
+  status   ActionStatus @default(PENDING)
   result   Json?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@map("ai_actions")
@@ -546,14 +654,15 @@ model AIAlert {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, resolved])
   @@map("ai_alerts")
 }
 
-// ─── MARKETPLACE ───
+// --- MARKETPLACE ---
 
-// ─── ECOSYSTEM: SUPPLIERS (Phase 2) ───
+// --- ECOSYSTEM: SUPPLIERS ---
 
 enum SupplierStatus {
   PENDING
@@ -576,7 +685,6 @@ model Supplier {
   kind          SupplierKind   @default(SUPPLIER)
   bin           String?
   legalAddress  String?
-  /// Delivery / warehouse city (Kazakhstan)
   city          String?
   contactPerson String?
   phone         String?
@@ -615,9 +723,10 @@ model SupplierDocument {
   url        String
   verified   Boolean  @default(false)
 
-  createdAt DateTime @default(now())
-
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([supplierId])
   @@map("supplier_documents")
@@ -628,16 +737,14 @@ model Product {
   name        String
   brand       String?
   category    String?
-  price       Float
+  price       Int
   stock       Int    @default(0)
   description String?
   imageUrl    String?
   rating      Float?
   supplierId  String?
-  /// Supplier private-label / own brand — higher DentCash rate tier
   ownBrand    Boolean @default(false)
 
-  // Rich product-card fields (Phase 2)
   manufacturer  String?
   country       String?
   expiryDate    DateTime?
@@ -659,8 +766,7 @@ model Order {
   userId   String
   items    Json
   status   String @default("pending")
-  total    Float
-  /// Checkout extras: dentCashMinor spent, delivery, payment hints
+  total    Int
   meta     Json?
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -679,16 +785,19 @@ model Favorite {
   userId    String
   productId String
 
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, productId])
   @@index([userId])
+  @@index([productId])
   @@map("favorites")
 }
 
-// ─── ICD-10 ───
+// --- ICD-10 ---
 
 model ICD10Code {
   code        String @id
@@ -698,9 +807,9 @@ model ICD10Code {
   @@map("icd10_codes")
 }
 
-// ─── SCHOOL ───
+// --- SCHOOL ---
 
-// ─── SCHOOL GOVERNANCE: LECTURERS & ACADEMIES (Phase 3) ───
+// --- SCHOOL GOVERNANCE: LECTURERS & ACADEMIES ---
 
 enum ExpertLevel {
   NEW
@@ -714,6 +823,8 @@ model Academy {
   name      String
   ownerId   String?
   city      String?
+
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -749,9 +860,10 @@ model ExpertVerification {
   url        String?
   verified   Boolean @default(false)
 
-  createdAt DateTime @default(now())
-
   lecturer Lecturer @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([lecturerId])
   @@map("expert_verifications")
@@ -763,22 +875,16 @@ model Course {
   description String?
   author      String?
   imageUrl    String?
-  price       Float?
+  price       Int?
   category    String?
   duration    String?
 
-  /// Sellable format: course | webinar | textbook | office
   format      String    @default("course")
-  /// Webinar / office start time
   startsAt    DateTime?
-  /// Capacity for webinar/office (null = unlimited)
   seats       Int?
-  /// Textbook / materials download URL
   fileUrl     String?
-  /// Extra payload (includes[], pages, venue, …)
   meta        Json?
 
-  // Phase 3: structured authorship (gradually replaces the string `author`)
   lecturerId String?
   academyId  String?
 
@@ -791,6 +897,7 @@ model Course {
   updatedAt DateTime @updatedAt
 
   @@index([lecturerId])
+  @@index([academyId])
   @@index([format])
   @@map("courses")
 }
@@ -805,6 +912,9 @@ model Lesson {
   duration Int?
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([courseId])
   @@map("lessons")
@@ -828,26 +938,27 @@ model SchoolEnrollment {
   @@map("school_enrollments")
 }
 
-// ─── NOTIFICATIONS ───
+// --- NOTIFICATIONS ---
 
 model Notification {
-  id       String  @id @default("")
+  id       String           @id @default("")
   userId   String
-  type     String
+  type     NotificationType
   title    String
   message  String
-  read     Boolean @default(false)
+  read     Boolean          @default(false)
   link     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, read])
   @@map("notifications")
 }
 
-// ─── AUDIT ───
+// --- AUDIT ---
 
 model AuditLog {
   id       String @id @default("")
@@ -860,6 +971,7 @@ model AuditLog {
   ip       String?
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([clinicId])
   @@map("audit_logs")
@@ -870,13 +982,18 @@ model AIMessage {
   sessionId    String
   role         String
   content      String
-  /// Optional learning metadata (feedback loop)
   userId       String?
   clinicId     String?
-  feedback     String?   // up | down
+  feedback     String?
   feedbackAt   DateTime?
   prevUserText String?
-  createdAt    DateTime  @default(now())
+
+  session AISession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clinic  Clinic?   @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([sessionId])
   @@index([createdAt])
@@ -899,7 +1016,7 @@ model AIMemory {
   @@map("ai_memories")
 }
 
-// ─── COMMUNITY ───
+// --- COMMUNITY ---
 
 model CommunityPost {
   id            String   @id @default("")
@@ -911,7 +1028,11 @@ model CommunityPost {
   kind          String   @default("thread")
   likesCount    Int      @default(0)
   commentsCount Int      @default(0)
-  createdAt     DateTime @default(now())
+
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   likes     CommunityLike[]
   comments  CommunityComment[]
@@ -925,9 +1046,12 @@ model CommunityLike {
   id        String   @id @default("")
   postId    String
   userId    String
-  createdAt DateTime @default(now())
 
   post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([postId, userId])
   @@map("community_likes")
@@ -939,9 +1063,12 @@ model CommunityComment {
   authorId   String
   authorName String
   content    String
-  createdAt  DateTime @default(now())
 
-  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([postId, createdAt])
   @@map("community_comments")
@@ -951,19 +1078,20 @@ model CommunitySave {
   id        String   @id @default("")
   postId    String
   userId    String
-  createdAt DateTime @default(now())
 
   post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([postId, userId])
   @@index([userId, createdAt])
   @@map("community_saves")
 }
 
-/// 1:1 direct message thread (Instagram/Telegram-style).
 model DmConversation {
   id        String   @id @default("")
-  /// Sorted "userIdA:userIdB" for unique pairwise lookup
   pairKey   String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -980,9 +1108,12 @@ model DmParticipant {
   conversationId String
   userId         String
   lastReadAt     DateTime?
-  createdAt      DateTime  @default(now())
 
   conversation DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([conversationId, userId])
   @@index([userId])
@@ -994,15 +1125,18 @@ model DmMessage {
   conversationId String
   senderId       String
   body           String
-  createdAt      DateTime @default(now())
 
   conversation DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([conversationId, createdAt])
   @@map("dm_messages")
 }
 
-// ─── FINANCE (Phase 4) ───
+// --- FINANCE (Phase 4) ---
 
 enum WalletOwnerType {
   CLINIC
@@ -1039,6 +1173,7 @@ model Wallet {
   updatedAt DateTime        @updatedAt
 
   ledgerEntries LedgerEntry[]
+  payouts       Payout[]
 
   @@unique([ownerType, ownerId, currency])
   @@map("wallets")
@@ -1053,9 +1188,11 @@ model Transaction {
   refType   String?
   refId     String?
   meta      Json?
-  createdAt DateTime @default(now())
 
   ledgerEntries LedgerEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([refType, refId])
   @@map("transactions")
@@ -1070,6 +1207,9 @@ model LedgerEntry {
 
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   wallet      Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([walletId])
   @@index([transactionId])
@@ -1089,23 +1229,23 @@ model CommissionRule {
   @@map("commission_rules")
 }
 
-// ─── PAYMENTS (Phase 5) ───
+// --- PAYMENTS (Phase 5) ---
 
 model Payment {
-  id         String   @id @default(uuid())
-  provider   String   @default("kaspi_qr")
-  externalId String?  @unique
+  id         String          @id @default(uuid())
+  provider   PaymentProvider @default(KASPI)
+  externalId String?         @unique
   amount     BigInt
-  currency   String   @default("KZT")
-  status     String   @default("created")
+  currency   String          @default("KZT")
+  status     PaymentStatus   @default(PENDING)
   refType    String?
   refId      String?
   domain     String?
   sellerType String?
   sellerId   String?
   meta       Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 
   @@index([refType, refId])
   @@map("payments")
@@ -1130,6 +1270,9 @@ model Payout {
   walletId  String
   amount    BigInt
   status    String   @default("requested")
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1150,14 +1293,13 @@ model Dispute {
   @@map("disputes")
 }
 
-// ─── DENT CASHBACK (buyer loyalty wallet) ───
+// --- DENT CASHBACK ---
 
 model CashbackRule {
   id        String          @id @default(uuid())
   ownerType WalletOwnerType
   ownerId   String
   scope     CashbackScope   @default(ALL)
-  /// Category name or product id when scope is CATEGORY / PRODUCT
   scopeKey  String?
   rateBps   Int
   capMinor  BigInt?
@@ -1172,12 +1314,10 @@ model CashbackRule {
   @@map("cashback_rules")
 }
 
-/// Human-readable DentCash history (1 DentCash = 1 ₸ = 100 тиын).
 model DentCashLedger {
   id          String    @id @default(uuid())
   userId      String
   type        String
-  /// pending | available | spent | reversed
   status      String    @default("pending")
   amountMinor BigInt
   currency    String    @default("KZT")
@@ -1187,14 +1327,18 @@ model DentCashLedger {
   sellerId    String?
   meta        Json?
   availableAt DateTime?
-  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, status])
   @@index([refType, refId])
   @@map("dentcash_ledger")
 }
 
-// ─── COMPLIANCE (Phase 7) ───
+// --- COMPLIANCE (Phase 7) ---
 
 model ComplianceCheck {
   id         String   @id @default(uuid())
@@ -1202,13 +1346,15 @@ model ComplianceCheck {
   entityId   String
   status     String   @default("needs_review")
   findings   Json?
-  createdAt  DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([entityType, entityId])
   @@map("compliance_checks")
 }
 
-// ─── DEVELOPER PLATFORM (Phase 8) ───
+// --- DEVELOPER PLATFORM (Phase 8) ---
 
 model DeveloperApp {
   id          String   @id @default(uuid())
@@ -1216,8 +1362,11 @@ model DeveloperApp {
   name        String
   environment String   @default("sandbox")
   scopes      String[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  owner User @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   apiKeys  ApiKey[]
   webhooks Webhook[]
@@ -1234,10 +1383,13 @@ model ApiKey {
   scopes    String[]
   rateLimit Int       @default(200)
   revokedAt DateTime?
-  createdAt DateTime  @default(now())
 
   app DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([appId])
   @@map("api_keys")
 }
 
@@ -1248,11 +1400,14 @@ model Webhook {
   events    String[]
   secret    String
   active    Boolean  @default(true)
-  createdAt DateTime @default(now())
 
   app        DeveloperApp      @relation(fields: [appId], references: [id], onDelete: Cascade)
   deliveries WebhookDelivery[]
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([appId])
   @@map("webhooks")
 }
 
@@ -1264,16 +1419,17 @@ model WebhookDelivery {
   status    String   @default("pending")
   attempts  Int      @default(0)
   lastError String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([webhookId, status])
   @@map("webhook_deliveries")
 }
 
-// ─── WORKFLOW (Phase 9) ───
+// --- WORKFLOW (Phase 9) ---
 
 model Workflow {
   id        String   @id @default(uuid())
@@ -1308,7 +1464,7 @@ model WorkflowRun {
   @@map("workflow_runs")
 }
 
-// ─── DATA INTELLIGENCE (Phase 10) ───
+// --- DATA INTELLIGENCE (Phase 10) ---
 
 model Metric {
   id         String   @id @default(uuid())
@@ -1336,7 +1492,7 @@ model Dashboard {
   @@map("dashboards")
 }
 
-// ─── PARTNERS (Phase 11) ───
+// --- PARTNERS (Phase 11) ---
 
 enum PartnerType {
   MANUFACTURER
@@ -1353,15 +1509,17 @@ model Partner {
   refId     String
   tierId    String?
   status    String      @default("active")
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
 
   tier      PartnerTier?        @relation(fields: [tierId], references: [id], onDelete: SetNull)
   kpis      PartnerKPI[]
   slas      PartnerSLA[]
   campaigns MarketingCampaign[]
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([type, status])
+  @@index([tierId])
   @@map("partners")
 }
 
@@ -1371,9 +1529,11 @@ model PartnerTier {
   commissionBps Int
   minKpiJson    Json?
   benefitsJson  Json?
-  createdAt     DateTime @default(now())
 
   partners Partner[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("partner_tiers")
 }
@@ -1384,9 +1544,11 @@ model PartnerKPI {
   period      String
   metricsJson Json?
   score       Float    @default(0)
-  createdAt   DateTime @default(now())
 
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([partnerId, period])
   @@map("partner_kpis")
@@ -1399,9 +1561,11 @@ model PartnerSLA {
   target    Float
   actual    Float?
   breached  Boolean  @default(false)
-  createdAt DateTime @default(now())
 
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([partnerId])
   @@map("partner_slas")
@@ -1416,14 +1580,17 @@ model MarketingCampaign {
   status    String    @default("draft")
   startsAt  DateTime?
   endsAt    DateTime?
-  createdAt DateTime  @default(now())
 
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([partnerId])
   @@map("marketing_campaigns")
 }
 
-// ─── PROFILE & JOBS (Phase 12) ───
+// --- PROFILE & JOBS (Phase 12) ---
 
 model JobVacancy {
   id              String   @id @default(uuid())
@@ -1431,7 +1598,7 @@ model JobVacancy {
   clinicName      String   @default("")
   city            String   @default("")
   salary          String   @default("")
-  employmentType  String   @default("Полная занятость")
+  employmentType  String   @default("?Y???�???�N? ?�?�??N?N�??N?N�N?")
   description     String   @default("")
   tags            Json?
   status          String   @default("open")
@@ -1440,10 +1607,13 @@ model JobVacancy {
   userId   String?
   clinicId String?
 
+  user  User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
   applications JobApplication[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status, city])
   @@index([userId])
@@ -1454,21 +1624,22 @@ model JobApplication {
   id        String   @id @default(uuid())
   vacancyId String
   userId    String
-
   userName  String   @default("")
   coverNote String   @default("")
   status    String   @default("new")
 
   vacancy JobVacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([vacancyId, userId])
   @@map("job_applications")
 }
 
-// ─── AI EVENT BUS ───
+// --- AI EVENT BUS ---
 
 enum AIEventStatus {
   PENDING
@@ -1499,7 +1670,7 @@ model AIEvent {
   @@map("ai_events")
 }
 
-// ─── BI SNAPSHOTS ───
+// --- BI SNAPSHOTS ---
 
 model BISnapshot {
   id        String   @id @default(uuid())
@@ -1507,14 +1678,16 @@ model BISnapshot {
   scopeId   String   @default("system")
   data      Json
   period    String
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([scopeType, scopeId, period])
   @@index([createdAt])
   @@map("bi_snapshots")
 }
 
-// ─── BI FINANCIAL MODELS ───
+// --- BI FINANCIAL MODELS ---
 
 enum FinancialTxType {
   INCOME
@@ -1586,7 +1759,7 @@ model PlatformExpense {
 }
 
 model SaaSMetrics {
-  id            String   @id @default(uuid())
+  id            String   @id @default("")
   tenantId      String   @default("platform")
   mrr           BigInt
   arr           BigInt
@@ -1608,17 +1781,20 @@ model CustomerMetrics {
   profit      BigInt
   lifetimeValue BigInt
   period      String
-  createdAt   DateTime @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([clinicId, period])
   @@map("customer_metrics")
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ===============================================================
 // COMPLIANCE & SECURITY MODELS
-// ═══════════════════════════════════════════════════════════════
+// ===============================================================
 
-/// Active user sessions with device/browser tracking
 model UserSession {
   id           String   @id @default(uuid())
   userId       String
@@ -1627,45 +1803,57 @@ model UserSession {
   ipAddress    String?
   lastActivity DateTime @default(now())
   expiredAt    DateTime?
-  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([userId, expiredAt])
   @@map("user_sessions")
 }
 
-/// Consent records for data processing (GDPR/152-ФЗ)
 model Consent {
   id        String   @id @default(uuid())
   userId    String
-  type      String   // PERSONAL_DATA | MEDICAL_DATA | PHOTO_PROCESSING | AI_ANALYSIS | MARKETING | EDUCATION
+  type      String
   version   String   @default("1.0")
   accepted  Boolean  @default(false)
   ipAddress String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, type])
   @@map("consents")
 }
 
-/// Medical file access tracking (who uploaded / viewed / downloaded)
 model MedicalFileAccess {
   id         String   @id @default(uuid())
   patientId  String
-  fileType   String   // CT | PHOTO | DOCUMENT | TREATMENT_PLAN
+  fileType   String
   storagePath String
   uploadedBy String
   viewedBy   String?
   downloadedBy String?
-  action     String   // UPLOAD | VIEW | DOWNLOAD
-  createdAt  DateTime @default(now())
+  action     String
+
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploader   User    @relation("UploadedFiles", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  viewer     User?   @relation("ViewedFiles", fields: [viewedBy], references: [id], onDelete: SetNull)
+  downloader User?   @relation("DownloadedFiles", fields: [downloadedBy], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([patientId])
   @@index([uploadedBy])
   @@map("medical_file_access")
 }
 
-/// AI governance — every AI decision logged for auditability
 model AIActionLog {
   id               String   @id @default(uuid())
   userId           String
@@ -1677,7 +1865,13 @@ model AIActionLog {
   doctorConfirmed  Boolean  @default(false)
   confirmedBy      String?
   confirmedAt      DateTime?
-  createdAt        DateTime @default(now())
+
+  user      User    @relation("UserActions", fields: [userId], references: [id], onDelete: Cascade)
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  confirmor User?   @relation("ConfirmedActions", fields: [confirmedBy], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([patientId])
@@ -1685,4 +1879,3 @@ model AIActionLog {
   @@index([createdAt])
   @@map("ai_action_logs")
 }
-

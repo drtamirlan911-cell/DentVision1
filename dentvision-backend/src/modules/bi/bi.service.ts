@@ -742,13 +742,13 @@ export async function cfoChat(question: string, clinicId?: string): Promise<stri
 - Активные клиники: ${dashboard.mrr.activeClinics}
 - Churn Rate: ${dashboard.churn.churnRate.toFixed(1)}%
 - LTV: ${dashboard.ltv.ltv.toLocaleString('ru-RU')} ₸
-- CAC: ${dashboard.cac.cac.toLocaleString('ru-RU')} ₸
+- CAC: ${dashboard.cac?.cac.toLocaleString('ru-RU') || '—'} ₸
 - LTV/CAC: ${dashboard.ltv.ltvCacRatio.toFixed(1)}x
 - Валовая маржа: ${dashboard.unitEconomics.grossMargin}%
 - Чистая маржа: ${dashboard.unitEconomics.netMargin}%
 - Выручка/клиника: ${dashboard.unitEconomics.revenuePerClinic.toLocaleString('ru-RU')} ₸
 - Выручка/доктор: ${dashboard.unitEconomics.revenuePerDoctor.toLocaleString('ru-RU')} ₸
-- Точка безубыточности: ${dashboard.cashFlow.breakEvenMonth || 'не достигнута'}
+- Точка безубыточности: ${dashboard.cashFlow?.breakEvenMonth || 'не достигнута'}
 ${clinicData ? `
 ДАННЫЕ КЛИНИКИ (${clinicData.clinicName}):
 - Выручка: ${clinicData.revenue.total.toLocaleString('ru-RU')} ₸

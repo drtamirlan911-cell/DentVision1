@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import prisma from '../lib/prisma.js';
+import { authenticate } from '../middleware/auth.js';
 
 const EDITABLE_USER_FIELDS = [
   'firstName', 'lastName', 'username', 'headline', 'bio', 'city',
@@ -16,7 +17,7 @@ export default function profileRoutes() {
   const router = Router();
 
   // ─── Full profile (self) ───
-  router.get('/', async (req, res) => {
+  router.get('/', authenticate, async (req, res) => {
     try {
       const userId = req.user.id;
       const [user, skills, certificates, achievements, portfolio, cases, reviews, activities] = await Promise.all([
@@ -45,7 +46,7 @@ export default function profileRoutes() {
   });
 
   // ─── Public profile (by userId or username) ───
-  router.get('/:identifier', async (req, res) => {
+  router.get('/:identifier', authenticate, async (req, res) => {
     try {
       const { identifier } = req.params;
       const where = identifier.length > 30 ? { id: identifier } : { OR: [{ id: identifier }, { username: identifier }] };
@@ -76,7 +77,7 @@ export default function profileRoutes() {
   });
 
   // ─── Update user profile fields ───
-  router.put('/', async (req, res) => {
+  router.put('/', authenticate, async (req, res) => {
     try {
       const userId = req.user.id;
       const data = {};
@@ -100,7 +101,7 @@ export default function profileRoutes() {
   });
 
   // ─── Skills CRUD ───
-  router.post('/skills', async (req, res) => {
+  router.post('/skills', authenticate, async (req, res) => {
     try {
       const { name, level } = req.body;
       if (!name) return res.status(400).json({ error: 'Название навыка обязательно' });
@@ -108,7 +109,7 @@ export default function profileRoutes() {
       res.json(item);
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
-  router.delete('/skills/:id', async (req, res) => {
+  router.delete('/skills/:id', authenticate, async (req, res) => {
     try {
       await prisma.userSkill.deleteMany({ where: { id: req.params.id, userId: req.user.id } });
       res.json({ success: true });
@@ -116,7 +117,7 @@ export default function profileRoutes() {
   });
 
   // ─── Certificates CRUD ───
-  router.post('/certificates', async (req, res) => {
+  router.post('/certificates', authenticate, async (req, res) => {
     try {
       const { title, issuer, year, fileUrl, issuedAt } = req.body;
       if (!title) return res.status(400).json({ error: 'Название сертификата обязательно' });
@@ -126,7 +127,7 @@ export default function profileRoutes() {
       res.json(item);
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
-  router.delete('/certificates/:id', async (req, res) => {
+  router.delete('/certificates/:id', authenticate, async (req, res) => {
     try {
       await prisma.userCertificateModel.deleteMany({ where: { id: req.params.id, userId: req.user.id } });
       res.json({ success: true });
@@ -134,7 +135,7 @@ export default function profileRoutes() {
   });
 
   // ─── Achievements CRUD ───
-  router.post('/achievements', async (req, res) => {
+  router.post('/achievements', authenticate, async (req, res) => {
     try {
       const { title, description, date } = req.body;
       if (!title) return res.status(400).json({ error: 'Название достижения обязательно' });
@@ -144,7 +145,7 @@ export default function profileRoutes() {
       res.json(item);
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
-  router.delete('/achievements/:id', async (req, res) => {
+  router.delete('/achievements/:id', authenticate, async (req, res) => {
     try {
       await prisma.userAchievement.deleteMany({ where: { id: req.params.id, userId: req.user.id } });
       res.json({ success: true });
@@ -152,7 +153,7 @@ export default function profileRoutes() {
   });
 
   // ─── Portfolio CRUD ───
-  router.post('/portfolio', async (req, res) => {
+  router.post('/portfolio', authenticate, async (req, res) => {
     try {
       const { title, description, imageUrl, link } = req.body;
       if (!title) return res.status(400).json({ error: 'Название работы обязательно' });
@@ -162,7 +163,7 @@ export default function profileRoutes() {
       res.json(item);
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
-  router.delete('/portfolio/:id', async (req, res) => {
+  router.delete('/portfolio/:id', authenticate, async (req, res) => {
     try {
       await prisma.userPortfolioItem.deleteMany({ where: { id: req.params.id, userId: req.user.id } });
       res.json({ success: true });
@@ -170,7 +171,7 @@ export default function profileRoutes() {
   });
 
   // ─── Cases CRUD ───
-  router.post('/cases', async (req, res) => {
+  router.post('/cases', authenticate, async (req, res) => {
     try {
       const { title, description, beforeImage, afterImage, tags } = req.body;
       if (!title) return res.status(400).json({ error: 'Название кейса обязательно' });
@@ -180,7 +181,7 @@ export default function profileRoutes() {
       res.json(item);
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
-  router.delete('/cases/:id', async (req, res) => {
+  router.delete('/cases/:id', authenticate, async (req, res) => {
     try {
       await prisma.userCase.deleteMany({ where: { id: req.params.id, userId: req.user.id } });
       res.json({ success: true });

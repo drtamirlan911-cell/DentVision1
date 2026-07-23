@@ -25,7 +25,10 @@ const configured = parseCorsOrigins(env.CORS_ORIGIN);
  * (incl. team hosts like *-projects.vercel.app).
  */
 export function isOriginAllowed(origin: string | undefined): boolean {
-  if (!origin) return true;
+  if (!origin) {
+    if (process.env.NODE_ENV === 'production') return false;
+    return true;
+  }
   if (configured === true) return true;
   if (configured.includes(origin)) return true;
   try {

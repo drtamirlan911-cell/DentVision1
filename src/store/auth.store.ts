@@ -282,8 +282,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const ri = resolveRoleInfo(s.activeMembership, s.user)
     return ri ? !!ri[action] : false
   },
-  allClinics: _seedStore.clinics,
-  allUsers: _seedStore.users,
+  allClinics: [..._seedStore.clinics],
+  allUsers: [..._seedStore.users],
 
   // ─── Session restoration ───
   restoreSession: async () => {
@@ -497,12 +497,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const result = await api.upsertUser(staffData)
       if (result) {
         const newUser = { ...staffData, id: result.id || gid() } as User
-        _seedStore.users.push(newUser)
+        _seedStore.users = [..._seedStore.users, newUser]
         return newUser
       }
     } catch (err) { console.error('API addStaff failed:', err) }
     const newUser = { ...staffData, id: gid() } as User
-    _seedStore.users.push(newUser)
+    _seedStore.users = [..._seedStore.users, newUser]
     return newUser
   },
 

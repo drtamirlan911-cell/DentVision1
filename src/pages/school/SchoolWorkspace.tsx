@@ -108,7 +108,7 @@ export default function SchoolWorkspace() {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // mount-only — enter() is scoped to the initial contexts; re-calling on deps change is not desired
   }, []);
 
   const becomeLecturer = async () => {

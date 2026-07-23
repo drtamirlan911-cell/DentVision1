@@ -13,6 +13,7 @@
 import prisma from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
+import { scrubToolOutput } from '../lib/piiScrubber.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -128,7 +129,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         orderBy: { createdAt: 'desc' },
         select: { id: true, firstName: true, lastName: true, phone: true, birthDate: true, gender: true },
       });
-      return { ok: true, data: patients };
+      return { ok: true, data: scrubToolOutput(patients) };
     },
   },
 
@@ -192,16 +193,14 @@ export const TOOLS: Record<string, ToolSpec> = {
         lines.push(`${num}: ${STATUS_RU[status] || status}${surf ? ` [${surf}]` : ''}`);
       }
 
-      return {
-        ok: true,
-        data: {
-          ...patient,
-          teethMap,
-          odontogramSummary: lines.length
-            ? lines.join('\n')
-            : 'Все зубы без отметок (здоровы / не заполнены).',
-        },
-      };
+      const scrubbed = scrubToolOutput({
+        ...patient,
+        teethMap,
+        odontogramSummary: lines.length
+          ? lines.join('\n')
+          : 'Все зубы без отметок (здоровы / не заполнены).',
+      });
+      return { ok: true, data: scrubbed };
     },
   },
 
@@ -246,7 +245,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         orderBy: [{ date: 'asc' }, { time: 'asc' }],
         include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
       });
-      return { ok: true, data: appointments };
+      return { ok: true, data: scrubToolOutput(appointments) };
     },
   },
 
@@ -929,12 +928,12 @@ export const TOOLS: Record<string, ToolSpec> = {
       const list = recall.slice(0, limit);
       return {
         ok: true,
-        data: {
+        data: scrubToolOutput({
           inactiveDays,
           count: list.length,
           totalRecall: recall.length,
           patients: list,
-        },
+        }),
         navigate: '/crm/patients',
       };
     },

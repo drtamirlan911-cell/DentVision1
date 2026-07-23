@@ -20,25 +20,32 @@ const ALLOWED_TABLES = [
 ];
 
 const PATIENT_ENCRYPT_FIELDS = ['address', 'email', 'notes'];
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32);
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY && process.env.NODE_ENV === 'production') {
+  throw new Error('ENCRYPTION_KEY is required in production');
+}
 
 function encrypt(text) {
   if (!text) return text;
   try {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'utf8'), iv);
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(ENCRYPTION_KEY || 'dev-fallback-key-32byt', 'utf8'), iv);
     let encrypted = cipher.update(String(text), 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    return iv.toString('hex') + ':' + encrypted;
+    const tag = cipher.getAuthTag();
+    return iv.toString('hex') + ':' + tag.toString('hex') + ':' + encrypted;
   } catch { return text; }
 }
 
 function decrypt(text) {
   if (!text || !text.includes(':')) return text;
   try {
-    const [ivHex, encrypted] = text.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'utf8'), iv);
+    const parts = text.split(':');
+    const iv = Buffer.from(parts[0], 'hex');
+    const tag = Buffer.from(parts[1], 'hex');
+    const encrypted = parts.slice(2).join(':');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(ENCRYPTION_KEY || 'dev-fallback-key-32byt', 'utf8'), iv);
+    decipher.setAuthTag(tag);
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;
@@ -54,8 +61,21 @@ function decryptPatient(row) {
 
 function decryptPatients(rows) { return rows.map(decryptPatient); }
 
-function validateTable(table) { return ALLOWED_TABLES.includes(table); }
-function sanitizeColumnName(col) { return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(col); }
+const TABLE_TO_PRISMA = {
+  clinics: 'clinic', users: 'user', patients: 'patient', appointments: 'appointment',
+  treatments: 'treatment', receipts: 'receipt', subscriptions: 'subscription',
+  lab_orders: 'labOrder', photos: 'photo', expenses: 'expense', inventory: 'inventory',
+  debts: 'debt', referrals: 'referral', promotions: 'promotion', bookings: 'booking',
+  medical_cards: 'medicalCard', visits: 'visit', documents: 'document', waiting_list: 'waitingList',
+  shop_products: 'shopProduct', shop_categories: 'shopCategory', shop_orders: 'shopOrder',
+  shop_order_items: 'shopOrderItem', shop_reviews: 'shopReview', shop_favorites: 'shopFavorite',
+  shop_suppliers: 'shopSupplier', school_courses: 'schoolCourse', school_modules: 'schoolModule',
+  school_lessons: 'schoolLesson', school_enrollments: 'schoolEnrollment',
+  school_certificates: 'schoolCertificate', school_clinical_cases: 'schoolClinicalCase',
+  school_library: 'schoolLibrary',
+};
+
+function validateTable(table) { return !!TABLE_TO_PRISMA[table]; }
 
 export default function clinicRoutes(writeAuditLog) {
   const router = Router();
@@ -111,20 +131,20 @@ export default function clinicRoutes(writeAuditLog) {
   router.post('/:table/upsert', authenticate, requireSameClinic, requirePermission('write'), async (req, res) => {
     try {
       const { table } = req.params;
-      if (!validateTable(table)) return res.status(400).json({ error: 'Invalid table name' });
+      const modelName = TABLE_TO_PRISMA[table];
+      if (!modelName) return res.status(400).json({ error: 'Invalid table name' });
       const row = req.body;
-      const columns = Object.keys(row).filter(sanitizeColumnName);
-      if (columns.length === 0) return res.status(400).json({ error: 'No valid columns provided' });
-      const values = columns.map(c => row[c]);
-      const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-      const updates = columns.map((col) => `${col} = EXCLUDED.${col}`).join(', ');
-      const query = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates} RETURNING *`;
-      const result = await prisma.$queryRawUnsafe(query, ...values);
-      if (row.clinic_id && result[0]) {
-        const action = `upsert_${table}`;
-        writeAuditLog(row.clinic_id, req.user.id, req.user.name, action, table, row.id, { table, id: row.id });
+      if (!row.id) return res.status(400).json({ error: 'id is required' });
+      const model = prisma[modelName];
+      const result = await model.upsert({
+        where: { id: row.id },
+        create: row,
+        update: row,
+      });
+      if (row.clinic_id && result) {
+        writeAuditLog(row.clinic_id, req.user.id, req.user.name, `upsert_${table}`, table, row.id, { table, id: row.id });
       }
-      res.json(result[0]);
+      res.json(result);
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -134,12 +154,14 @@ export default function clinicRoutes(writeAuditLog) {
   router.delete('/:table/:id', authenticate, requireSameClinic, requirePermission('write'), async (req, res) => {
     try {
       const { table, id } = req.params;
-      if (!validateTable(table)) return res.status(400).json({ error: 'Invalid table name' });
-      const result = await prisma.$queryRawUnsafe(`DELETE FROM ${table} WHERE id = $1 RETURNING *`, id);
-      if (result[0]?.clinic_id) {
-        writeAuditLog(result[0].clinic_id, req.user.id, req.user.name, `delete_${table}`, table, id, { table, id });
+      const modelName = TABLE_TO_PRISMA[table];
+      if (!modelName) return res.status(400).json({ error: 'Invalid table name' });
+      const model = prisma[modelName];
+      const result = await model.delete({ where: { id } });
+      if (result?.clinicId) {
+        writeAuditLog(result.clinicId, req.user.id, req.user.name, `delete_${table}`, table, id, { table, id });
       }
-      res.json(result[0] || { deleted: true, id });
+      res.json(result);
     } catch {
       res.status(500).json({ error: 'Internal server error' });
     }

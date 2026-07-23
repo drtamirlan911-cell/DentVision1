@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -11,7 +11,6 @@ import {
   Smile,
   CheckCircle,
   AlertTriangle,
-  Send,
   Info,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast'
@@ -63,19 +62,19 @@ export default function Reminders() {
 
   const appointmentReminders = useMemo(
     () => getAppointmentReminders(scopedAppointments, scopedPatients, scopedDoctors),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // deps are correct — getAppointmentReminders is a stable import
     [scopedAppointments, scopedPatients, scopedDoctors, tick]
   );
 
   const urgentReminders = useMemo(
     () => getUrgentReminders(scopedAppointments, scopedPatients, scopedDoctors),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // deps are correct — getUrgentReminders is a stable import
     [scopedAppointments, scopedPatients, scopedDoctors, tick]
   );
 
   const hygieneReminders = useMemo(
     () => getHygieneReminders(scopedPatients, appointments, receipts),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // deps are correct — getHygieneReminders is a stable import
     [scopedPatients, appointments, receipts, tick]
   );
 

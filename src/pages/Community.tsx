@@ -90,7 +90,7 @@ export default function CommunityPage() {
 
   useEffect(() => {
     if (tab === 'feed' || tab === 'saved') void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps — load() is defined inline, varies per render
   }, [topic, tab])
 
   useEffect(() => {

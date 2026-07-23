@@ -45,6 +45,7 @@ import {
   tryDeterministicStats,
   tryPlatformMapQuery,
 } from '../lib/deterministicShortcuts.js';
+import { sanitizeUserInput, buildSafeInstructions } from '../lib/promptGuard.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_TOOL_ROUNDS = 6;
@@ -430,7 +431,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
   const toolSchemas = toolSchemasFor(allowedTools);
   const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role };
   const currencyCode = await resolveClinicCurrency(input.clinicId);
-  const instructions = systemPrompt(input, currencyCode, activePersona);
+  const instructions = buildSafeInstructions(systemPrompt(input, currencyCode, activePersona), input.text);
 
   const fewShotTurns = (input.fewShots || []).flatMap((ex) => [
     { role: 'user', content: `[Пример прошлого успешного запроса]\n${ex.user}` },
@@ -443,7 +444,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: m.content,
     })),
-    { role: 'user', content: input.text },
+    { role: 'user', content: sanitizeUserInput(input.text) },
   ];
 
   const toolsUsed: string[] = [];

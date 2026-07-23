@@ -8,6 +8,7 @@ import { improveResponseWithLLM } from './core/llm.service.js';
 import { orchestrate, orchestratorEnabled } from './os/orchestrator.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
+import { logAIInteraction } from './lib/auditLogger.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
 import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
 
@@ -380,6 +381,7 @@ async function processQuery(
 }
 
 aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {
+  const startTime = Date.now();
   try {
     if (!enforceGuestAiQuota(req, res)) return;
     const { text, message, sessionId: rawSession, history = [] } = req.body;
@@ -387,6 +389,18 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     const sessionId = await resolveUserSessionId(req, rawSession);
     const response = await processQuery(req, prompt, sessionId, history);
     await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
+
+    const toolsUsed = response.toolsUsed || [];
+    logAIInteraction({
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || undefined,
+      sessionId,
+      model: 'orchestrator',
+      toolsCalled: toolsUsed,
+      latencyMs: Date.now() - startTime,
+      status: 'success',
+    });
+
     return res.json({
       ok: true,
       data: {
@@ -404,6 +418,16 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     });
   } catch (error) {
     console.error('[AI] query', error);
+    logAIInteraction({
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || undefined,
+      sessionId: req.body?.sessionId || undefined,
+      model: 'orchestrator',
+      toolsCalled: [],
+      latencyMs: Date.now() - startTime,
+      status: 'error',
+      errorMessage: error instanceof Error ? error.message : 'AI query failed',
+    });
     return res.status(500).json({ ok: false, error: 'AI query failed' });
   }
 });
@@ -412,6 +436,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
 // protocol compatible even when the current AI provider returns a complete
 // response rather than provider-level token events.
 aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
+  const startTime = Date.now();
   try {
     if (!enforceGuestAiQuota(req, res)) return;
     const text = req.body.text || req.body.message;
@@ -442,6 +467,17 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       clearInterval(heartbeat);
     }
 
+    const toolsUsed = response.toolsUsed || [];
+    logAIInteraction({
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || undefined,
+      sessionId,
+      model: 'orchestrator',
+      toolsCalled: toolsUsed,
+      latencyMs: Date.now() - startTime,
+      status: 'success',
+    });
+
     // Progressive rendering of the final message.
     const message = response.message || '';
     const chunkSize = Math.max(8, Math.ceil(message.length / 40));
@@ -467,6 +503,16 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     res.end();
   } catch (error) {
     console.error('[AI Stream Error]', error);
+    logAIInteraction({
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || undefined,
+      sessionId: req.body?.sessionId || undefined,
+      model: 'orchestrator',
+      toolsCalled: [],
+      latencyMs: Date.now() - startTime,
+      status: 'error',
+      errorMessage: error instanceof Error ? error.message : 'AI stream failed',
+    });
     try {
       res.write(`data: ${JSON.stringify({ type: 'error', error: 'AI stream failed' })}\n\n`);
       res.end();

@@ -30,9 +30,17 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       return res.status(401).json({ ok: false, error: 'Пользователь не найден' });
     }
 
-    // Guest flag is email-based (source of truth). JWT isGuest alone cannot
-    // elevate/demote a real account — blocks IDOR from forged guest claims.
+    // Verify user has at least one active session; if all sessions are
+    // expired/revoked, the JWT is stale and must be rejected.
     const guestByEmail = isGuestEmail(user.email);
+    if (!guestByEmail) {
+      const activeSession = await prisma.userSession.findFirst({
+        where: { userId: user.id, expiredAt: { gt: new Date() } },
+      });
+      if (!activeSession) {
+        return res.status(401).json({ ok: false, error: 'Сессия истекла, выполните вход заново' });
+      }
+    }
     const hasMembership = (user.memberships?.length || 0) > 0;
     const isGuest = guestByEmail && !hasMembership;
 

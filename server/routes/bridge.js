@@ -105,7 +105,7 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
       });
       broadcast(req.user?.clinicId, 'visit.updated', { id: visit.id });
       res.json(visit);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { console.error(e); res.status(500).json({ error: 'Внутренняя ошибка сервера' }); }
   });
 
   app.post('/api/medical/treatment-plan', authenticate, async (req, res) => {
@@ -118,7 +118,7 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
       });
       broadcast(req.user?.clinicId, 'medical_card.updated', { id: result.id });
       res.json(result);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { console.error(e); res.status(500).json({ error: 'Внутренняя ошибка сервера' }); }
   });
 
   app.get('/api/patients/:patientId/medical-card', authenticate, async (req, res) => {
@@ -146,7 +146,7 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
         data: { id: crypto.randomUUID(), patientId, type: type || 'photo', url, name, metadata: metadata || {} },
       });
       res.json(image);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { console.error(e); res.status(500).json({ error: 'Внутренняя ошибка сервера' }); }
   });
 
   app.post('/api/files/upload', authenticate, async (req, res) => {
@@ -159,7 +159,7 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
       });
       broadcast(req.user?.clinicId, 'document.updated', { id: doc.id });
       res.json(doc);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { console.error(e); res.status(500).json({ error: 'Внутренняя ошибка сервера' }); }
   });
 
   app.delete('/api/files/:id', authenticate, async (req, res) => {

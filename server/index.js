@@ -21,13 +21,32 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   : ['http://localhost:5173', 'http://localhost:3000'];
 
 function isOriginAllowed(origin) {
-  if (!origin) return true;
+  if (!origin) {
+    if (process.env.NODE_ENV === 'production') return false;
+    return true;
+  }
   if (ALLOWED_ORIGINS.includes(origin)) return true;
   if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return true;
   return false;
 }
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "https://dentvision-backend.onrender.com", "https://dent-vision1.vercel.app", "wss:"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+    }
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
 app.use(cors({ origin: (origin, cb) => cb(null, isOriginAllowed(origin)), credentials: true }));
 
 app.use(express.json({ limit: '1mb' }));
@@ -120,12 +139,6 @@ app.use('/api/guest', guestRoutes());
 app.use('/api', auditRoutes(writeAuditLog));
 
 registerBridgeRoutes(app, writeAuditLog);
-
-app.get('/api/csp-policy', (_req, res) => {
-  res.json({
-    policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
-  });
-});
 
 app.use((err, _req, res, _next) => {
   console.error('Unhandled error:', err.message, err.stack);
