@@ -17,7 +17,7 @@ describe('jarvisBriefing role filters', () => {
       { category: 'load', text: 'recall' },
     ];
     const filtered = filterAlertsForRole(alerts, 'DOCTOR');
-    expect(filtered.map((a) => a.category)).toEqual(['appointments', 'school', 'load']);
+    expect(filtered.map((a) => a.category)).toEqual(['appointments', 'school']);
   });
 
   it('admin focuses on appointments, cashier and load', () => {

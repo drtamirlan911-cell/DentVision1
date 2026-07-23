@@ -19,11 +19,13 @@
 
 import { env } from '../../../config.js';
 import prisma from '../../../lib/prisma.js';
-import { agentsForRole, toolsForRole } from './registry.js';
+import { agentsForRole, toolsForRoleAndPersona } from './registry.js';
 import { executeTool, toolSchemasFor, localizeNavKeysInMessage, type ToolContext } from './tools.js';
 import {
+  blockedPersonaRedirectMessage,
   personaLabel,
-  resolveActivePersona,
+  resolveActivePersonaDetailed,
+  roleAllowsPersona,
   type PersonaId,
 } from './persona.js';
 import {
@@ -37,7 +39,7 @@ import {
   recordModelUsage,
   type ModelChoice,
 } from '../lib/modelRouter.js';
-import { isClinicLoadQuery } from '../core/clinicLoadPlan.js';
+import { isClinicLoadQuery, isDoctorDayQuery } from '../core/clinicLoadPlan.js';
 import { personaPromptFor, rolePromptFor } from '../prompts/system.prompts.js';
 import { platformMapPromptBlock, stageFromPath, stageAwareSuggestions } from '../lib/platformMap.js';
 import {
@@ -139,8 +141,15 @@ ${mapBlock}
 6. Экономия: коротко, один next step.`;
   }
 
-  const agents = agentsForRole(input.role);
-  const mandates = agents.map((a) => `- ${a.name}${a.persona ? ` [${a.persona}]` : ''}: ${a.mandate}`).join('\n');
+  const agents = agentsForRole(input.role).filter(
+    (a) => !a.persona || a.persona === activePersona || a.persona === 'guest',
+  );
+  const mandates = (agents.length
+    ? agents
+    : agentsForRole(input.role)
+  )
+    .map((a) => `- ${a.name}${a.persona ? ` [${a.persona}]` : ''}: ${a.mandate}`)
+    .join('\n');
   const stage = stageFromPath(input.pathname) || input.focusType || 'workspace';
   const roleBlock = rolePromptFor(input.role);
   const personaBlock = personaPromptFor(activePersona);
@@ -151,6 +160,8 @@ ${mapBlock}
     stage,
     focusType: input.focusType,
   }).join(' · ');
+
+  const clinical = ['DOCTOR', 'ASSISTANT', 'LAB'].includes(String(input.role || '').toUpperCase());
 
   return `Ты — DentVision Intelligence (Jarvis), операционный ИИ клиники:
 проактивный, спокойный, точный. Экономичный: коротко, факты из инструментов, один next step.
@@ -178,11 +189,13 @@ ${mapBlock}
 8. Если пользователь только вошёл или просит «что важно» — для CEO вызывай composeCeoBrief; иначе приоритет по роли.
 9. ${clinicCurrencyPromptRule(currencyCode)}
 10. Если «запомни…» — подтверди кратко.
-11. Загрузка клиники / обзвон / пустые слоты — СРАЗУ getClinicLoadPlan с именами и цифрами.
+11. ${clinical
+    ? 'Для врача: getDoctorDayPlan / своё расписание — без mass-recall и чужих телефонов. Не предлагай выручку, долги, акции.'
+    : 'Загрузка клиники / обзвон / пустые слоты — СРАЗУ getClinicLoadPlan с именами и цифрами.'}
 12. Учитывай этап экрана: предлагай действия, уместные ТАМ, где пользователь сейчас.
 13. Свобода платформы: можешь вести по CRM + маркет + академия + кабинеты, если роль позволяет.
 14. Экономия: не вызывай лишние инструменты; для «открой X» достаточно navigate.
-15. Marketing: getPromotions / getRecallList / draftPromoCopy — draft only, без авторассылки.
+15. Marketing: getPromotions / getRecallList / draftPromoCopy — draft only, без авторассылки.${clinical ? ' Врачу эти tools недоступны.' : ''}
 ${input.learningInstructions ? `\n${input.learningInstructions}` : ''}`;
 }
 
@@ -276,17 +289,39 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
 
   const isGuest = Boolean(input.isGuest || String(input.role).toUpperCase() === 'GUEST');
   const stage = stageFromPath(input.pathname);
-  const activePersona = resolveActivePersona({
+  const resolved = resolveActivePersonaDetailed({
     role: input.role,
     stage,
     pathname: input.pathname,
     text: input.text,
     isGuest,
   });
+  const activePersona = resolved.persona;
   const personaMeta = {
     activePersona,
     activePersonaLabel: personaLabel(activePersona),
   };
+  const clinicalRole = ['DOCTOR', 'ASSISTANT', 'LAB'].includes(String(input.role || '').toUpperCase());
+
+  // Soft redirect when doctor asks for Finance/Marketing/CEO — no KPI dump.
+  if (resolved.shouldRedirect && resolved.blockedRequest) {
+    const redirect = blockedPersonaRedirectMessage(input.role, resolved.blockedRequest);
+    if (redirect) {
+      const messageId = await saveMessage(input.sessionId, 'assistant', redirect, {
+        userId: input.userId,
+        clinicId: input.clinicId,
+        prevUserText: input.text,
+      });
+      return {
+        message: redirect,
+        intent: 'PERSONA_BLOCKED',
+        suggestions: ['Показать расписание', 'Открыть зубную карту', 'Создать план лечения'],
+        toolsUsed: [],
+        messageId,
+        ...personaMeta,
+      };
+    }
+  }
 
   // Cheap deterministic paths — skip OpenAI entirely when we can.
   const mapHit = tryPlatformMapQuery(input.text, { role: input.role, isGuest });
@@ -328,8 +363,8 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
     console.warn('[AI OS] deterministic stats failed', e);
   }
 
-  // CEO executive brief — synthesize Analyst+Finance+Marketing without LLM.
-  if (!isGuest && isCeoBriefTrigger(input.text, activePersona)) {
+  // CEO executive brief — only when persona ceo is allowed for this role.
+  if (!isGuest && isCeoBriefTrigger(input.text, activePersona) && roleAllowsPersona(input.role, 'ceo')) {
     try {
       const { composeCeoBrief } = await import('../core/ceoBrief.js');
       const clinic = input.clinicId
@@ -397,10 +432,35 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
     }
   }
 
-  // Clinic load / recall / empty slots — answer from live data, never a generic playbook.
+  // Doctor day plan — clinical roles never get clinic-wide recall dump.
+  if (!isGuest && input.clinicId && clinicalRole && isDoctorDayQuery(input.text)) {
+    try {
+      const { buildDoctorDayPlan } = await import('../core/clinicLoadPlan.js');
+      const plan = await buildDoctorDayPlan(input.clinicId, input.userId);
+      const messageId = await saveMessage(input.sessionId, 'assistant', plan.message, {
+        userId: input.userId,
+        clinicId: input.clinicId,
+        prevUserText: input.text,
+      });
+      return {
+        message: plan.message,
+        intent: 'DOCTOR_DAY_PLAN',
+        action: { type: 'NAVIGATE', payload: { path: '/crm/schedule' } },
+        suggestions: plan.suggestions,
+        toolsUsed: ['getDoctorDayPlan'],
+        messageId,
+        ...personaMeta,
+      };
+    } catch (e) {
+      console.warn('[AI OS] doctor day plan failed, continuing to LLM', e);
+    }
+  }
+
+  // Clinic load / recall — owners/admins only.
   if (
     !isGuest
     && input.clinicId
+    && !clinicalRole
     && isClinicLoadQuery(input.text)
   ) {
     try {
@@ -425,8 +485,8 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
     }
   }
 
-  // UNDERSTAND — resolve permissions into the concrete tool surface.
-  const allowedTools = toolsForRole(input.role);
+  // UNDERSTAND — resolve permissions into the concrete tool surface (role ∩ persona).
+  const allowedTools = toolsForRoleAndPersona(input.role, activePersona);
   const toolSchemas = toolSchemasFor(allowedTools);
   const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role };
   const currencyCode = await resolveClinicCurrency(input.clinicId);

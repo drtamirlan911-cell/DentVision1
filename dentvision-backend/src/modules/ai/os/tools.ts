@@ -13,6 +13,7 @@
 import prisma from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
+import { roleAllowsPersona } from './persona.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -53,6 +54,17 @@ interface ToolSpec {
 function requireClinic(ctx: ToolContext): string {
   if (!ctx.clinicId) throw new Error('NO_CLINIC');
   return ctx.clinicId;
+}
+
+function requireBusinessFinanceRole(ctx: ToolContext): string | null {
+  const role = String(ctx.role || '').toUpperCase();
+  if (role === 'DOCTOR' || role === 'ASSISTANT' || role === 'LAB' || role === 'GUEST') {
+    return 'Финансовые данные клиники недоступны вашей роли. Обратитесь к владельцу или админу.';
+  }
+  if (!roleAllowsPersona(role, 'finance') && !roleAllowsPersona(role, 'ceo') && !roleAllowsPersona(role, 'analyst')) {
+    return 'Недостаточно прав для финансовых инструментов.';
+  }
+  return null;
 }
 
 function availableSectionKeys(guestFriendly = false): string[] {
@@ -619,6 +631,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       properties: { months: { type: 'number', description: 'Сколько последних месяцев (по умолчанию 1, максимум 12)' } },
     },
     async execute(args, ctx) {
+      const denied = requireBusinessFinanceRole(ctx);
+      if (denied) return { ok: false, error: denied };
       const clinicId = requireClinic(ctx);
       const months = Math.min(Math.max(Number(args.months) || 1, 1), 12);
       const now = new Date();
@@ -642,6 +656,8 @@ export const TOOLS: Record<string, ToolSpec> = {
     description: 'Должники: неоплаченные и частично оплаченные счета с пациентами и телефонами.',
     parameters: { type: 'object', properties: {} },
     async execute(_args, ctx) {
+      const denied = requireBusinessFinanceRole(ctx);
+      if (denied) return { ok: false, error: denied };
       const clinicId = requireClinic(ctx);
       const invoices = await prisma.invoice.findMany({
         where: { clinicId, status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
@@ -729,7 +745,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     name: 'getClinicLoadPlan',
     description:
       'Живой план загрузки клиники: кого возвращать (давно не были / незавершённые планы + телефоны), ' +
-      'слабые окна расписания на N дней, загрузка врачей. Вызывай СРАЗУ при вопросах про загрузку, обзвон, пустые слоты, возврат базы — не давай общую теорию.',
+      'слабые окна расписания на N дней, загрузка врачей. Только для владельца/админа/менеджера — не для врача.',
     parameters: {
       type: 'object',
       properties: {
@@ -738,11 +754,36 @@ export const TOOLS: Record<string, ToolSpec> = {
       },
     },
     async execute(args, ctx) {
+      const role = String(ctx.role || '').toUpperCase();
+      if (role === 'DOCTOR' || role === 'ASSISTANT' || role === 'LAB') {
+        return {
+          ok: false,
+          error:
+            'План загрузки всей клиники недоступен врачу. Используйте getDoctorDayPlan — ваши приёмы и планы.',
+        };
+      }
       const clinicId = requireClinic(ctx);
       const plan = await buildClinicLoadPlan(clinicId, {
         days: args.days as number | undefined,
         inactiveDays: args.inactiveDays as number | undefined,
       });
+      return {
+        ok: true,
+        data: { ...plan.payload, answer: plan.message, suggestions: plan.suggestions },
+        navigate: '/crm/schedule',
+      };
+    },
+  },
+
+  getDoctorDayPlan: {
+    name: 'getDoctorDayPlan',
+    description:
+      'День врача: ваши приёмы сегодня/завтра и открытые планы ваших пациентов. Без mass-recall клиники.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const { buildDoctorDayPlan } = await import('../core/clinicLoadPlan.js');
+      const plan = await buildDoctorDayPlan(clinicId, ctx.userId);
       return {
         ok: true,
         data: { ...plan.payload, answer: plan.message, suggestions: plan.suggestions },
@@ -883,6 +924,9 @@ export const TOOLS: Record<string, ToolSpec> = {
       },
     },
     async execute(args, ctx) {
+      if (!roleAllowsPersona(ctx.role, 'marketing') && !roleAllowsPersona(ctx.role, 'ceo')) {
+        return { ok: false, error: 'Акции доступны владельцу и маркетологу клиники.' };
+      }
       const clinicId = requireClinic(ctx);
       const activeOnly = args.activeOnly !== false;
       const rows = await prisma.promotion.findMany({
@@ -921,6 +965,13 @@ export const TOOLS: Record<string, ToolSpec> = {
       },
     },
     async execute(args, ctx) {
+      const role = String(ctx.role || '').toUpperCase();
+      if (role === 'DOCTOR' || role === 'ASSISTANT' || role === 'LAB') {
+        return {
+          ok: false,
+          error: 'Список recall всей базы — для Reception/Marketing. Врачу: getDoctorDayPlan.',
+        };
+      }
       const clinicId = requireClinic(ctx);
       const inactiveDays = Math.min(Math.max(Number(args.inactiveDays) || 90, 30), 365);
       const limit = Math.min(Math.max(Number(args.limit) || 12, 3), 20);
@@ -957,6 +1008,9 @@ export const TOOLS: Record<string, ToolSpec> = {
       required: ['theme'],
     },
     async execute(args, ctx) {
+      if (!roleAllowsPersona(ctx.role, 'marketing') && !roleAllowsPersona(ctx.role, 'ceo')) {
+        return { ok: false, error: 'Черновики акций — для владельца / Marketing.' };
+      }
       requireClinic(ctx);
       const theme = String(args.theme || 'акция').trim();
       const channel = String(args.channel || 'whatsapp').toLowerCase();
@@ -991,6 +1045,12 @@ export const TOOLS: Record<string, ToolSpec> = {
       'Executive brief для владельца/директора: синтез выручки, долгов, загрузки и акций. Вызывай при «что важно», приоритетах недели, режиме CEO.',
     parameters: { type: 'object', properties: {} },
     async execute(_args, ctx) {
+      if (!roleAllowsPersona(ctx.role, 'ceo')) {
+        return {
+          ok: false,
+          error: 'CEO-бриф доступен владельцу и директору. Для врача — getDoctorDayPlan.',
+        };
+      }
       const { composeCeoBrief } = await import('../core/ceoBrief.js');
       const clinic = ctx.clinicId
         ? await prisma.clinic.findUnique({ where: { id: ctx.clinicId }, select: { name: true } }).catch(() => null)

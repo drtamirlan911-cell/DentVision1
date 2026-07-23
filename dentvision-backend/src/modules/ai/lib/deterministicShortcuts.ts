@@ -123,6 +123,9 @@ export async function tryDeterministicStats(
   const t = String(text || '').trim().toLowerCase();
   if (!t || t.length > 100) return null;
 
+  const role = String(opts.role || '').toUpperCase();
+  const clinical = role === 'DOCTOR' || role === 'ASSISTANT' || role === 'LAB';
+
   const wantsRevenue = /^(покажи|какая|сколько)?\s*(выручк|доход|оборот)/i.test(t)
     || /выручк[аиуе]\s*(сегодня|за\s+день|за\s+месяц)?\s*[?.!]*$/i.test(t);
   const wantsDebt = /^(проверь|покажи|сколько)?\s*(долг|дебитор)/i.test(t)
@@ -134,6 +137,17 @@ export async function tryDeterministicStats(
 
   if (!wantsRevenue && !wantsDebt && !wantsSchedule && !wantsStock) return null;
 
+  // Doctors never get live revenue/debt dumps via shortcuts.
+  if (clinical && (wantsRevenue || wantsDebt)) {
+    return {
+      message:
+        'Выручка и долги — зона владельца и админа. Я веду ваш клинический день: расписание, карта, план лечения.',
+      intent: 'PERSONA_BLOCKED',
+      suggestions: ['Показать расписание', 'Открыть зубную карту', 'Создать план лечения'],
+      toolsUsed: [],
+    };
+  }
+
   const clinicId = opts.clinicId;
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -142,7 +156,12 @@ export async function tryDeterministicStats(
 
   if (wantsSchedule) {
     const appts = await prisma.appointment.findMany({
-      where: { clinicId, date: { gte: start, lt: end }, status: { notIn: ['CANCELLED', 'NO_SHOW'] } },
+      where: {
+        clinicId,
+        date: { gte: start, lt: end },
+        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        ...(clinical ? { doctorId: opts.userId } : {}),
+      },
       take: 40,
       orderBy: { time: 'asc' },
       include: { patient: { select: { firstName: true, lastName: true } } },
@@ -154,13 +173,17 @@ export async function tryDeterministicStats(
       return `• ${a.time || '—'} — ${name} (${a.status})`;
     });
     const message = appts.length
-      ? `Сегодня в расписании **${appts.length}** записей:\n${lines.join('\n')}${appts.length > 12 ? '\n…' : ''}`
-      : 'На сегодня записей нет — можно заполнить слоты или лист ожидания.';
+      ? `${clinical ? 'Ваше расписание сегодня' : 'Сегодня в расписании'}: **${appts.length}** записей:\n${lines.join('\n')}${appts.length > 12 ? '\n…' : ''}`
+      : clinical
+        ? 'На сегодня записей на вас нет — свободный день или можно закрыть планы лечения.'
+        : 'На сегодня записей нет — можно заполнить слоты или лист ожидания.';
     return {
       message,
       intent: 'SHOW_SCHEDULE',
       action: { type: 'OpenSchedule', payload: { path: '/crm/schedule' } },
-      suggestions: ['Записать пациента', 'Лист ожидания', 'Что важно сегодня?'],
+      suggestions: clinical
+        ? ['Открыть зубную карту', 'Создать план лечения', 'Что важно сегодня?']
+        : ['Записать пациента', 'Лист ожидания', 'Что важно сегодня?'],
       toolsUsed: ['stats_schedule'],
     };
   }

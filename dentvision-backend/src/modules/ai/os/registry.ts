@@ -48,7 +48,7 @@ const AGENTS: AgentDefinition[] = [
     domain: 'clinical',
     version: '1.0.0',
     requiredPermissions: ['OWNER', 'ADMIN', 'DOCTOR', 'ASSISTANT', 'MANAGER'],
-    allowedTools: ['searchPatients', 'getPatientCard', 'getVisits', 'navigate'],
+    allowedTools: ['searchPatients', 'getPatientCard', 'getVisits', 'getDoctorDayPlan', 'navigate'],
     owner: 'clinical-team',
     status: 'active',
     persona: 'doctor',
@@ -79,6 +79,7 @@ const AGENTS: AgentDefinition[] = [
       'getSchedule',
       'searchPatients',
       'getClinicLoadPlan',
+      'getDoctorDayPlan',
       'getTreatmentPlans',
       'createAppointment',
       'updateAppointmentStatus',
@@ -90,7 +91,8 @@ const AGENTS: AgentDefinition[] = [
     status: 'active',
     persona: 'reception',
     mandate:
-      'Ты управляешь записью и загрузкой: при вопросах про пустые слоты / возврат пациентов / обзвон СРАЗУ вызывай getClinicLoadPlan и отвечай именами, телефонами и часами из данных. Без общих лекций.',
+      'Ты управляешь записью. Для владельца/админа: при вопросах про пустые слоты / возврат базы / обзвон СРАЗУ getClinicLoadPlan с именами и телефонами. ' +
+      'Для врача/ассистента: только СВОЙ день — getDoctorDayPlan / getSchedule по своим приёмам. Не предлагай mass-recall всей базы и чужие телефоны.',
   },
   {
     id: 'agent.business.finance',
@@ -296,4 +298,33 @@ export function toolsForRole(role: string): Set<string> {
     for (const tool of agent.allowedTools) tools.add(tool);
   }
   return tools;
+}
+
+export function toolsForRoleAndPersona(role: string, persona: PersonaId): Set<string> {
+  const roleTools = toolsForRole(role);
+  const personaAgents = agentsForPersona(persona, role);
+  if (!personaAgents.length) return roleTools;
+
+  const personaTools = new Set<string>();
+  for (const agent of personaAgents) {
+    for (const tool of agent.allowedTools) personaTools.add(tool);
+  }
+  personaTools.add('navigate');
+
+  const r = role.toUpperCase();
+  const clinical = r === 'DOCTOR' || r === 'ASSISTANT';
+
+  // Doctors never get clinic-wide recall/load — only their day plan.
+  if (clinical) {
+    personaTools.delete('getClinicLoadPlan');
+    if (persona === 'doctor' || persona === 'reception') {
+      personaTools.add('getDoctorDayPlan');
+    }
+  }
+
+  const intersection = new Set<string>();
+  for (const t of personaTools) {
+    if (roleTools.has(t) || (clinical && t === 'getDoctorDayPlan')) intersection.add(t);
+  }
+  return intersection.size ? intersection : roleTools;
 }

@@ -179,20 +179,36 @@ User → Jarvis Facade → Persona Router → {Doctor|Reception|Analyst|Finance|
 
 Код: `dentvision-backend/src/modules/ai/os/persona.ts` → поле `activePersona` в ответе оркестратора.
 
+### 16.4.1 Role clamp / Doctor non-overload
+
+**Цель:** врач не перегружается бизнес-шумом (выручка, долги, акции, clinic-wide recall).
+
+| Правило | Поведение |
+|---------|-----------|
+| Allowlist | `DOCTOR\|ASSISTANT` → только `doctor \| reception \| education` |
+| Clamp | Intent/stage/explicit вне allowlist → fallback на role default |
+| Soft redirect | Явный «спроси Finance / как CEO / долги / акции» у врача → короткий отказ без KPI, остаёмся AI Doctor |
+| Day plan | Врач получает `getDoctorDayPlan` (свои приёмы + планы своих пациентов), **не** `getClinicLoadPlan` |
+| Tools ∩ persona | `toolsForRoleAndPersona` — у врача нет finance/marketing/CEO tools |
+| Suggestions / copy | Клинические chips и placeholder; stage finance/analytics не подсовывает «долги» |
+| Briefing / proactive | Только `myAppts` / `doctorId`; категории `appointments\|school\|inbox` (без load/ops recall) |
+
+Owner / director / manager сохраняют полный набор 8 персон без регресса.
+
 ---
 
 ## 16.5 Матрица Role × Persona × Stage
 
-| Role | Default persona | Типичные stage overrides |
-|------|-----------------|--------------------------|
-| OWNER / DIRECTOR | CEO | finance→Finance, promotions→Marketing, schedule→Reception, analytics→Analyst |
-| ADMIN / RECEPTION / CASHIER | Reception | finance→Finance, patients/clinical→Doctor (soft) |
-| DOCTOR / ASSISTANT | Doctor | schedule→Reception (запись), school→Education |
-| MANAGER | Analyst | finance→Finance, promotions→Marketing |
-| BUYER | Supply | — |
-| SUPPLIER | Supply (seller scope) | — |
-| LECTURER / STUDENT | Education | — |
-| GUEST | Concierge | — |
+| Role | Default persona | Allowed personas | Типичные stage overrides |
+|------|-----------------|------------------|--------------------------|
+| OWNER / DIRECTOR | CEO | все 8 | finance→Finance, promotions→Marketing, schedule→Reception, analytics→Analyst |
+| ADMIN / RECEPTION / CASHIER | Reception | reception, finance, doctor | finance→Finance, patients/clinical→Doctor (soft) |
+| DOCTOR / ASSISTANT | Doctor | doctor, reception, education | schedule→Reception (запись), school→Education; **finance/marketing clamp → Doctor** |
+| MANAGER | Analyst | все 8 | finance→Finance, promotions→Marketing |
+| BUYER | Supply | supply | — |
+| SUPPLIER | Supply (seller scope) | supply | — |
+| LECTURER / STUDENT | Education | education | — |
+| GUEST | Concierge | guest | — |
 
 ---
 
@@ -235,6 +251,7 @@ User → Jarvis Facade → Persona Router → {Doctor|Reception|Analyst|Finance|
 | Артефакт | Путь |
 |-----------|------|
 | Persona resolve | `dentvision-backend/src/modules/ai/os/persona.ts` |
+| Role clamp + doctor day | `persona.ts` · `clinicLoadPlan.ts` (`buildDoctorDayPlan`) · `toolsForRoleAndPersona` |
 | Registry + tags | `dentvision-backend/src/modules/ai/os/registry.ts` |
 | Orchestrator `activePersona` | `dentvision-backend/src/modules/ai/os/orchestrator.ts` |
 | Marketing / CEO tools | `dentvision-backend/src/modules/ai/os/tools.ts` + `core/ceoBrief.ts` |

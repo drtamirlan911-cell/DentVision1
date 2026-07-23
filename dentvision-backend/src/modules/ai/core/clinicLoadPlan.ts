@@ -428,3 +428,173 @@ export function isClinicLoadQuery(text: string): boolean {
     || /поднять\s+(свою\s+)?базу/i.test(t)
   );
 }
+
+/** Doctor/assistant asking about their own day (not clinic-wide recall). */
+export function isDoctorDayQuery(text: string): boolean {
+  const t = String(text || '').trim().toLowerCase();
+  if (!t) return false;
+  return (
+    isClinicLoadQuery(t)
+    || /^(кто\s+сегодня|мои\s+пациенты|мо[йе]\s+(день|расписан|при[её]м))/i.test(t)
+    || /расписание(\s+сегодня)?\s*[?.!]*$/i.test(t)
+    || /покажи\s+расписание/i.test(t)
+    || /следующ(ий|его)\s+пациент/i.test(t)
+    || /что\s+у\s+меня\s+сегодня/i.test(t)
+  );
+}
+
+/**
+ * Doctor-scoped day plan — my appointments + my patients' open plans.
+ * No mass-recall / foreign phone dump (§16 Doctor non-overload).
+ */
+export async function buildDoctorDayPlan(
+  clinicId: string,
+  doctorId: string,
+): Promise<ClinicLoadPlanResult> {
+  const now = new Date();
+  const startToday = startOfLocalDay(now);
+  const endTomorrow = new Date(startToday);
+  endTomorrow.setDate(endTomorrow.getDate() + 2);
+
+  const [myAppts, openPlans] = await Promise.all([
+    prisma.appointment.findMany({
+      where: {
+        clinicId,
+        doctorId,
+        date: { gte: startToday, lt: endTomorrow },
+        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+      },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      take: 40,
+      include: {
+        patient: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      },
+    }),
+    prisma.treatmentPlan.findMany({
+      where: {
+        patient: { clinicId },
+        status: { in: [...OPEN_PLAN_STATUSES] },
+      },
+      include: {
+        patient: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 80,
+    }).catch(() => [] as Array<{
+      id: string;
+      title: string | null;
+      status: string;
+      patient: { id: string; firstName: string | null; lastName: string | null; phone: string | null } | null;
+    }>),
+  ]);
+
+  const myPatientIds = new Set(
+    myAppts.map((a) => a.patientId).filter(Boolean) as string[],
+  );
+  // Also patients this doctor saw recently
+  const recent = await prisma.appointment.findMany({
+    where: {
+      clinicId,
+      doctorId,
+      date: { gte: new Date(startToday.getTime() - 30 * 86400000), lt: startToday },
+      status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+    },
+    select: { patientId: true },
+    take: 200,
+  }).catch(() => [] as Array<{ patientId: string | null }>);
+  for (const r of recent) {
+    if (r.patientId) myPatientIds.add(r.patientId);
+  }
+
+  const myOpenPlans = openPlans
+    .filter((p) => p.patient && myPatientIds.has(p.patient.id))
+    .slice(0, 8);
+
+  const todayKey = dayKey(startToday);
+  const todayAppts = myAppts.filter((a) => dayKey(new Date(a.date)) === todayKey);
+  const tomorrowAppts = myAppts.filter((a) => dayKey(new Date(a.date)) !== todayKey);
+
+  const lines: string[] = [];
+  lines.push('Ваш день (только ваши приёмы):');
+  lines.push('');
+
+  if (!todayAppts.length) {
+    lines.push('• Сегодня записей на вас нет — свободный день или можно закрыть планы.');
+  } else {
+    lines.push(`Сегодня: **${todayAppts.length}** приём(ов)`);
+    for (const a of todayAppts.slice(0, 10)) {
+      const pn = a.patient
+        ? `${a.patient.firstName || ''} ${a.patient.lastName || ''}`.trim()
+        : 'Пациент';
+      lines.push(`• ${a.time || '—'} — ${pn} (${a.status})`);
+    }
+  }
+
+  if (tomorrowAppts.length) {
+    lines.push('');
+    lines.push(`Завтра: **${tomorrowAppts.length}**`);
+    for (const a of tomorrowAppts.slice(0, 5)) {
+      const pn = a.patient
+        ? `${a.patient.firstName || ''} ${a.patient.lastName || ''}`.trim()
+        : 'Пациент';
+      lines.push(`• ${a.time || '—'} — ${pn}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('Открытые планы ваших пациентов');
+  if (!myOpenPlans.length) {
+    lines.push('• Нет открытых планов в вашей зоне.');
+  } else {
+    for (const p of myOpenPlans) {
+      const pn = p.patient
+        ? `${p.patient.firstName || ''} ${p.patient.lastName || ''}`.trim()
+        : 'Пациент';
+      lines.push(`• ${pn}: «${p.title || 'План'}» (${p.status})`);
+    }
+  }
+
+  const next = todayAppts.find((a) => {
+    const h = parseHour(a.time);
+    return h == null || h >= now.getHours();
+  }) || todayAppts[0];
+
+  const suggestions = [
+    next?.patient
+      ? `Открыть карту ${String(next.patient.firstName || '').split(' ')[0] || 'пациента'}`
+      : 'Открыть зубную карту',
+    'Показать расписание',
+    myOpenPlans[0] ? 'Открыть планы лечения' : 'Создать план лечения',
+  ];
+
+  return {
+    message: lines.join('\n'),
+    suggestions,
+    payload: {
+      scope: 'doctor',
+      doctorId,
+      today: todayAppts.map((a) => ({
+        id: a.id,
+        time: a.time,
+        status: a.status,
+        patient: a.patient
+          ? `${a.patient.firstName || ''} ${a.patient.lastName || ''}`.trim()
+          : null,
+      })),
+      tomorrowCount: tomorrowAppts.length,
+      openPlans: myOpenPlans.map((p) => ({
+        id: p.id,
+        title: p.title,
+        patient: p.patient
+          ? `${p.patient.firstName || ''} ${p.patient.lastName || ''}`.trim()
+          : null,
+      })),
+      totals: {
+        today: todayAppts.length,
+        tomorrow: tomorrowAppts.length,
+        openPlans: myOpenPlans.length,
+      },
+    },
+  };
+}
+

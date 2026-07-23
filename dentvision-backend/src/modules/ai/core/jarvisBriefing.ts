@@ -60,7 +60,8 @@ export function alertCategoriesForRole(role?: string | null): Set<string> | null
     return new Set(['appointments', 'billing', 'inbox', 'load']);
   }
   if (r === 'doctor' || r === 'assistant') {
-    return new Set(['appointments', 'school', 'inbox', 'load']);
+    // No clinic-wide load/ops recall — appointments must be doctor-scoped upstream.
+    return new Set(['appointments', 'school', 'inbox']);
   }
   if (r === 'buyer') {
     return new Set(['stock', 'wallet', 'billing', 'inbox']);
@@ -314,7 +315,7 @@ export async function buildJarvisBriefing(opts: {
       'Открыть кассу',
     );
   } else if (role === 'doctor' || role === 'assistant') {
-    lines.push(`• Ваших приёмов сегодня: **${myApptsToday || apptsToday}**`);
+    lines.push(`• Ваших приёмов сегодня: **${myApptsToday}**`);
     if (inChair > 0) lines.push(`• Сейчас в кресле: **${inChair}**`);
     if (upcomingSoon > 0) lines.push(`• Ближайшие 2 часа: **${upcomingSoon}**`);
     if (nextAppt?.patient) {
@@ -325,12 +326,10 @@ export async function buildJarvisBriefing(opts: {
       lines.push(`• Следующий: **${pn}**${t ? ` в ${t}` : ''}`);
     }
     if (courses > 0) lines.push(`• Academy: **${courses}** курс(ов) в процессе`);
-    if (loadSignals?.briefingLines?.length) {
-      // Doctors: only open plans that need clinical follow-up
-      const planLine = loadSignals.briefingLines.find((l) => l.includes('незакрытых планов') || l.includes('планов'));
-      if (planLine) lines.push(planLine);
+    // No clinic-wide loadSignals / recall for doctors — keeps the chair clear.
+    if (!myApptsToday && !upcomingSoon && !nextAppt) {
+      lines.push('• Сегодня свободный день — нет записей на вас. Можно закрыть планы или курс.');
     }
-    if (!lines.length) lines.push('• На сегодня свободный день — можно закрыть планы лечения или курс');
     suggestions.push('Показать расписание', 'Открыть зубную карту', 'Создать план лечения');
   } else if (role === 'buyer') {
     lines.push(lowStock > 0
@@ -365,17 +364,22 @@ export async function buildJarvisBriefing(opts: {
         ? (loadSignals?.briefingLines?.length
           ? 'Администратору: сверху — конкретные пациенты и слоты из CRM. Не жду отдельный запрос.'
           : 'Готов выполнить команду. Что делаем первым?')
-      : role === 'doctor'
+      : role === 'doctor' || role === 'assistant'
         ? 'Готов вести приём с вами: карта, план, расписание — одной фразой.'
         : 'Готов выполнить команду. Что делаем первым?';
+
+  const mergedSuggestions =
+    role === 'doctor' || role === 'assistant'
+      ? [...new Set(suggestions)].slice(0, 4)
+      : [...new Set([
+          ...suggestions,
+          ...(loadSignals?.suggestions || []),
+        ])].slice(0, 4);
 
   return {
     role,
     message: [...header, ...lines, '', closing].join('\n'),
-    suggestions: [...new Set([
-      ...suggestions,
-      ...(loadSignals?.suggestions || []),
-    ])].slice(0, 4),
+    suggestions: mergedSuggestions,
     payload: {
       timeZone,
       apptsToday,

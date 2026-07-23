@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  allowedPersonasForRole,
+  blockedPersonaRedirectMessage,
   defaultPersonaForRole,
   personaFromExplicitCall,
   personaFromIntent,
   personaFromStage,
   resolveActivePersona,
+  resolveActivePersonaDetailed,
 } from './persona'
 
 describe('persona router (§16)', () => {
@@ -14,6 +17,13 @@ describe('persona router (§16)', () => {
     expect(defaultPersonaForRole('ADMIN')).toBe('reception')
     expect(defaultPersonaForRole('BUYER')).toBe('supply')
     expect(defaultPersonaForRole('GUEST')).toBe('guest')
+  })
+
+  it('allowlists clinical roles tightly', () => {
+    expect(allowedPersonasForRole('DOCTOR')).toEqual(['doctor', 'reception', 'education'])
+    expect(allowedPersonasForRole('ASSISTANT')).toEqual(['doctor', 'reception', 'education'])
+    expect(allowedPersonasForRole('OWNER')).toContain('ceo')
+    expect(allowedPersonasForRole('OWNER')).toContain('finance')
   })
 
   it('overrides by stage', () => {
@@ -54,5 +64,53 @@ describe('persona router (§16)', () => {
         text: 'как CEO',
       }),
     ).toBe('ceo')
+  })
+
+  it('clamps doctor away from finance/marketing/ceo', () => {
+    expect(
+      resolveActivePersona({
+        role: 'DOCTOR',
+        stage: 'finance',
+        text: 'привет',
+      }),
+    ).toBe('doctor')
+
+    expect(
+      resolveActivePersona({
+        role: 'DOCTOR',
+        text: 'Покажи долги',
+      }),
+    ).toBe('doctor')
+
+    expect(
+      resolveActivePersona({
+        role: 'DOCTOR',
+        text: 'как CEO',
+      }),
+    ).toBe('doctor')
+
+    expect(
+      resolveActivePersona({
+        role: 'DOCTOR',
+        text: 'запиши Иванова',
+      }),
+    ).toBe('reception')
+
+    const blocked = resolveActivePersonaDetailed({
+      role: 'DOCTOR',
+      text: 'спроси Finance',
+    })
+    expect(blocked.persona).toBe('doctor')
+    expect(blocked.blockedRequest).toBe('finance')
+    expect(blocked.shouldRedirect).toBe(true)
+    expect(blockedPersonaRedirectMessage('DOCTOR', 'finance')).toMatch(/AI Doctor/)
+
+    const stageOnly = resolveActivePersonaDetailed({
+      role: 'DOCTOR',
+      stage: 'finance',
+      text: 'привет',
+    })
+    expect(stageOnly.persona).toBe('doctor')
+    expect(stageOnly.shouldRedirect).toBeFalsy()
   })
 })

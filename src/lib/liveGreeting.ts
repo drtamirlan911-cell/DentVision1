@@ -156,6 +156,21 @@ export async function buildLiveClinicGreeting(opts: {
       ? `• Склад клиники: **${lowStock}** ниже минимума — откройте маркет`
       : '• Склад в норме — критичных остатков нет')
     suggestions.push('Что на складе', 'Открыть маркетплейс')
+  } else if (role === 'doctor' || role === 'assistant') {
+    const myId = String(user?.id || '')
+    const myToday = apptsToday.filter((a: any) => !myId || String(a.doctorId || '') === myId)
+    const mySoon = appointments.filter((a: any) => {
+      if (myId && String(a.doctorId || '') !== myId) return false
+      const t = apptTime(a as any)
+      const s = String(a.status || '').toUpperCase()
+      return t && t >= now && t <= in2h && (s === 'CONFIRMED' || s === 'PENDING' || s === 'ПОДТВЕРЖДЕНО' || s === 'ОЖИДАНИЕ')
+    }).length
+    lines.push(`• Ваших приёмов сегодня: **${myToday.length}**`)
+    if (mySoon > 0) lines.push(`• Ближайшие 2 часа: **${mySoon}**`)
+    if (!myToday.length) {
+      lines.push('• Сегодня свободный день — нет записей на вас')
+    }
+    suggestions.push('Показать расписание', 'Открыть зубную карту', 'Создать план лечения')
   } else {
     lines.push(`• Записей сегодня: **${apptsToday.length}**`)
     if (upcomingSoon > 0) lines.push(`• Ближайшие 2 часа: **${upcomingSoon}**`)
@@ -176,22 +191,31 @@ export async function buildLiveClinicGreeting(opts: {
     }
   }
 
+  const clinical = role === 'doctor' || role === 'assistant'
+  const myApptsCount = clinical
+    ? apptsToday.filter((a: any) => !user?.id || String(a.doctorId || '') === String(user.id)).length
+    : apptsToday.length
+
   lines.push('')
   lines.push(
-    pendingConfirm > 0 || unpaid > 0 || lowStock > 0
-      ? 'Уже нашёл точки внимания в CRM — можно сразу открыть раздел ниже.'
-      : 'Готов выполнить команду. С чего начнём?',
+    clinical
+      ? (myApptsCount > 0
+        ? 'Готов вести приём с вами: карта, план, расписание — одной фразой.'
+        : 'Готов выполнить команду. С чего начнём?')
+      : pendingConfirm > 0 || unpaid > 0 || lowStock > 0
+        ? 'Уже нашёл точки внимания в CRM — можно сразу открыть раздел ниже.'
+        : 'Готов выполнить команду. С чего начнём?',
   )
 
   return {
     reply: lines.filter((l, i, arr) => !(l === '' && arr[i - 1] === '')).join('\n'),
     suggestions: [...new Set(suggestions)].slice(0, 3),
     stats: {
-      apptsToday: apptsToday.length,
-      pendingConfirm,
+      apptsToday: myApptsCount,
+      pendingConfirm: clinical ? 0 : pendingConfirm,
       upcomingSoon,
-      unpaid,
-      lowStock,
+      unpaid: clinical ? 0 : unpaid,
+      lowStock: clinical ? 0 : lowStock,
     },
   }
 }

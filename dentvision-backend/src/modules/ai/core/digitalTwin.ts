@@ -518,6 +518,9 @@ export async function buildProactiveAlerts(opts: {
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
 
+  const twinRole = normalizeRole(opts.role);
+  const doctorScopedAlerts = twinRole === 'DOCTOR' || twinRole === 'ASSISTANT';
+
   const [
     unpaid,
     overdue,
@@ -536,6 +539,7 @@ export async function buildProactiveAlerts(opts: {
         clinicId,
         date: { gte: now, lte: in2h },
         status: { in: ['CONFIRMED', 'PENDING'] },
+        ...(doctorScopedAlerts ? { doctorId: opts.userId } : {}),
       },
     }),
     prisma.appointment.count({
@@ -543,6 +547,7 @@ export async function buildProactiveAlerts(opts: {
         clinicId,
         date: { gte: dayStart, lte: tomorrow },
         status: 'PENDING',
+        ...(doctorScopedAlerts ? { doctorId: opts.userId } : {}),
       },
     }),
     prisma.inventoryItem.findMany({

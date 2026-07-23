@@ -116,6 +116,17 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
   const unacknowledgedCount = proactiveAlerts.filter(a => !a.acknowledged).length
   const isProcessing = status !== 'idle' && status !== 'result' && status !== 'confirmation'
+  const clinicalUser = ['doctor', 'assistant', 'lab'].includes(String(user?.role || '').toLowerCase())
+  const emptyHint = isGuest
+    ? 'Jarvis покажет платформу: демо-клинику, маркетплейс, Academy и сеть. Спросите «что умеешь» или выберите действие ниже.'
+    : clinicalUser
+      ? 'AI Doctor на связи. Спросите о расписании, зубной карте или плане лечения — или выберите действие ниже.'
+      : 'AI-операционка клиники. Спросите о расписании, выручке или долгах — или выберите действие ниже.'
+  const inputPlaceholder = isGuest
+    ? 'Спросите про платформу, демо или Academy…'
+    : clinicalUser
+      ? 'Спросите: кто сегодня у меня, открой зубную карту, создай план…'
+      : 'Спросите: что важно сегодня, покажи выручку, проверь долги…'
 
   const pushDailyJarvisBriefing = useCallback(async () => {
     if (isGuest || !user?.id) return
@@ -847,9 +858,7 @@ const result = await executeAction(
                 DentVision Intelligence
               </h2>
               <p className="relative text-sm text-txt-muted max-w-sm leading-relaxed px-2">
-                {isGuest
-                  ? 'Jarvis покажет платформу: демо-клинику, маркетплейс, Academy и сеть. Спросите «что умеешь» или выберите действие ниже.'
-                  : 'AI-операционка клиники. Спросите о расписании, выручке или долгах — или выберите действие ниже.'}
+                {emptyHint}
               </p>
             </motion.div>
           )}
@@ -979,9 +988,8 @@ const result = await executeAction(
             status={status === 'confirmation' ? 'result' : status}
             progress={progress}
             suggestions={suggestions.map(s => s.label)}
-            placeholder={isGuest
-              ? 'Спросите о DentVision, демо, Academy или маркетплейсе…'
-              : 'Спросите: что важно сегодня, покажи выручку, проверь долги…'}            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
+            placeholder={inputPlaceholder}
+            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
           />
         </div>
       </div>

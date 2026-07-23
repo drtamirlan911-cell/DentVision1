@@ -3,6 +3,8 @@
  *
  * User always talks to one Jarvis; internally we resolve which of the 8
  * personas leads the turn. Clinical specialties (§4.4) stay under Doctor.
+ *
+ * Role clamp (§16 Doctor non-overload): doctors never wear Finance/Marketing/CEO.
  */
 
 export type PersonaId =
@@ -28,6 +30,17 @@ export const PERSONA_LABELS: Record<PersonaId, string> = {
   guest: 'Concierge',
 };
 
+const ALL_OPERATIONAL: PersonaId[] = [
+  'doctor',
+  'reception',
+  'analyst',
+  'finance',
+  'supply',
+  'education',
+  'marketing',
+  'ceo',
+];
+
 const PERSONA_IDS = new Set<string>(Object.keys(PERSONA_LABELS));
 
 export function isPersonaId(value: string | null | undefined): value is PersonaId {
@@ -52,6 +65,55 @@ export function defaultPersonaForRole(role?: string | null): PersonaId {
   if (r === 'LAB') return 'doctor';
   if (r === 'SUPERADMIN') return 'ceo';
   return 'ceo';
+}
+
+/**
+ * Personas a role is allowed to activate (§16 role clamp).
+ * Doctors stay clinical — no Finance / Marketing / Analyst / CEO.
+ */
+export function allowedPersonasForRole(role?: string | null): PersonaId[] {
+  const r = String(role || '').toUpperCase();
+  if (r === 'GUEST' || !r) return ['guest'];
+  if (r === 'DOCTOR' || r === 'ASSISTANT' || r === 'LAB') {
+    return ['doctor', 'reception', 'education'];
+  }
+  if (r === 'ADMIN' || r === 'RECEPTION' || r === 'CASHIER') {
+    return ['reception', 'finance', 'doctor'];
+  }
+  if (r === 'OWNER' || r === 'DIRECTOR' || r === 'MANAGER' || r === 'SUPERADMIN') {
+    return [...ALL_OPERATIONAL];
+  }
+  if (r === 'BUYER' || r === 'SUPPLIER') return ['supply'];
+  if (r === 'LECTURER' || r === 'STUDENT') return ['education'];
+  return [...ALL_OPERATIONAL];
+}
+
+export function roleAllowsPersona(role: string | null | undefined, persona: PersonaId): boolean {
+  return allowedPersonasForRole(role).includes(persona);
+}
+
+/** Business personas that must never dump KPIs to clinical roles. */
+export function isBusinessPersona(persona: PersonaId): boolean {
+  return persona === 'finance' || persona === 'marketing' || persona === 'analyst' || persona === 'ceo';
+}
+
+/**
+ * Doctor/assistant asked for a blocked business persona — soft redirect copy.
+ * Does not include clinic KPIs.
+ */
+export function blockedPersonaRedirectMessage(
+  role: string | null | undefined,
+  requested: PersonaId,
+): string | null {
+  const r = String(role || '').toUpperCase();
+  if (r !== 'DOCTOR' && r !== 'ASSISTANT' && r !== 'LAB') return null;
+  if (!isBusinessPersona(requested)) return null;
+  const label = personaLabel(requested);
+  return (
+    `Раздел **${label}** — для владельца и админа клиники. ` +
+    `Я остаюсь в режиме **AI Doctor**: расписание, карта, план лечения. ` +
+    `Что сделать дальше — показать ваших пациентов на сегодня или открыть зубную карту?`
+  );
 }
 
 /** Stage (pathname) → persona (step 2). */
@@ -160,23 +222,50 @@ export interface ResolvePersonaInput {
   isGuest?: boolean;
 }
 
+export interface ResolvePersonaResult {
+  persona: PersonaId;
+  /** Requested persona before role clamp (if different). */
+  blockedRequest?: PersonaId;
+  /** True when block came from explicit call or intent (soft-redirect UX). */
+  shouldRedirect?: boolean;
+}
+
 /**
  * Deterministic persona resolution (§16.4):
- * explicit call → intent → stage → role default.
+ * explicit call → intent → stage → role default → **role clamp**.
  */
 export function resolveActivePersona(input: ResolvePersonaInput): PersonaId {
+  return resolveActivePersonaDetailed(input).persona;
+}
+
+export function resolveActivePersonaDetailed(input: ResolvePersonaInput): ResolvePersonaResult {
   if (input.isGuest || String(input.role || '').toUpperCase() === 'GUEST') {
-    return 'guest';
+    return { persona: 'guest' };
   }
 
+  const allowed = allowedPersonasForRole(input.role);
+  const fallback = defaultPersonaForRole(input.role);
+
+  const clamp = (
+    candidate: PersonaId,
+    redirect: boolean,
+  ): ResolvePersonaResult => {
+    if (allowed.includes(candidate)) return { persona: candidate };
+    return {
+      persona: fallback,
+      blockedRequest: candidate,
+      shouldRedirect: redirect,
+    };
+  };
+
   const explicit = personaFromExplicitCall(input.text || '');
-  if (explicit) return explicit;
+  if (explicit) return clamp(explicit, true);
 
   const intent = personaFromIntent(input.text || '');
-  if (intent) return intent;
+  if (intent) return clamp(intent, true);
 
   const fromStage = personaFromStage(input.stage);
-  if (fromStage) return fromStage;
+  if (fromStage) return clamp(fromStage, false);
 
-  return defaultPersonaForRole(input.role);
+  return { persona: fallback };
 }
