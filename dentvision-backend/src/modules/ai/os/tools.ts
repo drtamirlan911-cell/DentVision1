@@ -873,6 +873,138 @@ export const TOOLS: Record<string, ToolSpec> = {
     },
   },
 
+  getPromotions: {
+    name: 'getPromotions',
+    description: 'Акции клиники: активные и недавние промо со скидками и сроками.',
+    parameters: {
+      type: 'object',
+      properties: {
+        activeOnly: { type: 'boolean', description: 'Только активные (по умолчанию true)' },
+      },
+    },
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const activeOnly = args.activeOnly !== false;
+      const rows = await prisma.promotion.findMany({
+        where: { clinicId, ...(activeOnly ? { active: true } : {}) },
+        orderBy: { updatedAt: 'desc' },
+        take: 30,
+      });
+      return {
+        ok: true,
+        data: {
+          count: rows.length,
+          promotions: rows.map((r) => ({
+            id: r.id,
+            title: r.title,
+            description: r.description,
+            discountPercent: r.discountPercent ?? 0,
+            startDate: r.startDate ? r.startDate.toISOString().slice(0, 10) : null,
+            endDate: r.endDate ? r.endDate.toISOString().slice(0, 10) : null,
+            active: r.active,
+          })),
+        },
+        navigate: '/crm/promotions',
+      };
+    },
+  },
+
+  getRecallList: {
+    name: 'getRecallList',
+    description:
+      'Пациенты для реактивации (давно не были): имена, телефоны, дни без визита. Для Marketing / Reception.',
+    parameters: {
+      type: 'object',
+      properties: {
+        inactiveDays: { type: 'number', description: 'Сколько дней без визита (по умолчанию 90)' },
+        limit: { type: 'number', description: 'Сколько пациентов вернуть (макс 20)' },
+      },
+    },
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const inactiveDays = Math.min(Math.max(Number(args.inactiveDays) || 90, 30), 365);
+      const limit = Math.min(Math.max(Number(args.limit) || 12, 3), 20);
+      const plan = await buildClinicLoadPlan(clinicId, { inactiveDays });
+      const recall = Array.isArray(plan.payload.recall) ? plan.payload.recall : [];
+      const list = recall.slice(0, limit);
+      return {
+        ok: true,
+        data: {
+          inactiveDays,
+          count: list.length,
+          totalRecall: recall.length,
+          patients: list,
+        },
+        navigate: '/crm/patients',
+      };
+    },
+  },
+
+  draftPromoCopy: {
+    name: 'draftPromoCopy',
+    description:
+      'Черновик текста акции / WhatsApp-шаблона (не отправляет). theme — тема (гигиена, имплант, recall…).',
+    parameters: {
+      type: 'object',
+      properties: {
+        theme: { type: 'string', description: 'Тема акции' },
+        channel: {
+          type: 'string',
+          description: 'whatsapp | sms | poster (по умолчанию whatsapp)',
+        },
+        discountPercent: { type: 'number', description: 'Скидка %, если известна' },
+      },
+      required: ['theme'],
+    },
+    async execute(args, ctx) {
+      requireClinic(ctx);
+      const theme = String(args.theme || 'акция').trim();
+      const channel = String(args.channel || 'whatsapp').toLowerCase();
+      const discount =
+        args.discountPercent != null && Number.isFinite(Number(args.discountPercent))
+          ? Math.round(Number(args.discountPercent))
+          : null;
+      const discountLine = discount != null ? ` со скидкой ${discount}%` : '';
+      const body =
+        channel === 'sms'
+          ? `Здравствуйте! В нашей клинике — «${theme}»${discountLine}. Запись: ответьте на это сообщение или позвоните.`
+          : channel === 'poster'
+            ? `«${theme}»${discountLine}\nЗапишитесь сегодня — места ограничены.`
+            : `Здравствуйте! 👋\n\nПриглашаем на «${theme}»${discountLine}.\nУдобно записать вас на ближайший свободный слот?\n\nС уважением, клиника`;
+      return {
+        ok: true,
+        data: {
+          channel,
+          theme,
+          discountPercent: discount,
+          draft: body,
+          note: 'Черновик — отправку делает сотрудник после подтверждения политики клиники.',
+        },
+        navigate: '/crm/promotions',
+      };
+    },
+  },
+
+  composeCeoBrief: {
+    name: 'composeCeoBrief',
+    description:
+      'Executive brief для владельца/директора: синтез выручки, долгов, загрузки и акций. Вызывай при «что важно», приоритетах недели, режиме CEO.',
+    parameters: { type: 'object', properties: {} },
+    async execute(_args, ctx) {
+      const { composeCeoBrief } = await import('../core/ceoBrief.js');
+      const clinic = ctx.clinicId
+        ? await prisma.clinic.findUnique({ where: { id: ctx.clinicId }, select: { name: true } }).catch(() => null)
+        : null;
+      const brief = await composeCeoBrief({
+        userId: ctx.userId,
+        clinicId: ctx.clinicId,
+        role: ctx.role,
+        clinicName: clinic?.name,
+      });
+      return { ok: true, data: brief };
+    },
+  },
+
   searchCourses: {
     name: 'searchCourses',
     description: 'Поиск курсов в Академии DentVision по теме, категории или автору.',

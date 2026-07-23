@@ -1,11 +1,13 @@
 /**
- * Agent Registry — DentVision AI OS (Spec §15.18)
+ * Agent Registry — DentVision AI OS (Spec §15.18 + §16 personas)
  *
  * The single source of truth for which agents exist and what they are
  * allowed to do. An agent that is not registered here cannot be selected
  * by the orchestrator, and a tool not listed in `allowedTools` is never
  * exposed to that agent's LLM planning step.
  */
+
+import type { PersonaId } from './persona.js';
 
 export type AgentStatus = 'active' | 'beta' | 'disabled';
 
@@ -32,6 +34,11 @@ export interface AgentDefinition {
   status: AgentStatus;
   /** Injected into the system prompt when this agent leads the response. */
   mandate: string;
+  /**
+   * Operational persona tag (§16). Clinical specialty agents stay under Doctor
+   * and do not get a top-level persona of their own.
+   */
+  persona?: PersonaId;
 }
 
 const AGENTS: AgentDefinition[] = [
@@ -44,6 +51,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['searchPatients', 'getPatientCard', 'getVisits', 'navigate'],
     owner: 'clinical-team',
     status: 'active',
+    persona: 'doctor',
     mandate:
       'Ты работаешь с пациентами: поиск, медицинская карта, анамнез, история посещений. Не ставь диагнозы — окончательное клиническое решение принимает врач.',
   },
@@ -56,6 +64,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['searchPatients', 'getPatientCard', 'getTreatmentPlans', 'createTreatmentPlan', 'navigate'],
     owner: 'clinical-team',
     status: 'active',
+    persona: 'doctor',
     mandate:
       'Ты составляешь планы лечения по одонтограмме: читай getPatientCard.odontogramSummary (статусы FDI + поверхности M/O/D/B/L, эндо ✓/✗, импланты). ' +
       'Предложи этапы с зубами и ориентиром бюджета, затем createTreatmentPlan (confirmed=false). План — черновик для врача.',
@@ -79,6 +88,7 @@ const AGENTS: AgentDefinition[] = [
     ],
     owner: 'clinical-team',
     status: 'active',
+    persona: 'reception',
     mandate:
       'Ты управляешь записью и загрузкой: при вопросах про пустые слоты / возврат пациентов / обзвон СРАЗУ вызывай getClinicLoadPlan и отвечай именами, телефонами и часами из данных. Без общих лекций.',
   },
@@ -91,6 +101,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['getRevenue', 'getDebtors', 'createInvoice', 'navigate'],
     owner: 'business-team',
     status: 'active',
+    persona: 'finance',
     mandate:
       'Ты отвечаешь за финансы клиники: выручка, должники, счета. Показывай цифры точно, из данных, без выдумывания. Создание счёта требует подтверждения.',
   },
@@ -103,8 +114,46 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['getDashboardStats', 'getRevenue', 'getDoctorUtilization', 'getClinicLoadPlan', 'getDebtors', 'navigate'],
     owner: 'business-team',
     status: 'active',
+    persona: 'analyst',
     mandate:
       'Ты делаешь аналитику и загрузку клиники. По загрузке/возврату базы/пустым слотам СРАЗУ getClinicLoadPlan — отвечай конкретными пациентами, телефонами, датами и часами. Не подменяй данные общей теорией и не заканчивай «если хотите, помогу».',
+  },
+  {
+    id: 'agent.business.marketing',
+    name: 'Marketing Agent',
+    domain: 'business',
+    version: '1.1.0',
+    requiredPermissions: ['OWNER', 'ADMIN', 'MANAGER', 'DIRECTOR'],
+    allowedTools: ['getPromotions', 'getRecallList', 'draftPromoCopy', 'getClinicLoadPlan', 'navigate'],
+    owner: 'business-team',
+    status: 'active',
+    persona: 'marketing',
+    mandate:
+      'Ты — AI Marketing: акции, реактивация базы, тексты промо и WhatsApp-шаблоны (draft). ' +
+      'Сначала данные: getPromotions / getRecallList. Не отправляй рассылки сам — только черновики и списки. Навигация в Акции / Прайс.',
+  },
+  {
+    id: 'agent.business.ceo',
+    name: 'CEO Agent',
+    domain: 'business',
+    version: '1.1.0',
+    requiredPermissions: ['OWNER', 'DIRECTOR', 'ADMIN', 'MANAGER'],
+    allowedTools: [
+      'composeCeoBrief',
+      'getDashboardStats',
+      'getRevenue',
+      'getDebtors',
+      'getClinicLoadPlan',
+      'getPromotions',
+      'getRecallList',
+      'navigate',
+    ],
+    owner: 'business-team',
+    status: 'active',
+    persona: 'ceo',
+    mandate:
+      'Ты — AI CEO: синтезируешь Analyst + Finance + Marketing. Не пишешь SQL и не обходишь RBAC. ' +
+      'Для «что важно / приоритеты недели» вызывай composeCeoBrief. Делегируй детали: долги→Finance, recall→Marketing, слоты→Reception.',
   },
   {
     id: 'agent.marketplace.shop',
@@ -115,6 +164,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['searchProducts', 'navigate'],
     owner: 'marketplace-team',
     status: 'active',
+    persona: 'supply',
     mandate:
       'Ты помогаешь с закупками: поиск и подбор товаров в маркетплейсе. Заказы оформляет пользователь через корзину.',
   },
@@ -127,6 +177,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['getInventory', 'searchProducts', 'navigate'],
     owner: 'marketplace-team',
     status: 'active',
+    persona: 'supply',
     mandate:
       'Ты следишь за складом клиники: остатки, что заканчивается, что пора дозаказать (с подбором из маркетплейса).',
   },
@@ -139,6 +190,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['searchCourses', 'navigate'],
     owner: 'education-team',
     status: 'active',
+    persona: 'education',
     mandate:
       'Ты подбираешь обучение: курсы Академии по специализации и уровню. Рекомендуй конкретные курсы с обоснованием.',
   },
@@ -151,6 +203,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['searchCourses', 'searchProducts', 'navigate'],
     owner: 'growth-team',
     status: 'active',
+    persona: 'guest',
     mandate:
       'Ты — дружелюбный гид DentVision для гостя. Объясняй платформу простым языком: CRM клиники, маркетплейс, Academy OS, ИИ-ассистент. Не выдумывай данные клиники (расписание, выручку, долги) — у гостя нет клиники. Предлагай демо, регистрацию, маркетплейс и академию. Отвечай как чистый чат-ассистент, без канцелярита. Названия разделов пиши только по-русски, без английских ключей вроде schedule/patients.',
   },
@@ -163,6 +216,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['getLabOrders', 'navigate'],
     owner: 'clinical-team',
     status: 'active',
+    persona: 'doctor',
     mandate: 'Ты следишь за лабораторными заказами: статусы, сроки, просрочки.',
   },
   {
@@ -174,6 +228,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['getInventory', 'searchProducts', 'navigate'],
     owner: 'marketplace-team',
     status: 'active',
+    persona: 'supply',
     mandate:
       'Ты закупщик: склад клиники → аналоги в маркетплейсе → заказы. Без клинических диагнозов.',
   },
@@ -186,6 +241,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['searchProducts', 'navigate'],
     owner: 'marketplace-team',
     status: 'active',
+    persona: 'supply',
     mandate:
       'Ты гид кабинета продавца: товары, заказы маркетплейса. CRM чужой клиники не трогай.',
   },
@@ -198,6 +254,7 @@ const AGENTS: AgentDefinition[] = [
     allowedTools: ['searchCourses', 'navigate'],
     owner: 'education-team',
     status: 'active',
+    persona: 'education',
     mandate:
       'Ты помогаешь лектору: курсы, вебинары, кабинет лектора Academy OS.',
   },
@@ -224,6 +281,12 @@ export function agentsForRole(role: string): AgentDefinition[] {
   return listAgents().filter(
     (a) => a.requiredPermissions.includes('*') || a.requiredPermissions.includes(normalized),
   );
+}
+
+/** Agents tagged with an operational persona (§16). */
+export function agentsForPersona(persona: PersonaId, role?: string): AgentDefinition[] {
+  const pool = role ? agentsForRole(role) : listAgents();
+  return pool.filter((a) => a.persona === persona);
 }
 
 /** Union of tools available to a role across all its permitted agents. */

@@ -31,7 +31,7 @@ Constitution index: [`../00_CONSTITUTION/README.md`](../00_CONSTITUTION/README.m
 | Founder / CEO | [MISSION](./MISSION.md), [00 — Overview](./00-OVERVIEW.md), [13 — Roadmap](./13-ROADMAP-AND-HARDWARE.md) |
 | Product | [MISSION](./MISSION.md), [02 — Personas](./02-PERSONAS-AND-ROLES.md), модули 05–09 |
 | Design / UX | [03 — First Run](./03-FIRST-RUN-EXPERIENCE.md), [04 — AI](./04-AI-INTELLIGENCE.md) |
-| Engineering | [04 — AI](./04-AI-INTELLIGENCE.md), [15 — AI OS](./15-AI-AGENTS-OS.md), [10 — Platform Core](./10-PLATFORM-CORE.md), [12 — NFR](./12-NON-FUNCTIONAL.md) |
+| Engineering | [04 — AI](./04-AI-INTELLIGENCE.md), [16 — AI Strategy](./16-AI-STRATEGY.md), [15 — AI OS](./15-AI-AGENTS-OS.md), [10 — Platform Core](./10-PLATFORM-CORE.md), [12 — NFR](./12-NON-FUNCTIONAL.md) |
 | Security / Legal | [11 — Data & Privacy](./11-DATA-PRIVACY-SECURITY.md) |
 | Growth / Ops | [14 — Success Metrics](./14-SUCCESS-METRICS.md) |
 
@@ -56,6 +56,7 @@ Constitution index: [`../00_CONSTITUTION/README.md`](../00_CONSTITUTION/README.m
 13. [Roadmap & Hardware Future](./13-ROADMAP-AND-HARDWARE.md)
 14. [Success Metrics & Company OS](./14-SUCCESS-METRICS.md)
 15. [AI Agents Operating System (AI OS)](./15-AI-AGENTS-OS.md)
+16. [AI Strategy — 8 операционных персон](./16-AI-STRATEGY.md)
 
 ---
 

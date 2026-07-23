@@ -138,6 +138,8 @@ interface ProcessedResponse extends AIResponse {
   messageId?: string;
   learnedHint?: string;
   learnedLabels?: string[];
+  activePersona?: string;
+  activePersonaLabel?: string;
 }
 
 /**
@@ -356,6 +358,8 @@ async function processQuery(
         messageId: result.messageId,
         learnedHint,
         learnedLabels,
+        activePersona: result.activePersona,
+        activePersonaLabel: result.activePersonaLabel,
       };
     } catch (error) {
       console.error('[AI OS] orchestrator failed, falling back to intent router:', error);
@@ -393,6 +397,8 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
         messageId: response.messageId,
         learnedHint: response.learnedHint,
         learnedLabels: response.learnedLabels,
+        activePersona: response.activePersona,
+        activePersonaLabel: response.activePersonaLabel,
         aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
       },
     });
@@ -454,6 +460,8 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       messageId: response.messageId,
       learnedHint: response.learnedHint,
       learnedLabels: response.learnedLabels,
+      activePersona: response.activePersona,
+      activePersonaLabel: response.activePersonaLabel,
       aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
     })}\n\n`);
     res.end();
