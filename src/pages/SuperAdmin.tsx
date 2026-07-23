@@ -361,7 +361,7 @@ export default function SuperAdmin() {
       <Modal open={!!clinicModal} onClose={() => setClinicModal(false)} title={clinicModal === 'edit' ? 'Редактировать клинику' : 'Новая клиника'}>
         <form onSubmit={e => { e.preventDefault(); if (!clinicForm.name.trim()) { showToast('Введите название', 'warning'); return; } if (clinicModal === 'edit' && editClinic) updateClinic.mutate({ id: editClinic.id, ...clinicForm }); else createClinic.mutate(clinicForm); }} className="space-y-4">
           <Input label="Название *" value={clinicForm.name} onChange={e => setClinicForm({ ...clinicForm, name: e.target.value })} required />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Город" value={clinicForm.city} onChange={e => setClinicForm({ ...clinicForm, city: e.target.value })} />
             <Input label="Телефон" value={clinicForm.phone} onChange={e => setClinicForm({ ...clinicForm, phone: e.target.value })} />
           </div>

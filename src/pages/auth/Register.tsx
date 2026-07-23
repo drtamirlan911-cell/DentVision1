@@ -83,7 +83,7 @@ export default function Register({ onBack }: RegisterProps) {
 
           <div>
             <Field label="Имя *" value={form.name} onChange={(v) => set('name', v)} placeholder="Иван Иванов" />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Имя (краткое)" value={form.firstName} onChange={(v) => set('firstName', v)} placeholder="Иван" />
               <Field label="Фамилия" value={form.lastName} onChange={(v) => set('lastName', v)} placeholder="Иванов" />
             </div>
@@ -92,7 +92,7 @@ export default function Register({ onBack }: RegisterProps) {
             <Field label="Логин *" value={form.login} onChange={(v) => set('login', v.toLowerCase().replace(/\s/g, '_'))} placeholder="doctor_ivan" hint="Только латиница, цифры, _ (мин. 4 символа)" />
             <Field label="Email" value={form.email} type="email" onChange={(v) => set('email', v)} placeholder="ivan@example.com" />
             <Field label="Телефон" value={form.phone} type="tel" onChange={(v) => set('phone', v)} placeholder="+7 777 000 00 00" />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Пароль *" value={form.password} type="password" onChange={(v) => set('password', v)} placeholder="Минимум 8 символов, буквы и цифры" />
               <Field label="Повторите пароль *" value={form.confirmPassword} type="password" onChange={(v) => set('confirmPassword', v)} placeholder="••••••" />
             </div>

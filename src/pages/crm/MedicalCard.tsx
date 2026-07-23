@@ -174,7 +174,7 @@ export default function MedicalCard() {
             <>
               {/* Patient Header */}
               <Card className="p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-bold text-txt-primary">{selectedPatient?.name}</h2>
                     <p className="text-sm text-txt-muted">
@@ -209,7 +209,7 @@ export default function MedicalCard() {
                 {activeSection === 'personal' && (
                   <div className="space-y-4">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><User size={16} className="text-dv-gold" /> Личная информация</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-xs text-txt-muted">ФИО</p>
                         <p className="text-sm text-txt-primary font-semibold">{selectedPatient?.name || '—'}</p>
@@ -234,7 +234,7 @@ export default function MedicalCard() {
                   <div className="space-y-4">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><Activity size={16} className="text-dv-gold" /> Медицинские данные</h3>
                     {editing ? (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Field label="Группа крови">
                           <select className="dv-select" value={form.blood_type} onChange={e => setForm(f => ({ ...f, blood_type: e.target.value }))}>
                             <option value="">—</option>
@@ -249,7 +249,7 @@ export default function MedicalCard() {
                         </Field>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <p className="text-xs text-txt-muted">Группа крови</p>
                           <p className="text-sm text-txt-primary font-bold">{existingCard?.blood_type || existingCard?.bloodType || '—'}</p>
@@ -358,7 +358,7 @@ export default function MedicalCard() {
                   <div className="space-y-4">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><Phone size={16} className="text-amber-400" /> Экстренный контакт</h3>
                     {editing ? (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Field label="Контактное лицо">
                           <input value={form.emergency_contact} onChange={e => setForm(f => ({ ...f, emergency_contact: e.target.value }))} placeholder="ФИО контактного лица" />
                         </Field>
@@ -367,7 +367,7 @@ export default function MedicalCard() {
                         </Field>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="rounded-lg bg-amber-500/8 border border-amber-500/15 p-3">
                           <p className="text-xs font-semibold text-amber-400 mb-1">Контактное лицо</p>
                           <p className="text-sm text-txt-primary">{existingCard?.emergency_contact || existingCard?.emergencyContact || '—'}</p>

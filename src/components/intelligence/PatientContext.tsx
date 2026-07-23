@@ -141,7 +141,7 @@ export function PatientContext({ patient }: PatientContextProps) {
             Финансы
           </h4>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="rounded-xl bg-surface-2 p-3">
             <p className="text-2xs text-txt-muted">Общая сумма</p>
             <p className="text-sm font-bold text-txt-primary mt-1">485 000 ₸</p>
@@ -173,7 +173,7 @@ function QuickActions() {
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {actions.map((action) => (
         <button
           key={action.label}

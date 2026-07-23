@@ -1206,7 +1206,7 @@ export default function Schedule() {
                 <button type="button" onClick={() => { setShowNewPatient(false); setNewPatient(EMPTY_PATIENT) }} className="text-xs text-txt-muted hover:text-txt-primary">Выбрать из списка</button>
               </div>
               <Input label="ФИО *" value={newPatient.name} onChange={e => setNewPatient({ ...newPatient, name: e.target.value })} placeholder="Иванов Иван Иванович" required />
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Input label="Телефон" value={newPatient.phone} onChange={e => setNewPatient({ ...newPatient, phone: e.target.value })} placeholder="+7 777 000 00 00" />
                 <Input label="Дата рождения" type="date" value={newPatient.dob} onChange={e => setNewPatient({ ...newPatient, dob: e.target.value })} />
               </div>
@@ -1464,13 +1464,13 @@ export default function Schedule() {
           <Select label="Пациент (из базы)" value={waitForm.patientId}
             onChange={e => { const p = patients.find(pt => pt.id === e.target.value); setWaitForm({ ...waitForm, patientId: e.target.value, patientName: p?.name || waitForm.patientName, patientPhone: p?.phone || waitForm.patientPhone }) }}
             options={[{ value: '', label: '— Или введите вручную —' }, ...patients.map(p => ({ value: p.id, label: p.name }))]} />
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Input label="ФИО пациента *" value={waitForm.patientName} onChange={e => setWaitForm({ ...waitForm, patientName: e.target.value })} placeholder="Иванов Иван Иванович" required />
             <Input label="Телефон" value={waitForm.patientPhone} onChange={e => setWaitForm({ ...waitForm, patientPhone: e.target.value })} placeholder="+7 777 000 00 00" />
           </div>
           <Select label="Желаемый врач" value={waitForm.doctorId} onChange={e => setWaitForm({ ...waitForm, doctorId: e.target.value })}
             options={[{ value: '', label: '— Любой врач —' }, ...doctors.map(d => ({ value: d.id, label: `${d.name} (${d.spec || 'Врач'})` }))]} />
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Input label="Желаемая дата" type="date" value={waitForm.preferredDate} onChange={e => setWaitForm({ ...waitForm, preferredDate: e.target.value })} />
             <Select label="Желаемое время" value={waitForm.preferredTime} onChange={e => setWaitForm({ ...waitForm, preferredTime: e.target.value })}
               options={[{ value: '', label: '— Любое —' }, ...HOURS.map(h => ({ value: h, label: h }))]} />

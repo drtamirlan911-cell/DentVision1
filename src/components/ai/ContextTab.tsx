@@ -192,7 +192,7 @@ export function ContextTab() {
 
       <GlassCard padding="md">
         <h4 className="text-xs font-semibold text-txt-primary mb-2">Быстрые действия</h4>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {quickActions.map((a) => (
             <Button key={a.label} size="sm" variant="secondary" className="w-full" onClick={() => navigate(a.path)}>
               {a.label}

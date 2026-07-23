@@ -156,7 +156,7 @@ function GuestTwinView({ twin }: { twin: Twin }) {
           {twin.aiAdvice ||
             'CRM, маркетплейс и Academy в одной SuperApp. Спросите ИИ или откройте демо.'}
         </p>
-        <div className="relative mt-3 grid grid-cols-2 gap-2">
+        <div className="relative mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => navigate('/crm/schedule?demo=1')}
@@ -434,7 +434,7 @@ export function DigitalTwin() {
             <BarChart3 size={14} className="text-dv-gold" />
             <h4 className="text-sm font-semibold text-txt-primary">KPI</h4>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {kpis.map((k) => (
               <div key={k.label} className="rounded-lg bg-white/[0.03] p-2.5">
                 <p className="text-[10px] text-txt-muted leading-tight">{k.label}</p>
