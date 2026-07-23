@@ -1499,3 +1499,18 @@ model AIEvent {
   @@map("ai_events")
 }
 
+// ─── BI SNAPSHOTS ───
+
+model BISnapshot {
+  id        String   @id @default(uuid())
+  scopeType String   @default("PLATFORM")
+  scopeId   String   @default("system")
+  data      Json
+  period    String
+  createdAt DateTime @default(now())
+
+  @@index([scopeType, scopeId, period])
+  @@index([createdAt])
+  @@map("bi_snapshots")
+}
+

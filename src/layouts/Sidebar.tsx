@@ -33,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop', color: '#A78BFA', section: 'services' },
   { id: 'school', label: 'Academy OS', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school', color: '#2DD4BF', section: 'services' },
   { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/analytics', color: '#FBBF24', section: 'services' },
+  { id: 'bi', label: 'Business Intelligence', icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/bi', color: '#10B981', section: 'services' },
   { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={18} strokeWidth={1.75} />, path: '/jobs', color: '#FB923C', section: 'services' },
   { id: 'community', label: 'Сообщество', icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
   { id: 'supplier', label: 'Кабинет продавца', icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },

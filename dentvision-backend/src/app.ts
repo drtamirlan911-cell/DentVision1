@@ -58,6 +58,7 @@ import { ecosystemRouter } from './modules/analytics/ecosystem.routes.js';
 import { complianceRouter } from './modules/compliance/compliance.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
 import { dentcashRouter } from './modules/dentcash/dentcash.routes.js';
+import { biRouter } from './modules/bi/bi.routes.js';
 import { registerSubscribers } from './events/subscribers.js';
 
 // Wire up domain-event subscribers (audit, etc.) once at import time.
@@ -193,6 +194,7 @@ app.use('/api/jobs', jobsRouter);
 // Hidden platform ops (no UI nav). SUPERADMIN + X-Platform-Ops-Key required; else 404.
 app.use('/api/ops/suppliers', opsSuppliersRouter);
 app.use('/api/ops', opsHubRouter);
+app.use('/api/bi', biRouter);
 
 // ─── Error Handling ───
 app.use(notFound);

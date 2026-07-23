@@ -19,7 +19,7 @@ import { reportWebVitals } from './utils/vitals';
 // Platform pages
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
 const SuperAdmin = lazyWithRetry(() => import('./pages/SuperAdmin'));
-const HiddenSupplierOps = lazyWithRetry(() => import('./pages/ops/HiddenSupplierOps'));
+const BIWorkspace = lazyWithRetry(() => import('./pages/bi/BIWorkspace'));
 const AuditLog = lazyWithRetry(() => import('./pages/AuditLog'));
 const Backup = lazyWithRetry(() => import('./pages/Backup'));
 const Analytics = lazyWithRetry(() => import('./pages/Analytics'));
@@ -117,8 +117,7 @@ if (container) {
                   <Route path="analytics" element={guarded('analytics', <Analytics />)} />
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
                   <Route path="admin" element={guarded('admin', <SuperAdmin />)} />
-                  {/* Hidden ops console — not linked in nav. SUPERADMIN + ops key required. */}
-                  <Route path="x-ops/sg" element={<Suspense fallback={<PageLoader />}><HiddenSupplierOps /></Suspense>} />
+                  <Route path="bi" element={<Suspense fallback={<PageLoader />}><BIWorkspace /></Suspense>} />
                   <Route path="audit" element={guarded('audit', <AuditLog />)} />
                   <Route path="backup" element={guarded('backup', <Backup />)} />
                   <Route path="profile" element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />

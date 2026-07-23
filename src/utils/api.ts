@@ -1540,6 +1540,20 @@ function getOpsKey(): string {
   try { return sessionStorage.getItem(OPS_KEY_SESSION) || ''; } catch { return ''; }
 }
 
+async function biRequest(path: string, options: RequestInit = {}): Promise<any> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) return data.data;
+  return data;
+}
+
 async function opsRequest(path: string, options: RequestInit = {}): Promise<any> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -1643,6 +1657,43 @@ export async function opsAutoExtendClinics(months = 1, daysAhead = 14): Promise<
     method: 'POST',
     body: JSON.stringify({ months, daysAhead }),
   });
+}
+
+// ─── Business Intelligence ───
+export async function biDashboard(): Promise<any> {
+  return biRequest('/api/bi/dashboard');
+}
+
+export async function biMRR(): Promise<any> {
+  return biRequest('/api/bi/mrr');
+}
+
+export async function biChurn(months = 1): Promise<any> {
+  return biRequest(`/api/bi/churn?months=${months}`);
+}
+
+export async function biLTV(): Promise<any> {
+  return biRequest('/api/bi/ltv');
+}
+
+export async function biCAC(): Promise<any> {
+  return biRequest('/api/bi/cac');
+}
+
+export async function biUnitEconomics(): Promise<any> {
+  return biRequest('/api/bi/unit-economics');
+}
+
+export async function biCashFlow(): Promise<any> {
+  return biRequest('/api/bi/cashflow');
+}
+
+export async function biScenarios(): Promise<any> {
+  return biRequest('/api/bi/scenarios');
+}
+
+export async function biPartnerROI(): Promise<any> {
+  return biRequest('/api/bi/partner-roi');
 }
 
 // ─── AI Intelligence ───
