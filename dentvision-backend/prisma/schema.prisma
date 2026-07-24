@@ -123,7 +123,7 @@ enum PaymentStatus {
 // --- USER SYSTEM ---
 
 model User {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   email     String   @unique
   password  String
   firstName String
@@ -170,7 +170,7 @@ model User {
 }
 
 model Clinic {
-  id      String      @id @default("")
+  id      String      @id @default(uuid())
   name    String
   city    String?
   address String?
@@ -208,7 +208,7 @@ model Clinic {
 }
 
 model Booking {
-  id          String        @id @default("")
+  id          String        @id @default(uuid())
   clinicId    String
   patientName String
   phone       String
@@ -232,7 +232,7 @@ model Booking {
 }
 
 model ClinicMember {
-  id                 String   @id @default("")
+  id                 String   @id @default(uuid())
   userId             String
   clinicId           String
   role               UserRole @default(DOCTOR)
@@ -252,7 +252,7 @@ model ClinicMember {
 }
 
 model ClinicInvitation {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   clinicId  String
   email     String?
   role      UserRole @default(DOCTOR)
@@ -273,7 +273,7 @@ model ClinicInvitation {
 // --- PATIENT CRM ---
 
 model Patient {
-  id        String  @id @default("")
+  id        String  @id @default(uuid())
   clinicId  String
   firstName String
   lastName  String
@@ -336,7 +336,7 @@ model Appointment {
 // --- CRM OPS ---
 
 model WaitingList {
-  id               String            @id @default("")
+  id               String            @id @default(uuid())
   clinicId         String
   patientId        String?
   patientName      String?
@@ -359,7 +359,7 @@ model WaitingList {
 }
 
 model Expense {
-  id          String   @id @default("")
+  id          String   @id @default(uuid())
   clinicId    String
   category    String?
   amount      Int
@@ -377,7 +377,7 @@ model Expense {
 }
 
 model Promotion {
-  id              String    @id @default("")
+  id              String    @id @default(uuid())
   clinicId        String
   title           String
   description     String?
@@ -398,7 +398,7 @@ model Promotion {
 }
 
 model PriceListItem {
-  id          String  @id @default("")
+  id          String  @id @default(uuid())
   clinicId    String
   serviceCode String
   name        String?
@@ -417,7 +417,7 @@ model PriceListItem {
 }
 
 model ReminderLog {
-  id          String   @id @default("")
+  id          String   @id @default(uuid())
   clinicId    String
   reminderKey String
   channel     String?
@@ -431,7 +431,7 @@ model ReminderLog {
 }
 
 model Chair {
-  id        String  @id @default("")
+  id        String  @id @default(uuid())
   clinicId  String
   name      String
   sortOrder Int     @default(0)
@@ -449,7 +449,7 @@ model Chair {
 // --- MEDICAL RECORDS ---
 
 model Visit {
-  id         String   @id @default("")
+  id         String   @id @default(uuid())
   patientId  String
   doctorId   String
   date       DateTime @default(now())
@@ -471,7 +471,7 @@ model Visit {
 }
 
 model Tooth {
-  id        String @id @default("")
+  id        String @id @default(uuid())
   patientId String
   number    Int
   condition String?
@@ -488,7 +488,7 @@ model Tooth {
 }
 
 model TreatmentPlan {
-  id        String    @id @default("")
+  id        String    @id @default(uuid())
   patientId String
   title     String
   status    PlanStatus @default(draft)
@@ -507,7 +507,7 @@ model TreatmentPlan {
 }
 
 model PatientImage {
-  id        String    @id @default("")
+  id        String    @id @default(uuid())
   patientId String
   type      ImageType
   url       String
@@ -525,7 +525,7 @@ model PatientImage {
 }
 
 model Document {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   patientId String?
   clinicId  String?
   type      String
@@ -548,7 +548,7 @@ model Document {
 // --- LAB ORDERS ---
 
 model LabOrder {
-  id        String         @id @default("")
+  id        String         @id @default(uuid())
   patientId String?
   clinicId  String
   labName   String?
@@ -573,7 +573,7 @@ model LabOrder {
 // --- BILLING ---
 
 model Invoice {
-  id        String        @id @default("")
+  id        String        @id @default(uuid())
   clinicId  String
   patientId String?
   amount    Int
@@ -597,7 +597,7 @@ model Invoice {
 // --- INVENTORY ---
 
 model InventoryItem {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   clinicId String
   name     String
   category String?
@@ -619,7 +619,7 @@ model InventoryItem {
 // --- AI CORE ---
 
 model AISession {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   userId   String
   clinicId String
   messages Json
@@ -637,7 +637,7 @@ model AISession {
 }
 
 model AIAction {
-  id       String       @id @default("")
+  id       String       @id @default(uuid())
   userId   String
   intent   String
   payload  Json
@@ -654,7 +654,7 @@ model AIAction {
 }
 
 model AIAlert {
-  id       String  @id @default("")
+  id       String  @id @default(uuid())
   userId   String
   type     String
   priority String  @default("low")
@@ -743,7 +743,7 @@ model SupplierDocument {
 }
 
 model Product {
-  id          String @id @default("")
+  id          String @id @default(uuid())
   name        String
   brand       String?
   category    String?
@@ -771,7 +771,7 @@ model Product {
 }
 
 model Order {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   clinicId String
   userId   String
   items    Json
@@ -791,7 +791,7 @@ model Order {
 }
 
 model Favorite {
-  id        String @id @default("")
+  id        String @id @default(uuid())
   userId    String
   productId String
 
@@ -880,7 +880,7 @@ model ExpertVerification {
 }
 
 model Course {
-  id          String @id @default("")
+  id          String @id @default(uuid())
   title       String
   description String?
   author      String?
@@ -913,7 +913,7 @@ model Course {
 }
 
 model Lesson {
-  id       String  @id @default("")
+  id       String  @id @default(uuid())
   courseId  String
   title    String
   videoUrl String?
@@ -931,7 +931,7 @@ model Lesson {
 }
 
 model SchoolEnrollment {
-  id       String @id @default("")
+  id       String @id @default(uuid())
   userId   String
   courseId  String
   progress Int    @default(0)
@@ -951,7 +951,7 @@ model SchoolEnrollment {
 // --- NOTIFICATIONS ---
 
 model Notification {
-  id       String           @id @default("")
+  id       String           @id @default(uuid())
   userId   String
   type     String
   title    String
@@ -971,7 +971,7 @@ model Notification {
 // --- AUDIT ---
 
 model AuditLog {
-  id         String @id @default("")
+  id         String @id @default(uuid())
   userId     String?
   clinicId   String?
   userName   String?
@@ -990,7 +990,7 @@ model AuditLog {
 }
 
 model AIMessage {
-  id           String    @id @default("")
+  id           String    @id @default(uuid())
   sessionId    String
   role         String
   content      String
@@ -1014,7 +1014,7 @@ model AIMessage {
 }
 
 model AIMemory {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   key       String
   value     Json
   scope     String
@@ -1031,7 +1031,7 @@ model AIMemory {
 // --- COMMUNITY ---
 
 model CommunityPost {
-  id            String   @id @default("")
+  id            String   @id @default(uuid())
   authorId      String?
   authorName    String
   authorRole    String?
@@ -1055,7 +1055,7 @@ model CommunityPost {
 }
 
 model CommunityLike {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   postId    String
   userId    String
 
@@ -1070,7 +1070,7 @@ model CommunityLike {
 }
 
 model CommunityComment {
-  id         String   @id @default("")
+  id         String   @id @default(uuid())
   postId     String
   authorId   String
   authorName String
@@ -1087,7 +1087,7 @@ model CommunityComment {
 }
 
 model CommunitySave {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   postId    String
   userId    String
 
@@ -1103,7 +1103,7 @@ model CommunitySave {
 }
 
 model DmConversation {
-  id        String   @id @default("")
+  id        String   @id @default(uuid())
   pairKey   String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
@@ -1116,7 +1116,7 @@ model DmConversation {
 }
 
 model DmParticipant {
-  id             String    @id @default("")
+  id             String    @id @default(uuid())
   conversationId String
   userId         String
   lastReadAt     DateTime?
@@ -1133,7 +1133,7 @@ model DmParticipant {
 }
 
 model DmMessage {
-  id             String   @id @default("")
+  id             String   @id @default(uuid())
   conversationId String
   senderId       String
   body           String
@@ -1771,7 +1771,7 @@ model PlatformExpense {
 }
 
 model SaaSMetrics {
-  id            String   @id @default("")
+  id            String   @id @default(uuid())
   tenantId      String   @default("platform")
   mrr           BigInt
   arr           BigInt
