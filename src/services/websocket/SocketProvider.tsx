@@ -12,18 +12,19 @@ const SocketContext = createContext<typeof socketClient>(socketClient)
 
 export function SocketProvider({ children }: { children: ReactNode }) {
   const token = useAuthStore((s) => s.token)
+  const user = useAuthStore((s) => s.user)
   const queryClient = useQueryClient()
   const prevUnread = useRef<number | null>(null)
 
   useEffect(() => {
-    if (token && import.meta.env.VITE_WS_URL) {
+    if (token && user && import.meta.env.VITE_WS_URL) {
       socketClient.reset()
       socketClient.connect()
     } else {
       socketClient.disconnect()
     }
     return () => socketClient.disconnect()
-  }, [token])
+  }, [token, user])
 
   useEffect(() => {
     const unsubs = [

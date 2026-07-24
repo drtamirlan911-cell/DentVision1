@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Smartphone, Monitor, Globe, Clock, CheckCircle2, XCircle, Brain, AlertTriangle } from 'lucide-react';
 import * as api from '../utils/api';
+import { useAuthStore } from '../store/auth.store';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/ds/Card';
 import { Button } from '../components/ui/ds/Button';
 import { Badge } from '../components/ui/ds/Badge';
@@ -20,6 +21,7 @@ const CONSENT_TYPES = [
 
 export default function SecurityCompliance() {
   const toast = useToast();
+  const user = useAuthStore((s) => s.user);
   const [dashboard, setDashboard] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [consents, setConsents] = useState<any[]>([]);
@@ -44,7 +46,10 @@ export default function SecurityCompliance() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!user) { setLoading(false); return; }
+    load();
+  }, [user]);
 
   const handleConsent = async (type: string, accepted: boolean) => {
     setBusy(`consent-${type}`);
@@ -103,7 +108,12 @@ export default function SecurityCompliance() {
         }
       />
 
-      {loading ? (
+      {!user ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Shield size={40} className="text-txt-muted mb-4" />
+          <p className="text-txt-muted text-sm">Войдите в аккаунт для доступа к безопасности и согласиям</p>
+        </div>
+      ) : loading ? (
         <div className="flex justify-center py-20">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" />
         </div>

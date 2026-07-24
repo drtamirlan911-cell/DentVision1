@@ -42,6 +42,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   loading: false,
 
   loadNotifications: async () => {
+    if (!api.getAccessToken()) {
+      set({ loading: false })
+      return
+    }
     set({ loading: true })
     try {
       const [notifications, unread] = await Promise.all([

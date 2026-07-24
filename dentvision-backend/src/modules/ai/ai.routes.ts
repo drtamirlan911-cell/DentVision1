@@ -790,11 +790,11 @@ aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
 /** Jarvis role briefing — used on login / «Что важно сегодня?» */
 aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (req.user?.isGuest) {
+    if (req.user?.isGuest || !req.user) {
       return res.status(403).json({ ok: false, error: 'Briefing requires clinic user' });
     }
     const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
-    const clinicId = req.user!.clinicId || null;
+    const clinicId = req.user.clinicId || null;
     const clinic = clinicId
       ? await prisma.clinic.findUnique({
           where: { id: clinicId },
@@ -807,10 +807,10 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
       query: (req.query || {}) as Record<string, unknown>,
     });
     const briefing = await buildJarvisBriefing({
-      userId: req.user!.id,
+      userId: req.user.id,
       clinicId,
-      role: req.user!.role,
-      firstName: req.user!.firstName,
+      role: req.user.role || 'DOCTOR',
+      firstName: req.user.firstName || '',
       clinicName: clinic?.name,
       isGuest: false,
       timeZone,
@@ -883,21 +883,19 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
   try {
     const { buildDigitalTwin, buildGuestPlatformTwin } = await import('./core/digitalTwin.js');
     if (!req.user?.id) {
-      // Avoid noisy 401 during auth race / anonymous shell.
       return res.json({ ok: true, data: { twin: buildGuestPlatformTwin(null), preferences: [] } });
     }
-    const twin = await buildDigitalTwin(req.user.id, req.user.clinicId || null, {
-      isGuest: req.user.isGuest === true,
+    const twin = await buildDigitalTwin(req.user.id, req.user?.clinicId || null, {
+      isGuest: req.user?.isGuest === true,
     });
     if (!twin) {
       return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
     }
 
-    // Enrich with Event OS data
     let enrichedTwin = twin as Record<string, unknown>;
     try {
       const { getTwinEventOSData, enrichTwinWithEventOS } = await import('./core/digitalTwinEventOS.js');
-      if (req.user.clinicId) {
+      if (req.user?.clinicId) {
         const eventOSData = await getTwinEventOSData(req.user.clinicId);
         enrichedTwin = enrichTwinWithEventOS(twin as Record<string, unknown>, eventOSData);
       }
@@ -906,7 +904,7 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     let preferences: Array<{ key: string; label: string; value: string; source: string }> = [];
     try {
       const learning = await import('./learning/learning.service.js');
-      preferences = await learning.listPrefs(req.user.id, req.user.clinicId || null);
+      preferences = await learning.listPrefs(req.user.id, req.user?.clinicId || null);
     } catch { /* optional */ }
     res.json({ ok: true, data: { twin: enrichedTwin, preferences } });
   } catch (error) {
