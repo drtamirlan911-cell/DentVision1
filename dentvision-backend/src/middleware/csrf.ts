@@ -16,8 +16,10 @@ export function setCsrfCookie(res: Response): string {
   return token;
 }
 
+const SKIP_PATHS = ['/api/auth/', '/api/public/', '/api/health'];
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
   if (SAFE_METHODS.has(req.method)) return next();
+  if (SKIP_PATHS.some((p) => req.path.startsWith(p))) return next();
   const headerToken = req.headers[CSRF_HEADER] as string | undefined;
   const cookieToken = req.cookies?.[CSRF_COOKIE];
   // If the CSRF cookie was not sent (e.g. cross-origin where JS can't read it),
