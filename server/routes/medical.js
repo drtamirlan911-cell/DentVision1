@@ -81,7 +81,7 @@ export default function medicalRoutes(writeAuditLog) {
       if (req.user.role !== 'superadmin' && clinic_id && clinic_id !== req.user.clinicId && clinic_id !== req.user.activeClinicId) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      const where: any = { clinicId: effectiveClinicId };
+      const where = { clinicId: effectiveClinicId };
       if (patient_id) where.patientId = patient_id;
       const results = await prisma.visit.findMany({
         where,
@@ -134,7 +134,7 @@ export default function medicalRoutes(writeAuditLog) {
       if (req.user.role !== 'superadmin' && clinic_id && clinic_id !== req.user.clinicId && clinic_id !== req.user.activeClinicId) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      const where: any = { clinicId: effectiveClinicId };
+      const where = { clinicId: effectiveClinicId };
       if (patient_id) where.patientId = patient_id;
       const results = await prisma.document.findMany({
         where,
