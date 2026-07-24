@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "clinics" ADD COLUMN IF NOT EXISTS "active" BOOLEAN NOT NULL DEFAULT true;
