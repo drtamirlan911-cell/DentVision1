@@ -79,11 +79,12 @@ export async function balancedTransfer(opts: {
   refId?: string;
   meta?: Prisma.InputJsonValue;
   currency?: string;
+  tx?: Prisma.TransactionClient;
 }) {
   if (opts.amountMinor <= 0n) return null;
   const currency = opts.currency || 'KZT';
 
-  return prisma.$transaction(async (tx) => {
+  const run = async (tx: Prisma.TransactionClient) => {
     const transaction = await tx.transaction.create({
       data: {
         type: opts.type,
@@ -112,5 +113,8 @@ export async function balancedTransfer(opts: {
     });
 
     return transaction;
-  });
+  };
+
+  if (opts.tx) return run(opts.tx);
+  return prisma.$transaction(run);
 }

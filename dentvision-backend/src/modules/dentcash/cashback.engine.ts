@@ -138,39 +138,64 @@ export async function accrueShopOrderCashback(opts: {
       if (fromWallet.balance < earn && resolved.fundedBy !== 'PLATFORM') {
         fromWallet = await getOrCreateWallet('PLATFORM', 'system');
       }
-      await balancedTransfer({
-        type: 'dentcash_earn',
-        amountMinor: earn,
-        fromWalletId: fromWallet.id,
-        toWalletId: userWallet.id,
-        refType: 'order',
-        refId: opts.orderId,
-        meta: { rateBps: resolved.rateBps, productId: line.productId || null },
+      // Atomic: balancedTransfer + dentCashLedger in one transaction
+      const row = await prisma.$transaction(async (tx) => {
+        await balancedTransfer({
+          type: 'dentcash_earn',
+          amountMinor: earn,
+          fromWalletId: fromWallet.id,
+          toWalletId: userWallet.id,
+          refType: 'order',
+          refId: opts.orderId,
+          meta: { rateBps: resolved.rateBps, productId: line.productId || null },
+          tx,
+        });
+        return tx.dentCashLedger.create({
+          data: {
+            userId: opts.userId,
+            type: 'earn',
+            status,
+            amountMinor: earn,
+            refType: 'order',
+            refId: opts.orderId,
+            sellerType: resolved.fundedBy,
+            sellerId: resolved.funderId,
+            availableAt: new Date(),
+            meta: {
+              rateBps: resolved.rateBps,
+              productId: line.productId,
+              name: line.name,
+              spendMinor: spendMinor.toString(),
+              goodsMinor: goodsMinor.toString(),
+            },
+          },
+        });
       });
-    }
-    // Pending: ledger obligation only — wallets move on release.
-
-    const row = await prisma.dentCashLedger.create({
-      data: {
-        userId: opts.userId,
-        type: 'earn',
-        status,
-        amountMinor: earn,
-        refType: 'order',
-        refId: opts.orderId,
-        sellerType: resolved.fundedBy,
-        sellerId: resolved.funderId,
-        availableAt: status === 'available' ? new Date() : null,
-        meta: {
-          rateBps: resolved.rateBps,
-          productId: line.productId,
-          name: line.name,
-          spendMinor: spendMinor.toString(),
-          goodsMinor: goodsMinor.toString(),
+      entryIds.push(row.id);
+    } else {
+      // Pending: ledger obligation only — wallets move on release.
+      const row = await prisma.dentCashLedger.create({
+        data: {
+          userId: opts.userId,
+          type: 'earn',
+          status,
+          amountMinor: earn,
+          refType: 'order',
+          refId: opts.orderId,
+          sellerType: resolved.fundedBy,
+          sellerId: resolved.funderId,
+          availableAt: null,
+          meta: {
+            rateBps: resolved.rateBps,
+            productId: line.productId,
+            name: line.name,
+            spendMinor: spendMinor.toString(),
+            goodsMinor: goodsMinor.toString(),
+          },
         },
-      },
-    });
-    entryIds.push(row.id);
+      });
+      entryIds.push(row.id);
+    }
     totalMinor += earn;
     if (pid) doneProducts.add(pid);
   }
@@ -202,19 +227,23 @@ export async function releaseOrderCashback(orderId: string, opts?: { sellerId?: 
       funderWallet = await getOrCreateWallet('PLATFORM', 'system');
     }
 
-    await balancedTransfer({
-      type: 'dentcash_release',
-      amountMinor: row.amountMinor,
-      fromWalletId: funderWallet.id,
-      toWalletId: userWallet.id,
-      refType: 'order',
-      refId: orderId,
-      meta: { ledgerId: row.id },
-    });
+    // Atomic: balancedTransfer + ledger update in one transaction
+    await prisma.$transaction(async (tx) => {
+      await balancedTransfer({
+        type: 'dentcash_release',
+        amountMinor: row.amountMinor,
+        fromWalletId: funderWallet.id,
+        toWalletId: userWallet.id,
+        refType: 'order',
+        refId: orderId,
+        meta: { ledgerId: row.id },
+        tx,
+      });
 
-    await prisma.dentCashLedger.update({
-      where: { id: row.id },
-      data: { status: 'available', availableAt: new Date() },
+      await tx.dentCashLedger.update({
+        where: { id: row.id },
+        data: { status: 'available', availableAt: new Date() },
+      });
     });
     released += row.amountMinor;
   }
