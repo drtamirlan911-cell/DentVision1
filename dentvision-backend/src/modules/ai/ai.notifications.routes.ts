@@ -9,6 +9,8 @@
 
 import { Router, Response, Request } from 'express';
 import { EventEmitter } from 'events';
+import jwt from 'jsonwebtoken';
+import prisma from '../../lib/prisma.js';
 
 // ─── Types ───
 
@@ -92,19 +94,39 @@ const router = Router();
  * SSE endpoint for real-time AI notifications.
  * Query params: clinicId (required)
  */
-router.get('/stream', (req: Request, res: Response) => {
+router.get('/stream', async (req: Request, res: Response) => {
   const clinicId = req.query.clinicId as string;
-  if (!clinicId) {
-    res.status(400).json({ ok: false, error: 'clinicId required' });
+  const token = req.query.token as string;
+  if (!clinicId || !token) {
+    res.status(401).json({ ok: false, error: 'clinicId and token required' });
+    return;
+  }
+
+  // Verify JWT and clinic membership
+  try {
+    const secret = process.env.JWT_SECRET || '';
+    const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as any;
+    const userId = payload.id || payload.sub || payload.userId;
+    if (!userId) { res.status(401).json({ ok: false, error: 'Invalid token' }); return; }
+    const member = await prisma.clinicMember.findFirst({
+      where: { userId, clinicId },
+    });
+    if (!member) { res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); return; }
+  } catch {
+    res.status(401).json({ ok: false, error: 'Invalid or expired token' });
     return;
   }
 
   // Set SSE headers
+  const origin = req.headers.origin || '';
+  const allowedOrigin = origin.includes('dent-vision') || origin.includes('localhost')
+    ? origin
+    : process.env.CORS_ORIGIN || '';
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'Cache-Control',
   });
 
