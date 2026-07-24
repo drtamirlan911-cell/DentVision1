@@ -130,7 +130,7 @@ export default function clinicRoutes(writeAuditLog) {
   });
 
   // ─── Generic upsert (authenticated, same-clinic enforced) ───
-  const ALLOWED_FIELDS: Record<string, Set<string>> = {
+  const ALLOWED_FIELDS = {
     users: new Set(['name', 'spec', 'phone', 'role', 'clinicId', 'email']),
   };
   router.post('/:table/upsert', authenticate, requireSameClinic, requirePermission('write'), async (req, res) => {
