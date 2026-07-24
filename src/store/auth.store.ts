@@ -289,28 +289,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   restoreSession: async () => {
     const stored = api.loadTokens()
     if (!stored?.accessToken) {
-      // No in-memory token — try cookie-based restore (cross-origin httpOnly cookie)
-      set({ loading: true })
-      try {
-        const me = await hydrateAuthFromMe()
-        const tokens = api.loadTokens() || { accessToken: '', refreshToken: '' }
-        let accessToken = tokens.accessToken
-        let refreshToken = tokens.refreshToken
-        set({
-          user: me.user,
-          token: accessToken,
-          refreshToken,
-          clinic: buildClinicFromMembership(me.activeMembership),
-          clinics: me.memberships,
-          activeMembership: me.activeMembership,
-          activeClinic: buildClinicFromMembership(me.activeMembership),
-          loading: false,
-        })
-        return
-      } catch {
-        set({ loading: false })
-        return
-      }
+      set({ loading: false })
+      return
     }
     set({ loading: true })
     try {

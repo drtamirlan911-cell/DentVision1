@@ -59,22 +59,32 @@ function tokenStorage(): Storage {
 export function setTokens(access: string | null, refresh: string | null): void {
   _accessToken = access;
   _refreshToken = refresh;
-  // Tokens are kept in memory only for the current page session.
-  // httpOnly cookies set by the server handle authentication across page loads.
-  try {
-    localStorage.removeItem('dv_tokens');
-    sessionStorage.removeItem('dv_tokens');
-  } catch { /* ignore */ }
+  // Persist in sessionStorage (survives F5, cleared on tab close).
+  if (access && refresh) {
+    try {
+      sessionStorage.setItem('dv_tokens', JSON.stringify({ access, refresh }));
+    } catch { /* ignore */ }
+  } else {
+    try { sessionStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
+  }
 }
 
 export function loadTokens(): { accessToken: string; refreshToken: string } | null {
   try {
-    const stored = localStorage.getItem('dv_tokens') || sessionStorage.getItem('dv_tokens');
+    const stored = sessionStorage.getItem('dv_tokens');
     if (stored) {
       const { access, refresh } = JSON.parse(stored);
       _accessToken = access;
       _refreshToken = refresh;
       return { accessToken: access, refreshToken: refresh };
+    }
+  } catch { /* ignore */ }
+  // Fallback: try reading accessToken from cookie (non-httpOnly, set by backend)
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)accessToken=([^;]*)/);
+    if (match) {
+      _accessToken = match[1];
+      return { accessToken: match[1], refreshToken: '' };
     }
   } catch { /* ignore */ }
   return null;
@@ -83,12 +93,9 @@ export function loadTokens(): { accessToken: string; refreshToken: string } | nu
 export function clearTokens(): void {
   _accessToken = null;
   _refreshToken = null;
-  try {
-    localStorage.removeItem('dv_tokens');
-    sessionStorage.removeItem('dv_tokens');
-  } catch { /* ignore */ }
-  document.cookie = 'accessToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-  document.cookie = 'refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+  try { sessionStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
+  document.cookie = 'accessToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure';
+  document.cookie = 'refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure';
 }
 
 export function getAccessToken(): string | null { return _accessToken; }
