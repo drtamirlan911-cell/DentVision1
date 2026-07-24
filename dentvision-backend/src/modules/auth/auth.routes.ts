@@ -8,6 +8,7 @@ import { uid } from '../../lib/helpers.js';
 import { createSession } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
 import crypto from 'node:crypto';
+import { setCsrfCookie } from '../../middleware/csrf.js';
 
 function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
   res.cookie('accessToken', accessToken, {
@@ -24,6 +25,7 @@ function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
   });
+  setCsrfCookie(res);
 }
 
 function clearAuthCookies(res: any) {

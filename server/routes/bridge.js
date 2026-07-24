@@ -86,6 +86,11 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
 
   app.get('/api/medical/visits', authenticate, async (req, res) => {
     try {
+      const clinicId = req.user?.clinicId;
+      const patient = await prisma.patient.findFirst({
+        where: { id: req.query.patientId || undefined, clinicId },
+      });
+      if (req.query.patientId && !patient) return res.status(403).json({ error: 'Нет доступа' });
       const visits = await prisma.visit.findMany({
         where: { patientId: req.query.patientId || undefined },
         orderBy: { date: 'desc' },
@@ -97,26 +102,40 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
 
   app.post('/api/medical/visits', authenticate, async (req, res) => {
     try {
-      const data = req.body;
+      const clinicId = req.user?.clinicId;
+      const patient = req.body.patientId
+        ? await prisma.patient.findFirst({ where: { id: req.body.patientId, clinicId } })
+        : null;
+      if (req.body.patientId && !patient) return res.status(403).json({ error: 'Нет доступа к пациенту' });
+      const { id, patientId, date, diagnosis, complaints, complaintsAnamnesis, objectiveStatus, treatment, recommendations, doctorId, type, status } = req.body;
+      const allowlist = { patientId, date, diagnosis, complaints, complaintsAnamnesis, objectiveStatus, treatment, recommendations, doctorId, type, status };
+      Object.keys(allowlist).forEach(k => allowlist[k] === undefined && delete allowlist[k]);
       const visit = await prisma.visit.upsert({
-        where: { id: data.id || crypto.randomUUID() },
-        create: { id: data.id || crypto.randomUUID(), ...data },
-        update: data,
+        where: { id: id || crypto.randomUUID() },
+        create: { id: id || crypto.randomUUID(), ...allowlist },
+        update: allowlist,
       });
-      broadcast(req.user?.clinicId, 'visit.updated', { id: visit.id });
+      broadcast(clinicId, 'visit.updated', { id: visit.id });
       res.json(visit);
     } catch (e) { console.error(e); res.status(500).json({ error: 'Внутренняя ошибка сервера' }); }
   });
 
   app.post('/api/medical/treatment-plan', authenticate, async (req, res) => {
     try {
-      const data = req.body;
+      const clinicId = req.user?.clinicId;
+      const patient = req.body.patientId
+        ? await prisma.patient.findFirst({ where: { id: req.body.patientId, clinicId } })
+        : null;
+      if (req.body.patientId && !patient) return res.status(403).json({ error: 'Нет доступа к пациенту' });
+      const { id, patientId, diagnosis, treatmentPlan, notes, doctorId, status } = req.body;
+      const allowlist = { patientId, diagnosis, treatmentPlan, notes, doctorId, status };
+      Object.keys(allowlist).forEach(k => allowlist[k] === undefined && delete allowlist[k]);
       const result = await prisma.medicalCard.upsert({
-        where: { id: data.id || crypto.randomUUID() },
-        create: { id: data.id || crypto.randomUUID(), patientId: data.patientId, ...data },
-        update: data,
+        where: { id: id || crypto.randomUUID() },
+        create: { id: id || crypto.randomUUID(), ...allowlist },
+        update: allowlist,
       });
-      broadcast(req.user?.clinicId, 'medical_card.updated', { id: result.id });
+      broadcast(clinicId, 'medical_card.updated', { id: result.id });
       res.json(result);
     } catch (e) { console.error(e); res.status(500).json({ error: 'Внутренняя ошибка сервера' }); }
   });
@@ -151,22 +170,28 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
 
   app.post('/api/files/upload', authenticate, async (req, res) => {
     try {
-      const data = req.body;
+      const clinicId = req.user?.clinicId;
+      const { id, patientId, name, type, url, notes } = req.body;
+      const allowlist = { patientId, name, type, url, notes, clinicId };
+      Object.keys(allowlist).forEach(k => allowlist[k] === undefined && delete allowlist[k]);
       const doc = await prisma.document.upsert({
-        where: { id: data.id || crypto.randomUUID() },
-        create: { id: data.id || crypto.randomUUID(), ...data },
-        update: data,
+        where: { id: id || crypto.randomUUID() },
+        create: { id: id || crypto.randomUUID(), ...allowlist },
+        update: allowlist,
       });
-      broadcast(req.user?.clinicId, 'document.updated', { id: doc.id });
+      broadcast(clinicId, 'document.updated', { id: doc.id });
       res.json(doc);
     } catch (e) { console.error(e); res.status(500).json({ error: 'Внутренняя ошибка сервера' }); }
   });
 
   app.delete('/api/files/:id', authenticate, async (req, res) => {
     try {
+      const clinicId = req.user?.clinicId;
+      const doc = await prisma.document.findFirst({ where: { id: req.params.id, clinicId } });
+      if (!doc) return res.status(403).json({ error: 'Нет доступа' });
       await prisma.document.delete({ where: { id: req.params.id } }).catch(() => {});
       await prisma.photo.delete({ where: { id: req.params.id } }).catch(() => {});
-      broadcast(req.user?.clinicId, 'document.deleted', { id: req.params.id });
+      broadcast(clinicId, 'document.deleted', { id: req.params.id });
       res.json({ ok: true });
     } catch { res.status(500).json({ error: 'Delete failed' }); }
   });
@@ -174,7 +199,12 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
   app.get('/api/audit', authenticate, requirePermission('view_audit'), async (req, res) => {
     try {
       const limit = parseInt(req.query.limit) || 50;
-      const logs = await prisma.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: limit });
+      const clinicId = req.user?.clinicId;
+      const logs = await prisma.auditLog.findMany({
+        where: { clinicId },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
       res.json(logs);
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });
@@ -195,7 +225,10 @@ export default function registerBridgeRoutes(app, writeAuditLog) {
 
   app.patch('/api/shop/products/:id', authenticate, requireSuperadmin(), async (req, res) => {
     try {
-      const product = await prisma.shopProduct.update({ where: { id: req.params.id }, data: req.body });
+      const { name, description, price, category, supplierId, active } = req.body;
+      const allowlist = { name, description, price, category, supplierId, active };
+      Object.keys(allowlist).forEach(k => allowlist[k] === undefined && delete allowlist[k]);
+      const product = await prisma.shopProduct.update({ where: { id: req.params.id }, data: allowlist });
       res.json(product);
     } catch { res.status(500).json({ error: 'Update failed' }); }
   });

@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { csrfProtection } from './middleware/csrf.js';
 import {
   applyCorsHeaders,
   corsGuard,
@@ -110,6 +111,7 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false }));
+app.use(csrfProtection);
 
 // Rate limiting — never throttle CORS preflight; always keep CORS headers on 429
 const apiLimiter = rateLimit({

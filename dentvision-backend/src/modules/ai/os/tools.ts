@@ -224,7 +224,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         take: Math.min(Number(args.limit) || 10, 50),
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
-      return { ok: true, data: visits };
+      return { ok: true, data: scrubToolOutput(visits) };
     },
   },
 
@@ -536,7 +536,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         take: 20,
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
-      return { ok: true, data: plans };
+      return { ok: true, data: scrubToolOutput(plans) };
     },
   },
 

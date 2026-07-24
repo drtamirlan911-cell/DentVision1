@@ -60,6 +60,18 @@ app.use((err, _req, res, next) => {
   next(err);
 });
 
+// CSRF protection — safe methods (GET, HEAD, OPTIONS) pass through
+app.use((req, res, next) => {
+  const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
+  if (safeMethods.has(req.method)) return next();
+  const headerToken = req.headers['x-csrf-token'];
+  const cookieToken = req.cookies?.dv_csrf;
+  if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+    return res.status(403).json({ ok: false, error: 'CSRF token mismatch' });
+  }
+  next();
+});
+
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, validate: false });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, validate: false });
 const publicBookingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, validate: false });

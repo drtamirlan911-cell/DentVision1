@@ -88,12 +88,13 @@ export function requireSameClinic(req, res, next) {
   // Superadmin can access any clinic
   if (req.user.platformRole === 'superadmin' || req.user.role === 'superadmin') return next();
 
-  // Get clinic_id from params, query, or body
+  // Get clinic_id from params, query, body, or JWT
   const clinicId = req.params.clinicId
     || req.query.clinic_id
-    || req.body?.clinic_id;
+    || req.body?.clinic_id
+    || req.user.clinicId;
 
-  if (!clinicId) return next(); // No clinic_id in request — route doesn't require it
+  if (!clinicId) return res.status(403).json({ error: 'Нет доступа: клиника не указана' });
 
   const activeClinicId = req.user.activeClinicId || req.user.clinicId;
   if (clinicId !== activeClinicId) {
