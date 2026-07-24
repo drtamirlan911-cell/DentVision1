@@ -59,17 +59,24 @@ function tokenStorage(): Storage {
 export function setTokens(access: string | null, refresh: string | null): void {
   _accessToken = access;
   _refreshToken = refresh;
-  // Persist in sessionStorage (survives F5, cleared on tab close).
   if (access && refresh) {
     try {
       sessionStorage.setItem('dv_tokens', JSON.stringify({ access, refresh }));
     } catch { /* ignore */ }
+    // Also persist refresh token in localStorage so it survives tab close.
+    // This lets restoreSession() recover after a browser restart or Neon
+    // cold-start crash without forcing the user to re-login.
+    try {
+      localStorage.setItem('dv_refresh', refresh);
+    } catch { /* ignore */ }
   } else {
     try { sessionStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
+    try { localStorage.removeItem('dv_refresh'); } catch { /* ignore */ }
   }
 }
 
 export function loadTokens(): { accessToken: string; refreshToken: string } | null {
+  // 1) sessionStorage (survives F5, cleared on tab close)
   try {
     const stored = sessionStorage.getItem('dv_tokens');
     if (stored) {
@@ -79,7 +86,15 @@ export function loadTokens(): { accessToken: string; refreshToken: string } | nu
       return { accessToken: access, refreshToken: refresh };
     }
   } catch { /* ignore */ }
-  // Fallback: try reading accessToken from cookie (non-httpOnly, set by backend)
+  // 2) localStorage refresh token fallback (survives tab close + browser restart)
+  try {
+    const refresh = localStorage.getItem('dv_refresh');
+    if (refresh) {
+      _refreshToken = refresh;
+      return { accessToken: '', refreshToken: refresh };
+    }
+  } catch { /* ignore */ }
+  // 3) Fallback: try reading accessToken from cookie (non-httpOnly, set by backend)
   try {
     const match = document.cookie.match(/(?:^|;\s*)accessToken=([^;]*)/);
     if (match) {
@@ -94,6 +109,7 @@ export function clearTokens(): void {
   _accessToken = null;
   _refreshToken = null;
   try { sessionStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
+  try { localStorage.removeItem('dv_refresh'); } catch { /* ignore */ }
   document.cookie = 'accessToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure';
   document.cookie = 'refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure';
 }

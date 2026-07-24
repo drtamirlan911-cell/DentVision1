@@ -55,7 +55,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     let effectiveClinicId = isGuest ? undefined : payload.clinicId;
     if (effectiveClinicId) {
       const activeMember = user.memberships?.find(
-        (m) => m.clinicId === effectiveClinicId
+        (m) => m.clinicId === effectiveClinicId,
       );
       if (!activeMember) {
         effectiveClinicId = undefined;

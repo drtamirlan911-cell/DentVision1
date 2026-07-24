@@ -8,14 +8,27 @@ import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
 
 const orchestrator = getEventOrchestrator({ logLevel: 'info' });
 
-async function main() {
+const DB_RETRIES = 5;
+const DB_RETRY_DELAY_MS = 5000;
+
+async function connectDb(attempt = 1): Promise<void> {
   try {
     await prisma.$connect();
-    console.log('[DB] PostgreSQL connected');
+    console.log(`[DB] PostgreSQL connected (attempt ${attempt})`);
   } catch (err) {
-    console.error('[DB] Connection failed:', err);
-    process.exit(1);
+    console.error(`[DB] Connection attempt ${attempt}/${DB_RETRIES} failed:`, err);
+    if (attempt >= DB_RETRIES) {
+      console.error('[DB] All connection attempts exhausted — exiting');
+      process.exit(1);
+    }
+    console.log(`[DB] Retrying in ${DB_RETRY_DELAY_MS / 1000}s...`);
+    await new Promise((r) => setTimeout(r, DB_RETRY_DELAY_MS));
+    return connectDb(attempt + 1);
   }
+}
+
+async function main() {
+  await connectDb();
 
   // Initialize Event Bus
   try {
