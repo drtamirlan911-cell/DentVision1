@@ -1,0 +1,573 @@
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { ChevronRight, Menu, Building2, User, Stethoscope } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/store/auth.store';
+import { useUIStore } from '@/store/ui.store';
+import { useGuestStore } from '@/store/guest.store';
+import { useAIWorkspaceStore } from '@/store/workspace.store';
+import { ContextPanel } from '@/components/intelligence/ContextPanel';
+import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
+import { useAIStore } from '@/store/ai.store';
+import { trackProductEvent } from '@/utils/analytics';
+import { Sidebar } from './Sidebar';
+import { AlertDropdown } from './AlertDropdown';
+import { BottomNav } from './BottomNav';
+import RegistrationModal from '@/components/guest/RegistrationModal';
+import GuestCRMModal from '@/components/guest/GuestCRMModal';
+import { ClinicSwitcher } from '@/components/ClinicSwitcher';
+import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner';
+import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
+import { useCompactShell } from '@/hooks/useCompactShell';
+import { useQuery } from '@tanstack/react-query';
+import * as api from '@/utils/api';
+
+const BREADCRUMB_LABELS: Record<string, string> = {
+  crm: 'CRM',
+  schedule: 'Расписание',
+  patients: 'Пациенты',
+  'medical-card': 'Медкарта',
+  finance: 'Финансы',
+  cashier: 'Касса',
+  inventory: 'Склад',
+  documents: 'Документы',
+  'dental-chart': 'Зубная карта',
+  'treatment-plans': 'Планы лечения',
+  lab: 'Лаборатория',
+  pricelist: 'Прайс',
+  staff: 'Сотрудники',
+  reminders: 'Напоминания',
+  promotions: 'Акции',
+  icd10: 'МКБ-10',
+  visits: 'Визиты',
+  supplier: 'Кабинет продавца',
+  shop: 'Маркетплейс',
+  school: 'Academy OS',
+  'school-workspace': 'Кабинет лектора',
+  analytics: 'Аналитика',
+  jobs: 'Вакансии',
+  community: 'Сообщество',
+  profile: 'Профиль',
+  'clinic-settings': 'Настройки клиники',
+  billing: 'Тариф и оплата',
+  settings: 'Настройки',
+  admin: 'Администрирование',
+  audit: 'Аудит',
+  backup: 'Бэкапы',
+};
+
+const FIRST_RUN_COLLAPSE_MS = 15_000;
+const UUID_SEG_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const IntelligenceLayout: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth();
+  const { isGuest, isGuestRoute, requiresAuth, initGuest, retryGuest, initError, showRegistrationModal, setRegistrationModal } = useGuestStore();
+  const {
+    sidebarOpen,
+    toggleSidebar,
+    contextSheetOpen,
+    setContextSheetOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    sidebarPinned,
+    sidebarVisible,
+    setSidebarVisible,
+    sidebarHovering,
+    setSidebarHovering,
+    firstRunPhase,
+    setFirstRunPhase,
+    completeFirstRun,
+    toggleSidebarCollapsed,
+    crumbTailLabel,
+  } = useUIStore();
+  const setOnboardingComplete = useAIWorkspaceStore((s) => s.setOnboardingComplete);
+
+  const isPublicRoute = isGuestRoute(location.pathname);
+  const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
+  const isAIHome = location.pathname === '/';
+
+  const proactiveAlerts = useAIStore((s) => s.proactiveAlerts);
+  const loadProactiveAlerts = useAIStore((s) => s.loadProactiveAlerts);
+  const isMobile = useCompactShell();
+  const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
+  const [guestCRMOpen, setGuestCRMOpen] = useState(false);
+  const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
+  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const firstRunBooted = useRef(false);
+  const openTs = useRef(Date.now());
+
+  const clinicId = user?.clinicId || clinic?.id || null;
+  const { data: billingSnap } = useQuery({
+    queryKey: ['clinic-billing-access', clinicId],
+    queryFn: () => api.getClinicBilling(),
+    enabled: Boolean(clinicId) && isAuthenticated && !isGuest,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const handleAIQuery = useCallback((query: string) => {
+    navigate('/', { state: { aiQuery: query } });
+  }, [navigate]);
+
+  const getBreadcrumbs = useCallback(() => {
+    const segments = location.pathname.split('/').filter(Boolean);
+    if (segments.length === 0) return [{ label: 'AI Workspace', path: '/' }];
+    const crumbs: { label: string; path: string }[] = [];
+    let accumulated = '';
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      accumulated += '/' + seg;
+      const isLast = i === segments.length - 1;
+      let label = BREADCRUMB_LABELS[seg] || seg;
+      if (UUID_SEG_RE.test(seg)) {
+        label = (isLast && crumbTailLabel) || 'Товар';
+      } else if (isLast && crumbTailLabel && !BREADCRUMB_LABELS[seg]) {
+        label = crumbTailLabel;
+      }
+      crumbs.push({ label, path: accumulated });
+    }
+    return crumbs;
+  }, [location.pathname, crumbTailLabel]);
+
+  useEffect(() => {
+    if (!isMobile) setContextSheetOpen(false);
+  }, [isMobile, setContextSheetOpen]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { void loadProactiveAlerts() }, 500);
+    return () => clearTimeout(t);
+  }, [loadProactiveAlerts]);
+
+  // Guests always get a labeled expanded sidebar (never icon-only rail).
+  useEffect(() => {
+    if (!isGuest) return;
+    setSidebarVisible(true);
+    setSidebarCollapsed(false);
+    setFirstRunPhase('done');
+    completeFirstRun();
+    setOnboardingComplete(true);
+    firstRunBooted.current = true;
+    // Show the right twin panel by default so guests see the platform guide.
+    if (!isMobile) setContextSheetOpen(true);
+  }, [
+    isGuest,
+    isMobile,
+    setSidebarVisible,
+    setSidebarCollapsed,
+    setFirstRunPhase,
+    completeFirstRun,
+    setOnboardingComplete,
+    setContextSheetOpen,
+  ]);
+
+  // ── First-run: greeting → functional sidebar dock → 15s collapse ──
+  useEffect(() => {
+    if (isGuest) return;
+    if (firstRunBooted.current) return;
+    if (firstRunPhase === 'done') {
+      setSidebarVisible(true);
+      return;
+    }
+    if (!isAIHome) {
+      setSidebarVisible(true);
+      setFirstRunPhase('done');
+      completeFirstRun();
+      setOnboardingComplete(true);
+      return;
+    }
+
+    firstRunBooted.current = true;
+    trackProductEvent('first_run_started', { role: user?.role || 'guest' });
+    setFirstRunPhase('greeting');
+    setSidebarVisible(false);
+    setSidebarCollapsed(false);
+
+    const dockTimer = setTimeout(() => {
+      setFirstRunPhase('docking');
+      setSidebarVisible(true);
+      setFirstRunPhase('docked');
+      trackProductEvent('sidebar_docked', { t_ms: Date.now() - openTs.current });
+    }, 700);
+
+    return () => clearTimeout(dockTimer);
+  }, [
+    isGuest,
+    firstRunPhase,
+    isAIHome,
+    setSidebarVisible,
+    setSidebarCollapsed,
+    setFirstRunPhase,
+    completeFirstRun,
+    setOnboardingComplete,
+    user?.role,
+  ]);
+
+  // 15s auto-collapse after dock (pause while hovering / pinned)
+  useEffect(() => {
+    if (isGuest) return;
+    if (firstRunPhase !== 'docked' || sidebarPinned || isMobile) return;
+
+    const clear = () => {
+      if (collapseTimerRef.current) {
+        clearTimeout(collapseTimerRef.current);
+        collapseTimerRef.current = null;
+      }
+    };
+
+    if (sidebarHovering) {
+      clear();
+      return clear;
+    }
+
+    collapseTimerRef.current = setTimeout(() => {
+      setSidebarCollapsed(true);
+      setFirstRunPhase('collapsed');
+      completeFirstRun();
+      setOnboardingComplete(true);
+      trackProductEvent('sidebar_auto_collapsed', { after_ms: FIRST_RUN_COLLAPSE_MS });
+    }, FIRST_RUN_COLLAPSE_MS);
+
+    return clear;
+  }, [
+    isGuest,
+    firstRunPhase,
+    sidebarPinned,
+    sidebarHovering,
+    isMobile,
+    setSidebarCollapsed,
+    setFirstRunPhase,
+    completeFirstRun,
+    setOnboardingComplete,
+  ]);
+
+  useEffect(() => {
+    if (location.pathname !== '/' && firstRunPhase !== 'done') {
+      // Navigating away during first-run still completes onboarding
+      completeFirstRun();
+      setOnboardingComplete(true);
+      setFirstRunPhase('done');
+      setSidebarVisible(true);
+      trackProductEvent('first_navigation', {
+        target: location.pathname,
+        t_ms: Date.now() - openTs.current,
+      });
+    }
+  }, [location.pathname, firstRunPhase, completeFirstRun, setOnboardingComplete, setFirstRunPhase, setSidebarVisible]);
+
+  // Guest session: retry-friendly, never call during render.
+  useEffect(() => {
+    if (!isAuthenticated && !isGuest && !isPublicRoute) {
+      void initGuest();
+    }
+  }, [isAuthenticated, isGuest, isPublicRoute, initGuest]);
+
+  const isCRMRoute = location.pathname.startsWith('/crm');
+  const autoDemo = new URLSearchParams(location.search).get('demo') === '1';
+
+  useEffect(() => {
+    if (!needsAuth || !isGuest) return;
+    if (isCRMRoute) {
+      setGuestCRMOpen(true);
+      return;
+    }
+    if (!showRegistrationModal) {
+      const pendingPath = location.pathname;
+      setRegistrationModal(true, () => navigate(pendingPath));
+    }
+  }, [
+    needsAuth,
+    isGuest,
+    isCRMRoute,
+    showRegistrationModal,
+    location.pathname,
+    setRegistrationModal,
+    navigate,
+  ]);
+
+  if (needsAuth) {
+    if (isGuest) {
+      if (isCRMRoute) {
+        return (
+          <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center">
+                <Stethoscope size={24} className="text-dv-gold" />
+              </div>
+              <h2 className="text-lg font-semibold text-txt-primary">CRM Стоматологии</h2>
+              <p className="text-sm text-txt-secondary max-w-xs">Выберите способ начать работу с CRM</p>
+            </div>
+            <GuestCRMModal
+              open={guestCRMOpen}
+              autoStartDemo={autoDemo}
+              onClose={() => { setGuestCRMOpen(false); navigate('/'); }}
+            />
+          </div>
+        );
+      }
+      return (
+        <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center">
+              <User size={24} className="text-dv-gold" />
+            </div>
+            <h2 className="text-lg font-semibold text-txt-primary">Требуется авторизация</h2>
+            <p className="text-sm text-txt-secondary max-w-xs">Войдите или зарегистрируйтесь для доступа</p>
+            <button
+              type="button"
+              className="text-sm text-dv-gold hover:underline"
+              onClick={() => setRegistrationModal(true, () => navigate(location.pathname))}
+            >
+              Открыть вход
+            </button>
+          </div>
+          <RegistrationModal />
+        </div>
+      );
+    }
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex">
+      <AnimatePresence>
+        {isMobile && sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            onClick={toggleSidebar}
+          />
+        )}
+      </AnimatePresence>
+
+      <div
+        onMouseEnter={() => setSidebarHovering(true)}
+        onMouseLeave={() => setSidebarHovering(false)}
+        className="contents"
+      >
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          setCollapsed={(v) => {
+            setSidebarCollapsed(v);
+            if (!v) {
+              trackProductEvent('sidebar_user_expanded');
+            }
+          }}
+          sidebarVisible={sidebarVisible}
+          isMobile={isMobile}
+          sidebarOpen={sidebarOpen}
+          user={isGuest ? { id: 'guest', name: 'Гость', login: 'guest', role: 'guest', platformRole: 'guest' } as any : user}
+          roleInfo={isGuest ? { label: 'Гость', icon: '👤', pages: ['shop', 'school', 'jobs', 'community', 'demo'] } as any : roleInfo}
+          logout={isGuest ? () => {} : logout}
+          toggleSidebar={toggleSidebar}
+          isGuest={isGuest}
+          onToggleCollapsed={toggleSidebarCollapsed}
+        />
+      </div>
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="dv-safe-header sticky top-0 z-30 flex items-center justify-between gap-2 min-h-[calc(var(--dv-topbar-height)+var(--dv-safe-top))] px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0 min-w-0 overflow-visible">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 overflow-hidden">
+            <button
+              onClick={toggleSidebar}
+              className={cn(
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors',
+                !isMobile && 'hidden',
+              )}
+              aria-label="Меню"
+            >
+              <Menu size={18} />
+            </button>
+            <div className="min-w-0 overflow-hidden flex-1">
+              <div className="flex items-center gap-1.5 text-sm text-txt-muted overflow-hidden">
+                {getBreadcrumbs().map((crumb, idx, crumbs) => (
+                  <span key={crumb.path} className="flex items-center gap-1.5 min-w-0 max-w-full">
+                    {idx > 0 && <ChevronRight size={12} className="text-txt-ghost shrink-0" />}
+                    <span className={cn(
+                      'truncate',
+                      idx === crumbs.length - 1 ? 'text-txt-primary font-semibold' : 'hidden md:inline',
+                    )}>
+                      {crumb.label}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 max-w-[48%] sm:max-w-none">
+            {isGuest && (
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => useGuestStore.getState().setRegistrationModal(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-dv-gold/10 border border-dv-gold/20 text-dv-gold hover:bg-dv-gold/15 transition-colors"
+              >
+                <User size={12} />
+                <span className="text-[10px] font-semibold">Гость</span>
+              </motion.button>
+            )}
+            {!isGuest && <ClinicSwitcher />}
+            <DentCashHeaderChip />
+            <button
+              onClick={() => setCmdOpen(true)}
+              className={cn(
+                'items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-dv-gold/30 transition-colors text-xs',
+                isMobile ? 'hidden' : 'flex',
+              )}
+            >
+              <span>Поиск...</span>
+              <kbd className="px-1 py-0.5 text-[10px] font-mono bg-surface-3 rounded border border-bdr-subtle">⌘K</kbd>
+            </button>
+            <AlertDropdown
+              alerts={proactiveAlerts}
+              isOpen={alertDropdownOpen}
+              setIsOpen={setAlertDropdownOpen}
+            />
+            <button
+              onClick={() => setContextSheetOpen(!contextSheetOpen)}
+              className={cn(
+                'hidden lg:flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+                contextSheetOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-txt-muted hover:text-txt-primary hover:bg-white/5'
+              )}
+              aria-label="Контекстная панель"
+            >
+              <Building2 size={16} />
+            </button>
+            <div className="hidden lg:flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+              <span className="text-[10px] font-medium text-dv-gold">AI</span>
+            </div>
+          </div>
+        </header>
+
+        <div
+          className={cn(
+            'flex-1 bg-surface-0 relative min-h-0',
+            isAIHome
+              ? 'overflow-hidden flex flex-col'
+              : 'overflow-y-auto overflow-x-hidden dv-content-pad-bottom',
+          )}
+        >
+          {/*
+            No AnimatePresence/exit around Outlet: mode="wait" + opacity exit
+            can leave the main pane at opacity:0 while the shell stays clickable
+            (sidebar works, CRM body looks "frozen"/blank). Enter-only fade is enough.
+          */}
+          {billingSnap ? (
+            <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0">
+              <PlanAccessBanner snap={billingSnap} />
+            </div>
+          ) : null}
+          {!isAuthenticated && initError ? (
+            <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0">
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 flex flex-wrap items-center gap-2 sm:gap-3">
+                <p className="text-xs sm:text-sm text-txt-primary m-0 flex-1">
+                  Гостевая сессия не поднялась (API мог быть холодный). Можно повторить или войти.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { void retryGuest(); }}
+                  className="px-3 py-1.5 rounded-lg bg-dv-gold/15 text-dv-gold text-xs font-semibold hover:bg-dv-gold/25"
+                >
+                  Повторить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="px-3 py-1.5 rounded-lg border border-bdr-subtle text-txt-secondary text-xs hover:text-txt-primary"
+                >
+                  Войти
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <motion.div
+            key={`${location.pathname}:${clinic?.id || 'none'}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.12 }}
+            className={cn(
+              'min-w-0 w-full max-w-full overflow-x-hidden',
+              isAIHome ? 'flex-1 min-h-0 h-full' : 'h-full',
+            )}
+          >
+            <Outlet context={{ user, clinic, roleInfo, billingSnap }} />
+          </motion.div>
+        </div>
+      </div>
+
+      {!isMobile && (
+        <AnimatePresence>
+          {contextSheetOpen && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 320, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+              className="hidden lg:flex flex-col border-l border-bdr-subtle bg-surface-1 overflow-hidden flex-shrink-0 h-full"
+            >
+              <ContextPanel
+                onClose={() => setContextSheetOpen(false)}
+                clinic={clinic}
+                user={user}
+                role={roleInfo}
+              />
+            </motion.aside>
+          )}
+        </AnimatePresence>
+      )}
+
+      <AnimatePresence>
+        {isMobile && contextSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              onClick={() => setContextSheetOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={0.3}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 100) setContextSheetOpen(false);
+              }}
+              className="fixed bottom-0 left-0 right-0 z-50 max-h-[min(85vh,85dvh)] bg-surface-1 border-t border-bdr-subtle rounded-t-2xl shadow-2xl flex flex-col"
+              style={{ paddingBottom: 'var(--dv-safe-bottom)' }}
+            >
+              <div
+                className="flex h-12 items-center justify-center border-b border-bdr-subtle cursor-grab active:cursor-grabbing touch-pan-y"
+                onClick={() => setContextSheetOpen(false)}
+              >
+                <div className="h-1 w-10 rounded-full bg-txt-muted" />
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <ContextPanel
+                  onClose={() => setContextSheetOpen(false)}
+                  clinic={clinic}
+                  user={user}
+                  role={roleInfo}
+                />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onAIQuery={handleAIQuery} />
+      {isMobile && <BottomNav />}
+      <RegistrationModal />
+    </div>
+  );
+};
+
+export default IntelligenceLayout;

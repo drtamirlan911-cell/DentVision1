@@ -1,0 +1,1907 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- ENUMS ---
+
+enum UserRole {
+  OWNER
+  DOCTOR
+  ASSISTANT
+  ADMIN
+  CASHIER
+  LAB
+  MANAGER
+  STUDENT
+  SUPERADMIN
+}
+
+enum ClinicPlan {
+  DEMO
+  STANDARD
+  PRO
+  ENTERPRISE
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  completed
+  cancelled
+  no_show
+}
+
+enum InvoiceStatus {
+  paid
+  unpaid
+  partial
+  refund
+  pending
+  overdue
+}
+
+enum ImageType {
+  PHOTO
+  X_RAY
+  CBCT
+  DICOM
+  SCAN
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
+  completed
+}
+
+enum WaitingListStatus {
+  waiting
+  called
+  cancelled
+}
+
+enum PlanStatus {
+  draft
+  active
+  completed
+  cancelled
+  proposed
+  accepted
+  in_progress
+}
+
+enum LabOrderStatus {
+  pending
+  in_progress
+  completed
+  cancelled
+  delivered
+}
+
+enum ActionStatus {
+  pending
+  completed
+  failed
+  cancelled
+}
+
+enum NotificationType {
+  info
+  warning
+  error
+  appointment
+  promotion
+  system
+  subscription
+  workflow
+}
+
+enum PaymentProvider {
+  kaspi
+  card
+  cash
+  other
+  kaspi_qr
+  clinic_kaspi
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+  created
+  expired
+}
+
+// --- USER SYSTEM ---
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  avatar    String?
+  phone     String?
+  spec      String?
+  profileMeta Json?
+  role      UserRole @default(DOCTOR)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  memberships     ClinicMember[]
+  aiSessions      AISession[]
+  notifications   Notification[]
+  aiActions       AIAction[]
+  aiAlerts        AIAlert[]
+  orders          Order[]
+  enrollments     SchoolEnrollment[]
+  appointments    Appointment[]
+  academies       Academy[]
+  aiMessages      AIMessage[]
+  communityPosts  CommunityPost[]
+  communityLikes  CommunityLike[]
+  communityComments CommunityComment[]
+  communitySaves  CommunitySave[]
+  dmParticipants  DmParticipant[]
+  dmMessages      DmMessage[]
+  favorites       Favorite[]
+  dentCashLedgers  DentCashLedger[]
+  developerApps   DeveloperApp[]
+  userSessions    UserSession[]
+  consents        Consent[]
+  uploadedMedicalFiles MedicalFileAccess[] @relation("UploadedFiles")
+  viewedMedicalFiles   MedicalFileAccess[] @relation("ViewedFiles")
+  downloadedMedicalFiles MedicalFileAccess[] @relation("DownloadedFiles")
+  aiActionLogs         AIActionLog[] @relation("UserActions")
+  confirmedAiActions   AIActionLog[] @relation("ConfirmedActions")
+  jobVacancies         JobVacancy[]
+  jobApplications      JobApplication[]
+
+  @@map("users")
+}
+
+model Clinic {
+  id      String      @id @default(uuid())
+  name    String
+  city    String?
+  address String?
+  phone   String?
+  logo    String?
+  plan    ClinicPlan  @default(DEMO)
+  active  Boolean     @default(true)
+  settings Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  members       ClinicMember[]
+  invitations   ClinicInvitation[]
+  patients      Patient[]
+  appointments  Appointment[]
+  labOrders     LabOrder[]
+  invoices      Invoice[]
+  inventory     InventoryItem[]
+  orders        Order[]
+  waitingList   WaitingList[]
+  expenses      Expense[]
+  promotions    Promotion[]
+  priceList     PriceListItem[]
+  reminderLogs  ReminderLog[]
+  chairs        Chair[]
+  bookings      Booking[]
+  documents     Document[]
+  aiMessages    AIMessage[]
+  jobVacancies    JobVacancy[]
+  customerMetrics CustomerMetrics[]
+  serviceAccesses ServiceAccess[]
+
+  @@map("clinics")
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  clinicId    String
+  patientName String
+  phone       String
+  email       String?
+  doctorId    String?
+  doctorName  String?
+  serviceName String?
+  date        DateTime      @db.Date
+  time        String
+  notes       String?
+  status      BookingStatus @default(pending)
+  source      String        @default("online")
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId, status, date])
+  @@map("bookings")
+}
+
+model ClinicMember {
+  id                 String   @id @default(uuid())
+  userId             String
+  clinicId           String
+  role               UserRole @default(DOCTOR)
+  commissionPercent  Int      @default(30)
+  baseSalary         Int      @default(0)
+  payType            String   @default("commission")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([userId, clinicId])
+  @@index([clinicId])
+  @@map("clinic_members")
+}
+
+model ClinicInvitation {
+  id        String   @id @default(uuid())
+  clinicId  String
+  email     String?
+  role      UserRole @default(DOCTOR)
+  code      String   @unique
+  expiresAt DateTime?
+  usedAt    DateTime?
+  usedBy    String?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId])
+  @@map("clinic_invitations")
+}
+
+// --- PATIENT CRM ---
+
+model Patient {
+  id        String  @id @default(uuid())
+  clinicId  String
+  firstName String
+  lastName  String
+  phone     String?
+  email     String?
+  birthDate DateTime?
+  gender    String?
+  address   String?
+  notes     String?
+  medicalHistory Json?
+  prepaidBalance Int  @default(0)
+  deletedAt DateTime?
+
+  clinic      Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  visits      Visit[]
+  appointments Appointment[]
+  teeth       Tooth[]
+  treatmentPlans TreatmentPlan[]
+  images      PatientImage[]
+  documents   Document[]
+  labOrders   LabOrder[]
+  invoices    Invoice[]
+  aiActionLogs AIActionLog[]
+  medicalFileAccesses MedicalFileAccess[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId])
+  @@map("patients")
+}
+
+// --- APPOINTMENTS ---
+
+model Appointment {
+  id        String              @id @default(uuid())
+  clinicId  String
+  patientId String
+  doctorId  String
+  date      DateTime
+  time      String?
+  duration  Int?                @default(30)
+  status    AppointmentStatus   @default(pending)
+  type      String?
+  notes     String?
+  meta      Json?
+
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor  User    @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId, date])
+  @@index([doctorId, date])
+  @@map("appointments")
+}
+
+// --- CRM OPS ---
+
+model WaitingList {
+  id               String            @id @default(uuid())
+  clinicId         String
+  patientId        String?
+  patientName      String?
+  patientPhone     String?
+  doctorId         String?
+  doctorName       String?
+  preferredDate    DateTime?
+  preferredTime    String?
+  preferredService String?
+  notes            String?
+  status           WaitingListStatus @default(waiting)
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId, status])
+  @@map("waiting_list")
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  clinicId    String
+  category    String?
+  amount      Int
+  description String?
+  notes       String?
+  date        DateTime @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId, date])
+  @@map("expenses")
+}
+
+model Promotion {
+  id              String    @id @default(uuid())
+  clinicId        String
+  title           String
+  description     String?
+  discountPercent Int?      @default(0)
+  serviceIds      Json?
+  startDate       DateTime?
+  endDate         DateTime?
+  active          Boolean   @default(true)
+  imageUrl        String?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId])
+  @@map("promotions")
+}
+
+model PriceListItem {
+  id          String  @id @default(uuid())
+  clinicId    String
+  serviceCode String
+  name        String?
+  price       Int
+  matCost     Int     @default(0)
+  active      Boolean @default(true)
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([clinicId, serviceCode])
+  @@index([clinicId])
+  @@map("price_list")
+}
+
+model ReminderLog {
+  id          String   @id @default(uuid())
+  clinicId    String
+  reminderKey String
+  channel     String?
+  sentAt      DateTime @default(now())
+  meta        Json?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, reminderKey])
+  @@map("reminder_logs")
+}
+
+model Chair {
+  id        String  @id @default(uuid())
+  clinicId  String
+  name      String
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId, active])
+  @@map("chairs")
+}
+
+// --- MEDICAL RECORDS ---
+
+model Visit {
+  id         String   @id @default(uuid())
+  patientId  String
+  doctorId   String
+  date       DateTime @default(now())
+  diagnosis  String?
+  complaints String?
+  anamnesis  String?
+  treatment  Json?
+  notes      String?
+  deletedAt  DateTime?
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@map("visits")
+}
+
+model Tooth {
+  id        String @id @default(uuid())
+  patientId String
+  number    Int
+  condition String?
+  diagnosis String?
+  notes     String?
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([patientId, number])
+  @@map("teeth")
+}
+
+model TreatmentPlan {
+  id        String    @id @default(uuid())
+  patientId String
+  title     String
+  status    PlanStatus @default(draft)
+  items     Json
+  price     Int?
+  notes     String?
+  deletedAt DateTime?
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([patientId])
+  @@map("treatment_plans")
+}
+
+model PatientImage {
+  id        String    @id @default(uuid())
+  patientId String
+  type      ImageType
+  url       String
+  name      String?
+  metadata  Json?
+  deletedAt DateTime?
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([patientId])
+  @@map("patient_images")
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  patientId String?
+  clinicId  String?
+  type      String
+  name      String?
+  url       String
+  signed    Boolean  @default(false)
+  signedAt  DateTime?
+  deletedAt DateTime?
+
+  patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  clinic  Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([patientId])
+  @@map("documents")
+}
+
+// --- LAB ORDERS ---
+
+model LabOrder {
+  id        String         @id @default(uuid())
+  patientId String?
+  clinicId  String
+  labName   String?
+  status    LabOrderStatus @default(pending)
+  type      String?
+  notes     String?
+  files     Json?
+  deadline  DateTime?
+  price     Int?
+
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@map("lab_orders")
+}
+
+// --- BILLING ---
+
+model Invoice {
+  id        String        @id @default(uuid())
+  clinicId  String
+  patientId String?
+  amount    Int
+  status    InvoiceStatus @default(unpaid)
+  items     Json
+  notes     String?
+  paidAt    DateTime?
+  deletedAt DateTime?
+
+  clinic  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@map("invoices")
+}
+
+// --- INVENTORY ---
+
+model InventoryItem {
+  id       String @id @default(uuid())
+  clinicId String
+  name     String
+  category String?
+  quantity Int    @default(0)
+  minimum  Int    @default(0)
+  price    Int?
+  unit     String?
+  supplier String?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId])
+  @@map("inventory")
+}
+
+// --- AI CORE ---
+
+model AISession {
+  id       String @id @default(uuid())
+  userId   String
+  clinicId String
+  messages Json
+  context  Json
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  aiMessages AIMessage[]
+
+  @@index([userId])
+  @@map("ai_sessions")
+}
+
+model AIAction {
+  id       String       @id @default(uuid())
+  userId   String
+  intent   String
+  payload  Json
+  status   ActionStatus @default(pending)
+  result   Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([userId])
+  @@map("ai_actions")
+}
+
+model AIAlert {
+  id       String  @id @default(uuid())
+  userId   String
+  type     String
+  priority String  @default("low")
+  message  String
+  resolved Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([userId, resolved])
+  @@map("ai_alerts")
+}
+
+// --- MARKETPLACE ---
+
+// --- ECOSYSTEM: SUPPLIERS ---
+
+enum SupplierStatus {
+  pending
+  documents_review
+  verified
+  official_partner
+  suspended
+}
+
+enum SupplierKind {
+  MANUFACTURER
+  DISTRIBUTOR
+  SUPPLIER
+  BRAND_REPRESENTATIVE
+}
+
+model Supplier {
+  id            String         @id @default(uuid())
+  name          String
+  kind          SupplierKind   @default(SUPPLIER)
+  bin           String?
+  legalAddress  String?
+  city          String?
+  contactPerson String?
+  phone         String?
+  email         String?
+  status        SupplierStatus @default(pending)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  products  Product[]
+  documents SupplierDocument[]
+  members   SupplierMember[]
+
+  @@index([city])
+  @@map("suppliers")
+}
+
+model SupplierMember {
+  id         String   @id @default(uuid())
+  userId     String
+  supplierId String
+  role       String   @default("owner")
+  createdAt  DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, supplierId])
+  @@index([userId])
+  @@map("supplier_members")
+}
+
+model SupplierDocument {
+  id         String   @id @default(uuid())
+  supplierId String
+  type       String
+  url        String
+  verified   Boolean  @default(false)
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([supplierId])
+  @@map("supplier_documents")
+}
+
+model Product {
+  id          String @id @default(uuid())
+  name        String
+  brand       String?
+  category    String?
+  price       Int
+  stock       Int    @default(0)
+  description String?
+  imageUrl    String?
+  rating      Float?
+  supplierId  String?
+  ownBrand    Boolean @default(false)
+
+  manufacturer  String?
+  country       String?
+  expiryDate    DateTime?
+  compatibility String?
+
+  favorites Favorite[]
+  supplier  Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([supplierId])
+  @@map("products")
+}
+
+model Order {
+  id       String @id @default(uuid())
+  clinicId String
+  userId   String
+  items    Json
+  status   String @default("pending")
+  total    Int
+  meta     Json?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([userId])
+  @@index([clinicId])
+  @@map("orders")
+}
+
+model Favorite {
+  id        String @id @default(uuid())
+  userId    String
+  productId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("favorites")
+}
+
+// --- ICD-10 ---
+
+model ICD10Code {
+  code        String @id
+  description String
+  category    String?
+
+  @@map("icd10_codes")
+}
+
+// --- SCHOOL ---
+
+// --- SCHOOL GOVERNANCE: LECTURERS & ACADEMIES ---
+
+enum ExpertLevel {
+  new
+  verified
+  expert
+  international_speaker
+}
+
+model Academy {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String?
+  city      String?
+
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  lecturers Lecturer[]
+  courses   Course[]
+
+  @@map("academies")
+}
+
+model Lecturer {
+  id        String      @id @default(uuid())
+  userId    String      @unique
+  level     ExpertLevel @default(new)
+  bio       String?
+  academyId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  academy       Academy?             @relation(fields: [academyId], references: [id], onDelete: SetNull)
+  verifications ExpertVerification[]
+  courses       Course[]
+
+  @@index([academyId])
+  @@map("lecturers")
+}
+
+model ExpertVerification {
+  id         String  @id @default(uuid())
+  lecturerId String
+  type       String
+  url        String?
+  verified   Boolean @default(false)
+
+  lecturer Lecturer @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([lecturerId])
+  @@map("expert_verifications")
+}
+
+model Course {
+  id          String @id @default(uuid())
+  title       String
+  description String?
+  author      String?
+  imageUrl    String?
+  price       Int?
+  category    String?
+  duration    String?
+
+  format      String    @default("course")
+  startsAt    DateTime?
+  seats       Int?
+  fileUrl     String?
+  meta        Json?
+
+  lecturerId String?
+  academyId  String?
+
+  lessons    Lesson[]
+  enrollments SchoolEnrollment[]
+  lecturer   Lecturer? @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
+  academy    Academy?  @relation(fields: [academyId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([lecturerId])
+  @@index([academyId])
+  @@index([format])
+  @@map("courses")
+}
+
+model Lesson {
+  id       String  @id @default(uuid())
+  courseId  String
+  title    String
+  videoUrl String?
+  content  String?
+  order    Int     @default(0)
+  duration Int?
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([courseId])
+  @@map("lessons")
+}
+
+model SchoolEnrollment {
+  id       String @id @default(uuid())
+  userId   String
+  courseId  String
+  progress Int    @default(0)
+  completed Boolean @default(false)
+  certificateUrl String?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([userId, courseId])
+  @@map("school_enrollments")
+}
+
+// --- NOTIFICATIONS ---
+
+model Notification {
+  id       String           @id @default(uuid())
+  userId   String
+  type     String
+  title    String
+  message  String
+  read     Boolean          @default(false)
+  link     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+// --- AUDIT ---
+
+model AuditLog {
+  id         String @id @default(uuid())
+  userId     String?
+  clinicId   String?
+  userName   String?
+  action     String
+  entityType String?
+  entity     String?
+  entityId   String?
+  details    Json?
+  ip         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId])
+  @@map("audit_logs")
+}
+
+model AIMessage {
+  id           String    @id @default(uuid())
+  sessionId    String
+  role         String
+  content      String
+  userId       String?
+  clinicId     String?
+  feedback     String?
+  feedbackAt   DateTime?
+  prevUserText String?
+
+  session AISession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clinic  Clinic?   @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@index([userId, feedback])
+  @@map("ai_messages")
+}
+
+model AIMemory {
+  id        String   @id @default(uuid())
+  key       String
+  value     Json
+  scope     String
+  userId    String
+  clinicId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([key, userId, clinicId, scope])
+  @@index([userId, clinicId, scope])
+  @@map("ai_memories")
+}
+
+// --- COMMUNITY ---
+
+model CommunityPost {
+  id            String   @id @default(uuid())
+  authorId      String?
+  authorName    String
+  authorRole    String?
+  content       String
+  tags          Json?
+  kind          String   @default("thread")
+  likesCount    Int      @default(0)
+  commentsCount Int      @default(0)
+
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  likes     CommunityLike[]
+  comments  CommunityComment[]
+  saves     CommunitySave[]
+
+  @@index([createdAt])
+  @@map("community_posts")
+}
+
+model CommunityLike {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([postId, userId])
+  @@map("community_likes")
+}
+
+model CommunityComment {
+  id         String   @id @default(uuid())
+  postId     String
+  authorId   String
+  authorName String
+  content    String
+
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([postId, createdAt])
+  @@map("community_comments")
+}
+
+model CommunitySave {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+  @@map("community_saves")
+}
+
+model DmConversation {
+  id        String   @id @default(uuid())
+  pairKey   String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  participants DmParticipant[]
+  messages     DmMessage[]
+
+  @@index([updatedAt])
+  @@map("dm_conversations")
+}
+
+model DmParticipant {
+  id             String    @id @default(uuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+
+  conversation DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("dm_participants")
+}
+
+model DmMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String
+  body           String
+
+  conversation DmConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([conversationId, createdAt])
+  @@map("dm_messages")
+}
+
+// --- FINANCE (Phase 4) ---
+
+enum WalletOwnerType {
+  CLINIC
+  SUPPLIER
+  ACADEMY
+  LECTURER
+  PARTNER
+  PLATFORM
+  GATEWAY
+  USER
+}
+
+enum CashbackScope {
+  ALL
+  CATEGORY
+  PRODUCT
+  OWN_BRAND
+}
+
+enum TxStatus {
+  pending
+  completed
+  failed
+  reversed
+}
+
+model Wallet {
+  id        String          @id @default(uuid())
+  ownerType WalletOwnerType
+  ownerId   String
+  currency  String          @default("KZT")
+  balance   BigInt          @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  ledgerEntries LedgerEntry[]
+  payouts       Payout[]
+
+  @@unique([ownerType, ownerId, currency])
+  @@map("wallets")
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  type      String
+  status    TxStatus @default(completed)
+  amount    BigInt
+  currency  String   @default("KZT")
+  refType   String?
+  refId     String?
+  meta      Json?
+
+  ledgerEntries LedgerEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([refType, refId])
+  @@map("transactions")
+}
+
+model LedgerEntry {
+  id            String @id @default(uuid())
+  transactionId String
+  walletId      String
+  direction     String
+  amount        BigInt
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  wallet      Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([walletId])
+  @@index([transactionId])
+  @@map("ledger_entries")
+}
+
+model CommissionRule {
+  id         String   @id @default(uuid())
+  domain     String
+  scopeId    String?
+  percentBps Int
+  splitJson  Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([domain, scopeId])
+  @@map("commission_rules")
+}
+
+// --- PAYMENTS (Phase 5) ---
+
+model Payment {
+  id         String          @id @default(uuid())
+  provider   PaymentProvider @default(kaspi)
+  externalId String?         @unique
+  amount     BigInt
+  currency   String          @default("KZT")
+  status     PaymentStatus   @default(pending)
+  refType    String?
+  refId      String?
+  domain     String?
+  sellerType String?
+  sellerId   String?
+  meta       Json?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([refType, refId])
+  @@map("payments")
+}
+
+model Subscription {
+  id        String          @id @default(uuid())
+  ownerType WalletOwnerType
+  ownerId   String
+  plan      String          @default("free")
+  status    String          @default("active")
+  periodEnd DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@unique([ownerType, ownerId])
+  @@map("subscriptions")
+}
+
+model Payout {
+  id        String   @id @default(uuid())
+  walletId  String
+  amount    BigInt
+  status    String   @default("requested")
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([walletId])
+  @@map("payouts")
+}
+
+model Dispute {
+  id        String   @id @default(uuid())
+  refType   String
+  refId     String
+  reason    String
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([refType, refId])
+  @@map("disputes")
+}
+
+// --- DENT CASHBACK ---
+
+model CashbackRule {
+  id        String          @id @default(uuid())
+  ownerType WalletOwnerType
+  ownerId   String
+  scope     CashbackScope   @default(ALL)
+  scopeKey  String?
+  rateBps   Int
+  capMinor  BigInt?
+  active    Boolean         @default(true)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([ownerType, ownerId, active])
+  @@index([scope, scopeKey])
+  @@map("cashback_rules")
+}
+
+model DentCashLedger {
+  id          String    @id @default(uuid())
+  userId      String
+  type        String
+  status      String    @default("pending")
+  amountMinor BigInt
+  currency    String    @default("KZT")
+  refType     String?
+  refId       String?
+  sellerType  String?
+  sellerId    String?
+  meta        Json?
+  availableAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([userId, status])
+  @@index([refType, refId])
+  @@map("dentcash_ledger")
+}
+
+// --- COMPLIANCE (Phase 7) ---
+
+model ComplianceCheck {
+  id         String   @id @default(uuid())
+  entityType String
+  entityId   String
+  status     String   @default("needs_review")
+  findings   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([entityType, entityId])
+  @@map("compliance_checks")
+}
+
+// --- DEVELOPER PLATFORM (Phase 8) ---
+
+model DeveloperApp {
+  id          String   @id @default(uuid())
+  ownerUserId String
+  name        String
+  environment String   @default("sandbox")
+  scopes      String[]
+
+  owner User @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  apiKeys  ApiKey[]
+  webhooks Webhook[]
+
+  @@index([ownerUserId])
+  @@map("developer_apps")
+}
+
+model ApiKey {
+  id        String    @id @default(uuid())
+  appId     String
+  prefix    String    @unique
+  hash      String
+  scopes    String[]
+  rateLimit Int       @default(200)
+  revokedAt DateTime?
+
+  app DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([appId])
+  @@map("api_keys")
+}
+
+model Webhook {
+  id        String   @id @default(uuid())
+  appId     String
+  url       String
+  events    String[]
+  secret    String
+  active    Boolean  @default(true)
+
+  app        DeveloperApp      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([appId])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id        String   @id @default(uuid())
+  webhookId String
+  event     String
+  payload   Json
+  status    String   @default("pending")
+  attempts  Int      @default(0)
+  lastError String?
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([webhookId, status])
+  @@map("webhook_deliveries")
+}
+
+// --- WORKFLOW (Phase 9) ---
+
+model Workflow {
+  id        String   @id @default(uuid())
+  scopeType String   @default("CLINIC")
+  scopeId   String
+  name      String
+  status    String   @default("active")
+  trigger   Json
+  graph     Json
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  runs WorkflowRun[]
+
+  @@index([scopeType, scopeId])
+  @@map("workflows")
+}
+
+model WorkflowRun {
+  id          String    @id @default(uuid())
+  workflowId  String
+  status      String    @default("running")
+  triggerData Json?
+  steps       Json?
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId, status])
+  @@map("workflow_runs")
+}
+
+// --- DATA INTELLIGENCE (Phase 10) ---
+
+model Metric {
+  id         String   @id @default(uuid())
+  key        String   @unique
+  domain     String
+  title      String
+  definition Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("metrics")
+}
+
+model Dashboard {
+  id        String   @id @default(uuid())
+  scopeType String   @default("CLINIC")
+  scopeId   String
+  name      String
+  layout    Json
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([scopeType, scopeId])
+  @@map("dashboards")
+}
+
+// --- PARTNERS (Phase 11) ---
+
+enum PartnerType {
+  MANUFACTURER
+  DISTRIBUTOR
+  ACADEMY
+  LABORATORY
+  OFFICIAL_PARTNER
+}
+
+model Partner {
+  id        String      @id @default(uuid())
+  type      PartnerType
+  refType   String
+  refId     String
+  tierId    String?
+  status    String      @default("active")
+
+  tier      PartnerTier?        @relation(fields: [tierId], references: [id], onDelete: SetNull)
+  kpis      PartnerKPI[]
+  slas      PartnerSLA[]
+  campaigns MarketingCampaign[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([type, status])
+  @@index([tierId])
+  @@map("partners")
+}
+
+model PartnerTier {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  commissionBps Int
+  minKpiJson    Json?
+  benefitsJson  Json?
+
+  partners Partner[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@map("partner_tiers")
+}
+
+model PartnerKPI {
+  id          String   @id @default(uuid())
+  partnerId   String
+  period      String
+  metricsJson Json?
+  score       Float    @default(0)
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([partnerId, period])
+  @@map("partner_kpis")
+}
+
+model PartnerSLA {
+  id        String   @id @default(uuid())
+  partnerId String
+  metric    String
+  target    Float
+  actual    Float?
+  breached  Boolean  @default(false)
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([partnerId])
+  @@map("partner_slas")
+}
+
+model MarketingCampaign {
+  id        String    @id @default(uuid())
+  partnerId String
+  name      String
+  budget    BigInt    @default(0)
+  splitBps  Int       @default(5000)
+  status    String    @default("draft")
+  startsAt  DateTime?
+  endsAt    DateTime?
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([partnerId])
+  @@map("marketing_campaigns")
+}
+
+// --- PROFILE & JOBS (Phase 12) ---
+
+model JobVacancy {
+  id              String   @id @default(uuid())
+  title           String
+  clinicName      String   @default("")
+  city            String   @default("")
+  salary          String   @default("")
+  employmentType  String   @default("?Y???�???�N? ?�?�??N?N�??N?N�N?")
+  description     String   @default("")
+  tags            Json?
+  status          String   @default("open")
+  kind            String   @default("vacancy")
+
+  userId   String?
+  clinicId String?
+
+  user  User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  applications JobApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([status, city])
+  @@index([userId])
+  @@map("job_vacancies")
+}
+
+model JobApplication {
+  id        String   @id @default(uuid())
+  vacancyId String
+  userId    String
+  userName  String   @default("")
+  coverNote String   @default("")
+  status    String   @default("new")
+
+  vacancy JobVacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([userId])
+  @@index([vacancyId, userId])
+  @@map("job_applications")
+}
+
+// --- AI EVENT BUS ---
+
+enum AIEventStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+model AIEvent {
+  id          String        @id @default(uuid())
+  type        String
+  source      String
+  clinicId    String
+  userId      String
+  payload     Json
+  status      AIEventStatus @default(pending)
+  retries     Int           @default(0)
+  maxRetries  Int           @default(3)
+  result      Json?
+  error       String?
+  createdAt   DateTime      @default(now())
+  processedAt DateTime?
+
+  @@index([clinicId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("ai_events")
+}
+
+// --- BI SNAPSHOTS ---
+
+model BISnapshot {
+  id        String   @id @default(uuid())
+  scopeType String   @default("PLATFORM")
+  scopeId   String   @default("system")
+  data      Json
+  period    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([scopeType, scopeId, period])
+  @@index([createdAt])
+  @@map("bi_snapshots")
+}
+
+// --- BI FINANCIAL MODELS ---
+
+enum FinancialTxType {
+  INCOME
+  EXPENSE
+  REFUND
+  COMMISSION
+}
+
+enum RevenueSource {
+  SaaS
+  SHOP
+  ACADEMY
+  MARKETPLACE
+  AI
+}
+
+enum ExpenseCategory {
+  SERVER
+  AI_API
+  MARKETING
+  SALARY
+  SUPPORT
+  PAYMENT_FEES
+}
+
+model FinancialTransaction {
+  id         String           @id @default(uuid())
+  tenantId   String
+  type       FinancialTxType
+  category   String
+  amount     BigInt
+  currency   String           @default("KZT")
+  source     RevenueSource
+  refType    String?
+  refId      String?
+  meta       Json?
+  createdAt  DateTime         @default(now())
+
+  @@index([tenantId, source])
+  @@index([tenantId, type])
+  @@index([createdAt])
+  @@map("financial_transactions")
+}
+
+model Revenue {
+  id        String       @id @default(uuid())
+  tenantId  String
+  source    RevenueSource
+  amount    BigInt
+  date      DateTime     @default(now())
+  meta      Json?
+
+  @@index([tenantId, source, date])
+  @@index([date])
+  @@map("revenues")
+}
+
+model PlatformExpense {
+  id         String          @id @default(uuid())
+  tenantId   String
+  category   ExpenseCategory
+  amount     BigInt
+  date       DateTime        @default(now())
+  meta       Json?
+
+  @@index([tenantId, category, date])
+  @@index([date])
+  @@map("platform_expenses")
+}
+
+model SaaSMetrics {
+  id            String   @id @default(uuid())
+  tenantId      String   @default("platform")
+  mrr           BigInt
+  arr           BigInt
+  cac           BigInt
+  ltv           BigInt
+  churn         Float
+  activeUsers   Int      @default(0)
+  date          DateTime @default(now())
+
+  @@index([tenantId, date])
+  @@map("saas_metrics")
+}
+
+model CustomerMetrics {
+  id          String   @id @default(uuid())
+  clinicId    String
+  revenue     BigInt
+  cost        BigInt
+  profit      BigInt
+  lifetimeValue BigInt
+  period      String
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId, period])
+  @@map("customer_metrics")
+}
+
+// ===============================================================
+// COMPLIANCE & SECURITY MODELS
+// ===============================================================
+
+model UserSession {
+  id           String   @id @default(uuid())
+  userId       String
+  device       String?
+  browser      String?
+  ipAddress    String?
+  lastActivity DateTime @default(now())
+  expiredAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([userId])
+  @@index([userId, expiredAt])
+  @@map("user_sessions")
+}
+
+model Consent {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  version   String   @default("1.0")
+  accepted  Boolean  @default(false)
+  ipAddress String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([userId, type])
+  @@map("consents")
+}
+
+model MedicalFileAccess {
+  id         String   @id @default(uuid())
+  patientId  String
+  fileType   String
+  storagePath String
+  uploadedBy String
+  viewedBy   String?
+  downloadedBy String?
+  action     String
+
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploader   User    @relation("UploadedFiles", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  viewer     User?   @relation("ViewedFiles", fields: [viewedBy], references: [id], onDelete: SetNull)
+  downloader User?   @relation("DownloadedFiles", fields: [downloadedBy], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([patientId])
+  @@index([uploadedBy])
+  @@map("medical_file_access")
+}
+
+model AIActionLog {
+  id               String   @id @default(uuid())
+  userId           String
+  patientId        String?
+  agent            String
+  model            String?
+  request          Json
+  response         Json?
+  doctorConfirmed  Boolean  @default(false)
+  confirmedBy      String?
+  confirmedAt      DateTime?
+
+  user      User    @relation("UserActions", fields: [userId], references: [id], onDelete: Cascade)
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  confirmor User?   @relation("ConfirmedActions", fields: [confirmedBy], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([userId])
+  @@index([patientId])
+  @@index([agent])
+  @@index([createdAt])
+  @@map("ai_action_logs")
+}
+
+model ServiceAccess {
+  id        String   @id @default(uuid())
+  clinicId  String   @map("clinic_id")
+  service   String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, service])
+  @@index([clinicId])
+  @@map("service_access")
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#080F1A" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="description" content="DentVision — стоматологическая SuperApp: CRM клиники, маркетплейс, Academy OS и ИИ-напарник Jarvis." />
+    <meta property="og:title" content="DentVision — Стоматологическая SuperApp" />
+    <meta property="og:description" content="CRM, маркетплейс, обучение и ИИ в одной платформе для стоматологии." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ru_KZ" />
+    <meta property="og:image" content="/og.svg" />
+    <meta property="og:image:alt" content="DentVision — стоматологическая SuperApp" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="DentVision — Стоматологическая SuperApp" />
+    <meta name="twitter:description" content="CRM, маркетплейс, обучение и ИИ в одной платформе для стоматологии." />
+    <meta name="twitter:image" content="/og.svg" />
+    <link rel="canonical" href="/" />
+    <title>DentVision — Стоматологическая SuperApp</title>
+    <script>
+      // Theme + compact shell hint before paint (avoids flash / wrong chrome on landscape phones)
+      (function () {
+        try {
+          var root = document.documentElement;
+          var raw = localStorage.getItem('dv_ui_prefs');
+          var dark = true;
+          if (raw) {
+            var p = JSON.parse(raw);
+            if (p && p.darkMode === false) dark = false;
+          }
+          root.classList.toggle('dark', dark);
+          root.classList.toggle('light', !dark);
+          root.style.colorScheme = dark ? 'dark' : 'light';
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#080F1A' : '#F0F4F8');
+          var compact = window.innerWidth < 768 || window.innerHeight < 520;
+          root.dataset.shell = compact ? 'compact' : 'wide';
+        } catch (e) { /* keep defaults */ }
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>
