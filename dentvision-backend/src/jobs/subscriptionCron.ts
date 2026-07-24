@@ -66,6 +66,9 @@ export async function runSubscriptionCron(): Promise<SubscriptionCronResult> {
       periodEnd: { not: null, lte: in15d },
     },
     take: 500,
+  }).catch((err: any) => {
+    if (String(err?.code) === 'P2021') return [];
+    throw err;
   });
   result.scanned = subs.length;
 
@@ -76,6 +79,9 @@ export async function runSubscriptionCron(): Promise<SubscriptionCronResult> {
       const clinic = await prisma.clinic.findUnique({
         where: { id: clinicId },
         select: { id: true, name: true, active: true },
+      }).catch((err: any) => {
+        if (String(err?.code) === 'P2021') return null;
+        throw err;
       });
       if (!clinic) {
         result.skipped += 1;
@@ -93,10 +99,14 @@ export async function runSubscriptionCron(): Promise<SubscriptionCronResult> {
         await prisma.subscription.update({
           where: { id: sub.id },
           data: { status: 'expired' },
+        }).catch((err: any) => {
+          if (String(err?.code) !== 'P2021') throw err;
         });
         await prisma.clinic.update({
           where: { id: clinicId },
           data: { active: false },
+        }).catch((err: any) => {
+          if (String(err?.code) !== 'P2021') throw err;
         });
 
         const count = await notifyClinicOwners(

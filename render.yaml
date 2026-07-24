@@ -5,7 +5,7 @@
 #
 # Current Render Dashboard (matches this Blueprint):
 #   Build: cd dentvision-backend && npm install && npx prisma generate
-#   Start: cd dentvision-backend && npx tsx src/index.ts
+#   Start: cd dentvision-backend && npx prisma migrate deploy && npx tsx src/index.ts
 
 services:
   - type: web
@@ -13,7 +13,7 @@ services:
     runtime: node
     plan: free
     buildCommand: cd dentvision-backend && npm install && npx prisma generate
-    startCommand: cd dentvision-backend && npx tsx src/index.ts
+    startCommand: cd dentvision-backend && npx prisma migrate deploy && npx tsx src/index.ts
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV

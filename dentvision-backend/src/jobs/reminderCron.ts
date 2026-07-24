@@ -33,18 +33,26 @@ export async function runReminderCron(opts: {
   from.setHours(0, 0, 0, 0);
   const to = new Date(now.getTime() + (hoursWindow + 1) * 3600 * 1000);
 
-  const appointments = await prisma.appointment.findMany({
-    where: {
-      ...(opts.clinicId ? { clinicId: opts.clinicId } : {}),
-      date: { gte: from, lte: to },
-      status: { notIn: ['cancelled', 'no_show', 'completed'] },
-    },
-    include: {
-      patient: { select: { id: true, firstName: true, lastName: true, phone: true } },
-      clinic: { select: { id: true, name: true } },
-    },
-    take: 500,
-  });
+  let appointments;
+  try {
+    appointments = await prisma.appointment.findMany({
+      where: {
+        ...(opts.clinicId ? { clinicId: opts.clinicId } : {}),
+        date: { gte: from, lte: to },
+        status: { notIn: ['cancelled', 'no_show', 'completed'] },
+      },
+      include: {
+        patient: { select: { id: true, firstName: true, lastName: true, phone: true } },
+        clinic: { select: { id: true, name: true } },
+      },
+      take: 500,
+    });
+  } catch (err: any) {
+    if (String(err?.code) === 'P2021') {
+      return { scanned: 0, sent: 0, skipped: 0, errors: 0, details: [] };
+    }
+    throw err;
+  }
 
   const result: ReminderCronResult = { scanned: appointments.length, sent: 0, skipped: 0, errors: 0, details: [] };
 
@@ -54,7 +62,7 @@ export async function runReminderCron(opts: {
     ? await prisma.user.findMany({
         where: { id: { in: doctorIds } },
         select: { id: true, firstName: true, lastName: true },
-      })
+      }).catch((err: any) => (String(err?.code) === 'P2021' ? [] : Promise.reject(err)))
     : [];
   const doctorMap = new Map(doctors.map((d) => [d.id, `${d.firstName} ${d.lastName}`.trim()]));
 
@@ -78,7 +86,7 @@ export async function runReminderCron(opts: {
     const already = await prisma.reminderLog.findFirst({
       where: { clinicId: appt.clinicId, reminderKey },
       select: { id: true },
-    });
+    }).catch((err: any) => (String(err?.code) === 'P2021' ? null : Promise.reject(err)));
     if (already) {
       result.skipped += 1;
       continue;
@@ -124,6 +132,8 @@ export async function runReminderCron(opts: {
           status: fromDbStatus(appt.status),
         } as any,
       },
+    }).catch((err: any) => {
+      if (String(err?.code) !== 'P2021') throw err;
     });
 
     result.sent += 1;
