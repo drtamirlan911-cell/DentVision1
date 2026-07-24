@@ -51,7 +51,7 @@ app.use(helmet({
 app.use(cors({ origin: (origin, cb) => cb(null, isOriginAllowed(origin)), credentials: true }));
 
 app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ limit: '1mb', extended: true }));
+app.use(express.urlencoded({ limit: '1mb', extended: false }));
 app.use(cookieParser());
 app.use((err, _req, res, next) => {
   if (err && err.type === 'entity.parse.failed') {

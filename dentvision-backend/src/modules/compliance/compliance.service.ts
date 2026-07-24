@@ -14,11 +14,12 @@ export async function upsertConsent(
   type: string,
   accepted: boolean,
   ipAddress?: string,
+  version = '1.0',
 ) {
   return prisma.consent.upsert({
     where: { userId_type: { userId, type } },
-    update: { accepted, version: '1.0', ipAddress: ipAddress || null },
-    create: { userId, type, accepted, version: '1.0', ipAddress: ipAddress || null },
+    update: { accepted, version, ipAddress: ipAddress || null },
+    create: { userId, type, accepted, version, ipAddress: ipAddress || null },
   });
 }
 
