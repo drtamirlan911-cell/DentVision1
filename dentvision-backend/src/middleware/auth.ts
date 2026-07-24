@@ -26,7 +26,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         firstName: true,
         lastName: true,
         role: true,
-        memberships: { select: { id: true, clinicId: true, status: true } },
+        memberships: { select: { id: true, clinicId: true } },
       },
     });
 
@@ -55,7 +55,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     let effectiveClinicId = isGuest ? undefined : payload.clinicId;
     if (effectiveClinicId) {
       const activeMember = user.memberships?.find(
-        (m) => m.clinicId === effectiveClinicId && m.status === 'active'
+        (m) => m.clinicId === effectiveClinicId
       );
       if (!activeMember) {
         effectiveClinicId = undefined;
