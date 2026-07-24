@@ -211,7 +211,7 @@ export default function crmRoutes(writeAuditLog) {
       if (req.user.role !== 'superadmin' && clinic_id !== req.user.clinicId) {
         return res.status(403).json({ error: 'Cannot create users in other clinics' });
       }
-      const password_hash = await bcrypt.hash(password, 10);
+      const password_hash = await bcrypt.hash(password, 12);
       const user = await prisma.user.upsert({
         where: { id: id || '' },
         update: { clinicId: clinic_id, login, name, role, spec, phone },

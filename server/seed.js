@@ -32,11 +32,11 @@ export async function initDatabase() {
 
     const clinicCount = await prisma.clinic.count();
     if (clinicCount === 0) {
-      const saPass = await bcrypt.hash('DentVision2025!', 10);
-      const adminPass = await bcrypt.hash('admin123', 10);
-      const docPass = await bcrypt.hash('doc123', 10);
-      const dirPass = await bcrypt.hash('dir123', 10);
-      const assistPass = await bcrypt.hash('assist123', 10);
+      const saPass = await bcrypt.hash('DentVision2025!', 12);
+      const adminPass = await bcrypt.hash('admin123', 12);
+      const docPass = await bcrypt.hash('doc123', 12);
+      const dirPass = await bcrypt.hash('dir123', 12);
+      const assistPass = await bcrypt.hash('assist123', 12);
 
       await prisma.clinic.createMany({
         data: [

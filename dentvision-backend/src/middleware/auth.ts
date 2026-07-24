@@ -26,7 +26,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         firstName: true,
         lastName: true,
         role: true,
-        memberships: { select: { id: true }, take: 1 },
+        memberships: { select: { id: true, clinicId: true, status: true } },
       },
     });
 
@@ -45,8 +45,20 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         return res.status(401).json({ ok: false, error: 'Сессия истекла, выполните вход заново' });
       }
     }
+
     const hasMembership = (user.memberships?.length || 0) > 0;
     const isGuest = guestByEmail && !hasMembership;
+
+    // Verify that the clinicId from the JWT still has an active membership
+    let effectiveClinicId = isGuest ? undefined : payload.clinicId;
+    if (effectiveClinicId) {
+      const activeMember = user.memberships?.find(
+        (m) => m.clinicId === effectiveClinicId && m.status === 'active'
+      );
+      if (!activeMember) {
+        effectiveClinicId = undefined;
+      }
+    }
 
     req.user = {
       id: user.id,
@@ -54,8 +66,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
-      // Guests never carry a clinic scope from a stolen JWT claim.
-      clinicId: isGuest ? undefined : payload.clinicId,
+      clinicId: effectiveClinicId,
       supplierId: isGuest ? undefined : payload.supplierId,
       supplierRole: isGuest ? undefined : payload.supplierRole,
       lecturerId: isGuest ? undefined : payload.lecturerId,

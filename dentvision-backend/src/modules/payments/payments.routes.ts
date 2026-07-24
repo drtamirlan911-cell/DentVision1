@@ -463,7 +463,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 });
 
 paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
-  const payment = await prisma.payment.findUnique({ where: { id: req.params.id as string } });
+  let payment = await prisma.payment.findUnique({ where: { id: req.params.id as string } });
   if (!payment) {
     return res.status(404).json({ ok: false, error: 'Платёж не найден' } satisfies ApiResponse);
   }
@@ -471,6 +471,18 @@ paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
   if (!owned) {
     return res.status(403).json({ ok: false, error: 'Нет доступа к платежу' } satisfies ApiResponse);
   }
+
+  // Lazy-expire stale pending payments (> 24h old)
+  if (payment.status === 'pending') {
+    const age = Date.now() - payment.createdAt.getTime();
+    if (age > 86_400_000) {
+      payment = await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'expired' },
+      });
+    }
+  }
+
   const meta = (payment.meta || {}) as { qr?: string; clinicId?: string; merchantScope?: string };
   let providerStatus: string | null = null;
   if (payment.externalId) {

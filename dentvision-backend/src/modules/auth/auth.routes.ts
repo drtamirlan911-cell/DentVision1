@@ -754,7 +754,7 @@ authRouter.post('/invitations', authenticate, async (req: AuthRequest, res) => {
     }
 
     // Generate unique code
-    const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
 
     const expiresAt = expiresInDays
       ? new Date(Date.now() + Number(expiresInDays) * 24 * 60 * 60 * 1000)

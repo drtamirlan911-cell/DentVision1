@@ -86,10 +86,10 @@ export default function authRoutes(authLimiter) {
     try {
       const { name, firstName, lastName, login: loginStr, password, email, phone, spec, city, country } = req.body;
       if (!name || !loginStr || !password) return res.status(400).json({ error: 'Имя, логин и пароль обязательны' });
-      if (password.length < 6) return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
+      if (password.length < 8) return res.status(400).json({ error: 'Пароль должен быть не менее 8 символов' });
       const existing = await prisma.user.findUnique({ where: { login: loginStr } });
       if (existing) return res.status(400).json({ error: 'Такой логин уже занят — выберите другой' });
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(password, 12);
       const userId = crypto.randomUUID();
       const user = await prisma.user.create({
         data: {
@@ -290,10 +290,10 @@ export default function authRoutes(authLimiter) {
     try {
       const { token, newPassword } = req.body;
       if (!token || !newPassword) return res.status(400).json({ error: 'Токен и новый пароль обязательны' });
-      if (newPassword.length < 6) return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
+      if (newPassword.length < 8) return res.status(400).json({ error: 'Пароль должен быть не менее 8 символов' });
       const reset = await prisma.passwordReset.findFirst({ where: { token, expiresAt: { gt: new Date() } } });
       if (!reset) return res.status(400).json({ error: 'Неверный или просроченный токен' });
-      const hash = await bcrypt.hash(newPassword, 10);
+      const hash = await bcrypt.hash(newPassword, 12);
       await prisma.user.update({ where: { id: reset.userId }, data: { passwordHash: hash } });
       await prisma.passwordReset.delete({ where: { userId: reset.userId } });
       res.json({ message: 'Пароль успешно изменён' });
