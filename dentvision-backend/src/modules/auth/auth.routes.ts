@@ -86,7 +86,9 @@ authRouter.post('/register', async (req, res) => {
       role: user.role,
     });
 
-    createSession(user.id, req.ip, req.headers['user-agent']).catch(() => {});
+    createSession(user.id, req.ip, req.headers['user-agent']).catch((e) =>
+      console.warn('[auth/register] createSession failed:', e?.message),
+    );
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 
@@ -179,7 +181,9 @@ authRouter.post('/login', async (req, res) => {
     const { password: _, memberships, ...userWithoutPassword } = user;
 
     // Record login session
-    createSession(user.id, req.ip, req.headers['user-agent']).catch(() => {});
+    createSession(user.id, req.ip, req.headers['user-agent']).catch((e) =>
+      console.warn('[auth/login] createSession failed:', e?.message),
+    );
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 

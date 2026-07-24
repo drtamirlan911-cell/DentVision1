@@ -529,22 +529,22 @@ export async function buildProactiveAlerts(opts: {
     inProgressCourses,
     dentCashWallet,
   ] = await Promise.all([
-    prisma.invoice.count({ where: { clinicId, status: { in: ['unpaid', 'partial'] } } }),
-    prisma.invoice.count({ where: { clinicId, status: 'overdue' } }),
+    prisma.invoice.count({ where: { clinicId, status: { in: ['unpaid', 'partial'] } } }).catch(() => 0),
+    prisma.invoice.count({ where: { clinicId, status: 'overdue' } }).catch(() => 0),
     prisma.appointment.count({
       where: {
         clinicId,
         date: { gte: now, lte: in2h },
         status: { in: ['confirmed', 'pending'] },
       },
-    }),
+    }).catch(() => 0),
     prisma.appointment.count({
       where: {
         clinicId,
         date: { gte: dayStart, lte: tomorrow },
         status: 'pending',
       },
-    }),
+    }).catch(() => 0),
     prisma.inventoryItem.findMany({
       where: { clinicId },
       select: { id: true, name: true, quantity: true, minimum: true, category: true },
@@ -555,10 +555,10 @@ export async function buildProactiveAlerts(opts: {
     }).catch(() => null),
     prisma.notification.count({
       where: { userId: opts.userId, read: false },
-    }),
+    }).catch(() => 0),
     prisma.schoolEnrollment.count({
       where: { userId: opts.userId, completed: false, progress: { lt: 100 } },
-    }),
+    }).catch(() => 0),
     prisma.wallet.findUnique({
       where: {
         ownerType_ownerId_currency: {

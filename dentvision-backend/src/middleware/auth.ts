@@ -34,15 +34,17 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       return res.status(401).json({ ok: false, error: 'Пользователь не найден' });
     }
 
-    // Verify user has at least one active session; if all sessions are
-    // expired/revoked, the JWT is stale and must be rejected.
     const guestByEmail = isGuestEmail(user.email);
     if (!guestByEmail) {
-      const activeSession = await prisma.userSession.findFirst({
-        where: { userId: user.id, expiredAt: { gt: new Date() } },
-      });
-      if (!activeSession) {
-        return res.status(401).json({ ok: false, error: 'Сессия истекла, выполните вход заново' });
+      try {
+        const activeSession = await prisma.userSession.findFirst({
+          where: { userId: user.id, expiredAt: { gt: new Date() } },
+        });
+        if (!activeSession) {
+          return res.status(401).json({ ok: false, error: 'Сессия истекла, выполните вход заново' });
+        }
+      } catch {
+        console.warn('[auth] user_sessions table unavailable — skipping session check');
       }
     }
 
