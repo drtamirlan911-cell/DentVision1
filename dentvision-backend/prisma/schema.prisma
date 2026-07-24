@@ -309,7 +309,7 @@ model Patient {
 // --- APPOINTMENTS ---
 
 model Appointment {
-  id        String              @id @default("")
+  id        String              @id @default(uuid())
   clinicId  String
   patientId String
   doctorId  String
@@ -320,7 +320,6 @@ model Appointment {
   type      String?
   notes     String?
   meta      Json?
-  deletedAt DateTime?
 
   clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
