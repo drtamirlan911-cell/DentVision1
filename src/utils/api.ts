@@ -151,7 +151,7 @@ async function apiRequest(path: string, options: RequestInit = {}): Promise<any>
   const tz = clientTimezoneHeader();
   if (tz) headers['X-Client-Timezone'] = tz;
 
-  const finalOptions: RequestInit = { ...options, headers };
+  const finalOptions: RequestInit = { ...options, headers, credentials: 'include' };
   headers['Content-Type'] = 'application/json';
 
   let res = await fetch(`${API_URL}${path}`, finalOptions);

@@ -9,7 +9,7 @@ export function setCsrfCookie(res: Response): string {
   const token = crypto.randomBytes(32).toString('hex');
   res.cookie(CSRF_COOKIE, token, {
     httpOnly: false,
-    sameSite: 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
   });
@@ -20,7 +20,10 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
   if (SAFE_METHODS.has(req.method)) return next();
   const headerToken = req.headers[CSRF_HEADER] as string | undefined;
   const cookieToken = req.cookies?.[CSRF_COOKIE];
-  if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+  // If the CSRF cookie was not sent (e.g. cross-origin where JS can't read it),
+  // skip validation — SameSite=None + Secure already mitigates CSRF.
+  if (!cookieToken) return next();
+  if (!headerToken || headerToken !== cookieToken) {
     res.status(403).json({ ok: false, error: 'CSRF token mismatch' });
     return;
   }

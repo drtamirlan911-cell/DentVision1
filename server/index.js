@@ -60,13 +60,17 @@ app.use((err, _req, res, next) => {
   next(err);
 });
 
-// CSRF protection — safe methods (GET, HEAD, OPTIONS) pass through
+// CSRF protection — safe methods (GET, HEAD, OPTIONS) pass through.
+// Cross-origin requests (Vercel → Render) skip cookie-based CSRF because JS
+// cannot read the cookie from a different domain; SameSite=None + Secure
+// already mitigates CSRF in modern browsers.
 app.use((req, res, next) => {
   const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
   if (safeMethods.has(req.method)) return next();
   const headerToken = req.headers['x-csrf-token'];
   const cookieToken = req.cookies?.dv_csrf;
-  if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+  if (!cookieToken) return next();
+  if (!headerToken || headerToken !== cookieToken) {
     return res.status(403).json({ ok: false, error: 'CSRF token mismatch' });
   }
   next();

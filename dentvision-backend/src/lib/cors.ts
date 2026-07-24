@@ -60,7 +60,7 @@ export function applyCorsHeaders(req: Request, res: Response): void {
   );
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Platform-Ops-Key, X-Cron-Secret, X-Requested-With, X-Client-Timezone, X-Timezone',
+    'Content-Type, Authorization, X-Platform-Ops-Key, X-Cron-Secret, X-Requested-With, X-Client-Timezone, X-Timezone, X-Csrf-Token',
   );
 }
 
@@ -84,4 +84,5 @@ export const CORS_HEADERS = [
   'X-Requested-With',
   'X-Client-Timezone',
   'X-Timezone',
+  'X-Csrf-Token',
 ] as const;

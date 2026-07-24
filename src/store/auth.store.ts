@@ -289,14 +289,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   restoreSession: async () => {
     const stored = api.loadTokens()
     if (!stored?.accessToken) {
-      set({ loading: false })
-      return
+      // No in-memory token — try cookie-based restore (cross-origin httpOnly cookie)
+      set({ loading: true })
+      try {
+        const me = await hydrateAuthFromMe()
+        const tokens = api.loadTokens() || { accessToken: '', refreshToken: '' }
+        let accessToken = tokens.accessToken
+        let refreshToken = tokens.refreshToken
+        set({
+          user: me.user,
+          token: accessToken,
+          refreshToken,
+          clinic: buildClinicFromMembership(me.activeMembership),
+          clinics: me.memberships,
+          activeMembership: me.activeMembership,
+          activeClinic: buildClinicFromMembership(me.activeMembership),
+          loading: false,
+        })
+        return
+      } catch {
+        set({ loading: false })
+        return
+      }
     }
     set({ loading: true })
     try {
       const me = await hydrateAuthFromMe()
-      // Old sessions created before the workspace fix have no clinicId in
-      // their JWT. Re-issue a clinic-scoped token so CRM API calls work.
       let accessToken = stored.accessToken
       let refreshToken = stored.refreshToken
       if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken)) {
