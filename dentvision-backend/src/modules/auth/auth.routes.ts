@@ -860,8 +860,10 @@ authRouter.post('/forgot-password', async (req, res) => {
       const token = crypto.randomBytes(32).toString('hex');
       resetTokens.set(token, { email: normalizedEmail, expiresAt: new Date(Date.now() + 60 * 60 * 1000) });
 
-      console.log(`[Password Reset] Token for ${normalizedEmail}: ${token}`);
-      console.log(`[Password Reset] Reset URL: /reset-password?token=${token}`);
+      // Token logged only in development
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Password Reset] Token for ${normalizedEmail}: ${token}`);
+      }
     }
 
     const response: ApiResponse = {

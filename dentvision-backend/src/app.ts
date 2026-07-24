@@ -160,10 +160,15 @@ const guestSessionLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+app.use('/api/auth/switch-clinic', authLimiter);
 app.use('/api/ai/query', aiLimiter);
 app.use('/api/ai/query/stream', aiLimiter);
 app.use('/api/guest/session', guestSessionLimiter);
 app.use('/api/guest/convert', authLimiter);
+app.use('/api/audit/backup', apiLimiter);
 
 // ─── Health ───
 app.get('/api/health', (_req, res) => {

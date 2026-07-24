@@ -59,15 +59,12 @@ function tokenStorage(): Storage {
 export function setTokens(access: string | null, refresh: string | null): void {
   _accessToken = access;
   _refreshToken = refresh;
+  // Tokens are kept in memory only for the current page session.
+  // httpOnly cookies set by the server handle authentication across page loads.
   try {
     localStorage.removeItem('dv_tokens');
     sessionStorage.removeItem('dv_tokens');
   } catch { /* ignore */ }
-  if (access && refresh) {
-    try {
-      tokenStorage().setItem('dv_tokens', JSON.stringify({ access, refresh }));
-    } catch { /* ignore */ }
-  }
 }
 
 export function loadTokens(): { accessToken: string; refreshToken: string } | null {

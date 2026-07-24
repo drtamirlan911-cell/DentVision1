@@ -26,6 +26,15 @@ import {
   PlanGateError,
 } from '../billing/planEntitlements.js';
 
+// In-memory idempotency store (TTL: 1 hour)
+const idempotencyStore = new Map<string, { paymentId: string; expiresAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of idempotencyStore) {
+    if (val.expiresAt < now) idempotencyStore.delete(key);
+  }
+}, 60_000);
+
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
 
@@ -309,6 +318,22 @@ function verifyClinicCallbackAuth(input: {
 // Create a payment (returns provider QR/deeplink). Requires auth.
 paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
+    // Idempotency check
+    const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+    if (idempotencyKey) {
+      const existing = idempotencyStore.get(idempotencyKey);
+      if (existing && existing.expiresAt > Date.now()) {
+        const payment = await prisma.payment.findUnique({ where: { id: existing.paymentId } });
+        if (payment) {
+          return res.status(200).json({
+            ok: true,
+            data: serializeBigInt(payment),
+          } satisfies ApiResponse);
+        }
+        idempotencyStore.delete(idempotencyKey);
+      }
+    }
+
     const {
       amount,
       amountMinor,
@@ -380,6 +405,10 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         },
       });
 
+      if (idempotencyKey) {
+        idempotencyStore.set(idempotencyKey, { paymentId: payment.id, expiresAt: Date.now() + 3_600_000 });
+      }
+
       return res.status(201).json({
         ok: true,
         data: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
@@ -412,6 +441,10 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         },
       },
     });
+
+    if (idempotencyKey) {
+      idempotencyStore.set(idempotencyKey, { paymentId: payment.id, expiresAt: Date.now() + 3_600_000 });
+    }
 
     return res.status(201).json({
       ok: true,
@@ -511,13 +544,17 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       markMockPaymentStatus(payment.externalId, 'paid');
     }
 
-    const updated = await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: 'paid' },
+    // Atomic: update status + settle in one transaction to avoid inconsistent state
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.payment.update({
+        where: { id: payment.id },
+        data: { status: 'paid' },
+      });
+      const settled = await settlePaidPayment({ ...payment, status: 'paid' } as typeof payment);
+      return { updated, settled };
     });
 
-    const settled = await settlePaidPayment({ ...payment, status: 'paid' } as typeof payment);
-    const qrMeta = (updated.meta || {}) as { qr?: string };
+    const qrMeta = (result.updated.meta || {}) as { qr?: string };
 
     return res.json({
       ok: true,
@@ -564,17 +601,25 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
       markMockPaymentStatus(payment.externalId, newStatus);
     }
 
-    const updated = await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: newStatus },
-    });
-
     let settled = false;
     if (newStatus === 'paid') {
-      settled = await settlePaidPayment(payment);
+      const result = await prisma.$transaction(async (tx) => {
+        const updated = await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: 'paid' },
+        });
+        const s = await settlePaidPayment(payment);
+        return { settled: s };
+      });
+      settled = result.settled;
+    } else {
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: newStatus },
+      });
     }
 
-    return res.json({ ok: true, data: { id: updated.id, status: updated.status, settled } } satisfies ApiResponse);
+    return res.json({ ok: true, data: { id: payment.id, status: newStatus, settled } } satisfies ApiResponse);
   } catch (error) {
     console.error('Kaspi callback error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка обработки callback' } satisfies ApiResponse);

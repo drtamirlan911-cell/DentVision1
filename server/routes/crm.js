@@ -27,7 +27,10 @@ const RESOURCES = {
 };
 
 const PATIENT_ENCRYPT_FIELDS = ['address', 'email', 'notes'];
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32);
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
+  throw new Error('ENCRYPTION_KEY is required (32+ chars) in production');
+}
 
 function encrypt(text) {
   if (!text) return text;

@@ -77,7 +77,7 @@ export default function authRoutes(authLimiter) {
       res.json({ ...tokens, user: publicUser(user), memberships: memberships.map(m => ({ ...m, clinic: undefined })), activeMembership: active || null });
     } catch (e) {
       console.error('LOGIN ERROR:', e);
-      res.status(500).json({ error: 'Internal server error', detail: (e && e.message) || 'unknown' });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -123,7 +123,7 @@ export default function authRoutes(authLimiter) {
       setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       res.json(tokens);
     } catch (e) {
-      res.status(500).json({ error: 'Internal server error', detail: (e && e.message) || 'unknown' });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -276,7 +276,7 @@ export default function authRoutes(authLimiter) {
       if (!login) return res.status(400).json({ error: 'Введите логин' });
       const user = await prisma.user.findUnique({ where: { login }, select: { id: true } });
       if (!user) return res.json({ message: 'Если аккаунт существует, инструкция отправлена' });
-      const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      const token = crypto.randomBytes(32).toString('hex');
       const expires = new Date(Date.now() + 60 * 60 * 1000);
       await prisma.passwordReset.upsert({ where: { userId: user.id }, update: { token, expiresAt: expires }, create: { userId: user.id, token, expiresAt: expires } });
       res.json({ message: 'Если аккаунт существует, инструкция отправлена' });

@@ -21,15 +21,17 @@ const ALLOWED_TABLES = [
 
 const PATIENT_ENCRYPT_FIELDS = ['address', 'email', 'notes'];
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
-if (!ENCRYPTION_KEY && process.env.NODE_ENV === 'production') {
-  throw new Error('ENCRYPTION_KEY is required in production');
+if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
+  const msg = 'ENCRYPTION_KEY (32+ chars) is required';
+  if (process.env.NODE_ENV === 'production') throw new Error(msg);
+  console.warn(`WARNING: ${msg}. Using random key for this session — encrypted data will be lost on restart.`);
 }
 
 function encrypt(text) {
   if (!text) return text;
   try {
     const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(ENCRYPTION_KEY || 'dev-fallback-key-32byt', 'utf8'), iv);
+    const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(ENCRYPTION_KEY, 'utf8'), iv);
     let encrypted = cipher.update(String(text), 'utf8', 'hex');
     encrypted += cipher.final('hex');
     const tag = cipher.getAuthTag();
@@ -44,7 +46,7 @@ function decrypt(text) {
     const iv = Buffer.from(parts[0], 'hex');
     const tag = Buffer.from(parts[1], 'hex');
     const encrypted = parts.slice(2).join(':');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(ENCRYPTION_KEY || 'dev-fallback-key-32byt', 'utf8'), iv);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(ENCRYPTION_KEY, 'utf8'), iv);
     decipher.setAuthTag(tag);
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
@@ -128,6 +130,9 @@ export default function clinicRoutes(writeAuditLog) {
   });
 
   // ─── Generic upsert (authenticated, same-clinic enforced) ───
+  const ALLOWED_FIELDS: Record<string, Set<string>> = {
+    users: new Set(['name', 'spec', 'phone', 'role', 'clinicId', 'email']),
+  };
   router.post('/:table/upsert', authenticate, requireSameClinic, requirePermission('write'), async (req, res) => {
     try {
       const { table } = req.params;
@@ -135,11 +140,16 @@ export default function clinicRoutes(writeAuditLog) {
       if (!modelName) return res.status(400).json({ error: 'Invalid table name' });
       const row = req.body;
       if (!row.id) return res.status(400).json({ error: 'id is required' });
+      const allowed = ALLOWED_FIELDS[table];
+      const data = allowed
+        ? Object.fromEntries(Object.entries(row).filter(([k]) => allowed.has(k)))
+        : row;
+      if (!data.id) data.id = row.id;
       const model = prisma[modelName];
       const result = await model.upsert({
         where: { id: row.id },
-        create: row,
-        update: row,
+        create: data,
+        update: data,
       });
       if (row.clinic_id && result) {
         writeAuditLog(row.clinic_id, req.user.id, req.user.name, `upsert_${table}`, table, row.id, { table, id: row.id });

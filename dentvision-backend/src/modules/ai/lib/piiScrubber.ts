@@ -5,6 +5,7 @@ const IIN_RX = /\b\d{12}\b/g;
 
 const SCRUBBABLE_KEYS = new Set([
   'phone', 'phoneNumber', 'birthDate', 'birthday', 'iin', 'email', 'address',
+  'firstName', 'lastName', 'fullName', 'name',
 ]);
 
 export function scrubPII(text: string): string {

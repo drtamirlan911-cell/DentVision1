@@ -18,9 +18,10 @@ export default function medicalRoutes(writeAuditLog) {
       const { search } = req.query;
       let results;
       if (search && search.length >= 2) {
-        results = await prisma.$queryRawUnsafe(
+        const searchPattern = `%${search}%`;
+        results = await prisma.$queryRaw(
           `SELECT * FROM icd10 WHERE code ILIKE $1 OR name ILIKE $1 ORDER BY code LIMIT 50`,
-          `%${search}%`
+          searchPattern
         );
       } else {
         results = await prisma.icd10.findMany({ orderBy: { code: 'asc' }, take: 200 });
@@ -32,6 +33,13 @@ export default function medicalRoutes(writeAuditLog) {
   // ─── Medical Card ───
   router.get('/medical-cards/:patientId', authenticate, async (req, res) => {
     try {
+      const clinicId = req.user.clinicId || req.user.activeClinicId || req.query.clinic_id;
+      if (clinicId) {
+        const patient = await prisma.patient.findUnique({ where: { id: req.params.patientId }, select: { clinicId: true } });
+        if (!patient || patient.clinicId !== clinicId) {
+          return res.status(403).json({ error: 'Доступ запрещён' });
+        }
+      }
       const result = await prisma.medicalCard.findFirst({
         where: { patientId: req.params.patientId },
         orderBy: { updatedAt: 'desc' },
@@ -68,11 +76,12 @@ export default function medicalRoutes(writeAuditLog) {
   router.get('/visits', authenticate, async (req, res) => {
     try {
       const { clinic_id, patient_id } = req.query;
-      if (req.user.role !== 'superadmin' && clinic_id && clinic_id !== req.user.clinicId) {
+      const effectiveClinicId = clinic_id || req.user.clinicId || req.user.activeClinicId;
+      if (!effectiveClinicId) return res.status(400).json({ error: 'clinic_id is required' });
+      if (req.user.role !== 'superadmin' && clinic_id && clinic_id !== req.user.clinicId && clinic_id !== req.user.activeClinicId) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      const where = {};
-      if (clinic_id) where.clinicId = clinic_id;
+      const where: any = { clinicId: effectiveClinicId };
       if (patient_id) where.patientId = patient_id;
       const results = await prisma.visit.findMany({
         where,
@@ -87,17 +96,24 @@ export default function medicalRoutes(writeAuditLog) {
   router.post('/visits/upsert', authenticate, requirePermission('write'), async (req, res) => {
     try {
       const row = req.body;
+      const clinicId = row.clinic_id || req.user.clinicId || req.user.activeClinicId;
+      if (!clinicId) return res.status(400).json({ error: 'clinic_id is required' });
+      if (row.patient_id) {
+        const patient = await prisma.patient.findUnique({ where: { id: row.patient_id }, select: { clinicId: true } });
+        if (!patient || patient.clinicId !== clinicId) return res.status(403).json({ error: 'Доступ запрещён' });
+      }
       const id = row.id || crypto.randomUUID();
       const result = await prisma.visit.upsert({
         where: { id },
         update: {
+          clinicId, patientId: row.patient_id, doctorId: row.doctor_id || null,
           chiefComplaint: row.chief_complaint, diagnosis: row.diagnosis, icd10Codes: row.icd10_codes,
           treatmentPlan: row.treatment_plan, proceduresDone: row.procedures_done,
           prescriptions: row.prescriptions, nextVisitDate: row.next_visit_date ? new Date(row.next_visit_date) : null,
           notes: row.notes,
         },
         create: {
-          id, clinicId: row.clinic_id, patientId: row.patient_id, doctorId: row.doctor_id || null,
+          id, clinicId, patientId: row.patient_id, doctorId: row.doctor_id || null,
           appointmentId: row.appointment_id || null, chiefComplaint: row.chief_complaint, diagnosis: row.diagnosis,
           icd10Codes: row.icd10_codes, treatmentPlan: row.treatment_plan, proceduresDone: row.procedures_done,
           prescriptions: row.prescriptions, nextVisitDate: row.next_visit_date ? new Date(row.next_visit_date) : null,
@@ -113,11 +129,12 @@ export default function medicalRoutes(writeAuditLog) {
   router.get('/documents', authenticate, async (req, res) => {
     try {
       const { clinic_id, patient_id } = req.query;
-      if (req.user.role !== 'superadmin' && clinic_id && clinic_id !== req.user.clinicId) {
+      const effectiveClinicId = clinic_id || req.user.clinicId || req.user.activeClinicId;
+      if (!effectiveClinicId) return res.status(400).json({ error: 'clinic_id is required' });
+      if (req.user.role !== 'superadmin' && clinic_id && clinic_id !== req.user.clinicId && clinic_id !== req.user.activeClinicId) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      const where = {};
-      if (clinic_id) where.clinicId = clinic_id;
+      const where: any = { clinicId: effectiveClinicId };
       if (patient_id) where.patientId = patient_id;
       const results = await prisma.document.findMany({
         where,
@@ -132,15 +149,21 @@ export default function medicalRoutes(writeAuditLog) {
   router.post('/documents/upsert', authenticate, requirePermission('write'), async (req, res) => {
     try {
       const row = req.body;
+      const clinicId = row.clinic_id || req.user.clinicId || req.user.activeClinicId;
+      if (!clinicId) return res.status(400).json({ error: 'clinic_id is required' });
+      if (row.patient_id) {
+        const patient = await prisma.patient.findUnique({ where: { id: row.patient_id }, select: { clinicId: true } });
+        if (!patient || patient.clinicId !== clinicId) return res.status(403).json({ error: 'Доступ запрещён' });
+      }
       const result = await prisma.document.upsert({
         where: { id: row.id || 'new' },
         update: {
-          clinicId: row.clinic_id, patientId: row.patient_id, doctorId: row.doctor_id,
+          clinicId, patientId: row.patient_id, doctorId: row.doctor_id,
           docType: row.doc_type, title: row.title, content: row.content, fileUrl: row.file_url,
           status: row.status, patientName: row.patient_name,
         },
         create: {
-          id: row.id, clinicId: row.clinic_id, patientId: row.patient_id, doctorId: row.doctor_id,
+          id: row.id, clinicId, patientId: row.patient_id, doctorId: row.doctor_id,
           docType: row.doc_type, title: row.title, content: row.content, fileUrl: row.file_url,
           status: row.status, patientName: row.patient_name,
         },
@@ -152,6 +175,11 @@ export default function medicalRoutes(writeAuditLog) {
 
   router.delete('/documents/:id', authenticate, requirePermission('write'), async (req, res) => {
     try {
+      const doc = await prisma.document.findUnique({ where: { id: req.params.id }, select: { clinicId: true } });
+      if (!doc) return res.status(404).json({ error: 'Document not found' });
+      if (doc.clinicId !== req.user.clinicId && doc.clinicId !== req.user.activeClinicId) {
+        return res.status(403).json({ error: 'Доступ запрещён' });
+      }
       const result = await prisma.document.delete({ where: { id: req.params.id } });
       res.json(result);
     } catch { res.status(500).json({ error: 'Internal server error' }); }
@@ -165,7 +193,9 @@ export default function medicalRoutes(writeAuditLog) {
         where: { id: req.params.id },
         data: { signatureToken: token, status: 'pending_signature' },
       });
-      const baseUrl = process.env.SIGNING_BASE_URL || req.headers.origin || 'https://dent-vision1.vercel.app';
+        const ALLOWED_ORIGINS = ['https://dent-vision1.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
+        const origin = req.headers.origin || '';
+        const baseUrl = process.env.SIGNING_BASE_URL || (ALLOWED_ORIGINS.includes(origin) ? origin : 'https://dent-vision1.vercel.app');
       res.json({ document: result, signingUrl: `${baseUrl}/sign/${token}` });
     } catch { res.status(500).json({ error: 'Internal server error' }); }
   });

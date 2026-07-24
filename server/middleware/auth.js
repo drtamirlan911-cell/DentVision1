@@ -30,7 +30,7 @@ export function generateTokens(user, activeClinic = null, activeRole = null) {
 }
 
 export function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 }
 
 // Express middleware: verifies Authorization: Bearer <token> or httpOnly cookie

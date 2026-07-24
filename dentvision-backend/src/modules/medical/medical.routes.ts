@@ -12,6 +12,51 @@ medicalRouter.use(authenticate);
 medicalRouter.use(loadClinicAccess);
 medicalRouter.use(blockClinicWrites);
 
+/** Verifies that the patient belongs to the current user's clinic. Returns 403 if not. */
+async function requirePatientAccess(req: AuthRequest, res: any, patientId: string): Promise<boolean> {
+  const clinicId = req.user!.clinicId;
+  if (!clinicId) {
+    res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    return false;
+  }
+  const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
+  if (!patient || patient.clinicId !== clinicId) {
+    res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    return false;
+  }
+  return true;
+}
+
+/** Verifies that a visit belongs to the current user's clinic. */
+async function requireVisitAccess(req: AuthRequest, res: any, visitId: string): Promise<boolean> {
+  const clinicId = req.user!.clinicId;
+  if (!clinicId) {
+    res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    return false;
+  }
+  const visit = await prisma.visit.findUnique({ where: { id: visitId }, include: { patient: { select: { clinicId: true } } } });
+  if (!visit || visit.patient?.clinicId !== clinicId) {
+    res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    return false;
+  }
+  return true;
+}
+
+/** Verifies that a treatment plan belongs to the current user's clinic. */
+async function requireTreatmentPlanAccess(req: AuthRequest, res: any, planId: string): Promise<boolean> {
+  const clinicId = req.user!.clinicId;
+  if (!clinicId) {
+    res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    return false;
+  }
+  const plan = await prisma.treatmentPlan.findUnique({ where: { id: planId }, include: { patient: { select: { clinicId: true } } } });
+  if (!plan || plan.patient?.clinicId !== clinicId) {
+    res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    return false;
+  }
+  return true;
+}
+
 /** Idempotent seed of dental ICD-10 codes when the reference table is empty. */
 async function ensureIcd10Seeded() {
   const count = await prisma.iCD10Code.count();
@@ -31,6 +76,8 @@ medicalRouter.post('/visits', async (req: AuthRequest, res) => {
       res.status(400).json({ ok: false, error: 'patientId and doctorId are required' });
       return;
     }
+
+    if (!(await requirePatientAccess(req, res, patientId))) return;
 
     const visit = await prisma.visit.create({
       data: {
@@ -54,6 +101,8 @@ medicalRouter.post('/visits', async (req: AuthRequest, res) => {
 medicalRouter.patch('/visits/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
+    if (!(await requireVisitAccess(req, res, id))) return;
+
     const { diagnosis, complaints, anamnesis, treatment, notes, doctorId } = req.body;
 
     const visit = await prisma.visit.update({
@@ -78,6 +127,7 @@ medicalRouter.patch('/visits/:id', async (req: AuthRequest, res) => {
 medicalRouter.get('/visits/:patientId', async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
+    if (!(await requirePatientAccess(req, res, patientId))) return;
 
     const visits = await prisma.visit.findMany({
       where: { patientId },
@@ -133,6 +183,8 @@ medicalRouter.post('/treatment-plan', async (req: AuthRequest, res) => {
       return;
     }
 
+    if (!(await requirePatientAccess(req, res, patientId))) return;
+
     const plan = await prisma.treatmentPlan.create({
       data: {
         id: uid(),
@@ -152,6 +204,8 @@ medicalRouter.post('/treatment-plan', async (req: AuthRequest, res) => {
 medicalRouter.patch('/treatment-plan/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
+    if (!(await requireTreatmentPlanAccess(req, res, id))) return;
+
     const { title, items, price, status } = req.body;
 
     const plan = await prisma.treatmentPlan.update({
@@ -173,6 +227,7 @@ medicalRouter.patch('/treatment-plan/:id', async (req: AuthRequest, res) => {
 medicalRouter.get('/treatment-plan/:patientId', async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
+    if (!(await requirePatientAccess(req, res, patientId))) return;
 
     const plans = await prisma.treatmentPlan.findMany({
       where: { patientId },
@@ -193,6 +248,8 @@ medicalRouter.post('/teeth', async (req: AuthRequest, res) => {
       res.status(400).json({ ok: false, error: 'patientId and number are required' });
       return;
     }
+
+    if (!(await requirePatientAccess(req, res, patientId))) return;
 
     const tooth = await prisma.tooth.upsert({
       where: {
@@ -222,6 +279,7 @@ medicalRouter.post('/teeth', async (req: AuthRequest, res) => {
 medicalRouter.get('/teeth/:patientId', async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
+    if (!(await requirePatientAccess(req, res, patientId))) return;
 
     const teeth = await prisma.tooth.findMany({
       where: { patientId },
@@ -249,6 +307,8 @@ medicalRouter.post('/images', async (req: AuthRequest, res) => {
       return;
     }
 
+    if (!(await requirePatientAccess(req, res, patientId))) return;
+
     const image = await prisma.patientImage.create({
       data: {
         id: uid(),
@@ -268,6 +328,7 @@ medicalRouter.post('/images', async (req: AuthRequest, res) => {
 medicalRouter.get('/images/:patientId', async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
+    if (!(await requirePatientAccess(req, res, patientId))) return;
 
     const images = await prisma.patientImage.findMany({
       where: { patientId },
