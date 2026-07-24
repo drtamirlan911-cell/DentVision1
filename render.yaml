@@ -4,19 +4,15 @@
 # That flag dropped live tables on 2026-07-20.
 #
 # Current Render Dashboard (matches this Blueprint):
-#   Build: cd dentvision-backend && npm install && npx prisma generate && npx prisma db push
-#   Start: cd dentvision-backend && npx tsx src/index.ts
-#
-# After Neon restore, `db push` without --accept-data-loss is safe when schema matches.
-# Prefer generate-only once DB is stable:
 #   Build: cd dentvision-backend && npm install && npx prisma generate
+#   Start: cd dentvision-backend && npx tsx src/index.ts
 
 services:
   - type: web
     name: dentvision-api
     runtime: node
     plan: free
-    buildCommand: cd dentvision-backend && npm install && npx prisma generate && cd ../server && npm install
+    buildCommand: cd dentvision-backend && npm install && npx prisma generate
     startCommand: cd dentvision-backend && npx tsx src/index.ts
     healthCheckPath: /api/health
     envVars:

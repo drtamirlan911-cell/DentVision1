@@ -177,7 +177,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString() });
 });
 
-// ─── Legacy Compatibility Routes (from server/) ───
+// ─── Legacy Compatibility (service-access/public) ───
 app.use('/api', compatRouter);
 
 // ─── Routes ───
