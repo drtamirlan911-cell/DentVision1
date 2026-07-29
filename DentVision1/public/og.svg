@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#080F1A"/>
+  <defs>
+    <radialGradient id="g" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#080F1A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#g)"/>
+  <path d="M520 340c0-70 42-126 98-126s98 56 98 126" stroke="#C9A96E" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="618" cy="230" r="28" fill="#C9A96E"/>
+  <path d="M560 380h116" stroke="#C9A96E" stroke-width="12" stroke-linecap="round" opacity="0.7"/>
+  <text x="600" y="470" text-anchor="middle" fill="#F5F1E8" font-family="Georgia, serif" font-size="56" font-weight="600">DentVision</text>
+  <text x="600" y="520" text-anchor="middle" fill="#C9A96E" font-family="system-ui, sans-serif" font-size="28">!B><0B>;>38G5A:0O SuperApp</text>
+</svg>
