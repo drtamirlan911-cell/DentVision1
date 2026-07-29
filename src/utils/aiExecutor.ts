@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiAction } from '@/utils/api';
 import { useAuth } from '@/store/auth.store';
-import type { Message } from '@/store/workspace.store';
+import type { Message } from '@/store/ai.store';
 import { AI_NAV_ACTIONS } from '@/lib/aiPlatformMap';
 
 export interface AIAction {

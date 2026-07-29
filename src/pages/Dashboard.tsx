@@ -11,7 +11,6 @@ import {
   Bot,
   BarChart3,
   FlaskConical,
-  Package,
   Settings,
   ArrowRight,
   Clock,
@@ -24,7 +23,7 @@ import { cn, getGreeting, formatMoney } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { StatCard } from '@/components/ui/ds/StatCard'
 import { Badge } from '@/components/ui/ds/Badge'
-import { Avatar } from '@/components/ui/ds/Avatar'
+
 import { useAuth } from '@/store/auth.store'
 import { useDataQuery } from '@/queries/useDataQuery'
 

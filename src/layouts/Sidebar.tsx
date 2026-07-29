@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Stethoscope, ChevronLeft, ChevronRight, LogOut, Brain,
   ShoppingCart, GraduationCap, Briefcase, BarChart3, Users, User,
-  Shield, ShieldCheck, FileText, Database, Settings, FlaskConical, Star, LogIn, Store,
+  Shield, ShieldCheck, FileText, Database, Settings, FlaskConical, Star, LogIn, Store, Activity, Scale,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/ds/Avatar';
@@ -30,6 +30,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} strokeWidth={1.75} />, path: '/crm/schedule', color: '#C9A96E', section: 'services' },
+  { id: 'diagnostics', label: 'Diagnostics', icon: <Activity size={18} strokeWidth={1.75} />, path: '/diagnostics', color: '#27AE60', section: 'services' },
   { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop', color: '#A78BFA', section: 'services' },
   { id: 'school', label: 'Academy OS', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school', color: '#2DD4BF', section: 'services' },
   { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/analytics', color: '#FBBF24', section: 'services' },
@@ -39,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'supplier', label: 'Кабинет продавца', icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },
   { id: 'school-workspace', label: 'Кабинет лектора', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school-workspace', color: '#2DD4BF', section: 'platform' },
   { id: 'profile', label: 'Профиль', icon: <User size={18} strokeWidth={1.75} />, path: '/profile', color: '#60A5FA', section: 'platform' },
+  { id: 'partner-legal', label: 'Мои документы', icon: <FileText size={18} strokeWidth={1.75} />, path: '/partner-legal', color: '#C9A96E', section: 'platform' },
   { id: 'settings', label: 'Настройки', icon: <Settings size={18} strokeWidth={1.75} />, path: '/settings', color: '#94A3B8', section: 'platform' },
 ];
 
@@ -47,6 +49,8 @@ const ADMIN_ITEMS: NavItem[] = [
   { id: 'audit', label: 'Аудит', icon: <FileText size={18} strokeWidth={1.75} />, path: '/audit', color: '#FBBF24', section: 'platform' },
   { id: 'security', label: 'Security & Compliance', icon: <ShieldCheck size={18} strokeWidth={1.75} />, path: '/security', color: '#38BDF8', section: 'platform' },
   { id: 'backup', label: 'Бэкапы', icon: <Database size={18} strokeWidth={1.75} />, path: '/backup', color: '#38BDF8', section: 'platform' },
+  { id: 'legal', label: 'Legal', icon: <Scale size={18} strokeWidth={1.75} />, path: '/legal', color: '#C9A96E', section: 'platform' },
+  { id: 'quality', label: 'Quality Center', icon: <Activity size={18} strokeWidth={1.75} />, path: '/admin?tab=quality', color: '#10B981', section: 'platform', badge: 'NEW' },
 ];
 
 const GUEST_NAV_ITEMS: NavItem[] = [
@@ -175,11 +179,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [queryClient, clinicId, isGuest]);
 
-  const serviceItems = isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
+  const isSuperAdmin = authRole === 'superadmin';
+
+  const serviceItems = isSuperAdmin ? [] : (isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.id === 'crm') return true;
-    if (item.id === 'profile' || item.id === 'settings') return true;
+    if (item.id === 'profile' || item.id === 'settings' || item.id === 'partner-legal') return true;
     if (item.id === 'supplier' || item.id === 'school-workspace') return true;
     if (item.id === 'jobs' || item.id === 'community') return true;
+    if (item.id === 'diagnostics') return canAccessPage(allowedPages, 'diagnostics') || canAccessPage(allowedPages, 'diagnostics-referrals');
     if (item.id === 'shop') return allowedPages.length === 0 || canAccessPage(allowedPages, 'shop');
     if (item.id === 'school') return allowedPages.length === 0 || canAccessPage(allowedPages, 'school');
     if (item.id === 'analytics') return canAccessPage(allowedPages, 'analytics');
@@ -188,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return r === 'owner' || r === 'director' || r === 'superadmin';
     }
     return canAccessPage(allowedPages, item.id) || allowedPages.length === 0;
-  });
+  }));
 
   const visibleCrmSubnav = CRM_SUBNAV.filter((sub) => {
     if ((sub as { adminOnly?: boolean }).adminOnly) {
@@ -231,6 +238,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         const btn = (
           <motion.button
             type="button"
+            aria-current={isActive ? 'page' : undefined}
             onClick={() => {
               if (isCrm && !collapsed) {
                 setCrmOpen((v) => !v);
@@ -297,6 +305,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         key={sub.id}
                         type="button"
+                        aria-current={subActive ? 'page' : undefined}
                         onClick={() => handleNavClick(sub.path)}
                         className={cn(
                           'w-full text-left px-2.5 py-1.5 rounded-lg text-[12px] transition-colors',
@@ -492,6 +501,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <motion.nav
+        aria-label="Главная навигация"
         initial="hidden"
         animate={sidebarVisible ? 'visible' : 'hidden'}
         variants={{
@@ -508,7 +518,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           : <>
             {renderNavSection(serviceItems.filter(i => i.section !== 'platform'))}
             {renderNavSection(serviceItems.filter(i => i.section === 'platform'), 'Платформа')}
-            {isAdmin && renderNavSection(ADMIN_ITEMS, 'Администрирование')}
+            {(isAdmin || isSuperAdmin) && renderNavSection(ADMIN_ITEMS, 'Администрирование')}
           </>
         }
       </motion.nav>

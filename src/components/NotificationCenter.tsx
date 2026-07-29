@@ -83,6 +83,7 @@ export default function NotificationCenter() {
                 )}
               </div>
               <button
+                aria-label="Close notifications"
                 onClick={() => setOpen(false)}
                 className="text-txt-muted hover:text-txt-primary"
               >

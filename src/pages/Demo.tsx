@@ -8,7 +8,6 @@ import {
   Stethoscope,
   Calendar,
   Users,
-  Clock,
   UserPlus,
   ArrowRight,
   Sparkles,

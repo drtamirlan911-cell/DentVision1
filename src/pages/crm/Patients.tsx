@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   UserPlus, Search, ArrowLeft, Phone, Mail, MapPin, Calendar, FileText, Camera,
   AlertTriangle, CreditCard, History, Smile, Star, User, Send, Trash2, Receipt, RefreshCw,
+  Microscope,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useAuth } from '@/store/auth.store'
@@ -73,7 +74,7 @@ const PHOTO_ICONS: Record<string, React.ReactNode> = {
 
 const EMPTY_FORM = {
   name: '', phone: '', email: '', dob: '', address: '',
-  category: 'new', notes: '', teeth: {},
+  category: 'new', notes: '', iin: '', teeth: {},
 }
 
 const EMPTY_PAYMENT = { amount: '', payMethod: 'QR-оплата' }
@@ -211,7 +212,8 @@ export default function Patients() {
       return
     }
     loadPhotos(selected.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps — loadPhotos defined inline, varies per render
+    // loadPhotos defined inline, varies per render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id])
 
   const filtered = patients.filter(p => {
@@ -236,7 +238,7 @@ export default function Patients() {
     setForm({
       name: p.name || '', phone: p.phone || '', email: p.email || '',
       dob: p.dob || '', address: p.address || '',
-      category: p.category || 'regular', notes: p.notes || '', teeth: p.teeth || {},
+      category: p.category || 'regular', notes: p.notes || '', iin: p.iin || '', teeth: p.teeth || {},
     })
     setModalOpen(true)
   }
@@ -401,14 +403,23 @@ export default function Patients() {
             onChange={e => setForm({ ...form, dob: e.target.value })}
           />
         </div>
-        <Input
-          label="Email"
-          type="email"
-          value={form.email}
-          onChange={e => setForm({ ...form, email: e.target.value })}
-          placeholder="email@example.com"
-          icon={<Mail size={16} />}
-        />
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="ИИН"
+            value={form.iin}
+            onChange={e => setForm({ ...form, iin: e.target.value })}
+            placeholder="12 цифр"
+            maxLength={12}
+          />
+          <Input
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={e => setForm({ ...form, email: e.target.value })}
+            placeholder="email@example.com"
+            icon={<Mail size={16} />}
+          />
+        </div>
         <Input
           label="Адрес"
           value={form.address}
@@ -695,6 +706,13 @@ export default function Patients() {
             onClick={() => navigate(`/crm/treatment-plans?patient=${selected.id}`)}
           >
             План лечения
+          </Button>
+          <Button
+            variant="outline"
+            icon={<Microscope size={16} />}
+            onClick={() => navigate(`/diagnostics/referrals/new?patientId=${selected.id}&patientName=${encodeURIComponent(selected.name)}&patientPhone=${selected.phone || ''}`)}
+          >
+            Диагностика
           </Button>
           <Button variant="secondary" icon={<FileText size={16} />} onClick={() => openEdit(selected)}>
             Редактировать

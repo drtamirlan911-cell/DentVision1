@@ -27,6 +27,7 @@ const sideVariants = {
 }
 
 function Drawer({ open, onClose, title, children, side = 'right', width = 320, className }: DrawerProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -58,6 +59,10 @@ function Drawer({ open, onClose, title, children, side = 'right', width = 320, c
             }}
           />
           <motion.div
+            ref={contentRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title || 'Панель'}
             initial={sideVariants[side].initial}
             animate={sideVariants[side].animate}
             exit={sideVariants[side].exit}
@@ -75,6 +80,7 @@ function Drawer({ open, onClose, title, children, side = 'right', width = 320, c
                 <h2 className="text-sm font-semibold text-txt-primary">{title}</h2>
                 <button
                   onClick={onClose}
+                  aria-label="Закрыть"
                   className="rounded-lg p-1.5 text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
                 >
                   <X size={18} />

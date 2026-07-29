@@ -202,7 +202,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
 
     const startDelay = setTimeout(typeChar, 600)
     return () => { clearTimeout(startDelay); clearAllTimers(); }
-  }, [phase, dataReady, stats])
+  }, [phase, dataReady, stats, currentUser])
 
   useEffect(() => {
     if (phase !== 3) return

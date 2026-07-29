@@ -91,6 +91,7 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
           })}
         </div>
         <button
+          aria-label="Close panel"
           onClick={onClose}
           className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
         >

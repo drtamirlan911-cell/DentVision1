@@ -9,7 +9,7 @@ interface PageTransitionProps extends HTMLMotionProps<'div'> {
 }
 
 export function PageTransition({
-  mode = 'wait',
+  mode: _mode = 'wait',
   className,
   children,
   ...props
@@ -134,6 +134,7 @@ export function TypingText({
     }, speed + Math.random() * variance)
 
     return () => clearTimeout(timeout)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, text, speed, variance])
 
   React.useEffect(() => {

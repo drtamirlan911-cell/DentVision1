@@ -120,6 +120,7 @@ export interface Patient {
   address?: string
   gender?: string
   notes?: string
+  iin?: string
   prepaidBalance?: number
   category?: 'new' | 'regular' | 'vip' | 'debt'
   teeth?: Record<number, string>

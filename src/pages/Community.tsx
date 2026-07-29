@@ -90,7 +90,8 @@ export default function CommunityPage() {
 
   useEffect(() => {
     if (tab === 'feed' || tab === 'saved') void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps — load() is defined inline, varies per render
+    // load() is defined inline, varies per render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic, tab])
 
   useEffect(() => {
@@ -407,7 +408,7 @@ export default function CommunityPage() {
           <div className="relative w-full sm:max-w-md max-h-[80dvh] rounded-t-2xl sm:rounded-2xl border border-bdr-subtle bg-surface-1 shadow-modal flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-bdr-subtle shrink-0">
               <p className="text-sm font-semibold text-txt-primary">Комментарии</p>
-              <button type="button" onClick={() => setCommentPostId(null)} className="p-1.5 rounded-lg text-txt-muted hover:bg-white/5">
+              <button type="button" aria-label="Close comments" onClick={() => setCommentPostId(null)} className="p-1.5 rounded-lg text-txt-muted hover:bg-white/5">
                 <X size={16} />
               </button>
             </div>

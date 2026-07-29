@@ -157,8 +157,8 @@ function ProductsManager() {
                           <Badge variant={i.stock > i.minStock ? 'success' : 'error'}>{i.stock}</Badge>
                         </td>
                         <td className="text-right whitespace-nowrap">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(i)}><Pencil size={16} /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => setToDelete(i)}><Trash2 size={16} /></Button>
+                          <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(i)}><Pencil size={16} /></Button>
+                          <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(i)}><Trash2 size={16} /></Button>
                         </td>
                       </tr>
                     ))}
@@ -244,8 +244,8 @@ function CategoriesManager() {
                       <p className="text-xs text-muted-foreground">{c.slug} {c.icon ? '· ' + c.icon : ''}</p>
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil size={16} /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => setToDelete(c)}><Trash2 size={16} /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)}><Pencil size={16} /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(c)}><Trash2 size={16} /></Button>
                     </div>
                   </div>
                 ))}
@@ -343,8 +343,8 @@ function SuppliersManager() {
                         <td className="pr-2">{s.rating ? '★ ' + s.rating : '—'}</td>
                         <td className="pr-2">{s.deliveryDays || '—'}</td>
                         <td className="text-right whitespace-nowrap">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(s)}><Pencil size={16} /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => setToDelete(s)}><Trash2 size={16} /></Button>
+                          <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(s)}><Pencil size={16} /></Button>
+                          <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(s)}><Trash2 size={16} /></Button>
                         </td>
                       </tr>
                     ))}

@@ -47,7 +47,7 @@ export default function ClinicBilling() {
   const [data, setData] = useState<any>(null)
   const [months, setMonths] = useState(1)
   const [pendingPay, setPendingPay] = useState<any>(null)
-  const [payStatus, setPayStatus] = useState<string>('pending')
+  const [_payStatus, setPayStatus] = useState<string>('pending')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {

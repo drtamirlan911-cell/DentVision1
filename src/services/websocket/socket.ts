@@ -24,7 +24,7 @@ class WebSocketClient {
 
       this.ws.onopen = () => {
         this.reconnectAttempts = 0
-        console.log('[WS] Connected')
+        console.warn('[WS] Connected')
       }
 
       this.ws.onmessage = (event) => {

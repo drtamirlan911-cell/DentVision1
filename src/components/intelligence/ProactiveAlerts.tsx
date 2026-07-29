@@ -89,6 +89,7 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
             )}
             {onDismiss && (
               <button
+                aria-label="Dismiss alert"
                 onClick={() => onDismiss(alert.text)}
                 className="p-1 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
               >
@@ -146,6 +147,7 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
                     )}
                     {onDismiss && (
                       <button
+                        aria-label="Dismiss alert"
                         onClick={() => onDismiss(alert.text)}
                         className="p-1 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
                       >

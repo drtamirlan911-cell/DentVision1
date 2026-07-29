@@ -122,14 +122,14 @@ export default function School() {
 
   useEffect(() => { load() }, [isAuthenticated]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const courses = hub?.courses || []
-  const lecturers = hub?.lecturers || []
-  const academies = hub?.academies || []
-  const cases = hub?.cases || []
-  const webinars = hub?.webinars || hub?.live || []
-  const officeCourses = hub?.officeCourses || []
-  const textbooks = hub?.textbooks || []
-  const kpis = hub?.kpis || {}
+  const courses = useMemo(() => hub?.courses || [], [hub])
+  const lecturers = useMemo(() => hub?.lecturers || [], [hub])
+  const academies = useMemo(() => hub?.academies || [], [hub])
+  const cases = useMemo(() => hub?.cases || [], [hub])
+  const webinars = useMemo(() => hub?.webinars || hub?.live || [], [hub])
+  const officeCourses = useMemo(() => hub?.officeCourses || [], [hub])
+  const textbooks = useMemo(() => hub?.textbooks || [], [hub])
+  const kpis = useMemo(() => hub?.kpis || {}, [hub])
 
   const filteredCourses = useMemo(() => {
     if (!search) return courses

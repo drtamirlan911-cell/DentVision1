@@ -109,7 +109,7 @@ export default function SchoolWorkspace() {
       }
     })();
     // mount-only — enter() is scoped to the initial contexts; re-calling on deps change is not desired
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const becomeLecturer = async () => {
     setRegistering(true);

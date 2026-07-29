@@ -61,10 +61,10 @@ export default function ShopFavorites() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Button variant="primary" size="icon" onClick={() => { addToCart({ id: f.productId, name: f.name, brand: f.brand, price: f.price }); toast.success('Добавлено в корзину'); }}>
+                    <Button variant="primary" size="icon" aria-label="В корзину" onClick={() => { addToCart({ id: f.productId, name: f.name, brand: f.brand, price: f.price }); toast.success('Добавлено в корзину'); }}>
                       <ShoppingCart size={15} />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => remove(f.productId)}>
+                    <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => remove(f.productId)}>
                       <Trash2 size={15} className="text-error" />
                     </Button>
                   </div>

@@ -4,7 +4,8 @@
  */
 import prisma from '../lib/prisma.js';
 import { uid } from '../lib/helpers.js';
-import { notifyClinicOwners } from '../modules/billing/clinicSubscription.service.js';
+import { tengeToMinor } from '../lib/money.js';
+import { notifyClinicOwners, CLINIC_SAAS_PLANS } from '../modules/billing/clinicSubscription.service.js';
 
 const WINDOWS = [14, 7, 1] as const;
 
@@ -43,6 +44,38 @@ async function markSent(clinicId: string, key: string, meta?: Record<string, unk
       meta: (meta || {}) as object,
     },
   });
+}
+
+async function initiateRenewal(clinicId: string, sub: { id: string; planId?: string; periodEnd?: Date }): Promise<void> {
+  const plan = CLINIC_SAAS_PLANS.find(p => p.id === (sub as any).planId);
+  if (!plan || plan.priceTenge === 0) return;
+
+  const existingInvoice = await prisma.invoice.findFirst({
+    where: {
+      clinicId,
+      status: { in: ['pending', 'paid'] },
+      notes: { contains: `renewal_${sub.id}` },
+    },
+  });
+  if (existingInvoice) return;
+
+  const amountMinor = tengeToMinor(plan.priceTenge);
+  await prisma.invoice.create({
+    data: {
+      id: uid(),
+      clinicId,
+      amount: Number(amountMinor),
+      status: 'pending',
+      items: [{ name: plan.name, price: plan.priceTenge, qty: 1 }],
+      notes: `renewal_${sub.id}`,
+    },
+  });
+
+  await notifyClinicOwners(
+    clinicId,
+    `Счёт на продление подписки ${plan.name}`,
+    `Выставлен счёт на ${plan.priceTenge.toLocaleString('ru')} ₸. Оплатите до окончания периода, чтобы не прерывать работу.`,
+  );
 }
 
 export async function runSubscriptionCron(): Promise<SubscriptionCronResult> {
@@ -112,7 +145,7 @@ export async function runSubscriptionCron(): Promise<SubscriptionCronResult> {
         const count = await notifyClinicOwners(
           clinicId,
           'Подписка истекла',
-          `Подписка клиники «${clinic.name}» истекла. Выберите тариф и оплатите, чтобы продолжить работу.`,
+          `Подписка клиники "${clinic.name}" истекла. Доступ заблокирован, пока не будет оплачен новый период.`,
         );
         await markSent(clinicId, key, { notifications: count });
         result.expired += 1;
@@ -134,14 +167,20 @@ export async function runSubscriptionCron(): Promise<SubscriptionCronResult> {
         continue;
       }
 
+      if (daysLeft === 14) {
+        await initiateRenewal(clinicId, sub as any).catch((err) =>
+          console.error('[subscriptionCron] initiateRenewal failed', clinicId, err),
+        );
+      }
+
       const trialLabel = sub.status === 'trialing' ? 'Пробный период' : 'Подписка';
       const title =
         daysLeft === 1
           ? `${trialLabel}: остался 1 день`
           : `${trialLabel}: осталось ${daysLeft} дней`;
       const message =
-        `Клиника «${clinic.name}» — срок до ${periodEnd.toISOString().slice(0, 10)}. ` +
-        `Выберите тариф и оплатите в разделе «Тариф и оплата».`;
+        `Подписка клиники "${clinic.name}" истекает ${periodEnd.toISOString().slice(0, 10)}. ` +
+        `Пожалуйста, продлите подписку, чтобы избежать блокировки доступа.`;
 
       const count = await notifyClinicOwners(clinicId, title, message);
       await markSent(clinicId, key, { daysLeft, notifications: count });
@@ -170,3 +209,8 @@ export function startSubscriptionCronInterval(ms = 15 * 60 * 1000): void {
     runSubscriptionCron().catch((e) => console.error('[subscriptionCron] interval failed', e));
   }, ms);
 }
+
+
+
+
+

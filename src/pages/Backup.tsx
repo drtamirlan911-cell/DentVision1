@@ -1,20 +1,18 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Database, Download, RefreshCw, CheckCircle, Clock, HardDrive, AlertTriangle, Shield } from 'lucide-react';
-import { today } from '../utils/constants';
+import { Database, Download, CheckCircle, HardDrive, AlertTriangle, Shield } from 'lucide-react';
 import * as api from '../utils/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/ds/Card';
 import { Button } from '../components/ui/ds/Button';
-import { Badge } from '../components/ui/ds/Badge';
 import { PageHeader } from '../components/ui/ds/StatCard';
 import type { Clinic, User, RoleInfo } from '../types';
 
 export default function Backup() {
-  const { clinic, user } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
+  const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
   const [backupData, setBackupData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [lastBackup, setLastBackup] = useState<Date | null>(null);
+  const [_lastBackup, setLastBackup] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const createBackup = async () => {

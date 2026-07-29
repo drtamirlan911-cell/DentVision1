@@ -80,6 +80,7 @@ export function useAINotifications(options?: UseAINotificationsOptions) {
       eventSourceRef.current = null
       setConnected(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicId, enabled, API_URL])
 
   const disconnect = useCallback(() => {

@@ -66,7 +66,8 @@ export default function ShopOrders() {
     const st = (location.state as any)?.successOrderId;
     if (st) toast.success('Заказ успешно оформлен');
     void loadOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps — loadOrders is defined inline, recreates every render
+    // loadOrders is defined inline, recreates every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activeClinic]);
 
   const resumePay = async (order: Order) => {

@@ -119,7 +119,7 @@ export default function SchoolCourse() {
       .then((payload) => setExam(payload || null))
       .catch(() => setExam(null))
       .finally(() => setExamLoading(false));
-  }, [activeLesson?.id, enrolled]);
+  }, [activeLesson, enrolled]);
 
   const allLessons = course?.modules?.flatMap(m => m.lessons || []) || [];
   const totalLessons = allLessons.length;

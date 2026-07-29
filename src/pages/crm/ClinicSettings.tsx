@@ -109,7 +109,7 @@ export default function ClinicSettingsPage() {
   const [inviteCode, setInviteCode] = useState<string | null>(null)
   const [inviteSaving, setInviteSaving] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [copiedLink, setCopiedLink] = useState(false)
+  const [_copiedLink, setCopiedLink] = useState(false)
   const [copiedWebhook, setCopiedWebhook] = useState(false)
   const [apiKeyDraft, setApiKeyDraft] = useState('')
   const [webhookSecretDraft, setWebhookSecretDraft] = useState('')
@@ -282,7 +282,7 @@ export default function ClinicSettingsPage() {
     }
   }
 
-  const copyBookingLink = async () => {
+  const _copyBookingLink = async () => {
     if (!bookingUrl) return
     try {
       await navigator.clipboard.writeText(bookingUrl)

@@ -1,4 +1,6 @@
 {
+  "buildCommand": "cd DentVision1 && npm install && npm run build",
+  "outputDirectory": "DentVision1/dist",
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ]

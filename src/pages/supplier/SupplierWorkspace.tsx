@@ -92,6 +92,15 @@ export default function SupplierWorkspace() {
   const [defaultCb, setDefaultCb] = useState('1')
   const [cbSaving, setCbSaving] = useState(false)
 
+  // Product Presets (quick-import)
+  const [importOpen, setImportOpen] = useState(false)
+  const [presets, setPresets] = useState<any[]>([])
+  const [presetsLoading, setPresetsLoading] = useState(false)
+  const [presetSearch, setPresetSearch] = useState('')
+  const [quickPrice, setQuickPrice] = useState<Record<string, string>>({})
+  const [quickStock, setQuickStock] = useState<Record<string, string>>({})
+  const [quickAdding, setQuickAdding] = useState<string | null>(null)
+
   const [regForm, setRegForm] = useState({ name: '', bin: '', phone: '', email: '', contactPerson: '', legalAddress: '' })
   const [regSaving, setRegSaving] = useState(false)
 
@@ -211,6 +220,34 @@ export default function SupplierWorkspace() {
       await loadAll(token)
     } catch (e: any) {
       toast.error(e?.message || 'Ошибка при удалении')
+    }
+  }
+
+  const loadPresets = useCallback(async (search?: string) => {
+    setPresetsLoading(true)
+    try {
+      const res = await api.getProductPresets({ search })
+      setPresets(Array.isArray(res.data) ? res.data : [])
+    } catch { /* ignore */ } finally {
+      setPresetsLoading(false)
+    }
+  }, [])
+
+  const handleQuickAdd = async (preset: any) => {
+    if (!token) return
+    const price = quickPrice[preset.id]
+    if (!price) { toast.error('Укажите цену'); return }
+    setQuickAdding(preset.id)
+    try {
+      await api.quickAddPreset(preset.id, Number(price), Number(quickStock[preset.id]) || 10)
+      toast.success(`${preset.name} — добавлен в каталог`)
+      setQuickPrice((p) => { const n = { ...p }; delete n[preset.id]; return n })
+      setQuickStock((s) => { const n = { ...s }; delete n[preset.id]; return n })
+      await loadAll(token)
+    } catch (e: any) {
+      toast.error(e?.message || 'Ошибка при добавлении')
+    } finally {
+      setQuickAdding(null)
     }
   }
 
@@ -752,7 +789,10 @@ export default function SupplierWorkspace() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm text-[#7A8899]">Товаров: {products.length}</p>
-                {canWrite && <Button size="sm" icon={<Plus size={15} />} onClick={() => setAddOpen(true)}>Добавить товар</Button>}
+                <div className="flex gap-2">
+                  {canWrite && <Button size="sm" variant="ghost" icon={<Sparkles size={14} />} onClick={() => { loadPresets(); setImportOpen(true) }}>Быстрый импорт</Button>}
+                  {canWrite && <Button size="sm" icon={<Plus size={15} />} onClick={() => setAddOpen(true)}>Добавить товар</Button>}
+                </div>
               </div>
               {products.length === 0 ? (
                 <EmptyState icon={<Package size={32} />} title="Нет товаров" description="Добавьте первый товар в каталог." />
@@ -884,6 +924,69 @@ export default function SupplierWorkspace() {
             <Button variant="ghost" onClick={() => setPromoOpen(false)}>Отмена</Button>
             <Button loading={saving} onClick={handlePromo} icon={<Tag size={15} />}>Запустить</Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Быстрый импорт товаров">
+        <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+          <Input
+            placeholder="Поиск по названию, бренду…"
+            value={presetSearch}
+            onChange={(e) => { setPresetSearch(e.target.value); loadPresets(e.target.value) }}
+          />
+          {presetsLoading ? (
+            <p className="text-center text-sm text-[#7A8899] py-6">Загрузка…</p>
+          ) : presets.length === 0 ? (
+            <p className="text-center text-sm text-[#7A8899] py-6">Ничего не найдено</p>
+          ) : (
+            <div className="space-y-2">
+              {presets.map((preset: any) => (
+                <div key={preset.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+                      {preset.imageUrl ? (
+                        <img src={preset.imageUrl} alt={preset.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <Package size={18} className="text-[#7A8899]" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{preset.name}</p>
+                      {preset.brand && <p className="text-[11px] text-[#7A8899]">{preset.brand}</p>}
+                      {preset.description && <p className="text-xs text-[#7A8899] mt-1 line-clamp-2">{preset.description}</p>}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {preset.avgPrice > 0 && <span className="text-xs text-[#C9A96E]">Ср. цена: {fmtTenge(preset.avgPrice)}</span>}
+                        <span className="text-[10px] text-white/40">/{preset.unit || 'шт'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Input
+                      placeholder="Цена, ₸"
+                      type="number"
+                      value={quickPrice[preset.id] ?? ''}
+                      onChange={(e) => setQuickPrice((p) => ({ ...p, [preset.id]: e.target.value }))}
+                    />
+                    <Input
+                      placeholder="Остаток"
+                      type="number"
+                      value={quickStock[preset.id] ?? '10'}
+                      onChange={(e) => setQuickStock((s) => ({ ...s, [preset.id]: e.target.value }))}
+                      className="w-20"
+                    />
+                    <Button
+                      size="sm"
+                      icon={<Plus size={13} />}
+                      loading={quickAdding === preset.id}
+                      onClick={() => handleQuickAdd(preset)}
+                    >
+                      Добавить
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </Modal>
     </div>

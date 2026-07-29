@@ -16,7 +16,7 @@ interface PopoverProps {
   className?: string
 }
 
-function Popover({ children, align = 'end', className }: PopoverProps) {
+function Popover({ children, align: _align = 'end', className }: PopoverProps) {
   const [isOpen, setIsOpen] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
 

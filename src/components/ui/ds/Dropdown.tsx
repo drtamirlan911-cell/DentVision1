@@ -18,7 +18,7 @@ interface DropdownProps {
   className?: string
 }
 
-export function Dropdown({ children, align = 'end', className }: DropdownProps) {
+export function Dropdown({ children, align: _align = 'end', className }: DropdownProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 

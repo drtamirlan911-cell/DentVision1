@@ -160,8 +160,8 @@ function CoursesManager() {
                         <p className="text-xs text-muted-foreground">{c.category}{c.instructor ? ' · ' + c.instructor : ''}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil size={16} /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => setToDelete(c)}><Trash2 size={16} /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)}><Pencil size={16} /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(c)}><Trash2 size={16} /></Button>
                       </div>
                     </div>
                     <div className="flex gap-2 mt-2 text-xs text-muted-foreground">
@@ -209,7 +209,7 @@ function CoursesManager() {
                 <div className="flex items-center gap-2">
                   <GripVertical size={16} className="text-muted-foreground" />
                   <Input placeholder="Название модуля" value={m.title} onChange={e => updateModule(mi, { title: e.target.value })} className="flex-1" />
-                  <Button variant="ghost" size="icon" onClick={() => removeModule(mi)}><Trash2 size={16} /></Button>
+                  <Button variant="ghost" size="icon" aria-label="Удалить модуль" onClick={() => removeModule(mi)}><Trash2 size={16} /></Button>
                 </div>
                 <div className="ml-6 mt-2 space-y-2">
                   {(m.lessons || []).map((l: any, li: number) => (
@@ -218,7 +218,7 @@ function CoursesManager() {
                       <Input type="number" placeholder="мин" value={l.duration} onChange={e => updateLesson(mi, li, { duration: e.target.value })} className="w-20" />
                       <Select value={l.type} onChange={e => updateLesson(mi, li, { type: e.target.value })}
                         options={[{ value: 'video', label: 'Видео' }, { value: 'text', label: 'Текст' }, { value: 'quiz', label: 'Тест' }]} className="w-28" />
-                      <Button variant="ghost" size="icon" onClick={() => removeLesson(mi, li)}><X size={16} /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Удалить урок" onClick={() => removeLesson(mi, li)}><X size={16} /></Button>
                     </div>
                   ))}
                   <Button variant="ghost" size="sm" onClick={() => addLesson(mi)} icon={<Plus size={16} />}>Урок</Button>
@@ -286,8 +286,8 @@ function CasesManager() {
                       <p className="text-xs text-muted-foreground">{c.category}{c.author ? ' · ' + c.author : ''}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil size={16} /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => setToDelete(c)}><Trash2 size={16} /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)}><Pencil size={16} /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(c)}><Trash2 size={16} /></Button>
                     </div>
                   </div>
                 ))}
@@ -368,8 +368,8 @@ function LibraryManager() {
                         <td className="pr-2"><Badge variant="default">{l.type}</Badge></td>
                         <td className="pr-2">{l.category || '—'}</td>
                         <td className="text-right whitespace-nowrap">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(l)}><Pencil size={16} /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => setToDelete(l)}><Trash2 size={16} /></Button>
+                          <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(l)}><Pencil size={16} /></Button>
+                          <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(l)}><Trash2 size={16} /></Button>
                         </td>
                       </tr>
                     ))}

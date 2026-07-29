@@ -47,7 +47,7 @@ interface AccordionItemProps {
   className?: string
 }
 
-function AccordionItem({ id, children, className }: AccordionItemProps) {
+function AccordionItem({ id: _id, children, className }: AccordionItemProps) {
   return (
     <div className={cn('rounded-xl border border-bdr-subtle bg-surface-raised overflow-hidden', className)}>
       {children}

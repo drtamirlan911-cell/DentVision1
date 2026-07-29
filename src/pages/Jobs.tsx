@@ -78,6 +78,7 @@ export default function JobsPage() {
   useEffect(() => {
     const t = setTimeout(load, 200)
     return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, city, isAuthenticated])
 
   const openPost = (kind: PostKind = 'vacancy') => {

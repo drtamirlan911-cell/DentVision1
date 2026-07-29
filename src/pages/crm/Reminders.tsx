@@ -63,19 +63,19 @@ export default function Reminders() {
   const appointmentReminders = useMemo(
     () => getAppointmentReminders(scopedAppointments, scopedPatients, scopedDoctors),
     // deps are correct — getAppointmentReminders is a stable import
-    [scopedAppointments, scopedPatients, scopedDoctors, tick]
+    [scopedAppointments, scopedPatients, scopedDoctors]
   );
 
   const urgentReminders = useMemo(
     () => getUrgentReminders(scopedAppointments, scopedPatients, scopedDoctors),
     // deps are correct — getUrgentReminders is a stable import
-    [scopedAppointments, scopedPatients, scopedDoctors, tick]
+    [scopedAppointments, scopedPatients, scopedDoctors]
   );
 
   const hygieneReminders = useMemo(
     () => getHygieneReminders(scopedPatients, appointments, receipts),
     // deps are correct — getHygieneReminders is a stable import
-    [scopedPatients, appointments, receipts, tick]
+    [scopedPatients, appointments, receipts]
   );
 
   const pendingAppt = appointmentReminders.filter(r => !r.sent).length;

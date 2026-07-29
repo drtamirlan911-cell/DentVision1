@@ -19,7 +19,7 @@
     --dv-overlay: rgba(0, 0, 0, 0.6);
     --dv-text-primary: #F1F5F9;
     --dv-text-secondary: #94A3B8;
-    --dv-text-muted: #64748B;
+    --dv-text-muted: #8EA0B8;
     --dv-text-ghost: #475569;
     --dv-border: rgba(201, 169, 110, 0.15);
     --dv-border-subtle: rgba(255, 255, 255, 0.06);
@@ -73,7 +73,7 @@
     --dv-overlay: rgba(15, 23, 42, 0.45);
     --dv-text-primary: #0B1220;
     --dv-text-secondary: #475569;
-    --dv-text-muted: #64748B;
+    --dv-text-muted: #4A5B70;
     --dv-text-ghost: #94A3B8;
     --dv-border: rgba(184, 146, 74, 0.28);
     --dv-border-subtle: rgba(15, 23, 42, 0.08);

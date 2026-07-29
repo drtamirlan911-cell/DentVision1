@@ -64,7 +64,7 @@ export function statusColor(value?: string | null): string {
 export function statusLabel(value?: string | null): string {
   if (!value) return '—'
   if (STATUS_META[value]) return STATUS_META[value].label
-  for (const [key, meta] of Object.entries(STATUS_META)) {
+  for (const [_key, meta] of Object.entries(STATUS_META)) {
     if (meta.color.toLowerCase() === String(value).toLowerCase()) return meta.label
   }
   return String(value)

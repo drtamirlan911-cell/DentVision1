@@ -22,7 +22,7 @@ export function buildKaspiPayUrl(input: {
   amountMinor?: bigint | number | string | null;
   refId?: string | null;
 }): string {
-  const base = (env.KASPI_PAY_BASE_URL || 'https://pay.dentvision.app/qr').replace(/\/$/, '');
+  const base = (env.KASPI_PAY_BASE_URL || 'https://pay.kaspi.kz/pay').replace(/\/$/, '');
   const amount =
     input.amountMinor == null || input.amountMinor === ''
       ? null
@@ -55,15 +55,59 @@ export function withPaymentQr<T extends Record<string, unknown>>(
 export const kaspiProvider: PaymentProvider = {
   name: 'kaspi_qr',
   async createPayment({ amountMinor, refId }) {
-    const externalId = `kaspi_${randomUUID()}`;
-    mockLedger.set(externalId, 'pending');
-    // Production: call payment provider API with merchant token and return real QR/deeplink.
-    const qr = buildKaspiPayUrl({ externalId, amountMinor, refId });
-    return { externalId, qr };
+    // Development: return mock QR if credentials not configured
+    if (!env.KASPI_MERCHANT_ID || !env.KASPI_API_KEY) {
+      const externalId = `kaspi_${randomUUID()}`;
+      mockLedger.set(externalId, 'pending');
+      const qr = buildKaspiPayUrl({ externalId, amountMinor, refId });
+      console.warn('[kaspi] Mock mode — set KASPI_MERCHANT_ID and KASPI_API_KEY for production');
+      return { externalId, qr };
+    }
+
+    // Production: call Kaspi Pay API
+    const response = await fetch(`${env.KASPI_PAY_BASE_URL || 'https://pay.kaspi.kz'}/api/v1/payments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.KASPI_API_KEY}`,
+        'X-Merchant-Id': env.KASPI_MERCHANT_ID,
+      },
+      body: JSON.stringify({
+        merchant_id: env.KASPI_MERCHANT_ID,
+        amount: Number(amountMinor) / 100, // Kaspi accepts amount in tenge
+        external_id: randomUUID(),
+        return_url: `${env.FRONTEND_URL || 'https://dentvision.app'}/payment/success`,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Kaspi API error: ${response.status} ${err}`);
+    }
+
+    const data = await response.json() as { payment_id: string; qr_url: string };
+    return { externalId: data.payment_id, qr: data.qr_url };
   },
   async getPaymentStatus(externalId) {
-    // Production: GET merchant status API. Mock only knows what webhook set.
-    return mockLedger.get(externalId) || 'pending';
+    if (!env.KASPI_MERCHANT_ID || !env.KASPI_API_KEY) {
+      return mockLedger.get(externalId) || 'pending';
+    }
+
+    const response = await fetch(
+      `${env.KASPI_PAY_BASE_URL || 'https://pay.kaspi.kz'}/api/v1/payments/${externalId}`,
+      { headers: { 'Authorization': `Bearer ${env.KASPI_API_KEY}`, 'X-Merchant-Id': env.KASPI_MERCHANT_ID } }
+    );
+
+    if (!response.ok) return 'pending';
+    const data = await response.json() as { status: string };
+
+    const statusMap: Record<string, 'pending' | 'paid' | 'failed' | 'expired'> = {
+      'WAIT': 'pending',
+      'PAID': 'paid',
+      'FAILED': 'failed',
+      'EXPIRED': 'expired',
+    };
+    return statusMap[data.status] || 'pending';
   },
 };
 

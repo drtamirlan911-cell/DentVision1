@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { motion } from 'framer-motion'
 import { Plus, LogIn, MousePointer2, CheckCircle2, Building2, Sparkles, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
 import { GlassCard } from '@/components/ui/ds/GlassCard'
 import { Badge } from '@/components/ui/ds/Badge'
-import { Avatar } from '@/components/ui/ds/Avatar'
+
 import { StaggerContainer, StaggerItem } from '@/components/ui/motion'
 
 interface WorkspaceSelectorProps {
@@ -170,7 +170,7 @@ export interface ClinicSelectorProps {
 }
 
 export function ClinicSelector({ clinics, onSelect, onCreateNew }: ClinicSelectorProps) {
-  const planColors = {
+  const _planColors = {
     demo: '#95A5A6',
     standard: '#3498DB',
     pro: '#C9A96E',

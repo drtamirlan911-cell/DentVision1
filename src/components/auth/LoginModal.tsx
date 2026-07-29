@@ -117,6 +117,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                 {isRegister ? 'Регистрация' : 'Вход'}
               </h2>
               <button
+                aria-label="Close"
                 onClick={handleClose}
                 className="p-2 hover:bg-white/5 rounded-lg transition-colors"
               >

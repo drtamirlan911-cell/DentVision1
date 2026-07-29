@@ -206,7 +206,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
             <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#C9A96E]/8 to-transparent pointer-events-none" />
 
             <div className="relative p-6 pb-0">
-              <button onClick={handleClose} className="absolute top-4 right-4 p-1.5 rounded-lg text-[#7A8899] hover:text-white hover:bg-white/5 transition-colors">
+              <button aria-label="Close" onClick={handleClose} className="absolute top-4 right-4 p-1.5 rounded-lg text-[#7A8899] hover:text-white hover:bg-white/5 transition-colors">
                 <X size={18} />
               </button>
 

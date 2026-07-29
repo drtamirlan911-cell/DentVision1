@@ -1,11 +1,12 @@
-﻿import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+﻿import { useState, lazy, Suspense, useEffect } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Building2, CheckCircle, Ban, AlertTriangle, Users, Banknote, Pencil,
   KeyRound, Trash2, Plus, Shield, UserPlus, Eye, EyeOff, Copy, RefreshCw,
-  Search, LifeBuoy, Headphones, UserCheck,
+  Search, LifeBuoy, Headphones, UserCheck, Activity, ShoppingCart, GraduationCap,
+  Brain, DollarSign, Microscope, BarChart3, Accessibility,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '../components/ui/ds/Button';
@@ -14,10 +15,21 @@ import { Input, Select } from '../components/ui/ds/Input';
 import { Badge } from '../components/ui/ds/Badge';
 import { Modal } from '../components/ui/ds/Modal';
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard';
+import { GlassCard } from '../components/ui/ds/GlassCard';
+import { Skeleton } from '../components/ui/ds/Skeleton';
 import { tg, fd } from '../utils/constants';
 import * as api from '@/utils/api';
 import { queryKeys } from '@/queries/keys';
 import { useAuth } from '@/store/auth.store';
+
+const DiagnosticsTab = lazy(() => import('./superadmin/DiagnosticsTab'));
+const MarketplaceTab = lazy(() => import('./superadmin/MarketplaceTab'));
+const AcademyTab = lazy(() => import('./superadmin/AcademyTab'));
+const AIGovernanceTab = lazy(() => import('./superadmin/AIGovernanceTab'));
+const FinanceTab = lazy(() => import('./superadmin/FinanceTab'));
+const BITab = lazy(() => import('./superadmin/BITab'));
+const OpsTab = lazy(() => import('./superadmin/OpsTab'));
+const QualityCenterTab = lazy(() => import('./superadmin/QualityCenterTab'));
 
 const PLANS: Record<string, { name: string; price: string }> = {
   starter: { name: 'Starter', price: '0 ₸' },
@@ -33,16 +45,44 @@ const PLAN_BADGE: Record<string, string> = {
   enterprise: 'bg-[#9b5de5]/10 text-[#9b5de5] border-[#9b5de5]/20',
 };
 
-type Tab = 'clinics' | 'users' | 'support';
+type Tab = 'dashboard' | 'clinics' | 'users' | 'diagnostics' | 'marketplace' | 'academy' | 'ai-governance' | 'platform-finance' | 'bi' | 'ops' | 'support' | 'quality';
+
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: <Activity size={16} /> },
+  { id: 'clinics', label: 'Клиники', icon: <Building2 size={16} /> },
+  { id: 'users', label: 'Пользователи', icon: <Users size={16} /> },
+  { id: 'diagnostics', label: 'Диагностика', icon: <Microscope size={16} /> },
+  { id: 'marketplace', label: 'Маркетплейс', icon: <ShoppingCart size={16} /> },
+  { id: 'academy', label: 'Academy', icon: <GraduationCap size={16} /> },
+  { id: 'ai-governance', label: 'AI Governance', icon: <Brain size={16} /> },
+  { id: 'platform-finance', label: 'Финансы', icon: <DollarSign size={16} /> },
+  { id: 'bi', label: 'BI Аналитика', icon: <BarChart3 size={16} /> },
+  { id: 'ops', label: 'Ops Center', icon: <Shield size={16} /> },
+  { id: 'support', label: 'Поддержка', icon: <LifeBuoy size={16} /> },
+  { id: 'quality', label: 'Quality', icon: <Accessibility size={16} /> },
+];
+
+const TabLoader = () => (
+  <div className="space-y-4">
+    {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
+  </div>
+);
 
 export default function SuperAdmin() {
-  const { showToast } = useToast();
+  const toast = useToast();
+  const { showToast } = toast;
   const qc = useQueryClient();
   const { user } = useAuth();
   const platformRole = (user as { platformRole?: string } | null)?.platformRole;
   const userRole = user?.role;
 
-  const [tab, setTab] = useState<Tab>('clinics');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState<Tab>((searchParams.get('tab') as Tab) || 'dashboard');
+  useEffect(() => {
+    const t = searchParams.get('tab') as Tab | null;
+    if (t && TABS.some(tab => tab.id === t)) setTab(t);
+  }, [searchParams]);
+  const handleTabChange = (t: Tab) => { setTab(t); setSearchParams(t === 'dashboard' ? {} : { tab: t }, { replace: true }); }
   const [search, setSearch] = useState('');
 
   const stats = useQuery({ queryKey: queryKeys.admin.stats, queryFn: api.getAdminStats, staleTime: 30_000 });
@@ -74,43 +114,36 @@ export default function SuperAdmin() {
     },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const updateClinic = useMutation({
     mutationFn: ({ id, ...rest }: any) => api.updateAdminClinic(id, rest),
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); showToast('Клиника обновлена', 'success'); setClinicModal(false); },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const toggleClinic = useMutation({
     mutationFn: api.toggleAdminClinic,
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); showToast('Статус обновлён', 'info'); },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const changePlan = useMutation({
     mutationFn: ({ id, plan }: any) => api.changeAdminClinicPlan(id, plan),
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); showToast('Тариф изменён', 'success'); },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const extendSub = useMutation({
     mutationFn: ({ id, months }: any) => api.extendAdminClinic(id, months),
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); showToast('Подписка продлена', 'success'); },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const deleteClinic = useMutation({
     mutationFn: api.deleteAdminClinic,
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); qc.invalidateQueries({ queryKey: queryKeys.admin.stats }); showToast('Клиника удалена', 'success'); setDeleteModal(null); },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const resetPw = useMutation({
     mutationFn: ({ id, password }: any) => api.resetAdminUserPassword(id, password),
     onSuccess: () => { showToast('Пароль сброшен', 'success'); setPwModal(null); setPw(''); },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const createUser = useMutation({
     mutationFn: api.createAdminUser,
     onSuccess: (d) => {
@@ -121,13 +154,11 @@ export default function SuperAdmin() {
     },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const deleteUser = useMutation({
     mutationFn: api.deleteAdminUser,
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.users() }); showToast('Пользователь удалён', 'success'); },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const createSupport = useMutation({
     mutationFn: api.createAdminSupport,
     onSuccess: (d) => {
@@ -138,7 +169,6 @@ export default function SuperAdmin() {
     },
     onError: (e: Error) => showToast(e.message, 'error'),
   });
-
   const deleteSupport = useMutation({
     mutationFn: api.deleteAdminSupport,
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.admin.support }); showToast('Ассистент удалён', 'success'); },
@@ -154,172 +184,189 @@ export default function SuperAdmin() {
   const userList = users.data || [];
   const supportList = support.data || [];
 
-  const filteredClinics = clinicList.filter((c: any) => !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.city?.toLowerCase().includes(search.toLowerCase()));
-  const filteredUsers = userList.filter((u: any) => !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.login?.toLowerCase().includes(search.toLowerCase()));
-  const filteredSupport = supportList.filter((u: any) => !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.login?.toLowerCase().includes(search.toLowerCase()));
-
-  const TABS: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: 'clinics', label: 'Клиники', icon: <Building2 size={16} />, count: clinicList.length },
-    { id: 'users', label: 'Пользователи', icon: <Users size={16} />, count: userList.length },
-    { id: 'support', label: 'Поддержка', icon: <LifeBuoy size={16} />, count: supportList.length },
-  ];
+  const filterBySearch = (list: any[], fields: string[]) =>
+    list.filter((item) => !search || fields.some((f) => String(item[f] || '').toLowerCase().includes(search.toLowerCase())));
 
   const copyToClip = (text: string) => { navigator.clipboard?.writeText(text); showToast('Скопировано', 'info'); };
 
-  return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="p-6 space-y-6">
-      <PageHeader
-        title="Управление платформой"
-        subtitle="DentVision Platform Admin"
-        icon={<Shield size={20} />}
-        actions={<Button icon={<RefreshCw size={16} />} variant="ghost" onClick={() => { qc.invalidateQueries({ queryKey: queryKeys.admin.stats }); qc.invalidateQueries({ queryKey: queryKeys.admin.clinics }); qc.invalidateQueries({ queryKey: queryKeys.admin.users() }); qc.invalidateQueries({ queryKey: queryKeys.admin.support }); }}>Обновить</Button>}
-      />
-
-      {s && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          <StatCard label="Клиник" value={s.totalClinics} icon={<Building2 size={18} />} />
-          <StatCard label="Активных" value={s.activeClinics} icon={<CheckCircle size={18} />} />
-          <StatCard label="Заблокировано" value={s.blockedClinics} icon={<Ban size={18} />} />
-          <StatCard label="Истекают" value={s.expiringSoon} icon={<AlertTriangle size={18} />} />
-          <StatCard label="Пользователей" value={s.totalUsers} icon={<Users size={18} />} />
-          <StatCard label="MRR" value={tg(s.mrr)} icon={<Banknote size={18} />} />
-        </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="flex gap-1 bg-surface-2 rounded-lg p-1">
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => { setTab(t.id); setSearch(''); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
-              {t.icon}{t.label}<Badge size="xs" className="ml-1">{t.count}</Badge>
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
-              className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
-          </div>
-          {tab === 'clinics' && <Button icon={<Plus size={16} />} onClick={() => { setEditClinic(null); setClinicForm({ name: '', city: '', phone: '', email: '', address: '', plan: 'starter' }); setClinicModal('create'); }}>Клиника</Button>}
-          {tab === 'users' && <Button icon={<UserPlus size={16} />} onClick={() => { setUserForm({ login: '', name: '', email: '', role: 'doctor', clinicId: '', password: '' }); setUserModal(true); }}>Пользователь</Button>}
-          {tab === 'support' && <Button icon={<Headphones size={16} />} onClick={() => { setSupportForm({ login: '', name: '', email: '', password: '' }); setSupportModal(true); }}>Ассистент</Button>}
-        </div>
-      </div>
-
-      {tab === 'clinics' && (
-        <Card padding="none">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-bdr-subtle">
-                  {['Клиника', 'Контакты', 'Тариф', 'Подписка', 'Статус', 'Действия'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <AnimatePresence>
-                  {filteredClinics.map((c: any) => {
-                    const sub = c.subscription;
-                    const endDate = sub?.endDate ? new Date(sub.endDate) : null;
-                    const daysLeft = endDate ? Math.floor((endDate.getTime() - Date.now()) / 86400000) : null;
-                    const isExpiring = daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
-                    const isExpired = daysLeft !== null && daysLeft < 0;
-                    return (
-                      <motion.tr key={c.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-b border-bdr-subtle/50">
-                        <td className="px-4 py-3">
-                          <div className="text-sm font-semibold text-txt-primary">{c.name}</div>
-                          <div className="text-xs text-txt-muted">{c.city || '—'} · {c._count?.memberships ?? 0} сотр. · {c._count?.patients ?? 0} пациен.</div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-txt-secondary">
-                          <div>{c.phone || '—'}</div><div className="text-xs text-txt-muted">{c.email || '—'}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge size="sm" className={PLAN_BADGE[c.plan || '']}>{PLANS[c.plan]?.name || c.plan}</Badge>
-                          <div className="mt-1">
-                            <Select value={c.plan || ''} onChange={e => changePlan.mutate({ id: c.id, plan: e.target.value })}
-                              options={Object.entries(PLANS).map(([k, v]) => ({ value: k, label: v.name }))} className="w-auto min-w-[90px] h-7 text-xs px-2" />
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {endDate ? (
-                            <div>
-                              <div className={`text-xs font-medium ${isExpired ? 'text-error' : isExpiring ? 'text-warning' : 'text-txt-muted'}`}>
-                                {isExpired ? 'Истекла' : isExpiring ? `${daysLeft} дн.` : `${daysLeft} дн.`}
-                              </div>
-                              <div className="text-xs text-txt-muted mb-1">{fd(sub.endDate)}</div>
-                              <div className="flex gap-1">
-                                <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 1 })}>+1</Button>
-                                <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 3 })}>+3</Button>
-                              </div>
-                            </div>
-                          ) : <span className="text-xs text-txt-muted">—</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant={c.active ? 'success' : 'error'} size="sm" dot>{c.active ? 'Активна' : 'Заблокирована'}</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1">
-                            <Button size="icon-sm" variant="ghost" onClick={() => { setEditClinic(c); setClinicForm({ name: c.name, city: c.city || '', phone: c.phone || '', email: c.email || '', address: c.address || '', plan: c.plan || 'starter' }); setClinicModal('edit'); }} title="Ред."><Pencil size={14} /></Button>
-                            <Button size="icon-sm" variant={c.active ? 'danger' : 'outline'} onClick={() => toggleClinic.mutate(c.id)} title={c.active ? 'Заблок.' : 'Разблок.'}>
-                              {c.active ? <Ban size={14} /> : <CheckCircle size={14} />}
-                            </Button>
-                            <Button size="icon-sm" variant="ghost" onClick={() => { setPwModal(c); setPw(''); }} title="Сброс пароля"><KeyRound size={14} /></Button>
-                            <Button size="icon-sm" variant="danger" onClick={() => setDeleteModal(c)} title="Удалить"><Trash2 size={14} /></Button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
-                </AnimatePresence>
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {tab === 'users' && (
-        <Card padding="none">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-bdr-subtle">
-                  {['Пользователь', 'Логин', 'Роль', 'Клиника', 'Действия'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((u: any) => (
-                  <tr key={u.id} className="border-b border-bdr-subtle/50">
-                    <td className="px-4 py-3"><div className="text-sm font-semibold text-txt-primary">{u.name}</div><div className="text-xs text-txt-muted">{u.email || '—'}</div></td>
-                    <td className="px-4 py-3 text-sm font-mono text-txt-secondary">{u.login}</td>
-                    <td className="px-4 py-3"><Badge size="sm">{u.role}</Badge></td>
-                    <td className="px-4 py-3 text-sm text-txt-muted">{u.clinicId || '—'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <Button size="icon-sm" variant="ghost" onClick={() => { setPwModal(u); setPw(''); }}><KeyRound size={14} /></Button>
-                        <Button size="icon-sm" variant="danger" onClick={() => { if (confirm(`Удалить ${u.name}?`)) deleteUser.mutate(u.id); }}><Trash2 size={14} /></Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {tab === 'support' && (
-        <div className="space-y-4">
-          <Card padding="sm">
-            <div className="flex items-center gap-2 mb-1">
-              <LifeBuoy size={16} className="text-dv-gold" />
-              <h3 className="text-sm font-semibold text-txt-primary">Ассистенты платформы</h3>
+  const renderTab = () => {
+    switch (tab) {
+      case 'diagnostics': return <Suspense fallback={<TabLoader />}><DiagnosticsTab /></Suspense>;
+      case 'marketplace': return <Suspense fallback={<TabLoader />}><MarketplaceTab /></Suspense>;
+      case 'academy': return <Suspense fallback={<TabLoader />}><AcademyTab /></Suspense>;
+      case 'ai-governance': return <Suspense fallback={<TabLoader />}><AIGovernanceTab /></Suspense>;
+      case 'platform-finance': return <Suspense fallback={<TabLoader />}><FinanceTab /></Suspense>;
+      case 'bi': return <Suspense fallback={<TabLoader />}><BITab /></Suspense>;
+      case 'ops': return <Suspense fallback={<TabLoader />}><OpsTab /></Suspense>;
+      case 'quality': return <Suspense fallback={<TabLoader />}><QualityCenterTab /></Suspense>;
+      case 'dashboard': return (
+        <div className="space-y-6">
+          {s && (
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
+              <StatCard label="Клиник" value={s.totalClinics} icon={<Building2 size={18} />} />
+              <StatCard label="Активных" value={s.activeClinics} icon={<CheckCircle size={18} />} />
+              <StatCard label="Заблокировано" value={s.blockedClinics} icon={<Ban size={18} />} />
+              <StatCard label="Истекают" value={s.expiringSoon} icon={<AlertTriangle size={18} />} />
+              <StatCard label="Пользователей" value={s.totalUsers} icon={<Users size={18} />} />
+              <StatCard label="MRR" value={tg(s.mrr)} icon={<Banknote size={18} />} />
             </div>
-            <p className="text-xs text-txt-muted">Пользователи с ролью поддержки — помогают управлять сервисом, обрабатывают заявки, следят за здоровьем платформы.</p>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <GlassCard padding="md">
+              <h3 className="text-sm font-semibold text-txt-primary mb-2">Активность сегодня</h3>
+              <p className="text-2xl font-bold text-dv-gold">{s?.todayAppointments || 0}</p>
+              <p className="text-xs text-txt-muted mt-1">приёмов</p>
+            </GlassCard>
+            <GlassCard padding="md">
+              <h3 className="text-sm font-semibold text-txt-primary mb-2">Новых клиник</h3>
+              <p className="text-2xl font-bold text-success">{s?.newClinicsThisMonth || 0}</p>
+              <p className="text-xs text-txt-muted mt-1">в этом месяце</p>
+            </GlassCard>
+            <GlassCard padding="md">
+              <h3 className="text-sm font-semibold text-txt-primary mb-2">Платформа</h3>
+              <p className="text-xs text-txt-muted mt-1">DentVision Enterprise v3.0</p>
+              <p className="text-xs text-txt-muted">Поддержка: {s?.supportActive || 0} ассистентов</p>
+            </GlassCard>
+          </div>
+        </div>
+      );
+      case 'clinics': return (
+        <>
+          <div className="flex justify-end mb-2">
+            <div className="flex gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
+                  className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+              </div>
+              <Button icon={<Plus size={16} />} onClick={() => { setEditClinic(null); setClinicForm({ name: '', city: '', phone: '', email: '', address: '', plan: 'starter' }); setClinicModal('create'); }}>Клиника</Button>
+            </div>
+          </div>
+          <Card padding="none">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-bdr-subtle">
+                    {['Клиника', 'Контакты', 'Тариф', 'Подписка', 'Статус', 'Действия'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <AnimatePresence>
+                    {filterBySearch(clinicList, ['name', 'city']).map((c: any) => {
+                      const sub = c.subscription;
+                      const endDate = sub?.endDate ? new Date(sub.endDate) : null;
+                      const daysLeft = endDate ? Math.floor((endDate.getTime() - Date.now()) / 86400000) : null;
+                      const isExpiring = daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
+                      const isExpired = daysLeft !== null && daysLeft < 0;
+                      return (
+                        <motion.tr key={c.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-b border-bdr-subtle/50">
+                          <td className="px-4 py-3">
+                            <div className="text-sm font-semibold text-txt-primary">{c.name}</div>
+                            <div className="text-xs text-txt-muted">{c.city || '—'} · {c._count?.memberships ?? 0} сотр. · {c._count?.patients ?? 0} пациен.</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-txt-secondary">
+                            <div>{c.phone || '—'}</div><div className="text-xs text-txt-muted">{c.email || '—'}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge size="sm" className={PLAN_BADGE[c.plan || '']}>{PLANS[c.plan]?.name || c.plan}</Badge>
+                            <div className="mt-1">
+                              <Select value={c.plan || ''} onChange={e => changePlan.mutate({ id: c.id, plan: e.target.value })}
+                                options={Object.entries(PLANS).map(([k, v]) => ({ value: k, label: v.name }))} className="w-auto min-w-[90px] h-7 text-xs px-2" />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {endDate ? (
+                              <div>
+                                <div className={`text-xs font-medium ${isExpired ? 'text-error' : isExpiring ? 'text-warning' : 'text-txt-muted'}`}>
+                                  {isExpired ? 'Истекла' : `${daysLeft} дн.`}
+                                </div>
+                                <div className="text-xs text-txt-muted mb-1">{fd(sub.endDate)}</div>
+                                <div className="flex gap-1">
+                                  <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 1 })}>+1</Button>
+                                  <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 3 })}>+3</Button>
+                                </div>
+                              </div>
+                            ) : <span className="text-xs text-txt-muted">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant={c.active ? 'success' : 'error'} size="sm" dot>{c.active ? 'Активна' : 'Заблокирована'}</Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1">
+                              <Button size="icon-sm" variant="ghost" aria-label="Редактировать" onClick={() => { setEditClinic(c); setClinicForm({ name: c.name, city: c.city || '', phone: c.phone || '', email: c.email || '', address: c.address || '', plan: c.plan || 'starter' }); setClinicModal('edit'); }}><Pencil size={14} /></Button>
+                              <Button size="icon-sm" variant="ghost" aria-label={c.active ? 'Заблокировать' : 'Активировать'} onClick={() => toggleClinic.mutate(c.id)}>{c.active ? <Ban size={14} /> : <CheckCircle size={14} />}</Button>
+                              <Button size="icon-sm" variant="danger" aria-label="Удалить" onClick={() => setDeleteModal(c)}><Trash2 size={14} /></Button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
+                  </AnimatePresence>
+                  {clinicList.length === 0 && (
+                    <tr><td colSpan={6} className="px-4 py-12 text-center text-txt-muted text-sm">Нет клиник</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </Card>
+        </>
+      );
+      case 'users': return (
+        <>
+          <div className="flex justify-end mb-2">
+            <div className="flex gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
+                  className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+              </div>
+              <Button icon={<UserPlus size={16} />} onClick={() => { setUserForm({ login: '', name: '', email: '', role: 'doctor', clinicId: '', password: '' }); setNewUserPw(null); setUserModal(true); }}>Пользователь</Button>
+            </div>
+          </div>
+          <Card padding="none">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-bdr-subtle">
+                    {['Пользователь', 'Логин', 'Роль', 'Клиника', 'Действия'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filterBySearch(userList, ['name', 'login', 'email']).map((u: any) => (
+                    <tr key={u.id} className="border-b border-bdr-subtle/50">
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-semibold text-txt-primary">{u.name}</div>
+                        <div className="text-xs text-txt-muted">{u.email || '—'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-txt-secondary">{u.login}</td>
+                      <td className="px-4 py-3"><Badge size="xs">{u.role}</Badge></td>
+                      <td className="px-4 py-3 text-sm text-txt-muted">{u.clinicName || '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1">
+                          <Button size="icon-sm" variant="ghost" title="Reset password" onClick={() => { setPwModal(u); setPw(''); }}><KeyRound size={14} /></Button>
+                          <Button size="icon-sm" variant="danger" title="Delete user" onClick={() => { if (confirm(`Удалить ${u.name}?`)) deleteUser.mutate(u.id); }}><Trash2 size={14} /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {userList.length === 0 && (
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-txt-muted text-sm">Нет пользователей</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      );
+      case 'support': return (
+        <>
+          <div className="flex justify-end mb-2">
+            <Button icon={<Headphones size={16} />} onClick={() => { setSupportForm({ login: '', name: '', email: '', password: '' }); setNewSupportPw(null); setSupportModal(true); }}>Ассистент</Button>
+          </div>
           <Card padding="none">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
@@ -331,33 +378,55 @@ export default function SuperAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSupport.map((u: any) => (
+                  {supportList.map((u: any) => (
                     <tr key={u.id} className="border-b border-bdr-subtle/50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-dv-gold/10 flex items-center justify-center text-dv-gold"><Headphones size={14} /></div>
-                          <div><div className="text-sm font-semibold text-txt-primary">{u.name}</div><Badge size="xs" className="mt-0.5">{u.platformRole}</Badge></div>
+                          <div><div className="text-sm font-semibold text-txt-primary">{u.name}</div><Badge size="xs" className="mt-0.5">{u.platformRole || u.role}</Badge></div>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm font-mono text-txt-secondary">{u.login}</td>
                       <td className="px-4 py-3 text-sm text-txt-muted">{u.email || '—'}</td>
                       <td className="px-4 py-3 text-xs text-txt-muted">{u.createdAt ? fd(u.createdAt) : '—'}</td>
                       <td className="px-4 py-3">
-                        <Button size="icon-sm" variant="danger" onClick={() => { if (confirm(`Удалить ассистента ${u.name}?`)) deleteSupport.mutate(u.id); }}><Trash2 size={14} /></Button>
+                        <Button size="icon-sm" variant="danger" title="Delete assistant" onClick={() => { if (confirm(`Удалить ассистента ${u.name}?`)) deleteSupport.mutate(u.id); }}><Trash2 size={14} /></Button>
                       </td>
                     </tr>
                   ))}
-                  {filteredSupport.length === 0 && (
+                  {supportList.length === 0 && (
                     <tr><td colSpan={5} className="px-4 py-8 text-center text-txt-muted text-sm">Нет ассистентов. Нажмите "Ассистент" чтобы добавить.</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </Card>
-        </div>
-      )}
+        </>
+      );
+      default: return null;
+    }
+  };
 
-      {/* ═══ MODALS ═══ */}
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="p-6 space-y-6">
+      <PageHeader
+        title="Управление платформой"
+        subtitle="DentVision Platform Admin"
+        icon={<Shield size={20} />}
+        actions={<Button icon={<RefreshCw size={16} />} variant="ghost" onClick={() => qc.invalidateQueries()}>Обновить</Button>}
+      />
+
+      <div className="flex gap-1 bg-surface-2 rounded-lg p-1 overflow-x-auto">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => { handleTabChange(t.id); setSearch(''); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+
+      {renderTab()}
+
       <Modal open={!!clinicModal} onClose={() => setClinicModal(false)} title={clinicModal === 'edit' ? 'Редактировать клинику' : 'Новая клиника'}>
         <form onSubmit={e => { e.preventDefault(); if (!clinicForm.name.trim()) { showToast('Введите название', 'warning'); return; } if (clinicModal === 'edit' && editClinic) updateClinic.mutate({ id: editClinic.id, ...clinicForm }); else createClinic.mutate(clinicForm); }} className="space-y-4">
           <Input label="Название *" value={clinicForm.name} onChange={e => setClinicForm({ ...clinicForm, name: e.target.value })} required />
@@ -392,7 +461,7 @@ export default function SuperAdmin() {
               <p className="text-xs text-txt-muted mt-1">Пароль:</p>
               <div className="mt-2 flex items-center justify-center gap-2">
                 <code className="text-lg font-mono text-dv-gold bg-surface-2 px-3 py-1 rounded">{newUserPw}</code>
-                <Button size="icon-sm" variant="ghost" onClick={() => copyToClip(newUserPw)}><Copy size={14} /></Button>
+                <Button size="icon-sm" variant="ghost" title="Copy password" onClick={() => copyToClip(newUserPw)}><Copy size={14} /></Button>
               </div>
             </div>
             <Button className="w-full" onClick={() => setNewUserPw(null)}>Готово</Button>
@@ -420,7 +489,7 @@ export default function SuperAdmin() {
               <p className="text-sm text-txt-primary font-medium">Ассистент создан!</p>
               <div className="mt-2 flex items-center justify-center gap-2">
                 <code className="text-lg font-mono text-dv-gold bg-surface-2 px-3 py-1 rounded">{newSupportPw}</code>
-                <Button size="icon-sm" variant="ghost" onClick={() => copyToClip(newSupportPw)}><Copy size={14} /></Button>
+                <Button size="icon-sm" variant="ghost" title="Copy password" onClick={() => copyToClip(newSupportPw)}><Copy size={14} /></Button>
               </div>
             </div>
             <Button className="w-full" onClick={() => setNewSupportPw(null)}>Готово</Button>

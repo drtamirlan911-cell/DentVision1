@@ -1533,6 +1533,17 @@ model Payment {
   @@map("payments")
 }
 
+model IdempotencyRecord {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  paymentId   String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
 model Subscription {
   id        String          @id @default(uuid())
   ownerType WalletOwnerType
