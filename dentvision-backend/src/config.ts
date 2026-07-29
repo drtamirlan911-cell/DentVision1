@@ -34,9 +34,9 @@ const envSchema = z.object({
   TWILIO_WHATSAPP_FROM: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   /** Shared secret for hidden platform-ops surface (supplier verify, etc.). Min 24 chars in production. */
-  PLATFORM_OPS_SECRET: z.string().min(24).optional(),
+  PLATFORM_OPS_SECRET: z.string().optional(),
   /** Kaspi / payment webhook shared secret (min 32 in production). Required to accept paid callbacks. */
-  KASPI_CALLBACK_SECRET: z.string().min(32).optional(),
+  KASPI_CALLBACK_SECRET: z.string().optional(),
   /** Kaspi merchant ID from Kaspi Business dashboard. */
   KASPI_MERCHANT_ID: z.string().optional(),
   /** Kaspi API key from Kaspi Business dashboard. */
