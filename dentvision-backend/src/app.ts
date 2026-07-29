@@ -61,6 +61,9 @@ import { complianceRouter } from './modules/compliance/compliance.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
 import { dentcashRouter } from './modules/dentcash/dentcash.routes.js';
 import { biRouter } from './modules/bi/bi.routes.js';
+import { diagnosticsRouter } from './modules/diagnostics/diagnostics.routes.js';
+import { legalRouter } from './modules/legal/legal.routes.js';
+import { legalPartnerRouter } from './modules/legal/legal.partner.routes.js';
 import compatRouter from './compat/compatRouter.js';
 import { registerSubscribers } from './events/subscribers.js';
 
@@ -223,6 +226,11 @@ app.use('/api/jobs', jobsRouter);
 app.use('/api/ops/suppliers', opsSuppliersRouter);
 app.use('/api/ops', opsHubRouter);
 app.use('/api/bi', biRouter);
+app.use('/api/diagnostics', diagnosticsRouter);
+app.use('/api/legal', legalRouter);
+app.use('/api/partner/legal', legalPartnerRouter);
+app.use('/api/finance', financeRouter);
+app.use('/api/disputes', disputesRouter);
 
 // ─── Error Handling ───
 app.use(notFound);

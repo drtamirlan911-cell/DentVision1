@@ -25,6 +25,12 @@ export class AIService {
     agentRouter.register('VIEW_CBCT', new DoctorAgent());
     agentRouter.register('SHOW_CBCT', new DoctorAgent());
     agentRouter.register('VIEW_SCHEDULE', new DoctorAgent());
+    agentRouter.register('PATIENT_BRIEFING', new DoctorAgent());
+    agentRouter.register('AFTER_APPOINTMENT', new DoctorAgent());
+    agentRouter.register('CREATE_ESTIMATE', new DoctorAgent());
+    agentRouter.register('REFER_DIAGNOSTICS', new DoctorAgent());
+    agentRouter.register('SCHEDULE_NEXT_VISIT', new DoctorAgent());
+    agentRouter.register('SUGGEST_INSTRUMENTS', new DoctorAgent());
 
     agentRouter.register('GENERATE_REPORT', new OwnerAgent());
     agentRouter.register('CHECK_DEBTS', new OwnerAgent());
@@ -33,10 +39,21 @@ export class AIService {
     agentRouter.register('GENERATE_INVOICE', new OwnerAgent());
     agentRouter.register('MORNING_BRIEFING', new OwnerAgent());
     agentRouter.register('VIEW_SCHEDULE', new OwnerAgent());
+    agentRouter.register('STOCK_ANALYSIS', new OwnerAgent());
+    agentRouter.register('OCCUPANCY_RATE', new OwnerAgent());
+    agentRouter.register('TOP_PATIENTS', new OwnerAgent());
+    agentRouter.register('DOCTOR_PERFORMANCE', new OwnerAgent());
+    agentRouter.register('CLINIC_METRICS', new OwnerAgent());
 
     agentRouter.register('SEARCH_PATIENT', new AdminAgent());
     agentRouter.register('CREATE_APPOINTMENT', new AdminAgent());
     agentRouter.register('RECORD_PAYMENT', new AdminAgent());
+    agentRouter.register('NEW_PATIENT', new AdminAgent());
+    agentRouter.register('INCOMING_CALL', new AdminAgent());
+    agentRouter.register('START_INTAKE', new AdminAgent());
+    agentRouter.register('INTAKE_ANSWER', new AdminAgent());
+    agentRouter.register('CONFIRM_BOOKING', new AdminAgent());
+    agentRouter.register('SHOW_SCHEDULE', new AdminAgent());
   }
 
   async processMessage(
@@ -211,6 +228,17 @@ export class AIService {
       SHOW_CBCT: ['medical'],
       VIEW_CBCT: ['medical'],
       LOW_STOCK: ['inventory'],
+      PATIENT_BRIEFING: ['patients', 'medical'],
+      AFTER_APPOINTMENT: ['appointments', 'medical'],
+      CREATE_ESTIMATE: ['billing'],
+      REFER_DIAGNOSTICS: ['patients'],
+      SCHEDULE_NEXT_VISIT: ['appointments'],
+      SUGGEST_INSTRUMENTS: ['medical'],
+      STOCK_ANALYSIS: ['inventory'],
+      OCCUPANCY_RATE: ['reports', 'appointments'],
+      TOP_PATIENTS: ['reports'],
+      DOCTOR_PERFORMANCE: ['reports'],
+      CLINIC_METRICS: ['reports', 'appointments', 'billing', 'inventory'],
     };
     const modules = modulesByIntent[intent] || [intent.split('_')[0].toLowerCase()];
     return permissions.some(

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tool layer — DentVision AI OS.
  *

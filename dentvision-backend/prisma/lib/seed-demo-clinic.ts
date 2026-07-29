@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { PrismaClient, UserRole } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 

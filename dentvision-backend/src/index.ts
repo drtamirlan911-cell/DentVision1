@@ -30,6 +30,15 @@ async function connectDb(attempt = 1): Promise<void> {
 async function main() {
   await connectDb();
 
+  // Run schema migrations
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Patient" ADD COLUMN IF NOT EXISTS "iin" TEXT`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patient_iin_idx" ON "Patient"("iin")`);
+    console.log('[MIGRATION] Patient.iin column ready');
+  } catch (err) {
+    console.error('[MIGRATION] Patient.iin failed (non-fatal):', err);
+  }
+
   // Initialize Event Bus
   try {
     await eventBus.connect();

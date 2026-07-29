@@ -122,17 +122,22 @@ export async function composeCeoBrief(opts: {
   );
 
   const lines = [
-    `### CEO-бриф · ${clinicLabel}`,
-    `${name}, вот что важно сейчас (синтез Analyst + Finance + Marketing):`,
+    `CEO-бриф · ${clinicLabel}`,
+    `${name}, вот что важно сейчас:`,
     '',
     ...priorities.map((p, i) => `${i + 1}. ${p}`),
   ];
 
   if (briefing?.message) {
-    lines.push('', '---', '_Контекст Jarvis:_', briefing.message.split('\n').slice(0, 8).join('\n'));
+    const ctx = briefing.message
+      .split('\n')
+      .filter((l) => l.startsWith('•'))
+      .slice(0, 10)
+      .join('\n');
+    if (ctx) lines.push('', ctx);
   }
 
-  lines.push('', 'Дальше: долги · recall-список · акции · расписание.');
+  lines.push('', `Дальше: долги · recall · акции · расписание.`);
 
   return {
     message: lines.join('\n'),

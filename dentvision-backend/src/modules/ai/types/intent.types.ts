@@ -1,5 +1,7 @@
 export enum Intent {
   CREATE_APPOINTMENT = 'CREATE_APPOINTMENT',
+  NEW_PATIENT = 'NEW_PATIENT',
+  INCOMING_CALL = 'INCOMING_CALL',
   SEARCH_PATIENT = 'SEARCH_PATIENT',
   OPEN_MEDICAL_CARD = 'OPEN_MEDICAL_CARD',
   SHOW_CBCT = 'SHOW_CBCT',
@@ -62,6 +64,19 @@ export const INTENT_PATTERNS: Record<string, RegExp[]> = {
     /запись\s+на\s+/,
     /запиши\s+пациент/,
     /запиши\s+.+\s+на\s+/,
+  ],
+  [Intent.NEW_PATIENT]: [
+    /новый\s+пациент/,
+    /добавить\s+пациента/,
+    /регистрация\s+пациента/,
+    /создать\s+пациента/,
+    /оформить\s+пациента/,
+  ],
+  [Intent.INCOMING_CALL]: [
+    /входящий\s+звонок/,
+    /звонок/,
+    /позвонил\s+пациент/,
+    /звонит\s+пациент/,
   ],
   [Intent.SEARCH_PATIENT]: [
     /найти\s+пациента/,

@@ -13,6 +13,7 @@ import { requireSuperadmin } from '../../middleware/rbac.js';
 import { hashPassword } from '../../lib/password.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import { onboardPartner } from '../legal/legal.service.js';
 import type { ClinicPlan } from '@prisma/client';
 
 export const adminRouter = Router();
@@ -177,8 +178,9 @@ adminRouter.get('/clinics', authenticate, requireSuperadmin, async (_req: AuthRe
 
 adminRouter.post('/clinics', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
-    const { name, city, phone, address, plan } = req.body as {
+    const { name, city, phone, address, plan, legalName, bin, director: directorName, iban } = req.body as {
       name: string; city?: string; phone?: string; address?: string; plan?: string;
+      legalName?: string; bin?: string; director?: string; iban?: string;
     };
     if (!name?.trim()) {
       return res.status(400).json({ ok: false, error: 'Название клиники обязательно' } satisfies ApiResponse);
@@ -215,6 +217,23 @@ adminRouter.post('/clinics', authenticate, requireSuperadmin, async (req: AuthRe
     await prisma.clinicMember.create({
       data: { id: uid(), userId: director.id, clinicId: clinic.id, role: 'OWNER' },
     });
+
+    // Auto-create LegalPartner + generate clinic agreement
+    try {
+      await onboardPartner({
+        type: 'CLINIC',
+        legalName: legalName || name.trim(),
+        bin: bin || '',
+        director: directorName || '',
+        address: address || '',
+        iban: iban || '',
+        phone: phone || '',
+        email: directorEmail,
+        userId: director.id,
+      }, req.user?.id || 'system');
+    } catch (e) {
+      console.warn('[admin/clinics] Legal onboarding failed (non-fatal):', (e as Error).message);
+    }
 
     res.status(201).json({
       ok: true,
@@ -426,20 +445,58 @@ adminRouter.delete('/users/:id', authenticate, requireSuperadmin, async (req: Au
   }
 });
 
-// Support/assistant accounts: no dedicated platform role exists yet in the
-// UserRole enum, so this is a read-only placeholder rather than a route that
-// silently fails to persist a role the schema cannot represent.
 adminRouter.get('/support', authenticate, requireSuperadmin, async (_req: AuthRequest, res) => {
-  res.json({ ok: true, data: [] } satisfies ApiResponse);
+  try {
+    const users = await prisma.user.findMany({ where: { role: 'SUPPORT' }, orderBy: { createdAt: 'desc' } });
+    res.json({ ok: true, data: users.map(serializeUser) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[admin/support]', error);
+    res.status(500).json({ ok: false, error: 'Failed to load support users' });
+  }
 });
 
-adminRouter.post('/support', authenticate, requireSuperadmin, async (_req: AuthRequest, res) => {
-  res.status(501).json({
-    ok: false,
-    error: 'Роль ассистента поддержки появится после расширения enum UserRole',
-  } satisfies ApiResponse);
+adminRouter.post('/support', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const { login, name, email, password } = req.body as {
+      login: string; name: string; email?: string; password?: string;
+    };
+    if (!login?.trim() || !name?.trim()) {
+      return res.status(400).json({ ok: false, error: 'Логин и имя обязательны' } satisfies ApiResponse);
+    }
+
+    const [firstName, ...rest] = name.trim().split(' ');
+    const tempPassword = password || randomTempPassword();
+    const resolvedEmail = email?.trim() || (login.includes('@') ? login.trim() : `${login.trim()}@dentvision.local`);
+
+    const user = await prisma.user.create({
+      data: {
+        id: uid(),
+        email: resolvedEmail,
+        password: await hashPassword(tempPassword),
+        firstName: firstName || name.trim(),
+        lastName: rest.join(' ') || '',
+        role: 'SUPPORT',
+      },
+    });
+
+    res.status(201).json({ ok: true, data: { ...serializeUser(user), tempPassword } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[admin/support create]', error);
+    res.status(500).json({ ok: false, error: 'Failed to create support user' });
+  }
 });
 
-adminRouter.delete('/support/:id', authenticate, requireSuperadmin, async (_req: AuthRequest, res) => {
-  res.status(501).json({ ok: false, error: 'Недоступно' } satisfies ApiResponse);
+adminRouter.delete('/support/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user || user.role !== 'SUPPORT') {
+      return res.status(404).json({ ok: false, error: 'Support user not found' } satisfies ApiResponse);
+    }
+    await prisma.user.delete({ where: { id } });
+    res.json({ ok: true, data: { deleted: true } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[admin/support delete]', error);
+    res.status(500).json({ ok: false, error: 'Failed to delete support user' });
+  }
 });

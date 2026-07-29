@@ -5,6 +5,7 @@ import { hashPassword, comparePassword, assertPasswordPolicy } from '../../lib/p
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { onboardPartner } from '../legal/legal.service.js';
 import { createSession } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
 import crypto from 'node:crypto';
@@ -402,6 +403,23 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
     });
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
+    // Auto-create LegalPartner + generate clinic agreement
+    try {
+      await onboardPartner({
+        type: 'CLINIC',
+        legalName: name,
+        bin: '',
+        director: '',
+        address: address || '',
+        iban: '',
+        phone: phone || '',
+        email: req.user!.email,
+        userId: req.user!.id,
+      }, req.user!.id);
+    } catch (e) {
+      console.warn('[auth/register-clinic] Legal onboarding failed (non-fatal):', (e as Error).message);
+    }
 
     const response: ApiResponse = {
       ok: true,

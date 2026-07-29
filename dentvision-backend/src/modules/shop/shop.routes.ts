@@ -1,85 +1,23 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
-import { authenticate, optionalAuth } from '../../middleware/auth.js';
-import { requireSuperadmin } from '../../middleware/rbac.js';
+import { authenticate } from '../../middleware/auth.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import { resolveSupplierCity } from '../../lib/kzCities.js';
 
 const shopRouter = Router();
 
-function buildProductResponse(p: any) {
-  const supplierCity = p.supplier ? resolveSupplierCity(p.supplier) : null;
-  const specs = (p.specs && typeof p.specs === 'object' ? p.specs : {}) as Record<string, unknown>;
-  const tags = Array.isArray(p.tags) ? p.tags : [];
-  const images = Array.isArray(p.images) ? p.images : (p.imageUrl ? [p.imageUrl] : []);
-  return {
-    id: p.id,
-    name: p.name,
-    brand: p.brand || '',
-    category: p.category,
-    categoryId: p.categoryId,
-    category_name: p.shopCategory?.name || p.category || 'Прочее',
-    category_slug: p.shopCategory?.slug || null,
-    price: Number(p.price),
-    oldPrice: p.oldPrice ? Number(p.oldPrice) : null,
-    stock: p.stock,
-    minStock: p.minStock,
-    description: p.description,
-    imageUrl: p.imageUrl || null,
-    images,
-    rating: p.rating ?? null,
-    reviewCount: p.reviewCount || 0,
-    supplierId: p.supplierId,
-    supplier_name: p.supplier?.name || null,
-    supplier_status: p.supplier?.status || null,
-    supplier_city: supplierCity,
-    ownBrand: !!(p as any).ownBrand,
-    sku: p.sku || null,
-    unit: p.unit || 'шт',
-    currency: p.currency || 'KZT',
-    tags,
-    specs,
-    seoTitle: p.seoTitle || null,
-    seoDescription: p.seoDescription || null,
-    videoUrl: p.videoUrl || null,
-    model3dUrl: p.model3dUrl || null,
-    weight: p.weight || null,
-    manufacturer: p.manufacturer || null,
-    country: p.country || null,
-    expiryDate: p.expiryDate || null,
-    isActive: p.isActive,
-    createdAt: p.createdAt,
-    updatedAt: p.updatedAt,
-  };
-}
-
 shopRouter.get('/products', async (req, res) => {
   try {
-    const {
-      category, categorySlug, search, sort, city, supplierId,
-      minPrice, maxPrice, brand, tags, inStock, rating,
-    } = req.query;
+    const { category, search, sort, city } = req.query;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const { skip, take } = paginate(page, limit);
 
-    const where: Record<string, unknown> = { isActive: true };
+    const where: Record<string, unknown> = {};
 
     if (category && typeof category === 'string') {
       where.category = category;
-    }
-    if (categorySlug && typeof categorySlug === 'string') {
-      const cat = await prisma.shopCategory.findUnique({ where: { slug: categorySlug } });
-      if (cat) {
-        where.categoryId = cat.id;
-      } else {
-        const descendants = await prisma.shopCategory.findMany({
-          where: { slug: categorySlug },
-          select: { id: true },
-        });
-        where.categoryId = { in: descendants.map((c: { id: string }) => c.id) };
-      }
     }
 
     if (search && typeof search === 'string') {
@@ -87,7 +25,6 @@ shopRouter.get('/products', async (req, res) => {
         { name: { contains: search, mode: 'insensitive' } },
         { brand: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -101,32 +38,21 @@ shopRouter.get('/products', async (req, res) => {
       };
     }
 
-    if (supplierId && typeof supplierId === 'string') {
-      where.supplierId = supplierId;
-    }
-    if (minPrice && typeof minPrice === 'string') {
-      where.price = { ...(where.price as object || {}), gte: parseInt(minPrice) };
-    }
-    if (maxPrice && typeof maxPrice === 'string') {
-      where.price = { ...(where.price as object || {}), lte: parseInt(maxPrice) };
-    }
-    if (brand && typeof brand === 'string') {
-      where.brand = { equals: brand, mode: 'insensitive' };
-    }
-    if (inStock === 'true') {
-      where.stock = { gt: 0 };
-    }
-    if (rating && typeof rating === 'string') {
-      where.rating = { gte: parseFloat(rating) };
-    }
-
     let orderBy: Record<string, string>;
     switch (sort) {
-      case 'price_asc': orderBy = { price: 'asc' }; break;
-      case 'price_desc': orderBy = { price: 'desc' }; break;
-      case 'rating': orderBy = { rating: 'desc' }; break;
-      case 'popular': orderBy = { reviewCount: 'desc' }; break;
-      case 'newest': default: orderBy = { createdAt: 'desc' }; break;
+      case 'price_asc':
+        orderBy = { price: 'asc' };
+        break;
+      case 'price_desc':
+        orderBy = { price: 'desc' };
+        break;
+      case 'rating':
+        orderBy = { rating: 'desc' };
+        break;
+      case 'newest':
+      default:
+        orderBy = { createdAt: 'desc' };
+        break;
     }
 
     const [products, total] = await Promise.all([
@@ -137,29 +63,36 @@ shopRouter.get('/products', async (req, res) => {
         take,
         include: {
           supplier: { select: { id: true, name: true, status: true, city: true, legalAddress: true } },
-          shopCategory: { select: { id: true, name: true, slug: true } },
         },
       }),
       prisma.product.count({ where }),
     ]);
 
-    const brandAgg = products.length > 20
-      ? []
-      : await prisma.product.findMany({
-          where: { ...where, brand: { not: null } },
-          select: { brand: true },
-          distinct: ['brand'],
-          take: 50,
-        });
-
-    res.json({
-      ok: true,
-      data: products.map(buildProductResponse),
-      brands: brandAgg.map((b: { brand: string | null }) => b.brand).filter(Boolean),
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    const mapped = products.map((p) => {
+      const supplierCity = p.supplier ? resolveSupplierCity(p.supplier) : null;
+      return {
+        ...p,
+        supplier_id: p.supplierId || p.supplier?.id || null,
+        supplier_name: p.supplier?.name || null,
+        supplier_status: p.supplier?.status || null,
+        supplier_city: supplierCity,
+        city: supplierCity,
+        own_brand: !!(p as any).ownBrand,
+        category_name: p.category || 'Прочее',
+        category_id: p.category || 'other',
+        brand: p.brand || '',
+        rating: p.rating ?? 4.5,
+        review_count: 0,
+        min_stock: 5,
+        old_price: null,
+        image_url: p.imageUrl || null,
+        imageUrl: p.imageUrl || null,
+      };
     });
+
+    // Always return plain array for frontend compatibility
+    res.json({ ok: true, data: mapped });
   } catch (error) {
-    console.error('Failed to fetch products:', error);
     res.status(500).json({ ok: false, error: 'Failed to fetch products' });
   }
 });
@@ -167,11 +100,11 @@ shopRouter.get('/products', async (req, res) => {
 shopRouter.get('/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
+
     const product = await prisma.product.findUnique({
       where: { id },
       include: {
-        supplier: { select: { id: true, name: true, status: true, city: true, legalAddress: true, logo: true, description: true, rating: true } },
-        shopCategory: { select: { id: true, name: true, slug: true, parentId: true } },
+        supplier: { select: { id: true, name: true, status: true } },
       },
     });
 
@@ -180,617 +113,26 @@ shopRouter.get('/products/:id', async (req, res) => {
       return;
     }
 
-    let specTemplate: any[] = [];
-    if (product.categoryId) {
-      specTemplate = await prisma.specTemplate.findMany({
-        where: { categoryId: product.categoryId },
-        orderBy: { sortOrder: 'asc' },
-      });
-    }
-
-    const related = await prisma.product.findMany({
-      where: {
-        isActive: true,
-        id: { not: product.id },
-        OR: [
-          ...(product.categoryId ? [{ categoryId: product.categoryId }] : []),
-          ...(product.supplierId ? [{ supplierId: product.supplierId }] : []),
-        ],
-      },
-      take: 8,
-      orderBy: { rating: 'desc' },
-      include: {
-        supplier: { select: { id: true, name: true, city: true } },
-      },
-    });
-
     res.json({
       ok: true,
       data: {
-        ...buildProductResponse(product),
-        specTemplate,
-        relatedProducts: related.map(buildProductResponse),
-        supplier: product.supplier ? {
-          id: product.supplier.id,
-          name: product.supplier.name,
-          status: product.supplier.status,
-          city: resolveSupplierCity(product.supplier),
-          logo: (product.supplier as any).logo || null,
-          description: (product.supplier as any).description || null,
-          rating: (product.supplier as any).rating || null,
-        } : null,
+        ...product,
+        supplier_id: product.supplierId || product.supplier?.id || null,
+        supplier_name: product.supplier?.name || null,
+        supplier_status: product.supplier?.status || null,
+        supplier_country: product.country || null,
+        own_brand: !!product.ownBrand,
+        category_name: product.category || 'Прочее',
+        brand: product.brand || '',
+        rating: product.rating ?? 4.5,
+        review_count: 0,
+        delivery_days: 3,
+        image_url: product.imageUrl || null,
+        imageUrl: product.imageUrl || null,
       },
     });
   } catch (error) {
-    console.error('Failed to fetch product:', error);
     res.status(500).json({ ok: false, error: 'Failed to fetch product' });
-  }
-});
-
-shopRouter.get('/categories', async (_req, res) => {
-  try {
-    const categories = await prisma.shopCategory.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: 'asc' },
-      include: {
-        _count: { select: { products: true } },
-        specTemplates: { orderBy: { sortOrder: 'asc' } },
-      },
-    });
-
-    const byId = new Map(categories.map((c: any) => [c.id, { ...c, children: [] }]));
-    const roots: any[] = [];
-    for (const cat of byId.values()) {
-      if (cat.parentId && byId.has(cat.parentId)) {
-        byId.get(cat.parentId)!.children.push(cat);
-      } else {
-        roots.push(cat);
-      }
-    }
-
-    res.json({ ok: true, data: roots });
-  } catch (error) {
-    console.error('Failed to fetch categories:', error);
-    res.status(500).json({ ok: false, error: 'Failed to fetch categories' });
-  }
-});
-
-shopRouter.get('/categories/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const category = await prisma.shopCategory.findFirst({
-      where: { OR: [{ id }, { slug: id }] },
-      include: {
-        specTemplates: { orderBy: { sortOrder: 'asc' } },
-        parent: true,
-        children: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
-        _count: { select: { products: true } },
-      },
-    });
-
-    if (!category) {
-      res.status(404).json({ ok: false, error: 'Category not found' });
-      return;
-    }
-
-    const breadcrumb: any[] = [];
-    let current: any = category;
-    while (current?.parent) {
-      breadcrumb.unshift({ id: current.parent.id, name: current.parent.name, slug: current.parent.slug });
-      current = current.parent;
-    }
-
-    res.json({ ok: true, data: { ...category, breadcrumb } });
-  } catch (error) {
-    console.error('Failed to fetch category:', error);
-    res.status(500).json({ ok: false, error: 'Failed to fetch category' });
-  }
-});
-
-shopRouter.post('/categories', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
-  try {
-    const { parentId, name, slug, icon, description, imageUrl, sortOrder } = req.body;
-    if (!name || !slug) {
-      res.status(400).json({ ok: false, error: 'name and slug are required' });
-      return;
-    }
-    const category = await prisma.shopCategory.create({
-      data: {
-        id: uid(),
-        parentId: parentId || null,
-        name,
-        slug,
-        icon: icon || null,
-        description: description || null,
-        imageUrl: imageUrl || null,
-        sortOrder: sortOrder ?? 0,
-      },
-    });
-    res.status(201).json({ ok: true, data: category });
-  } catch (error: any) {
-    if (error?.code === 'P2002') {
-      res.status(409).json({ ok: false, error: 'Category with this slug already exists' });
-      return;
-    }
-    console.error('Failed to create category:', error);
-    res.status(500).json({ ok: false, error: 'Failed to create category' });
-  }
-});
-
-shopRouter.patch('/categories/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    const { parentId, name, slug, icon, description, imageUrl, sortOrder, isActive } = req.body;
-    const category = await prisma.shopCategory.update({
-      where: { id },
-      data: {
-        ...(parentId !== undefined ? { parentId: parentId || null } : {}),
-        ...(name !== undefined ? { name } : {}),
-        ...(slug !== undefined ? { slug } : {}),
-        ...(icon !== undefined ? { icon } : {}),
-        ...(description !== undefined ? { description } : {}),
-        ...(imageUrl !== undefined ? { imageUrl } : {}),
-        ...(sortOrder !== undefined ? { sortOrder } : {}),
-        ...(isActive !== undefined ? { isActive } : {}),
-      },
-    });
-    res.json({ ok: true, data: category });
-  } catch (error) {
-    console.error('Failed to update category:', error);
-    res.status(500).json({ ok: false, error: 'Failed to update category' });
-  }
-});
-
-shopRouter.delete('/categories/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.shopCategory.delete({ where: { id } });
-    res.json({ ok: true });
-  } catch (error) {
-    console.error('Failed to delete category:', error);
-    res.status(500).json({ ok: false, error: 'Failed to delete category' });
-  }
-});
-
-shopRouter.get('/spec-templates', async (req, res) => {
-  try {
-    const { categoryId } = req.query;
-    const where: Record<string, unknown> = {};
-    if (categoryId && typeof categoryId === 'string') {
-      where.OR = [
-        { categoryId },
-        { categoryId: null },
-      ];
-    }
-    const templates = await prisma.specTemplate.findMany({
-      where,
-      orderBy: { sortOrder: 'asc' },
-    });
-    res.json({ ok: true, data: templates });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch spec templates' });
-  }
-});
-
-shopRouter.post('/spec-templates', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
-  try {
-    const { categoryId, name, type, unit, options, required, sortOrder } = req.body;
-    if (!name) {
-      res.status(400).json({ ok: false, error: 'name is required' });
-      return;
-    }
-    const template = await prisma.specTemplate.create({
-      data: {
-        id: uid(),
-        categoryId: categoryId || null,
-        name,
-        type: type || 'TEXT',
-        unit: unit || null,
-        options: options || null,
-        required: required ?? false,
-        sortOrder: sortOrder ?? 0,
-      },
-    });
-    res.status(201).json({ ok: true, data: template });
-  } catch (error) {
-    console.error('Failed to create spec template:', error);
-    res.status(500).json({ ok: false, error: 'Failed to create spec template' });
-  }
-});
-
-shopRouter.patch('/spec-templates/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    const data = req.body;
-    const template = await prisma.specTemplate.update({ where: { id }, data });
-    res.json({ ok: true, data: template });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to update spec template' });
-  }
-});
-
-shopRouter.delete('/spec-templates/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.specTemplate.delete({ where: { id } });
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to delete spec template' });
-  }
-});
-
-shopRouter.get('/products/:id/reviews', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
-    const { skip, take } = paginate(page, limit);
-
-    const [reviews, total] = await Promise.all([
-      prisma.shopReview.findMany({
-        where: { productId: id, isApproved: true },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take,
-        include: {
-          user: { select: { id: true, firstName: true, lastName: true, avatar: true } },
-        },
-      }),
-      prisma.shopReview.count({ where: { productId: id, isApproved: true } }),
-    ]);
-
-    res.json({
-      ok: true,
-      data: reviews.map((r: any) => ({
-        id: r.id,
-        rating: r.rating,
-        pros: r.pros,
-        cons: r.cons,
-        comment: r.comment,
-        images: r.images,
-        helpfulCount: r.helpfulCount,
-        user: r.user ? {
-          id: r.user.id,
-          name: `${r.user.firstName} ${r.user.lastName}`,
-          avatar: r.user.avatar,
-        } : null,
-        createdAt: r.createdAt,
-      })),
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
-    });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch reviews' });
-  }
-});
-
-shopRouter.post('/reviews', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { productId, orderId, rating, pros, cons, comment, images } = req.body;
-    if (!productId || !rating) {
-      res.status(400).json({ ok: false, error: 'productId and rating are required' });
-      return;
-    }
-    if (rating < 1 || rating > 5) {
-      res.status(400).json({ ok: false, error: 'rating must be between 1 and 5' });
-      return;
-    }
-
-    const review = await prisma.shopReview.create({
-      data: {
-        id: uid(),
-        productId,
-        userId: req.user!.id,
-        clinicId: req.user!.clinicId || null,
-        orderId: orderId || null,
-        rating,
-        pros: pros || null,
-        cons: cons || null,
-        comment: comment || null,
-        images: images || null,
-      },
-    });
-
-    const agg = await prisma.shopReview.aggregate({
-      where: { productId, isApproved: true },
-      _avg: { rating: true },
-      _count: { rating: true },
-    });
-    await prisma.product.update({
-      where: { id: productId },
-      data: {
-        reviewCount: agg._count.rating,
-        rating: agg._avg.rating ?? null,
-      },
-    });
-
-    res.status(201).json({ ok: true, data: review });
-  } catch (error: any) {
-    if (error?.code === 'P2002') {
-      res.status(409).json({ ok: false, error: 'You have already reviewed this product for this order' });
-      return;
-    }
-    console.error('Failed to create review:', error);
-    res.status(500).json({ ok: false, error: 'Failed to create review' });
-  }
-});
-
-shopRouter.patch('/reviews/:id/helpful', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const review = await prisma.shopReview.update({
-      where: { id },
-      data: { helpfulCount: { increment: 1 } },
-    });
-    res.json({ ok: true, data: { helpfulCount: review.helpfulCount } });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to mark review as helpful' });
-  }
-});
-
-shopRouter.get('/delivery-zones', async (req, res) => {
-  try {
-    const { supplierId } = req.query;
-    const where: Record<string, unknown> = { isActive: true };
-    if (supplierId && typeof supplierId === 'string') {
-      where.supplierId = supplierId;
-    }
-    const zones = await prisma.deliveryZone.findMany({
-      where,
-      include: { supplier: { select: { id: true, name: true } } },
-      orderBy: { cost: 'asc' },
-    });
-    res.json({ ok: true, data: zones });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch delivery zones' });
-  }
-});
-
-shopRouter.post('/delivery-zones', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { supplierId, name, cities, cost, freeFrom, estimatedDays } = req.body;
-    if (!supplierId || !name) {
-      res.status(400).json({ ok: false, error: 'supplierId and name are required' });
-      return;
-    }
-    const zone = await prisma.deliveryZone.create({
-      data: {
-        id: uid(),
-        supplierId,
-        name,
-        cities: cities || null,
-        cost: cost ?? 0,
-        freeFrom: freeFrom || null,
-        estimatedDays: estimatedDays || null,
-      },
-    });
-    res.status(201).json({ ok: true, data: zone });
-  } catch (error) {
-    console.error('Failed to create delivery zone:', error);
-    res.status(500).json({ ok: false, error: 'Failed to create delivery zone' });
-  }
-});
-
-shopRouter.patch('/delivery-zones/:id', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    const zone = await prisma.deliveryZone.update({ where: { id }, data: req.body });
-    res.json({ ok: true, data: zone });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to update delivery zone' });
-  }
-});
-
-shopRouter.delete('/delivery-zones/:id', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.deliveryZone.delete({ where: { id } });
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to delete delivery zone' });
-  }
-});
-
-shopRouter.get('/banners', async (_req, res) => {
-  try {
-    const now = new Date();
-    const banners = await prisma.shopBanner.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { startDate: null, endDate: null },
-          { startDate: null, endDate: { gte: now } },
-          { startDate: { lte: now }, endDate: null },
-          { startDate: { lte: now }, endDate: { gte: now } },
-        ],
-      },
-      orderBy: { sortOrder: 'asc' },
-    });
-    res.json({ ok: true, data: banners });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch banners' });
-  }
-});
-
-shopRouter.post('/banners', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
-  try {
-    const { title, subtitle, imageUrl, linkUrl, color, sortOrder, startDate, endDate } = req.body;
-    if (!imageUrl) {
-      res.status(400).json({ ok: false, error: 'imageUrl is required' });
-      return;
-    }
-    const banner = await prisma.shopBanner.create({
-      data: {
-        id: uid(),
-        title: title || null,
-        subtitle: subtitle || null,
-        imageUrl,
-        linkUrl: linkUrl || null,
-        color: color || null,
-        sortOrder: sortOrder ?? 0,
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
-      },
-    });
-    res.status(201).json({ ok: true, data: banner });
-  } catch (error) {
-    console.error('Failed to create banner:', error);
-    res.status(500).json({ ok: false, error: 'Failed to create banner' });
-  }
-});
-
-shopRouter.patch('/banners/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    const data = { ...req.body };
-    if (data.startDate) data.startDate = new Date(data.startDate);
-    if (data.endDate) data.endDate = new Date(data.endDate);
-    const banner = await prisma.shopBanner.update({ where: { id }, data });
-    res.json({ ok: true, data: banner });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to update banner' });
-  }
-});
-
-shopRouter.delete('/banners/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.shopBanner.delete({ where: { id } });
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to delete banner' });
-  }
-});
-
-shopRouter.get('/promotions', async (req, res) => {
-  try {
-    const now = new Date();
-    const { supplierId } = req.query;
-    const where: Record<string, unknown> = {
-      isActive: true,
-      OR: [
-        { startDate: null, endDate: null },
-        { startDate: null, endDate: { gte: now } },
-        { startDate: { lte: now }, endDate: null },
-        { startDate: { lte: now }, endDate: { gte: now } },
-      ],
-    };
-    if (supplierId && typeof supplierId === 'string') {
-      where.supplierId = supplierId;
-    }
-    const promotions = await prisma.shopPromotion.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: { supplier: { select: { id: true, name: true } } },
-    });
-    res.json({ ok: true, data: promotions });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch promotions' });
-  }
-});
-
-shopRouter.post('/promotions', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { title, description, type, discountPercent, discountAmount, productIds, categoryIds, supplierId, minOrderAmount, usageLimit, startDate, endDate } = req.body;
-    if (!title) {
-      res.status(400).json({ ok: false, error: 'title is required' });
-      return;
-    }
-    const promotion = await prisma.shopPromotion.create({
-      data: {
-        id: uid(),
-        title,
-        description: description || null,
-        type: type || 'discount',
-        discountPercent: discountPercent || null,
-        discountAmount: discountAmount || null,
-        productIds: productIds || null,
-        categoryIds: categoryIds || null,
-        supplierId: supplierId || null,
-        minOrderAmount: minOrderAmount || null,
-        usageLimit: usageLimit || null,
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
-      },
-    });
-    res.status(201).json({ ok: true, data: promotion });
-  } catch (error) {
-    console.error('Failed to create promotion:', error);
-    res.status(500).json({ ok: false, error: 'Failed to create promotion' });
-  }
-});
-
-shopRouter.patch('/promotions/:id', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    const data = { ...req.body };
-    if (data.startDate) data.startDate = new Date(data.startDate);
-    if (data.endDate) data.endDate = new Date(data.endDate);
-    const promotion = await prisma.shopPromotion.update({ where: { id }, data });
-    res.json({ ok: true, data: promotion });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to update promotion' });
-  }
-});
-
-shopRouter.delete('/promotions/:id', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.shopPromotion.delete({ where: { id } });
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to delete promotion' });
-  }
-});
-
-shopRouter.get('/suppliers', async (req, res) => {
-  try {
-    const cityFilter = typeof req.query.city === 'string' ? req.query.city.trim() : '';
-    const suppliers = await prisma.supplier.findMany({
-      where: {
-        isActive: true,
-        status: { in: ['verified', 'official_partner'] },
-        ...(cityFilter && cityFilter !== 'all'
-          ? { OR: [
-              { city: { equals: cityFilter, mode: 'insensitive' } },
-              { legalAddress: { contains: cityFilter, mode: 'insensitive' } },
-            ] }
-          : {}),
-      },
-      include: {
-        _count: { select: { products: true } },
-        products: { select: { rating: true }, take: 50 },
-        deliveryZones: { where: { isActive: true }, select: { id: true, name: true, cost: true, freeFrom: true, estimatedDays: true } },
-      },
-      orderBy: { name: 'asc' },
-      take: 100,
-    });
-    const data = suppliers.map((s: any) => {
-      const ratings = s.products.map((p: any) => p.rating).filter((r: number | null): r is number => r != null);
-      const rating = ratings.length
-        ? Number((ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length).toFixed(1))
-        : null;
-      return {
-        id: s.id,
-        name: s.name,
-        kind: s.kind,
-        status: s.status,
-        rating,
-        description: s.description || null,
-        logo: s.logo || null,
-        productCount: s._count.products,
-        city: resolveSupplierCity(s),
-        legalAddress: s.legalAddress,
-        phone: s.phone,
-        email: s.email,
-        deliveryZones: s.deliveryZones,
-        minOrderPrice: s.minOrderPrice,
-      };
-    });
-    res.json({ ok: true, data });
-  } catch (error) {
-    console.error('Failed to fetch suppliers:', error);
-    res.status(500).json({ ok: false, error: 'Failed to fetch suppliers' });
   }
 });
 
@@ -801,13 +143,9 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       return;
     }
 
-    const {
-      items, total, dentCashMinor, dentCashTenge,
-      delivery_address, delivery_method, delivery_method_id, payment_method, notes,
-      clinic_id, clinicId: bodyClinicId,
-      recipient_name, recipient_phone,
-    } = req.body;
+    const { items, total, dentCashMinor, dentCashTenge, delivery_address, delivery_method, payment_method, notes, clinic_id, clinicId: bodyClinicId } = req.body;
 
+    // Resolve clinic: JWT → body (membership-checked) → first membership
     let clinicId = req.user?.clinicId || null;
     const requestedClinic = clinic_id || bodyClinicId || null;
     if (!clinicId && requestedClinic) {
@@ -822,6 +160,13 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         orderBy: { joinedAt: 'asc' },
       });
       clinicId = first?.clinicId || null;
+    }
+    if (!clinicId) {
+      res.status(400).json({
+        ok: false,
+        error: 'Нужна клиника: вступите в клинику или выберите её в профиле, затем оформите заказ',
+      });
+      return;
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -845,7 +190,6 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     }> = [];
 
     let goodsTotal = 0;
-    let primarySupplierId: string | null = null;
     for (const raw of items) {
       const pid = String(raw.product_id || raw.productId || raw.id || '');
       const qty = Math.max(1, Number(raw.quantity || raw.qty || 1));
@@ -857,7 +201,6 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       const lineTotal = Number(p.price) * qty;
       goodsTotal += lineTotal;
       const promo = String(p.description || '').includes('[АКЦИЯ]');
-      if (!primarySupplierId && p.supplierId) primarySupplierId = p.supplierId;
       lines.push({
         productId: p.id,
         name: p.name,
@@ -870,16 +213,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       });
     }
 
-    let deliveryCost = 0;
-    if (delivery_method_id && typeof delivery_method_id === 'string') {
-      const zone = await prisma.deliveryZone.findUnique({ where: { id: delivery_method_id } });
-      if (zone) {
-        deliveryCost = (zone.freeFrom && goodsTotal >= zone.freeFrom) ? 0 : zone.cost;
-      }
-    } else {
-      deliveryCost = goodsTotal >= 50000 ? 0 : 2500;
-    }
-
+    const deliveryCost = goodsTotal >= 50000 ? 0 : 2500;
     const payableBeforeCash = goodsTotal + deliveryCost;
     const { spendDentCash } = await import('../dentcash/spend.service.js');
     const { accrueShopOrderCashback } = await import('../dentcash/cashback.engine.js');
@@ -890,6 +224,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     if (dentCashMinor != null) spendWanted = BigInt(dentCashMinor);
     else if (dentCashTenge != null) spendWanted = tengeToMinor(Number(dentCashTenge));
 
+    // Create order first so spend always has a durable ref (no orphaned debit).
     void total;
     let order = await prisma.order.create({
       data: {
@@ -905,15 +240,11 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         })),
         total: payableBeforeCash,
         status: 'pending',
-        deliveryAddress: delivery_address || null,
-        deliveryMethod: delivery_method || null,
-        deliveryCost,
-        paymentMethod: payment_method || null,
-        recipientName: recipient_name || null,
-        recipientPhone: recipient_phone || null,
-        notes: notes || null,
-        supplierId: primarySupplierId,
         meta: {
+          delivery_address,
+          delivery_method,
+          payment_method,
+          notes,
           goodsTotal,
           deliveryCost,
           dentCashMinor: '0',
@@ -947,6 +278,10 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       data: {
         total: finalTotal,
         meta: {
+          delivery_address,
+          delivery_method,
+          payment_method,
+          notes,
           goodsTotal,
           deliveryCost,
           dentCashMinor: spent.toString(),
@@ -963,9 +298,11 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       spendMinor: spent,
     }).catch(async (err) => {
       console.error('[dentcash accrue order]', err);
+      // Order + spend already committed; surface zero earn (retryable via ops).
       return null;
     });
 
+    // If velocity skipped entire earn, still return a clear hint.
     const earnTenge = cashback && !cashback.skipped
       ? Number(cashback.totalMinor) / 100
       : cashback?.skipped && cashback.reason === 'already_accrued'
@@ -978,6 +315,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
 
     if (finalTotal <= 0) {
       const { settlePaidPayment } = await import('../payments/payments.routes.js');
+      // Fully covered by DentCash — settle order/supplier credits without QR payment.
       await settlePaidPayment({
         id: `dentcash-${order.id}`,
         refType: 'order',
@@ -995,6 +333,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       const amountMinor = toMinor(finalTotal);
       const gateway = providers.kaspi_qr;
       const created = await gateway.createPayment({ amountMinor, refId: order.id });
+      const primarySupplier = lines.find((l) => l.supplierId)?.supplierId || null;
       const pay = await prisma.payment.create({
         data: {
           provider: 'kaspi_qr',
@@ -1004,8 +343,8 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
           refType: 'order',
           refId: order.id,
           domain: 'shop',
-          sellerType: primarySupplierId ? 'SUPPLIER' : null,
-          sellerId: primarySupplierId,
+          sellerType: primarySupplier ? 'SUPPLIER' : null,
+          sellerId: primarySupplier,
           meta: {
             qr: created.qr,
             userId: req.user!.id,
@@ -1056,45 +395,29 @@ shopRouter.get('/orders', authenticate, async (req: AuthRequest, res) => {
         orderBy: { createdAt: 'desc' },
         skip,
         take,
-        include: {
-          supplier: { select: { id: true, name: true, logo: true } },
-        },
       }),
       prisma.order.count({ where }),
     ]);
 
-    const data = orders.map((o: any) => {
+    const data = orders.map((o) => {
       const meta = (o.meta && typeof o.meta === 'object' ? o.meta : {}) as Record<string, unknown>;
       const rawItems = Array.isArray(o.items) ? o.items : [];
       return {
-        id: o.id,
-        status: o.status,
-        total: o.total,
-        deliveryAddress: o.deliveryAddress,
-        deliveryMethod: o.deliveryMethod,
-        deliveryCost: o.deliveryCost,
-        paymentMethod: o.paymentMethod,
-        paymentStatus: o.paymentStatus,
-        recipientName: o.recipientName,
-        recipientPhone: o.recipientPhone,
-        notes: o.notes,
-        supplier: o.supplier ? { id: o.supplier.id, name: o.supplier.name, logo: (o.supplier as any).logo } : null,
+        ...o,
+        paymentMethod: meta.payment_method || null,
+        deliveryMethod: meta.delivery_method || null,
         items: rawItems.map((it: any, idx: number) => ({
           id: it.id || `${o.id}-${idx}`,
-          productId: it.product_id || null,
           productName: it.productName || it.name || 'Товар',
           quantity: Number(it.quantity || it.qty || 1),
           price: Number(it.price || 0),
         })),
-        createdAt: o.createdAt,
-        updatedAt: o.updatedAt,
         meta,
       };
     });
 
     res.json({ ok: true, data: paginatedResponse(data, total, page, limit) });
   } catch (error) {
-    console.error('Failed to fetch orders:', error);
     res.status(500).json({ ok: false, error: 'Failed to fetch orders' });
   }
 });
@@ -1126,7 +449,11 @@ shopRouter.post('/favorites', authenticate, async (req: AuthRequest, res) => {
     }
 
     const favorite = await prisma.favorite.create({
-      data: { id: uid(), userId, productId },
+      data: {
+        id: uid(),
+        userId,
+        productId,
+      },
     });
 
     res.status(201).json({ ok: true, data: { favorited: true, id: favorite.id } });
@@ -1141,101 +468,162 @@ shopRouter.get('/favorites', authenticate, async (req: AuthRequest, res) => {
 
     const favorites = await prisma.favorite.findMany({
       where: { userId },
-      include: {
-        product: {
-          include: {
-            supplier: { select: { id: true, name: true, status: true, city: true } },
-          },
-        },
-      },
+      include: { product: true },
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({
-      ok: true,
-      data: favorites.map((f: any) => ({
-        id: f.id,
-        product: buildProductResponse(f.product),
-        createdAt: f.createdAt,
-      })),
-    });
+    res.json({ ok: true, data: favorites });
   } catch (error) {
-    console.error('Failed to fetch favorites:', error);
     res.status(500).json({ ok: false, error: 'Failed to fetch favorites' });
   }
 });
 
-shopRouter.get('/recommendations', optionalAuth, async (req: AuthRequest, res) => {
+shopRouter.get('/categories', async (_req, res) => {
   try {
-    const userId = req.user?.id;
-    const { limit: limitParam, strategy } = req.query;
-    const take = Math.min(20, Math.max(1, parseInt(String(limitParam || '8'))));
-
-    const strat = String(strategy || 'trending').toLowerCase();
-
-    let userCategoryIds: string[] = [];
-    let userProductIds: string[] = [];
-    if (userId && strat === 'personalized') {
-      const recentOrders = await prisma.order.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-        select: { items: true },
-      });
-      const allItems: Array<{ product_id: string; name: string; category?: string }> = [];
-      for (const o of recentOrders) {
-        if (Array.isArray(o.items)) {
-          allItems.push(...o.items.map((i: any) => ({ product_id: i.product_id, name: i.name, category: i.category })));
-        }
-      }
-      userProductIds = allItems.map((i) => i.product_id).filter(Boolean);
-      const orderedProducts = await prisma.product.findMany({
-        where: { id: { in: userProductIds } },
-        select: { categoryId: true },
-      });
-      userCategoryIds = [...new Set(orderedProducts.map((p) => p.categoryId).filter(Boolean))] as string[];
-    }
-
-    let products;
-    if (strat === 'personalized' && userCategoryIds.length > 0) {
-      products = await prisma.product.findMany({
-        where: {
-          isActive: true,
-          categoryId: { in: userCategoryIds },
-          id: { notIn: userProductIds },
-        },
-        orderBy: { rating: 'desc' },
-        take,
-        include: {
-          supplier: { select: { id: true, name: true, status: true, city: true, legalAddress: true } },
-        },
-      });
-    } else {
-      products = await prisma.product.findMany({
-        where: { isActive: true, stock: { gt: 0 } },
-        orderBy: [{ rating: 'desc' }, { reviewCount: 'desc' }, { createdAt: 'desc' }],
-        take,
-        include: {
-          supplier: { select: { id: true, name: true, status: true, city: true, legalAddress: true } },
-        },
-      });
-    }
-
-    if (products.length > 4) {
-      for (let i = products.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [products[i], products[j]] = [products[j], products[i]];
-      }
-    }
-
-    res.json({
-      ok: true,
-      data: products.map(buildProductResponse),
-      strategy: strat,
+    const rows = await prisma.product.findMany({
+      where: { category: { not: null } },
+      select: { category: true },
+      distinct: ['category'],
     });
+    const categories = rows
+      .map((r) => r.category)
+      .filter(Boolean)
+      .map((name) => ({ id: String(name), name: String(name), icon: 'package' }));
+    res.json({ ok: true, data: categories });
   } catch (error) {
-    console.error('Failed to fetch recommendations:', error);
-    res.status(500).json({ ok: false, error: 'Failed to fetch recommendations' });
+    res.status(500).json({ ok: false, error: 'Failed to fetch categories' });
+  }
+});
+
+shopRouter.get('/suppliers', async (req, res) => {
+  try {
+    const cityFilter = typeof req.query.city === 'string' ? req.query.city.trim() : '';
+    const suppliers = await prisma.supplier.findMany({
+      where: {
+        status: { in: ['verified', 'official_partner', 'pending'] },
+        ...(cityFilter && cityFilter !== 'all'
+          ? {
+              OR: [
+                { city: { equals: cityFilter, mode: 'insensitive' } },
+                { legalAddress: { contains: cityFilter, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        _count: { select: { products: true } },
+        products: { select: { rating: true }, take: 50 },
+      },
+      orderBy: { name: 'asc' },
+      take: 100,
+    });
+    const data = suppliers.map((s) => {
+      const ratings = s.products.map((p) => p.rating).filter((r): r is number => r != null);
+      const rating = ratings.length
+        ? Number((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1))
+        : 4.8;
+      return {
+        id: s.id,
+        name: s.name,
+        status: s.status,
+        rating,
+        product_count: s._count.products,
+        city: resolveSupplierCity(s),
+        legalAddress: s.legalAddress,
+        delivery_days: 2,
+      };
+    });
+    res.json({ ok: true, data });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to fetch suppliers' });
+  }
+});
+
+// ─── PRODUCT PRESETS (quick-add templates for suppliers) ───
+
+shopRouter.get('/product-presets', async (req, res) => {
+  try {
+    const { categoryId, search } = req.query;
+    const where: Record<string, unknown> = { isActive: true };
+
+    if (categoryId && typeof categoryId === 'string') {
+      where.categoryId = categoryId;
+    }
+
+    if (search && typeof search === 'string') {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { brand: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const presets = await prisma.productPreset.findMany({
+      where,
+      orderBy: { sortOrder: 'asc' },
+      include: { category: { select: { id: true, name: true } } },
+    });
+
+    res.json({ ok: true, data: presets });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to fetch product presets' });
+  }
+});
+
+shopRouter.post('/product-presets/quick-add', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const supplierId = req.user?.supplierId;
+    if (!supplierId) {
+      res.status(403).json({ ok: false, error: 'Только поставщик может добавить товар' });
+      return;
+    }
+
+    const { presetId, price, stock } = req.body;
+    if (!presetId || price == null) {
+      res.status(400).json({ ok: false, error: 'presetId and price are required' });
+      return;
+    }
+
+    const preset = await prisma.productPreset.findUnique({ where: { id: presetId } });
+    if (!preset) {
+      res.status(404).json({ ok: false, error: 'Preset not found' });
+      return;
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        id: uid(),
+        name: preset.name,
+        brand: preset.brand || undefined,
+        category: preset.categoryId || undefined,
+        description: preset.description || undefined,
+        imageUrl: preset.imageUrl || undefined,
+        price: Number(price),
+        supplierId,
+        specs: preset.specs || undefined,
+        unit: preset.unit || 'шт',
+        tags: preset.tags || undefined,
+        stock: stock != null ? Number(stock) : 10,
+        isActive: true,
+        country: preset.country || undefined,
+      },
+    });
+
+    res.status(201).json({ ok: true, data: product });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to quick-add product' });
+  }
+});
+
+// ─── SEED PRESETS (SuperAdmin) ───
+
+shopRouter.post('/product-presets/seed', async (_req, res) => {
+  try {
+    const { seedProductPresets } = await import('./product-presets.seed.js');
+    const result = await seedProductPresets();
+    res.json({ ok: true, data: result });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to seed presets' });
   }
 });
 

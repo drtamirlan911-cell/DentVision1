@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { WalletOwnerType } from '@prisma/client';
+import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -102,6 +102,58 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
   } catch (error) {
     console.error('Record sale error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при проведении продажи' } satisfies ApiResponse);
+  }
+});
+
+// Manual transaction (superadmin: bonuses, fees, refunds).
+financeRouter.post('/transactions/manual', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const { walletId, type, amount, description, refType, refId } = req.body || {};
+    if (!walletId || !amount || !type || !description) {
+      return res.status(400).json({ ok: false, error: 'walletId, type, amount и description обязательны' } satisfies ApiResponse);
+    }
+    if (type !== 'CREDIT' && type !== 'DEBIT') {
+      return res.status(400).json({ ok: false, error: 'type должен быть CREDIT или DEBIT' } satisfies ApiResponse);
+    }
+    const minor = tengeToMinor(Number(amount));
+    if (minor <= 0n) {
+      return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
+    }
+    const wallet = await prisma.wallet.findUnique({ where: { id: walletId } });
+    if (!wallet) {
+      return res.status(404).json({ ok: false, error: 'Кошелёк не найден' } satisfies ApiResponse);
+    }
+    const transaction = await prisma.$transaction(async (tx) => {
+      const txn = await tx.transaction.create({
+        data: {
+          type: 'manual',
+          status: 'completed',
+          amount: minor,
+          currency: wallet.currency,
+          refType: refType || 'manual',
+          refId: refId || null,
+          meta: { description, direction: type } as Prisma.InputJsonValue,
+          ledgerEntries: {
+            create: [
+              { walletId: wallet.id, direction: type === 'CREDIT' ? 'credit' : 'debit', amount: minor },
+            ],
+          },
+        },
+        include: { ledgerEntries: true },
+      });
+
+      if (type === 'CREDIT') {
+        await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { increment: minor } } });
+      } else {
+        await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { decrement: minor } } });
+      }
+
+      return txn;
+    });
+    return res.status(201).json({ ok: true, data: serializeBigInt(transaction) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Manual transaction error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при создании ручной транзакции' } satisfies ApiResponse);
   }
 });
 

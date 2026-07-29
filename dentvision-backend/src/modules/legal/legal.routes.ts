@@ -1,380 +1,367 @@
 import { Router } from 'express';
-import prisma from '../../lib/prisma.js';
-import { requireAuth, requireSuperAdmin } from '../../middleware/auth.js';
+import { authenticate } from '../../middleware/auth.js';
+import { requireSuperadmin } from '../../middleware/rbac.js';
 import { validate } from '../../middleware/validate.js';
-import { emitAuditEvent } from '../../lib/events.js';
-import { uid } from '../../lib/helpers.js';
-import {
-  getDashboardStats,
-  createDocumentFromTemplate,
-  changeDocumentStatus,
-  onboardPartner,
-} from './legal.service.js';
-import {
-  createTemplateSchema,
-  updateTemplateSchema,
-  createBlockSchema,
-  updateBlockSchema,
-  createPartnerSchema,
-  createDocumentSchema,
-  updateDocumentStatusSchema,
-  createDocumentVersionSchema,
-  createInvoiceSchema,
-  updateInvoiceStatusSchema,
-  explainSchema,
-  diffSchema,
-  checkSchema,
-} from './legal.schemas.js';
+import prisma from '../../lib/prisma.js';
+import { getDashboardStats, createDocumentFromTemplate, changeDocumentStatus, onboardPartner } from './legal.service.js';
 import { writeAuditLog } from './legal.audit.js';
 import { exportDocument } from './legal.export.js';
 import { explainDocument, diffVersions, checkConflicts } from './legal.ai.js';
+import { getPlatformSettings, updatePlatformSettings } from './legal.platform-settings.js';
+import {
+  createBlockSchema, updateBlockSchema, createTemplateSchema, updateTemplateSchema,
+  createPartnerSchema, createDocumentSchema, updateDocumentStatusSchema,
+  createDocumentVersionSchema, createInvoiceSchema, updateInvoiceStatusSchema,
+  aiExplainSchema, aiDiffSchema, aiCheckSchema,
+} from './legal.schemas.js';
 
-const legalRouter = Router();
+const router = Router();
 
-legalRouter.use(requireAuth);
-legalRouter.use(requireSuperAdmin);
+router.use(authenticate);
+router.use(requireSuperadmin);
 
-legalRouter.get('/dashboard', async (_req, res, next) => {
-  try {
-    res.status(200).json({ ok: true, data: await getDashboardStats() });
-  } catch (err) { next(err); }
+function uid(req: any): string { return req.user?.id || 'unknown'; }
+function qs(req: any, key: string): string | undefined { return req.query[key] as string | undefined; }
+
+router.get('/dashboard', async (_req, res, next) => {
+  try { res.json({ ok: true, data: await getDashboardStats() }); }
+  catch (err) { next(err); }
 });
 
-legalRouter.get('/templates', async (_req, res, next) => {
+router.get('/templates', async (_req, res, next) => {
   try {
-    const data = await prisma.legalTemplate.findMany({
+    const templates = await prisma.legalTemplate.findMany({
       include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+      orderBy: { updatedAt: 'desc' },
     });
-    res.status(200).json({ ok: true, data });
+    res.json({ ok: true, data: templates });
   } catch (err) { next(err); }
 });
 
-legalRouter.post('/templates', validate(createTemplateSchema), async (req, res, next) => {
+router.post('/templates', validate(createTemplateSchema), async (req, res, next) => {
   try {
-    const { name, description, category, content, metadata } = req.body;
+    const { type, name, description, blocks, variables } = req.body;
     const template = await prisma.legalTemplate.create({
-      data: { id: uid(), name, description: description || null, category: category || null, metadata: metadata || null },
+      data: { type, name, description, blocks, variables, createdBy: uid(req) },
     });
     await prisma.legalTemplateVersion.create({
-      data: { id: uid(), templateId: template.id, version: 1, content, published: false },
+      data: { templateId: template.id, version: 1, content: '', createdBy: uid(req) },
     });
-    const data = await prisma.legalTemplate.findUnique({
-      where: { id: template.id },
-      include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
-    });
-    res.status(201).json({ ok: true, data });
+    res.status(201).json({ ok: true, data: template });
   } catch (err) { next(err); }
 });
 
-legalRouter.get('/templates/:id', async (req, res, next) => {
+router.get('/templates/:id', async (req, res, next) => {
   try {
-    const data = await prisma.legalTemplate.findUnique({
-      where: { id: req.params.id },
+    const template = await prisma.legalTemplate.findUnique({
+      where: { id: req.params.id as string },
       include: { versions: { orderBy: { version: 'desc' } } },
     });
-    if (!data) { res.status(404).json({ ok: false, error: 'Template not found' }); return; }
-    res.status(200).json({ ok: true, data });
+    if (!template) return res.status(404).json({ ok: false, error: 'Template not found' });
+    res.json({ ok: true, data: template });
   } catch (err) { next(err); }
 });
 
-legalRouter.put('/templates/:id', validate(updateTemplateSchema), async (req, res, next) => {
+router.put('/templates/:id', validate(updateTemplateSchema), async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { name, description, category, content, metadata } = req.body;
-    const existing = await prisma.legalTemplate.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) { res.status(404).json({ ok: false, error: 'Template not found' }); return; }
+    const existing = await prisma.legalTemplate.findUnique({ where: { id: req.params.id as string } });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Template not found' });
+    const { name, description, blocks, variables } = req.body;
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (blocks !== undefined) updateData.blocks = blocks;
+    if (variables !== undefined) updateData.variables = variables;
+    const newVersion = existing.currentVersion + 1;
+    const updated = await prisma.legalTemplate.update({
+      where: { id: req.params.id as string },
+      data: { ...updateData, currentVersion: newVersion },
+    });
+    await prisma.legalTemplateVersion.create({
+      data: { templateId: updated.id, version: newVersion, content: '', changelog: `Version ${newVersion}`, createdBy: uid(req) },
+    });
+    res.json({ ok: true, data: updated });
+  } catch (err) { next(err); }
+});
+
+router.post('/templates/:id/publish', async (req, res, next) => {
+  try {
+    const versionId = req.body.versionId;
+    if (!versionId) return res.status(400).json({ ok: false, error: 'versionId required' });
+    const version = await prisma.legalTemplateVersion.findUnique({ where: { id: versionId } });
+    if (!version) return res.status(404).json({ ok: false, error: 'Version not found' });
+    const updated = await prisma.legalTemplateVersion.update({
+      where: { id: versionId },
+      data: { status: 'PUBLISHED', publishedAt: new Date(), approvedBy: uid(req) },
+    });
+    res.json({ ok: true, data: updated });
+  } catch (err) { next(err); }
+});
+
+router.post('/templates/:id/archive', async (req, res, next) => {
+  try {
     await prisma.legalTemplate.update({
-      where: { id },
-      data: {
-        ...(name !== undefined ? { name } : {}),
-        ...(description !== undefined ? { description } : {}),
-        ...(category !== undefined ? { category } : {}),
-        ...(metadata !== undefined ? { metadata } : {}),
-      },
+      where: { id: req.params.id as string },
+      data: { versions: { updateMany: { where: { status: 'PUBLISHED' }, data: { status: 'ARCHIVED' } } } },
     });
-    const latest = await prisma.legalTemplateVersion.findFirst({
-      where: { templateId: id }, orderBy: { version: 'desc' }, select: { version: true },
-    });
-    await prisma.legalTemplateVersion.create({
-      data: { id: uid(), templateId: id, version: (latest?.version ?? 0) + 1, content: content || '', published: false },
-    });
-    const data = await prisma.legalTemplate.findUnique({
-      where: { id }, include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
-    });
-    res.status(200).json({ ok: true, data });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
-legalRouter.post('/templates/:id/publish', async (req, res, next) => {
+router.get('/blocks', async (_req, res, next) => {
   try {
-    const { id } = req.params;
-    const existing = await prisma.legalTemplate.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) { res.status(404).json({ ok: false, error: 'Template not found' }); return; }
-    const latest = await prisma.legalTemplateVersion.findFirst({
-      where: { templateId: id }, orderBy: { version: 'desc' }, select: { version: true, content: true },
+    const blocks = await prisma.legalBlock.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+    res.json({ ok: true, data: blocks });
+  } catch (err) { next(err); }
+});
+
+router.post('/blocks', validate(createBlockSchema), async (req, res, next) => {
+  try {
+    const { name, category, content, variables } = req.body;
+    const block = await prisma.legalBlock.create({ data: { name, category, content, variables, createdBy: uid(req) } });
+    res.status(201).json({ ok: true, data: block });
+  } catch (err) { next(err); }
+});
+
+router.put('/blocks/:id', validate(updateBlockSchema), async (req, res, next) => {
+  try {
+    const { name, category, content, variables } = req.body;
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (category !== undefined) updateData.category = category;
+    if (content !== undefined) updateData.content = content;
+    if (variables !== undefined) updateData.variables = variables;
+    const block = await prisma.legalBlock.update({ where: { id: req.params.id as string }, data: updateData });
+    res.json({ ok: true, data: block });
+  } catch (err) { next(err); }
+});
+
+router.delete('/blocks/:id', async (req, res, next) => {
+  try {
+    await prisma.legalBlock.update({ where: { id: req.params.id as string }, data: { isActive: false } });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+router.get('/partners', async (_req, res, next) => {
+  try {
+    const partners = await prisma.legalPartner.findMany({
+      include: { _count: { select: { documents: true, invoices: true } } },
+      orderBy: { createdAt: 'desc' },
     });
-    if (!latest) { res.status(400).json({ ok: false, error: 'No versions to publish' }); return; }
-    await prisma.legalTemplateVersion.create({
-      data: { id: uid(), templateId: id, version: latest.version + 1, content: latest.content, published: true },
+    res.json({ ok: true, data: partners });
+  } catch (err) { next(err); }
+});
+
+router.post('/partners', validate(createPartnerSchema), async (req, res, next) => {
+  try {
+    const result = await onboardPartner(req.body, uid(req));
+    res.status(201).json({ ok: true, data: result });
+  } catch (err) { next(err); }
+});
+
+router.get('/partners/:id', async (req, res, next) => {
+  try {
+    const partner = await prisma.legalPartner.findUnique({
+      where: { id: req.params.id as string },
+      include: { documents: { include: { template: true }, orderBy: { createdAt: 'desc' } }, invoices: { orderBy: { createdAt: 'desc' } } },
     });
-    const data = await prisma.legalTemplate.findUnique({
-      where: { id }, include: { versions: { orderBy: { version: 'desc' }, where: { published: true } } },
-    });
-    res.status(200).json({ ok: true, data });
+    if (!partner) return res.status(404).json({ ok: false, error: 'Partner not found' });
+    res.json({ ok: true, data: partner });
   } catch (err) { next(err); }
 });
 
-legalRouter.post('/templates/:id/archive', async (req, res, next) => {
+router.get('/documents', async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const existing = await prisma.legalTemplate.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) { res.status(404).json({ ok: false, error: 'Template not found' }); return; }
-    const data = await prisma.legalTemplate.update({ where: { id }, data: { isActive: false } });
-    res.status(200).json({ ok: true, data });
-  } catch (err) { next(err); }
-});
-
-legalRouter.get('/blocks', async (_req, res, next) => {
-  try {
-    res.status(200).json({ ok: true, data: await prisma.legalBlock.findMany() });
-  } catch (err) { next(err); }
-});
-
-legalRouter.post('/blocks', validate(createBlockSchema), async (req, res, next) => {
-  try {
-    const { name, content, category, metadata } = req.body;
-    const data = await prisma.legalBlock.create({
-      data: { id: uid(), name, content, category: category || null, metadata: metadata || null },
-    });
-    res.status(201).json({ ok: true, data });
-  } catch (err) { next(err); }
-});
-
-legalRouter.put('/blocks/:id', validate(updateBlockSchema), async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { name, content, category, metadata } = req.body;
-    const existing = await prisma.legalBlock.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) { res.status(404).json({ ok: false, error: 'Block not found' }); return; }
-    const data = await prisma.legalBlock.update({
-      where: { id },
-      data: {
-        ...(name !== undefined ? { name } : {}),
-        ...(content !== undefined ? { content } : {}),
-        ...(category !== undefined ? { category } : {}),
-        ...(metadata !== undefined ? { metadata } : {}),
-      },
-    });
-    res.status(200).json({ ok: true, data });
-  } catch (err) { next(err); }
-});
-
-legalRouter.delete('/blocks/:id', async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const existing = await prisma.legalBlock.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) { res.status(404).json({ ok: false, error: 'Block not found' }); return; }
-    const data = await prisma.legalBlock.update({ where: { id }, data: { isActive: false } });
-    res.status(200).json({ ok: true, data });
-  } catch (err) { next(err); }
-});
-
-legalRouter.get('/partners', async (_req, res, next) => {
-  try {
-    const data = await prisma.legalPartner.findMany({
-      include: { _count: { select: { documents: true } } },
-    });
-    res.status(200).json({ ok: true, data });
-  } catch (err) { next(err); }
-});
-
-legalRouter.post('/partners', validate(createPartnerSchema), async (req, res, next) => {
-  try {
-    res.status(201).json({ ok: true, data: await onboardPartner(req.body) });
-  } catch (err) { next(err); }
-});
-
-legalRouter.get('/partners/:id', async (req, res, next) => {
-  try {
-    const data = await prisma.legalPartner.findUnique({
-      where: { id: req.params.id },
-      include: { documents: true, invoices: true },
-    });
-    if (!data) { res.status(404).json({ ok: false, error: 'Partner not found' }); return; }
-    res.status(200).json({ ok: true, data });
-  } catch (err) { next(err); }
-});
-
-legalRouter.get('/documents', async (req, res, next) => {
-  try {
-    const { status, templateId, partnerId, search } = req.query;
-    const where: Record<string, unknown> = {};
-    if (status && typeof status === 'string') where.status = status;
-    if (templateId && typeof templateId === 'string') where.templateId = templateId;
-    if (partnerId && typeof partnerId === 'string') where.partnerId = partnerId;
-    if (search && typeof search === 'string') {
+    const where: any = {};
+    const status = qs(req, 'status');
+    const templateId = qs(req, 'templateId');
+    const partnerId = qs(req, 'partnerId');
+    const search = qs(req, 'search');
+    if (status) where.status = status;
+    if (templateId) where.templateId = templateId;
+    if (partnerId) where.partnerId = partnerId;
+    if (search) {
       where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { reference: { contains: search, mode: 'insensitive' } },
+        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { content: { contains: search, mode: 'insensitive' } },
       ];
     }
-    res.status(200).json({ ok: true, data: await prisma.legalDocument.findMany({ where }) });
-  } catch (err) { next(err); }
-});
-
-legalRouter.post('/documents', validate(createDocumentSchema), async (req, res, next) => {
-  try {
-    res.status(201).json({ ok: true, data: await createDocumentFromTemplate(req.body) });
-  } catch (err) { next(err); }
-});
-
-legalRouter.get('/documents/:id', async (req, res, next) => {
-  try {
-    const data = await prisma.legalDocument.findUnique({
-      where: { id: req.params.id },
-      include: {
-        template: true, partner: true,
-        versions: { orderBy: { version: 'desc' } },
-        auditLogs: { orderBy: { createdAt: 'desc' } },
-      },
+    const docs = await prisma.legalDocument.findMany({
+      where,
+      include: { template: true, partner: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
     });
-    if (!data) { res.status(404).json({ ok: false, error: 'Document not found' }); return; }
-    res.status(200).json({ ok: true, data });
+    res.json({ ok: true, data: docs });
   } catch (err) { next(err); }
 });
 
-legalRouter.put('/documents/:id/status', validate(updateDocumentStatusSchema), async (req, res, next) => {
+router.post('/documents', validate(createDocumentSchema), async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { status, reason } = req.body;
-    res.status(200).json({ ok: true, data: await changeDocumentStatus(id, status, reason) });
+    const { templateId, partnerId, variables, effectiveDate, expirationDate, linkedDocs } = req.body;
+    const doc = await createDocumentFromTemplate(templateId, partnerId, variables, uid(req), { effectiveDate, expirationDate, linkedDocs });
+    res.status(201).json({ ok: true, data: doc });
   } catch (err) { next(err); }
 });
 
-legalRouter.post('/documents/:id/version', validate(createDocumentVersionSchema), async (req, res, next) => {
+router.get('/documents/:id', async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { content, notes } = req.body;
-    const existing = await prisma.legalDocument.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) { res.status(404).json({ ok: false, error: 'Document not found' }); return; }
-    const latest = await prisma.legalDocumentVersion.findFirst({
-      where: { documentId: id }, orderBy: { version: 'desc' }, select: { version: true },
+    const doc = await prisma.legalDocument.findUnique({
+      where: { id: req.params.id as string },
+      include: { template: true, partner: true, versions: { orderBy: { version: 'desc' } }, auditLogs: { include: { performer: { select: { firstName: true, lastName: true } } }, orderBy: { createdAt: 'desc' } } },
     });
-    const data = await prisma.legalDocumentVersion.create({
-      data: { id: uid(), documentId: id, version: (latest?.version ?? 0) + 1, content, notes: notes || null },
+    if (!doc) return res.status(404).json({ ok: false, error: 'Document not found' });
+    res.json({ ok: true, data: doc });
+  } catch (err) { next(err); }
+});
+
+router.put('/documents/:id/status', validate(updateDocumentStatusSchema), async (req, res, next) => {
+  try {
+    const doc = await changeDocumentStatus(req.params.id as string, req.body.status, uid(req), req.body.changelog);
+    res.json({ ok: true, data: doc });
+  } catch (err) { next(err); }
+});
+
+router.post('/documents/:id/version', validate(createDocumentVersionSchema), async (req, res, next) => {
+  try {
+    const doc = await prisma.legalDocument.findUnique({ where: { id: req.params.id as string } });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Document not found' });
+    const newVersion = doc.version + 1;
+    const version = await prisma.legalDocumentVersion.create({
+      data: { documentId: doc.id, version: newVersion, content: req.body.content, status: doc.status as any, changelog: req.body.changelog, createdBy: uid(req) },
     });
-    res.status(201).json({ ok: true, data });
+    await prisma.legalDocument.update({ where: { id: doc.id }, data: { version: newVersion, content: req.body.content } });
+    await writeAuditLog({ documentId: doc.id, action: 'VERSION_ADDED', fromVersion: doc.version, toVersion: newVersion, diff: { changelog: req.body.changelog }, performedBy: uid(req) });
+    res.status(201).json({ ok: true, data: version });
   } catch (err) { next(err); }
 });
 
-legalRouter.get('/documents/:id/versions', async (req, res, next) => {
+router.get('/documents/:id/versions', async (req, res, next) => {
   try {
-    const data = await prisma.legalDocumentVersion.findMany({
-      where: { documentId: req.params.id }, orderBy: { version: 'desc' },
+    const versions = await prisma.legalDocumentVersion.findMany({
+      where: { documentId: req.params.id as string },
+      orderBy: { version: 'desc' },
     });
-    res.status(200).json({ ok: true, data });
+    res.json({ ok: true, data: versions });
   } catch (err) { next(err); }
 });
 
-legalRouter.get('/documents/:id/audit', async (req, res, next) => {
+router.get('/documents/:id/audit', async (req, res, next) => {
   try {
-    const data = await prisma.legalAuditLog.findMany({
-      where: { documentId: req.params.id }, orderBy: { createdAt: 'desc' },
+    const logs = await prisma.legalAuditLog.findMany({
+      where: { documentId: req.params.id as string },
+      include: { performer: { select: { firstName: true, lastName: true } } },
+      orderBy: { createdAt: 'desc' },
     });
-    res.status(200).json({ ok: true, data });
+    res.json({ ok: true, data: logs });
   } catch (err) { next(err); }
 });
 
-legalRouter.get('/documents/:id/export', async (req, res, next) => {
+router.get('/documents/:id/export', async (req, res, next) => {
   try {
-    res.status(200).json({ ok: true, data: await exportDocument(req.params.id) });
+    const format = qs(req, 'format') || 'html';
+    const result = await exportDocument(req.params.id as string, format, uid(req));
+    if (format === 'html') { res.setHeader('Content-Type', 'text/html'); res.send(result.content); }
+    else if (format === 'json') res.json(result);
+    else res.status(400).json({ ok: false, error: result.content as string });
   } catch (err) { next(err); }
 });
 
-legalRouter.get('/invoices', async (_req, res, next) => {
+router.get('/invoices', async (_req, res, next) => {
   try {
-    const data = await prisma.legalInvoice.findMany({ include: { partner: true } });
-    res.status(200).json({ ok: true, data });
-  } catch (err) { next(err); }
-});
-
-legalRouter.post('/invoices', validate(createInvoiceSchema), async (req, res, next) => {
-  try {
-    const { partnerId, documentId, amount, currency, dueDate, lineItems, notes } = req.body;
-    const data = await prisma.legalInvoice.create({
-      data: {
-        id: uid(), partnerId, documentId: documentId || null, amount, currency: currency || 'USD',
-        dueDate: dueDate ? new Date(dueDate) : null, lineItems: lineItems || null, notes: notes || null,
-      },
+    const invoices = await prisma.legalInvoice.findMany({
+      include: { partner: true, document: { select: { documentNumber: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
     });
-    res.status(201).json({ ok: true, data });
+    res.json({ ok: true, data: invoices });
   } catch (err) { next(err); }
 });
 
-legalRouter.get('/invoices/:id', async (req, res, next) => {
+router.post('/invoices', validate(createInvoiceSchema), async (req, res, next) => {
   try {
-    const data = await prisma.legalInvoice.findUnique({
-      where: { id: req.params.id }, include: { partner: true, document: true },
+    const { partnerId, documentId, amountKzt, dueAt, description } = req.body;
+    const count = await prisma.legalInvoice.count();
+    const invoiceNumber = `DV-INV-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+    const invoice = await prisma.legalInvoice.create({
+      data: { invoiceNumber, partnerId, documentId, amountKzt: BigInt(amountKzt), dueAt: dueAt ? new Date(dueAt) : undefined, description, createdBy: uid(req) },
     });
-    if (!data) { res.status(404).json({ ok: false, error: 'Invoice not found' }); return; }
-    res.status(200).json({ ok: true, data });
+    res.status(201).json({ ok: true, data: invoice });
   } catch (err) { next(err); }
 });
 
-legalRouter.put('/invoices/:id/status', validate(updateInvoiceStatusSchema), async (req, res, next) => {
+router.get('/invoices/:id', async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { status } = req.body;
-    const existing = await prisma.legalInvoice.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) { res.status(404).json({ ok: false, error: 'Invoice not found' }); return; }
-    const data = await prisma.legalInvoice.update({ where: { id }, data: { status } });
-    await writeAuditLog({ action: 'invoice.status_changed', entityType: 'invoice', entityId: id, metadata: { newStatus: status } });
-    res.status(200).json({ ok: true, data });
-  } catch (err) { next(err); }
-});
-
-legalRouter.get('/audit', async (_req, res, next) => {
-  try {
-    const data = await prisma.legalAuditLog.findMany({
-      include: { performer: true, document: true }, orderBy: { createdAt: 'desc' },
+    const invoice = await prisma.legalInvoice.findUnique({
+      where: { id: req.params.id as string },
+      include: { partner: true, document: { select: { documentNumber: true } } },
     });
-    res.status(200).json({ ok: true, data });
+    if (!invoice) return res.status(404).json({ ok: false, error: 'Invoice not found' });
+    res.json({ ok: true, data: invoice });
   } catch (err) { next(err); }
 });
 
-legalRouter.get('/settings', async (_req, res, next) => {
+router.put('/invoices/:id/status', validate(updateInvoiceStatusSchema), async (req, res, next) => {
   try {
-    res.status(200).json({
-      ok: true,
-      data: {
-        version: '1.0.0',
-        features: { templates: true, blocks: true, partners: true, documents: true, invoices: true, ai: true, audit: true },
-        defaults: { currency: 'USD', locale: 'en', pageSize: 20 },
-        retentionDays: 365,
-      },
+    const invoice = await prisma.legalInvoice.findUnique({ where: { id: req.params.id as string } });
+    if (!invoice) return res.status(404).json({ ok: false, error: 'Invoice not found' });
+    const updateData: any = { status: req.body.status };
+    if (req.body.status === 'paid') updateData.paidAt = new Date();
+    const updated = await prisma.legalInvoice.update({ where: { id: req.params.id as string }, data: updateData });
+    await writeAuditLog({ documentId: invoice.documentId || 'none', action: 'INVOICE_STATUS_CHANGED', diff: { invoiceId: invoice.id, from: invoice.status, to: req.body.status }, performedBy: uid(req) });
+    res.json({ ok: true, data: updated });
+  } catch (err) { next(err); }
+});
+
+router.get('/audit', async (_req, res, next) => {
+  try {
+    const logs = await prisma.legalAuditLog.findMany({
+      include: { performer: { select: { firstName: true, lastName: true } }, document: { select: { documentNumber: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
     });
+    res.json({ ok: true, data: logs });
   } catch (err) { next(err); }
 });
 
-legalRouter.post('/ai/explain', validate(explainSchema), async (req, res, next) => {
+router.get('/settings', async (_req, res) => {
+  res.json({ ok: true, data: { platformName: 'DentVision', legalVersion: '1.0', supportedLanguages: ['ru', 'kz', 'en'], defaultLanguage: 'ru', ecpEnabled: false } });
+});
+
+router.post('/ai/explain', validate(aiExplainSchema), async (req, res, next) => {
   try {
-    const { documentId, versionId } = req.body;
-    res.status(200).json({ ok: true, data: await explainDocument(documentId, versionId) });
+    const result = await explainDocument(req.body.content, req.body.language, 'ai', uid(req));
+    res.json({ ok: true, data: result });
   } catch (err) { next(err); }
 });
 
-legalRouter.post('/ai/diff', validate(diffSchema), async (req, res, next) => {
+router.post('/ai/diff', validate(aiDiffSchema), async (req, res, next) => {
   try {
-    const { documentId, fromVersionId, toVersionId } = req.body;
-    res.status(200).json({ ok: true, data: await diffVersions(documentId, fromVersionId, toVersionId) });
+    const result = await diffVersions(req.body.v1, req.body.v2, 'ai', uid(req));
+    res.json({ ok: true, data: result });
   } catch (err) { next(err); }
 });
 
-legalRouter.post('/ai/check', validate(checkSchema), async (req, res, next) => {
+router.post('/ai/check', validate(aiCheckSchema), async (req, res, next) => {
   try {
-    const { documentId, versionId } = req.body;
-    res.status(200).json({ ok: true, data: await checkConflicts(documentId, versionId) });
+    const result = await checkConflicts(req.body.content, 'ai', uid(req));
+    res.json({ ok: true, data: result });
   } catch (err) { next(err); }
 });
 
-export { legalRouter };
+router.get('/platform-settings', async (_req, res, next) => {
+  try {
+    const settings = await getPlatformSettings();
+    res.json({ ok: true, data: settings });
+  } catch (err) { next(err); }
+});
+
+router.put('/platform-settings', async (req, res, next) => {
+  try {
+    const settings = await updatePlatformSettings(req.body);
+    res.json({ ok: true, data: settings });
+  } catch (err) { next(err); }
+});
+
+export { router as legalRouter };
