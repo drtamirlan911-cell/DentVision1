@@ -1,4 +1,6 @@
 {
+  "buildCommand": "npm run build --prefix DentVision1",
+  "outputDirectory": "DentVision1/dist",
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ]

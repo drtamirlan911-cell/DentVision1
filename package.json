@@ -2,22 +2,18 @@
   "name": "dentvision",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "npm run dev --workspace=packages/server",
-    "dev:client": "npm run dev --workspace=packages/client",
-    "build": "npm run build --workspaces",
-    "build:server": "npm run build --workspace=packages/server",
-    "build:client": "npm run build --workspace=packages/client",
-    "db:generate": "npm run db:generate --workspace=packages/server",
-    "db:push": "npm run db:push --workspace=packages/server",
-    "db:migrate": "npm run db:migrate --workspace=packages/server",
-    "db:studio": "npm run db:studio --workspace=packages/server",
-    "lint": "npm run lint --workspaces",
-    "typecheck": "npm run typecheck --workspaces"
+    "dev:server": "npm run dev --prefix packages/server",
+    "dev:client": "npm run dev --prefix DentVision1",
+    "build": "npm run build --prefix DentVision1",
+    "build:client": "npm run build --prefix DentVision1",
+    "db:generate": "npm run db:generate --prefix packages/server",
+    "db:push": "npm run db:push --prefix packages/server",
+    "db:migrate": "npm run db:migrate --prefix packages/server",
+    "db:studio": "npm run db:studio --prefix packages/server",
+    "lint": "npm run lint --prefix DentVision1",
+    "typecheck": "npm run typecheck --prefix DentVision1"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
