@@ -2799,17 +2799,27 @@ enum AiAdminSessionStatus {
 }
 
 model ClinicMessengerConfig {
-  id               String        @id @default(cuid())
-  clinicId         String
-  channel          AiAdminChannel
-  channelAccountId String
-  verifyToken      String
-  accessToken      String
-  isActive         Boolean       @default(true)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id                 String        @id @default(cuid())
+  clinicId           String
+  channel            AiAdminChannel
+  channelAccountId   String
+  verifyToken        String        @default("")
+  accessToken        String        @default("")
+  refreshToken       String?
+  businessId         String?
+  wabaId             String?
+  pageId             String?
+  instagramAccountId String?
+  phoneNumberId      String?
+  phoneNumber        String?
+  permissions        Json?
+  expiresAt          DateTime?
+  webhookSubscribed  Boolean       @default(false)
+  isActive           Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  sessions         AiAdminSession[]
+  sessions           AiAdminSession[]
 
   @@unique([channel, channelAccountId])
   @@index([clinicId])
