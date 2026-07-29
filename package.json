@@ -6,7 +6,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm run dev --prefix packages/server",
     "dev:client": "npm run dev --prefix DentVision1",
-    "build": "npm run build --prefix DentVision1",
+    "build": "cd DentVision1 && npm install && npm run build",
     "build:client": "npm run build --prefix DentVision1",
     "db:generate": "npm run db:generate --prefix packages/server",
     "db:push": "npm run db:push --prefix packages/server",
