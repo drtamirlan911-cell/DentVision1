@@ -48,6 +48,10 @@ const envSchema = z.object({
   /** Public API URL for webhook callbacks. Used by clinic payments module. */
   PUBLIC_API_URL: z.string().url().optional(),
   REMINDER_CRON_MS: z.coerce.number().default(900000),
+  /** Meta App Secret for WhatsApp/Instagram webhook signature verification. */
+  META_APP_SECRET: z.string().min(10).optional(),
+  /** Max conversation history messages sent to LLM. */
+  AI_ADMIN_MAX_HISTORY: z.coerce.number().default(20),
 });
 
 export const env = envSchema.parse(process.env);

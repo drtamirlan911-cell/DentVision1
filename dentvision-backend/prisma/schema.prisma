@@ -805,8 +805,8 @@ model Product {
   ownBrand    Boolean @default(false)
 
   // Rich catalog fields
-  sku         String?           // артикул
-  unit        String?           // шт, кг, набор...
+  sku         String?           // Р°СЂС‚РёРєСѓР»
+  unit        String?           // С€С‚, РєРі, РЅР°Р±РѕСЂ...
   currency    String @default("KZT")
   tags        Json?             // array of tags
   specs       Json?             // key-value characteristics
@@ -893,7 +893,7 @@ model Favorite {
   @@map("favorites")
 }
 
-// ─── MARKETPLACE V2: CATEGORIES & SPECS ───
+// в”Ђв”Ђв”Ђ MARKETPLACE V2: CATEGORIES & SPECS в”Ђв”Ђв”Ђ
 
 model ShopCategory {
   id          String  @id @default(uuid())
@@ -935,7 +935,7 @@ model SpecTemplate {
   categoryId String?
   name       String
   type       SpecFieldType  @default(TEXT)
-  unit       String?        // ед. измерения
+  unit       String?        // РµРґ. РёР·РјРµСЂРµРЅРёСЏ
   options    Json?          // for SELECT/MULTI_SELECT: [{ value, label }]
   required   Boolean        @default(false)
   sortOrder  Int            @default(0)
@@ -949,7 +949,7 @@ model SpecTemplate {
   @@map("spec_templates")
 }
 
-// ─── MARKETPLACE V2: REVIEWS ───
+// в”Ђв”Ђв”Ђ MARKETPLACE V2: REVIEWS в”Ђв”Ђв”Ђ
 
 model ShopReview {
   id        String   @id @default(uuid())
@@ -980,12 +980,12 @@ model ShopReview {
   @@map("shop_reviews")
 }
 
-// ─── MARKETPLACE V2: DELIVERY ───
+// в”Ђв”Ђв”Ђ MARKETPLACE V2: DELIVERY в”Ђв”Ђв”Ђ
 
 model DeliveryZone {
   id             String  @id @default(uuid())
   supplierId     String
-  name           String  // e.g. "Алматы", "Шымкент"
+  name           String  // e.g. "РђР»РјР°С‚С‹", "РЁС‹РјРєРµРЅС‚"
   cities         Json?   // array of city/region names
   cost           Int     @default(0)
   freeFrom       Int?    // free delivery from this order amount
@@ -1001,7 +1001,7 @@ model DeliveryZone {
   @@map("delivery_zones")
 }
 
-// ─── MARKETPLACE V2: BANNERS & PROMOTIONS ───
+// в”Ђв”Ђв”Ђ MARKETPLACE V2: BANNERS & PROMOTIONS в”Ђв”Ђв”Ђ
 
 model ShopBanner {
   id        String   @id @default(uuid())
@@ -1049,7 +1049,7 @@ model ShopPromotion {
   @@map("shop_promotions")
 }
 
-// ─── MARKETPLACE V2: PRODUCT PRESETS ───
+// в”Ђв”Ђв”Ђ MARKETPLACE V2: PRODUCT PRESETS в”Ђв”Ђв”Ђ
 
 model ProductPreset {
   id          String   @id @default(uuid())
@@ -1059,7 +1059,7 @@ model ProductPreset {
   description String?
   imageUrl    String?
   avgPrice    Int      @default(0)
-  unit        String?  @default("шт")
+  unit        String?  @default("С€С‚")
   manufacturer String?
   country     String?
   specs       Json?
@@ -1898,7 +1898,7 @@ model JobVacancy {
   clinicName      String   @default("")
   city            String   @default("")
   salary          String   @default("")
-  employmentType  String   @default("?Y???�???�N? ?�?�??N?N�??N?N�N?")
+  employmentType  String   @default("?Y???пїЅ???пїЅN? ?пїЅ?пїЅ??N?NпїЅ??N?NпїЅN?")
   description     String   @default("")
   tags            Json?
   status          String   @default("open")
@@ -2194,9 +2194,9 @@ model ServiceAccess {
   @@map("service_access")
 }
 
-// ═══════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // DentVision Diagnostics
-// ═══════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
 enum DiagnosticCategory {
   CBCT
@@ -2574,7 +2574,7 @@ model RegistrationRequest {
   @@map("registration_requests")
 }
 
-// ─── LEGAL ENGINE ───
+// в”Ђв”Ђв”Ђ LEGAL ENGINE в”Ђв”Ђв”Ђ
 
 enum DocumentStatus {
   DRAFT
@@ -2610,7 +2610,7 @@ model LegalTemplate {
   type           TemplateType
   name           String
   description    String?
-  blocks         String[]              // массив LegalBlock.id
+  blocks         String[]              // РјР°СЃСЃРёРІ LegalBlock.id
   variables      Json                  // { "CompanyName": "string", "BIN": "string" }
   currentVersion Int                   @default(1)
 
@@ -2630,7 +2630,7 @@ model LegalTemplateVersion {
   templateId  String
   template    LegalTemplate  @relation(fields: [templateId], references: [id])
   version     Int
-  content     String         // HTML с {{переменными}}
+  content     String         // HTML СЃ {{РїРµСЂРµРјРµРЅРЅС‹РјРё}}
   changelog   String?
   status      DocumentStatus @default(DRAFT)
   publishedAt DateTime?
@@ -2648,8 +2648,8 @@ model LegalBlock {
   id          String   @id @default(uuid())
   name        String
   category    String   // "core", "financial", "data", "dispute"
-  content     String   // HTML/Markdown с {{переменными}}
-  variables   String[] // список переменных внутри блока
+  content     String   // HTML/Markdown СЃ {{РїРµСЂРµРјРµРЅРЅС‹РјРё}}
+  variables   String[] // СЃРїРёСЃРѕРє РїРµСЂРµРјРµРЅРЅС‹С… РІРЅСѓС‚СЂРё Р±Р»РѕРєР°
   isActive    Boolean  @default(true)
 
   createdAt   DateTime @default(now())
@@ -2696,8 +2696,8 @@ model LegalDocument {
   partner         LegalPartner       @relation(fields: [partnerId], references: [id])
   version         Int                @default(1)
   status          DocumentStatus     @default(DRAFT)
-  content         String             // финальный HTML
-  variables       Json               // { "CompanyName": "ООО Дент", ... }
+  content         String             // С„РёРЅР°Р»СЊРЅС‹Р№ HTML
+  variables       Json               // { "CompanyName": "РћРћРћ Р”РµРЅС‚", ... }
   effectiveDate   DateTime?
   expirationDate  DateTime?
   approvedBy      String?
@@ -2778,4 +2778,91 @@ model LegalInvoice {
   updatedAt     DateTime       @updatedAt
 
   @@map("legal_invoices")
+}
+// в”Ђв”Ђв”Ђ AI ADMIN вЂ” WhatsApp / Instagram webhook gateway в”Ђв”Ђв”Ђ
+
+enum AiAdminChannel {
+  WHATSAPP
+  INSTAGRAM
+}
+
+enum AiAdminMessageRole {
+  USER
+  ASSISTANT
+  TOOL
+}
+
+enum AiAdminSessionStatus {
+  ACTIVE
+  ESCALATED
+  CLOSED
+}
+
+model ClinicMessengerConfig {
+  id               String        @id @default(cuid())
+  clinicId         String
+  channel          AiAdminChannel
+  channelAccountId String
+  verifyToken      String
+  accessToken      String
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  sessions         AiAdminSession[]
+
+  @@unique([channel, channelAccountId])
+  @@index([clinicId])
+  @@map("clinic_messenger_configs")
+}
+
+model AiAdminSession {
+  id             String                @id @default(cuid())
+  clinicId       String
+  configId       String
+  config         ClinicMessengerConfig @relation(fields: [configId], references: [id])
+  channel        AiAdminChannel
+  externalUserId String
+  patientName    String?
+  patientPhone   String?
+  status         AiAdminSessionStatus  @default(ACTIVE)
+  lastMessageAt  DateTime              @default(now())
+  createdAt      DateTime              @default(now())
+
+  messages       AiAdminMessage[]
+
+  @@unique([channel, externalUserId, clinicId])
+  @@index([clinicId, status])
+  @@index([lastMessageAt])
+  @@map("ai_admin_sessions")
+}
+
+model AiAdminMessage {
+  id         String             @id @default(cuid())
+  sessionId  String
+  session    AiAdminSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role       AiAdminMessageRole
+  content    String
+  toolName   String?
+  toolResult Json?
+  tokensUsed Int?
+  latencyMs  Int?
+  createdAt  DateTime           @default(now())
+
+  @@index([sessionId])
+  @@map("ai_admin_messages")
+}
+
+model AiAdminEscalation {
+  id              String   @id @default(cuid())
+  sessionId       String
+  clinicId        String
+  reason          String
+  lastUserMessage String
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  createdAt       DateTime @default(now())
+
+  @@index([clinicId, resolvedAt])
+  @@map("ai_admin_escalations")
 }

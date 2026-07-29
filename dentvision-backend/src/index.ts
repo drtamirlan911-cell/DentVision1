@@ -5,6 +5,7 @@ import { eventBus } from './modules/events/index.js';
 import { getEventOrchestrator } from './modules/ai/os/index.js';
 import { startReminderCronInterval } from './jobs/reminderCron.js';
 import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
+import { startMessageWorker } from './modules/ai-admin/index.js';
 
 const orchestrator = getEventOrchestrator({ logLevel: 'info' });
 
@@ -58,6 +59,11 @@ async function main() {
     if (env.REMINDER_CRON_MS > 0) {
       startReminderCronInterval(env.REMINDER_CRON_MS);
       startSubscriptionCronInterval(env.REMINDER_CRON_MS);
+      try {
+        startMessageWorker();
+      } catch (err) {
+        console.warn('[AI_ADMIN] Worker start failed (non-fatal):', err);
+      }
     }
   });
 }
