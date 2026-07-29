@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/store/auth.store'
 import { apiRequest } from '@/utils/api'
-import { MessageCircle, Instagram, RefreshCw, ExternalLink, AlertCircle, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
+import { MessageCircle, Camera, RefreshCw, ExternalLink, AlertCircle, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
 
 interface ChannelStatus {
   id: string
@@ -71,7 +71,7 @@ export default function IntegrationsMessaging() {
     const cfg: ChannelStatus | null = channel === 'WHATSAPP' ? status?.whatsapp ?? null : status?.instagram ?? null
     const connected = Boolean(cfg?.id)
     const label = channel === 'WHATSAPP' ? 'WhatsApp Business' : 'Instagram Direct'
-    const Icon = channel === 'WHATSAPP' ? MessageCircle : Instagram
+    const Icon = channel === 'WHATSAPP' ? MessageCircle : Camera
     const color = channel === 'WHATSAPP' ? '#25D366' : '#E4405F'
     const msgCount = status?.messagesToday?.[channel] ?? 0
 
