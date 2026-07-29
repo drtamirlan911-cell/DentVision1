@@ -1,0 +1,33 @@
+# DentVision — Render Blueprint
+#
+# ⚠️ NEVER use `prisma db push --accept-data-loss` against production.
+# That flag dropped live tables on 2026-07-20.
+#
+# Current Render Dashboard (matches this Blueprint):
+#   Build: cd dentvision-backend && npm install && npx prisma generate
+#   Start: cd dentvision-backend && npx tsx src/index.ts
+
+services:
+  - type: web
+    name: dentvision-api
+    runtime: node
+    plan: free
+    buildCommand: cd dentvision-backend && npm install && npx prisma generate
+    startCommand: cd dentvision-backend && npx tsx src/index.ts
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000
+      - key: CORS_ORIGIN
+        # Production + localhost. Preview hosts matching dent-vision* / dentvision* are always allowed in code.
+        value: "https://dent-vision1.vercel.app,http://localhost:5173"
+      - key: KASPI_CALLBACK_SECRET
+        sync: false

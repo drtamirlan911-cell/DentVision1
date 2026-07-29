@@ -1,0 +1,989 @@
+import { Router } from 'express';
+import { authenticate, optionalAuth } from '../../middleware/auth.js';
+import type { AuthRequest } from '../../types/index.js';
+import { validate } from '../../middleware/validate.js';
+import { z } from 'zod';
+import { aiService } from './core/ai.service.js';
+import { improveResponseWithLLM } from './core/llm.service.js';
+import { orchestrate, orchestratorEnabled } from './os/orchestrator.js';
+import type { AIResponse } from './types/ai.types.js';
+import { prisma } from '../../lib/prisma.js';
+import { logAIInteraction } from './lib/auditLogger.js';
+import { guardAiAccess } from '../../middleware/planGate.js';
+import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
+
+const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
+
+export const aiRouter = Router();
+
+aiRouter.use(optionalAuth);
+aiRouter.use(guardAiAccess);
+
+/** Enforce guest daily AI quota before burning OpenAI credits. */
+function enforceGuestAiQuota(req: AuthRequest, res: import('express').Response): boolean {
+  const isGuest = !req.user || req.user.isGuest === true;
+  if (!isGuest) return true;
+  const userId = req.user?.id;
+  if (!userId) {
+    // Anonymous without guest JWT — treat as guest bucket by IP-ish fallback id
+    res.status(401).json({
+      ok: false,
+      error: 'Создайте гостевую сессию',
+      code: 'GUEST_SESSION_REQUIRED',
+    });
+    return false;
+  }
+  const remaining = consumeGuestAi(userId);
+  if (remaining < 0) {
+    res.status(429).json({
+      ok: false,
+      error: 'Лимит бесплатных AI-запросов исчерпан. Зарегистрируйтесь для продолжения.',
+      code: 'GUEST_AI_LIMIT',
+      data: { aiRequestsLeft: 0 },
+    });
+    return false;
+  }
+  res.setHeader('X-Guest-AI-Remaining', String(remaining));
+  return true;
+}
+
+const querySchema = z.object({
+  body: z.object({
+    text: z.string().min(1),
+    message: z.string().optional(),
+    sessionId: z.string().min(8).optional(),
+    timezone: z.string().min(1).optional(),
+    timeZone: z.string().min(1).optional(),
+    pathname: z.string().max(200).optional(),
+    focusType: z.string().max(64).optional(),
+    focusId: z.string().max(128).optional(),
+    history: z.array(z.object({
+      role: z.string(),
+      content: z.string(),
+    })).optional(),
+  }),
+});
+
+/** Stable AI session per authenticated user (and clinic when present). */
+async function resolveUserSessionId(req: AuthRequest, requested?: string): Promise<string> {
+  if (!req.user?.id || req.user.isGuest) {
+    return requested && requested.length >= 8 ? requested : crypto.randomUUID();
+  }
+
+  const userId = req.user.id;
+  const clinicId = req.user.clinicId || DEMO_CLINIC_ID || 'platform';
+
+  if (requested) {
+    // Only reuse a client session if it belongs to THIS clinic — never mix chats.
+    const owned = await prisma.aISession.findFirst({
+      where: { id: requested, userId, clinicId },
+      select: { id: true },
+    });
+    if (owned) return owned.id;
+  }
+
+  const existing = await prisma.aISession.findFirst({
+    where: { userId, clinicId },
+    orderBy: { updatedAt: 'desc' },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const id = crypto.randomUUID();
+  await prisma.aISession.create({
+    data: {
+      id,
+      userId,
+      clinicId,
+      messages: [],
+      context: {},
+    },
+  });
+  return id;
+}
+
+async function syncSessionMessages(sessionId: string, userId: string | undefined, clinicId: string | undefined) {
+  if (!userId) return;
+  try {
+    const rows = await prisma.aIMessage.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'asc' },
+      take: 80,
+      select: { id: true, role: true, content: true, createdAt: true },
+    });
+    const messages = rows.map((r) => ({
+      id: r.id,
+      role: r.role,
+      content: r.content,
+      timestamp: r.createdAt.toISOString(),
+    }));
+    await prisma.aISession.upsert({
+      where: { id: sessionId },
+      create: {
+        id: sessionId,
+        userId,
+        clinicId: clinicId || DEMO_CLINIC_ID || 'platform',
+        messages,
+        context: {},
+      },
+      update: { messages },
+    });
+  } catch (err) {
+    console.error('[AI] syncSessionMessages', err);
+  }
+}
+
+interface ProcessedResponse extends AIResponse {
+  toolsUsed?: string[];
+  actions?: Array<{ type: string; label: string; params?: Record<string, unknown>; confidence?: number }>;
+  messageId?: string;
+  learnedHint?: string;
+  learnedLabels?: string[];
+  activePersona?: string;
+  activePersonaLabel?: string;
+}
+
+/**
+ * Convert the orchestrator's pending confirmation into an action card the
+ * existing AI workspace UI already knows how to render and execute: the
+ * user confirms → UI POSTs /api/ai/action with {action, params} → the
+ * RBAC-checked tool layer performs the mutation.
+ */
+/** Human labels for actions shown as chat chips — never expose raw SCREAMING_SNAKE types. */
+const ACTION_LABELS: Record<string, string> = {
+  OPEN_SCHEDULE: 'Открыть расписание',
+  OpenSchedule: 'Открыть расписание',
+  OPEN_CRM: 'Открыть CRM',
+  OpenCRM: 'Открыть CRM',
+  OPEN_PATIENTS: 'Открыть пациентов',
+  OpenPatients: 'Открыть пациентов',
+  OPEN_SCHOOL: 'Открыть Academy OS',
+  OpenSchool: 'Открыть Academy OS',
+  OPEN_SHOP: 'Открыть маркетплейс',
+  OpenShop: 'Открыть маркетплейс',
+  OPEN_FINANCE: 'Открыть финансы',
+  OpenFinance: 'Открыть финансы',
+  OPEN_LABORATORY: 'Открыть лабораторию',
+  OpenLab: 'Открыть лабораторию',
+  OPEN_ANALYTICS: 'Открыть аналитику',
+  OpenAnalytics: 'Открыть аналитику',
+  OPEN_INVENTORY: 'Открыть склад',
+  OpenInventory: 'Открыть склад',
+  OPEN_DOCUMENTS: 'Открыть документы',
+  OpenDocuments: 'Открыть документы',
+  OPEN_MEDICAL_CARD: 'Открыть карту',
+  OpenMedicalCard: 'Открыть карту',
+  OpenReminders: 'Открыть напоминания',
+  OPEN_INVOICE: 'Открыть счёт',
+  NAVIGATE: 'Открыть раздел',
+  OpenDemo: 'Открыть демо-клинику',
+};
+
+const PATH_ACTION_LABELS: Record<string, string> = {
+  '/crm/schedule': 'Открыть расписание',
+  '/crm/patients': 'Открыть пациентов',
+  '/crm/finance': 'Открыть финансы',
+  '/crm/inventory': 'Открыть склад',
+  '/crm/documents': 'Открыть документы',
+  '/crm/lab': 'Открыть лабораторию',
+  '/crm/reminders': 'Открыть напоминания',
+  '/crm/dental-chart': 'Открыть зубную карту',
+  '/crm/treatment-plans': 'Открыть планы лечения',
+  '/crm/visits': 'Открыть визиты',
+  '/crm/staff': 'Открыть сотрудников',
+  '/shop': 'Открыть маркетплейс',
+  '/school': 'Открыть Academy OS',
+  '/analytics': 'Открыть аналитику',
+  '/settings': 'Открыть настройки',
+  '/profile': 'Открыть профиль',
+  '/demo': 'Открыть демо-клинику',
+  '/pricing': 'Открыть тарифы',
+  '/jobs': 'Открыть вакансии',
+  '/community': 'Открыть сообщество',
+};
+
+function navigateActionLabel(payload: unknown): string {
+  const path =
+    typeof payload === 'string'
+      ? payload
+      : payload && typeof payload === 'object' && 'path' in payload
+        ? String((payload as { path?: string }).path || '')
+        : '';
+  return PATH_ACTION_LABELS[path] || 'Открыть раздел';
+}
+
+/** Display-only payloads (SHOW_*) are not clickable navigation — keep them out of chips. */
+const DISPLAY_ONLY_ACTIONS = new Set([
+  'SHOW_BRIEFING',
+  'SHOW_REVENUE',
+  'SHOW_DEBTORS',
+  'SHOW_UTILIZATION',
+]);
+
+function responseActions(response: ProcessedResponse): Array<Record<string, unknown>> {
+  const actions: Array<Record<string, unknown>> = [];
+  if (response.action && !DISPLAY_ONLY_ACTIONS.has(response.action.type)) {
+    const type = response.action.type;
+    const label =
+      type === 'NAVIGATE'
+        ? navigateActionLabel(response.action.payload)
+        : ACTION_LABELS[type] || response.action.type.replace(/^Open/, 'Открыть ');
+    actions.push({
+      type,
+      label,
+      params: response.action.payload,
+      confidence: 1,
+      requiresConfirmation: false,
+    });
+  }
+  if (Array.isArray(response.actions)) {
+    for (const extra of response.actions) {
+      if (!extra?.type || DISPLAY_ONLY_ACTIONS.has(extra.type)) continue;
+      actions.push({
+        type: extra.type,
+        label: extra.label || (extra.type === 'NAVIGATE' ? navigateActionLabel(extra.params) : extra.type),
+        params: extra.params || {},
+        confidence: extra.confidence ?? 1,
+        requiresConfirmation: false,
+      });
+    }
+  }
+  const confirm = response.confirmData as { action?: string; params?: Record<string, unknown>; summary?: string } | undefined;
+  if (confirm?.action) {
+    actions.push({
+      type: confirm.action,
+      label: confirm.summary || ACTION_LABELS[confirm.action] || confirm.action,
+      params: confirm.params || {},
+      confidence: 1,
+      requiresConfirmation: true,
+    });
+  }
+  return actions;
+}
+
+/**
+ * Single entry point for both /query and /query/stream.
+ * Authenticated users with a working OPENAI_API_KEY get the full AI OS
+ * orchestrator (tool calling over live clinic data). Guests and
+ * LLM-unavailable situations fall back to the deterministic intent router.
+ */
+async function processQuery(
+  req: AuthRequest,
+  text: string,
+  sessionId: string,
+  history: Array<{ role: string; content: string }>,
+): Promise<ProcessedResponse> {
+  const isGuest = !req.user || req.user.isGuest === true;
+  const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
+  const timeZone = clientTimeZoneFromRequest({
+    headers: req.headers as Record<string, string | string[] | undefined>,
+    body: (req.body || {}) as Record<string, unknown>,
+    query: (req.query || {}) as Record<string, unknown>,
+  });
+  const body = (req.body || {}) as Record<string, unknown>;
+  const pathname = typeof body.pathname === 'string' ? body.pathname : undefined;
+  const focusType = typeof body.focusType === 'string' ? body.focusType : undefined;
+  const focusId = typeof body.focusId === 'string' ? body.focusId : undefined;
+
+  const userId = req.user?.id || 'guest';
+  const clinicId = isGuest ? null : (req.user!.clinicId || null);
+
+  // Learn preferences from this utterance BEFORE the model runs (so «запомни» applies now).
+  let learnedLabels: string[] = [];
+  let learnedHint: string | undefined;
+  let learningInstructions = '';
+  let fewShots: Array<{ user: string; assistant: string }> = [];
+
+  if (!isGuest && userId !== 'guest') {
+    try {
+      const learning = await import('./learning/learning.service.js');
+      const justLearned = await learning.learnFromUserUtterance(text, userId, clinicId);
+      const ctx = await learning.buildLearningContext({
+        userId,
+        clinicId,
+        role: req.user!.role,
+        isGuest: false,
+        query: text,
+      });
+      learningInstructions = [ctx.twinBlock, ctx.prefsBlock].filter(Boolean).join('\n\n');
+      fewShots = ctx.fewShots;
+      learnedLabels = [
+        ...justLearned.map((p) => p.label),
+        ...ctx.rememberedLabels,
+      ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 6);
+      learnedHint = justLearned.length
+        ? `Запомнил: ${justLearned.map((p) => p.value).slice(0, 2).join('; ')}`
+        : ctx.learnedHint;
+    } catch (e) {
+      console.warn('[AI] learning context failed', e);
+    }
+  }
+
+  // Guests get a product concierge (LLM) — not the clinic CRM intent router.
+  if (orchestratorEnabled()) {
+    try {
+      const result = await orchestrate({
+        text,
+        userId,
+        clinicId,
+        role: isGuest ? 'GUEST' : req.user!.role,
+        userName: isGuest
+          ? 'Гость'
+          : [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
+        sessionId,
+        history,
+        isGuest,
+        timeZone,
+        learningInstructions: learningInstructions || undefined,
+        fewShots,
+        pathname,
+        focusType,
+        focusId,
+      });
+
+      if (!isGuest && result.toolsUsed?.length) {
+        void import('./learning/learning.service.js')
+          .then((learning) => learning.learnFromToolsUsed(userId, clinicId, result.toolsUsed))
+          .catch(() => undefined);
+      }
+
+      return {
+        message: result.message,
+        intent: result.intent,
+        action: result.action,
+        actions: result.actions,
+        suggestions: result.suggestions,
+        needsConfirmation: result.needsConfirmation,
+        confirmData: result.confirmData,
+        toolsUsed: result.toolsUsed,
+        messageId: result.messageId,
+        learnedHint,
+        learnedLabels,
+        activePersona: result.activePersona,
+        activePersonaLabel: result.activePersonaLabel,
+      };
+    } catch (error) {
+      console.error('[AI OS] orchestrator failed, falling back to intent router:', error);
+    }
+  }
+
+  const context = {
+    userId,
+    clinicId: isGuest ? '' : (clinicId || DEMO_CLINIC_ID),
+    role: isGuest ? 'guest' : (req.user?.role || 'guest'),
+    isGuest,
+    sessionId,
+    metadata: { timeZone },
+  };
+  const response = await aiService.processMessage(text, context, sessionId);
+  response.message = (await improveResponseWithLLM(text, response, context)) || response.message;
+  return { ...response, learnedHint, learnedLabels };
+}
+
+aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {
+  const startTime = Date.now();
+  try {
+    if (!enforceGuestAiQuota(req, res)) return;
+    const { text, message, sessionId: rawSession, history = [] } = req.body;
+    const prompt = String(text || message || '').trim();
+    const sessionId = await resolveUserSessionId(req, rawSession);
+    const response = await processQuery(req, prompt, sessionId, history);
+    await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
+
+    const toolsUsed = response.toolsUsed || [];
+    logAIInteraction({
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || undefined,
+      sessionId,
+      model: 'orchestrator',
+      toolsCalled: toolsUsed,
+      latencyMs: Date.now() - startTime,
+      status: 'success',
+    });
+
+    return res.json({
+      ok: true,
+      data: {
+        ...response,
+        reply: response.message,
+        sessionId,
+        actions: responseActions(response),
+        messageId: response.messageId,
+        learnedHint: response.learnedHint,
+        learnedLabels: response.learnedLabels,
+        activePersona: response.activePersona,
+        activePersonaLabel: response.activePersonaLabel,
+        aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
+      },
+    });
+  } catch (error) {
+    console.error('[AI] query', error);
+    logAIInteraction({
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || undefined,
+      sessionId: req.body?.sessionId || undefined,
+      model: 'orchestrator',
+      toolsCalled: [],
+      latencyMs: Date.now() - startTime,
+      status: 'error',
+      errorMessage: error instanceof Error ? error.message : 'AI query failed',
+    });
+    return res.status(500).json({ ok: false, error: 'AI query failed' });
+  }
+});
+
+// The web client uses this endpoint for progressive rendering.  Keep the
+// protocol compatible even when the current AI provider returns a complete
+// response rather than provider-level token events.
+aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
+  const startTime = Date.now();
+  try {
+    if (!enforceGuestAiQuota(req, res)) return;
+    const text = req.body.text || req.body.message;
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Text is required' });
+    }
+
+    const sessionId = await resolveUserSessionId(req, req.body.sessionId);
+    const history = Array.isArray(req.body.history) ? req.body.history : [];
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    // Keep the connection visibly alive while the orchestrator plans and
+    // executes tools (can take several seconds with multi-step chains).
+    res.write(`data: ${JSON.stringify({ type: 'status', status: 'thinking' })}\n\n`);
+    const heartbeat = setInterval(() => {
+      res.write(`data: ${JSON.stringify({ type: 'status', status: 'working' })}\n\n`);
+    }, 8000);
+
+    let response: ProcessedResponse;
+    try {
+      response = await processQuery(req, text, sessionId, history);
+      await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
+    } finally {
+      clearInterval(heartbeat);
+    }
+
+    const toolsUsed = response.toolsUsed || [];
+    logAIInteraction({
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || undefined,
+      sessionId,
+      model: 'orchestrator',
+      toolsCalled: toolsUsed,
+      latencyMs: Date.now() - startTime,
+      status: 'success',
+    });
+
+    // Progressive rendering of the final message.
+    const message = response.message || '';
+    const chunkSize = Math.max(8, Math.ceil(message.length / 40));
+    for (let i = 0; i < message.length; i += chunkSize) {
+      res.write(`data: ${JSON.stringify({ type: 'token', text: message.slice(i, i + chunkSize) })}\n\n`);
+    }
+
+    res.write(`data: ${JSON.stringify({
+      type: 'done',
+      reply: message,
+      skill: response.intent || 'general',
+      actions: responseActions(response),
+      suggestions: response.suggestions || [],
+      toolsUsed: response.toolsUsed || [],
+      sessionId,
+      messageId: response.messageId,
+      learnedHint: response.learnedHint,
+      learnedLabels: response.learnedLabels,
+      activePersona: response.activePersona,
+      activePersonaLabel: response.activePersonaLabel,
+      aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
+    })}\n\n`);
+    res.end();
+  } catch (error) {
+    console.error('[AI Stream Error]', error);
+    logAIInteraction({
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.clinicId || undefined,
+      sessionId: req.body?.sessionId || undefined,
+      model: 'orchestrator',
+      toolsCalled: [],
+      latencyMs: Date.now() - startTime,
+      status: 'error',
+      errorMessage: error instanceof Error ? error.message : 'AI stream failed',
+    });
+    try {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'AI stream failed' })}\n\n`);
+      res.end();
+    } catch { /* headers may not be sent */ }
+  }
+});
+
+// Per-user durable threads backed by AISession + AIMessage.
+aiRouter.get('/threads', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const sessions = await prisma.aISession.findMany({
+      where: { userId: req.user!.id },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+      select: { id: true, clinicId: true, updatedAt: true, createdAt: true },
+    });
+    return res.json({
+      ok: true,
+      data: {
+        threads: sessions.map((s) => ({
+          threadId: s.id,
+          clinicId: s.clinicId,
+          updatedAt: s.updatedAt,
+          createdAt: s.createdAt,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('[AI] threads list', error);
+    return res.json({ ok: true, data: { threads: [] } });
+  }
+});
+
+aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const sessionId = await resolveUserSessionId(req);
+    const session = await prisma.aISession.findFirst({
+      where: { id: sessionId, userId: req.user!.id },
+    });
+    let messages: Array<{ id: string; role: string; content: string; timestamp?: string }> = [];
+    if (Array.isArray(session?.messages) && (session!.messages as any[]).length) {
+      messages = session!.messages as any;
+    } else {
+      const rows = await prisma.aIMessage.findMany({
+        where: { sessionId },
+        orderBy: { createdAt: 'asc' },
+        take: 80,
+      });
+      messages = rows.map((r) => ({
+        id: r.id,
+        role: r.role,
+        content: r.content,
+        timestamp: r.createdAt.toISOString(),
+      }));
+    }
+    return res.json({
+      ok: true,
+      data: {
+        threadId: sessionId,
+        sessionId,
+        messages,
+        turnCount: messages.length,
+        entities: {},
+      },
+    });
+  } catch (error) {
+    console.error('[AI] threads active', error);
+    return res.json({ ok: true, data: { threadId: null, messages: [], turnCount: 0, entities: {} } });
+  }
+});
+
+aiRouter.post('/threads/new', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user!.clinicId || DEMO_CLINIC_ID || 'platform';
+    const id = crypto.randomUUID();
+    await prisma.aISession.create({
+      data: {
+        id,
+        userId: req.user!.id,
+        clinicId,
+        messages: [],
+        context: {},
+      },
+    });
+    return res.json({ ok: true, data: { threadId: id, sessionId: id } });
+  } catch (error) {
+    console.error('[AI] threads new', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось создать сессию' });
+  }
+});
+
+// Mirrors the frontend NAVIGATION_ACTIONS maps in aiExecutor.ts /
+// AIWorkspaceIndex.tsx. Quick-action buttons (proactive alerts, context
+// panel) call POST /action directly with one of these names and expect
+// `{ type: 'navigate', path }` back — anything else silently dumped the
+// action's raw params into the chat instead of navigating.
+const NAVIGATION_ACTION_PATHS: Record<string, string> = {
+  OpenSchedule: '/crm/schedule',
+  OpenPatients: '/crm/patients',
+  OpenPatient: '/crm/patients',
+  OpenMedicalCard: '/crm/medical-card',
+  OpenCashier: '/crm/finance',
+  OpenFinance: '/crm/finance',
+  OpenLab: '/crm/lab',
+  OpenInventory: '/crm/inventory',
+  OpenStaff: '/crm/staff',
+  OpenVisits: '/crm/visits',
+  OpenDocuments: '/crm/documents',
+  OpenReminders: '/crm/reminders',
+  OpenDentalChart: '/crm/dental-chart',
+  OpenTreatmentPlans: '/crm/treatment-plans',
+  OpenShop: '/shop',
+  OpenSchool: '/school',
+  OpenAnalytics: '/analytics',
+  OpenProfile: '/profile',
+  OpenSettings: '/settings',
+  OpenMyClinics: '/my-clinics',
+  OpenCRM: '/crm/schedule',
+  OpenDemo: '/crm/schedule?demo=1',
+};
+
+aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
+  const { action, params = {} } = req.body;
+  if (!action) return res.status(400).json({ ok: false, error: 'Action is required' });
+
+  const path = NAVIGATION_ACTION_PATHS[action];
+  if (path) {
+    return res.json({ ok: true, data: { type: 'navigate', path, query: params } });
+  }
+
+  if (action === 'NAVIGATE' && params?.path) {
+    return res.json({ ok: true, data: { type: 'navigate', path: String(params.path), query: params } });
+  }
+
+  // Confirmed mutations coming back from an orchestrator confirm card
+  // (createAppointment / createInvoice / createTreatmentPlan with
+  // confirmed=true) execute through the same RBAC-checked tool layer.
+  const { executeTool: runTool } = await import('./os/tools.js');
+  const { toolsForRole } = await import('./os/registry.js');
+  const allowed = toolsForRole(req.user!.role);
+  if (allowed.has(action)) {
+    const result = await runTool(action, params, {
+      userId: req.user!.id,
+      clinicId: req.user!.clinicId || null,
+      role: req.user!.role,
+    }, allowed);
+
+    if (!result.ok) return res.json({ ok: true, data: { type: 'error', message: result.error } });
+    if (result.needsConfirmation) {
+      return res.json({ ok: true, data: { type: 'data', data: result.needsConfirmation, label: 'Требуется подтверждение' } });
+    }
+    return res.json({
+      ok: true,
+      data: {
+        type: result.navigate ? 'created' : 'data',
+        data: result.data,
+        label: action,
+        path: result.navigate,
+      },
+    });
+  }
+
+  // Unknown/unimplemented action — return the params back rather than 404
+  // so the AI workspace can still show something instead of crashing.
+  res.json({ ok: true, data: { type: 'data', data: params, label: action } });
+});
+
+aiRouter.get('/history', async (req: AuthRequest, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const sessions = await prisma.aISession.findMany({
+      where: { userId: req.user!.id, clinicId: req.user!.clinicId! },
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        messages: true,
+        context: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({ ok: true, data: sessions });
+  } catch (error) {
+    console.error('[AI History Error]', error);
+    res.status(500).json({ ok: false, error: 'History fetch failed' });
+  }
+});
+
+aiRouter.post('/session', async (req: AuthRequest, res) => {
+  try {
+    const context = {
+      userId: req.user!.id,
+      clinicId: req.user!.clinicId!,
+      role: req.user!.role,
+      sessionId: crypto.randomUUID(),
+      metadata: {},
+    };
+
+    // Just return a new session ID - actual session created on first query
+    res.json({ ok: true, data: { sessionId: context.sessionId } });
+  } catch (error) {
+    console.error('[AI Session Error]', error);
+    res.status(500).json({ ok: false, error: 'Session creation failed' });
+  }
+});
+
+aiRouter.post('/greeting', async (req: AuthRequest, res) => {
+  try {
+    const {
+      timeGreetingInTz,
+      resolveTimeZone,
+      clientTimeZoneFromRequest,
+      DEFAULT_CLINIC_TZ,
+    } = await import('./lib/timezone.js');
+    const clinicId = req.user?.clinicId || DEMO_CLINIC_ID;
+    let clinicTz: string | null = null;
+    if (clinicId) {
+      const clinic = await prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { settings: true },
+      });
+      const settings = (clinic?.settings || {}) as { timezone?: string };
+      clinicTz = settings.timezone || null;
+    }
+    const clientTz = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      body: (req.body || {}) as Record<string, unknown>,
+    });
+    const timeZone = resolveTimeZone(clientTz, clinicTz, DEFAULT_CLINIC_TZ);
+    const greeting = timeGreetingInTz(new Date(), timeZone);
+
+    const alerts = await aiService.getProactiveAlerts({
+      userId: req.user?.id || 'guest',
+      clinicId,
+      role: req.user?.role || 'guest',
+      sessionId: crypto.randomUUID(),
+      metadata: { timeZone },
+    });
+
+    res.json({
+      ok: true,
+      data: {
+        greeting: `${greeting}, ${req.user?.firstName || 'Гость'}!`,
+        alerts: alerts.slice(0, 3),
+        timeZone,
+      },
+    });
+  } catch (error) {
+    console.error('[AI Greeting Error]', error);
+    res.status(500).json({ ok: false, error: 'Greeting failed' });
+  }
+});
+
+aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
+  try {
+    const { buildProactiveAlerts } = await import('./core/digitalTwin.js');
+    const alerts = await buildProactiveAlerts({
+      userId: req.user?.id || 'guest',
+      clinicId: req.user?.isGuest ? null : (req.user?.clinicId || null),
+      role: req.user?.isGuest ? 'GUEST' : (req.user?.role || 'guest'),
+      isGuest: req.user?.isGuest === true,
+    });
+    res.json({ ok: true, data: { alerts } });
+  } catch (error) {
+    console.error('[AI Proactive Error]', error);
+    res.status(500).json({ ok: false, error: 'Proactive failed' });
+  }
+});
+
+/** Jarvis role briefing — used on login / «Что важно сегодня?» */
+aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (req.user?.isGuest || !req.user) {
+      return res.status(403).json({ ok: false, error: 'Briefing requires clinic user' });
+    }
+    const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
+    const clinicId = req.user.clinicId || null;
+    const clinic = clinicId
+      ? await prisma.clinic.findUnique({
+          where: { id: clinicId },
+          select: { name: true },
+        }).catch(() => null)
+      : null;
+    const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
+    const timeZone = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      query: (req.query || {}) as Record<string, unknown>,
+    });
+    const briefing = await buildJarvisBriefing({
+      userId: req.user.id,
+      clinicId,
+      role: req.user.role || 'DOCTOR',
+      firstName: req.user.firstName || '',
+      clinicName: clinic?.name,
+      isGuest: false,
+      timeZone,
+    });
+    res.json({
+      ok: true,
+      data: {
+        reply: briefing.message,
+        message: briefing.message,
+        suggestions: briefing.suggestions,
+        skill: 'practice',
+        intent: 'MORNING_BRIEFING',
+        action: { type: 'SHOW_BRIEFING', payload: briefing.payload },
+        role: briefing.role,
+        timeZone: briefing.payload?.timeZone || timeZone,
+      },
+    });
+  } catch (error) {
+    console.error('[AI Briefing Error]', error);
+    res.status(500).json({ ok: false, error: 'Briefing failed' });
+  }
+});
+
+aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { actionId, action, confirmed, data, params } = req.body || {};
+    const toolName = String(action || actionId || '');
+    if (!toolName || confirmed === undefined) {
+      return res.status(400).json({ ok: false, error: 'action (или actionId) и confirmed обязательны' });
+    }
+    if (!confirmed) {
+      return res.json({ ok: true, data: { confirmed: false, action: toolName } });
+    }
+
+    const { executeTool: runTool } = await import('./os/tools.js');
+    const { toolsForRole } = await import('./os/registry.js');
+    const allowed = toolsForRole(req.user!.role);
+    if (!allowed.has(toolName)) {
+      return res.status(403).json({ ok: false, error: 'Действие недоступно для роли' });
+    }
+
+    const result = await runTool(
+      toolName,
+      { ...(params || data || {}), confirmed: true },
+      {
+        userId: req.user!.id,
+        clinicId: req.user!.clinicId || null,
+        role: req.user!.role,
+      },
+      allowed,
+    );
+
+    if (!result.ok) return res.json({ ok: false, error: result.error });
+    return res.json({
+      ok: true,
+      data: {
+        confirmed: true,
+        action: toolName,
+        result: result.data,
+        path: result.navigate,
+      },
+    });
+  } catch (error) {
+    console.error('[AI Confirm Error]', error);
+    res.status(500).json({ ok: false, error: 'Confirm failed' });
+  }
+});
+
+aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
+  try {
+    const { buildDigitalTwin, buildGuestPlatformTwin } = await import('./core/digitalTwin.js');
+    if (!req.user?.id) {
+      return res.json({ ok: true, data: { twin: buildGuestPlatformTwin(null), preferences: [] } });
+    }
+    const twin = await buildDigitalTwin(req.user.id, req.user?.clinicId || null, {
+      isGuest: req.user?.isGuest === true,
+    });
+    if (!twin) {
+      return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
+    }
+
+    let enrichedTwin = twin as Record<string, unknown>;
+    try {
+      const { getTwinEventOSData, enrichTwinWithEventOS } = await import('./core/digitalTwinEventOS.js');
+      if (req.user?.clinicId) {
+        const eventOSData = await getTwinEventOSData(req.user.clinicId);
+        enrichedTwin = enrichTwinWithEventOS(twin as Record<string, unknown>, eventOSData);
+      }
+    } catch { /* optional */ }
+
+    let preferences: Array<{ key: string; label: string; value: string; source: string }> = [];
+    try {
+      const learning = await import('./learning/learning.service.js');
+      preferences = await learning.listPrefs(req.user.id, req.user?.clinicId || null);
+    } catch { /* optional */ }
+    res.json({ ok: true, data: { twin: enrichedTwin, preferences } });
+  } catch (error) {
+    console.error('[AI Digital Twin Error]', error);
+    res.status(500).json({ ok: false, error: 'Digital twin failed' });
+  }
+});
+
+/** 👍/👎 feedback — fuels few-shot personalization. */
+aiRouter.post('/feedback', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const rating = String(req.body?.rating || '').toLowerCase();
+    if (rating !== 'up' && rating !== 'down') {
+      return res.status(400).json({ ok: false, error: 'rating must be up|down' });
+    }
+    const learning = await import('./learning/learning.service.js');
+    const result = await learning.recordMessageFeedback({
+      userId: req.user!.id,
+      clinicId: req.user?.clinicId || null,
+      messageId: req.body?.messageId || null,
+      sessionId: req.body?.sessionId || null,
+      rating,
+      assistantText: req.body?.assistantText || null,
+      userText: req.body?.userText || null,
+      intent: req.body?.intent || null,
+    });
+    return res.json({
+      ok: result.ok,
+      data: {
+        messageId: result.messageId,
+        rating,
+        message: rating === 'up'
+          ? 'Спасибо — буду опираться на такие ответы'
+          : 'Принято — учту и отвечу иначе в похожих случаях',
+      },
+    });
+  } catch (error) {
+    console.error('[AI Feedback Error]', error);
+    return res.status(500).json({ ok: false, error: 'Feedback failed' });
+  }
+});
+
+aiRouter.get('/memory', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const learning = await import('./learning/learning.service.js');
+    const items = await learning.listPrefs(req.user!.id, req.user?.clinicId || null);
+    return res.json({ ok: true, data: { items } });
+  } catch (error) {
+    console.error('[AI Memory list]', error);
+    return res.status(500).json({ ok: false, error: 'Memory list failed' });
+  }
+});
+
+aiRouter.delete('/memory/:key', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const learning = await import('./learning/learning.service.js');
+    const removed = await learning.deletePref(req.user!.id, req.user?.clinicId || null, String(req.params.key));
+    return res.json({ ok: true, data: { removed } });
+  } catch (error) {
+    console.error('[AI Memory delete]', error);
+    return res.status(500).json({ ok: false, error: 'Memory delete failed' });
+  }
+});
+
+aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const learning = await import('./learning/learning.service.js');
+    await learning.clearPrefs(req.user!.id, req.user?.clinicId || null);
+    return res.json({ ok: true, data: { cleared: true } });
+  } catch (error) {
+    console.error('[AI Memory clear]', error);
+    return res.status(500).json({ ok: false, error: 'Memory clear failed' });
+  }
+});
+
+// ─── AI Timeline ───
+import timelineRouter from './ai.timeline.routes.js';
+aiRouter.use('/timeline', authenticate, timelineRouter);
+
+// ─── AI Notifications (SSE) ───
+import notificationsRouter from './ai.notifications.routes.js';
+aiRouter.use('/notifications', optionalAuth, notificationsRouter);

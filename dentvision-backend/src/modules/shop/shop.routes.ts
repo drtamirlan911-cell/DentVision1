@@ -8,8 +8,6 @@ import { resolveSupplierCity } from '../../lib/kzCities.js';
 
 const shopRouter = Router();
 
-// ─── HELPERS ───
-
 function buildProductResponse(p: any) {
   const supplierCity = p.supplier ? resolveSupplierCity(p.supplier) : null;
   const specs = (p.specs && typeof p.specs === 'object' ? p.specs : {}) as Record<string, unknown>;
@@ -56,8 +54,6 @@ function buildProductResponse(p: any) {
   };
 }
 
-// ─── PRODUCTS ───
-
 shopRouter.get('/products', async (req, res) => {
   try {
     const {
@@ -70,7 +66,6 @@ shopRouter.get('/products', async (req, res) => {
 
     const where: Record<string, unknown> = { isActive: true };
 
-    // Category filter — support both old (category string) and new (categorySlug)
     if (category && typeof category === 'string') {
       where.category = category;
     }
@@ -79,7 +74,6 @@ shopRouter.get('/products', async (req, res) => {
       if (cat) {
         where.categoryId = cat.id;
       } else {
-        // If slug not found, return empty
         const descendants = await prisma.shopCategory.findMany({
           where: { slug: categorySlug },
           select: { id: true },
@@ -149,7 +143,6 @@ shopRouter.get('/products', async (req, res) => {
       prisma.product.count({ where }),
     ]);
 
-    // Extract unique brands for filter sidebar
     const brandAgg = products.length > 20
       ? []
       : await prisma.product.findMany({
@@ -187,7 +180,6 @@ shopRouter.get('/products/:id', async (req, res) => {
       return;
     }
 
-    // Fetch specs template for this category
     let specTemplate: any[] = [];
     if (product.categoryId) {
       specTemplate = await prisma.specTemplate.findMany({
@@ -196,7 +188,6 @@ shopRouter.get('/products/:id', async (req, res) => {
       });
     }
 
-    // Related products from same category or supplier
     const related = await prisma.product.findMany({
       where: {
         isActive: true,
@@ -236,8 +227,6 @@ shopRouter.get('/products/:id', async (req, res) => {
   }
 });
 
-// ─── CATEGORIES ───
-
 shopRouter.get('/categories', async (_req, res) => {
   try {
     const categories = await prisma.shopCategory.findMany({
@@ -249,7 +238,6 @@ shopRouter.get('/categories', async (_req, res) => {
       },
     });
 
-    // Build tree structure
     const byId = new Map(categories.map((c: any) => [c.id, { ...c, children: [] }]));
     const roots: any[] = [];
     for (const cat of byId.values()) {
@@ -271,7 +259,6 @@ shopRouter.get('/categories/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Support lookup by slug too
     const category = await prisma.shopCategory.findFirst({
       where: { OR: [{ id }, { slug: id }] },
       include: {
@@ -287,7 +274,6 @@ shopRouter.get('/categories/:id', async (req, res) => {
       return;
     }
 
-    // Get breadcrumb
     const breadcrumb: any[] = [];
     let current: any = category;
     while (current?.parent) {
@@ -367,8 +353,6 @@ shopRouter.delete('/categories/:id', authenticate, requireSuperadmin, async (req
   }
 });
 
-// ─── SPEC TEMPLATES ───
-
 shopRouter.get('/spec-templates', async (req, res) => {
   try {
     const { categoryId } = req.query;
@@ -376,7 +360,7 @@ shopRouter.get('/spec-templates', async (req, res) => {
     if (categoryId && typeof categoryId === 'string') {
       where.OR = [
         { categoryId },
-        { categoryId: null }, // global templates
+        { categoryId: null },
       ];
     }
     const templates = await prisma.specTemplate.findMany({
@@ -435,8 +419,6 @@ shopRouter.delete('/spec-templates/:id', authenticate, requireSuperadmin, async 
     res.status(500).json({ ok: false, error: 'Failed to delete spec template' });
   }
 });
-
-// ─── REVIEWS ───
 
 shopRouter.get('/products/:id/reviews', async (req, res) => {
   try {
@@ -509,7 +491,6 @@ shopRouter.post('/reviews', authenticate, async (req: AuthRequest, res) => {
       },
     });
 
-    // Update product review count and rating
     const agg = await prisma.shopReview.aggregate({
       where: { productId, isApproved: true },
       _avg: { rating: true },
@@ -546,8 +527,6 @@ shopRouter.patch('/reviews/:id/helpful', async (req, res) => {
     res.status(500).json({ ok: false, error: 'Failed to mark review as helpful' });
   }
 });
-
-// ─── DELIVERY ZONES ───
 
 shopRouter.get('/delivery-zones', async (req, res) => {
   try {
@@ -611,8 +590,6 @@ shopRouter.delete('/delivery-zones/:id', authenticate, async (req: AuthRequest, 
     res.status(500).json({ ok: false, error: 'Failed to delete delivery zone' });
   }
 });
-
-// ─── BANNERS ───
 
 shopRouter.get('/banners', async (_req, res) => {
   try {
@@ -684,8 +661,6 @@ shopRouter.delete('/banners/:id', authenticate, requireSuperadmin, async (req: A
     res.status(500).json({ ok: false, error: 'Failed to delete banner' });
   }
 });
-
-// ─── PROMOTIONS ───
 
 shopRouter.get('/promotions', async (req, res) => {
   try {
@@ -768,8 +743,6 @@ shopRouter.delete('/promotions/:id', authenticate, async (req: AuthRequest, res)
   }
 });
 
-// ─── SUPPLIERS (ENHANCED) ───
-
 shopRouter.get('/suppliers', async (req, res) => {
   try {
     const cityFilter = typeof req.query.city === 'string' ? req.query.city.trim() : '';
@@ -821,8 +794,6 @@ shopRouter.get('/suppliers', async (req, res) => {
   }
 });
 
-// ─── ORDERS ───
-
 shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
   try {
     if (req.user?.isGuest) {
@@ -837,7 +808,6 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       recipient_name, recipient_phone,
     } = req.body;
 
-    // Resolve clinic: JWT → body (membership-checked) → first membership
     let clinicId = req.user?.clinicId || null;
     const requestedClinic = clinic_id || bodyClinicId || null;
     if (!clinicId && requestedClinic) {
@@ -900,7 +870,6 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       });
     }
 
-    // Calculate delivery cost from selected zone or default
     let deliveryCost = 0;
     if (delivery_method_id && typeof delivery_method_id === 'string') {
       const zone = await prisma.deliveryZone.findUnique({ where: { id: delivery_method_id } });
@@ -1130,8 +1099,6 @@ shopRouter.get('/orders', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// ─── FAVORITES (unchanged) ───
-
 shopRouter.post('/favorites', authenticate, async (req: AuthRequest, res) => {
   try {
     const { productId } = req.body;
@@ -1193,11 +1160,10 @@ shopRouter.get('/favorites', authenticate, async (req: AuthRequest, res) => {
       })),
     });
   } catch (error) {
+    console.error('Failed to fetch favorites:', error);
     res.status(500).json({ ok: false, error: 'Failed to fetch favorites' });
   }
 });
-
-// ─── AI RECOMMENDATIONS ───
 
 shopRouter.get('/recommendations', optionalAuth, async (req: AuthRequest, res) => {
   try {
@@ -1205,10 +1171,8 @@ shopRouter.get('/recommendations', optionalAuth, async (req: AuthRequest, res) =
     const { limit: limitParam, strategy } = req.query;
     const take = Math.min(20, Math.max(1, parseInt(String(limitParam || '8'))));
 
-    // Strategy: 'trending' (default), 'similar', 'personalized'
     const strat = String(strategy || 'trending').toLowerCase();
 
-    // Get user's recent order product IDs for personalized recommendations
     let userCategoryIds: string[] = [];
     let userProductIds: string[] = [];
     if (userId && strat === 'personalized') {
@@ -1225,7 +1189,6 @@ shopRouter.get('/recommendations', optionalAuth, async (req: AuthRequest, res) =
         }
       }
       userProductIds = allItems.map((i) => i.product_id).filter(Boolean);
-      // Get categories from those products
       const orderedProducts = await prisma.product.findMany({
         where: { id: { in: userProductIds } },
         select: { categoryId: true },
@@ -1235,7 +1198,6 @@ shopRouter.get('/recommendations', optionalAuth, async (req: AuthRequest, res) =
 
     let products;
     if (strat === 'personalized' && userCategoryIds.length > 0) {
-      // Recommend from same categories, excluding already purchased
       products = await prisma.product.findMany({
         where: {
           isActive: true,
@@ -1249,7 +1211,6 @@ shopRouter.get('/recommendations', optionalAuth, async (req: AuthRequest, res) =
         },
       });
     } else {
-      // Trending — top-rated, in-stock, recently added
       products = await prisma.product.findMany({
         where: { isActive: true, stock: { gt: 0 } },
         orderBy: [{ rating: 'desc' }, { reviewCount: 'desc' }, { createdAt: 'desc' }],
@@ -1260,7 +1221,6 @@ shopRouter.get('/recommendations', optionalAuth, async (req: AuthRequest, res) =
       });
     }
 
-    // Shuffle for variety if enough results
     if (products.length > 4) {
       for (let i = products.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));

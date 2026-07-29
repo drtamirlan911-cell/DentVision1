@@ -1,0 +1,558 @@
+import { create } from 'zustand'
+import { User, Clinic, UserRole } from '@/types'
+import * as api from '@/utils/api'
+import { useGuestStore } from './guest.store'
+import { useAIWorkspaceStore } from './workspace.store'
+import { INIT_CLINICS, INIT_USERS, gid } from '@/utils/constants'
+
+// ─── Role config (moved from AuthContext) ───
+
+interface RoleConfig {
+  label: string
+  icon: string
+  pages: string[]
+  canSeeSalary?: boolean
+  canSeeSuperAdmin?: boolean
+  canAddStaff?: boolean
+  canSeeAudit?: boolean
+  canBackup?: boolean
+  canSeeReports?: boolean
+  canSeeExpenses?: boolean
+  canManageClinicSettings?: boolean
+  canManageFinance?: boolean
+  ownDataOnly?: boolean
+  readOnly?: boolean
+  [key: string]: string | boolean | string[] | undefined
+}
+
+export const ORG_ROLES: Record<string, RoleConfig> = {
+  owner: {
+    label: 'Руководитель',
+    icon: '👔',
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
+    canSeeSalary: true,
+    canSeeSuperAdmin: true,
+    canAddStaff: true,
+    canSeeAudit: true,
+    canBackup: true,
+    canManageClinicSettings: true,
+    canManageFinance: true,
+  },
+  director: {
+    label: 'Руководитель',
+    icon: '👔',
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
+    canSeeSalary: true,
+    canSeeReports: true,
+    canAddStaff: true,
+    canSeeExpenses: true,
+    canSeeAudit: true,
+    canBackup: true,
+    canManageClinicSettings: true,
+    canManageFinance: true,
+  },
+  admin: {
+    label: 'Администратор',
+    icon: '💼',
+    // Касса / финансы выполняет Администратор (роль кассира убрана)
+    pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart'],
+    canSeeSalary: false,
+    canSeeExpenses: false,
+    canAddStaff: true,
+    canManageClinicSettings: true,
+    canManageFinance: true,
+  },
+  doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'reminders', 'school', 'treatment-plans', 'dental-chart'], canSeeSalary: false, canSeeOwnSalary: true, ownDataOnly: true },
+  assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
+  reception: { label: 'Регистратор', icon: '📋', pages: ['schedule', 'patients', 'documents', 'reminders', 'shop'], canAddStaff: false, readOnly: true },
+  accountant: { label: 'Бухгалтер', icon: '📊', pages: ['analytics', 'finance', 'cashier', 'pricelist', 'dashboard'], canSeeSalary: true, canSeeExpenses: true, canManageFinance: true },
+  laboratory: { label: 'Лаборатория', icon: '🔬', pages: ['lab', 'shop'] },
+  lab: { label: 'Лаборатория', icon: '🔬', pages: ['lab', 'shop'] },
+  manager: { label: 'Менеджер', icon: '🧭', pages: ['dashboard', 'schedule', 'patients', 'analytics', 'staff', 'promotions', 'shop'], canSeeReports: true, canAddStaff: true },
+  intern: { label: 'Стажёр', icon: '🌱', pages: ['schedule', 'patients', 'visits', 'documents', 'school'], ownDataOnly: true, readOnly: true },
+}
+
+export const PLATFORM_ROLES: Record<string, RoleConfig> = {
+  superadmin: {
+    label: 'Super Admin',
+    icon: '⚙️',
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'admin', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'staff', 'treatment-plans', 'dental-chart'],
+    canSeeSalary: true,
+    canSeeSuperAdmin: true,
+    canAddStaff: true,
+    canSeeAudit: true,
+    canBackup: true,
+    canManageClinicSettings: true,
+    canManageFinance: true,
+  },
+  support: { label: 'Поддержка', icon: '🛟', pages: ['admin', 'analytics', 'settings'] },
+  user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school'] },
+  verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school'] },
+}
+
+/** Clinic settings ACL: Руководитель (owner/director) + Администратор. */
+export function canManageClinicSettings(role: string | null | undefined): boolean {
+  const r = normalizeRole(role)
+  return r === 'owner' || r === 'director' || r === 'admin' || r === 'superadmin'
+}
+
+/** Приём оплаты в CRM: только руководитель и администратор. */
+export function canAcceptPayment(role: string | null | undefined): boolean {
+  return canManageClinicSettings(role)
+}
+
+function normalizeRole(role: string | undefined | null): string {
+  const raw = String(role || 'user').toLowerCase()
+  // Retired role: cashier duties belong to admin
+  if (raw === 'cashier') return 'admin'
+  // Backend OWNER ≈ frontend Руководитель
+  if (raw === 'owner') return 'owner'
+  return raw
+}
+
+// ─── Membership type ───
+
+interface Membership {
+  id: string
+  clinicId: string
+  role: string
+  spec?: string | null
+  department?: string | null
+  status: string
+  joinedAt: string
+  clinic?: Clinic
+}
+
+interface RegisterFormData {
+  name?: string
+  firstName?: string
+  lastName?: string
+  city?: string
+  country?: string
+  phone?: string
+  email?: string
+  login: string
+  password: string
+  [key: string]: unknown
+}
+
+interface StaffData {
+  clinicId?: string
+  login?: string
+  password?: string
+  [key: string]: unknown
+}
+
+// ─── Seed data store ───
+
+const _seedStore: { clinics: Clinic[]; users: User[] } = {
+  clinics: [...INIT_CLINICS],
+  users: [...INIT_USERS],
+}
+
+// ─── Zustand store ───
+
+interface AuthState {
+  user: User | null
+  token: string | null
+  refreshToken: string | null
+  clinic: Clinic | null
+  clinics: Membership[]
+  activeMembership: Membership | null
+  activeClinic: Clinic | null
+  loading: boolean
+  error: string | null
+
+  login: (loginStr: string, password: string) => Promise<boolean>
+  logout: () => void
+  register: (formData: RegisterFormData) => Promise<boolean>
+  forgotPassword: (loginStr: string) => Promise<unknown>
+  refresh: () => Promise<void>
+  restoreSession: () => Promise<void>
+  setActiveClinic: (clinicId: string) => Promise<void>
+  switchClinic: (clinicId: string | null) => Promise<void>
+  addStaffMember: (staffData: StaffData) => Promise<User | false>
+  getClinicStaff: (clinicId: string) => User[]
+
+  can: (action: string) => boolean
+  allClinics: Clinic[]
+  allUsers: User[]
+}
+
+function normalizeUser(raw: any) {
+  if (!raw) return raw
+  const name = raw.name || [raw.firstName, raw.lastName].filter(Boolean).join(' ').trim() || raw.email
+  const photoUrl = raw.photoUrl || raw.avatar || undefined
+  return {
+    ...raw,
+    name,
+    photoUrl,
+    avatar: raw.avatar || photoUrl || undefined,
+    platformRole: normalizeRole(raw.platformRole || raw.role),
+    role: normalizeRole(raw.role),
+  }
+}
+
+function mapMemberships(raw: any[]): Membership[] {
+  return (raw || []).map((m: any) => ({
+    id: m.id || m.clinicId,
+    clinicId: m.clinicId,
+    role: normalizeRole(m.role),
+    spec: m.spec || null,
+    department: m.department || null,
+    status: m.status || 'active',
+    joinedAt: m.joinedAt || new Date().toISOString(),
+    clinic: m.clinic ? { ...m.clinic, type: m.clinic.type || 'clinic' } : null,
+  }))
+}
+
+function mapActiveMembership(raw: any): Membership | null {
+  if (!raw) return null
+  const mapped = mapMemberships([raw])
+  return mapped[0] || null
+}
+
+async function hydrateAuthFromMe() {
+  const me = await api.getMe() as any
+  const user = normalizeUser(me.user)
+  const memberships = mapMemberships(me.memberships || [])
+  const activeMembership = pickActiveMembership(
+    mapActiveMembership(me.activeMembership),
+    memberships,
+  )
+  return { user, memberships, activeMembership }
+}
+
+function getTokenClinicId(token: string | null | undefined): string | null {
+  try {
+    const payload = token?.split('.')[1]
+    if (!payload) return null
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).clinicId || null
+  } catch {
+    return null
+  }
+}
+
+function buildClinicFromMembership(m: Membership | null): Clinic | null {
+  if (!m) return null
+  if (m.clinic) return m.clinic as Clinic
+  if (m.clinicId) return { id: m.clinicId, name: 'Клиника' } as Clinic
+  return null
+}
+
+function resolveRole(activeMembership: Membership | null, user: User | null): string {
+  return normalizeRole(activeMembership?.role || user?.platformRole || user?.role || 'user')
+}
+
+function resolveRoleInfo(activeMembership: Membership | null, user: User | null): RoleConfig {
+  const resolvedRole = resolveRole(activeMembership, user)
+  // Prefer org ACL whenever the resolved role is a clinic role (OWNER/ADMIN/…).
+  // Do NOT require activeMembership: switch-clinic historically returned only
+  // tokens and wiped membership, which previously fell through to PLATFORM user
+  // and hid clinic-settings from the sidebar.
+  if (ORG_ROLES[resolvedRole]) return ORG_ROLES[resolvedRole]
+  if (activeMembership) return ORG_ROLES.doctor
+  return PLATFORM_ROLES[resolvedRole] || PLATFORM_ROLES.user
+}
+
+/** Pick active membership from login/me payload, falling back to first clinic. */
+function pickActiveMembership(
+  active: Membership | null,
+  memberships: Membership[],
+): Membership | null {
+  if (active?.clinicId) return active
+  return memberships[0] || null
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: null,
+  token: null,
+  refreshToken: null,
+  clinic: null,
+  clinics: [],
+  activeMembership: null,
+  activeClinic: null,
+  loading: false,
+  error: null,
+
+  // ─── Derived helpers (do NOT use getters on the state object —
+  // Zustand Object.assign freezes getters into stale snapshots on set()).
+  can: (action: string) => {
+    const s = get()
+    const ri = resolveRoleInfo(s.activeMembership, s.user)
+    return ri ? !!ri[action] : false
+  },
+  allClinics: [..._seedStore.clinics],
+  allUsers: [..._seedStore.users],
+
+  // ─── Session restoration ───
+  restoreSession: async () => {
+    const stored = api.loadTokens()
+    if (!stored?.accessToken) {
+      set({ loading: false })
+      return
+    }
+    set({ loading: true })
+    try {
+      const me = await hydrateAuthFromMe()
+      let accessToken = stored.accessToken
+      let refreshToken = stored.refreshToken
+      if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken)) {
+        const switched = await api.switchClinic(me.activeMembership.clinicId)
+        accessToken = switched.accessToken || accessToken
+        refreshToken = switched.refreshToken || refreshToken
+        api.setTokens(accessToken, refreshToken)
+      }
+      set({
+        user: me.user,
+        token: accessToken,
+        refreshToken,
+        clinic: buildClinicFromMembership(me.activeMembership),
+        clinics: me.memberships,
+        activeMembership: me.activeMembership,
+        activeClinic: buildClinicFromMembership(me.activeMembership),
+        loading: false,
+      })
+    } catch {
+      api.clearTokens()
+      set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, loading: false })
+    }
+  },
+
+  // ─── Login ───
+  login: async (loginStr, password) => {
+    set({ loading: true, error: null })
+    try {
+      const result = await api.login(loginStr, password)
+      const { accessToken, refreshToken } = result.tokens || result
+      api.setTokens(accessToken, refreshToken)
+
+      // The login response already carries memberships (see auth.routes.ts).
+      // Only fall back to a second /me round trip for older/partial
+      // responses — this keeps login resilient to a transient /me failure.
+      let user = normalizeUser(result.user)
+      let memberships = mapMemberships(result.memberships || [])
+      let activeMembership = pickActiveMembership(
+        mapActiveMembership(result.activeMembership),
+        memberships,
+      )
+
+      // Only the absence of the `memberships` key means the response used
+      // an older/partial contract — an explicit empty array is a valid
+      // "no clinics yet" state and must not trigger an extra round trip.
+      if (!user || result.memberships === undefined) {
+        const me = await hydrateAuthFromMe()
+        user = me.user
+        memberships = me.memberships
+        activeMembership = pickActiveMembership(me.activeMembership, memberships)
+      }
+
+      set({
+        user,
+        token: accessToken,
+        refreshToken,
+        clinic: buildClinicFromMembership(activeMembership),
+        clinics: memberships,
+        activeMembership,
+        activeClinic: buildClinicFromMembership(activeMembership),
+        loading: false,
+        error: null,
+      })
+      useGuestStore.getState().clearGuest()
+      return true
+    } catch (err) {
+      set({ loading: false, error: (err as Error).message || 'Login failed' })
+      return false
+    }
+  },
+
+  // ─── Logout ───
+  logout: () => {
+    try { useAIWorkspaceStore.getState().resetAI() } catch { /* ignore */ }
+    api.clearTokens()
+    set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, loading: false, error: null })
+  },
+
+  // ─── Register ───
+  register: async (formData) => {
+    set({ loading: true, error: null })
+    try {
+      const result = await api.register(formData)
+      const { accessToken, refreshToken } = result.tokens || result
+      if (accessToken) api.setTokens(accessToken, refreshToken)
+
+      let user = normalizeUser(result.user)
+      let memberships = mapMemberships(result.memberships || [])
+      let activeMembership = pickActiveMembership(
+        mapActiveMembership(result.activeMembership),
+        memberships,
+      )
+
+      if (accessToken && (!user || result.memberships === undefined)) {
+        const me = await hydrateAuthFromMe()
+        user = me.user
+        memberships = me.memberships
+        activeMembership = pickActiveMembership(me.activeMembership, memberships)
+      }
+
+      set({
+        user,
+        token: accessToken || null,
+        refreshToken: refreshToken || null,
+        clinic: buildClinicFromMembership(activeMembership),
+        clinics: memberships,
+        activeMembership,
+        activeClinic: buildClinicFromMembership(activeMembership),
+        loading: false,
+        error: null,
+      })
+      useGuestStore.getState().clearGuest()
+      return true
+    } catch (err) {
+      set({ loading: false, error: (err as Error).message || 'Registration failed' })
+      return false
+    }
+  },
+
+  // ─── Forgot password ───
+  forgotPassword: async (loginStr) => {
+    try { return await api.forgotPassword(loginStr) } catch { return { error: 'Ошибка соединения' } }
+  },
+
+  // ─── Token refresh ───
+  refresh: async () => {
+    try {
+      const stored = api.loadTokens()
+      if (!stored?.refreshToken) throw new Error('No refresh token')
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auth/refresh`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: stored.refreshToken }) }
+      )
+      if (!res.ok) throw new Error('Refresh failed')
+      const raw = await res.json()
+      const data = raw.data || raw
+      api.setTokens(data.accessToken, data.refreshToken)
+      set({ token: data.accessToken, refreshToken: data.refreshToken })
+    } catch (err) {
+      api.clearTokens()
+      set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null })
+      throw err
+    }
+  },
+
+  // ─── Switch clinic ───
+  switchClinic: async (clinicId) => {
+    try {
+      const result = await api.switchClinic(clinicId)
+      if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken ?? null)
+
+      // API may return only tokens (legacy). Never wipe membership — rebuild
+      // from the local clinics list or re-hydrate /me.
+      let activeMembership = mapActiveMembership(result?.activeMembership)
+      if (!activeMembership && clinicId) {
+        activeMembership = get().clinics.find((m) => m.clinicId === clinicId) || null
+      }
+      if (!activeMembership) {
+        const me = await hydrateAuthFromMe()
+        activeMembership = pickActiveMembership(
+          clinicId
+            ? me.memberships.find((m) => m.clinicId === clinicId) || me.activeMembership
+            : me.activeMembership,
+          me.memberships,
+        )
+        set({
+          user: me.user,
+          clinics: me.memberships,
+          token: result?.accessToken || get().token,
+          refreshToken: result?.refreshToken ?? get().refreshToken,
+          activeMembership,
+          clinic: buildClinicFromMembership(activeMembership),
+          activeClinic: buildClinicFromMembership(activeMembership),
+        })
+        return
+      }
+
+      set({
+        token: result?.accessToken || get().token,
+        refreshToken: result?.refreshToken ?? get().refreshToken,
+        activeMembership,
+        clinic: buildClinicFromMembership(activeMembership),
+        activeClinic: buildClinicFromMembership(activeMembership),
+      })
+    } catch (err) {
+      set({ error: (err as Error).message || 'Failed to switch clinic' })
+      throw err
+    }
+  },
+
+  // Alias for backward compatibility with AuthContext consumers
+  setActiveClinic: async (clinicId) => { await get().switchClinic(clinicId) },
+
+  // ─── Staff management ───
+  addStaffMember: async (staffData) => {
+    if (!staffData.clinicId || !staffData.login || !staffData.password) return false
+    try {
+      const result = await api.upsertUser(staffData)
+      if (result) {
+        const newUser = { ...staffData, id: result.id || gid() } as User
+        _seedStore.users = [..._seedStore.users, newUser]
+        return newUser
+      }
+    } catch (err) { console.error('API addStaff failed:', err) }
+    const newUser = { ...staffData, id: gid() } as User
+    _seedStore.users = [..._seedStore.users, newUser]
+    return newUser
+  },
+
+  getClinicStaff: (clinicId) => _seedStore.users.filter(u => u.clinicId === clinicId),
+}))
+
+// ─── useAuth hook (drop-in replacement for AuthContext) ───
+
+export function useAuth() {
+  const user = useAuthStore((s) => s.user)
+  const clinic = useAuthStore((s) => s.clinic)
+  const clinics = useAuthStore((s) => s.clinics)
+  const activeMembership = useAuthStore((s) => s.activeMembership)
+  const activeClinic = useAuthStore((s) => s.activeClinic)
+  const loading = useAuthStore((s) => s.loading)
+  const error = useAuthStore((s) => s.error)
+  const login = useAuthStore((s) => s.login)
+  const logout = useAuthStore((s) => s.logout)
+  const register = useAuthStore((s) => s.register)
+  const forgotPassword = useAuthStore((s) => s.forgotPassword)
+  const addStaffMember = useAuthStore((s) => s.addStaffMember)
+  const getClinicStaff = useAuthStore((s) => s.getClinicStaff)
+  const switchClinic = useAuthStore((s) => s.switchClinic)
+  const can = useAuthStore((s) => s.can)
+  const allClinics = useAuthStore((s) => s.allClinics)
+  const allUsers = useAuthStore((s) => s.allUsers)
+
+  const role = resolveRole(activeMembership, user) as UserRole
+  const roleInfo = resolveRoleInfo(activeMembership, user)
+  const mode = activeMembership ? ('workspace' as const) : ('personal' as const)
+
+  return {
+    user,
+    clinic,
+    clinics,
+    activeMembership,
+    activeClinic,
+    mode,
+    loading,
+    error,
+    login,
+    logout,
+    register,
+    forgotPassword,
+    addStaffMember,
+    getClinicStaff,
+    switchClinic,
+    isAuthenticated: !!user,
+    role,
+    roleInfo,
+    can,
+    allClinics,
+    allUsers,
+  }
+}

@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /audit
+Disallow: /backup
+Disallow: /settings
+Disallow: /crm/
+Disallow: /my-clinics
+Disallow: /profile
+Disallow: /supplier
+
+Sitemap: /sitemap.xml
