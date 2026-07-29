@@ -5,6 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   resolve: {
+    dedupe: ['react', 'react-dom', 'react-router-dom', 'react-router'],
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@components': path.resolve(__dirname, './src/components'),
@@ -28,8 +29,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',
+    host: '127.0.0.1',
     port: 5000,
-    allowedHosts: true,
   },
 })

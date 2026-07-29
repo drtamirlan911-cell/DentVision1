@@ -48,3 +48,6 @@ Thumbs.db
 .npm/
 .yarn/
 .pnpm-store/
+
+# SQLite dev database
+packages/server/dev.db

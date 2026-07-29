@@ -305,6 +305,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         key={sub.id}
                         type="button"
+                        aria-current={subActive ? 'page' : undefined}
                         onClick={() => handleNavClick(sub.path)}
                         className={cn(
                           'w-full text-left px-2.5 py-1.5 rounded-lg text-[12px] transition-colors',

@@ -10,11 +10,11 @@ import { lazyWithRetry } from '@/utils/lazyWithRetry';
 import { RequirePage } from '@/components/auth/RequirePage';
 import './lib/i18n';
 
-import Login from './pages/auth/Login';
-import ForgotPassword from './pages/auth/ForgotPassword';
-import PublicBooking from './pages/auth/PublicBooking';
-import DocumentSign from './pages/auth/DocumentSign';
-import DiagnosticsRegister from './pages/DiagnosticsRegister';
+const Login = lazyWithRetry(() => import('./pages/auth/Login'));
+const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));
+const PublicBooking = lazyWithRetry(() => import('./pages/auth/PublicBooking'));
+const DocumentSign = lazyWithRetry(() => import('./pages/auth/DocumentSign'));
+const DiagnosticsRegister = lazyWithRetry(() => import('./pages/DiagnosticsRegister'));
 import './styles/global.css';
 import { reportWebVitals } from './utils/vitals';
 
@@ -123,10 +123,10 @@ if (container) {
           <Providers>
             <Routes>
                 {/* Public / standalone routes */}
-                <Route path="/login" element={<Login />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/book/:clinicId" element={<PublicBooking />} />
-                <Route path="/sign/:token" element={<DocumentSign />} />
+                <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
+                <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
+                <Route path="/book/:clinicId" element={<Suspense fallback={<PageLoader />}><PublicBooking /></Suspense>} />
+                <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><DocumentSign /></Suspense>} />
                 <Route path="/register-diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsRegister /></Suspense>} />
 
                 {/* Workspace selection (no active clinic) */}
@@ -222,13 +222,18 @@ if (container) {
   );
   reportWebVitals();
 
-  // Register PWA service worker
+  // PWA service worker — only register in production; unregister in dev to avoid stale caches
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js?v=2').catch(() => {});
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        window.location.reload();
+    if (import.meta.env.DEV) {
+      navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
+      caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+    } else {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js?v=3').catch(() => {});
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
       });
-    });
+    }
   }
 }

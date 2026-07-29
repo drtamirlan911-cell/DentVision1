@@ -1,6 +1,6 @@
-const CACHE = 'dv-v2';
+const CACHE = 'dv-v3';
 const PRECACHE_URLS = ['/', '/shop', '/offline'];
-const IGNORE_PATHS = ['/api/auth', '/api/shop/product-presets/quick-add'];
+const IGNORE_PATHS = ['/api/auth', '/api/shop/product-presets/quick-add', '/@vite/', '/@react-refresh'];
 
 function shouldIgnore(url) {
   return IGNORE_PATHS.some(p => url.includes(p));
@@ -13,7 +13,9 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
@@ -25,7 +27,8 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request)
+      if (cached) return cached;
+      return fetch(event.request)
         .then((response) => {
           if (response.ok && response.type === 'basic') {
             const clone = response.clone();
@@ -33,9 +36,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => cached);
-
-      return cached || fetchPromise;
+        .catch(() => caches.match('/offline').then((r) => r || new Response('Offline', { status: 503 })));
     })
   );
 });
