@@ -8,7 +8,8 @@ import { AIInputArea } from './AIInputArea'
 import { ChatMessage } from './ChatMessage'
 import { SuggestionChips } from './SuggestionChips'
 import { AIStatus } from '@/components/ai/AIStatus'
-import { useAIWorkspaceStore } from '@/store/workspace.store'
+import { useAIStore } from '@/store/ai.store'
+import { useWorkspaceStore } from '@/store/workspace.store'
 import { useAIExecutor, AIAction } from '@/utils/aiExecutor'
 import { ProactiveAlertsDisplay } from '@/components/ai/ProactiveAlertsDisplay'
 import { ContextPanel } from '@/components/intelligence/ContextPanel'
@@ -25,7 +26,7 @@ import { answerJobsSearchQuery } from '@/lib/jobsAiQuery'
 import { AI_NAV_ACTIONS, getSmartSuggestions } from '@/lib/aiPlatformMap'
 import { useGuestStore } from '@/store/guest.store'
 
-import type { Message, Action } from '@/store/workspace.store'
+import type { Message, Action } from '@/store/ai.store'
 
 function mapProactiveAlerts(raw: any[]): Array<{
   id: string
@@ -96,27 +97,27 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     if (!next) stopSpeaking()
   }, [voiceReplies])
 
-  const messages = useAIWorkspaceStore((s) => s.ai.messages)
-  const status = useAIWorkspaceStore((s) => s.ai.status)
-  const suggestions = useAIWorkspaceStore((s) => s.ai.suggestions)
-  const proactiveAlerts = useAIWorkspaceStore((s) => s.ai.proactiveAlerts)
-  const progress = useAIWorkspaceStore((s) => s.ai.progress)
-  const contextFocus = useAIWorkspaceStore((s) => s.context)
+  const messages = useAIStore((s) => s.messages)
+  const status = useAIStore((s) => s.status)
+  const suggestions = useAIStore((s) => s.suggestions)
+  const proactiveAlerts = useAIStore((s) => s.proactiveAlerts)
+  const progress = useAIStore((s) => s.progress)
+  const contextFocus = useWorkspaceStore((s) => s.context)
 
-  const setAIStatus = useAIWorkspaceStore((s) => s.setAIStatus)
-  const addMessage = useAIWorkspaceStore((s) => s.addMessage)
-  const setMessages = useAIWorkspaceStore((s) => s.setMessages)
-  const setSuggestionsFromStrings = useAIWorkspaceStore((s) => s.setSuggestionsFromStrings)
-  const addProactiveAlert = useAIWorkspaceStore((s) => s.addProactiveAlert)
-  const setProactiveAlerts = useAIWorkspaceStore((s) => s.setProactiveAlerts)
-  const setCurrentIntent = useAIWorkspaceStore((s) => s.setCurrentIntent)
-  const setCurrentAction = useAIWorkspaceStore((s) => s.setCurrentAction)
-  const setContextFocus = useAIWorkspaceStore((s) => s.setContextFocus)
-  const setProgress = useAIWorkspaceStore((s) => s.setProgress)
-  const setErrorMessage = useAIWorkspaceStore((s) => s.setErrorMessage)
-  const acknowledgeAlert = useAIWorkspaceStore((s) => s.acknowledgeAlert)
-  const resolveAlert = useAIWorkspaceStore((s) => s.resolveAlert)
-  const resetAI = useAIWorkspaceStore((s) => s.resetAI)
+  const setAIStatus = useAIStore((s) => s.setAIStatus)
+  const addMessage = useAIStore((s) => s.addMessage)
+  const setMessages = useAIStore((s) => s.setMessages)
+  const setSuggestionsFromStrings = useAIStore((s) => s.setSuggestionsFromStrings)
+  const addProactiveAlert = useAIStore((s) => s.addProactiveAlert)
+  const setProactiveAlerts = useAIStore((s) => s.setProactiveAlerts)
+  const setCurrentIntent = useAIStore((s) => s.setCurrentIntent)
+  const setCurrentAction = useAIStore((s) => s.setCurrentAction)
+  const setContextFocus = useWorkspaceStore((s) => s.setContextFocus)
+  const setProgress = useAIStore((s) => s.setProgress)
+  const setErrorMessage = useAIStore((s) => s.setErrorMessage)
+  const acknowledgeAlert = useAIStore((s) => s.acknowledgeAlert)
+  const resolveAlert = useAIStore((s) => s.resolveAlert)
+  const resetAI = useAIStore((s) => s.resetAI)
 
   const { executeAction } = useAIExecutor()
 
@@ -442,7 +443,7 @@ const handleSend = useCallback(async (text: string) => {
     let assistantCreated = false
 
     const upsertAssistant = (patch: Record<string, unknown>) => {
-      useAIWorkspaceStore.setState((state) => {
+      useAIStore.setState((state) => {
         const exists = state.ai.messages.some((m) => m.id === assistantId)
         if (!exists) {
           assistantCreated = true
@@ -553,7 +554,7 @@ const handleSend = useCallback(async (text: string) => {
         })
       } else if (assistantCreated) {
         // Drop placeholder if the model returned nothing usable
-        useAIWorkspaceStore.setState((state) => ({
+        useAIStore.setState((state) => ({
           ai: {
             ...state.ai,
             messages: state.ai.messages.filter((m) => m.id !== assistantId),
@@ -902,7 +903,7 @@ const result = await executeAction(
                     userText: prevUser?.content,
                     intent: m.skill,
                   }).then((res) => {
-                    useAIWorkspaceStore.setState((state) => ({
+                    useAIStore.setState((state) => ({
                       ai: {
                         ...state.ai,
                         messages: state.ai.messages.map((row) =>

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router } from 'express';
 import type { WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
@@ -27,14 +26,26 @@ import {
   PlanGateError,
 } from '../billing/planEntitlements.js';
 
-// In-memory idempotency store (TTL: 1 hour)
-const idempotencyStore = new Map<string, { paymentId: string; expiresAt: number }>();
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of idempotencyStore) {
-    if (val.expiresAt < now) idempotencyStore.delete(key);
-  }
-}, 60_000);
+// Prisma-backed idempotency (persists across restarts)
+async function getIdempotencyRecord(key: string): Promise<string | null> {
+  const record = await prisma.idempotencyRecord.findFirst({
+    where: { key, expiresAt: { gt: new Date() } },
+    select: { paymentId: true },
+  });
+  return record?.paymentId ?? null;
+}
+
+async function setIdempotencyRecord(key: string, paymentId: string): Promise<void> {
+  await prisma.idempotencyRecord.upsert({
+    where: { key },
+    create: { key, paymentId, expiresAt: new Date(Date.now() + 3_600_000) },
+    update: { paymentId, expiresAt: new Date(Date.now() + 3_600_000) },
+  });
+}
+
+async function deleteIdempotencyRecord(key: string): Promise<void> {
+  await prisma.idempotencyRecord.delete({ where: { key } }).catch(() => {});
+}
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
@@ -322,16 +333,16 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     // Idempotency check
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     if (idempotencyKey) {
-      const existing = idempotencyStore.get(idempotencyKey);
-      if (existing && existing.expiresAt > Date.now()) {
-        const payment = await prisma.payment.findUnique({ where: { id: existing.paymentId } });
+      const existing = await getIdempotencyRecord(idempotencyKey);
+      if (existing) {
+        const payment = await prisma.payment.findUnique({ where: { id: existing } });
         if (payment) {
           return res.status(200).json({
             ok: true,
             data: serializeBigInt(payment),
           } satisfies ApiResponse);
         }
-        idempotencyStore.delete(idempotencyKey);
+        await deleteIdempotencyRecord(idempotencyKey);
       }
     }
 
@@ -407,7 +418,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       });
 
       if (idempotencyKey) {
-        idempotencyStore.set(idempotencyKey, { paymentId: payment.id, expiresAt: Date.now() + 3_600_000 });
+        await setIdempotencyRecord(idempotencyKey, payment.id);
       }
 
       return res.status(201).json({
@@ -443,9 +454,9 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       },
     });
 
-    if (idempotencyKey) {
-      idempotencyStore.set(idempotencyKey, { paymentId: payment.id, expiresAt: Date.now() + 3_600_000 });
-    }
+if (idempotencyKey) {
+        await setIdempotencyRecord(idempotencyKey, payment.id);
+      }
 
     return res.status(201).json({
       ok: true,
@@ -539,10 +550,17 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       }
     }
 
-    const sandbox =
-      env.NODE_ENV !== 'production' ||
-      !env.KASPI_CALLBACK_SECRET ||
-      env.KASPI_CALLBACK_SECRET.length < 16;
+    const isProduction = env.NODE_ENV === 'production';
+    const hasValidSecret = env.KASPI_CALLBACK_SECRET && env.KASPI_CALLBACK_SECRET.length >= 32;
+
+    if (isProduction && !hasValidSecret) {
+      return res.status(500).json({
+        ok: false,
+        error: 'KASPI_CALLBACK_SECRET is required in production (min 32 chars)',
+      } satisfies ApiResponse);
+    }
+
+    const sandbox = !isProduction;
     const canComplete = providerStatus === 'paid' || sandbox;
 
     if (!canComplete) {
@@ -588,6 +606,14 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
 // Platform Kaspi callback
 paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
   try {
+    const isProduction = env.NODE_ENV === 'production';
+    const hasValidSecret = env.KASPI_CALLBACK_SECRET && env.KASPI_CALLBACK_SECRET.length >= 32;
+
+    if (isProduction && !hasValidSecret) {
+      console.error('[payments] KASPI_CALLBACK_SECRET not configured in production');
+      return res.status(500).json({ ok: false, error: 'Payment gateway not configured' } satisfies ApiResponse);
+    }
+
     const auth = verifyKaspiCallbackAuth({
       headers: req.headers as Record<string, string | string[] | undefined>,
       body: req.body || {},

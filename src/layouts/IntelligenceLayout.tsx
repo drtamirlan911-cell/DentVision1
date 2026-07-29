@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
 import { useGuestStore } from '@/store/guest.store';
-import { useAIWorkspaceStore } from '@/store/workspace.store';
+import { useWorkspaceStore } from '@/store/workspace.store';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
 import { useAIStore } from '@/store/ai.store';
@@ -84,7 +84,7 @@ export const IntelligenceLayout: React.FC = () => {
     toggleSidebarCollapsed,
     crumbTailLabel,
   } = useUIStore();
-  const setOnboardingComplete = useAIWorkspaceStore((s) => s.setOnboardingComplete);
+  const setOnboardingComplete = useWorkspaceStore((s) => s.setOnboardingComplete);
 
   const isPublicRoute = isGuestRoute(location.pathname);
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;

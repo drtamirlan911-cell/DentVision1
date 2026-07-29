@@ -35,13 +35,31 @@ const envSchema = z.object({
   CRON_SECRET: z.string().optional(),
   /** Shared secret for hidden platform-ops surface (supplier verify, etc.). Min 24 chars in production. */
   PLATFORM_OPS_SECRET: z.string().min(24).optional(),
-  /** Kaspi / payment webhook shared secret (min 16). Required to accept paid callbacks. */
-  KASPI_CALLBACK_SECRET: z.string().min(16).optional(),
-  /** Optional Kaspi pay base URL for QR deeplinks. */
+  /** Kaspi / payment webhook shared secret (min 32 in production). Required to accept paid callbacks. */
+  KASPI_CALLBACK_SECRET: z.string().min(32).optional(),
+  /** Kaspi merchant ID from Kaspi Business dashboard. */
+  KASPI_MERCHANT_ID: z.string().optional(),
+  /** Kaspi API key from Kaspi Business dashboard. */
+  KASPI_API_KEY: z.string().optional(),
+  /** Kaspi pay base URL for QR deeplinks. */
   KASPI_PAY_BASE_URL: z.string().url().optional(),
-  /** Public API origin for webhook URLs shown in clinic settings. */
+  /** Frontend URL for Kaspi ReturnUrl. */
+  FRONTEND_URL: z.string().url().optional(),
+  /** Public API URL for webhook callbacks. Used by clinic payments module. */
   PUBLIC_API_URL: z.string().url().optional(),
   REMINDER_CRON_MS: z.coerce.number().default(900000),
 });
 
 export const env = envSchema.parse(process.env);
+
+// Startup validation: require KASPI_CALLBACK_SECRET in production
+if (env.NODE_ENV === 'production') {
+  if (!env.KASPI_CALLBACK_SECRET || env.KASPI_CALLBACK_SECRET.length < 32) {
+    console.error('[config] KASPI_CALLBACK_SECRET must be set in production (min 32 chars)');
+    process.exit(1);
+  }
+  if (!env.PLATFORM_OPS_SECRET || env.PLATFORM_OPS_SECRET.length < 24) {
+    console.error('[config] PLATFORM_OPS_SECRET must be set in production (min 24 chars)');
+    process.exit(1);
+  }
+}

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { User, Clinic, UserRole } from '@/types'
 import * as api from '@/utils/api'
 import { useGuestStore } from './guest.store'
-import { useAIWorkspaceStore } from './workspace.store'
+import { useAIStore } from './ai.store'
 import { INIT_CLINICS, INIT_USERS, gid } from '@/utils/constants'
 
 // ─── Role config (moved from AuthContext) ───
@@ -372,7 +372,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // ─── Logout ───
   logout: () => {
-    try { useAIWorkspaceStore.getState().resetAI() } catch { /* ignore */ }
+    try { useAIStore.getState().resetAI() } catch { /* ignore */ }
     api.clearTokens()
     set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, loading: false, error: null })
   },

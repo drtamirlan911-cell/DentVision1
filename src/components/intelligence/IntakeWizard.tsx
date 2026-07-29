@@ -4,7 +4,7 @@ import { X, ArrowLeft, ArrowRight, Check, Phone, User, FileText, AlertCircle, Ca
 import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
-import { useAIWorkspaceStore } from '@/store/workspace.store';
+import { useAIStore } from '@/store/ai.store';
 import * as api from '@/utils/api';
 
 interface IntakeWizardProps {
