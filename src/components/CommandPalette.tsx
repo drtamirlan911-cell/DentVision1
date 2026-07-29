@@ -28,7 +28,7 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const { roleInfo } = useAuth()
-  const allowedPages = roleInfo?.pages || []
+  const allowedPages = useMemo(() => roleInfo?.pages || [], [roleInfo])
 
   const commands: CommandItem[] = useMemo(() => {
     const all: CommandItem[] = [

@@ -13,6 +13,9 @@ import { useAIExecutor, AIAction } from '@/utils/aiExecutor'
 import { ProactiveAlertsDisplay } from '@/components/ai/ProactiveAlertsDisplay'
 import { ContextPanel } from '@/components/intelligence/ContextPanel'
 import { ActionConfirm } from '@/components/intelligence/ActionConfirm'
+import { IntakeWizard } from '@/components/intelligence/IntakeWizard'
+import { DoctorPrepPanel } from '@/components/intelligence/DoctorPrepPanel'
+import { FollowUpWizard } from '@/components/intelligence/FollowUpWizard'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { trackProductEvent } from '@/utils/analytics'
 import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
@@ -81,6 +84,9 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const [voiceReplies, setVoiceReplies] = useState(() => isVoiceRepliesEnabled())
   const [voiceResumeToken, setVoiceResumeToken] = useState(0)
   const [activePersonaLabel, setActivePersonaLabel] = useState<string | null>(null)
+  const [intakeWizardOpen, setIntakeWizardOpen] = useState(false)
+  const [doctorPrepData, setDoctorPrepData] = useState<any>(null)
+  const [followUpData, setFollowUpData] = useState<{ patient: { id: string; name: string }; appointmentId?: string } | null>(null)
   const ttsSupported = voiceOutputSupported()
 
   const toggleVoiceReplies = useCallback(() => {
@@ -251,6 +257,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       if (!stillCurrent()) return
       trackProductEvent('chat_ready', { role: user?.role || 'guest', restored: false })
     })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, clinicId, isGuest])
 
   useEffect(() => {
@@ -267,6 +274,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       handleSend(q)
       navigate(location.pathname, { replace: true, state: {} })
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state])
 
   useEffect(() => {
@@ -278,6 +286,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         focusType: contextFocus.focusType,
       }).slice(0, 4))
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextFocus.focusType, user, isGuest, location.pathname])
 
   const initializeWorkspace = async () => {
@@ -606,6 +615,27 @@ const handleSend = useCallback(async (text: string) => {
           params: action.params || {},
           requiresConfirmation: (action as any).requiresConfirmation ?? true,
         }
+
+        if (aiAction.type === 'OPEN_INTAKE_WIZARD') {
+          setIntakeWizardOpen(true)
+          return
+        }
+
+        if (aiAction.type === 'OPEN_DOCTOR_PREP') {
+          setDoctorPrepData(aiAction.params)
+          return
+        }
+
+        if (aiAction.type === 'OPEN_FOLLOWUP') {
+          const p = aiAction.params
+          if (!p) return
+          setFollowUpData({
+            patient: { id: String(p.patientId ?? ''), name: String(p.patientName ?? '') },
+            appointmentId: p.appointmentId as string | undefined,
+          })
+          return
+        }
+
         setCurrentAction(aiAction)
 
         const needsConfirm = aiAction.requiresConfirmation || (action.confidence ?? 1) <= 0.85
@@ -1014,6 +1044,7 @@ const result = await executeAction(
             <div className="flex h-12 items-center justify-between px-4 border-b border-bdr-subtle">
               <h3 className="text-sm font-semibold text-txt-primary">Контекст</h3>
               <motion.button
+                aria-label="Close context panel"
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setShowContextPanel(false)}
                 className="p-1 rounded-lg hover:bg-white/5 transition-colors"
@@ -1044,6 +1075,42 @@ const result = await executeAction(
           />
         )}
       </AnimatePresence>
+
+      <IntakeWizard
+        open={intakeWizardOpen}
+        onClose={() => setIntakeWizardOpen(false)}
+        onComplete={(data) => {
+          setIntakeWizardOpen(false)
+          addMessage({
+            id: `intake-result-${Date.now()}`,
+            role: 'user',
+            content: `Завершён приём пациента. Данные: ${JSON.stringify(data, null, 2)}`,
+            timestamp: new Date(),
+          })
+        }}
+        />
+
+      <DoctorPrepPanel
+        open={!!doctorPrepData}
+        onClose={() => setDoctorPrepData(null)}
+        data={doctorPrepData || { patient: { id: '', name: '' }, complaints: [], instruments: [] }}
+      />
+
+      <FollowUpWizard
+        open={!!followUpData}
+        onClose={() => setFollowUpData(null)}
+        patient={followUpData?.patient || { id: '', name: '' }}
+        appointmentId={followUpData?.appointmentId}
+        onAction={(action, data) => {
+          setFollowUpData(null)
+          addMessage({
+            id: `followup-${Date.now()}`,
+            role: 'user',
+            content: `Действие после приёма: ${action}. Данные: ${JSON.stringify(data)}`,
+            timestamp: new Date(),
+          })
+        }}
+      />
     </div>
   )
 }
@@ -1111,7 +1178,9 @@ function buildGreeting(u: any, c: any, alerts: any[]) {
         ? 'На радаре: подтверждения записей, ближайшие приёмы и касса.'
         : role === 'buyer'
           ? 'На радаре: остатки склада и закупки.'
-          : 'На радаре: ваше расписание, карта и планы лечения.'
+          : role === 'doctor' || role === 'assistant'
+            ? 'На радаре: расписание, подготовка к приёму, карты пациентов.'
+            : 'На радаре: ваше расписание, карта и планы лечения.'
   const lines = [
     `${greeting}, ${name}. Системы на связи.`,
     clinicName ? `Клиника: **${clinicName}**.` : '',

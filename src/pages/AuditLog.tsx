@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Shield, Search, RefreshCw, Filter, Clock, User as UserIcon, ArrowRight, Download } from 'lucide-react';
+import { Shield, Search, RefreshCw, Clock, User as UserIcon, Download } from 'lucide-react';
 import * as api from '../utils/api';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/ds/Card';
+import { Card } from '../components/ui/ds/Card';
 import { Button } from '../components/ui/ds/Button';
 import { Badge } from '../components/ui/ds/Badge';
 import { EmptyState } from '../components/ui/ds/EmptyState';
@@ -35,7 +34,7 @@ function getActionInfo(action: string): { l: string; v: string } {
 }
 
 export default function AuditLog() {
-  const { clinic, user } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
+  const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -138,7 +137,7 @@ export default function AuditLog() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLogs.map((log, i) => {
+                {filteredLogs.map((log, _i) => {
                   const actionInfo = getActionInfo(log.action || '');
                   return (
                     <tr key={log.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">

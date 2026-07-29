@@ -2,7 +2,7 @@
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
 import { useAuth } from '@/store/auth.store'
-import { setRememberMe } from '@/utils/api'
+
 import { Button, Input } from '@/components/ui/ds'
 import { cn } from '@/lib/utils'
 import {
@@ -76,7 +76,8 @@ export default function Login() {
       const target = returnUrl.includes('/login') ? '/' : returnUrl;
       // If user has no clinic, force redirect to my-clinics to create/join one
       const hasClinic = clinic || activeMembership;
-      navigate(hasClinic ? target : '/my-clinics', { replace: true });
+      const isSuperAdmin = user?.platformRole === 'superadmin';
+      navigate(hasClinic ? target : (isSuperAdmin ? '/admin' : '/my-clinics'), { replace: true });
     }
   }, [user, clinic, activeMembership, navigate, returnUrl]);
 

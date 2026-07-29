@@ -34,4 +34,14 @@ export const queryKeys = {
     users: (params?: Record<string, string>) => ['admin', 'users', params] as const,
     support: ['admin', 'support'] as const,
   },
+  diagnostics: {
+    dashboard: (clinicId?: string) => ['diagnostics', 'dashboard', clinicId] as const,
+    referrals: (params?: Record<string, string>) => ['diagnostics', 'referrals', params] as const,
+    referral: (id: string) => ['diagnostics', 'referral', id] as const,
+    centers: (search?: string) => ['diagnostics', 'centers', search] as const,
+    center: (id: string) => ['diagnostics', 'center', id] as const,
+    labs: (search?: string) => ['diagnostics', 'labs', search] as const,
+    studies: (centerId?: string) => ['diagnostics', 'studies', centerId] as const,
+    labTests: (labId?: string) => ['diagnostics', 'labTests', labId] as const,
+  },
 }

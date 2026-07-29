@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -45,7 +45,7 @@ export default function TreatmentPlans() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!clinicId) { setLoading(false); return; }
     setLoading(true);
     try {
@@ -56,9 +56,9 @@ export default function TreatmentPlans() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [clinicId]);
 
-  useEffect(() => { load(); }, [clinicId]);
+  useEffect(() => { load(); }, [clinicId, load]);
 
   useEffect(() => {
     const patientId = params.get('patient');

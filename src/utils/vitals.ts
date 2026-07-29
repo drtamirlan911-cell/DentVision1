@@ -2,7 +2,7 @@ import type { Metric } from 'web-vitals';
 
 function reportMetric(metric: Metric) {
   if (import.meta.env.DEV) {
-    console.log(`[WebVitals] ${metric.name}`, metric.value, metric.rating);
+    console.warn(`[WebVitals] ${metric.name}`, metric.value, metric.rating);
   }
 }
 

@@ -57,6 +57,7 @@ export default function DentalChart() {
     setDirty(false);
     setSelectedTooth(undefined);
     void usePatientStore.getState().openPatient(selected.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id]);
 
   const saveChart = async () => {

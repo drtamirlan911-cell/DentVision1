@@ -1,7 +1,7 @@
-﻿import React, { useEffect, useState, useCallback, useRef } from 'react';
+﻿import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShoppingBag, Truck, CreditCard, ArrowLeft, Building2, Wallet } from 'lucide-react';
+import { ShoppingBag, Truck, CreditCard, ArrowLeft, Building2, Wallet, MapPin } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
@@ -44,10 +44,17 @@ export default function ShopCheckout() {
     phone: user?.phone || '',
     delivery_address: '',
     delivery_method: 'courier',
+    delivery_zone_id: '',
     payment_method: 'qr',
     buyFor: 'self' as 'self' | 'clinic',
     notes: '',
   });
+  const [deliveryZones, setDeliveryZones] = useState<any[]>([]);
+
+  // Load delivery zones
+  useEffect(() => {
+    api.getDeliveryZones().then(setDeliveryZones).catch(() => {});
+  }, []);
 
   const stopPoll = useCallback(() => {
     if (pollRef.current) {
@@ -114,6 +121,21 @@ export default function ShopCheckout() {
     return () => { cancelled = true; };
   }, [user, cart]);
 
+  const selectedZone = useMemo(
+    () => deliveryZones.find(z => z.id === form.delivery_zone_id),
+    [deliveryZones, form.delivery_zone_id]
+  );
+
+  const deliveryCost = selectedZone
+    ? (selectedZone.freeFrom && cartTotal >= selectedZone.freeFrom ? 0 : selectedZone.cost)
+    : cartTotal >= DELIVERY_FREE_FROM ? 0 : DELIVERY_COST;
+  const payable = cartTotal + deliveryCost;
+  const maxSpend = Math.min(Number(quote?.balanceTenge || 0), payable);
+  const spendTenge = useDentCash ? maxSpend : 0;
+  const total = Math.max(0, payable - spendTenge);
+  const canBuyForClinic = !!activeClinic;
+  const earnPreview = Number(quote?.earnTenge || 0);
+
   if (cart.length === 0 && !pendingPay) {
     return (
       <div className="p-6">
@@ -126,14 +148,6 @@ export default function ShopCheckout() {
       </div>
     );
   }
-
-  const deliveryCost = cartTotal >= DELIVERY_FREE_FROM ? 0 : DELIVERY_COST;
-  const payable = cartTotal + deliveryCost;
-  const maxSpend = Math.min(Number(quote?.balanceTenge || 0), payable);
-  const spendTenge = useDentCash ? maxSpend : 0;
-  const total = Math.max(0, payable - spendTenge);
-  const canBuyForClinic = !!activeClinic;
-  const earnPreview = Number(quote?.earnTenge || 0);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }));
@@ -152,8 +166,11 @@ export default function ShopCheckout() {
         items: cart.map(i => ({ product_id: i.id, quantity: i.qty })),
         delivery_address: form.delivery_address,
         delivery_method: form.delivery_method,
+        delivery_method_id: form.delivery_zone_id || undefined,
         payment_method: form.payment_method,
         notes: form.notes,
+        recipient_name: form.contactName,
+        recipient_phone: form.phone,
         dentCashTenge: spendTenge > 0 ? spendTenge : undefined,
         total,
       });
@@ -264,7 +281,7 @@ export default function ShopCheckout() {
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2.5">
                 <div>
                   <label className="text-xs text-[var(--slate)] mb-1 block">Способ доставки</label>
                   <select className="dv-select" value={form.delivery_method} onChange={set('delivery_method')}>
@@ -274,10 +291,22 @@ export default function ShopCheckout() {
                   </select>
                 </div>
                 <div>
+                  <label className="text-xs text-[var(--slate)] mb-1 block">Зона доставки</label>
+                  <select className="dv-select" value={form.delivery_zone_id} onChange={set('delivery_zone_id')}>
+                    <option value="">По умолчанию (2500 ₸)</option>
+                    {deliveryZones.map((z: any) => (
+                      <option key={z.id} value={z.id}>
+                        {z.name} — {z.freeFrom && cartTotal >= z.freeFrom ? 'Бесплатно' : `${z.cost.toLocaleString()} ₸`}
+                        {z.estimatedDays ? ` (${z.estimatedDays} дн.)` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="text-xs text-[var(--slate)] mb-1 block">Оплата</label>
                   <select className="dv-select" value={form.payment_method} onChange={set('payment_method')}>
-                    <option value="qr">Онлайн по QR</option>
-                    <option value="card">Картой</option>
+                    <option value="qr">Kaspi QR</option>
+                    <option value="card">Картой онлайн</option>
                     <option value="cash">Наличными при получении</option>
                   </select>
                 </div>

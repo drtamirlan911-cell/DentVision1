@@ -74,6 +74,7 @@ function resolveAlertPath(alert: BellAlert): string | undefined {
 
 export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, setIsOpen }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const isGuest = useGuestStore((s) => s.isGuest);
@@ -103,6 +104,23 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
       document.removeEventListener('touchstart', handler);
     };
   }, [isOpen, setIsOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const el = contentRef.current;
+    if (!el) return;
+    const focusable = el.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    first?.focus();
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !first || !last) return;
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleTab);
+    return () => document.removeEventListener('keydown', handleTab);
+  }, [isOpen]);
 
   const merged = useMemo(() => {
     const fromNotif: BellAlert[] = (notifications || []).map((n) => ({
@@ -163,6 +181,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
             />
             {/* Always fixed — header overflow would clip absolute panels */}
             <motion.div
+              ref={contentRef}
               initial={{ opacity: 0, scale: 0.95, y: -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -4 }}
@@ -173,6 +192,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
                 'sm:left-auto sm:right-3 sm:w-80 sm:max-w-[calc(100vw-1.5rem)]',
               )}
               role="dialog"
+              aria-modal="true"
               aria-label="Оповещения"
             >
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-bdr-subtle">

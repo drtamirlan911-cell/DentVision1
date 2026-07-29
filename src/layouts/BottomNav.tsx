@@ -46,6 +46,7 @@ export function BottomNav() {
 
   return (
     <nav
+      aria-label="Навигация по разделам"
       className="fixed bottom-0 left-0 right-0 z-50 bg-surface-1/95 backdrop-blur-xl border-t border-bdr-subtle"
       style={{
         paddingBottom: 'var(--dv-safe-bottom)',
@@ -65,6 +66,7 @@ export function BottomNav() {
               whileTap={{ scale: 0.9 }}
               className="flex flex-col items-center justify-center gap-0.5 w-16 h-full relative"
               disabled={isDisabled}
+              aria-current={isActive ? 'page' : undefined}
             >
               {isActive && (
                 <motion.div

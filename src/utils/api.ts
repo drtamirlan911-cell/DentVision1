@@ -155,7 +155,7 @@ function clientTimezoneHeader(): string | null {
   }
 }
 
-async function apiRequest(path: string, options: RequestInit = {}): Promise<any> {
+export async function apiRequest(path: string, options: RequestInit = {}): Promise<any> {
   const headers: Record<string, string> = { ...options.headers as Record<string, string> };
 
   if (_accessToken) {
@@ -1169,36 +1169,75 @@ export async function deleteWaitingListItem(id: string): Promise<any> {
 
 // ─── Shop ───
 function mapShopProduct(p: any) {
-  const category = p.category || p.category_id || 'Прочее';
+  const category = p.category || p.category_name || (p.shopCategory?.name) || 'Прочее';
   return {
     ...p,
     category,
-    category_id: category,
+    category_id: p.categoryId || p.category || 'other',
+    category_slug: p.category_slug || null,
     brand: p.brand || p.manufacturer || '',
-    rating: Number(p.rating) || 4.5,
+    rating: Number(p.rating) || null,
     stock: Number(p.stock) || 0,
     min_stock: Number(p.min_stock ?? p.minStock ?? 5),
+    old_price: p.oldPrice || p.old_price || null,
     created_at: p.created_at || p.createdAt,
     image_url: p.image_url || p.imageUrl,
+    images: Array.isArray(p.images) ? p.images : (p.imageUrl ? [p.imageUrl] : []),
     description: p.description || '',
     city: p.city || p.supplier_city || null,
     supplier_city: p.supplier_city || p.city || null,
+    specs: p.specs || {},
+    tags: Array.isArray(p.tags) ? p.tags : [],
+    review_count: p.reviewCount || p.review_count || 0,
+    unit: p.unit || 'шт',
+    weight: p.weight || null,
+    sku: p.sku || null,
+    expiryDate: p.expiryDate || null,
+    manufacturer: p.manufacturer || null,
+    country: p.country || null,
   };
 }
 
-export async function getShopCategories(params: Record<string, string> = {}): Promise<any> {
+export async function getShopCategories(): Promise<any> {
   try {
-    const products = await getShopProducts({ limit: '200', ...params });
-    const counts = new Map<string, number>();
-    for (const p of products) {
-      const cat = p.category || 'Прочее';
-      counts.set(cat, (counts.get(cat) || 0) + 1);
-    }
-    return [...counts.entries()].map(([name, count]) => ({
-      id: name,
-      name,
-      count,
-    }));
+    const raw = await apiRequest('/api/shop/categories');
+    return Array.isArray(raw) ? raw : (raw?.data ?? []);
+  } catch {
+    return [];
+  }
+}
+
+export async function getShopCategoryBySlug(slug: string): Promise<any> {
+  try {
+    return await apiRequest(`/api/shop/categories/${slug}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function getShopBanners(): Promise<any> {
+  try {
+    const raw = await apiRequest('/api/shop/banners');
+    return Array.isArray(raw) ? raw : (raw?.data ?? []);
+  } catch {
+    return [];
+  }
+}
+
+export async function getShopPromotions(): Promise<any> {
+  try {
+    const raw = await apiRequest('/api/shop/promotions');
+    const rows = Array.isArray(raw) ? raw : (raw?.data ?? []);
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getShopSpecTemplates(categoryId: string): Promise<any> {
+  try {
+    const raw = await apiRequest(`/api/shop/spec-templates?categoryId=${categoryId}`);
+    return Array.isArray(raw) ? raw : (raw?.data ?? []);
   } catch {
     return [];
   }
@@ -1212,7 +1251,16 @@ export async function getShopProducts(params: Record<string, string> = {}): Prom
   const rows = Array.isArray(raw) ? raw : (raw?.data ?? []);
   return (Array.isArray(rows) ? rows : []).map(mapShopProduct);
 }
-export async function getShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`); }
+export async function getShopProduct(id: string): Promise<any> {
+  try {
+    const raw = await apiRequest(`/api/shop/products/${id}`);
+    if (raw?.data) return raw.data;
+    if (raw?.ok && raw?.data) return raw.data;
+    return raw;
+  } catch {
+    return null;
+  }
+}
 export async function getShopSuppliers(params: Record<string, string> = {}): Promise<any> {
   try {
     const q = new URLSearchParams();
@@ -1269,9 +1317,38 @@ export async function confirmPayment(paymentId: string): Promise<any> {
   return apiRequest(`/api/payments/${paymentId}/confirm`, { method: 'POST', body: JSON.stringify({}) });
 }
 export async function getShopOrders(clinicId: string): Promise<any> { return collection(await apiRequest('/api/shop/orders')); }
-export async function createShopReview(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function createShopReview(data: any): Promise<any> { return apiRequest('/api/shop/reviews', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getShopReviews(productId: string): Promise<any> {
+  try {
+    const raw = await apiRequest(`/api/shop/products/${productId}/reviews`);
+    return Array.isArray(raw) ? raw : (raw?.data ?? []);
+  } catch {
+    return [];
+  }
+}
 export async function toggleShopFavorite(data: any): Promise<any> { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getShopFavorites(clinicId: string): Promise<any> { return apiRequest('/api/shop/favorites'); }
+export async function getDeliveryZones(supplierId?: string): Promise<any> {
+  try {
+    const q = supplierId ? `?supplierId=${supplierId}` : '';
+    const raw = await apiRequest(`/api/shop/delivery-zones${q}`);
+    return Array.isArray(raw) ? raw : (raw?.data ?? []);
+  } catch {
+    return [];
+  }
+}
+
+export async function getShopRecommendations(params: Record<string, string> = {}): Promise<any> {
+  try {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
+    const raw = await apiRequest(`/api/shop/recommendations?${q}`);
+    const rows = Array.isArray(raw) ? raw : (raw?.data ?? []);
+    return Array.isArray(rows) ? rows.map(mapShopProduct) : [];
+  } catch {
+    return [];
+  }
+}
 
 // ─── DentCash / Dent Wallet ───
 export async function getDentCashWallet(): Promise<any> {
@@ -1286,6 +1363,9 @@ export async function quoteDentCash(body: {
 }): Promise<any> {
   return apiRequest('/api/dentcash/quote', { method: 'POST', body: JSON.stringify(body) });
 }
+
+export const createManualTransaction = (data: { walletId: string; type: 'CREDIT' | 'DEBIT'; amount: number; description: string; refType?: string; refId?: string }) =>
+  apiRequest('/api/finance/transactions/manual', { method: 'POST', body: JSON.stringify(data) });
 
 // ─── School / Academy OS ───
 export async function getAcademyHub(): Promise<any> {
@@ -2184,4 +2264,166 @@ export async function getAIActions(): Promise<any> {
 }
 export async function confirmAIAction(id: string): Promise<any> {
   return apiRequest(`/api/compliance/ai/${id}/confirm`, { method: 'POST', body: '{}' });
+}
+
+// ─── Diagnostics API ───
+
+export async function getDiagnosticsDashboard(clinicId?: string): Promise<any> {
+  const q = clinicId ? `?clinicId=${clinicId}` : '';
+  return apiRequest(`/api/diagnostics/dashboard${q}`);
+}
+
+export async function getDiagnosticCenters(search?: string, city?: string): Promise<any> {
+  const q = new URLSearchParams();
+  if (search) q.set('search', search);
+  if (city) q.set('city', city);
+  return apiRequest(`/api/diagnostics/centers?${q}`);
+}
+
+export async function getDiagnosticCenter(id: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/centers/${id}`);
+}
+
+export async function createDiagnosticCenter(data: any): Promise<any> {
+  return apiRequest('/api/diagnostics/centers', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateDiagnosticCenter(id: string, data: any): Promise<any> {
+  return apiRequest(`/api/diagnostics/centers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function getDiagnosticLaboratories(search?: string): Promise<any> {
+  const q = search ? `?search=${search}` : '';
+  return apiRequest(`/api/diagnostics/laboratories${q}`);
+}
+
+export async function createDiagnosticLaboratory(data: any): Promise<any> {
+  return apiRequest('/api/diagnostics/laboratories', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateDiagnosticLaboratory(id: string, data: any): Promise<any> {
+  return apiRequest(`/api/diagnostics/laboratories/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function getDiagnosticStudies(centerId?: string, category?: string): Promise<any> {
+  const q = new URLSearchParams();
+  if (centerId) q.set('centerId', centerId);
+  if (category) q.set('category', category);
+  return apiRequest(`/api/diagnostics/studies?${q}`);
+}
+
+export async function getDiagnosticLabTests(labId?: string, category?: string): Promise<any> {
+  const q = new URLSearchParams();
+  if (labId) q.set('labId', labId);
+  if (category) q.set('category', category);
+  return apiRequest(`/api/diagnostics/lab-tests?${q}`);
+}
+
+export async function getDiagnosticReferrals(params: Record<string, string> = {}): Promise<any> {
+  const q = new URLSearchParams(params);
+  return apiRequest(`/api/diagnostics/referrals?${q}`);
+}
+
+export async function getDiagnosticReferral(id: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/referrals/${id}`);
+}
+
+export async function createDiagnosticReferral(data: any): Promise<any> {
+  return apiRequest('/api/diagnostics/referrals', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateDiagnosticReferral(id: string, data: any): Promise<any> {
+  return apiRequest(`/api/diagnostics/referrals/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function changeDiagnosticReferralStatus(id: string, status: string, reason?: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/referrals/${id}/status`, { method: 'POST', body: JSON.stringify({ status, reason }) });
+}
+
+export async function deleteDiagnosticReferral(id: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/referrals/${id}`, { method: 'DELETE' });
+}
+
+export async function addDiagnosticComment(referralId: string, text: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/referrals/${referralId}/comments`, { method: 'POST', body: JSON.stringify({ text }) });
+}
+
+export async function uploadDiagnosticFile(data: {
+  referralId: string; fileName: string; fileData: string; fileType?: string; fileSize?: number;
+}): Promise<any> {
+  return apiRequest('/api/diagnostics/files/upload', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function deleteDiagnosticFile(id: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/files/${id}`, { method: 'DELETE' });
+}
+
+export async function aiGenerateDiagnosticResult(referralId: string): Promise<any> {
+  return apiRequest('/api/diagnostics/results/ai-generate', { method: 'POST', body: JSON.stringify({ referralId }) });
+}
+
+export async function signDiagnosticResult(referralId: string, reportText: string, conclusion?: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/results/${referralId}/sign`, { method: 'POST', body: JSON.stringify({ reportText, conclusion }) });
+}
+
+// ─── Diagnostics Registration ───
+
+export async function submitDiagnosticsRegistration(data: {
+  type: 'center' | 'laboratory';
+  name: string; city?: string; address?: string; phone?: string; email?: string; comment?: string;
+}): Promise<any> {
+  return apiRequest('/api/diagnostics/register', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function getDiagnosticsRegistrations(status?: string): Promise<any> {
+  const q = status ? `?status=${status}` : '';
+  return apiRequest(`/api/diagnostics/registrations${q}`);
+}
+
+export async function approveDiagnosticsRegistration(id: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/registrations/${id}/approve`, { method: 'POST', body: '{}' });
+}
+
+export async function rejectDiagnosticsRegistration(id: string, reason?: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/registrations/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+}
+
+export async function seedDiagnosticsTestData(): Promise<any> {
+  return apiRequest('/api/diagnostics/seed-test-data', { method: 'POST', body: '{}' });
+}
+
+export const getDiagnosticsCenterPricing = (centerId: string) =>
+  apiRequest(`/api/diagnostics/centers/${centerId}/pricing`);
+
+export const updateDiagnosticsCenterPricing = (centerId: string, studies: { id: string; price: number }[]) =>
+  apiRequest(`/api/diagnostics/centers/${centerId}/pricing`, { method: 'PATCH', body: JSON.stringify({ studies }) });
+
+export const getDiagnosticsCommissionRules = () =>
+  apiRequest('/api/diagnostics/commission-rules');
+
+export const createDiagnosticsCommissionRule = (data: { centerId?: string; labId?: string; percentBps: number; description?: string }) =>
+  apiRequest('/api/diagnostics/commission-rules', { method: 'POST', body: JSON.stringify(data) });
+
+export const getDiagnosticsStats = () =>
+  apiRequest('/api/diagnostics/stats');
+
+// ─── Product Presets (quick-add for suppliers) ───
+
+export async function getProductPresets(params?: { categoryId?: string; search?: string }): Promise<any> {
+  const q = new URLSearchParams();
+  if (params?.categoryId) q.set('categoryId', params.categoryId);
+  if (params?.search) q.set('search', params.search);
+  const s = q.toString();
+  return apiRequest(`/api/shop/product-presets${s ? `?${s}` : ''}`);
+}
+
+export async function quickAddPreset(presetId: string, price: number, stock?: number): Promise<any> {
+  return apiRequest('/api/shop/product-presets/quick-add', {
+    method: 'POST',
+    body: JSON.stringify({ presetId, price, stock }),
+  });
+}
+
+export async function seedProductPresets(): Promise<any> {
+  return apiRequest('/api/shop/product-presets/seed', { method: 'POST', body: '{}' });
 }

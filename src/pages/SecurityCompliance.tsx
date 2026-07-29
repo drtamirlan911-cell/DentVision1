@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Shield, Smartphone, Monitor, Globe, Clock, CheckCircle2, XCircle, Brain, AlertTriangle } from 'lucide-react';
+import { Shield, Smartphone, Monitor, Globe, Clock, CheckCircle2, Brain } from 'lucide-react';
 import * as api from '../utils/api';
 import { useAuthStore } from '../store/auth.store';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/ds/Card';

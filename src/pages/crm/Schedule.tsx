@@ -47,7 +47,7 @@ const EMPTY_FORM = {
   patientId: '', doctorId: '', service: '', time: '09:00', status: 'scheduled', notes: '', duration: 60,
   diagnosis: '', toothNumber: '', chairId: '',
 }
-const EMPTY_PATIENT = { name: '', phone: '', email: '', dob: '', gender: '', notes: '' }
+const EMPTY_PATIENT = { name: '', phone: '', email: '', dob: '', gender: '', notes: '', iin: '' }
 const EMPTY_WAIT = { patientId: '', patientName: '', patientPhone: '', doctorId: '', preferredDate: '', preferredTime: '', preferredService: '', notes: '' }
 
 function timeToMinutes(t?: string | null): number {
@@ -835,10 +835,10 @@ export default function Schedule() {
           {/* Controls bar */}
           <motion.div variants={fadeUp} className="flex flex-col gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
             <div className="flex items-center gap-2 flex-wrap">
-              <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(-1)}><ChevronLeft size={16} /></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Назад" onClick={() => shiftPeriod(-1)}><ChevronLeft size={16} /></Button>
               <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
                 className="h-8 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none min-w-0" />
-              <Button variant="ghost" size="icon-sm" onClick={() => shiftPeriod(1)}><ChevronRight size={16} /></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Вперёд" onClick={() => shiftPeriod(1)}><ChevronRight size={16} /></Button>
               <Button variant="outline" size="sm" onClick={() => setSelDate(today())}>Сегодня</Button>
 
               <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
@@ -1210,6 +1210,7 @@ export default function Schedule() {
                 <Input label="Телефон" value={newPatient.phone} onChange={e => setNewPatient({ ...newPatient, phone: e.target.value })} placeholder="+7 777 000 00 00" />
                 <Input label="Дата рождения" type="date" value={newPatient.dob} onChange={e => setNewPatient({ ...newPatient, dob: e.target.value })} />
               </div>
+              <Input label="ИИН" value={newPatient.iin} onChange={e => setNewPatient({ ...newPatient, iin: e.target.value })} placeholder="12 цифр" maxLength={12} />
             </div>
           )}
 

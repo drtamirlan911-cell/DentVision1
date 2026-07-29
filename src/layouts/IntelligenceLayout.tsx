@@ -22,6 +22,7 @@ import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
 import { useCompactShell } from '@/hooks/useCompactShell';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '@/utils/api';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   crm: 'CRM',
@@ -411,6 +412,7 @@ export const IntelligenceLayout: React.FC = () => {
             )}
             {!isGuest && <ClinicSwitcher />}
             <DentCashHeaderChip />
+            <LanguageSwitcher compact />
             <button
               onClick={() => setCmdOpen(true)}
               className={cn(

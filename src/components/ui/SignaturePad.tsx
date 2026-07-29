@@ -62,7 +62,7 @@ export default function SignaturePad({ onSave, width = 400, height = 200 }: Sign
   const clear = () => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext('2d')!;
-    const dpr = window.devicePixelRatio || 1;
+    const _dpr = window.devicePixelRatio || 1;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'rgba(255,255,255,0.03)';
     ctx.fillRect(0, 0, width, height);

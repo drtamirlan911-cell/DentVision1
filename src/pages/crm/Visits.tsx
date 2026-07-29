@@ -255,6 +255,15 @@ export default function Visits() {
                     {(visit as any).diagnosis && <p className="text-sm text-txt-secondary mb-1"><span className="text-txt-ghost">Диагноз:</span> {(visit as any).diagnosis}</p>}
                     {visit.chiefComplaint && <p className="text-xs text-txt-muted mb-1"><span className="text-txt-ghost">Жалобы:</span> {visit.chiefComplaint}</p>}
                     {visit.proceduresDone && <p className="text-xs text-txt-muted"><span className="text-txt-ghost">Процедуры:</span> {visit.proceduresDone}</p>}
+                    {(visit as any).treatment?.type === 'diagnostic_result' && (
+                      <div className="mt-2 p-2 rounded-lg bg-dv-gold/5 border border-dv-gold/20">
+                        <p className="text-xs font-bold text-dv-gold mb-1">🔬 Результат диагностики</p>
+                        <p className="text-xs text-txt-secondary">{(visit as any).treatment?.studyType}</p>
+                        {(visit as any).treatment?.conclusion && (
+                          <p className="text-xs text-txt-muted mt-1">{String((visit as any).treatment.conclusion).slice(0, 120)}</p>
+                        )}
+                      </div>
+                    )}
                     {(visit.patientId || (visit as any).patient_id) && (
                       <div className="flex flex-wrap gap-1.5 mt-3">
                         <Button

@@ -2,8 +2,8 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Plus, LogIn, FlaskConical, Building2, Users, QrCode, Link2, KeyRound,
-  CheckCircle2, ArrowRight, Sparkles, Loader2, Crown, ChevronRight, AlertCircle, CheckCircle,
+  Plus, LogIn, FlaskConical, Building2, QrCode, Link2, KeyRound,
+  CheckCircle2, ArrowRight, Sparkles, Loader2, Crown, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '@/components/ui/ds/Toast';
@@ -148,6 +148,13 @@ export default function MyClinics() {
             color="#27AE60"
             onClick={handleDemo}
             loading={demoLoading}
+          />
+          <ActionCard
+            icon={<ArrowRight size={22} />}
+            title="Продолжить без клиники"
+            desc="Личный режим"
+            color="#8E44AD"
+            onClick={() => navigate('/')}
           />
         </div>
 

@@ -1,6 +1,5 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import {
   User as UserIcon, Mail, Phone, MapPin, Briefcase, Award, Star,
   Plus, Trash2, Pencil, LogOut, Camera, Building2, Sparkles,
@@ -18,7 +17,7 @@ import { useToast } from '@/components/ui/ds/Toast'
 import { DoctorPayrollCard } from '@/components/crm/DoctorPayrollCard'
 import { DentWalletCard } from '@/components/wallet/DentWalletCard'
 import * as api from '@/utils/api'
-import { gid } from '@/utils/constants'
+import { gid as _gid } from '@/utils/constants'
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 
 function Section({ icon, title, onAdd, children }: { icon: React.ReactNode; title: string; onAdd?: () => void; children: React.ReactNode }) {

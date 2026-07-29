@@ -70,11 +70,15 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       children,
       disabled,
       asChild = false,
+      title,
       ...props
     },
     ref
   ) => {
     const isDisabled = disabled || loading
+    const hasTextChild = typeof children === 'string' || (Array.isArray(children) && children.some(c => typeof c === 'string'))
+    const isIconOnly = !hasTextChild && (!!icon || React.Children.count(children) > 0)
+    const ariaLabel = props['aria-label'] || (isIconOnly ? title : undefined)
 
     const content = (
       <>
@@ -113,13 +117,15 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       </>
     )
 
+    const commonProps = { ...(props as any), 'aria-label': ariaLabel, title: ariaLabel || title }
+
     if (asChild) {
       return (
         <Slot
           className={cn(buttonVariants({ variant, size, className }))}
           ref={ref}
           aria-busy={loading ? true : undefined}
-          {...props}
+          {...commonProps}
         >
           {content}
         </Slot>
@@ -134,7 +140,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading ? true : undefined}
         whileHover={!isDisabled ? { scale: 1.02 } : undefined}
         whileTap={!isDisabled ? { scale: 0.97 } : undefined}
-        {...(props as any)}
+        {...commonProps}
       >
         {content}
       </motion.button>

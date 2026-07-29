@@ -80,6 +80,9 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
       {open && (
         <motion.div
           ref={overlayRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={title || 'Диалог'}
           className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -122,6 +125,7 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
                 </div>
                 <button
                   onClick={onClose}
+                  aria-label="Закрыть"
                   className="rounded-lg p-1.5 text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors shrink-0"
                 >
                   <X size={18} />

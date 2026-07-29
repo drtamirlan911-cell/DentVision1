@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -252,7 +252,7 @@ export function DigitalTwin() {
   const [loading, setLoading] = useState(!isGuest)
   const [error, setError] = useState<string | null>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -295,9 +295,9 @@ export function DigitalTwin() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [isGuest])
 
-  useEffect(() => { void load() }, [isGuest])
+  useEffect(() => { void load() }, [isGuest, load])
 
   if (loading) {
     return <p className="text-xs text-txt-muted py-6 text-center">Загрузка цифрового двойника…</p>

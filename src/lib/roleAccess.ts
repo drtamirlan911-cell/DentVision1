@@ -31,6 +31,17 @@ export const PATH_PAGE_ID: Record<string, string> = {
   '/school': 'school',
   '/settings': 'settings',
   '/bi': 'bi',
+  '/diagnostics': 'diagnostics',
+  '/diagnostics/referrals': 'diagnostics-referrals',
+  '/diagnostics/centers': 'diagnostics-centers',
+  '/diagnostics/laboratories': 'diagnostics-labs',
+  '/diagnostics/results': 'diagnostics-results',
+  '/diagnostics/calendar': 'diagnostics-calendar',
+  '/diagnostics/statistics': 'diagnostics-statistics',
+  '/diagnostics/settings': 'diagnostics-settings',
+  '/diagnostics/center-dashboard': 'diagnostics',
+  '/diagnostics/lab-dashboard': 'diagnostics',
+  '/diagnostics/registrations': 'admin',
 }
 
 /** CRM sidebar order (ids must match ORG_ROLES.pages). */

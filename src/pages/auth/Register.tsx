@@ -1,6 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { useAuth } from '@/store/auth.store';
-import { Loader2, UserPlus, AlertTriangle, User, Stethoscope, Bot, GraduationCap, ShoppingBag } from 'lucide-react';
+import { Loader2, UserPlus, AlertTriangle, Stethoscope, Bot, GraduationCap, ShoppingBag } from 'lucide-react';
 
 interface RegisterProps {
   onBack: () => void;

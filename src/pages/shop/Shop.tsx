@@ -1,126 +1,110 @@
-﻿import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingCart, Search, Heart, Star, Package, Truck, TrendingUp,
-  X, Plus, Minus, Eye, Sparkles, BarChart3, AlertTriangle, ShoppingBag,
-  Brain, ArrowUpDown,
+  X, Plus, Minus, Eye, Sparkles, Zap, ChevronRight, ChevronLeft, Check,
+  Clock, Shield, ChevronDown, MapPin, SlidersHorizontal, Building2, Wallet,
 } from 'lucide-react';
-import { tg } from '../../utils/constants';
+import { T } from '../../lib/design-tokens';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
 import { useAuth, canManageClinicSettings } from '@/store/auth.store';
 import { Button } from '../../components/ui/ds/Button';
-import { Card, CardContent } from '../../components/ui/ds/Card';
-import { Input } from '../../components/ui/ds/Input';
 import { Badge } from '../../components/ui/ds/Badge';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
-import { StatCard, PageHeader } from '../../components/ui/ds/StatCard';
-import { estimateCashbackBps, formatCashbackPercent } from '@/lib/dentcash';
-import { buildClinicRestockSuggestions } from '@/lib/inventory-shop-match';
 import { CityFilter } from '@/components/ui/CityFilter';
+import { cn } from '@/lib/utils';
 import type { InventoryItem } from '@/types';
 
-interface ShopProductItem {
-  id: string;
-  name: string;
-  brand: string;
-  price: number;
-  old_price?: number;
-  rating: number;
-  review_count: number;
-  stock: number;
-  min_stock: number;
-  category_id: string;
-  category_name: string;
-  description?: string;
-  tags?: string;
-  supplier_id?: string;
-  supplier_name?: string;
-  supplier_status?: string;
-  own_brand?: boolean;
+interface ProductItem {
+  id: string; name: string; brand: string; price: number; old_price?: number;
+  rating: number | null; review_count: number; stock: number; min_stock: number;
+  category_id: string; category_name: string; category_slug?: string;
+  description?: string; tags?: string[]; supplier_id?: string; supplier_name?: string;
+  supplier_status?: string; own_brand?: boolean; image_url?: string | null;
+  images?: string[]; unit?: string; specs?: Record<string, unknown>;
   created_at?: string;
-  image_url?: string | null;
-  imageUrl?: string | null;
 }
 
-interface ShopCategory {
-  id: string;
-  name: string;
-  icon: string;
+interface CategoryNode {
+  id: string; name: string; slug: string; icon?: string; imageUrl?: string;
+  sortOrder: number; _count?: { products: number }; children?: CategoryNode[];
 }
 
-interface ShopSupplier {
-  id: string;
-  name: string;
-  rating?: number;
-  status?: string;
-  product_count?: number;
+interface BannerItem {
+  id: string; title?: string; subtitle?: string; imageUrl: string;
+  linkUrl?: string; color?: string; sortOrder: number;
 }
 
-interface AiResponse {
-  query: string;
-  results: ShopProductItem[];
-  summary: string;
+interface PromotionItem {
+  id: string; title: string; description?: string; type: string;
+  discountPercent?: number; discountAmount?: number;
 }
 
-const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } } as Variants;
-const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } } } as Variants;
-const scaleIn = { hidden: { opacity: 0, scale: 0.92 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } } as Variants;
+const G = T.gold;
+const S = T.slate;
+const BG = T.bg;
+const CARD = T.card;
+const CARD_HOV = T.cardHov;
+const BDR = T.border;
+const BDR_SUB = T.borderSub;
 
-const SORT_OPTIONS = [
-  { value: '', label: 'По рейтингу' },
-  { value: 'price_asc', label: 'Сначала дешевле' },
-  { value: 'price_desc', label: 'Сначала дороже' },
-  { value: 'newest', label: 'Новинки' },
-];
+const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, duration: 0.4 } };
 
 export default function Shop() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { cart, favorites, cartCount, cartTotal, addToCart, toggleFav, updateQty, removeFromCart } = useCart();
-  const { role, user, isAuthenticated, activeMembership } = useAuth();
-  const clinicId = user?.clinicId || activeMembership?.clinicId || '';
-  const canSeeClinicRestock =
-    isAuthenticated &&
-    !!clinicId &&
-    (canManageClinicSettings(role) ||
-      canManageClinicSettings(activeMembership?.role) ||
-      String(role || '').toLowerCase() === 'buyer');
-  const [categories, setCategories] = useState<ShopCategory[]>([]);
-  const [products, setProducts] = useState<ShopProductItem[]>([]);
-  const [suppliers, setSuppliers] = useState<ShopSupplier[]>([]);
-  const [clinicInventory, setClinicInventory] = useState<InventoryItem[]>([]);
+  const { user } = useAuth();
+
+  const [banners, setBanners] = useState<BannerItem[]>([]);
+  const [categories, setCategories] = useState<CategoryNode[]>([]);
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [promotions, setPromotions] = useState<PromotionItem[]>([]);
+  const [recommendations, setRecommendations] = useState<ProductItem[]>([]);
   const [search, setSearch] = useState(() => searchParams.get('q') || '');
   const [city, setCity] = useState(() => searchParams.get('city') || '');
   const [selectedCat, setSelectedCat] = useState('');
   const [sortBy, setSortBy] = useState('');
   const [loading, setLoading] = useState(true);
   const [showCart, setShowCart] = useState(false);
-  const [aiQuery, setAiQuery] = useState('');
-  const [aiResponse, setAiResponse] = useState<AiResponse | null>(null);
-  const [showAi, setShowAi] = useState(false);
-  const [restockDismissed, setRestockDismissed] = useState(false);
-
-  useEffect(() => {
-    const q = searchParams.get('q') || '';
-    const c = searchParams.get('city') || '';
-    if (q !== search) setSearch(q);
-    if (c !== city) setCity(c);
-  }, [searchParams]);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [activeBanner, setActiveBanner] = useState(0);
+  const bannerInterval = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
     setLoading(true);
     const params: Record<string, string> = city ? { city, limit: '200' } : { limit: '200' };
     Promise.all([
-      api.getShopCategories(params),
+      api.getShopBanners(),
+      api.getShopCategories(),
       api.getShopProducts(params),
-      api.getShopSuppliers(city ? { city } : {}),
-    ])
-      .then(([c, p, s]) => { setCategories(c); setProducts(p); setSuppliers(s); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      api.getShopPromotions(),
+      api.getShopRecommendations(),
+    ]).then(([b, c, p, prom, rec]) => {
+      setBanners(Array.isArray(b) ? b : []);
+      setCategories(Array.isArray(c) ? c : []);
+      setProducts(Array.isArray(p) ? p : []);
+      setPromotions(Array.isArray(prom) ? prom : []);
+      setRecommendations(Array.isArray(rec) ? rec : []);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [city]);
+
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    bannerInterval.current = setInterval(() => {
+      setActiveBanner((prev) => (prev + 1) % banners.length);
+    }, 5000);
+    return () => clearInterval(bannerInterval.current);
+  }, [banners.length]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (search.trim()) {
+      navigate(`/shop?q=${encodeURIComponent(search.trim())}`);
+    }
+  };
 
   const updateCity = (nextCity: string) => {
     setCity(nextCity);
@@ -130,673 +114,430 @@ export default function Shop() {
     setSearchParams(next, { replace: true });
   };
 
-  useEffect(() => {
-    if (!canSeeClinicRestock || !clinicId) {
-      setClinicInventory([]);
-      return;
-    }
-    let cancelled = false;
-    api.getInventory(clinicId)
-      .then((rows) => { if (!cancelled) setClinicInventory(Array.isArray(rows) ? rows : []); })
-      .catch(() => { if (!cancelled) setClinicInventory([]); });
-    return () => { cancelled = true; };
-  }, [canSeeClinicRestock, clinicId]);
-
-  const clinicRestock = useMemo(
-    () => (canSeeClinicRestock
-      ? buildClinicRestockSuggestions(clinicInventory, products, { onlyWithMatches: true, limit: 5 })
-      : []),
-    [canSeeClinicRestock, clinicInventory, products],
-  );
-
-  const applyRestockQuery = (query: string) => {
-    setSearch(query);
-    const next = new URLSearchParams(searchParams);
-    if (query) next.set('q', query);
-    else next.delete('q');
-    setSearchParams(next, { replace: true });
-  };
-
   const filteredProducts = useMemo(() => {
-    let list = [...products];
-    if (selectedCat) list = list.filter(p => p.category_id === selectedCat);
+    let result = [...products];
+    if (selectedCat) {
+      result = result.filter(p => p.category_id === selectedCat || p.category_slug === selectedCat);
+    }
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(p => p.name?.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q));
+      result = result.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.brand?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q)
+      );
     }
-    if (sortBy === 'price_asc') list.sort((a, b) => a.price - b.price);
-    else if (sortBy === 'price_desc') list.sort((a, b) => b.price - a.price);
-    else if (sortBy === 'newest') list.sort((a, b) => new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime());
-    else list.sort((a, b) => b.rating - a.rating);
-    return list;
+    switch (sortBy) {
+      case 'price_asc': result.sort((a, b) => a.price - b.price); break;
+      case 'price_desc': result.sort((a, b) => b.price - a.price); break;
+      case 'rating': result.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)); break;
+      default: result.sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()); break;
+    }
+    return result;
   }, [products, selectedCat, search, sortBy]);
 
-  const handleAiSearch = () => {
-    if (!aiQuery.trim()) return;
-    const q = aiQuery.toLowerCase();
-    const matched = products.filter(p =>
-      p.description?.toLowerCase().includes(q) ||
-      p.tags?.toLowerCase().includes(q) ||
-      p.name?.toLowerCase().includes(q) ||
-      p.brand?.toLowerCase().includes(q)
-    ).slice(0, 4);
+  const featuredProducts = useMemo(() => {
+    return [...products].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 8);
+  }, [products]);
 
-    setAiResponse({
-      query: aiQuery,
-      results: matched,
-      summary: matched.length > 0
-        ? `Нашёл ${matched.length} товаров по запросу «${aiQuery}». Вот лучшие варианты:`
-        : `К сожалению, точных совпадений не найдено. Попробуйте другой запрос или выберите категорию.`,
-    });
-  };
+  const promotedProducts = useMemo(() => {
+    return products.filter(p => p.old_price != null && p.old_price > 0).slice(0, 8);
+  }, [products]);
 
-  // Seller warehouse stock is managed in /supplier — buyers only care about availability.
-  const outOfStockProducts = products.filter(p => p.stock <= 0);
-  const verifiedSuppliers = suppliers.filter((s) => s.status === 'VERIFIED' || s.status === 'OFFICIAL_PARTNER' || !s.status);
-  const hotProducts = [...products].filter((p) => p.stock > 0).sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 4);
-  const promoProducts = products.filter((p) => (p.description || '').includes('[АКЦИЯ]') || !!p.old_price).slice(0, 4);
+  const ProductCard = ({ product }: { product: ProductItem }) => {
+    const isFav = favorites.some(f => f.id === product.id);
+    const inCart = cart.find(c => c.id === product.id);
+    const imgSrc = product.image_url || product.images?.[0] || '';
+    const hasDiscount = product.old_price != null && product.old_price > product.price;
+    const discountPercent = hasDiscount ? Math.round((1 - product.price / (product.old_price || product.price)) * 100) : 0;
 
-  return (
-    <div className="p-6 min-h-screen">
-      <PageHeader
-        title="Маркетплейс"
-        subtitle="Закупка расходников с кэшбэком DentCash (1–7%)"
-        icon={<ShoppingBag size={22} />}
-        actions={
-          <>
-            {isAuthenticated && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/profile')}
-              >
-                Мой кэшбэк
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/shop/suppliers')}
-            >
-              Поставщики
-            </Button>
-            {isAuthenticated && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/supplier')}
-              >
-                Кабинет продавца
-              </Button>
-            )}
-            <Button
-              variant={showAi ? 'outline' : 'ghost'}
-              size="sm"
-              icon={<Brain size={15} />}
-              onClick={() => setShowAi(!showAi)}
-            >
-              AI Ассистент
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<ShoppingCart size={15} />}
-              onClick={() => setShowCart(true)}
-              className="relative"
-            >
-              Корзина
-              {cartCount > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-success px-1 text-[10px] font-bold text-white"
-                >
-                  {cartCount}
-                </motion.span>
-              )}
-            </Button>
-          </>
-        }
-      />
-
-      <AnimatePresence>
-        {showAi && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden mb-5"
-          >
-            <Card className="bg-gradient-to-br from-[var(--gold)]/5 to-[var(--sapphire)]/10 border-[var(--gold)]/20">
-              <CardContent>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--gold)]/20">
-                    <Brain size={20} className="text-[var(--gold)]" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white m-0">AI Shopping Assistant</h3>
-                    <p className="text-xs text-[var(--slate)] m-0">Спросите что нужно — AI подберёт лучшие товары</p>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <input
-                    value={aiQuery}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiQuery(e.target.value)}
-                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAiSearch()}
-                    placeholder="Например: лучший композит для фронтальных реставраций..."
-                    className="flex-1 !rounded-xl"
-                  />
-                  <Button variant="primary" size="md" icon={<Sparkles size={15} />} onClick={handleAiSearch}>
-                    Найти
-                  </Button>
-                </div>
-                {aiResponse && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
-                    <p className="text-xs text-[var(--slate-light)] mb-3">{aiResponse.summary}</p>
-                    {aiResponse.results.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                        {aiResponse.results.map(p => (
-                          <motion.div
-                            key={p.id}
-                            whileHover={{ scale: 1.02 }}
-                            onClick={() => navigate(`/shop/${p.id}`)}
-                            className="bg-white/5 border border-[var(--border-subtle)] rounded-xl p-3 cursor-pointer transition-all hover:bg-white/[0.08]"
-                          >
-                            <p className="text-xs font-bold text-white m-0">{p.brand} {p.name}</p>
-                            <p className="text-[11px] text-[var(--slate)] mt-1 m-0">{tg(p.price)}</p>
-                            <div className="flex items-center gap-1 mt-1">
-                              <Star size={11} className="text-[var(--gold)] fill-[var(--gold)]" />
-                              <span className="text-[11px] text-[var(--gold)]">{p.rating}</span>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {!restockDismissed && clinicRestock.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3"
-        >
-          <div className="flex items-start gap-3">
-            <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-semibold text-txt-primary m-0">
-                    На складе клиники заканчивается {clinicRestock.length} позици
-                    {clinicRestock.length === 1 ? 'я' : clinicRestock.length < 5 ? 'и' : 'й'}
-                  </p>
-                  <p className="text-[11px] text-txt-muted m-0 mt-0.5">
-                    Подобрали товары и аналоги в маркетплейсе для пополнения.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setRestockDismissed(true)}
-                  className="text-txt-ghost hover:text-txt-primary p-0.5"
-                  aria-label="Скрыть"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="flex flex-col gap-2">
-                {clinicRestock.map((row) => {
-                  const best = row.matches[0];
-                  return (
-                    <div
-                      key={row.item.id || row.query}
-                      className="flex flex-wrap items-center gap-2 rounded-lg bg-black/20 border border-white/[0.05] px-2.5 py-2"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs text-txt-primary m-0 truncate">
-                          <span className="font-semibold">{row.item.name}</span>
-                          <span className="text-txt-muted">
-                            {' '}· {row.item.quantity ?? 0}/{row.min} {row.item.unit || 'шт'}
-                          </span>
-                        </p>
-                        {best && (
-                          <p className="text-[11px] text-txt-muted m-0 truncate">
-                            {best.kind === 'exact' ? 'Есть в магазине' : 'Аналог'}: {best.brand ? `${best.brand} · ` : ''}{best.name}
-                            {(best.stock || 0) > 0 ? '' : ' (нет в наличии у продавца)'}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => applyRestockQuery(row.query)}
-                      >
-                        Показать
-                      </Button>
-                      {best && (best.stock || 0) > 0 && (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          onClick={() => navigate(`/shop/${best.id}`)}
-                        >
-                          Купить
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/crm/inventory?filter=lowStock')}
-                className="text-[11px] text-dv-gold hover:underline bg-transparent border-none cursor-pointer p-0"
-              >
-                Открыть склад клиники
-              </button>
+    return (
+      <motion.div variants={fadeUp}
+        className="group relative rounded-xl overflow-hidden transition-all duration-300 cursor-pointer"
+        style={{ background: CARD, border: `1px solid ${BDR_SUB}` }}
+        onClick={() => navigate(`/shop/${product.id}`)}
+        onMouseEnter={(e) => e.currentTarget.style.background = CARD_HOV}
+        onMouseLeave={(e) => e.currentTarget.style.background = CARD}
+      >
+        <div className="relative aspect-square overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
+          {imgSrc ? (
+            <img src={imgSrc} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.08)' }}>
+              <Package size={48} />
             </div>
+          )}
+          <div className="absolute top-2 left-2 flex flex-col gap-1">
+            {hasDiscount && (
+              <span className="text-white text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: T.ruby }}>-{discountPercent}%</span>
+            )}
+            {product.own_brand && (
+              <span className="text-white text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: G }}>DentVision</span>
+            )}
+            {product.stock <= 0 && (
+              <span className="text-white text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#1a1a2e' }}>��� � �������</span>
+            )}
           </div>
-        </motion.div>
-      )}
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        className="flex gap-2.5 mb-4 flex-wrap items-center"
-      >
-        <div className="relative flex-1 min-w-[200px]">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--slate)]" />
-          <input
-            value={search}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-              const v = e.target.value;
-              setSearch(v);
-              const next = new URLSearchParams(searchParams);
-              if (v) next.set('q', v);
-              else next.delete('q');
-              setSearchParams(next, { replace: true });
-            }}
-            placeholder="Поиск товаров, брендов..."
-            className="w-full !pl-10 !rounded-xl"
-          />
+          <button onClick={(e) => { e.stopPropagation(); toggleFav(product as any); }}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
+            <Heart size={14} className={isFav ? 'fill-red-500 text-red-500' : 'text-gray-400'} />
+          </button>
         </div>
-        <select
-          className="dv-select !w-auto !rounded-xl min-w-[160px]"
-          value={sortBy}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSortBy(e.target.value)}
-        >
-          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.12 }}
-        className="mb-4 rounded-xl border border-bdr-subtle bg-white/[0.02] p-3"
-      >
-        <CityFilter
-          label="Город доставки / склад поставщика"
-          value={city}
-          onChange={updateCity}
-          showPopularChips
-        />
-        {city && (
-          <p className="mt-2 text-2xs text-txt-muted m-0">
-            Показаны поставщики и товары по городу «{city}». Смените на «Весь Казахстан», чтобы видеть весь каталог.
-          </p>
-        )}
-      </motion.div>
-
-      <motion.div
-        variants={stagger}
-        initial="hidden"
-        animate="visible"
-        className="flex gap-2 mb-5 overflow-x-auto pb-1 flex-wrap"
-      >
-        <motion.button
-          variants={fadeUp}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setSelectedCat('')}
-          className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${
-            !selectedCat
-              ? 'border-[var(--gold)]/60 bg-[var(--gold)]/10 text-[var(--gold)]'
-              : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)] hover:bg-white/5'
-          }`}
-        >
-          Все категории
-        </motion.button>
-        {categories.map(cat => (
-          <motion.button
-            key={cat.id}
-            variants={fadeUp}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setSelectedCat(selectedCat === cat.id ? '' : cat.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${
-              selectedCat === cat.id
-                ? 'border-[var(--gold)]/60 bg-[var(--gold)]/10 text-[var(--gold)]'
-                : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)] hover:bg-white/5'
-            }`}
-          >
-            <span>{cat.icon}</span> {cat.name}
-          </motion.button>
-        ))}
-      </motion.div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-5">
-        {[
-          { label: 'Всего товаров', value: products.length, icon: Package },
-          { label: 'Категорий', value: categories.length, icon: BarChart3 },
-          { label: 'Поставщиков', value: suppliers.length, icon: Truck },
-          { label: 'Нет в наличии', value: outOfStockProducts.length, icon: AlertTriangle },
-        ].map((s, i) => (
-          <StatCard key={i} label={s.label} value={s.value} icon={<s.icon size={18} />} />
-        ))}
-      </div>
-
-      {!loading && verifiedSuppliers.length > 0 && (
-        <div className="mb-5">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs uppercase tracking-wide text-[var(--slate)] font-semibold">Проверенные поставщики</p>
-            <button onClick={() => navigate('/shop/suppliers')} className="text-xs text-[var(--gold)] bg-transparent border-none cursor-pointer">
-              Все →
+        <div className="p-3 space-y-2">
+          {product.brand && (
+            <p className="text-[10px] font-medium uppercase tracking-wider truncate" style={{ color: S }}>{product.brand}</p>
+          )}
+          <h3 className="text-sm font-semibold leading-tight line-clamp-2 min-h-[2.5rem] transition-colors"
+            style={{ color: '#FFFFFF' }}
+            onClick={(e) => { e.stopPropagation(); navigate(`/shop/${product.id}`); }}>
+            {product.name}
+          </h3>
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center">
+              <Star size={12} className={product.rating ? 'fill-yellow-400 text-yellow-400' : ''} style={{ color: product.rating ? undefined : 'rgba(255,255,255,0.1)' }} />
+              <span className="text-xs font-medium ml-1" style={{ color: S }}>{product.rating?.toFixed(1) || '�'}</span>
+            </div>
+            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>({product.review_count})</span>
+            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>�</span>
+            <span className="text-[10px]" style={{ color: product.stock > 0 ? T.emerald : T.ruby }}>
+              {product.stock > 0 ? `� �������: ${product.stock}` : '���'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <div>
+              <span className="text-lg font-bold" style={{ color: G }}>{product.price.toLocaleString()} ?</span>
+              {hasDiscount && (
+                <span className="text-xs line-through ml-2" style={{ color: S }}>{product.old_price!.toLocaleString()} ?</span>
+              )}
+            </div>
+            <button onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40"
+              style={{ background: G, color: T.bg }}
+              disabled={product.stock <= 0}>
+              {inCart ? <Check size={14} /> : <Plus size={14} />}
             </button>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {verifiedSuppliers.slice(0, 8).map((s) => (
-              <button
-                key={s.id}
-                onClick={() => navigate('/shop/suppliers')}
-                className="shrink-0 rounded-xl border border-[var(--border-subtle)] bg-white/[0.03] px-3 py-2 text-left hover:border-[var(--gold)]/40 transition-colors"
-              >
-                <p className="text-xs font-semibold text-white m-0">{s.name}</p>
-                <p className="text-[10px] text-[var(--slate)] m-0 mt-0.5">
-                  ★ {s.rating ?? 4.8} · {s.product_count ?? 0} SKU
-                </p>
-              </button>
-            ))}
+        </div>
+      </motion.div>
+    );
+  };
+
+  const BannerCarousel = () => {
+    if (!banners.length) return null;
+    const current = banners[activeBanner];
+    const gradients = [
+      'linear-gradient(135deg, #2980B9 0%, #1a1a3e 100%)',
+      'linear-gradient(135deg, #27AE60 0%, #0d2137 100%)',
+      'linear-gradient(135deg, #C9A96E 0%, #1a1a2e 100%)',
+    ];
+    return (
+      <div className="relative overflow-hidden rounded-2xl" style={{ minHeight: 260, background: BG }}>
+        {banners.map((b, i) => (
+          <div key={b.id} className={`absolute inset-0 transition-opacity duration-700 ${i === activeBanner ? 'opacity-100' : 'opacity-0'}`}>
+            {b.imageUrl && <img src={b.imageUrl} alt="" className="w-full h-full object-cover" />}
+            <div className="absolute inset-0" style={{ background: gradients[i % gradients.length], opacity: 0.75 }} />
+          </div>
+        ))}
+        <div className="relative z-10 p-8 md:p-12 flex flex-col justify-center" style={{ minHeight: 260 }}>
+          {current.title && <h2 className="text-2xl md:text-4xl font-bold text-white mb-2 max-w-lg">{current.title}</h2>}
+          {current.subtitle && <p className="text-white/70 text-sm md:text-base max-w-md mb-4">{current.subtitle}</p>}
+          {current.linkUrl && (
+            <Button variant="primary" className="w-fit" onClick={() => navigate(current.linkUrl!)}>
+              ������� <ChevronRight size={16} />
+            </Button>
+          )}
+        </div>
+        {banners.length > 1 && (
+          <>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+              {banners.map((_, i) => (
+                <button key={i} onClick={() => setActiveBanner(i)}
+                  className={`w-2 h-2 rounded-full transition-all ${i === activeBanner ? 'w-6' : ''}`}
+                  style={{ background: i === activeBanner ? G : 'rgba(255,255,255,0.3)' }} />
+              ))}
+            </div>
+            <button onClick={() => setActiveBanner((p) => (p - 1 + banners.length) % banners.length)}
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white"
+              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}>
+              <ChevronLeft size={16} />
+            </button>
+            <button onClick={() => setActiveBanner((p) => (p + 1) % banners.length)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white"
+              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}>
+              <ChevronRight size={16} />
+            </button>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const CategoryGrid = () => {
+    if (!categories.length) return null;
+    const displayCats = categories.slice(0, 12);
+    return (
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-white">���������</h2>
+          <button onClick={() => navigate('/shop?all_categories=1')} className="text-xs font-medium hover:underline" style={{ color: G }}>
+            ��� ��������� <ChevronRight size={14} className="inline" />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {displayCats.map((cat) => (
+            <button key={cat.id} onClick={() => { setSelectedCat(cat.slug); navigate(`/shop?category=${cat.slug}`); }}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all group"
+              style={{ background: CARD, border: `1px solid ${BDR_SUB}` }}
+              onMouseEnter={(e) => e.currentTarget.style.background = CARD_HOV}
+              onMouseLeave={(e) => e.currentTarget.style.background = CARD}>
+              <div className="w-12 h-12 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
+                style={{ background: 'rgba(201,169,110,0.1)', color: G }}>
+                <Package size={20} />
+              </div>
+              <span className="text-xs font-medium text-center leading-tight text-white">{cat.name}</span>
+              {cat._count && <span className="text-[10px]" style={{ color: S }}>{cat._count.products} �������</span>}
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  };
+
+  const PromoBar = () => {
+    if (!promotions.length) return null;
+    const promo = promotions[0];
+    return (
+      <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #8B6F3E 0%, #C9A96E 100%)' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+            <Zap size={20} className="text-white" />
+          </div>
+          <div>
+            <p className="text-white font-bold text-sm">{promo.title}</p>
+            {promo.description && <p className="text-white/70 text-xs">{promo.description}</p>}
           </div>
         </div>
-      )}
+        <Badge variant="default" className="text-xs font-bold whitespace-nowrap" style={{ background: T.bg, color: G }}>
+          {promo.discountPercent ? `-${promo.discountPercent}%` : '�����'}
+        </Badge>
+      </div>
+    );
+  };
 
-      {!loading && (hotProducts.length > 0 || promoProducts.length > 0) && !search && !selectedCat && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-          {hotProducts.length > 0 && (
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs uppercase tracking-wide text-[var(--slate)] font-semibold mb-3 flex items-center gap-1.5">
-                  <TrendingUp size={12} className="text-[var(--gold)]" /> Сейчас берут клиники
-                </p>
-                <div className="space-y-2">
-                  {hotProducts.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => navigate(`/shop/${p.id}`)}
-                      className="w-full flex justify-between gap-2 text-left bg-transparent border-none cursor-pointer"
-                    >
-                      <span className="text-sm text-white truncate">{p.name}</span>
-                      <span className="text-xs text-[var(--gold)] shrink-0">{tg(p.price)}</span>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          {promoProducts.length > 0 && (
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs uppercase tracking-wide text-[var(--slate)] font-semibold mb-3 flex items-center gap-1.5">
-                  <Sparkles size={12} className="text-[var(--gold)]" /> Акции поставщиков
-                </p>
-                <div className="space-y-2">
-                  {promoProducts.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => navigate(`/shop/${p.id}`)}
-                      className="w-full flex justify-between gap-2 text-left bg-transparent border-none cursor-pointer"
-                    >
-                      <span className="text-sm text-white truncate">{p.name}</span>
-                      <span className="text-xs text-success shrink-0">акция</span>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        <div className="rounded-2xl animate-pulse" style={{ background: CARD, height: 260 }} />
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-2 p-3 rounded-xl" style={{ background: CARD }}>
+              <div className="w-12 h-12 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }} />
+              <div className="h-3 w-16 rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
+            </div>
+          ))}
         </div>
-      )}
-
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <div className="h-9 w-9 rounded-full border-[3px] border-[var(--gold)]/30 border-t-[var(--gold)] animate-spin" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-xl overflow-hidden" style={{ background: CARD }}>
+              <div className="aspect-square animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+              <div className="p-3 space-y-2">
+                <div className="h-3 w-12 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                <div className="h-4 w-full rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                <div className="h-3 w-24 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                <div className="h-6 w-20 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+              </div>
+            </div>
+          ))}
         </div>
-      ) : (
-        <motion.div
-          variants={stagger}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-        >
-          {filteredProducts.map(product => {
-            const isFav = favorites.some(f => f.id === product.id);
-            return (
-              <motion.div
-                key={product.id}
-                variants={scaleIn}
-                whileHover={{ y: -4 }}
-                onClick={() => navigate(`/shop/${product.id}`)}
-                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--card)] overflow-hidden cursor-pointer transition-all duration-250 hover:shadow-[0_8px_30px_rgba(201,169,110,0.08)]"
-              >
-                <div className="relative h-40 bg-gradient-to-br from-[var(--sapphire)]/20 to-[var(--gold)]/10 flex items-center justify-center overflow-hidden">
-                  {(product.image_url || product.imageUrl) ? (
-                    <img
-                      src={product.image_url || product.imageUrl || ''}
-                      alt={product.name}
-                      className="absolute inset-0 h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
-                      <Package size={36} className="text-[var(--gold)]/45" />
-                      <span className="text-[10px] font-medium text-txt-muted line-clamp-2">
-                        {product.brand || product.category_name || 'DentVision Shop'}
-                      </span>
-                    </div>
-                  )}
-                  {product.old_price && (
-                    <div className="absolute top-2.5 left-2.5 bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
-                      -{Math.round((1 - product.price / product.old_price) * 100)}%
-                    </div>
-                  )}
-                  <div
-                    className={
-                      product.old_price
-                        ? 'absolute top-2.5 left-2.5 mt-6 bg-emerald-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md'
-                        : 'absolute top-2.5 left-2.5 bg-emerald-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md'
-                    }
-                  >
-                    Кэшбэк {formatCashbackPercent(estimateCashbackBps({
-                      category: product.category_name,
-                      name: product.name,
-                      promo: !!product.old_price || (product.description || '').includes('[АКЦИЯ]'),
-                    }))}
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); toggleFav(product); }}
-                    className="absolute top-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-lg border-none bg-black/30 hover:bg-black/40 cursor-pointer"
-                  >
-                    <Heart size={14} className={isFav ? 'text-error fill-error' : 'text-white'} />
-                  </motion.button>
-                  {product.stock <= 0 && (
-                    <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-error/20 border border-error/40 text-error text-[10px] font-semibold px-2 py-0.5 rounded-md">
-                      <AlertTriangle size={10} /> Нет в наличии
-                    </div>
-                  )}
-                </div>
+      </div>
+    );
+  }
 
-                <div className="p-3.5">
-                  <div className="text-[10px] text-[var(--gold)] font-semibold mb-1 uppercase tracking-wide">
-                    {product.brand || product.supplier_name || 'Поставщик'} · {product.category_name}
-                  </div>
-                  <h3 className="text-sm font-bold text-white leading-snug mb-1.5 m-0">
-                    {product.name}
-                  </h3>
-                  {product.supplier_name && (
-                    <p className="text-[11px] text-[var(--slate)] m-0 mb-1.5">
-                      {product.supplier_status === 'VERIFIED' || product.supplier_status === 'OFFICIAL_PARTNER' ? '✓ ' : ''}
-                      {product.supplier_name}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <div className="flex items-center gap-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} size={11} className={`text-[var(--gold)] ${i < Math.round(product.rating) ? 'fill-[var(--gold)]' : ''}`} />
-                      ))}
-                    </div>
-                    <span className="text-[11px] text-[var(--slate)]">({product.review_count})</span>
-                    <Badge variant={product.stock > 0 ? 'success' : 'error'} size="xs">
-                      {product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет в наличии'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-baseline gap-2 mb-2.5">
-                    <span className="text-lg font-extrabold text-white">{tg(product.price)}</span>
-                    {product.old_price && (
-                      <span className="text-xs text-[var(--slate)] line-through">{tg(product.old_price)}</span>
-                    )}
-                  </div>
-                  <div className="flex gap-1.5">
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        addToCart({
-                          id: product.id,
-                          name: product.name,
-                          brand: product.brand,
-                          price: product.price,
-                          imageUrl: product.image_url || product.imageUrl || null,
-                          supplierId: product.supplier_id || null,
-                          category: product.category_name || null,
-                          ownBrand: !!product.own_brand,
-                        });
-                      }}
-                      disabled={product.stock <= 0}
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border-none transition-all ${
-                        product.stock > 0
-                          ? 'bg-gradient-to-r from-[var(--gold)] to-[var(--gold)]/dd text-[#0D1B2E] hover:shadow-glow-sm'
-                          : 'bg-white/10 text-[var(--slate)] cursor-not-allowed'
-                      }`}
-                    >
-                      <ShoppingCart size={13} /> {product.stock > 0 ? 'В корзину' : 'Нет в наличии'}
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); navigate(`/shop/${product.id}`); }}
-                      className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-white/5 text-[var(--slate-light)] cursor-pointer hover:bg-white/[0.08]"
-                    >
-                      <Eye size={14} />
-                    </motion.button>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8 pb-24">
+      {/* --- Top Bar --- */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 relative">
+          <form onSubmit={handleSearch}>
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: S }} />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="����� �������, �������..."
+              style={{
+                width: '100%', height: 40, paddingLeft: 36, paddingRight: 12,
+                background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`,
+                color: '#fff', borderRadius: 12, fontSize: 13, outline: 'none'
+              }}
+              className="placeholder:text-[#7A8899] focus:border-[#C9A96E]/50 transition-colors" />
+          </form>
+        </div>
+        <CityFilter value={city} onChange={updateCity} />
+        <button onClick={() => setShowCart(true)}
+          className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
+          style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}` }}>
+          <ShoppingCart size={18} style={{ color: S }} />
+          {cartCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+              style={{ background: G }}>
+              {cartCount > 99 ? '99+' : cartCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* --- Banner --- */}
+      <BannerCarousel />
+
+      {/* --- Promo Bar --- */}
+      <PromoBar />
+
+      {/* --- Categories --- */}
+      <CategoryGrid />
+
+      {/* --- Promoted (discounted) --- */}
+      {promotedProducts.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Zap size={18} style={{ color: T.ruby }} /> ������ � �����
+            </h2>
+            <button onClick={() => navigate('/shop?sort=price_asc')} className="text-xs font-medium hover:underline" style={{ color: G }}>
+              ��� ����� <ChevronRight size={14} className="inline" />
+            </button>
+          </div>
+          <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {promotedProducts.map((p) => <ProductCard key={p.id} product={p} />)}
+          </motion.div>
+        </section>
       )}
 
-      {!loading && filteredProducts.length === 0 && (
-        <EmptyState
-          icon={<Package size={32} />}
-          title="Товары не найдены"
-          description="Попробуйте изменить параметры поиска или выбрать другую категорию"
-        />
+      {/* --- AI Recommendations --- */}
+      {recommendations.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Sparkles size={18} style={{ color: T.purple }} /> ����������� ���
+            </h2>
+          </div>
+          <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {recommendations.map((p) => <ProductCard key={p.id} product={p} />)}
+          </motion.div>
+        </section>
       )}
 
+      {/* --- Featured --- */}
+      {featuredProducts.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <TrendingUp size={18} style={{ color: G }} /> ���������� ������
+            </h2>
+            <button onClick={() => navigate('/shop?sort=rating')} className="text-xs font-medium hover:underline" style={{ color: G }}>
+              ��� ���������� <ChevronRight size={14} className="inline" />
+            </button>
+          </div>
+          <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {featuredProducts.map((p) => <ProductCard key={p.id} product={p} />)}
+          </motion.div>
+        </section>
+      )}
+
+      {/* --- All Products --- */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-white">��� ������</h2>
+          <div className="flex items-center gap-2">
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+              style={{
+                fontSize: 12, border: `1px solid ${BDR_SUB}`, borderRadius: 8,
+                padding: '4px 8px', background: 'rgba(255,255,255,0.05)', color: '#fff', outline: 'none'
+              }}>
+              <option value="" style={{ background: '#0D1B2E', color: '#fff' }}>�������</option>
+              <option value="price_asc" style={{ background: '#0D1B2E', color: '#fff' }}>������� �������</option>
+              <option value="price_desc" style={{ background: '#0D1B2E', color: '#fff' }}>������� ������</option>
+              <option value="rating" style={{ background: '#0D1B2E', color: '#fff' }}>�� ��������</option>
+            </select>
+          </div>
+        </div>
+        {filteredProducts.length === 0 ? (
+          <EmptyState icon={<Package size={32} />} title="������ �� �������" description="���������� �������� ��������� ������" />
+        ) : (
+          <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.03 } } }}
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filteredProducts.map((p) => <ProductCard key={p.id} product={p} />)}
+          </motion.div>
+        )}
+      </section>
+
+      {/* --- Cart Sidebar --- */}
       <AnimatePresence>
         {showCart && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowCart(false)}
-              className="fixed inset-0 bg-black/60 z-[100]"
-            />
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed right-0 top-0 bottom-0 w-[400px] max-w-[90vw] bg-[var(--navy)] border-l border-[var(--border-subtle)] z-[101] flex flex-col overflow-hidden"
-            >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
-                <h3 className="flex items-center gap-2 text-base font-bold text-white m-0">
-                  <ShoppingCart size={18} className="text-[var(--gold)]" /> Корзина ({cartCount})
-                </h3>
-                <button onClick={() => setShowCart(false)} className="text-[var(--slate)] hover:text-white transition-colors bg-transparent border-none cursor-pointer">
-                  <X size={20} />
-                </button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+            onClick={() => setShowCart(false)}>
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="w-full max-w-sm h-full overflow-y-auto" style={{ background: '#0D1B2E', borderLeft: `1px solid ${BDR}` }}
+              onClick={e => e.stopPropagation()}>
+              <div className="sticky top-0 z-10 p-4 flex items-center justify-between" style={{ background: '#0D1B2E', borderBottom: `1px solid ${BDR_SUB}` }}>
+                <h2 className="font-bold text-lg text-white">�������</h2>
+                <button aria-label="Close cart" onClick={() => setShowCart(false)}><X size={20} style={{ color: S }} /></button>
               </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                {cart.length === 0 ? (
-                  <EmptyState
-                    icon={<ShoppingBag size={32} />}
-                    title="Корзина пуста"
-                    description="Добавьте товары из каталога"
-                  />
-                ) : cart.map(item => (
-                  <div key={item.id} className="flex items-center gap-3 py-3 border-b border-[var(--border-subtle)] last:border-b-0">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-white m-0 truncate">{item.name}</p>
-                      <p className="text-[11px] text-[var(--slate)] mt-0.5 m-0">{item.brand}</p>
-                      <p className="text-[13px] font-bold text-[var(--gold)] mt-1 m-0">{tg(item.price)}</p>
+              {cart.length === 0 ? (
+                <EmptyState icon={<ShoppingCart size={32} />} title="������� �����" description="�������� ������ �� ��������" className="py-12" />
+              ) : (
+                <div className="p-4 space-y-3">
+                  {cart.map((item) => (
+                    <div key={item.id} className="flex gap-3 rounded-xl p-3" style={{ background: CARD }}>
+                      <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.1)' }}>
+                            <Package size={20} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{item.name}</p>
+                        <p className="text-xs" style={{ color: S }}>{item.brand}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${BDR_SUB}` }}>
+                            <button aria-label="Decrease quantity" onClick={() => updateQty(item.id, item.qty - 1)}
+                              className="w-7 h-7 flex items-center justify-center transition-colors"
+                              style={{ color: S }}><Minus size={12} /></button>
+                            <span className="w-7 h-7 flex items-center justify-center text-xs font-medium text-white"
+                              style={{ borderLeft: `1px solid ${BDR_SUB}`, borderRight: `1px solid ${BDR_SUB}` }}>{item.qty}</span>
+                            <button aria-label="Increase quantity" onClick={() => updateQty(item.id, item.qty + 1)}
+                              className="w-7 h-7 flex items-center justify-center transition-colors"
+                              style={{ color: S }}><Plus size={12} /></button>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold" style={{ color: G }}>{(item.price * item.qty).toLocaleString()} ?</p>
+                            <button onClick={() => removeFromCart(item.id)} className="text-[10px] hover:underline"
+                              style={{ color: T.ruby }}>�������</button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateQty(item.id, Math.max(1, item.qty - 1))}
-                        className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[var(--border-subtle)] bg-white/5 text-white cursor-pointer hover:bg-white/10 transition-colors"
-                      >
-                        <Minus size={12} />
-                      </button>
-                      <span className="text-[13px] font-bold text-white min-w-[20px] text-center">{item.qty}</span>
-                      <button
-                        onClick={() => updateQty(item.id, item.qty + 1)}
-                        className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[var(--border-subtle)] bg-white/5 text-white cursor-pointer hover:bg-white/10 transition-colors"
-                      >
-                        <Plus size={12} />
-                      </button>
+                  ))}
+                  <div className="pt-3 mt-3" style={{ borderTop: `1px solid ${BDR_SUB}` }}>
+                    <div className="flex justify-between mb-3">
+                      <span style={{ color: S }}>�����:</span>
+                      <span className="text-lg font-bold" style={{ color: G }}>{cartTotal.toLocaleString()} ?</span>
                     </div>
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="text-error hover:text-error/80 transition-colors bg-transparent border-none cursor-pointer"
-                    >
-                      <X size={14} />
-                    </button>
+                    <Button variant="primary" className="w-full" onClick={() => { setShowCart(false); navigate('/shop/checkout'); }}
+                      style={{ background: G, color: T.bg }}>
+                      �������� �����
+                    </Button>
                   </div>
-                ))}
-              </div>
-              {cart.length > 0 && (
-                <div className="px-5 py-4 border-t border-[var(--border-subtle)]">
-                  <div className="flex justify-between mb-3">
-                    <span className="text-sm text-[var(--slate-light)]">Итого:</span>
-                    <span className="text-lg font-extrabold text-white">{tg(cartTotal)}</span>
-                  </div>
-                  <Button variant="primary" size="lg" className="w-full" onClick={() => navigate('/shop/checkout')}>
-                    Оформить заказ
-                  </Button>
                 </div>
               )}
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

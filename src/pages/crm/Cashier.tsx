@@ -16,7 +16,7 @@ import * as api from '@/utils/api'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Select } from '../../components/ui/ds/Input'
-import { Badge, StatusBadge } from '../../components/ui/ds/Badge'
+import { Badge } from '../../components/ui/ds/Badge'
 import { Modal } from '../../components/ui/ds/Modal'
 import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
@@ -28,14 +28,14 @@ import { FinancePnLStrip } from '@/components/crm/finance/FinancePnLStrip'
 import { FinancePayrollPanel } from '@/components/crm/finance/FinancePayrollPanel'
 import { FinanceExpensesPanel } from '@/components/crm/finance/FinanceExpensesPanel'
 import { buildPeriod, EXPENSE_CATEGORIES, downloadCsv, type FinancePeriod } from '@/lib/financePeriod'
-import { tg, fd, gid, today, PAY_METHODS, ALL_SERVICES, getClinicCurrency, TOOTH_NAMES } from '../../utils/constants'
+import { tg, fd, gid, today, PAY_METHODS, getClinicCurrency, TOOTH_NAMES } from '../../utils/constants'
 import { buildWaLink } from '../../utils/reminders'
-import { cn, formatMoney } from '../../lib/utils'
+import { cn } from '../../lib/utils'
 import { isOnlineQrMethod } from '@/utils/payMethod'
 import { extractPaymentQrUrl } from '@/utils/paymentQr'
 import { useNavigate } from 'react-router-dom'
 // type imports
-import type { Receipt, Appointment, Patient, Expense, Clinic, User as UserType, RoleInfo } from '../../types'
+import type { Appointment, Clinic, User as UserType, RoleInfo } from '../../types'
 
 const TABS = [
   { id: 'unpaid', label: 'К оплате', icon: <Clock size={14} /> },
@@ -93,7 +93,7 @@ export default function Cashier() {
   const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
   const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense } = useDataQuery(clinicId || undefined)
   const queryClient = useQueryClient()
-  const { toast, showToast, clearToast } = useToast()
+  const { showToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const voidReceipt = async (id: string) => {
@@ -181,11 +181,11 @@ export default function Cashier() {
   const todayReceipts = receipts.filter((r) => (r.date || todayKey) === todayKey && (r.status === 'paid' || r.status === 'completed'))
   const todayExpenses = expenses.filter((e) => (e.date || todayKey) === todayKey)
   const currentMonthReceipts = receipts.filter((r) => (r.date || '').slice(0, 7) === todayKey.slice(0, 7))
-  const totalIncome = currentMonthReceipts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0)
+  const _totalIncome = currentMonthReceipts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0)
   const debts = receipts.filter((r) => r.paymentType === 'credit' || r.status === 'debt')
   const debtBalance = debts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0)
-  const todayRevenue = todayReceipts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0)
-  const todayExpenseAmount = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+  const _todayRevenue = todayReceipts.reduce((s, r) => s + (r.total || Number(r.amount) || 0), 0)
+  const _todayExpenseAmount = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
 
   const unpaidAppointments = useMemo(() => {
     let list = appointments.filter(a => a.paymentStatus !== 'paid' && a.status !== 'cancelled')
