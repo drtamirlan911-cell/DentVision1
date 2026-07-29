@@ -65,6 +65,7 @@ import { diagnosticsRouter } from './modules/diagnostics/diagnostics.routes.js';
 import { legalRouter } from './modules/legal/legal.routes.js';
 import { legalPartnerRouter } from './modules/legal/legal.partner.routes.js';
 import { webhookGatewayRouter } from './modules/ai-admin/index.js';
+import { metaRouter } from './modules/meta-oauth/meta.routes.js';
 import compatRouter from './compat/compatRouter.js';
 import { registerSubscribers } from './events/subscribers.js';
 
@@ -233,6 +234,7 @@ app.use('/api/partner/legal', legalPartnerRouter);
 app.use('/api/finance', financeRouter);
 app.use('/api/disputes', disputesRouter);
 app.use('/api/ai-admin/webhook', webhookGatewayRouter);
+app.use('/api/meta', metaRouter);
 
 // ─── Error Handling ───
 app.use(notFound);

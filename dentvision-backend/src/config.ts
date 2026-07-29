@@ -50,6 +50,8 @@ const envSchema = z.object({
   REMINDER_CRON_MS: z.coerce.number().default(900000),
   /** Meta App Secret for WhatsApp/Instagram webhook signature verification. */
   META_APP_SECRET: z.string().min(10).optional(),
+  /** Meta App ID for OAuth Embedded Signup. */
+  META_APP_ID: z.string().optional(),
   /** Max conversation history messages sent to LLM. */
   AI_ADMIN_MAX_HISTORY: z.coerce.number().default(20),
 });
