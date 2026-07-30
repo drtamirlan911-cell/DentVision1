@@ -318,10 +318,15 @@ export default function Schedule() {
 
   const handleCreatePatient = async (): Promise<Patient | null> => {
     if (!newPatient.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return null }
-    const patientData = { ...newPatient, id: gid(), clinicId: clinic?.id, category: 'new' as const }
-    const created = await upsertPatient(patientData as Partial<Patient>)
-    showToast('Пациент добавлен', 'success')
-    return created
+    try {
+      const patientData = { ...newPatient, id: gid(), clinicId: clinic?.id, category: 'new' as const }
+      const created = await upsertPatient(patientData as Partial<Patient>)
+      showToast('Пациент добавлен', 'success')
+      return created
+    } catch (err: any) {
+      showToast(err?.message || 'Ошибка создания пациента', 'error')
+      return null
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
@@ -654,7 +659,7 @@ export default function Schedule() {
   const handlePromoteFromWait = async (w: any): Promise<void> => {
     setForm({ ...EMPTY_FORM, patientId: w.patientId || w.patient_id || '', doctorId: w.doctorId || w.doctor_id || '', time: w.preferredTime || w.preferred_time || '09:00', service: w.preferredService || w.preferred_service || '' })
     setShowNewPatient(false); setModalOpen(true)
-    await deleteWaitingListItem(w.id)
+    try { await deleteWaitingListItem(w.id) } catch { /* non-fatal */ }
     showToast('Перенесён в форму записи', 'info')
   }
 
