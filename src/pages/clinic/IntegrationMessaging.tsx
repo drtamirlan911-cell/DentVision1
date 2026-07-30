@@ -30,7 +30,7 @@ export default function IntegrationsMessaging() {
   const loadStatus = useCallback(async () => {
     if (!clinicId) return
     try {
-      const res = await apiRequest(`/meta/status?clinicId=${clinicId}`)
+      const res = await apiRequest(`/api/meta/status?clinicId=${clinicId}`)
       if (res.ok) setStatus(res.data)
     } catch {
       setError('Failed to load status')
@@ -45,7 +45,7 @@ export default function IntegrationsMessaging() {
     if (!clinicId) return
     setLoading(true)
     setError(null)
-    apiRequest(`/meta/connect?clinicId=${clinicId}&channel=${channel}`)
+    apiRequest(`/api/meta/connect?clinicId=${clinicId}&channel=${channel}`)
       .then((res) => {
         if (res.ok && res.data?.url) {
           window.open(res.data.url, 'meta-connect', 'width=700,height=700')
@@ -60,7 +60,7 @@ export default function IntegrationsMessaging() {
   const handleDisconnect = async (channel: string) => {
     if (!clinicId || !confirm('Отключить интеграцию? История сообщений будет сохранена.')) return
     try {
-      await apiRequest(`/meta/disconnect/${channel}?clinicId=${clinicId}`, { method: 'DELETE' })
+      await apiRequest(`/api/meta/disconnect/${channel}?clinicId=${clinicId}`, { method: 'DELETE' })
       await loadStatus()
     } catch {
       setError('Failed to disconnect')
