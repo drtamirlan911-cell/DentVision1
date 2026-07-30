@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   FlaskConical, FileText, Clock, CheckCircle, XCircle, Search,
   PlayCircle, Activity, RefreshCw, Eye, DollarSign, Save, Building2,
+  Sparkles, Upload,
 } from 'lucide-react';
 import { Tabs } from '@/components/ui/ds/Misc';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
@@ -12,6 +13,8 @@ import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { Textarea } from '@/components/ui/ds/Input';
+import { useToast } from '@/components/ui/ds/Toast';
 import { queryKeys } from '@/queries/keys';
 import { useAuth } from '@/store/auth.store';
 import * as api from '@/utils/api';
@@ -34,6 +37,11 @@ function LabReferralsTab({ labId }: { labId: string }) {
   const [costModal, setCostModal] = useState<string | null>(null);
   const [costValue, setCostValue] = useState('');
   const [feeValue, setFeeValue] = useState('');
+  const [resultModal, setResultModal] = useState<string | null>(null);
+  const [reportText, setReportText] = useState('');
+  const [conclusion, setConclusion] = useState('');
+  const [resultFiles, setResultFiles] = useState<File[]>([]);
+  const toast = useToast();
 
   const { data: referralsData, isLoading, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ labId, status: statusFilter, search, limit: '100' }),
@@ -48,6 +56,32 @@ function LabReferralsTab({ labId }: { labId: string }) {
     mutationFn: ({ id, status, cost, platformFee }: { id: string; status: string; cost?: number; platformFee?: number }) =>
       api.changeDiagnosticReferralStatus(id, status, undefined, { cost, platformFee }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['diagnostics'] }); refetch(); setCostModal(null); },
+  });
+
+  const aiMutation = useMutation({
+    mutationFn: (referralId: string) => api.aiGenerateDiagnosticResult(referralId),
+    onSuccess: (res: any) => { setReportText(res?.data?.reportText || ''); toast.success('AI-заключение сгенерировано'); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const signMutation = useMutation({
+    mutationFn: async (referralId: string) => {
+      await api.signDiagnosticResult(referralId, reportText, conclusion || undefined);
+      for (const file of resultFiles) {
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+        await api.uploadDiagnosticFile({ referralId, fileName: file.name, fileData: base64, fileType: file.type, fileSize: file.size });
+      }
+    },
+    onSuccess: (_, referralId) => {
+      statusMutation.mutate({ id: referralId, status: 'COMPLETED' });
+      setResultModal(null); setReportText(''); setConclusion(''); setResultFiles([]);
+      toast.success('Результат отправлен');
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const handleAccept = (id: string) => {
@@ -156,7 +190,7 @@ function LabReferralsTab({ labId }: { labId: string }) {
                             <Button size="xs" variant="primary" onClick={() => statusMutation.mutate({ id: r.id, status: 'IN_PROGRESS' })}>Начать</Button>
                           )}
                           {r.status === 'IN_PROGRESS' && (
-                            <Button size="xs" variant="primary" onClick={() => statusMutation.mutate({ id: r.id, status: 'COMPLETED', cost: Number(r.cost) || undefined })}>Завершить</Button>
+                            <Button size="xs" variant="primary" onClick={() => { setResultModal(r.id); setReportText(''); setConclusion(''); setResultFiles([]); }}>Результат</Button>
                           )}
                           <Button size="xs" variant="ghost" icon={<Eye size={14} />} aria-label="View" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} />
                         </div>
@@ -186,6 +220,47 @@ function LabReferralsTab({ labId }: { labId: string }) {
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="ghost" size="sm" onClick={() => setCostModal(null)}>Отмена</Button>
                 <Button variant="primary" size="sm" onClick={() => handleAccept(costModal)} disabled={!costValue || parseFloat(costValue) <= 0}>Принять</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Result modal */}
+      {resultModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setResultModal(null)}>
+          <Card padding="lg" className="max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e: any) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-txt-primary mb-4">Отправить результат</h3>
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-txt-muted">Заключение / Описание результата</label>
+                  <Button variant="ghost" size="xs" icon={<Sparkles size={12} />} onClick={() => aiMutation.mutate(resultModal)} loading={aiMutation.isPending}>AI</Button>
+                </div>
+                <Textarea value={reportText} onChange={(e) => setReportText(e.target.value)} rows={6} placeholder="Введите заключение или сгенерируйте AI" />
+              </div>
+              <div>
+                <label className="text-xs text-txt-muted block mb-1">Вывод (опционально)</label>
+                <Textarea value={conclusion} onChange={(e) => setConclusion(e.target.value)} rows={2} placeholder="Краткий вывод" />
+              </div>
+              <div>
+                <label className="text-xs text-txt-muted block mb-1">Файлы результатов</label>
+                <div className="border border-dashed border-bdr-subtle rounded-lg p-4 text-center">
+                  <input type="file" multiple accept="image/*,.pdf,.dcm" onChange={(e) => setResultFiles(Array.from(e.target.files || []))} className="hidden" id="result-files" />
+                  <label htmlFor="result-files" className="cursor-pointer flex flex-col items-center gap-1 text-txt-muted hover:text-txt-primary">
+                    <Upload size={24} className="opacity-40" />
+                    <span className="text-xs">Нажмите для загрузки файлов</span>
+                  </label>
+                  {resultFiles.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {resultFiles.map((f, i) => <Badge key={i} variant="outline" size="sm">{f.name}</Badge>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" size="sm" onClick={() => setResultModal(null)}>Отмена</Button>
+                <Button variant="primary" size="sm" onClick={() => signMutation.mutate(resultModal)} loading={signMutation.isPending} disabled={!reportText}>Отправить результат</Button>
               </div>
             </div>
           </Card>
