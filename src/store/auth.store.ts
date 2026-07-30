@@ -90,8 +90,8 @@ export const PLATFORM_ROLES: Record<string, RoleConfig> = {
   },
   support: { label: 'Поддержка', icon: '🛟', pages: ['admin', 'analytics', 'settings', 'profile'] },
   developer: { label: 'Разработчик', icon: '🛠️', pages: ['admin', 'quality', 'analytics', 'settings', 'audit', 'backup', 'profile', 'security'] },
-  user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs'] },
-  verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs'] },
+  user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },
+  verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },
 }
 
 /** Clinic settings ACL: Руководитель (owner/director) + Администратор. */
