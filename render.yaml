@@ -31,5 +31,15 @@ services:
         value: "https://dent-vision1.vercel.app,http://localhost:5173"
       - key: OPENAI_API_KEY
         sync: false
+      - key: PUBLIC_API_URL
+        value: "https://dentvision-api.onrender.com"
+      - key: FRONTEND_URL
+        value: "https://dent-vision1.vercel.app"
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_WEBHOOK_VERIFY_TOKEN
+        sync: false
       - key: KASPI_CALLBACK_SECRET
         sync: false

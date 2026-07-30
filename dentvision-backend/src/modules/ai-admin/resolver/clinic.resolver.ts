@@ -5,6 +5,7 @@ interface ClinicContext {
   clinicId: string
   configId: string
   accessToken: string
+  phoneNumberId?: string | null
 }
 
 const cache = new Map<string, { data: ClinicContext; expiresAt: number }>()
@@ -30,6 +31,7 @@ export async function resolveClinic(
       id: true,
       clinicId: true,
       accessToken: true,
+      phoneNumberId: true,
     },
   })
 
@@ -39,6 +41,7 @@ export async function resolveClinic(
     clinicId: config.clinicId,
     configId: config.id,
     accessToken: config.accessToken,
+    phoneNumberId: config.phoneNumberId,
   }
 
   cache.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL })

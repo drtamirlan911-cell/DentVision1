@@ -52,6 +52,8 @@ const envSchema = z.object({
   META_APP_SECRET: z.string().min(10).optional(),
   /** Meta App ID for OAuth Embedded Signup. */
   META_APP_ID: z.string().optional(),
+  /** Shared webhook verify token for Meta — if set, overrides per-clinic tokens. */
+  META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
   /** Max conversation history messages sent to LLM. */
   AI_ADMIN_MAX_HISTORY: z.coerce.number().default(20),
 });

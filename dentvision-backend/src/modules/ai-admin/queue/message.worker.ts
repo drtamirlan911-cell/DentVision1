@@ -27,6 +27,12 @@ export function startMessageWorker(): void {
         return
       }
 
+      // Auto-refresh token if nearing expiry before processing message
+      try {
+        const { refreshTokenIfNeeded } = await import('../../meta-oauth/meta.service.js')
+        await refreshTokenIfNeeded(clinicCtx.clinicId)
+      } catch { /* non-fatal */ }
+
       const session = await getOrCreateSession({
         clinicId: clinicCtx.clinicId,
         configId: clinicCtx.configId,
@@ -48,6 +54,7 @@ export function startMessageWorker(): void {
         externalUserId: msg.externalUserId,
         text: result.responseText,
         accessToken: clinicCtx.accessToken,
+        phoneNumberId: clinicCtx.phoneNumberId,
       })
 
       await logAudit({

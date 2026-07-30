@@ -110,7 +110,7 @@ export async function handleMetaCallback(
     expiresAt,
     webhookSubscribed,
     isActive: true,
-    verifyToken: uid(), // авто-генерация verify token
+    verifyToken: env.META_WEBHOOK_VERIFY_TOKEN || uid(),
   }
 
   const config = existing

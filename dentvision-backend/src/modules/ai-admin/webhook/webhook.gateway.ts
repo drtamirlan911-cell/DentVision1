@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import prisma from '../../../lib/prisma.js'
+import { env } from '../../../config.js'
 import { validateWhatsAppSignature } from './webhook.validator.js'
 import { normalizeWhatsApp } from './whatsapp.adapter.js'
 import { normalizeInstagram } from './instagram.adapter.js'
@@ -8,6 +9,10 @@ import { enqueueMessage } from '../queue/message.queue.js'
 export const webhookGatewayRouter = Router()
 
 async function verifyWebhookToken(token: string, channel: string): Promise<boolean> {
+  // Shared token overrides per-clinic tokens (simpler for Meta app setup)
+  if (env.META_WEBHOOK_VERIFY_TOKEN && token === env.META_WEBHOOK_VERIFY_TOKEN) {
+    return true
+  }
   const config = await prisma.clinicMessengerConfig.findFirst({
     where: { channel: channel as any, verifyToken: token, isActive: true },
     select: { id: true },

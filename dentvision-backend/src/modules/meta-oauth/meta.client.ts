@@ -6,7 +6,7 @@ const META_OAUTH_URL = 'https://www.facebook.com/v20.0/dialog/oauth'
 export function buildOAuthUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: env.META_APP_ID || '',
-    redirect_uri: `${env.FRONTEND_URL || env.CORS_ORIGIN || 'http://localhost:5173'}/integrations/messaging/callback`,
+    redirect_uri: `${env.PUBLIC_API_URL || 'http://localhost:3001'}/api/meta/callback`,
     state,
     scope: [
       'whatsapp_business_management',

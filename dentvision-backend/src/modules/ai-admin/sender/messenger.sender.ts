@@ -7,6 +7,7 @@ interface SendParams {
   externalUserId: string
   text: string
   accessToken: string
+  phoneNumberId?: string | null
 }
 
 export async function sendMessage(params: SendParams): Promise<void> {
