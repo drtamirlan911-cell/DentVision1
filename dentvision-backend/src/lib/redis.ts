@@ -1,12 +1,34 @@
 import { Redis } from 'ioredis'
 import { env } from '../config.js'
 
-export const redis = new Redis(env.REDIS_URL || 'redis://localhost:6379', {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-  lazyConnect: true,
-})
+let _redis: Redis | null = null
 
-redis.on('error', (err: Error) => {
-  console.warn('[redis] Connection error (non-fatal):', err.message)
-})
+export function getRedis(): Redis | null {
+  if (_redis) return _redis
+
+  const url = env.REDIS_URL || ''
+  // Only connect if there's a real Redis URL (not localhost default)
+  if (!url || url.includes('localhost') || url.includes('127.0.0.1')) {
+    return null
+  }
+
+  try {
+    _redis = new Redis(url, {
+      maxRetriesPerRequest: 3,
+      enableReadyCheck: false,
+      lazyConnect: true,
+      retryStrategy(times) {
+        if (times > 3) return null // stop retrying after 3 attempts
+        return Math.min(times * 1000, 3000)
+      },
+    })
+
+    _redis.on('error', () => {
+      // silently ignore — production may not have Redis
+    })
+
+    return _redis
+  } catch {
+    return null
+  }
+}
