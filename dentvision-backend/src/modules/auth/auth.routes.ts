@@ -915,8 +915,6 @@ authRouter.get('/my-clinics', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-const resetTokens = new Map<string, { email: string; expiresAt: Date }>();
-
 authRouter.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body as { email: string };
@@ -930,9 +928,17 @@ authRouter.post('/forgot-password', async (req, res) => {
 
     if (user) {
       const token = crypto.randomBytes(32).toString('hex');
-      resetTokens.set(token, { email: normalizedEmail, expiresAt: new Date(Date.now() + 60 * 60 * 1000) });
+      // Clean old tokens for this user
+      await prisma.passwordReset.deleteMany({ where: { userId: user.id } });
+      // Create new token
+      await prisma.passwordReset.create({
+        data: {
+          userId: user.id,
+          token,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      });
 
-      // Token logged only in development
       if (process.env.NODE_ENV !== 'production') {
         console.log(`[Password Reset] Token for ${normalizedEmail}: ${token}`);
       }
@@ -957,13 +963,17 @@ authRouter.post('/reset-password', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Токен и новый пароль обязательны' });
     }
 
-    const entry = resetTokens.get(token);
+    const entry = await prisma.passwordReset.findFirst({
+      where: { token },
+      include: { user: { select: { email: true } } },
+    });
+
     if (!entry) {
       return res.status(400).json({ ok: false, error: 'Невалидный или истекший токен' });
     }
 
     if (entry.expiresAt < new Date()) {
-      resetTokens.delete(token);
+      await prisma.passwordReset.delete({ where: { id: entry.id } });
       return res.status(400).json({ ok: false, error: 'Токен истек' });
     }
 
@@ -974,11 +984,11 @@ authRouter.post('/reset-password', async (req, res) => {
 
     const hashedPassword = await hashPassword(password);
     await prisma.user.update({
-      where: { email: entry.email },
+      where: { email: entry.user.email },
       data: { password: hashedPassword },
     });
 
-    resetTokens.delete(token);
+    await prisma.passwordReset.delete({ where: { id: entry.id } });
 
     const response: ApiResponse = {
       ok: true,

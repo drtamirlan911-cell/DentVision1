@@ -163,6 +163,7 @@ model User {
   uploadedMedicalFiles          MedicalFileAccess[]      @relation("UploadedFiles")
   viewedMedicalFiles            MedicalFileAccess[]      @relation("ViewedFiles")
   downloadedMedicalFiles        MedicalFileAccess[]      @relation("DownloadedFiles")
+  passwordResets                PasswordReset[]
   aiActionLogs                  AIActionLog[]            @relation("UserActions")
   confirmedAiActions            AIActionLog[]            @relation("ConfirmedActions")
   jobVacancies                  JobVacancy[]
@@ -2991,4 +2992,18 @@ model PersonRole {
   @@index([personId])
   @@index([roleId])
   @@map("person_roles")
+}
+
+model PasswordReset {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("password_resets")
 }

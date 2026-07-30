@@ -453,20 +453,13 @@ diagnosticsRouter.get('/laboratories/:id/payments', async (req: AuthRequest, res
 
 // ─── Commission Rules ───
 
-interface CommissionRule {
-  id: string;
-  centerId?: string;
-  labId?: string;
-  percentBps: number;
-  description?: string;
-  createdAt: Date;
-}
-
-const commissionRulesStore: CommissionRule[] = [];
-
 diagnosticsRouter.get('/commission-rules', requireSuperadmin, async (_req: AuthRequest, res) => {
   try {
-    return res.json({ ok: true, data: commissionRulesStore } satisfies ApiResponse);
+    const rules = await (prisma as any).commissionRule.findMany({
+      where: { domain: 'diagnostics' },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json({ ok: true, data: rules } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
@@ -478,15 +471,15 @@ diagnosticsRouter.post('/commission-rules', requireSuperadmin, async (req: AuthR
     if (typeof percentBps !== 'number') {
       return res.status(400).json({ ok: false, error: 'percentBps required' } satisfies ApiResponse);
     }
-    const rule: CommissionRule = {
-      id: crypto.randomUUID(),
-      centerId,
-      labId,
-      percentBps,
-      description,
-      createdAt: new Date(),
-    };
-    commissionRulesStore.push(rule);
+    const scopeId = centerId || labId || null;
+    const rule = await (prisma as any).commissionRule.create({
+      data: {
+        domain: 'diagnostics',
+        scopeId,
+        percentBps,
+        splitJson: description ? { description } : undefined,
+      },
+    });
     return res.json({ ok: true, data: rule } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);

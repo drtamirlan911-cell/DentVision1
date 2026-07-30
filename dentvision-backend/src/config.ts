@@ -17,10 +17,10 @@ const envSchema = z.object({
   S3_SECRET_KEY: z.string().optional(),
   ENCRYPTION_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().min(20).optional(),
-  /** Frontier / full model — ~250k free tok/day pool. Used only for hard clinic tasks. */
-  OPENAI_MODEL: z.string().default('gpt-5.4'),
-  /** Cheap default — ~2.5M free tok/day pool. Most traffic should stay here. */
-  OPENAI_MODEL_MINI: z.string().default('gpt-5.4-mini'),
+  /** Frontier / full model — GPT-4o. Used for complex tasks: diagnostics, legal, BI. */
+  OPENAI_MODEL: z.string().default('gpt-4o'),
+  /** Cheap default — GPT-4o-mini. Used for chat, simple queries. */
+  OPENAI_MODEL_MINI: z.string().default('gpt-4o-mini'),
   /** auto = cheap-first router; mini/full = force one tier. */
   OPENAI_MODEL_MODE: z.enum(['auto', 'mini', 'full']).default('auto'),
   /** Soft in-process daily budgets (approx tokens). Leave headroom vs provider caps. */
