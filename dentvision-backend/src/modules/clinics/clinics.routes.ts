@@ -11,6 +11,7 @@ import {
   type ClinicSettingsPayload,
 } from './clinicSettings.js';
 import { guardUserCreate } from '../../middleware/planGate.js';
+import { syncPersonFromClinicMember, removePersonFromClinicMember } from '../../lib/syncMembership.js';
 
 export const clinicsRouter = Router();
 
@@ -126,11 +127,34 @@ clinicsRouter.get('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
     }
 
+    // Fetch unified Persons for this clinic's org
+    const org = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinic.id },
+      select: { id: true },
+    });
+    const persons = org
+      ? await prisma.person.findMany({
+          where: { organizationId: org.id },
+          select: {
+            id: true,
+            fullName: true,
+            personType: true,
+            specialization: true,
+            phone: true,
+            userId: true,
+            roles: {
+              select: { role: { select: { name: true, key: true } } },
+            },
+          },
+        })
+      : [];
+
     const response: ApiResponse = {
       ok: true,
       data: {
         ...clinic,
         settings: publicClinicSettings(clinic.settings, clinic.id),
+        persons,
       },
     };
 
@@ -494,7 +518,7 @@ clinicsRouter.post('/:id/staff', authenticate, guardUserCreate, async (req: Auth
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, spec: true, avatar: true } },
       },
-    });
+    }); await syncPersonFromClinicMember(clinicId, user.id, role);
 
     return res.status(201).json({ ok: true, data: member });
   } catch (error) {
@@ -567,7 +591,7 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest,
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, spec: true, avatar: true } },
       },
-    });
+    }); await syncPersonFromClinicMember(clinicId, userId, role || member.role);
 
     return res.json({ ok: true, data: updated });
   } catch (error) {
@@ -632,6 +656,7 @@ clinicsRouter.delete('/:id/staff/:userId', authenticate, async (req: AuthRequest
       }
     }
 
+    await removePersonFromClinicMember(clinicId, resolvedUserId);
     await prisma.clinicMember.delete({
       where: { userId_clinicId: { userId: resolvedUserId, clinicId } },
     });

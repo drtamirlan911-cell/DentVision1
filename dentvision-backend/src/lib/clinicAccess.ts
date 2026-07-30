@@ -1,5 +1,6 @@
 import type { Response } from 'express';
 import type { AuthRequest, ApiResponse } from '../types/index.js';
+import { getClinicId } from './orgContext.js';
 
 /** Guests never get clinic-scoped CRM / files access. */
 export function denyGuest(req: AuthRequest, res: Response): boolean {
@@ -8,6 +9,22 @@ export function denyGuest(req: AuthRequest, res: Response): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Resolve effective clinic scope — checks organizationId (CLINIC type) first,
+ * then falls back to legacy clinicId from JWT.
+ */
+export function resolveScopeId(req: AuthRequest): string | null {
+  const user = req.user;
+  if (!user) return null;
+
+  // Unified: if org is a CLINIC, its id is the clinic scope
+  const clinicFromOrg = getClinicId(user);
+  if (clinicFromOrg) return clinicFromOrg;
+
+  // Legacy fallback
+  return user.clinicId || null;
 }
 
 /**
@@ -22,7 +39,7 @@ export function requireClinicScope(
   if (denyGuest(req, res)) return null;
 
   const role = String(req.user?.role || '').toUpperCase();
-  const tokenClinic = req.user?.clinicId || null;
+  const tokenClinic = resolveScopeId(req);
   const paramClinic = opts?.paramClinicId || null;
 
   if (role === 'SUPERADMIN') {
@@ -60,7 +77,7 @@ export function assertSameClinic(
   const role = String(req.user?.role || '').toUpperCase();
   if (role === 'SUPERADMIN') return true;
 
-  const tokenClinic = req.user?.clinicId;
+  const tokenClinic = resolveScopeId(req);
   if (!tokenClinic) {
     res.status(403).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' } satisfies ApiResponse);
     return false;
