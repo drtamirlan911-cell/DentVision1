@@ -3,6 +3,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { generateTokens } from '../../lib/jwt.js';
 import { permissionsForRole } from '../../lib/permissions.js';
+import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // IAM module (Phase 2). Exposes the server-side permission model to clients so
@@ -234,6 +235,65 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('IAM switch-context error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при переключении контекста' } satisfies ApiResponse);
+  }
+});
+
+// GET /api/iam/roles — list all available roles
+iamRouter.get('/roles', async (_req: AuthRequest, res) => {
+  try {
+    const roles = await prisma.role.findMany({
+      include: { _count: { select: { permissions: true } } },
+      orderBy: { name: 'asc' },
+    });
+    return res.json({ ok: true, data: roles } satisfies ApiResponse);
+  } catch (error) {
+    console.error('IAM roles error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить роли' } satisfies ApiResponse);
+  }
+});
+
+// POST /api/iam/persons/:personId/roles — assign a role to a person
+iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
+  try {
+    const { personId } = req.params;
+    const { roleId, scopeType, scopeId } = req.body as { roleId: string; scopeType?: string; scopeId?: string };
+
+    const person = await prisma.person.findUnique({ where: { id: personId } });
+    if (!person) {
+      return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
+    }
+
+    const role = await prisma.role.findUnique({ where: { id: roleId } });
+    if (!role) {
+      return res.status(404).json({ ok: false, error: 'Роль не найдена' } satisfies ApiResponse);
+    }
+
+    const assignment = await prisma.personRole.upsert({
+      where: { personId_roleId: { personId, roleId } },
+      update: { scopeType, scopeId },
+      create: { id: uid(), personId, roleId, scopeType, scopeId },
+    });
+
+    return res.status(201).json({ ok: true, data: assignment } satisfies ApiResponse);
+  } catch (error) {
+    console.error('IAM assign role error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось назначить роль' } satisfies ApiResponse);
+  }
+});
+
+// DELETE /api/iam/persons/:personId/roles/:roleId — remove a role assignment
+iamRouter.delete('/persons/:personId/roles/:roleId', async (req: AuthRequest, res) => {
+  try {
+    const { personId, roleId } = req.params;
+
+    await prisma.personRole.deleteMany({
+      where: { personId, roleId },
+    });
+
+    return res.json({ ok: true, data: null } satisfies ApiResponse);
+  } catch (error) {
+    console.error('IAM remove role error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось удалить роль' } satisfies ApiResponse);
   }
 });
 

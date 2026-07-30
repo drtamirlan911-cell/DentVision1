@@ -2490,3 +2490,18 @@ export async function deletePerson(id: string): Promise<any> {
 export async function getOrganizationTypes(): Promise<any> {
   return apiRequest('/api/iam/types');
 }
+
+export async function getRoles(): Promise<any> {
+  return apiRequest('/api/iam/roles');
+}
+
+export async function assignPersonRole(personId: string, roleId: string, scopeType?: string, scopeId?: string): Promise<any> {
+  return apiRequest(`/api/iam/persons/${personId}/roles`, {
+    method: 'POST',
+    body: JSON.stringify({ roleId, scopeType, scopeId }),
+  });
+}
+
+export async function removePersonRole(personId: string, roleId: string): Promise<any> {
+  return apiRequest(`/api/iam/persons/${personId}/roles/${roleId}`, { method: 'DELETE' });
+}
