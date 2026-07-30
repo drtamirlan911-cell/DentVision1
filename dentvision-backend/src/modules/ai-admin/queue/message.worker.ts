@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq'
-import { redis } from '../../../lib/redis.js'
+import { getRedis } from '../../../lib/redis.js'
 import { resolveClinic } from '../resolver/clinic.resolver.js'
 import { getOrCreateSession } from '../conversation/conversation.manager.js'
 import { buildContext } from '../context/context.builder.js'
@@ -9,6 +9,12 @@ import { logAudit } from '../audit/audit.logger.js'
 import type { NormalizedMessage } from '../webhook/types.js'
 
 export function startMessageWorker(): void {
+  const redis = getRedis()
+  if (!redis) {
+    console.log('[ai-admin] Redis unavailable — worker skipped (webhooks will be accepted but not processed)')
+    return
+  }
+
   const worker = new Worker<NormalizedMessage>(
     'ai-admin-messages',
     async (job) => {
@@ -57,7 +63,7 @@ export function startMessageWorker(): void {
     },
     {
       connection: redis,
-      concurrency: 10,
+      concurrency: 3,
     },
   )
 
