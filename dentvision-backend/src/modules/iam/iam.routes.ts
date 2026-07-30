@@ -167,7 +167,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
   }
 });
 
-// Switch active workspace context — supports both legacy and unified scopes.
+// Switch active workspace context — unified: any org type, with legacy fallback.
 iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
   try {
     const { scopeType, scopeId } = req.body as { scopeType: string; scopeId?: string };
@@ -179,59 +179,59 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
 
     const base = { sub: user.id, email: user.email, role: user.role };
 
-    // Legacy CLINIC switch
-    if (scopeType === 'CLINIC') {
-      const membership = await prisma.clinicMember.findUnique({
-        where: { userId_clinicId: { userId: user.id, clinicId: scopeId } },
-      });
-      if (!membership) {
-        return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' } satisfies ApiResponse);
-      }
-      const tokens = generateTokens({ ...base, role: membership.role, clinicId: scopeId });
-      return res.json({ ok: true, data: tokens } satisfies ApiResponse);
-    }
-
-    if (scopeType === 'SUPPLIER') {
-      const member = await prisma.supplierMember.findUnique({
-        where: { userId_supplierId: { userId: user.id, supplierId: scopeId } },
-      });
-      if (!member) {
-        return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этого поставщика' } satisfies ApiResponse);
-      }
-      const tokens = generateTokens({ ...base, supplierId: scopeId, supplierRole: member.role });
-      return res.json({ ok: true, data: tokens } satisfies ApiResponse);
-    }
-
-    if (scopeType === 'LECTURER') {
-      const lecturer = await prisma.lecturer.findFirst({
-        where: { id: scopeId, userId: user.id },
-      });
-      if (!lecturer) {
-        return res.status(403).json({ ok: false, error: 'Лекторский профиль не найден' } satisfies ApiResponse);
-      }
-      const tokens = generateTokens({ ...base, lecturerId: scopeId });
-      return res.json({ ok: true, data: tokens } satisfies ApiResponse);
-    }
-
-    // New unified organization switch by type
+    // 1) Try unified Organization first (any type)
     const org = await prisma.organization.findUnique({ where: { id: scopeId } });
     if (org) {
       const person = await prisma.person.findFirst({
         where: { userId: user.id, organizationId: scopeId },
       });
-      if (!person) {
-        return res.status(403).json({ ok: false, error: 'У вас нет доступа к этой организации' } satisfies ApiResponse);
+      if (person) {
+        const tokens = generateTokens({
+          ...base,
+          organizationId: scopeId,
+          organizationType: org.type,
+          personType: person.personType,
+          // Legacy compat: if CLINIC, also set clinicId
+          ...(org.type === 'CLINIC' ? { clinicId: scopeId } : {}),
+        });
+        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
-      const tokens = generateTokens({
-        ...base,
-        organizationId: scopeId,
-        organizationType: org.type,
-        personType: person.personType,
-      });
-      return res.json({ ok: true, data: tokens } satisfies ApiResponse);
     }
 
-    return res.status(400).json({ ok: false, error: 'Неизвестный тип контекста' } satisfies ApiResponse);
+    // 2) Legacy CLINIC switch (for users without Person record yet)
+    if (scopeType === 'CLINIC') {
+      const membership = await prisma.clinicMember.findUnique({
+        where: { userId_clinicId: { userId: user.id, clinicId: scopeId } },
+      });
+      if (membership) {
+        const tokens = generateTokens({ ...base, role: membership.role, clinicId: scopeId });
+        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+      }
+    }
+
+    // 3) Legacy SUPPLIER switch
+    if (scopeType === 'SUPPLIER') {
+      const member = await prisma.supplierMember.findUnique({
+        where: { userId_supplierId: { userId: user.id, supplierId: scopeId } },
+      });
+      if (member) {
+        const tokens = generateTokens({ ...base, supplierId: scopeId, supplierRole: member.role });
+        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+      }
+    }
+
+    // 4) Legacy LECTURER switch
+    if (scopeType === 'LECTURER') {
+      const lecturer = await prisma.lecturer.findFirst({
+        where: { id: scopeId, userId: user.id },
+      });
+      if (lecturer) {
+        const tokens = generateTokens({ ...base, lecturerId: scopeId });
+        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+      }
+    }
+
+    return res.status(403).json({ ok: false, error: 'У вас нет доступа к этому контексту' } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM switch-context error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при переключении контекста' } satisfies ApiResponse);
