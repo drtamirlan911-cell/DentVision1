@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "prisma migrate deploy && npx tsx src/index.ts",
+    "start": "tsx src/scripts/migrate-with-retry.ts && npx tsx src/index.ts",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
