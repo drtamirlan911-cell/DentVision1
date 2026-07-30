@@ -15,6 +15,7 @@ const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword')
 const PublicBooking = lazyWithRetry(() => import('./pages/auth/PublicBooking'));
 const DocumentSign = lazyWithRetry(() => import('./pages/auth/DocumentSign'));
 const DiagnosticsRegister = lazyWithRetry(() => import('./pages/DiagnosticsRegister'));
+const PatientPortal = lazyWithRetry(() => import('./pages/patient-portal/PatientPortal'));
 import './styles/global.css';
 import { reportWebVitals } from './utils/vitals';
 
@@ -129,6 +130,7 @@ if (container) {
                 <Route path="/book/:clinicId" element={<Suspense fallback={<PageLoader />}><PublicBooking /></Suspense>} />
                 <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><DocumentSign /></Suspense>} />
                 <Route path="/register-diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsRegister /></Suspense>} />
+                <Route path="/patient-portal" element={<Suspense fallback={<PageLoader />}><PatientPortal /></Suspense>} />
 
                 {/* Workspace selection (no active clinic) */}
                 <Route path="/my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />

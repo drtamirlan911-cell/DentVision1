@@ -80,6 +80,9 @@ export function PaymentQrPanel({
                 <QrCode size={18} />
                 <p className="text-sm md:text-base font-semibold m-0">Счёт создан</p>
                 <Badge variant="outline">Ожидает оплаты</Badge>
+                {payment?.externalId?.startsWith('kaspi_') && (
+                  <Badge variant="filled" className="bg-yellow-600/20 text-yellow-600 text-2xs">ТЕСТ</Badge>
+                )}
               </div>
               <p className="text-sm text-txt-primary m-0 font-medium truncate">{heading}</p>
               {amountLabel && (

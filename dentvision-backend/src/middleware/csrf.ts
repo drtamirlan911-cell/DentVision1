@@ -16,7 +16,7 @@ export function setCsrfCookie(res: Response): string {
   return token;
 }
 
-const SKIP_PATHS = ['/api/auth/', '/api/public/', '/api/health', '/api/diagnostics/register'];
+const SKIP_PATHS = ['/api/auth/', '/api/public/', '/api/health', '/api/diagnostics/register', '/api/patient-portal/login'];
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
   if (SAFE_METHODS.has(req.method)) return next();
   if (SKIP_PATHS.some((p) => req.path.startsWith(p))) return next();
