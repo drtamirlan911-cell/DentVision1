@@ -20,9 +20,16 @@ const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
 export type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
 
+export interface ContentPart {
+  type: 'text' | 'image';
+  text?: string;
+  image_url?: { url: string; detail?: string };
+}
+
 export interface ChatMessage {
   role: MessageRole;
   content: string;
+  imageUrl?: string;
   tool_call_id?: string;
   name?: string;
 }
@@ -90,12 +97,21 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
     instructions: request.messages.find((m) => m.role === 'system')?.content || '',
     input: request.messages
       .filter((m) => m.role !== 'system')
-      .map((m) => ({
-        role: m.role,
-        content: m.content,
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-        ...(m.name ? { name: m.name } : {}),
-      })),
+      .map((m) => {
+        const hasImage = !!m.imageUrl;
+        const content = hasImage
+          ? [
+              ...(m.content ? [{ type: 'input_text', text: m.content }] : []),
+              { type: 'input_image', image_url: m.imageUrl },
+            ]
+          : m.content;
+        return {
+          role: m.role,
+          content,
+          ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+          ...(m.name ? { name: m.name } : {}),
+        };
+      }),
     reasoning: { effort: choice.reasoningEffort },
     max_output_tokens: request.maxTokens || choice.maxOutputTokens,
   };
