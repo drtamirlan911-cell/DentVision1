@@ -35,15 +35,12 @@ async function resolveFailedMigrations() {
     if (result.length > 0) {
       console.log(`Found ${result.length} potentially failed migration(s):`, result.map(r => r.migration_name));
       for (const m of result) {
-        console.log(`Resolving failed migration: ${m.migration_name}`);
+        console.log(`Force-deleting failed migration record: ${m.migration_name}`);
         try {
-          execSync(`prisma migrate resolve --rolled-back "${m.migration_name}"`, {
-            stdio: 'inherit',
-            env: process.env,
-          });
-          console.log(`Resolved: ${m.migration_name}`);
+          await prisma.$executeRawUnsafe(`DELETE FROM "_prisma_migrations" WHERE migration_name = $1`, m.migration_name);
+          console.log(`Deleted: ${m.migration_name}`);
         } catch (e) {
-          console.error(`Failed to resolve ${m.migration_name}:`, e);
+          console.error(`Failed to delete ${m.migration_name}:`, e);
         }
       }
     } else {
