@@ -5,7 +5,7 @@ import {
   Input, Select, EmptyState, Skeleton, Pagination,
 } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ds/Toast';
-import { apiRequest } from '../../utils/api';
+import * as api from '../../utils/api';
 import {
   ShoppingCart, Store, FileCheck, AlertTriangle, Check, X, Eye, Search,
   RefreshCw, Users, Shield, Truck, BadgeCheck, Ban,
@@ -63,23 +63,20 @@ export default function MarketplaceTab() {
 
   const suppliers = useQuery({
     queryKey: ['marketplace', 'suppliers', statusFilter],
-    queryFn: () => apiRequest(`/api/ops/suppliers?status=${statusFilter || 'all'}`),
+    queryFn: () => api.opsListSuppliers({ status: statusFilter || undefined }),
     staleTime: 15_000,
   });
 
   const detailQuery = useQuery({
     queryKey: ['marketplace', 'supplier', detail?.id],
-    queryFn: () => apiRequest(`/api/ops/suppliers/${detail.id}`),
+    queryFn: () => api.opsGetSupplier(detail.id),
     enabled: !!detail?.id,
     staleTime: 10_000,
   });
 
   const changeStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      apiRequest(`/api/ops/suppliers/${id}/status`, {
-        method: 'POST',
-        body: JSON.stringify({ status }),
-      }),
+      api.opsSetSupplierStatus(id, status),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['marketplace'] });
       toast.success('Статус обновлён');
@@ -89,19 +86,19 @@ export default function MarketplaceTab() {
   });
 
   const batchAdvance = useMutation({
-    mutationFn: () => apiRequest('/api/ops/automations/advance-supplier-reviews', { method: 'POST' }),
+    mutationFn: () => api.opsAutoAdvanceSuppliers(),
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ['marketplace'] });
-      toast.success(`Обработано: ${data?.processed ?? data?.advanced ?? 0} поставщиков`);
+      toast.success(`Обработано: ${data?.advanced ?? 0} поставщиков`);
     },
     onError: (e: any) => toast.error(e.message || 'Ошибка'),
   });
 
   const batchVerifyLecturers = useMutation({
-    mutationFn: () => apiRequest('/api/ops/automations/verify-new-lecturers', { method: 'POST' }),
+    mutationFn: () => api.opsAutoVerifyLecturers(),
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ['marketplace'] });
-      toast.success(`Верифицировано лекторов: ${data?.verified ?? data?.processed ?? 0}`);
+      toast.success(`Верифицировано лекторов: ${data?.verified ?? 0}`);
     },
     onError: (e: any) => toast.error(e.message || 'Ошибка'),
   });

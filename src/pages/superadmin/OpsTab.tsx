@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatCard, PageHeader, GlassCard, Card, CardContent, Button, Badge, Modal, Input, Select, EmptyState, Skeleton } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ds/Toast';
-import { apiRequest } from '../../utils/api';
+import * as api from '../../utils/api';
 import { Activity, Building2, Users, ShoppingCart, GraduationCap, AlertTriangle, Check, X, RefreshCw, Zap, Settings, Shield, Clock, Power, PowerOff, Calendar, TrendingUp, DollarSign } from 'lucide-react';
 
 const fd = (d: string) => new Date(d).toLocaleDateString('ru-RU');
@@ -19,57 +19,57 @@ export default function OpsTab() {
 
   const overview = useQuery({
     queryKey: ['ops', 'overview'],
-    queryFn: () => apiRequest('/api/ops/overview'),
+    queryFn: () => api.opsOverview(),
     staleTime: 30_000,
   });
 
   const clinics = useQuery({
     queryKey: ['ops', 'clinics'],
-    queryFn: () => apiRequest('/api/ops/clinics'),
+    queryFn: () => api.opsListClinics(),
     staleTime: 30_000,
   });
 
   const changePlan = useMutation({
     mutationFn: (data: { id: string; plan: string }) =>
-      apiRequest(`/api/ops/clinics/${data.id}/plan`, { method: 'POST', body: JSON.stringify({ plan: data.plan }) }),
+      api.opsClinicPlan(data.id, data.plan),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ops'] }); toast.showToast('Тариф изменён', 'success'); },
     onError: (e: any) => toast.showToast(e.message || 'Ошибка', 'error'),
   });
 
   const extendSub = useMutation({
     mutationFn: (data: { id: string; months: number }) =>
-      apiRequest(`/api/ops/clinics/${data.id}/extend`, { method: 'POST', body: JSON.stringify({ months: data.months }) }),
+      api.opsClinicExtend(data.id, data.months),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ops'] }); setExtendModal(null); toast.showToast('Подписка продлена', 'success'); },
     onError: (e: any) => toast.showToast(e.message || 'Ошибка', 'error'),
   });
 
   const suspendClinic = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/ops/clinics/${id}/suspend`, { method: 'POST' }),
+    mutationFn: (id: string) => api.opsClinicSuspend(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ops'] }); toast.showToast('Клиника заморожена', 'success'); },
     onError: (e: any) => toast.showToast(e.message || 'Ошибка', 'error'),
   });
 
   const activateClinic = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/ops/clinics/${id}/activate`, { method: 'POST' }),
+    mutationFn: (id: string) => api.opsClinicActivate(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ops'] }); toast.showToast('Клиника активирована', 'success'); },
     onError: (e: any) => toast.showToast(e.message || 'Ошибка', 'error'),
   });
 
   const advanceSuppliers = useMutation({
-    mutationFn: () => apiRequest('/api/ops/automations/advance-supplier-reviews', { method: 'POST' }),
-    onSuccess: (d) => { qc.invalidateQueries({ queryKey: ['ops'] }); toast.showToast(`Продвинуто заявок: ${d?.data?.advanced || 0}`, 'success'); },
+    mutationFn: () => api.opsAutoAdvanceSuppliers(),
+    onSuccess: (d) => { qc.invalidateQueries({ queryKey: ['ops'] }); toast.showToast(`Продвинуто заявок: ${(d as any)?.advanced || 0}`, 'success'); },
     onError: (e: any) => toast.showToast(e.message || 'Ошибка', 'error'),
   });
 
   const verifyLecturers = useMutation({
-    mutationFn: () => apiRequest('/api/ops/automations/verify-new-lecturers', { method: 'POST' }),
-    onSuccess: (d) => { qc.invalidateQueries({ queryKey: ['ops'] }); toast.showToast(`Верифицировано лекторов: ${d?.data?.verified || 0}`, 'success'); },
+    mutationFn: () => api.opsAutoVerifyLecturers(),
+    onSuccess: (d) => { qc.invalidateQueries({ queryKey: ['ops'] }); toast.showToast(`Верифицировано лекторов: ${(d as any)?.verified || 0}`, 'success'); },
     onError: (e: any) => toast.showToast(e.message || 'Ошибка', 'error'),
   });
 
   const extendExpiring = useMutation({
-    mutationFn: () => apiRequest('/api/ops/automations/extend-expiring-clinics', { method: 'POST' }),
-    onSuccess: (d) => { qc.invalidateQueries({ queryKey: ['ops'] }); toast.showToast(`Продлено подписок: ${d?.data?.extended || 0}`, 'success'); },
+    mutationFn: () => api.opsAutoExtendClinics(),
+    onSuccess: (d) => { qc.invalidateQueries({ queryKey: ['ops'] }); toast.showToast(`Продлено подписок: ${(d as any)?.extended || 0}`, 'success'); },
     onError: (e: any) => toast.showToast(e.message || 'Ошибка', 'error'),
   });
 

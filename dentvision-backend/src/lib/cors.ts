@@ -18,7 +18,7 @@ function parseCorsOrigins(raw: string): true | string[] {
   ])];
 }
 
-const configured = parseCorsOrigins(env.CORS_ORIGIN);
+const configured = parseCorsOrigins(env.CORS_ORIGIN + (env.FRONTEND_URL ? `,${env.FRONTEND_URL}` : ''));
 
 /**
  * Allow production + all DentVision / Cursor Vercel previews

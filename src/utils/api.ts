@@ -1672,6 +1672,10 @@ export async function opsListSuppliers(params: { status?: string; search?: strin
   return opsRequest(`/api/ops/suppliers${qs ? `?${qs}` : ''}`);
 }
 
+export async function opsGetSupplier(id: string): Promise<any> {
+  return opsRequest(`/api/ops/suppliers/${id}`);
+}
+
 export async function opsSetSupplierStatus(id: string, status: string): Promise<any> {
   return opsRequest(`/api/ops/suppliers/${id}/status`, {
     method: 'POST',
