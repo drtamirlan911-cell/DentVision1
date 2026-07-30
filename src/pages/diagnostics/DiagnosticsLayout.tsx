@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -12,8 +12,8 @@ import { useAuth } from '@/store/auth.store';
 const DIAG_SUBNAV = [
   { id: 'dashboard', label: 'Dashboard', path: '/diagnostics', icon: <LayoutDashboard size={16} /> },
   { id: 'referrals', label: 'Мои направления', path: '/diagnostics/referrals', icon: <FileText size={16} /> },
-  { id: 'center-dashboard', label: 'Центр панель', path: '/diagnostics/center-dashboard', icon: <Microscope size={16} />, role: 'diagnostic_center' },
-  { id: 'lab-dashboard', label: 'Лаборатория панель', path: '/diagnostics/lab-dashboard', icon: <TestTube size={16} />, role: 'lab_diagnostic' },
+  { id: 'center-dashboard', label: 'Центр панель', path: '/diagnostics/center-dashboard', icon: <Microscope size={16} />, orgType: 'DIAGNOSTIC_CENTER' },
+  { id: 'lab-dashboard', label: 'Лаборатория панель', path: '/diagnostics/lab-dashboard', icon: <TestTube size={16} />, orgType: 'LABORATORY' },
   { id: 'centers', label: 'Диагностические центры', path: '/diagnostics/centers', icon: <Building2 size={16} /> },
   { id: 'laboratories', label: 'Лаборатории', path: '/diagnostics/laboratories', icon: <FlaskConical size={16} /> },
   { id: 'patients', label: 'Пациенты', path: '/diagnostics/patients', icon: <Users size={16} /> },
@@ -30,6 +30,7 @@ export default function DiagnosticsLayout() {
   const location = useLocation();
   const { user, role } = useAuth();
   const platformRole = user?.platformRole || role;
+  const orgType = user?.organizationType || '';
   const [collapsed, setCollapsed] = useState(false);
 
   const isActive = (path: string) => {
@@ -37,7 +38,13 @@ export default function DiagnosticsLayout() {
     return location.pathname.startsWith(path);
   };
 
-  const visibleItems = DIAG_SUBNAV.filter(item => !item.platformRole || item.platformRole === platformRole);
+  const visibleItems = useMemo(() =>
+    DIAG_SUBNAV.filter(item => {
+      if (item.platformRole) return item.platformRole === platformRole;
+      if (item.orgType) return item.orgType === orgType;
+      return true;
+    }),
+  [platformRole, orgType]);
 
   return (
     <div className="flex h-full gap-0">
