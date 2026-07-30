@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
 import { queryKeys } from '@/queries/keys';
+import { useAuth } from '@/store/auth.store';
 import * as api from '@/utils/api';
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -26,7 +27,10 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 
 export default function LabDashboard() {
   const navigate = useNavigate();
-  const [selectedLabId, setSelectedLabId] = useState<string>('');
+  const { user } = useAuth();
+  const isOwnOrg = user?.organizationType === 'LABORATORY';
+  const ownOrgId = user?.organizationId || '';
+  const [selectedLabId, setSelectedLabId] = useState<string>(isOwnOrg ? ownOrgId : '');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -36,6 +40,10 @@ export default function LabDashboard() {
   });
 
   const labs = labsData?.data || labsData || [];
+
+  useEffect(() => {
+    if (isOwnOrg && ownOrgId) setSelectedLabId(ownOrgId);
+  }, [isOwnOrg, ownOrgId]);
 
   const { data: referralsData, isLoading, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ labId: selectedLabId, status: statusFilter, search, limit: '100' }),
@@ -76,22 +84,23 @@ export default function LabDashboard() {
         </Button>
       </div>
 
-      {/* Lab selector */}
-      <Card padding="md">
-        <div className="flex items-center gap-3">
-          <FlaskConical size={18} className="text-dv-gold shrink-0" />
-          <select
-            value={selectedLabId}
-            onChange={(e) => setSelectedLabId(e.target.value)}
-            className="flex-1 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold"
-          >
-            <option value="">Выберите лабораторию</option>
-            {labs.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name} — {c.city || ''}</option>
-            ))}
-          </select>
-        </div>
-      </Card>
+      {!isOwnOrg && (
+        <Card padding="md">
+          <div className="flex items-center gap-3">
+            <FlaskConical size={18} className="text-dv-gold shrink-0" />
+            <select
+              value={selectedLabId}
+              onChange={(e) => setSelectedLabId(e.target.value)}
+              className="flex-1 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold"
+            >
+              <option value="">Выберите лабораторию</option>
+              {labs.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name} — {c.city || ''}</option>
+              ))}
+            </select>
+          </div>
+        </Card>
+      )}
 
       {selectedLabId && (
         <>
