@@ -7,6 +7,7 @@ import { buildOAuthUrl } from './meta.client.js'
 import { handleMetaCallback, disconnectChannel, getClinicStatus, getMessageCountToday, refreshTokenIfNeeded } from './meta.service.js'
 import { metaConnectQuery, metaCallbackBody, metaDisconnectParams, metaStatusQuery } from './meta.schemas.js'
 import { env } from '../../config.js'
+import { resolveClinicAccess } from '../../lib/orgContext.js'
 
 export const metaRouter = Router()
 
@@ -38,10 +39,8 @@ metaRouter.get('/connect', authenticate, async (req: AuthRequest, res: Response)
 
   const { channel, clinicId } = parsed.data
 
-  const membership = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId: req.user!.id, clinicId } },
-  })
-  if (!membership) {
+  const access = await resolveClinicAccess(req.user!.id, clinicId)
+  if (!access) {
     return res.status(403).json({ ok: false, error: 'Access denied' })
   }
 
@@ -90,10 +89,8 @@ metaRouter.delete('/disconnect/:channel', authenticate, async (req: AuthRequest,
     return res.status(400).json({ ok: false, error: 'Missing clinicId' })
   }
 
-  const membership = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId: req.user!.id, clinicId } },
-  })
-  if (!membership) {
+  const access = await resolveClinicAccess(req.user!.id, clinicId)
+  if (!access) {
     return res.status(403).json({ ok: false, error: 'Access denied' })
   }
 
@@ -109,10 +106,8 @@ metaRouter.get('/status', authenticate, async (req: AuthRequest, res: Response) 
   }
 
   const { clinicId } = parsed.data
-  const membership = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId: req.user!.id, clinicId } },
-  })
-  if (!membership) {
+  const access = await resolveClinicAccess(req.user!.id, clinicId)
+  if (!access) {
     return res.status(403).json({ ok: false, error: 'Access denied' })
   }
 
@@ -133,10 +128,8 @@ metaRouter.post('/refresh', authenticate, async (req: AuthRequest, res: Response
     return res.status(400).json({ ok: false, error: 'Missing clinicId' })
   }
 
-  const membership = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId: req.user!.id, clinicId } },
-  })
-  if (!membership) {
+  const access = await resolveClinicAccess(req.user!.id, clinicId)
+  if (!access) {
     return res.status(403).json({ ok: false, error: 'Access denied' })
   }
 

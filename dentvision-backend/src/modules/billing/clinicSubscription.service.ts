@@ -86,6 +86,39 @@ export function daysUntil(date: Date | null | undefined, now = new Date()): numb
   return Math.ceil((date.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
 }
 
+const PERSON_ROLE_TO_LEGACY: Record<string, string> = {
+  org_admin: 'ADMIN',
+  doctor: 'DOCTOR',
+  nurse: 'ASSISTANT',
+  cashier: 'ADMIN',
+  lab: 'LAB',
+  lecturer: 'DOCTOR',
+  seller: 'DOCTOR',
+  superadmin: 'SUPERADMIN',
+};
+
+/** Resolve user's role within a clinic — checks Person/Organization first, then legacy ClinicMember. */
+async function resolveClinicRole(userId: string, clinicId: string) {
+  const org = await prisma.organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId },
+  });
+  if (org) {
+    const person = await prisma.person.findFirst({
+      where: { userId, organizationId: org.id },
+      include: { roles: { include: { role: true } } },
+    });
+    if (person) {
+      const unifiedRole = person.roles?.[0]?.role?.key || 'org_admin';
+      return { source: 'person' as const, role: PERSON_ROLE_TO_LEGACY[unifiedRole] || 'DOCTOR' };
+    }
+  }
+  const member = await prisma.clinicMember.findUnique({
+    where: { userId_clinicId: { userId, clinicId } },
+  });
+  if (member) return { source: 'member' as const, role: member.role };
+  return null;
+}
+
 /** Any clinic member may read access/usage snapshot (for banners & soft locks). */
 export async function assertClinicMemberAccess(userId: string, clinicId: string) {
   if (!clinicId) {
@@ -93,12 +126,10 @@ export async function assertClinicMemberAccess(userId: string, clinicId: string)
     (err as any).status = 400;
     throw err;
   }
-  const member = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId, clinicId } },
-  });
-  if (member) return member;
+  const resolved = await resolveClinicRole(userId, clinicId);
+  if (resolved) return resolved;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  if (user?.role === 'SUPERADMIN') return { role: 'SUPERADMIN' as const };
+  if (user?.role === 'SUPERADMIN') return { source: 'superadmin' as const, role: 'SUPERADMIN' as const };
   const err = new Error('Нет доступа к клинике');
   (err as any).status = 403;
   throw err;
@@ -111,17 +142,13 @@ export async function assertClinicBillingAccess(userId: string, clinicId: string
     (err as any).status = 400;
     throw err;
   }
-  const member = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId, clinicId } },
-  });
-  if (!member || !BILLING_ROLES.has(member.role)) {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-    if (user?.role === 'SUPERADMIN') return { role: 'SUPERADMIN' as const };
-    const err = new Error('Недостаточно прав для управления подпиской');
-    (err as any).status = 403;
-    throw err;
-  }
-  return member;
+  const resolved = await resolveClinicRole(userId, clinicId);
+  if (resolved && BILLING_ROLES.has(resolved.role as any)) return resolved;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (user?.role === 'SUPERADMIN') return { source: 'superadmin' as const, role: 'SUPERADMIN' as const };
+  const err = new Error('Недостаточно прав для управления подпиской');
+  (err as any).status = 403;
+  throw err;
 }
 
 /** Bootstrap Enterprise trial for a newly created clinic. */

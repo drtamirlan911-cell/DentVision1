@@ -6,6 +6,18 @@ import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { onboardPartner } from '../legal/legal.service.js';
+import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
+
+async function ensureOrgAndPerson(clinicId: string, userId: string, role: string) {
+  const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { name: true, city: true } });
+  if (!clinic) return;
+  await prisma.organization.upsert({
+    where: { originalType_originalId: { originalType: 'Clinic', originalId: clinicId } },
+    update: { name: clinic.name },
+    create: { id: uid(), name: clinic.name, type: 'CLINIC', originalType: 'Clinic', originalId: clinicId, contacts: clinic.city ? { city: clinic.city } : undefined },
+  });
+  await syncPersonFromClinicMember(clinicId, userId, role);
+}
 import { createSession } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
 import crypto from 'node:crypto';
@@ -304,13 +316,33 @@ authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) =>
       return res.status(400).json({ ok: false, error: 'clinicId обязателен' });
     }
 
-    const membership = await prisma.clinicMember.findUnique({
+    let membership = await prisma.clinicMember.findUnique({
       where: { userId_clinicId: { userId: req.user!.id, clinicId } },
     });
+
+    // Fallback: check if user has a Person linked to this clinic's org
+    if (!membership) {
+      const org = await prisma.organization.findFirst({
+        where: { originalType: 'Clinic', originalId: clinicId },
+      });
+      if (org) {
+        const person = await prisma.person.findFirst({
+          where: { userId: req.user!.id, organizationId: org.id },
+        });
+        if (person) {
+          const synced = await prisma.clinicMember.create({
+            data: { id: uid(), userId: req.user!.id, clinicId, role: 'DOCTOR' },
+          });
+          membership = synced;
+        }
+      }
+    }
 
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     }
+
+    await ensureOrgAndPerson(clinicId, req.user!.id, membership.role);
 
     const tokens = generateTokens({
       sub: req.user!.id,
@@ -375,6 +407,11 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
           active: true,
         },
       }),
+      prisma.organization.upsert({
+        where: { originalType_originalId: { originalType: 'Clinic', originalId: clinicId } },
+        update: { name },
+        create: { id: uid(), name, type: 'CLINIC', originalType: 'Clinic', originalId: clinicId, contacts: city ? { city } : undefined },
+      }),
       prisma.clinicMember.create({
         data: {
           id: uid(),
@@ -384,6 +421,8 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
         },
       }),
     ]);
+
+    await syncPersonFromClinicMember(clinicId, req.user!.id, 'OWNER');
 
     const { startClinicTrial, notifyClinicOwners, TRIAL_DAYS } = await import(
       '../billing/clinicSubscription.service.js'
@@ -451,10 +490,17 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
           active: true,
         },
       }),
+      prisma.organization.upsert({
+        where: { originalType_originalId: { originalType: 'Clinic', originalId: clinicId } },
+        update: { name: 'Демо-клиника «Дентал Плюс»' },
+        create: { id: uid(), name: 'Демо-клиника «Дентал Плюс»', type: 'CLINIC', originalType: 'Clinic', originalId: clinicId, contacts: { city: 'Алматы' } },
+      }),
       prisma.clinicMember.create({
         data: { id: uid(), userId, clinicId, role: 'OWNER' },
       }),
     ]);
+
+    await syncPersonFromClinicMember(clinicId, userId, 'OWNER');
 
     const { startClinicTrial, TRIAL_DAYS } = await import('../billing/clinicSubscription.service.js');
     await startClinicTrial(clinicId, TRIAL_DAYS);
@@ -727,6 +773,8 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
         clinic: { select: { id: true, name: true, plan: true } },
       },
     });
+
+    await syncPersonFromClinicMember(targetClinicId, req.user!.id, membership.role);
 
     // Mark invitation as used if code was provided
     if (code) {

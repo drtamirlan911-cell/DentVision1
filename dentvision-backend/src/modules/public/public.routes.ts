@@ -63,13 +63,34 @@ publicRouter.get('/clinic/:clinicId', async (req, res) => {
       orderBy: { joinedAt: 'asc' },
     });
 
-    const doctors = members.map((m) => ({
-      id: m.user.id,
-      name: [m.user.firstName, m.user.lastName].filter(Boolean).join(' ').trim(),
-      spec: m.user.spec || undefined,
-      avatar: m.user.avatar || undefined,
-      phone: m.user.phone || undefined,
-    }));
+    // Also include unified Persons (DOCTOR type) from the clinic's Organization
+    const org = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId },
+    });
+    const persons = org ? await prisma.person.findMany({
+      where: { organizationId: org.id, personType: 'DOCTOR', userId: { not: null } },
+      include: { user: { select: { id: true, firstName: true, lastName: true, spec: true, avatar: true, phone: true } } },
+    }) : [];
+
+    const memberSet = new Set(members.map(m => m.userId));
+    const extraPersons = persons.filter(p => p.userId && !memberSet.has(p.userId));
+
+    const doctors = [
+      ...members.map((m) => ({
+        id: m.user.id,
+        name: [m.user.firstName, m.user.lastName].filter(Boolean).join(' ').trim(),
+        spec: m.user.spec || undefined,
+        avatar: m.user.avatar || undefined,
+        phone: m.user.phone || undefined,
+      })),
+      ...extraPersons.map((p) => ({
+        id: p.user!.id,
+        name: p.fullName,
+        spec: p.specialization || undefined,
+        avatar: p.user!.avatar || undefined,
+        phone: p.user!.phone || undefined,
+      })),
+    ];
 
     const priceRows = await prisma.priceListItem.findMany({
       where: { clinicId, active: true },

@@ -1,21 +1,20 @@
 import { prisma } from '../../../lib/prisma.js';
 import { AIContext } from '../types/ai.types.js';
+import { resolveClinicAccess } from '../../../lib/orgContext.js';
 
 export class ContextManager {
   async loadContext(userId: string, clinicId: string): Promise<AIContext> {
-    const [user, clinic, membership] = await Promise.all([
+    const [user, clinic] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } }),
       prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true } }),
-      prisma.clinicMember.findUnique({
-        where: { userId_clinicId: { userId, clinicId } },
-        select: { role: true },
-      }),
     ]);
+
+    const access = await resolveClinicAccess(userId, clinicId);
 
     return {
       userId,
       clinicId: clinic?.id ?? clinicId,
-      role: membership?.role ?? user?.role ?? 'DOCTOR',
+      role: access?.role ?? user?.role ?? 'DOCTOR',
       sessionId: crypto.randomUUID(),
       metadata: {},
     };
