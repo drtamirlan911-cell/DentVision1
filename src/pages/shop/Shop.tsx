@@ -13,7 +13,7 @@ import { useAuth, canManageClinicSettings } from '@/store/auth.store';
 import { Button } from '../../components/ui/ds/Button';
 import { Badge } from '../../components/ui/ds/Badge';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
-import { CityFilter } from '@/components/ui/CityFilter';
+import { KZ_POPULAR_CITIES, KZ_CITY_OPTIONS } from '@/lib/kz-cities';
 import { cn } from '@/lib/utils';
 import type { InventoryItem } from '@/types';
 
@@ -64,7 +64,8 @@ export default function Shop() {
   const [promotions, setPromotions] = useState<PromotionItem[]>([]);
   const [recommendations, setRecommendations] = useState<ProductItem[]>([]);
   const [search, setSearch] = useState(() => searchParams.get('q') || '');
-  const [city, setCity] = useState(() => searchParams.get('city') || '');
+  const [city, setCity] = useState(() => searchParams.get('city') || '')
+  const [cityOpen, setCityOpen] = useState(false);
   const [selectedCat, setSelectedCat] = useState('');
   const [sortBy, setSortBy] = useState('');
   const [loading, setLoading] = useState(true);
@@ -175,7 +176,7 @@ export default function Shop() {
               <span className="text-white text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: G }}>DentVision</span>
             )}
             {product.stock <= 0 && (
-              <span className="text-white text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#1a1a2e' }}>��� � �������</span>
+              <span className="text-white text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#1a1a2e' }}>Нет в наличии</span>
             )}
           </div>
           <button onClick={(e) => { e.stopPropagation(); toggleFav(product as any); }}
@@ -196,19 +197,19 @@ export default function Shop() {
           <div className="flex items-center gap-1.5">
             <div className="flex items-center">
               <Star size={12} className={product.rating ? 'fill-yellow-400 text-yellow-400' : ''} style={{ color: product.rating ? undefined : 'rgba(255,255,255,0.1)' }} />
-              <span className="text-xs font-medium ml-1" style={{ color: S }}>{product.rating?.toFixed(1) || '�'}</span>
+              <span className="text-xs font-medium ml-1" style={{ color: S }}>{product.rating?.toFixed(1) || '—'}</span>
             </div>
             <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>({product.review_count})</span>
-            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>�</span>
+            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
             <span className="text-[10px]" style={{ color: product.stock > 0 ? T.emerald : T.ruby }}>
-              {product.stock > 0 ? `� �������: ${product.stock}` : '���'}
+              {product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет'}
             </span>
           </div>
           <div className="flex items-center justify-between pt-1">
             <div>
-              <span className="text-lg font-bold" style={{ color: G }}>{product.price.toLocaleString()} ?</span>
+              <span className="text-lg font-bold" style={{ color: G }}>{product.price.toLocaleString()} ₸</span>
               {hasDiscount && (
-                <span className="text-xs line-through ml-2" style={{ color: S }}>{product.old_price!.toLocaleString()} ?</span>
+                <span className="text-xs line-through ml-2" style={{ color: S }}>{product.old_price!.toLocaleString()} ₸</span>
               )}
             </div>
             <button onClick={(e) => { e.stopPropagation(); addToCart(product); }}
@@ -244,7 +245,7 @@ export default function Shop() {
           {current.subtitle && <p className="text-white/70 text-sm md:text-base max-w-md mb-4">{current.subtitle}</p>}
           {current.linkUrl && (
             <Button variant="primary" className="w-fit" onClick={() => navigate(current.linkUrl!)}>
-              ������� <ChevronRight size={16} />
+              Смотреть <ChevronRight size={16} />
             </Button>
           )}
         </div>
@@ -279,9 +280,9 @@ export default function Shop() {
     return (
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">���������</h2>
-          <button onClick={() => navigate('/shop?all_categories=1')} className="text-xs font-medium hover:underline" style={{ color: G }}>
-            ��� ��������� <ChevronRight size={14} className="inline" />
+          <h2 className="text-lg font-bold text-white">Категории</h2>
+            <button onClick={() => navigate('/shop?all_categories=1')} className="text-xs font-medium hover:underline" style={{ color: G }}>
+              Все категории <ChevronRight size={14} className="inline" />
           </button>
         </div>
         <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -296,7 +297,7 @@ export default function Shop() {
                 <Package size={20} />
               </div>
               <span className="text-xs font-medium text-center leading-tight text-white">{cat.name}</span>
-              {cat._count && <span className="text-[10px]" style={{ color: S }}>{cat._count.products} �������</span>}
+              {cat._count && <span className="text-[10px]" style={{ color: S }}>{cat._count.products} товаров</span>}
             </button>
           ))}
         </div>
@@ -319,7 +320,7 @@ export default function Shop() {
           </div>
         </div>
         <Badge variant="default" className="text-xs font-bold whitespace-nowrap" style={{ background: T.bg, color: G }}>
-          {promo.discountPercent ? `-${promo.discountPercent}%` : '�����'}
+          {promo.discountPercent ? `-${promo.discountPercent}%` : 'Скидка'}
         </Badge>
       </div>
     );
@@ -362,7 +363,7 @@ export default function Shop() {
           <form onSubmit={handleSearch}>
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: S }} />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="����� �������, �������..."
+              placeholder="Поиск товаров, брендов..."
               style={{
                 width: '100%', height: 40, paddingLeft: 36, paddingRight: 12,
                 background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`,
@@ -371,7 +372,46 @@ export default function Shop() {
               className="placeholder:text-[#7A8899] focus:border-[#C9A96E]/50 transition-colors" />
           </form>
         </div>
-        <CityFilter value={city} onChange={updateCity} />
+        <div className="relative">
+          <button onClick={() => setCityOpen(!cityOpen)}
+            className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium transition-colors whitespace-nowrap"
+            style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`, color: city ? '#fff' : S }}>
+            <MapPin size={14} className={city ? 'text-dv-gold' : ''} />
+            {city || 'Весь Казахстан'}
+            <ChevronDown size={12} style={{ color: S }} />
+          </button>
+          {cityOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setCityOpen(false)} />
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                className="absolute right-0 top-full mt-1 z-50 w-64 rounded-xl p-2 shadow-2xl"
+                style={{ background: '#0D1B2E', border: `1px solid ${BDR}`, maxHeight: 320, overflowY: 'auto' }}>
+                <button onClick={() => { updateCity(''); setCityOpen(false) }}
+                  className="w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors"
+                  style={{ color: !city ? '#C9A96E' : S, background: !city ? 'rgba(201,169,110,0.1)' : 'transparent' }}>
+                  Весь Казахстан
+                </button>
+                <div className="flex flex-wrap gap-1 my-2 px-1">
+                  {KZ_POPULAR_CITIES.filter(c => !city || city === c).slice(0, 6).map(c => (
+                    <button key={c} onClick={() => { updateCity(c); setCityOpen(false) }}
+                      className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors"
+                      style={{ background: city === c ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.05)', color: city === c ? '#C9A96E' : S }}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+                <div className="border-t" style={{ borderColor: BDR_SUB }} />
+                <select value={city} onChange={(e) => { updateCity(e.target.value); setCityOpen(false) }}
+                  className="w-full mt-2 rounded-lg px-3 py-1.5 text-xs outline-none"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`, color: '#fff' }}>
+                  {KZ_CITY_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value} style={{ background: '#0D1B2E' }}>{o.label}</option>
+                  ))}
+                </select>
+              </motion.div>
+            </>
+          )}
+        </div>
         <button onClick={() => setShowCart(true)}
           className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
           style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}` }}>
@@ -399,10 +439,10 @@ export default function Shop() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Zap size={18} style={{ color: T.ruby }} /> ������ � �����
+              <Zap size={18} style={{ color: T.ruby }} /> Хиты продаж
             </h2>
             <button onClick={() => navigate('/shop?sort=price_asc')} className="text-xs font-medium hover:underline" style={{ color: G }}>
-              ��� ����� <ChevronRight size={14} className="inline" />
+              Все товары <ChevronRight size={14} className="inline" />
             </button>
           </div>
           <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
@@ -417,7 +457,7 @@ export default function Shop() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Sparkles size={18} style={{ color: T.purple }} /> ����������� ���
+              <Sparkles size={18} style={{ color: T.purple }} /> Рекомендуем
             </h2>
           </div>
           <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
@@ -432,10 +472,10 @@ export default function Shop() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <TrendingUp size={18} style={{ color: G }} /> ���������� ������
+              <TrendingUp size={18} style={{ color: G }} /> Популярные бренды
             </h2>
             <button onClick={() => navigate('/shop?sort=rating')} className="text-xs font-medium hover:underline" style={{ color: G }}>
-              ��� ���������� <ChevronRight size={14} className="inline" />
+              Все бренды <ChevronRight size={14} className="inline" />
             </button>
           </div>
           <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
@@ -448,22 +488,22 @@ export default function Shop() {
       {/* --- All Products --- */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">��� ������</h2>
+          <h2 className="text-lg font-bold text-white">Все товары</h2>
           <div className="flex items-center gap-2">
             <select value={sortBy} onChange={e => setSortBy(e.target.value)}
               style={{
                 fontSize: 12, border: `1px solid ${BDR_SUB}`, borderRadius: 8,
                 padding: '4px 8px', background: 'rgba(255,255,255,0.05)', color: '#fff', outline: 'none'
               }}>
-              <option value="" style={{ background: '#0D1B2E', color: '#fff' }}>�������</option>
-              <option value="price_asc" style={{ background: '#0D1B2E', color: '#fff' }}>������� �������</option>
-              <option value="price_desc" style={{ background: '#0D1B2E', color: '#fff' }}>������� ������</option>
-              <option value="rating" style={{ background: '#0D1B2E', color: '#fff' }}>�� ��������</option>
+              <option value="" style={{ background: '#0D1B2E', color: '#fff' }}>Сортировка</option>
+              <option value="price_asc" style={{ background: '#0D1B2E', color: '#fff' }}>Сначала дешевле</option>
+              <option value="price_desc" style={{ background: '#0D1B2E', color: '#fff' }}>Сначала дороже</option>
+              <option value="rating" style={{ background: '#0D1B2E', color: '#fff' }}>По рейтингу</option>
             </select>
           </div>
         </div>
         {filteredProducts.length === 0 ? (
-          <EmptyState icon={<Package size={32} />} title="������ �� �������" description="���������� �������� ��������� ������" />
+          <EmptyState icon={<Package size={32} />} title="Ничего не найдено" description="Попробуйте изменить параметры поиска" />
         ) : (
           <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.03 } } }}
             className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -483,11 +523,11 @@ export default function Shop() {
               className="w-full max-w-sm h-full overflow-y-auto" style={{ background: '#0D1B2E', borderLeft: `1px solid ${BDR}` }}
               onClick={e => e.stopPropagation()}>
               <div className="sticky top-0 z-10 p-4 flex items-center justify-between" style={{ background: '#0D1B2E', borderBottom: `1px solid ${BDR_SUB}` }}>
-                <h2 className="font-bold text-lg text-white">�������</h2>
+                <h2 className="font-bold text-lg text-white">Корзина</h2>
                 <button aria-label="Close cart" onClick={() => setShowCart(false)}><X size={20} style={{ color: S }} /></button>
               </div>
               {cart.length === 0 ? (
-                <EmptyState icon={<ShoppingCart size={32} />} title="������� �����" description="�������� ������ �� ��������" className="py-12" />
+                <EmptyState icon={<ShoppingCart size={32} />} title="Корзина пуста" description="Добавьте товары из каталога" className="py-12" />
               ) : (
                 <div className="p-4 space-y-3">
                   {cart.map((item) => (
@@ -516,9 +556,9 @@ export default function Shop() {
                               style={{ color: S }}><Plus size={12} /></button>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-bold" style={{ color: G }}>{(item.price * item.qty).toLocaleString()} ?</p>
+                            <p className="text-sm font-bold" style={{ color: G }}>{(item.price * item.qty).toLocaleString()} ₸</p>
                             <button onClick={() => removeFromCart(item.id)} className="text-[10px] hover:underline"
-                              style={{ color: T.ruby }}>�������</button>
+                              style={{ color: T.ruby }}>Удалить</button>
                           </div>
                         </div>
                       </div>
@@ -526,12 +566,12 @@ export default function Shop() {
                   ))}
                   <div className="pt-3 mt-3" style={{ borderTop: `1px solid ${BDR_SUB}` }}>
                     <div className="flex justify-between mb-3">
-                      <span style={{ color: S }}>�����:</span>
-                      <span className="text-lg font-bold" style={{ color: G }}>{cartTotal.toLocaleString()} ?</span>
+                      <span style={{ color: S }}>Цена:</span>
+                      <span className="text-lg font-bold" style={{ color: G }}>{cartTotal.toLocaleString()} ₸</span>
                     </div>
                     <Button variant="primary" className="w-full" onClick={() => { setShowCart(false); navigate('/shop/checkout'); }}
                       style={{ background: G, color: T.bg }}>
-                      �������� �����
+                       Оформить заказ
                     </Button>
                   </div>
                 </div>
