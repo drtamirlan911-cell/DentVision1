@@ -16,6 +16,24 @@ financeRouter.use(authenticate);
 
 const OWNER_TYPES = ['CLINIC', 'SUPPLIER', 'ACADEMY', 'LECTURER', 'PARTNER', 'PLATFORM', 'GATEWAY'];
 
+// Wallet list for current user context
+financeRouter.get('/wallets', async (req: AuthRequest, res) => {
+  try {
+    const wallets = await prisma.wallet.findMany({
+      where: {
+        OR: [
+          ...(req.user?.clinicId ? [{ ownerType: 'CLINIC' as any, ownerId: req.user.clinicId }] : []),
+          ...(req.user?.supplierId ? [{ ownerType: 'SUPPLIER' as any, ownerId: req.user.supplierId }] : []),
+          ...(req.user?.organizationId ? [{ ownerType: undefined, ownerId: req.user.organizationId }] : []),
+        ].filter(Boolean),
+      },
+    });
+    res.json({ ok: true, data: serializeBigInt(wallets) } satisfies ApiResponse);
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Ошибка загрузки кошельков' } satisfies ApiResponse);
+  }
+});
+
 // Wallet balance for an owner.
 financeRouter.get('/wallets/:ownerType/:ownerId', async (req: AuthRequest, res) => {
   try {
@@ -54,6 +72,19 @@ financeRouter.get('/ledger/health', requirePermission('finance.manage'), async (
 });
 
 // Commission rules (platform).
+financeRouter.get('/commission-rules', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const { domain, scopeId } = req.query as Record<string, string | undefined>;
+    const where: Record<string, unknown> = {};
+    if (domain) where.domain = domain;
+    if (scopeId) where.scopeId = scopeId;
+    const rules = await prisma.commissionRule.findMany({ where, orderBy: { createdAt: 'desc' } });
+    return res.json({ ok: true, data: rules } satisfies ApiResponse);
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Ошибка при получении правил комиссии' } satisfies ApiResponse);
+  }
+});
+
 financeRouter.post('/commission-rules', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const { domain, scopeId, percentBps, splitJson } = req.body || {};

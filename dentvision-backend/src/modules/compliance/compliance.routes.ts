@@ -131,6 +131,19 @@ complianceRouter.post('/ai/:id/confirm', async (req: AuthRequest, res) => {
   }
 });
 
+complianceRouter.get('/ai/stats', async (req: AuthRequest, res) => {
+  try {
+    const [total, todayCount, pendingConfirm] = await Promise.all([
+      prisma.aIActionLog.count(),
+      prisma.aIActionLog.count({ where: { createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } } }),
+      prisma.aIActionLog.count({ where: { doctorConfirmed: false } }),
+    ]);
+    return res.json({ ok: true, data: { total, todayCount, pendingConfirm } } satisfies ApiResponse);
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Ошибка загрузки статистики' } satisfies ApiResponse);
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════
 // COMPLIANCE CHECKS (product/course/supplier rules)
 // ═══════════════════════════════════════════════════════════════

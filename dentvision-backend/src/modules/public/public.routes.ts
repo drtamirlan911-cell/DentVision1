@@ -344,6 +344,22 @@ const PRIVACY_POLICY = 'Политика конфиденциальности De
 
 const TERMS_OF_SERVICE = 'Пользовательское соглашение DentVision\n\n1. Предмет. Сервис предоставляет инструменты для управления стоматологической клиникой.\n2. Регистрация. Пользователь обязуется предоставлять достоверные данные.\n3. Обязанности. Клиника несёт ответственность за сохранность учётных данных.\n4. Оплата. Тарифы указаны на сайте. Списание происходит ежемесячно.\n5. Отказ от ответственности. Сервис предоставляется «как есть».\n6. Разрешение споров. Споры рассматриваются в суде г. Алматы по законодательству РК.\n7. Изменения. Администрация вправе изменять соглашение с уведомлением за 14 дней.';
 
+publicRouter.get('/document/:id', async (req, res) => {
+  try {
+    const doc = await prisma.document.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true, type: true, url: true, signed: true, signedAt: true, clinicId: true, patientId: true, clinic: { select: { name: true, address: true, phone: true } } },
+    });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Document not found' });
+    const r = doc as any;
+    // Derive content from url (could be data URI or external link)
+    const content = r.url?.startsWith('data:') ? atob(r.url.split(',')[1] || '') : r.url;
+    res.json({ ok: true, data: { id: r.id, title: r.name, doc_type: r.type, content, status: r.signed ? 'signed' : 'pending', patient_name: r.patientName, signed_by_name: r.signedByName, clinic_name: r.clinic?.name, clinic_address: r.clinic?.address, clinic_phone: r.clinic?.phone, documentId: r.id } });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: 'Failed to load document' });
+  }
+});
+
 publicRouter.get('/privacy', (_req, res) => {
   res.json({ ok: true, data: { content: PRIVACY_POLICY, format: 'text', updatedAt: '2025-07-30' } });
 });

@@ -6,6 +6,7 @@ import SignaturePad from '../../components/ui/SignaturePad';
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
 interface DocumentData {
+  id?: string;
   title?: string;
   doc_type?: string;
   content?: string;
@@ -15,6 +16,7 @@ interface DocumentData {
   clinic_name?: string;
   clinic_address?: string;
   clinic_phone?: string;
+  documentId?: string;
 }
 
 interface ToastState {
@@ -56,8 +58,9 @@ export default function DocumentSign() {
     }
     setSigning(true);
     try {
-      const res = await fetch(`${API_URL}/api/documents/0/sign`, {
-        method: 'PUT',
+      const docId = doc?.id || doc?.documentId || token;
+      const res = await fetch(`${API_URL}/api/documents/${docId}/sign`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ signature_data: signatureData, signed_by_name: name, token }),
       });

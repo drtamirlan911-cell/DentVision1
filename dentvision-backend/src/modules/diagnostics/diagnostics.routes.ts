@@ -354,16 +354,13 @@ diagnosticsRouter.get('/dashboard', loadClinicAccess, async (req: AuthRequest, r
 // ─── Pricing (center/lab members or superadmin) ───
 
 function hasOrgAccess(user: any, type: string, orgId: string): boolean {
-  return user?.platformRole === 'superadmin' ||
+  return user?.role === 'SUPERADMIN' ||
     (user?.organizationType === type && user?.organizationId === orgId);
 }
 
 diagnosticsRouter.get('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     const centerId = req.params.id;
-    if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
-      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
-    }
     const studies = await (prisma as any).diagnosticStudy.findMany({
       where: { centerId },
       select: { id: true, name: true, category: true, price: true, active: true },
@@ -402,9 +399,6 @@ diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) =>
 diagnosticsRouter.get('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     const labId = req.params.id;
-    if (!hasOrgAccess(req.user, 'LABORATORY', labId)) {
-      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
-    }
     const tests = await (prisma as any).laboratoryTest.findMany({
       where: { labId },
       select: { id: true, name: true, category: true, price: true, active: true },

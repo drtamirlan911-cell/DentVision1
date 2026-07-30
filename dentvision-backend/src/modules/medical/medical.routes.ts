@@ -16,7 +16,7 @@ medicalRouter.use(blockClinicWrites);
 async function requirePatientAccess(req: AuthRequest, res: any, patientId: string): Promise<boolean> {
   const clinicId = req.user!.clinicId;
   if (!clinicId) {
-    res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    res.status(400).json({ ok: false, error: 'Выберите клинику' });
     return false;
   }
   const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
@@ -31,7 +31,7 @@ async function requirePatientAccess(req: AuthRequest, res: any, patientId: strin
 async function requireVisitAccess(req: AuthRequest, res: any, visitId: string): Promise<boolean> {
   const clinicId = req.user!.clinicId;
   if (!clinicId) {
-    res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    res.status(400).json({ ok: false, error: 'Выберите клинику' });
     return false;
   }
   const visit = await prisma.visit.findUnique({ where: { id: visitId }, include: { patient: { select: { clinicId: true } } } });
@@ -46,7 +46,7 @@ async function requireVisitAccess(req: AuthRequest, res: any, visitId: string): 
 async function requireTreatmentPlanAccess(req: AuthRequest, res: any, planId: string): Promise<boolean> {
   const clinicId = req.user!.clinicId;
   if (!clinicId) {
-    res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+    res.status(400).json({ ok: false, error: 'Выберите клинику' });
     return false;
   }
   const plan = await prisma.treatmentPlan.findUnique({ where: { id: planId }, include: { patient: { select: { clinicId: true } } } });

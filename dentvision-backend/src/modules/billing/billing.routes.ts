@@ -93,7 +93,7 @@ billingRouter.patch('/invoices/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
-    if (!clinicId) { res.status(403).json({ ok: false, error: 'Доступ запрещён' }); return; }
+    if (!clinicId) { res.status(400).json({ ok: false, error: 'Выберите клинику' }); return; }
     const { status, amount, notes } = req.body;
 
     const invoice = await prisma.invoice.update({
@@ -115,7 +115,7 @@ billingRouter.get('/invoices/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
-    if (!clinicId) { res.status(403).json({ ok: false, error: 'Доступ запрещён' }); return; }
+    if (!clinicId) { res.status(400).json({ ok: false, error: 'Выберите клинику' }); return; }
 
     const invoice = await prisma.invoice.findFirst({
       where: { id, clinicId },
@@ -136,7 +136,7 @@ billingRouter.post('/invoices/:id/pay', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
-    if (!clinicId) { res.status(403).json({ ok: false, error: 'Доступ запрещён' }); return; }
+    if (!clinicId) { res.status(400).json({ ok: false, error: 'Выберите клинику' }); return; }
 
     const existing = await prisma.invoice.findFirst({ where: { id, clinicId } });
 

@@ -386,6 +386,21 @@ adminRouter.get('/users', authenticate, requireSuperadmin, async (req: AuthReque
   }
 });
 
+adminRouter.get('/users/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: { memberships: { select: { clinicId: true, role: true, clinic: { select: { name: true } } } } },
+    });
+    if (!user) return res.status(404).json({ ok: false, error: 'User not found' } satisfies ApiResponse);
+    res.json({ ok: true, data: serializeUser(user) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[admin/users/:id]', error);
+    res.status(500).json({ ok: false, error: 'Failed to load user' });
+  }
+});
+
 adminRouter.post('/users', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { login, email, name, role, clinicId, password } = req.body as {

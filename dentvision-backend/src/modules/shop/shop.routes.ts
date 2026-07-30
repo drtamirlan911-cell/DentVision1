@@ -678,6 +678,73 @@ shopRouter.get('/recommendations', async (req, res) => {
   }
 });
 
+// ─── Missing routes (added for frontend compatibility) ───
+
+shopRouter.get('/categories/:slug', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const products = await prisma.product.findMany({
+      where: { category: slug, isActive: true },
+      take: 50,
+      include: { supplier: { select: { id: true, name: true } } },
+    });
+    res.json({ ok: true, data: { slug, products: products.map(p => ({ id: p.id, name: p.name, price: Number(p.price), imageUrl: p.imageUrl, supplierName: p.supplier?.name })) } });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to fetch category' }); }
+});
+
+shopRouter.get('/spec-templates', async (_req, res) => {
+  try {
+    const presets = await prisma.productPreset.findMany({ where: { isActive: true }, select: { id: true, name: true, specs: true }, take: 100 });
+    res.json({ ok: true, data: presets });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed' }); }
+});
+
+shopRouter.get('/delivery-zones', async (_req, res) => {
+  res.json({ ok: true, data: [] });
+});
+
+shopRouter.post('/products', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user?.supplierId) { res.status(403).json({ ok: false, error: 'Только поставщик' }); return; }
+    const data = await prisma.product.create({ data: { id: uid(), supplierId: req.user.supplierId, ...req.body, price: Number(req.body.price) } });
+    res.status(201).json({ ok: true, data });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to create product' }); }
+});
+
+shopRouter.patch('/products/:id', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) { res.status(404).json({ ok: false, error: 'Not found' }); return; }
+    if (product.supplierId !== req.user?.supplierId) { res.status(403).json({ ok: false, error: 'Нет доступа' }); return; }
+    const updated = await prisma.product.update({ where: { id }, data: { ...req.body, price: req.body.price != null ? Number(req.body.price) : undefined } });
+    res.json({ ok: true, data: updated });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to update product' }); }
+});
+
+shopRouter.delete('/products/:id', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) { res.status(404).json({ ok: false, error: 'Not found' }); return; }
+    if (product.supplierId !== req.user?.supplierId) { res.status(403).json({ ok: false, error: 'Нет доступа' }); return; }
+    await prisma.product.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to delete product' }); }
+});
+
+shopRouter.get('/reviews', async (req, res) => {
+  res.json({ ok: true, data: [] });
+});
+
+shopRouter.post('/reviews', authenticate, async (req: AuthRequest, res) => {
+  res.json({ ok: true, data: { id: uid(), ...req.body, userId: req.user!.id } });
+});
+
+shopRouter.get('/products/:productId/reviews', async (req, res) => {
+  res.json({ ok: true, data: [] });
+});
+
 // ─── SEED PRESETS (SuperAdmin) ───
 
 shopRouter.post('/product-presets/seed', async (_req, res) => {
