@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   LayoutDashboard, FileText, Building2, FlaskConical, Users,
   ClipboardList, Calendar, BarChart3, Settings, ChevronRight,
-  Microscope, TestTube, Shield,
+  Microscope, TestTube, Shield, PenLine,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
@@ -21,13 +21,15 @@ const DIAG_SUBNAV = [
   { id: 'calendar', label: 'Календарь', path: '/diagnostics/calendar', icon: <Calendar size={16} /> },
   { id: 'statistics', label: 'Статистика', path: '/diagnostics/statistics', icon: <BarChart3 size={16} /> },
   { id: 'settings', label: 'Настройки', path: '/diagnostics/settings', icon: <Settings size={16} /> },
-  { id: 'registrations', label: 'Заявки', path: '/diagnostics/registrations', icon: <Shield size={16} />, role: 'superadmin' },
+  { id: 'register', label: 'Регистрация', path: '/register-diagnostics', icon: <PenLine size={16} /> },
+  { id: 'registrations', label: 'Заявки', path: '/diagnostics/registrations', icon: <Shield size={16} />, platformRole: 'superadmin' },
 ];
 
 export default function DiagnosticsLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { role } = useAuth();
+  const { user, role } = useAuth();
+  const platformRole = user?.platformRole || role;
   const [collapsed, setCollapsed] = useState(false);
 
   const isActive = (path: string) => {
@@ -35,7 +37,7 @@ export default function DiagnosticsLayout() {
     return location.pathname.startsWith(path);
   };
 
-  const visibleItems = DIAG_SUBNAV.filter(item => !item.role || item.role === role);
+  const visibleItems = DIAG_SUBNAV.filter(item => !item.platformRole || item.platformRole === platformRole);
 
   return (
     <div className="flex h-full gap-0">

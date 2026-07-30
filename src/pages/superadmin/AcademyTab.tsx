@@ -8,7 +8,7 @@ import { useToast } from '../../components/ui/ds/Toast';
 import { apiRequest } from '../../utils/api';
 import {
   GraduationCap, Users, BookOpen, Award, CheckCircle, XCircle, ChevronRight,
-  Search, Plus, RefreshCw, FileText, Star,
+  Search, Plus, RefreshCw, FileText, Star, Pencil, Trash2,
 } from 'lucide-react';
 
 const fd = (d: string) => {
@@ -117,6 +117,7 @@ export default function AcademyTab() {
   const [lecturerForm, setLecturerForm] = useState({ userId: '', academyId: '', speciality: '' });
   const [selectedLecturer, setSelectedLecturer] = useState<any>(null);
   const [selectedAcademy, setSelectedAcademy] = useState<any>(null);
+  const [editingAcademy, setEditingAcademy] = useState<any>(null);
   const [verifyDetail, setVerifyDetail] = useState<any>(null);
 
   const academiesQuery = useQuery({
@@ -164,9 +165,33 @@ export default function AcademyTab() {
       qc.invalidateQueries({ queryKey: ['academies'] });
       toast.success('Академия создана');
       setAcademyModal(false);
+      setEditingAcademy(null);
       setAcademyForm({ name: '', description: '' });
     },
     onError: (e: any) => toast.error(e.message || 'Ошибка создания академии'),
+  });
+
+  const updateAcademy = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; description?: string } }) =>
+      apiRequest(`/api/academies/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['academies'] });
+      toast.success('Академия обновлена');
+      setAcademyModal(false);
+      setEditingAcademy(null);
+      setAcademyForm({ name: '', description: '' });
+    },
+    onError: (e: any) => toast.error(e.message || 'Ошибка обновления академии'),
+  });
+
+  const deleteAcademy = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest(`/api/academies/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['academies'] });
+      toast.success('Академия удалена');
+    },
+    onError: (e: any) => toast.error(e.message || 'Ошибка удаления академии'),
   });
 
   const createLecturer = useMutation({
@@ -380,9 +405,17 @@ export default function AcademyTab() {
                         </td>
                         <td className="px-4 py-3 text-xs text-txt-muted">{fd(a.createdAt)}</td>
                         <td className="px-4 py-3">
-                          <Button size="icon-sm" variant="ghost" onClick={() => setSelectedAcademy(a)} title="Подробнее">
-                            <ChevronRight size={14} />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button size="icon-sm" variant="ghost" onClick={() => { setEditingAcademy(a); setAcademyForm({ name: a.name || '', description: a.description || '' }); setAcademyModal(true); }} title="Редактировать">
+                              <Pencil size={14} />
+                            </Button>
+                            <Button size="icon-sm" variant="ghost" onClick={() => { if (confirm('Удалить академию?')) deleteAcademy.mutate(a.id); }} title="Удалить">
+                              <Trash2 size={14} className="text-danger" />
+                            </Button>
+                            <Button size="icon-sm" variant="ghost" onClick={() => setSelectedAcademy(a)} title="Подробнее">
+                              <ChevronRight size={14} />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -760,17 +793,21 @@ export default function AcademyTab() {
         </div>
       )}
 
-      <Modal open={academyModal} onClose={() => setAcademyModal(false)} title="Новая академия">
+      <Modal open={academyModal} onClose={() => { setAcademyModal(false); setEditingAcademy(null); setAcademyForm({ name: '', description: '' }); }} title={editingAcademy ? 'Редактировать академию' : 'Новая академия'}>
         <form onSubmit={e => {
           e.preventDefault();
           if (!academyForm.name.trim()) { toast.warn('Укажите название'); return; }
-          createAcademy.mutate({ name: academyForm.name, description: academyForm.description });
+          if (editingAcademy) {
+            updateAcademy.mutate({ id: editingAcademy.id, data: { name: academyForm.name, description: academyForm.description } });
+          } else {
+            createAcademy.mutate({ name: academyForm.name, description: academyForm.description });
+          }
         }} className="space-y-4">
           <Input label="Название *" value={academyForm.name} onChange={e => setAcademyForm({ ...academyForm, name: e.target.value })} placeholder="Название академии" />
           <Textarea label="Описание" value={academyForm.description} onChange={e => setAcademyForm({ ...academyForm, description: e.target.value })} placeholder="Описание академии" rows={3} />
           <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createAcademy.isPending}>Создать</Button>
-            <Button type="button" variant="ghost" onClick={() => setAcademyModal(false)}>Отмена</Button>
+            <Button type="submit" loading={createAcademy.isPending || updateAcademy.isPending}>{editingAcademy ? 'Сохранить' : 'Создать'}</Button>
+            <Button type="button" variant="ghost" onClick={() => { setAcademyModal(false); setEditingAcademy(null); setAcademyForm({ name: '', description: '' }); }}>Отмена</Button>
           </div>
         </form>
       </Modal>

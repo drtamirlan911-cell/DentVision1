@@ -72,6 +72,43 @@ academiesRouter.post('/', requirePermission('academy.manage'), async (req: AuthR
   }
 });
 
+academiesRouter.patch('/:id', requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+  try {
+    const { name, description, city } = req.body || {};
+    const academy = await prisma.academy.findUnique({ where: { id: req.params.id as string } });
+    if (!academy) return res.status(404).json({ ok: false, error: 'Академия не найдена' } satisfies ApiResponse);
+
+    const updated = await prisma.academy.update({
+      where: { id: academy.id },
+      data: { ...(name !== undefined && { name }), ...(city !== undefined && { city: city || null }) },
+    });
+    await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Academy', originalId: updated.id } },
+      update: { name: updated.name },
+      create: {
+        id: uid(), name: updated.name, type: 'ACADEMY',
+        originalType: 'Academy', originalId: updated.id,
+      },
+    });
+    return res.json({ ok: true, data: updated } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Update academy error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при обновлении академии' } satisfies ApiResponse);
+  }
+});
+
+academiesRouter.delete('/:id', requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.academy.delete({ where: { id } });
+    await prisma.organization.deleteMany({ where: { originalType: 'Academy', originalId: id } });
+    return res.json({ ok: true } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Delete academy error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при удалении академии' } satisfies ApiResponse);
+  }
+});
+
 // ─── Lecturers ───
 export const lecturersRouter = Router();
 lecturersRouter.use(authenticate);

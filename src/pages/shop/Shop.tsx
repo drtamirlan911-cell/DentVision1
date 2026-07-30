@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ShoppingCart, Search, Heart, Star, Package, Truck, TrendingUp,
+  ShoppingCart, Search, Heart, Star, Package, Truck, TrendingUp, Store,
   X, Plus, Minus, Eye, Sparkles, Zap, ChevronRight, ChevronLeft, Check,
   Clock, Shield, ChevronDown, MapPin, SlidersHorizontal, Building2, Wallet,
 } from 'lucide-react';
@@ -422,6 +422,11 @@ export default function Shop() {
               {cartCount > 99 ? '99+' : cartCount}
             </span>
           )}
+        </button>
+        <button onClick={() => navigate('/supplier')}
+          className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium whitespace-nowrap transition-colors"
+          style={{ background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E' }}>
+          <Store size={14} /> Стать поставщиком
         </button>
       </div>
 
