@@ -36,11 +36,12 @@ export default function ForgotPassword() {
         body: JSON.stringify({ login: login.trim() }),
       });
       const data = await res.json();
-      if (data._devToken) {
-        setToken(data._devToken);
-        setSuccess('Токен для сброса (dev): ' + data._devToken);
+      const devToken = data._devToken || data.data?._devToken;
+      if (devToken) {
+        setToken(devToken);
+        setSuccess('Токен: ' + devToken.slice(0, 12) + '... (авто-заполнен)');
       } else {
-        setSuccess(data.message || 'Инструкция отправлена');
+        setSuccess(data.data?.message || data.message || 'Инструкция отправлена');
       }
       setStep('reset');
     } catch {
@@ -73,7 +74,7 @@ export default function ForgotPassword() {
         body: JSON.stringify({ token: token.trim(), newPassword }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      if (!res.ok) throw new Error(data.data?.error || data.error || 'Ошибка');
       setSuccess('Пароль успешно изменён!');
       setTimeout(() => navigate('/login'), 2000);
     } catch (err: unknown) {

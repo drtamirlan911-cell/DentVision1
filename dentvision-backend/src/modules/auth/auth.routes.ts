@@ -917,20 +917,20 @@ authRouter.get('/my-clinics', authenticate, async (req: AuthRequest, res) => {
 
 authRouter.post('/forgot-password', async (req, res) => {
   try {
-    const { email } = req.body as { email: string };
+    const { email, login } = req.body as { email?: string; login?: string };
+    const identifier = email || login;
 
-    if (!email) {
-      return res.status(400).json({ ok: false, error: 'Email обязателен' });
+    if (!identifier) {
+      return res.status(400).json({ ok: false, error: 'Email или логин обязателен' });
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedEmail = String(identifier).trim().toLowerCase();
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
+    let devToken: string | null = null;
     if (user) {
       const token = crypto.randomBytes(32).toString('hex');
-      // Clean old tokens for this user
       await prisma.passwordReset.deleteMany({ where: { userId: user.id } });
-      // Create new token
       await prisma.passwordReset.create({
         data: {
           userId: user.id,
@@ -941,15 +941,17 @@ authRouter.post('/forgot-password', async (req, res) => {
 
       if (process.env.NODE_ENV !== 'production') {
         console.log(`[Password Reset] Token for ${normalizedEmail}: ${token}`);
+        devToken = token;
       }
     }
 
-    const response: ApiResponse = {
+    res.json({
       ok: true,
-      data: { message: 'Если пользователь существует, письмо для сброса пароля отправлено' },
-    };
-
-    res.json(response);
+      data: {
+        message: 'Если пользователь существует, письмо для сброса пароля отправлено',
+        ...(devToken ? { _devToken: devToken } : {}),
+      },
+    });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Ошибка при отправке письма' });
   }
@@ -957,10 +959,16 @@ authRouter.post('/forgot-password', async (req, res) => {
 
 authRouter.post('/reset-password', async (req, res) => {
   try {
-    const { token, password } = req.body as { token: string; password: string };
+    const { token, password, newPassword } = req.body as { token: string; password?: string; newPassword?: string };
+    const finalPassword = password || newPassword;
 
-    if (!token || !password) {
+    if (!token || !finalPassword) {
       return res.status(400).json({ ok: false, error: 'Токен и новый пароль обязательны' });
+    }
+
+    const passwordError = assertPasswordPolicy(finalPassword);
+    if (passwordError) {
+      return res.status(400).json({ ok: false, error: passwordError });
     }
 
     const entry = await prisma.passwordReset.findFirst({
@@ -977,12 +985,7 @@ authRouter.post('/reset-password', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Токен истек' });
     }
 
-    const passwordError = assertPasswordPolicy(password);
-    if (passwordError) {
-      return res.status(400).json({ ok: false, error: passwordError });
-    }
-
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await hashPassword(finalPassword);
     await prisma.user.update({
       where: { email: entry.user.email },
       data: { password: hashedPassword },
