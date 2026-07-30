@@ -8,7 +8,7 @@ RUN npm run build
 
 # Runner
 FROM nginx:alpine
-RUN addgroup -S app && adduser -S app -G app
+RUN apk add --no-cache curl && addgroup -S app && adduser -S app -G app
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN chown -R app:app /usr/share/nginx/html /var/cache/nginx /var/run

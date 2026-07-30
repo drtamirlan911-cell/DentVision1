@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import prisma from '../../../lib/prisma.js'
 import { validateWhatsAppSignature } from './webhook.validator.js'
 import { normalizeWhatsApp } from './whatsapp.adapter.js'
 import { normalizeInstagram } from './instagram.adapter.js'
@@ -6,16 +7,29 @@ import { enqueueMessage } from '../queue/message.queue.js'
 
 export const webhookGatewayRouter = Router()
 
+async function verifyWebhookToken(token: string, channel: string): Promise<boolean> {
+  const config = await prisma.clinicMessengerConfig.findFirst({
+    where: { channel: channel as any, verifyToken: token, isActive: true },
+    select: { id: true },
+  })
+  return config !== null
+}
+
 // ─── WhatsApp ───
 
-webhookGatewayRouter.get('/whatsapp', (req: Request, res: Response) => {
+webhookGatewayRouter.get('/whatsapp', async (req: Request, res: Response) => {
   const mode = req.query['hub.mode']
-  const token = req.query['hub.verify_token']
+  const token = req.query['hub.verify_token'] as string | undefined
   const challenge = req.query['hub.challenge']
 
   if (mode === 'subscribe' && token) {
-    console.log('[webhook] WhatsApp verification request received')
-    return res.status(200).send(challenge)
+    const valid = await verifyWebhookToken(token, 'WHATSAPP')
+    if (valid) {
+      console.log('[webhook] WhatsApp verification successful')
+      return res.status(200).send(challenge)
+    }
+    console.warn('[webhook] WhatsApp verification failed: invalid token')
+    return res.status(403).json({ error: 'Verification failed' })
   }
   return res.status(403).json({ error: 'Verification failed' })
 })
@@ -43,13 +57,19 @@ webhookGatewayRouter.post('/whatsapp', async (req: Request, res: Response) => {
 
 // ─── Instagram ───
 
-webhookGatewayRouter.get('/instagram', (req: Request, res: Response) => {
+webhookGatewayRouter.get('/instagram', async (req: Request, res: Response) => {
   const mode = req.query['hub.mode']
-  const token = req.query['hub.verify_token']
+  const token = req.query['hub.verify_token'] as string | undefined
   const challenge = req.query['hub.challenge']
 
   if (mode === 'subscribe' && token) {
-    return res.status(200).send(challenge)
+    const valid = await verifyWebhookToken(token, 'INSTAGRAM')
+    if (valid) {
+      console.log('[webhook] Instagram verification successful')
+      return res.status(200).send(challenge)
+    }
+    console.warn('[webhook] Instagram verification failed: invalid token')
+    return res.status(403).json({ error: 'Verification failed' })
   }
   return res.status(403).json({ error: 'Verification failed' })
 })

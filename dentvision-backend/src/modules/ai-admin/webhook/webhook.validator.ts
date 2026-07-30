@@ -12,8 +12,13 @@ export function validateWhatsAppSignature(req: Request): boolean {
     return false
   }
 
-  const body = JSON.stringify(req.body)
-  const expected = 'sha256=' + createHmac('sha256', appSecret).update(body).digest('hex')
+  const rawBody = (req as any).rawBody
+  if (!rawBody) {
+    console.error('[validator] No rawBody captured — webhook middleware misconfiguration')
+    return false
+  }
+
+  const expected = 'sha256=' + createHmac('sha256', appSecret).update(rawBody).digest('hex')
 
   try {
     return timingSafeEqual(Buffer.from(signature), Buffer.from(expected))

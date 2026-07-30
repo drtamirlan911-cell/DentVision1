@@ -21,4 +21,4 @@ EXPOSE 3001
 USER app
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD curl --fail http://localhost:3001/api/health || exit 1
-CMD ["node", "dist/src/index.js"]
+CMD sh -c "npx prisma migrate deploy && node dist/src/index.js"

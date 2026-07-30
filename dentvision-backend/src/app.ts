@@ -114,7 +114,13 @@ app.use(cors({
 }));
 
 app.use(cookieParser());
-app.use(express.json({ limit: '10mb' }));
+
+// Capture raw body for webhook signature verification (before JSON parse)
+app.use(express.json({
+  limit: '10mb',
+  verify: (req: any, _res, buf) => { req.rawBody = buf },
+}));
+
 app.use(express.urlencoded({ extended: false }));
 app.use(csrfProtection);
 

@@ -35,12 +35,12 @@ export function isOriginAllowed(origin: string | undefined): boolean {
     const host = new URL(origin).hostname.toLowerCase();
     if (host === 'localhost' || host === '127.0.0.1') return true;
     if (!host.endsWith('.vercel.app')) return false;
-    // Production + preview aliases
-    if (host === 'dent-vision1.vercel.app' || host === 'dentvision1.vercel.app') return true;
-    // Preview: dent-vision1-git-… / dentvision-… / …-projects.vercel.app
-    if (host.includes('dent-vision') || host.includes('dentvision')) return true;
-    // Cursor cloud preview slugs sometimes shorten the app name
-    if (host.includes('cursor-') && host.includes('drtamirlan')) return true;
+    // Production + preview aliases — exact match only (no substring bypass)
+    if (host === 'dent-vision1.vercel.app') return true;
+    if (host === 'dentvision1.vercel.app') return true;
+    // Preview deployments: dent-vision1-git-<branch>-<hash>.vercel.app
+    if (/^dent-vision1-git-.+\.vercel\.app$/.test(host)) return true;
+    if (/^dentvision1-git-.+\.vercel\.app$/.test(host)) return true;
     return false;
   } catch {
     return false;

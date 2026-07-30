@@ -39,6 +39,7 @@ __pycache__/
 
 # Runtime data stores
 server/data/
+packages/server/
 
 # OS generated files
 .DS_Store
