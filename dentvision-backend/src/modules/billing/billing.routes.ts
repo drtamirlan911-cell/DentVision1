@@ -92,10 +92,12 @@ billingRouter.post('/invoices', async (req: AuthRequest, res) => {
 billingRouter.patch('/invoices/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) { res.status(403).json({ ok: false, error: 'Доступ запрещён' }); return; }
     const { status, amount, notes } = req.body;
 
     const invoice = await prisma.invoice.update({
-      where: { id },
+      where: { id, clinicId },
       data: {
         ...(status !== undefined && { status }),
         ...(amount !== undefined && { amount }),
@@ -112,9 +114,11 @@ billingRouter.patch('/invoices/:id', async (req: AuthRequest, res) => {
 billingRouter.get('/invoices/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) { res.status(403).json({ ok: false, error: 'Доступ запрещён' }); return; }
 
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, clinicId },
     });
 
     if (!invoice) {
@@ -131,8 +135,10 @@ billingRouter.get('/invoices/:id', async (req: AuthRequest, res) => {
 billingRouter.post('/invoices/:id/pay', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) { res.status(403).json({ ok: false, error: 'Доступ запрещён' }); return; }
 
-    const existing = await prisma.invoice.findUnique({ where: { id } });
+    const existing = await prisma.invoice.findFirst({ where: { id, clinicId } });
 
     if (!existing) {
       res.status(404).json({ ok: false, error: 'Invoice not found' });

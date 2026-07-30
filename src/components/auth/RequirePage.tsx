@@ -20,8 +20,12 @@ export function RequirePage({
   const { roleInfo, isAuthenticated } = useAuth()
   const { isGuest } = useGuestStore()
 
-  if (isGuest || !isAuthenticated) {
+  if (isGuest) {
     return <>{children}</>
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />
   }
 
   const pageId = page || pageIdFromPath(location.pathname)

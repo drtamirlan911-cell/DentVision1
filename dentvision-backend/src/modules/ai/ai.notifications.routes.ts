@@ -11,6 +11,7 @@ import { Router, Response, Request } from 'express';
 import { EventEmitter } from 'events';
 import jwt from 'jsonwebtoken';
 import prisma from '../../lib/prisma.js';
+import { isOriginAllowed } from '../../lib/cors.js';
 
 // ─── Types ───
 
@@ -119,7 +120,7 @@ router.get('/stream', async (req: Request, res: Response) => {
 
   // Set SSE headers
   const origin = req.headers.origin || '';
-  const allowedOrigin = origin.includes('dent-vision') || origin.includes('localhost')
+  const allowedOrigin = isOriginAllowed(origin)
     ? origin
     : process.env.CORS_ORIGIN || '';
   res.writeHead(200, {

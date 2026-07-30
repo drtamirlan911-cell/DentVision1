@@ -224,36 +224,46 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     if (dentCashMinor != null) spendWanted = BigInt(dentCashMinor);
     else if (dentCashTenge != null) spendWanted = tengeToMinor(Number(dentCashTenge));
 
-    // Create order first so spend always has a durable ref (no orphaned debit).
-    void total;
-    let order = await prisma.order.create({
-      data: {
-        id: orderId,
-        clinicId,
-        userId: req.user!.id,
-        items: lines.map((l) => ({
-          product_id: l.productId,
-          name: l.name,
-          quantity: l.qty,
-          price: l.priceTenge,
-          supplier_id: l.supplierId,
-        })),
-        total: payableBeforeCash,
-        status: 'pending',
-        meta: {
-          delivery_address,
-          delivery_method,
-          payment_method,
-          notes,
-          goodsTotal,
-          deliveryCost,
-          dentCashMinor: '0',
-          dentCashTenge: 0,
+    // C7: Atomic checkout — order + payment writes in $transaction
+    let spent = 0n;
+    let cashbackResult: any = null;
+    let payment: Record<string, unknown> | null = null;
+    let order: any;
+    let finalTotal = payableBeforeCash;
+
+    // Phase 1: Create order inside transaction
+    order = await prisma.$transaction(async (tx) => {
+      void total;
+      const o = await tx.order.create({
+        data: {
+          id: orderId,
+          clinicId,
+          userId: req.user!.id,
+          items: lines.map((l) => ({
+            product_id: l.productId,
+            name: l.name,
+            quantity: l.qty,
+            price: l.priceTenge,
+            supplier_id: l.supplierId,
+          })),
+          total: payableBeforeCash,
+          status: 'pending',
+          meta: {
+            delivery_address,
+            delivery_method,
+            payment_method,
+            notes,
+            goodsTotal,
+            deliveryCost,
+            dentCashMinor: '0',
+            dentCashTenge: 0,
+          },
         },
-      },
+      });
+      return o;
     });
 
-    let spent = 0n;
+    // Phase 2: DentCash spend (external service)
     try {
       spent = await spendDentCash({
         userId: req.user!.id,
@@ -272,25 +282,81 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       return;
     }
 
-    const finalTotal = Math.max(0, payableBeforeCash - Number(spent) / 100);
-    order = await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        total: finalTotal,
-        meta: {
-          delivery_address,
-          delivery_method,
-          payment_method,
-          notes,
-          goodsTotal,
-          deliveryCost,
-          dentCashMinor: spent.toString(),
-          dentCashTenge: Number(spent) / 100,
+    finalTotal = Math.max(0, payableBeforeCash - Number(spent) / 100);
+
+    // Phase 3: Update order with final total + payment inside one transaction
+    await prisma.$transaction(async (tx) => {
+      order = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          total: finalTotal,
+          meta: {
+            delivery_address,
+            delivery_method,
+            payment_method,
+            notes,
+            goodsTotal,
+            deliveryCost,
+            dentCashMinor: spent.toString(),
+            dentCashTenge: Number(spent) / 100,
+          },
         },
-      },
+      });
+
+      const method = String(payment_method || 'kaspi').toLowerCase();
+      const needsOnlinePay = finalTotal > 0 && method !== 'cash';
+
+      if (finalTotal <= 0) {
+        const { settlePaidPayment } = await import('../payments/payments.routes.js');
+        await settlePaidPayment({
+          id: `dentcash-${order.id}`,
+          refType: 'order',
+          refId: order.id,
+          domain: 'shop',
+          sellerType: null,
+          sellerId: null,
+          amount: 0n,
+          meta: { userId: req.user!.id, coveredByDentCash: true },
+        });
+      } else if (needsOnlinePay) {
+        const { providers, withPaymentQr } = await import('../payments/kaspi.provider.js');
+        const { tengeToMinor: toMinor, serializeBigInt } = await import('../../lib/money.js');
+        const amountMinor = toMinor(finalTotal);
+        const gateway = providers.kaspi_qr;
+        const created = await gateway.createPayment({ amountMinor, refId: order.id });
+        const primarySupplier = lines.find((l) => l.supplierId)?.supplierId || null;
+        const pay = await tx.payment.create({
+          data: {
+            provider: 'kaspi_qr',
+            externalId: created.externalId,
+            amount: amountMinor,
+            status: 'pending',
+            refType: 'order',
+            refId: order.id,
+            domain: 'shop',
+            sellerType: primarySupplier ? 'SUPPLIER' : null,
+            sellerId: primarySupplier,
+            meta: {
+              qr: created.qr,
+              userId: req.user!.id,
+              payment_method: method,
+            },
+          },
+        });
+        payment = withPaymentQr(serializeBigInt(pay) as Record<string, unknown>, created.qr);
+        const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
+        order = await tx.order.update({
+          where: { id: order.id },
+          data: {
+            status: 'awaiting_payment',
+            meta: { ...prevMeta, paymentId: pay.id },
+          },
+        });
+      }
     });
 
-    const cashback = await accrueShopOrderCashback({
+    // Phase 4: Cashback (external, non-critical)
+    cashbackResult = await accrueShopOrderCashback({
       orderId: order.id,
       userId: req.user!.id,
       lines,
@@ -298,70 +364,14 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       spendMinor: spent,
     }).catch(async (err) => {
       console.error('[dentcash accrue order]', err);
-      // Order + spend already committed; surface zero earn (retryable via ops).
       return null;
     });
 
-    // If velocity skipped entire earn, still return a clear hint.
-    const earnTenge = cashback && !cashback.skipped
-      ? Number(cashback.totalMinor) / 100
-      : cashback?.skipped && cashback.reason === 'already_accrued'
-        ? Number(cashback.totalMinor) / 100
+    const earnTenge = cashbackResult && !cashbackResult.skipped
+      ? Number(cashbackResult.totalMinor) / 100
+      : cashbackResult?.skipped && cashbackResult.reason === 'already_accrued'
+        ? Number(cashbackResult.totalMinor) / 100
         : 0;
-
-    let payment: Record<string, unknown> | null = null;
-    const method = String(payment_method || 'kaspi').toLowerCase();
-    const needsOnlinePay = finalTotal > 0 && method !== 'cash';
-
-    if (finalTotal <= 0) {
-      const { settlePaidPayment } = await import('../payments/payments.routes.js');
-      // Fully covered by DentCash — settle order/supplier credits without QR payment.
-      await settlePaidPayment({
-        id: `dentcash-${order.id}`,
-        refType: 'order',
-        refId: order.id,
-        domain: 'shop',
-        sellerType: null,
-        sellerId: null,
-        amount: 0n,
-        meta: { userId: req.user!.id, coveredByDentCash: true },
-      });
-      order = await prisma.order.findUnique({ where: { id: order.id } }) || order;
-    } else if (needsOnlinePay) {
-      const { providers, withPaymentQr } = await import('../payments/kaspi.provider.js');
-      const { tengeToMinor: toMinor, serializeBigInt } = await import('../../lib/money.js');
-      const amountMinor = toMinor(finalTotal);
-      const gateway = providers.kaspi_qr;
-      const created = await gateway.createPayment({ amountMinor, refId: order.id });
-      const primarySupplier = lines.find((l) => l.supplierId)?.supplierId || null;
-      const pay = await prisma.payment.create({
-        data: {
-          provider: 'kaspi_qr',
-          externalId: created.externalId,
-          amount: amountMinor,
-          status: 'pending',
-          refType: 'order',
-          refId: order.id,
-          domain: 'shop',
-          sellerType: primarySupplier ? 'SUPPLIER' : null,
-          sellerId: primarySupplier,
-          meta: {
-            qr: created.qr,
-            userId: req.user!.id,
-            payment_method: method,
-          },
-        },
-      });
-      payment = withPaymentQr(serializeBigInt(pay) as Record<string, unknown>, created.qr);
-      const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
-      order = await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          status: 'awaiting_payment',
-          meta: { ...prevMeta, paymentId: pay.id },
-        },
-      });
-    }
 
     res.status(201).json({
       ok: true,
@@ -369,7 +379,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         ...order,
         dentCashSpentTenge: Number(spent) / 100,
         dentCashEarnPendingTenge: earnTenge,
-        dentCashEarnSkipped: cashback?.skipped ? cashback.reason : null,
+        dentCashEarnSkipped: cashbackResult?.skipped ? cashbackResult.reason : null,
         payment,
         requiresPayment: !!payment,
       },

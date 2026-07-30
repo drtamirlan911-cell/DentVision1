@@ -144,6 +144,10 @@ medicalRouter.get('/visits/:patientId', async (req: AuthRequest, res) => {
 medicalRouter.get('/visits', async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user!.clinicId;
+    if (!clinicId) {
+      res.status(403).json({ ok: false, error: 'Доступ запрещён' });
+      return;
+    }
     const visits = await prisma.visit.findMany({
       where: { patient: { clinicId } },
       include: {
@@ -162,6 +166,7 @@ medicalRouter.get('/visits', async (req: AuthRequest, res) => {
 medicalRouter.get('/patients/:patientId/visits', async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
+    if (!(await requirePatientAccess(req, res, patientId))) return;
 
     const visits = await prisma.visit.findMany({
       where: { patientId },

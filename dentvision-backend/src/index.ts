@@ -33,17 +33,13 @@ async function main() {
 
   // Run schema migrations
   try {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "Patient" ADD COLUMN IF NOT EXISTS "iin" TEXT`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE IF EXISTS "Patient" ADD COLUMN IF NOT EXISTS "iin" TEXT`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE IF EXISTS "patients" ADD COLUMN IF NOT EXISTS "iin" TEXT`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patient_iin_idx" ON "Patient"("iin")`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patients_iin_idx" ON "patients"("iin")`);
     console.log('[MIGRATION] Patient.iin column ready');
   } catch (err) {
     console.error('[MIGRATION] Patient.iin failed (non-fatal):', err);
-  }
-  try {
-    await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPPORT'`);
-    console.log('[MIGRATION] UserRole.SUPPORT added');
-  } catch (err) {
-    console.error('[MIGRATION] UserRole.SUPPORT failed (non-fatal):', err);
   }
 
   // Initialize Event Bus

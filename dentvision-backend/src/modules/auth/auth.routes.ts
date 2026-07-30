@@ -25,7 +25,7 @@ import { setCsrfCookie } from '../../middleware/csrf.js';
 
 function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
   res.cookie('accessToken', accessToken, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000,
@@ -93,15 +93,17 @@ authRouter.post('/register', async (req, res) => {
       select: { id: true, email: true, firstName: true, lastName: true, role: true },
     });
 
+    const session = await createSession(user.id, req.ip, req.headers['user-agent']).catch((e) => {
+      console.warn('[auth/register] createSession failed:', e?.message);
+      return null;
+    });
+
     const tokens = generateTokens({
       sub: user.id,
       email: user.email,
       role: user.role,
+      sessionId: session?.id,
     });
-
-    createSession(user.id, req.ip, req.headers['user-agent']).catch((e) =>
-      console.warn('[auth/register] createSession failed:', e?.message),
-    );
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 
@@ -184,19 +186,20 @@ authRouter.post('/login', async (req, res) => {
         }
       : null;
 
+    const session = await createSession(user.id, req.ip, req.headers['user-agent']).catch((e) => {
+      console.warn('[auth/login] createSession failed:', e?.message);
+      return null;
+    });
+
     const tokens = generateTokens({
       sub: user.id,
       email: user.email,
       role: user.role,
       clinicId,
+      sessionId: session?.id,
     });
 
     const { password: _, memberships, ...userWithoutPassword } = user;
-
-    // Record login session
-    createSession(user.id, req.ip, req.headers['user-agent']).catch((e) =>
-      console.warn('[auth/login] createSession failed:', e?.message),
-    );
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 
@@ -222,10 +225,25 @@ authRouter.post('/login', async (req, res) => {
   }
 });
 
+authRouter.post('/logout', authenticate, async (req: AuthRequest, res) => {
+  try {
+    // Expire all user sessions
+    await prisma.userSession.updateMany({
+      where: { userId: req.user!.id, expiredAt: { gt: new Date() } },
+      data: { expiredAt: new Date() },
+    }).catch(() => { /* table may not exist */ });
+    clearAuthCookies(res);
+    res.json({ ok: true, data: { message: 'Logged out' } });
+  } catch {
+    clearAuthCookies(res);
+    res.json({ ok: true, data: { message: 'Logged out' } });
+  }
+});
+
+// H2: Refresh token rotation — expire old session, create new one
 authRouter.post('/refresh', async (req, res) => {
   try {
     const { refreshToken } = req.body as { refreshToken: string };
-
     if (!refreshToken) {
       return res.status(400).json({ ok: false, error: 'Refresh токен обязателен' });
     }
@@ -241,21 +259,35 @@ authRouter.post('/refresh', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'Пользователь не найден' });
     }
 
+    // Rotate session: expire old, create new
+    if (payload.sessionId) {
+      await prisma.userSession.update({
+        where: { id: payload.sessionId },
+        data: { expiredAt: new Date() },
+      }).catch(() => null);
+    }
+    const session = await prisma.userSession.create({
+      data: {
+        userId: user.id,
+        device: 'Session Refresh',
+        browser: 'Session Refresh',
+        ipAddress: req.ip || null,
+        lastActivity: new Date(),
+        expiredAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    }).catch(() => null);
+
     const tokens = generateTokens({
       sub: user.id,
       email: user.email,
       role: user.role,
       clinicId: payload.clinicId,
+      sessionId: session?.id,
     });
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 
-    const response: ApiResponse = {
-      ok: true,
-      data: tokens,
-    };
-
-    res.json(response);
+    res.json({ ok: true, data: tokens } satisfies ApiResponse);
   } catch (error) {
     res.status(401).json({ ok: false, error: 'Невалидный refresh токен' });
   }

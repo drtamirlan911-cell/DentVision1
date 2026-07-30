@@ -39,13 +39,13 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     setCsrfCookie(res);
 
     const guestByEmail = isGuestEmail(user.email);
-    if (!guestByEmail) {
+    if (!guestByEmail && payload.sessionId) {
       try {
         const activeSession = await prisma.userSession.findFirst({
-          where: { userId: user.id, expiredAt: { gt: new Date() } },
+          where: { id: payload.sessionId, userId: user.id, expiredAt: { gt: new Date() } },
         });
         if (!activeSession) {
-          console.warn(`[auth] no active session for user ${user.id} — allowing anyway (JWT valid)`);
+          return res.status(401).json({ ok: false, error: 'Сессия истекла или отозвана' });
         }
       } catch {
         console.warn('[auth] user_sessions table unavailable — skipping session check');

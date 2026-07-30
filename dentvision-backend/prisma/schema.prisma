@@ -2119,14 +2119,14 @@ model UserSession {
 }
 
 model Consent {
-  id        String  @id @default(uuid())
-  userId    String
+  id        String   @id @default(uuid())
+  userId    String?
   type      String
-  version   String  @default("1.0")
-  accepted  Boolean @default(false)
+  version   String   @default("1.0")
+  accepted  Boolean  @default(false)
   ipAddress String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -2137,18 +2137,18 @@ model Consent {
 
 model MedicalFileAccess {
   id           String  @id @default(uuid())
-  patientId    String
+  patientId    String?
   fileType     String
   storagePath  String
-  uploadedBy   String
+  uploadedBy   String?
   viewedBy     String?
   downloadedBy String?
   action       String
 
-  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  uploader   User    @relation("UploadedFiles", fields: [uploadedBy], references: [id], onDelete: Cascade)
-  viewer     User?   @relation("ViewedFiles", fields: [viewedBy], references: [id], onDelete: SetNull)
-  downloader User?   @relation("DownloadedFiles", fields: [downloadedBy], references: [id], onDelete: SetNull)
+  patient    Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  uploader   User?    @relation("UploadedFiles", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  viewer     User?    @relation("ViewedFiles", fields: [viewedBy], references: [id], onDelete: SetNull)
+  downloader User?    @relation("DownloadedFiles", fields: [downloadedBy], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -2160,7 +2160,7 @@ model MedicalFileAccess {
 
 model AIActionLog {
   id              String    @id @default(uuid())
-  userId          String
+  userId          String?
   patientId       String?
   agent           String
   model           String?
@@ -2170,7 +2170,7 @@ model AIActionLog {
   confirmedBy     String?
   confirmedAt     DateTime?
 
-  user      User     @relation("UserActions", fields: [userId], references: [id], onDelete: Cascade)
+  user      User?    @relation("UserActions", fields: [userId], references: [id], onDelete: SetNull)
   patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
   confirmor User?    @relation("ConfirmedActions", fields: [confirmedBy], references: [id], onDelete: SetNull)
 

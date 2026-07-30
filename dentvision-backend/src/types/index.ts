@@ -37,6 +37,7 @@ export interface JwtPayload {
   email: string;
   role: UserRole;
   clinicId?: string;
+  sessionId?: string;
   supplierId?: string;
   supplierRole?: string;
   lecturerId?: string;

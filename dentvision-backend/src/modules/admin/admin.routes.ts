@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
+import { env } from '../../config.js';
 import { wipeApplicationData } from '../../../prisma/lib/reset-database.js';
 import {
   seedDemoEnvironment,
@@ -56,7 +57,11 @@ function checkSeedSecret(req: { headers: Record<string, string | string[] | unde
 }
 
 /** POST /api/admin/reset-demo — wipe DB, seed test users + one demo clinic + patients */
-adminRouter.post('/reset-demo', async (req, res) => {
+adminRouter.post('/reset-demo', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  if (env.NODE_ENV === 'production') {
+    res.status(403).json({ ok: false, error: 'Database reset is disabled in production' });
+    return;
+  }
   if (!checkSeedSecret(req, res)) return;
 
   try {

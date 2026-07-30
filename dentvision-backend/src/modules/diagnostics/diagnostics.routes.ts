@@ -7,6 +7,28 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import * as svc from './diagnostics.service.js';
 import prisma from '../../lib/prisma.js';
 
+// C3: Verify user has clinic membership for the referral's clinic
+async function requireReferralAccess(req: AuthRequest, res: any, next: any) {
+  try {
+    const id = req.params.id || req.body?.referralId;
+    if (!id) return res.status(400).json({ ok: false, error: 'Referral ID required' });
+    const referral = await (prisma as any).referral.findUnique({
+      where: { id },
+      select: { clinicId: true, doctorId: true },
+    });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' });
+    // Allow: doctor who created it, or member of the clinic
+    if (referral.doctorId === req.user!.id) return next();
+    const member = await prisma.clinicMember.findFirst({
+      where: { userId: req.user!.id, clinicId: referral.clinicId },
+    });
+    if (!member) return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' });
+    next();
+  } catch {
+    res.status(500).json({ ok: false, error: 'Access check failed' });
+  }
+}
+
 export const diagnosticsRouter = Router();
 
 // Public registration request (must be before authenticate middleware)
@@ -187,7 +209,7 @@ diagnosticsRouter.get('/referrals', loadClinicAccess, async (req: AuthRequest, r
   }
 });
 
-diagnosticsRouter.get('/referrals/:id', async (req: AuthRequest, res) => {
+diagnosticsRouter.get('/referrals/:id', requireReferralAccess, async (req: AuthRequest, res) => {
   try {
     const data = await svc.getReferral(req.params.id);
     if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' } satisfies ApiResponse);
@@ -199,6 +221,13 @@ diagnosticsRouter.get('/referrals/:id', async (req: AuthRequest, res) => {
 
 diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => {
   try {
+    const clinicId = req.body.clinicId;
+    if (clinicId) {
+      const member = await prisma.clinicMember.findFirst({
+        where: { userId: req.user!.id, clinicId },
+      });
+      if (!member) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
+    }
     const userId = req.user!.id;
     const data = await svc.createReferral({ ...req.body, doctorId: userId }, userId);
     return res.json({ ok: true, data } satisfies ApiResponse);
@@ -207,7 +236,7 @@ diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => {
   }
 });
 
-diagnosticsRouter.patch('/referrals/:id', async (req: AuthRequest, res) => {
+diagnosticsRouter.patch('/referrals/:id', requireReferralAccess, async (req: AuthRequest, res) => {
   try {
     const data = await svc.updateReferral(req.params.id, req.body, req.user!.id);
     return res.json({ ok: true, data } satisfies ApiResponse);
@@ -216,7 +245,7 @@ diagnosticsRouter.patch('/referrals/:id', async (req: AuthRequest, res) => {
   }
 });
 
-diagnosticsRouter.post('/referrals/:id/status', async (req: AuthRequest, res) => {
+diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess, async (req: AuthRequest, res) => {
   try {
     const { status, reason, cost, platformFee } = req.body;
     const data = await svc.changeReferralStatus(req.params.id, status, req.user!.id, reason, cost, platformFee);
@@ -226,7 +255,7 @@ diagnosticsRouter.post('/referrals/:id/status', async (req: AuthRequest, res) =>
   }
 });
 
-diagnosticsRouter.delete('/referrals/:id', async (req: AuthRequest, res) => {
+diagnosticsRouter.delete('/referrals/:id', requireReferralAccess, async (req: AuthRequest, res) => {
   try {
     await svc.deleteReferral(req.params.id, req.user!.id);
     return res.json({ ok: true } satisfies ApiResponse);
@@ -237,7 +266,7 @@ diagnosticsRouter.delete('/referrals/:id', async (req: AuthRequest, res) => {
 
 // ─── Files ───
 
-diagnosticsRouter.post('/files/upload', async (req: AuthRequest, res) => {
+diagnosticsRouter.post('/files/upload', requireReferralAccess, async (req: AuthRequest, res) => {
   try {
     const { referralId, fileName, fileData, fileType, fileSize } = req.body;
     if (!referralId || !fileName || !fileData) {
@@ -252,7 +281,17 @@ diagnosticsRouter.post('/files/upload', async (req: AuthRequest, res) => {
   }
 });
 
-diagnosticsRouter.delete('/files/:id', async (req: AuthRequest, res) => {
+diagnosticsRouter.delete('/files/:id', async (req: AuthRequest, res, next) => {
+  // Resolve referralId from file record, then check clinic access
+  try {
+    const file = await (prisma as any).referralFile.findUnique({ where: { id: req.params.id }, select: { referralId: true } });
+    if (!file) return res.status(404).json({ ok: false, error: 'File not found' });
+    req.body = { ...req.body, referralId: file.referralId };
+  } catch {
+    return res.status(500).json({ ok: false, error: 'File lookup failed' });
+  }
+  next();
+}, requireReferralAccess, async (req: AuthRequest, res) => {
   try {
     await svc.deleteReferralFile(req.params.id, req.user!.id);
     return res.json({ ok: true } satisfies ApiResponse);
@@ -263,7 +302,7 @@ diagnosticsRouter.delete('/files/:id', async (req: AuthRequest, res) => {
 
 // ─── Results ───
 
-diagnosticsRouter.post('/results/ai-generate', async (req: AuthRequest, res) => {
+diagnosticsRouter.post('/results/ai-generate', requireReferralAccess, async (req: AuthRequest, res) => {
   try {
     const { referralId } = req.body;
     if (!referralId) return res.status(400).json({ ok: false, error: 'referralId required' } satisfies ApiResponse);
@@ -274,7 +313,7 @@ diagnosticsRouter.post('/results/ai-generate', async (req: AuthRequest, res) => 
   }
 });
 
-diagnosticsRouter.post('/results/:id/sign', async (req: AuthRequest, res) => {
+diagnosticsRouter.post('/results/:id/sign', requireReferralAccess, async (req: AuthRequest, res) => {
   try {
     const { reportText, conclusion } = req.body;
     if (!reportText) return res.status(400).json({ ok: false, error: 'reportText required' } satisfies ApiResponse);
@@ -289,7 +328,7 @@ diagnosticsRouter.post('/results/:id/sign', async (req: AuthRequest, res) => {
 
 // ─── Comments ───
 
-diagnosticsRouter.post('/referrals/:id/comments', async (req: AuthRequest, res) => {
+diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess, async (req: AuthRequest, res) => {
   try {
     const { text } = req.body;
     if (!text) return res.status(400).json({ ok: false, error: 'Text required' } satisfies ApiResponse);
