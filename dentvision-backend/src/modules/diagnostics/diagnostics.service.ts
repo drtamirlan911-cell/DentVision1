@@ -29,12 +29,37 @@ export async function getCenter(id: string) {
   });
 }
 
+async function syncOrgFromEntity(
+  type: 'DiagnosticCenter' | 'Laboratory',
+  id: string,
+  data: { name: string; city?: string | null; address?: string | null; phone?: string | null; email?: string | null },
+) {
+  await prisma.organization.upsert({
+    where: { originalType_originalId: { originalType: type, originalId: id } },
+    update: { name, address: data.address || null, phone: data.phone || null, email: data.email || null, contacts: data.city ? { city: data.city } : undefined },
+    create: {
+      id: uid(),
+      name,
+      type: type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY',
+      address: data.address || null,
+      phone: data.phone || null,
+      email: data.email || null,
+      contacts: data.city ? { city: data.city } : undefined,
+      originalType: type,
+      originalId: id,
+    },
+  });
+}
+
 export async function createCenter(data: {
   name: string; city?: string; address?: string; phone?: string; email?: string;
 }) {
-  return prisma.diagnosticCenter.create({
-    data: { id: uid(), ...data },
+  const id = uid();
+  const center = await prisma.diagnosticCenter.create({
+    data: { id, ...data },
   });
+  await syncOrgFromEntity('DiagnosticCenter', id, data);
+  return center;
 }
 
 export async function updateCenter(id: string, data: any) {
@@ -63,9 +88,12 @@ export async function getLaboratory(id: string) {
 export async function createLaboratory(data: {
   name: string; city?: string; address?: string; phone?: string; email?: string;
 }) {
-  return prisma.laboratory.create({
-    data: { id: uid(), ...data },
+  const id = uid();
+  const lab = await prisma.laboratory.create({
+    data: { id, ...data },
   });
+  await syncOrgFromEntity('Laboratory', id, data);
+  return lab;
 }
 
 export async function updateLaboratory(id: string, data: any) {
@@ -98,21 +126,25 @@ export async function approveRegistrationRequest(id: string, reviewerId: string)
   if (req.status !== 'PENDING') throw new Error('Request already processed');
 
   if (req.type === 'center') {
+    const id = uid();
     await prisma.diagnosticCenter.create({
       data: {
-        id: uid(), name: req.name, city: req.city,
+        id, name: req.name, city: req.city,
         address: req.address, phone: req.phone, email: req.email,
         active: true,
       },
     });
+    await syncOrgFromEntity('DiagnosticCenter', id, { name: req.name, city: req.city, address: req.address, phone: req.phone, email: req.email });
   } else {
+    const id = uid();
     await prisma.laboratory.create({
       data: {
-        id: uid(), name: req.name, city: req.city,
+        id, name: req.name, city: req.city,
         address: req.address, phone: req.phone, email: req.email,
         active: true,
       },
     });
+    await syncOrgFromEntity('Laboratory', id, { name: req.name, city: req.city, address: req.address, phone: req.phone, email: req.email });
   }
 
   return prisma.registrationRequest.update({

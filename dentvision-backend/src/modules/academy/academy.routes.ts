@@ -4,7 +4,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { publish } from '../../lib/events.js';
-import { paginate, paginatedResponse } from '../../lib/helpers.js';
+import { paginate, paginatedResponse, uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -56,6 +56,14 @@ academiesRouter.post('/', requirePermission('academy.manage'), async (req: AuthR
     }
     const academy = await prisma.academy.create({
       data: { name, city: city || null, ownerId: ownerId || null },
+    });
+    await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Academy', originalId: academy.id } },
+      update: { name: academy.name },
+      create: {
+        id: uid(), name: academy.name, type: 'ACADEMY',
+        originalType: 'Academy', originalId: academy.id,
+      },
     });
     return res.status(201).json({ ok: true, data: academy } satisfies ApiResponse);
   } catch (error) {

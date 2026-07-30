@@ -5,7 +5,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { requirePlatformOps } from '../../middleware/platformOps.js';
 import { publish } from '../../lib/events.js';
-import { paginate, paginatedResponse } from '../../lib/helpers.js';
+import { paginate, paginatedResponse, uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,6 +94,20 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
       include: { members: true },
     });
 
+    await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Supplier', originalId: supplier.id } },
+      update: { name: supplier.name, phone: supplier.phone, email: supplier.email },
+      create: {
+        id: uid(),
+        name: supplier.name,
+        type: 'SUPPLIER_COMPANY',
+        phone: supplier.phone,
+        email: supplier.email,
+        originalType: 'Supplier',
+        originalId: supplier.id,
+      },
+    });
+
     publish('supplier.status_changed', {
       supplierId: supplier.id,
       status: 'pending',
@@ -144,6 +158,15 @@ suppliersRouter.post('/', requirePermission('supplier.manage'), requirePlatformO
         email: email || null,
       },
     });
+    await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Supplier', originalId: supplier.id } },
+      update: { name: supplier.name, phone: supplier.phone, email: supplier.email },
+      create: {
+        id: uid(), name: supplier.name, type: 'SUPPLIER_COMPANY',
+        phone: supplier.phone, email: supplier.email,
+        originalType: 'Supplier', originalId: supplier.id,
+      },
+    });
     return res.status(201).json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
     console.error('Create supplier error:', error);
@@ -169,6 +192,15 @@ suppliersRouter.patch('/:id', requirePermission('supplier.manage'), requirePlatf
         ...(b.contactPerson !== undefined && { contactPerson: b.contactPerson || null }),
         ...(b.phone !== undefined && { phone: b.phone || null }),
         ...(b.email !== undefined && { email: b.email || null }),
+      },
+    });
+    await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Supplier', originalId: supplier.id } },
+      update: { name: supplier.name, phone: supplier.phone, email: supplier.email },
+      create: {
+        id: uid(), name: supplier.name, type: 'SUPPLIER_COMPANY',
+        phone: supplier.phone, email: supplier.email,
+        originalType: 'Supplier', originalId: supplier.id,
       },
     });
     return res.json({ ok: true, data: supplier } satisfies ApiResponse);
