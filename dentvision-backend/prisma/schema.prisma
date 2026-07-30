@@ -164,6 +164,7 @@ model User {
   viewedMedicalFiles            MedicalFileAccess[]      @relation("ViewedFiles")
   downloadedMedicalFiles        MedicalFileAccess[]      @relation("DownloadedFiles")
   passwordResets                PasswordReset[]
+  patients                      Patient[]
   aiActionLogs                  AIActionLog[]            @relation("UserActions")
   confirmedAiActions            AIActionLog[]            @relation("ConfirmedActions")
   jobVacancies                  JobVacancy[]
@@ -313,8 +314,10 @@ model Patient {
   medicalHistory Json?
   prepaidBalance Int       @default(0)
   deletedAt      DateTime?
+  userId         String?
 
   clinic              Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user               User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
   visits              Visit[]
   appointments        Appointment[]
   teeth               Tooth[]

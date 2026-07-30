@@ -53,7 +53,7 @@ export default function Login() {
   const [localError, setLocalError] = useState('')
   const [errors, setErrors] = useState<FormErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
-  const [showRegister, setShowRegister] = useState(false)
+  const [showRegister, setShowRegister] = useState(searchParams.get('register') === '1')
 
   useEffect(() => {
     if (searchParams.get('guest')) {
@@ -74,12 +74,16 @@ export default function Login() {
   useEffect(() => {
     if (user) {
       const target = returnUrl.includes('/login') ? '/' : returnUrl;
-      // If user has no clinic, force redirect to my-clinics to create/join one
+      const isPatientPortal = searchParams.get('portal') === 'patient';
       const hasClinic = clinic || activeMembership;
       const isSuperAdmin = user?.platformRole === 'superadmin';
-      navigate(hasClinic ? target : (isSuperAdmin ? '/admin' : '/my-clinics'), { replace: true });
+      if (isPatientPortal) {
+        navigate('/patient-portal', { replace: true });
+      } else {
+        navigate(hasClinic ? target : (isSuperAdmin ? '/admin' : '/my-clinics'), { replace: true });
+      }
     }
-  }, [user, clinic, activeMembership, navigate, returnUrl]);
+  }, [user, clinic, activeMembership, navigate, returnUrl, searchParams]);
 
   if (showRegister) return <Register onBack={() => setShowRegister(false)} />
 

@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { useNavigate, Link } from 'react-router-dom';
 import {
-  Calendar, FileText, Receipt, MessageCircle, Activity,
-  LogIn, LogOut, ChevronRight, ClipboardList, FileImage,
+  Calendar, FileText, Receipt, Activity,
+  LogIn, UserPlus, ClipboardList, FileImage,
 } from 'lucide-react';
 import { Tabs } from '@/components/ui/ds/Misc';
 import { Card } from '@/components/ui/ds/Card';
@@ -11,106 +12,17 @@ import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
-import { Textarea } from '@/components/ui/ds/Input';
-
-const API = '/api/patient-portal';
-
-function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('patient_token');
-  return fetch(path, {
-    ...opts,
-    headers: { ...opts?.headers, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-  }).then(r => r.json());
-}
-
-function LoginStep({ onLogin }: { onLogin: (data: any) => void }) {
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [iin, setIin] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleLogin = async () => {
-    if (!email && !phone && !iin) { setError('Введите email, телефон или ИИН'); return; }
-    setLoading(true); setError('');
-    try {
-      const res = await apiFetch(`${API}/login`, { method: 'POST', body: JSON.stringify({ email, phone, iin }) });
-      if (!res.ok) { setError(res.error || 'Пациент не найден'); return; }
-      localStorage.setItem('patient_token', res.data.token);
-      onLogin(res.data);
-    } catch { setError('Ошибка сети'); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-0 p-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
-        <Card padding="xl" className="text-center">
-          <h1 className="text-2xl font-bold text-txt-primary mb-1">Кабинет пациента</h1>
-          <p className="text-sm text-txt-muted mb-6">Войдите чтобы посмотреть историю лечения, приёмы и оплаты</p>
-          <div className="space-y-3 text-left">
-            <input value={iin} onChange={e => setIin(e.target.value)} placeholder="ИИН" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2.5 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
-            <div className="text-xs text-txt-ghost text-center">или</div>
-            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2.5 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
-            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Телефон" type="tel" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2.5 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
-            {error && <p className="text-xs text-red-400">{error}</p>}
-            <Button variant="primary" className="w-full" onClick={handleLogin} loading={loading} icon={<LogIn size={16} />}>Войти</Button>
-          </div>
-        </Card>
-      </motion.div>
-    </div>
-  );
-}
-
-export default function PatientPortal() {
-  const [patientData, setPatientData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState('appointments');
-
-  const logout = () => { localStorage.removeItem('patient_token'); setPatientData(null); };
-
-  if (!patientData) return <LoginStep onLogin={setPatientData} />;
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-txt-primary">Кабинет пациента</h1>
-          <p className="text-sm text-txt-muted mt-0.5">{patientData.patientName}</p>
-        </div>
-        <Button variant="ghost" size="sm" icon={<LogOut size={14} />} onClick={logout}>Выйти</Button>
-      </div>
-
-      <Tabs
-        tabs={[
-          { id: 'appointments', label: 'Приёмы', icon: <Calendar size={14} /> },
-          { id: 'treatments', label: 'Лечение', icon: <Activity size={14} /> },
-          { id: 'visits', label: 'Визиты', icon: <ClipboardList size={14} /> },
-          { id: 'payments', label: 'Оплаты', icon: <Receipt size={14} /> },
-          { id: 'docs', label: 'Документы', icon: <FileImage size={14} /> },
-          { id: 'diagnostics', label: 'Диагностика', icon: <FileText size={14} /> },
-        ]}
-        active={activeTab}
-        onChange={setActiveTab}
-      />
-
-      {activeTab === 'appointments' && <AppointmentsTab />}
-      {activeTab === 'treatments' && <TreatmentsTab />}
-      {activeTab === 'visits' && <VisitsTab />}
-      {activeTab === 'payments' && <PaymentsTab />}
-      {activeTab === 'docs' && <DocumentsTab />}
-      {activeTab === 'diagnostics' && <DiagnosticsTab />}
-    </motion.div>
-  );
-}
+import { useAuth } from '@/store/auth.store';
+import * as api from '@/utils/api';
 
 function AppointmentsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ['pp-appointments'],
-    queryFn: () => apiFetch(`${API}/appointments`),
+    queryFn: () => api.apiRequest('/api/patient-portal/appointments'),
   });
   const items = data?.data || [];
   if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <Empty text="Нет приёмов" />;
+  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет приёмов</div>;
   return (
     <div className="space-y-2">
       {items.map((a: any) => (
@@ -132,11 +44,11 @@ function AppointmentsTab() {
 function TreatmentsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ['pp-treatments'],
-    queryFn: () => apiFetch(`${API}/treatments`),
+    queryFn: () => api.apiRequest('/api/patient-portal/treatments'),
   });
   const items = data?.data || [];
   if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <Empty text="Нет записей о лечении" />;
+  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет записей о лечении</div>;
   return (
     <div className="space-y-2">
       {items.map((t: any) => (
@@ -158,11 +70,11 @@ function TreatmentsTab() {
 function VisitsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ['pp-visits'],
-    queryFn: () => apiFetch(`${API}/visits`),
+    queryFn: () => api.apiRequest('/api/patient-portal/visits'),
   });
   const items = data?.data || [];
   if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <Empty text="Нет истории посещений" />;
+  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет истории посещений</div>;
   return (
     <div className="space-y-3">
       {items.map((v: any) => (
@@ -184,7 +96,7 @@ function VisitsTab() {
 function PaymentsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ['pp-invoices'],
-    queryFn: () => apiFetch(`${API}/invoices`),
+    queryFn: () => api.apiRequest('/api/patient-portal/invoices'),
   });
   const result = data?.data || {};
   const invoices = result.invoices || [];
@@ -207,7 +119,7 @@ function PaymentsTab() {
           <p className="text-lg font-bold text-warning">{Number(summary.unpaid || 0).toLocaleString()} ₸</p>
         </GlassCard>
       </div>
-      {!invoices.length ? <Empty text="Нет счетов" /> : (
+      {!invoices.length ? <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет счетов</div> : (
         <div className="space-y-2">
           {invoices.map((inv: any) => (
             <Card key={inv.id} padding="md" className="flex items-center justify-between">
@@ -230,11 +142,11 @@ function PaymentsTab() {
 function DocumentsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ['pp-documents'],
-    queryFn: () => apiFetch(`${API}/documents`),
+    queryFn: () => api.apiRequest('/api/patient-portal/documents'),
   });
   const items = data?.data || [];
   if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <Empty text="Нет документов" />;
+  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет документов</div>;
   return (
     <div className="space-y-2">
       {items.map((d: any) => (
@@ -259,11 +171,11 @@ function DocumentsTab() {
 function DiagnosticsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ['pp-diagnostics'],
-    queryFn: () => apiFetch(`${API}/diagnostics`),
+    queryFn: () => api.apiRequest('/api/patient-portal/diagnostics'),
   });
   const items = data?.data || [];
   if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <Empty text="Нет направлений на диагностику" />;
+  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет направлений</div>;
   return (
     <div className="space-y-3">
       {items.map((r: any) => (
@@ -289,10 +201,55 @@ function DiagnosticsTab() {
   );
 }
 
-function Empty({ text }: { text: string }) {
+export default function PatientPortal() {
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('appointments');
+
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-0 p-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm text-center">
+          <Card padding="xl">
+            <h1 className="text-2xl font-bold text-txt-primary mb-2">Кабинет пациента</h1>
+            <p className="text-sm text-txt-muted mb-6">Войдите или создайте аккаунт для доступа к истории лечения, приёмам и оплатам</p>
+            <div className="space-y-3">
+              <Button variant="primary" className="w-full" onClick={() => navigate('/login?portal=patient')} icon={<LogIn size={16} />}>Войти как пациент</Button>
+              <Button variant="outline" className="w-full" onClick={() => navigate('/login?portal=patient&register=1')} icon={<UserPlus size={16} />}>Зарегистрироваться</Button>
+              <p className="text-xs text-txt-ghost pt-2">После регистрации попросите вашу клинику привязать аккаунт к вашей карте пациента</p>
+            </div>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-center h-32 text-txt-muted text-sm">
-      {text}
-    </div>
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 max-w-5xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-txt-primary">Кабинет пациента</h1>
+        <p className="text-sm text-txt-muted mt-0.5">{user.firstName} {user.lastName}</p>
+      </div>
+
+      <Tabs
+        tabs={[
+          { id: 'appointments', label: 'Приёмы', icon: <Calendar size={14} /> },
+          { id: 'treatments', label: 'Лечение', icon: <Activity size={14} /> },
+          { id: 'visits', label: 'Визиты', icon: <ClipboardList size={14} /> },
+          { id: 'payments', label: 'Оплаты', icon: <Receipt size={14} /> },
+          { id: 'docs', label: 'Документы', icon: <FileImage size={14} /> },
+          { id: 'diagnostics', label: 'Диагностика', icon: <FileText size={14} /> },
+        ]}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
+
+      {activeTab === 'appointments' && <AppointmentsTab />}
+      {activeTab === 'treatments' && <TreatmentsTab />}
+      {activeTab === 'visits' && <VisitsTab />}
+      {activeTab === 'payments' && <PaymentsTab />}
+      {activeTab === 'docs' && <DocumentsTab />}
+      {activeTab === 'diagnostics' && <DiagnosticsTab />}
+    </motion.div>
   );
 }
