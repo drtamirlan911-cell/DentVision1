@@ -66,6 +66,8 @@ import { legalRouter } from './modules/legal/legal.routes.js';
 import { legalPartnerRouter } from './modules/legal/legal.partner.routes.js';
 import { webhookGatewayRouter } from './modules/ai-admin/index.js';
 import { metaRouter } from './modules/meta-oauth/meta.routes.js';
+import { organizationsRouter } from './modules/organizations/organizations.routes.js';
+import { personsRouter } from './modules/persons/persons.routes.js';
 import compatRouter from './compat/compatRouter.js';
 import { registerSubscribers } from './events/subscribers.js';
 
@@ -241,6 +243,10 @@ app.use('/api/finance', financeRouter);
 app.use('/api/disputes', disputesRouter);
 app.use('/api/ai-admin/webhook', webhookGatewayRouter);
 app.use('/api/meta', metaRouter);
+
+// ─── Universal Organization / Person API (Phase 2) ───
+app.use('/api/organizations', organizationsRouter);
+app.use('/api/persons', personsRouter);
 
 // ─── Error Handling ───
 app.use(notFound);

@@ -173,6 +173,21 @@ clinicsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           role: 'OWNER',
         },
       }),
+      // Also create an Organization entry for unified API
+      prisma.organization.upsert({
+        where: { originalType_originalId: { originalType: 'Clinic', originalId: clinicId } },
+        update: { name, address, phone },
+        create: {
+          id: uid(),
+          name,
+          type: 'CLINIC',
+          address: address || null,
+          phone: phone || null,
+          contacts: city ? { city } : undefined,
+          originalType: 'Clinic',
+          originalId: clinicId,
+        },
+      }),
     ]);
 
     const response: ApiResponse = {
@@ -233,6 +248,27 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
         ...(phone !== undefined && { phone: phone || null }),
         ...(logo !== undefined && { logo: logo || null }),
         ...(nextSettings !== undefined && { settings: nextSettings as any }),
+      },
+    });
+
+    // Sync to Organization
+    await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Clinic', originalId: id } },
+      update: {
+        ...(name !== undefined && { name }),
+        ...(address !== undefined && { address }),
+        ...(phone !== undefined && { phone }),
+        contacts: city !== undefined ? { city } : undefined,
+      },
+      create: {
+        id: uid(),
+        name: name || clinic.name,
+        type: 'CLINIC',
+        address: address || null,
+        phone: phone || null,
+        contacts: city ? { city } : undefined,
+        originalType: 'Clinic',
+        originalId: id,
       },
     });
 

@@ -72,6 +72,9 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       supplierId: isGuest ? undefined : payload.supplierId,
       supplierRole: isGuest ? undefined : payload.supplierRole,
       lecturerId: isGuest ? undefined : payload.lecturerId,
+      organizationId: isGuest ? undefined : payload.organizationId,
+      organizationType: isGuest ? undefined : payload.organizationType,
+      personType: isGuest ? undefined : payload.personType,
       isGuest,
     } satisfies AuthUser;
 
@@ -107,6 +110,9 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
         firstName: '',
         lastName: '',
         clinicId: isGuest ? undefined : payload.clinicId,
+        organizationId: isGuest ? undefined : payload.organizationId,
+        organizationType: isGuest ? undefined : payload.organizationType,
+        personType: isGuest ? undefined : payload.personType,
         isGuest,
       };
     }

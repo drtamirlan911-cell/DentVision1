@@ -12,6 +12,10 @@ export interface AuthUser {
   supplierId?: string;
   supplierRole?: string;
   lecturerId?: string;
+  // Unified organization context (Phase 2)
+  organizationId?: string;
+  organizationType?: string;
+  personType?: string;
   isGuest?: boolean;
 }
 
@@ -36,6 +40,10 @@ export interface JwtPayload {
   supplierId?: string;
   supplierRole?: string;
   lecturerId?: string;
+  // Unified organization context (Phase 2)
+  organizationId?: string;
+  organizationType?: string;
+  personType?: string;
   isGuest?: boolean;
 }
 
