@@ -182,7 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const isSuperAdmin = authRole === 'superadmin';
 
-  const serviceItems = isSuperAdmin ? [] : (isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
+  const serviceItems = isSuperAdmin ? NAV_ITEMS : (isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.id === 'crm') return true;
     if (item.id === 'profile' || item.id === 'settings' || item.id === 'partner-legal') return true;
     if (item.id === 'supplier' || item.id === 'school-workspace') return true;
