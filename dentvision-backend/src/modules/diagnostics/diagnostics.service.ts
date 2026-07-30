@@ -293,9 +293,14 @@ export async function updateReferral(id: string, data: any, userId: string) {
   return referral;
 }
 
-export async function changeReferralStatus(id: string, status: ReferralStatus, userId: string, reason?: string) {
+export async function changeReferralStatus(id: string, status: ReferralStatus, userId: string, reason?: string, cost?: number, platformFee?: number) {
   const update: any = { status };
+  if (status === 'ACCEPTED' || status === 'IN_PROGRESS') {
+    if (cost !== undefined) update.cost = cost;
+    if (platformFee !== undefined) update.platformFee = platformFee;
+  }
   if (status === 'COMPLETED') update.completedAt = new Date();
+  if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
   if (status === 'CANCELLED') { update.cancelledAt = new Date(); update.cancelReason = reason; }
 
   const referral = await prisma.referral.update({ where: { id }, data: update });

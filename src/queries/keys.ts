@@ -43,5 +43,9 @@ export const queryKeys = {
     labs: (search?: string) => ['diagnostics', 'labs', search] as const,
     studies: (centerId?: string) => ['diagnostics', 'studies', centerId] as const,
     labTests: (labId?: string) => ['diagnostics', 'labTests', labId] as const,
+    centerPricing: (centerId: string) => ['diagnostics', 'centerPricing', centerId] as const,
+    labPricing: (labId: string) => ['diagnostics', 'labPricing', labId] as const,
+    centerPayments: (centerId: string) => ['diagnostics', 'centerPayments', centerId] as const,
+    labPayments: (labId: string) => ['diagnostics', 'labPayments', labId] as const,
   },
 }

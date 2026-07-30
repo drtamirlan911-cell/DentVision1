@@ -2340,8 +2340,8 @@ export async function updateDiagnosticReferral(id: string, data: any): Promise<a
   return apiRequest(`/api/diagnostics/referrals/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
 
-export async function changeDiagnosticReferralStatus(id: string, status: string, reason?: string): Promise<any> {
-  return apiRequest(`/api/diagnostics/referrals/${id}/status`, { method: 'POST', body: JSON.stringify({ status, reason }) });
+export async function changeDiagnosticReferralStatus(id: string, status: string, reason?: string, extra?: Record<string, any>): Promise<any> {
+  return apiRequest(`/api/diagnostics/referrals/${id}/status`, { method: 'POST', body: JSON.stringify({ status, reason, ...extra }) });
 }
 
 export async function deleteDiagnosticReferral(id: string): Promise<any> {
@@ -2401,6 +2401,18 @@ export const getDiagnosticsCenterPricing = (centerId: string) =>
 
 export const updateDiagnosticsCenterPricing = (centerId: string, studies: { id: string; price: number }[]) =>
   apiRequest(`/api/diagnostics/centers/${centerId}/pricing`, { method: 'PATCH', body: JSON.stringify({ studies }) });
+
+export const getDiagnosticsLabPricing = (labId: string) =>
+  apiRequest(`/api/diagnostics/laboratories/${labId}/pricing`);
+
+export const updateDiagnosticsLabPricing = (labId: string, tests: { id: string; price: number }[]) =>
+  apiRequest(`/api/diagnostics/laboratories/${labId}/pricing`, { method: 'PATCH', body: JSON.stringify({ tests }) });
+
+export const getDiagnosticsCenterPayments = (centerId: string) =>
+  apiRequest(`/api/diagnostics/centers/${centerId}/payments`);
+
+export const getDiagnosticsLabPayments = (labId: string) =>
+  apiRequest(`/api/diagnostics/laboratories/${labId}/payments`);
 
 export const getDiagnosticsCommissionRules = () =>
   apiRequest('/api/diagnostics/commission-rules');

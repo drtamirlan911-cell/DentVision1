@@ -216,8 +216,8 @@ diagnosticsRouter.patch('/referrals/:id', async (req: AuthRequest, res) => {
 
 diagnosticsRouter.post('/referrals/:id/status', async (req: AuthRequest, res) => {
   try {
-    const { status, reason } = req.body;
-    const data = await svc.changeReferralStatus(req.params.id, status, req.user!.id, reason);
+    const { status, reason, cost, platformFee } = req.body;
+    const data = await svc.changeReferralStatus(req.params.id, status, req.user!.id, reason, cost, platformFee);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -310,11 +310,19 @@ diagnosticsRouter.get('/dashboard', loadClinicAccess, async (req: AuthRequest, r
   }
 });
 
-// ─── Pricing ───
+// ─── Pricing (center/lab members or superadmin) ───
 
-diagnosticsRouter.get('/centers/:id/pricing', requireSuperadmin, async (req: AuthRequest, res) => {
+function hasOrgAccess(user: any, type: string, orgId: string): boolean {
+  return user?.platformRole === 'superadmin' ||
+    (user?.organizationType === type && user?.organizationId === orgId);
+}
+
+diagnosticsRouter.get('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     const centerId = req.params.id;
+    if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
     const studies = await (prisma as any).diagnosticStudy.findMany({
       where: { centerId },
       select: { id: true, name: true, category: true, price: true, active: true },
@@ -326,9 +334,12 @@ diagnosticsRouter.get('/centers/:id/pricing', requireSuperadmin, async (req: Aut
   }
 });
 
-diagnosticsRouter.patch('/centers/:id/pricing', requireSuperadmin, async (req: AuthRequest, res) => {
+diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     const centerId = req.params.id;
+    if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
     const { studies } = req.body as { studies: { id: string; price: number }[] };
     if (!Array.isArray(studies)) {
       return res.status(400).json({ ok: false, error: 'studies array required' } satisfies ApiResponse);
@@ -342,6 +353,97 @@ diagnosticsRouter.patch('/centers/:id/pricing', requireSuperadmin, async (req: A
       )
     );
     return res.json({ ok: true, data: updates } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.get('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
+  try {
+    const labId = req.params.id;
+    if (!hasOrgAccess(req.user, 'LABORATORY', labId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const tests = await (prisma as any).laboratoryTest.findMany({
+      where: { labId },
+      select: { id: true, name: true, category: true, price: true, active: true },
+      orderBy: { name: 'asc' },
+    });
+    return res.json({ ok: true, data: tests } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
+  try {
+    const labId = req.params.id;
+    if (!hasOrgAccess(req.user, 'LABORATORY', labId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const { tests } = req.body as { tests: { id: string; price: number }[] };
+    if (!Array.isArray(tests)) {
+      return res.status(400).json({ ok: false, error: 'tests array required' } satisfies ApiResponse);
+    }
+    const updates = await Promise.all(
+      tests.map((s) =>
+        (prisma as any).laboratoryTest.update({
+          where: { id: s.id, labId },
+          data: { price: s.price },
+        })
+      )
+    );
+    return res.json({ ok: true, data: updates } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+// ─── Payment tracking for center/lab ───
+
+diagnosticsRouter.get('/centers/:id/payments', async (req: AuthRequest, res) => {
+  try {
+    const centerId = req.params.id;
+    if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const referrals = await (prisma as any).referral.findMany({
+      where: { centerId, status: { not: 'CANCELLED' } },
+      select: { id: true, patientName: true, studyType: true, cost: true, platformFee: true, paid: true, paidAt: true, createdAt: true, status: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const totals = referrals.reduce((acc: any, r: any) => ({
+      totalRevenue: (acc.totalRevenue || 0) + Number(r.cost || 0),
+      totalFees: (acc.totalFees || 0) + Number(r.platformFee || 0),
+      paidCount: (acc.paidCount || 0) + (r.paid ? 1 : 0),
+      unpaidCount: (acc.unpaidCount || 0) + (r.paid ? 0 : 1),
+    }), { totalRevenue: 0, totalFees: 0, paidCount: 0, unpaidCount: 0 });
+    return res.json({ ok: true, data: { referrals, totals } } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.get('/laboratories/:id/payments', async (req: AuthRequest, res) => {
+  try {
+    const labId = req.params.id;
+    if (!hasOrgAccess(req.user, 'LABORATORY', labId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const referrals = await (prisma as any).referral.findMany({
+      where: { labId, status: { not: 'CANCELLED' } },
+      select: { id: true, patientName: true, studyType: true, cost: true, platformFee: true, paid: true, paidAt: true, createdAt: true, status: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const totals = referrals.reduce((acc: any, r: any) => ({
+      totalRevenue: (acc.totalRevenue || 0) + Number(r.cost || 0),
+      totalFees: (acc.totalFees || 0) + Number(r.platformFee || 0),
+      paidCount: (acc.paidCount || 0) + (r.paid ? 1 : 0),
+      unpaidCount: (acc.unpaidCount || 0) + (r.paid ? 0 : 1),
+    }), { totalRevenue: 0, totalFees: 0, paidCount: 0, unpaidCount: 0 });
+    return res.json({ ok: true, data: { referrals, totals } } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
