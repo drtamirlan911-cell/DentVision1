@@ -22,10 +22,10 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
   if (SKIP_PATHS.some((p) => req.path.startsWith(p))) return next();
   const headerToken = req.headers[CSRF_HEADER] as string | undefined;
   const cookieToken = req.cookies?.[CSRF_COOKIE];
-  // SameSite=None + Secure already mitigates CSRF for cross-origin.
-  // If the cookie or header is missing (cross-origin JS can't read the cookie),
-  // skip validation — the SameSite policy is the real protection.
-  if (!cookieToken || !headerToken) return next();
+  if (!cookieToken || !headerToken) {
+    res.status(403).json({ ok: false, error: 'CSRF token missing' });
+    return;
+  }
   if (headerToken !== cookieToken) {
     res.status(403).json({ ok: false, error: 'CSRF token mismatch' });
     return;
