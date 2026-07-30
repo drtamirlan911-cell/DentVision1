@@ -26,14 +26,14 @@ async function wakeDatabase(maxRetries = 5, baseDelay = 3000) {
 async function resolveFailedMigrations() {
   console.log('Checking for failed migrations...');
   try {
-    const result = await prisma.$queryRaw<Array<{ migration_name: string }>>`
-      SELECT migration_name FROM "_prisma_migrations" 
-      WHERE finished_at IS NOT NULL AND success = false
+    const result = await prisma.$queryRaw<Array<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }>>`
+      SELECT migration_name, finished_at, rolled_back_at FROM "_prisma_migrations" 
+      WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
       ORDER BY finished_at DESC
     `;
     
     if (result.length > 0) {
-      console.log(`Found ${result.length} failed migration(s):`, result.map(r => r.migration_name));
+      console.log(`Found ${result.length} potentially failed migration(s):`, result.map(r => r.migration_name));
       for (const m of result) {
         console.log(`Resolving failed migration: ${m.migration_name}`);
         try {
