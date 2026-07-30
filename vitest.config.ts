@@ -18,11 +18,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: [
       'src/**/*.test.{ts,tsx}',
-      'dentvision-backend/src/modules/dentcash/**/*.test.ts',
-      'dentvision-backend/src/modules/ai/lib/**/*.test.ts',
-      'dentvision-backend/src/modules/ai/core/clinicLoadPlan.test.ts',
-      'dentvision-backend/src/modules/crm/payroll.test.ts',
-      'dentvision-backend/src/modules/billing/planEntitlements.test.ts',
+      'dentvision-backend/src/**/*.test.ts',
     ],
     exclude: ['node_modules', 'dist', 'server'],
   },

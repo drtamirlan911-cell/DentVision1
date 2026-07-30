@@ -392,7 +392,7 @@ adminRouter.post('/users', authenticate, requireSuperadmin, async (req: AuthRequ
 
     const [firstName, ...rest] = name.trim().split(' ');
     const tempPassword = password || randomTempPassword();
-    const resolvedEmail = email?.trim() || (login.includes('@') ? login.trim() : `${login.trim()}@dentvision.local`);
+    const resolvedEmail = email?.trim() || (login.includes('@') ? login.trim() : `${login.trim()}-${uid().slice(0, 4)}@dentvision.local`);
 
     const user = await prisma.user.create({
       data: {
@@ -466,7 +466,7 @@ adminRouter.post('/support', authenticate, requireSuperadmin, async (req: AuthRe
 
     const [firstName, ...rest] = name.trim().split(' ');
     const tempPassword = password || randomTempPassword();
-    const resolvedEmail = email?.trim() || (login.includes('@') ? login.trim() : `${login.trim()}@dentvision.local`);
+    const resolvedEmail = email?.trim() || `${login.trim()}-${uid().slice(0, 4)}@dentvision.local`;
 
     const user = await prisma.user.create({
       data: {

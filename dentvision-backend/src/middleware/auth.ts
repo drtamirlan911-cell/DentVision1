@@ -51,14 +51,45 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     const hasMembership = (user.memberships?.length || 0) > 0;
     const isGuest = guestByEmail && !hasMembership;
 
-    // Verify that the clinicId from the JWT still has an active membership
-    let effectiveClinicId = isGuest ? undefined : payload.clinicId;
-    if (effectiveClinicId) {
-      const activeMember = user.memberships?.find(
-        (m) => m.clinicId === effectiveClinicId,
-      );
-      if (!activeMember) {
-        effectiveClinicId = undefined;
+    // Resolve active context: try organizationId first (unified), fallback to clinicId
+    let effectiveOrgId: string | undefined;
+    let effectiveOrgType: string | undefined;
+    let effectivePersonType: string | undefined;
+    let effectiveClinicId: string | undefined;
+    let effectiveSupplierId: string | undefined;
+
+    if (!isGuest) {
+      // 1) Try unified Organization context from JWT
+      if (payload.organizationId) {
+        const person = await prisma.person.findFirst({
+          where: { userId: user.id, organizationId: payload.organizationId },
+          include: { organization: { select: { type: true } } },
+        });
+        if (person && person.organization) {
+          effectiveOrgId = payload.organizationId;
+          effectiveOrgType = person.organization.type;
+          effectivePersonType = person.personType;
+          if (person.organization.type === 'CLINIC') {
+            effectiveClinicId = payload.organizationId;
+          }
+        }
+      }
+
+      // 2) Fallback: legacy clinicId from JWT → ClinicMember
+      if (!effectiveClinicId && payload.clinicId) {
+        const activeMember = user.memberships?.find(
+          (m) => m.clinicId === payload.clinicId,
+        );
+        if (activeMember) {
+          effectiveClinicId = payload.clinicId;
+          effectiveOrgId = payload.clinicId;
+          effectiveOrgType = 'CLINIC';
+        }
+      }
+
+      // 3) Fallback: supplierId from JWT
+      if (!effectiveOrgId && payload.supplierId) {
+        effectiveSupplierId = payload.supplierId;
       }
     }
 
@@ -69,9 +100,12 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       lastName: user.lastName,
       role: user.role,
       clinicId: effectiveClinicId,
-      supplierId: isGuest ? undefined : payload.supplierId,
+      supplierId: isGuest ? undefined : (payload.supplierId || effectiveSupplierId),
       supplierRole: isGuest ? undefined : payload.supplierRole,
       lecturerId: isGuest ? undefined : payload.lecturerId,
+      organizationId: effectiveOrgId,
+      organizationType: effectiveOrgType,
+      personType: effectivePersonType,
       isGuest,
     } satisfies AuthUser;
 
@@ -107,6 +141,9 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
         firstName: '',
         lastName: '',
         clinicId: isGuest ? undefined : payload.clinicId,
+        organizationId: isGuest ? undefined : payload.organizationId,
+        organizationType: isGuest ? undefined : payload.organizationType,
+        personType: isGuest ? undefined : payload.personType,
         isGuest,
       };
     }

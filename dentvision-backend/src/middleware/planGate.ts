@@ -4,6 +4,7 @@
 import type { Response, NextFunction } from 'express';
 import type { AuthRequest } from '../types/index.js';
 import { applyCorsHeaders } from '../lib/cors.js';
+import { getClinicId } from '../lib/orgContext.js';
 import {
   PlanGateError,
   resolveClinicAccess,
@@ -14,6 +15,11 @@ import {
   assertAiAllowed,
   type PlanFeature,
 } from '../modules/billing/planEntitlements.js';
+
+/** Resolve clinicId from user context (organizationId when CLINIC, or legacy clinicId). */
+function effectiveClinicId(user: AuthRequest['user']): string | undefined {
+  return getClinicId(user!);
+}
 
 function sendPlanError(req: AuthRequest, res: Response, err: unknown) {
   applyCorsHeaders(req, res);
@@ -31,7 +37,7 @@ function sendPlanError(req: AuthRequest, res: Response, err: unknown) {
 /** Attach resolved clinic access to req (SUPERADMIN bypasses write blocks). */
 export async function loadClinicAccess(req: AuthRequest, _res: Response, next: NextFunction) {
   try {
-    const clinicId = req.user?.clinicId;
+    const clinicId = effectiveClinicId(req.user);
     if (!clinicId) return next();
     const access = await resolveClinicAccess(clinicId);
     if (access && req.user?.role === 'SUPERADMIN') {
@@ -53,7 +59,7 @@ export function requireClinicWritable(req: AuthRequest, res: Response, next: Nex
     if (req.user?.role === 'SUPERADMIN') return next();
     const access = req.clinicAccess;
     if (!access) {
-      if (!req.user?.clinicId) {
+      if (!effectiveClinicId(req.user)) {
         return res.status(400).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' });
       }
       return next();
@@ -69,9 +75,10 @@ export function requireClinicWritable(req: AuthRequest, res: Response, next: Nex
 export async function blockClinicWrites(req: AuthRequest, res: Response, next: NextFunction) {
   const method = req.method.toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return next();
-  if (!req.clinicAccess && req.user?.clinicId) {
+  const cid = effectiveClinicId(req.user);
+  if (!req.clinicAccess && cid) {
     try {
-      const access = await resolveClinicAccess(req.user.clinicId);
+      const access = await resolveClinicAccess(cid);
       if (access) {
         if (req.user?.role === 'SUPERADMIN') {
           access.writeBlocked = false;
@@ -104,7 +111,7 @@ export function requirePlanFeature(feature: PlanFeature) {
 export async function guardPatientCreate(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     if (req.user?.role === 'SUPERADMIN') return next();
-    const clinicId = req.user?.clinicId;
+    const clinicId = effectiveClinicId(req.user);
     if (!clinicId) return next();
     const access = req.clinicAccess || (await resolveClinicAccess(clinicId));
     if (!access) return next();
@@ -119,7 +126,7 @@ export async function guardPatientCreate(req: AuthRequest, res: Response, next: 
 export async function guardUserCreate(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     if (req.user?.role === 'SUPERADMIN') return next();
-    const clinicId = String(req.params.id || req.user?.clinicId || '');
+    const clinicId = String(req.params.id || effectiveClinicId(req.user) || '');
     if (!clinicId) return next();
     const access = await resolveClinicAccess(clinicId);
     if (!access) return next();
@@ -136,7 +143,7 @@ export async function guardAiAccess(req: AuthRequest, res: Response, next: NextF
     const role = String(req.user?.role || '').toUpperCase();
     if (role === 'SUPERADMIN') return next();
     if (req.user?.isGuest || !req.user?.id) return next();
-    const clinicId = req.user?.clinicId;
+    const clinicId = effectiveClinicId(req.user);
     if (!clinicId) return next();
     // Dedicated demo clinic always has AI for product walkthroughs.
     if (process.env.DEMO_CLINIC_ID && clinicId === process.env.DEMO_CLINIC_ID) return next();
@@ -168,7 +175,7 @@ export async function guardAiAccess(req: AuthRequest, res: Response, next: NextF
 export async function guardAnalytics(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     if (req.user?.role === 'SUPERADMIN') return next();
-    const clinicId = req.user?.clinicId;
+    const clinicId = effectiveClinicId(req.user);
     if (!clinicId) return next();
     const access = req.clinicAccess || (await resolveClinicAccess(clinicId));
     if (!access) return next();

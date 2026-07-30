@@ -1672,6 +1672,10 @@ export async function opsListSuppliers(params: { status?: string; search?: strin
   return opsRequest(`/api/ops/suppliers${qs ? `?${qs}` : ''}`);
 }
 
+export async function opsGetSupplier(id: string): Promise<any> {
+  return opsRequest(`/api/ops/suppliers/${id}`);
+}
+
 export async function opsSetSupplierStatus(id: string, status: string): Promise<any> {
   return opsRequest(`/api/ops/suppliers/${id}/status`, {
     method: 'POST',
@@ -2426,4 +2430,78 @@ export async function quickAddPreset(presetId: string, price: number, stock?: nu
 
 export async function seedProductPresets(): Promise<any> {
   return apiRequest('/api/shop/product-presets/seed', { method: 'POST', body: '{}' });
+}
+
+// ─── Universal Organization / Person API (Phase 2+) ───
+
+export async function getOrganizations(params: { type?: string; search?: string; page?: number; limit?: number } = {}): Promise<{ data: any[]; pagination: any }> {
+  const q = new URLSearchParams();
+  if (params.type) q.set('type', params.type);
+  if (params.search) q.set('search', params.search);
+  if (params.page) q.set('page', String(params.page));
+  if (params.limit) q.set('limit', String(params.limit));
+  const s = q.toString();
+  return apiRequest(`/api/organizations${s ? `?${s}` : ''}`);
+}
+
+export async function getOrganization(id: string): Promise<any> {
+  return apiRequest(`/api/organizations/${id}`);
+}
+
+export async function createOrganization(data: { name: string; type: string; taxId?: string; address?: string; phone?: string; email?: string; contacts?: any; settings?: any }): Promise<any> {
+  return apiRequest('/api/organizations', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateOrganization(id: string, data: any): Promise<any> {
+  return apiRequest(`/api/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deleteOrganization(id: string): Promise<any> {
+  return apiRequest(`/api/organizations/${id}`, { method: 'DELETE' });
+}
+
+export async function getPersons(params: { personType?: string; organizationId?: string; search?: string; page?: number; limit?: number } = {}): Promise<{ data: any[]; pagination: any }> {
+  const q = new URLSearchParams();
+  if (params.personType) q.set('personType', params.personType);
+  if (params.organizationId) q.set('organizationId', params.organizationId);
+  if (params.search) q.set('search', params.search);
+  if (params.page) q.set('page', String(params.page));
+  if (params.limit) q.set('limit', String(params.limit));
+  const s = q.toString();
+  return apiRequest(`/api/persons${s ? `?${s}` : ''}`);
+}
+
+export async function getPerson(id: string): Promise<any> {
+  return apiRequest(`/api/persons/${id}`);
+}
+
+export async function createPerson(data: { fullName: string; personType: string; organizationId?: string; userId?: string; phone?: string; email?: string; specialization?: string; bio?: string; contacts?: any }): Promise<any> {
+  return apiRequest('/api/persons', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updatePerson(id: string, data: any): Promise<any> {
+  return apiRequest(`/api/persons/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deletePerson(id: string): Promise<any> {
+  return apiRequest(`/api/persons/${id}`, { method: 'DELETE' });
+}
+
+export async function getOrganizationTypes(): Promise<any> {
+  return apiRequest('/api/iam/types');
+}
+
+export async function getRoles(): Promise<any> {
+  return apiRequest('/api/iam/roles');
+}
+
+export async function assignPersonRole(personId: string, roleId: string, scopeType?: string, scopeId?: string): Promise<any> {
+  return apiRequest(`/api/iam/persons/${personId}/roles`, {
+    method: 'POST',
+    body: JSON.stringify({ roleId, scopeType, scopeId }),
+  });
+}
+
+export async function removePersonRole(personId: string, roleId: string): Promise<any> {
+  return apiRequest(`/api/iam/persons/${personId}/roles/${roleId}`, { method: 'DELETE' });
 }

@@ -154,7 +154,8 @@ export default function DiagnosticsTab() {
 
   useEffect(() => {
     if (pricingModal) loadPricing.mutate(pricingModal.id);
-  }, [pricingModal, loadPricing]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pricingModal]);
 
   const sData: any = stats.data || {};
   const centerList: any[] = Array.isArray(centers.data) ? centers.data : [];

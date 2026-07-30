@@ -30,6 +30,8 @@ const FinanceTab = lazy(() => import('./superadmin/FinanceTab'));
 const BITab = lazy(() => import('./superadmin/BITab'));
 const OpsTab = lazy(() => import('./superadmin/OpsTab'));
 const QualityCenterTab = lazy(() => import('./superadmin/QualityCenterTab'));
+import OrganizationsPage from './admin/OrganizationsPage';
+import PersonsPage from './admin/PersonsPage';
 
 const PLANS: Record<string, { name: string; price: string }> = {
   starter: { name: 'Starter', price: '0 ₸' },
@@ -45,7 +47,7 @@ const PLAN_BADGE: Record<string, string> = {
   enterprise: 'bg-[#9b5de5]/10 text-[#9b5de5] border-[#9b5de5]/20',
 };
 
-type Tab = 'dashboard' | 'clinics' | 'users' | 'diagnostics' | 'marketplace' | 'academy' | 'ai-governance' | 'platform-finance' | 'bi' | 'ops' | 'support' | 'quality';
+type Tab = 'dashboard' | 'clinics' | 'users' | 'diagnostics' | 'marketplace' | 'academy' | 'ai-governance' | 'platform-finance' | 'bi' | 'ops' | 'support' | 'quality' | 'organizations' | 'persons';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <Activity size={16} /> },
@@ -60,6 +62,8 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'ops', label: 'Ops Center', icon: <Shield size={16} /> },
   { id: 'support', label: 'Поддержка', icon: <LifeBuoy size={16} /> },
   { id: 'quality', label: 'Quality', icon: <Accessibility size={16} /> },
+  { id: 'organizations', label: 'Организации', icon: <Building2 size={16} /> },
+  { id: 'persons', label: 'Персоны', icon: <Users size={16} /> },
 ];
 
 const TabLoader = () => (
@@ -199,6 +203,8 @@ export default function SuperAdmin() {
       case 'bi': return <Suspense fallback={<TabLoader />}><BITab /></Suspense>;
       case 'ops': return <Suspense fallback={<TabLoader />}><OpsTab /></Suspense>;
       case 'quality': return <Suspense fallback={<TabLoader />}><QualityCenterTab /></Suspense>;
+      case 'organizations': return <OrganizationsPage />;
+      case 'persons': return <PersonsPage />;
       case 'dashboard': return (
         <div className="space-y-6">
           {s && (

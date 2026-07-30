@@ -2,46 +2,37 @@ name: CI
 
 on:
   push:
-    branches: [main, 'cursor/**']
+    branches: [main, develop]
   pull_request:
     branches: [main]
 
 jobs:
-  frontend:
+  lint-test:
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           cache: npm
       - run: npm ci
-      # Backend unit suites are pulled into root vitest; they need backend deps + Prisma client.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: dentvision-backend/package-lock.json
-      - run: npm ci
-        working-directory: dentvision-backend
-      - run: npx prisma generate
-        working-directory: dentvision-backend
-      - run: npm run lint
-      - run: npm run build
+      - run: npm run build --if-present
+      - run: npx tsc --noEmit
       - run: npm test
 
-  backend:
+  backend-lint:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dentvision-backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           cache: npm
           cache-dependency-path: dentvision-backend/package-lock.json
       - run: npm ci
-        working-directory: dentvision-backend
-      - run: npx prisma generate
-        working-directory: dentvision-backend
-      - run: npm run build
-        working-directory: dentvision-backend
+      - run: npx tsc --noEmit

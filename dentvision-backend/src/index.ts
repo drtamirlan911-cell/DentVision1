@@ -39,6 +39,12 @@ async function main() {
   } catch (err) {
     console.error('[MIGRATION] Patient.iin failed (non-fatal):', err);
   }
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPPORT'`);
+    console.log('[MIGRATION] UserRole.SUPPORT added');
+  } catch (err) {
+    console.error('[MIGRATION] UserRole.SUPPORT failed (non-fatal):', err);
+  }
 
   // Initialize Event Bus
   try {

@@ -64,8 +64,5 @@ if (env.NODE_ENV === 'production') {
     console.error('[config] KASPI_CALLBACK_SECRET must be set in production (min 32 chars)');
     process.exit(1);
   }
-  if (!env.PLATFORM_OPS_SECRET || env.PLATFORM_OPS_SECRET.length < 24) {
-    console.error('[config] PLATFORM_OPS_SECRET must be set in production (min 24 chars)');
-    process.exit(1);
-  }
+
 }

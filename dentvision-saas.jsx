@@ -54,8 +54,8 @@ const GLOBAL_CSS = `
 // ═══════════════════════════════════════════════════════════════════
 // SUPABASE — secure RPC-only connection (no direct table access)
 // ═══════════════════════════════════════════════════════════════════
-const SUPABASE_URL = "https://yrokwnlabqxoztbzzhox.supabase.co";
-const SUPABASE_KEY = "sb_publishable_Zx5ZfAsOiEddSPNjun3TyA_eUiBDBlA";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || (() => { throw new Error('VITE_SUPABASE_URL is not set'); })();
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || (() => { throw new Error('VITE_SUPABASE_KEY is not set'); })();
 
 const sbHeaders = {
   "Content-Type": "application/json",
@@ -184,7 +184,6 @@ function useCloudTable(table, def) {
 // ═══════════════════════════════════════════════════════════════════
 // INITIAL DATA
 // ═══════════════════════════════════════════════════════════════════
-const SUPER_ADMIN = { id: "sa", login: "dr.tamirlan", role: "superadmin", name: "Dr. Tamirlan" };
 
 const INIT_CLINICS = [
   { id: "c1", name: "DentVision Тараз — Центр", city: "Тараз", address: "ул. Толе би, 32", phone: "+7 726 222-33-44", plan: "pro", active: true, createdAt: "2025-01-01", color: "#C9A96E" },
@@ -287,11 +286,6 @@ export default function App() {
   }
 
   async function handleLogin(login, password) {
-    if (login === SUPER_ADMIN.login && password === SUPER_ADMIN.password) {
-      setUser(SUPER_ADMIN);
-      setPage("dashboard");
-      return true;
-    }
     setLoadingAuth(true);
     try {
       const u = await verifyLogin(login, password); // password verified server-side via bcrypt, never compared in browser
