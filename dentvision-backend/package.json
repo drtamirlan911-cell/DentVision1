@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "prisma migrate deploy && npx tsx src/index.ts",
+    "start": "npx prisma migrate resolve --rolled-back 20260727_add_diagnostics 2>/dev/null; prisma migrate deploy && npx tsx src/index.ts",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
