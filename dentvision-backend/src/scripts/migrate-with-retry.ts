@@ -26,15 +26,16 @@ async function wakeDatabase(maxRetries = 5, baseDelay = 3000) {
 async function resolveFailedMigrations() {
   console.log('Checking for failed migrations...');
   try {
-    const result = await prisma.$queryRaw<Array<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }>>`
-      SELECT migration_name, finished_at, rolled_back_at FROM "_prisma_migrations" 
-      WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
-      ORDER BY finished_at DESC
+    const allMigrations = await prisma.$queryRaw<Array<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }>>`
+      SELECT migration_name, finished_at, rolled_back_at FROM "_prisma_migrations" ORDER BY finished_at DESC
     `;
+    console.log('All migrations in _prisma_migrations:', JSON.stringify(allMigrations, null, 2));
+
+    const failed = allMigrations.filter(m => m.finished_at !== null && m.rolled_back_at === null);
     
-    if (result.length > 0) {
-      console.log(`Found ${result.length} potentially failed migration(s):`, result.map(r => r.migration_name));
-      for (const m of result) {
+    if (failed.length > 0) {
+      console.log(`Found ${failed.length} potentially failed migration(s):`, failed.map(r => r.migration_name));
+      for (const m of failed) {
         console.log(`Force-deleting failed migration record: ${m.migration_name}`);
         try {
           await prisma.$executeRawUnsafe(`DELETE FROM "_prisma_migrations" WHERE migration_name = $1`, m.migration_name);
