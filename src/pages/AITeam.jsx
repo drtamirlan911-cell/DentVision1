@@ -81,13 +81,16 @@ export default function AITeam({ clinic }) {
     setUserInput('');
     setProcessing(true);
 
-    const delay = 800 + Math.random() * 600;
     setTimeout(() => {
-      const replies = activeAssistant.replies;
-      const reply = replies[Math.floor(Math.random() * replies.length)];
-      setChatHistory(prev => [...prev, { role: 'assistant', content: reply }]);
-      setProcessing(false);
-    }, delay);
+      const delay = 800 + Math.random() * 600;
+      const randomIndex = Math.floor(Math.random() * activeAssistant.replies.length);
+      setTimeout(() => {
+        const replies = activeAssistant.replies;
+        const reply = replies[randomIndex];
+        setChatHistory(prev => [...prev, { role: 'assistant', content: reply }]);
+        setProcessing(false);
+      }, delay);
+    }, 0);
   };
 
   const handleKeyDown = (e) => {
