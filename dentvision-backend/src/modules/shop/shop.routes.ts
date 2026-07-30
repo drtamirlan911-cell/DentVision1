@@ -615,6 +615,59 @@ shopRouter.post('/product-presets/quick-add', authenticate, async (req: AuthRequ
   }
 });
 
+// ─── SHOP MARKETING ───
+
+shopRouter.get('/banners', async (_req, res) => {
+  try {
+    const banners = await prisma.shopBanner.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      take: 5,
+    });
+    res.json({ ok: true, data: banners });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to fetch banners' });
+  }
+});
+
+shopRouter.get('/promotions', async (_req, res) => {
+  try {
+    const promotions = await prisma.shopPromotion.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+    res.json({ ok: true, data: promotions });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to fetch promotions' });
+  }
+});
+
+shopRouter.get('/recommendations', async (req, res) => {
+  try {
+    const limit = Math.min(20, Math.max(1, parseInt(req.query.limit as string) || 6));
+    const products = await prisma.product.findMany({
+      where: { isActive: true, rating: { gte: 4 } },
+      orderBy: { rating: 'desc' },
+      take: limit,
+      include: { supplier: { select: { id: true, name: true, status: true, city: true } } },
+    });
+    const mapped = products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      oldPrice: null,
+      imageUrl: p.imageUrl,
+      rating: p.rating ?? 4.5,
+      supplierName: p.supplier?.name || null,
+      category: p.category || 'Прочее',
+    }));
+    res.json({ ok: true, data: mapped });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to fetch recommendations' });
+  }
+});
+
 // ─── SEED PRESETS (SuperAdmin) ───
 
 shopRouter.post('/product-presets/seed', async (_req, res) => {

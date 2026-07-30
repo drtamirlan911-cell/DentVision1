@@ -8,6 +8,19 @@ import * as svc from './diagnostics.service.js';
 import prisma from '../../lib/prisma.js';
 
 export const diagnosticsRouter = Router();
+
+// Public registration request (must be before authenticate middleware)
+
+diagnosticsRouter.post('/register', async (req: AuthRequest, res) => {
+  try {
+    const data = await svc.createRegistrationRequest(req.body);
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+// All routes below require authentication
 diagnosticsRouter.use(authenticate);
 
 // ─── Centers ───
@@ -84,17 +97,6 @@ diagnosticsRouter.post('/laboratories', requireSuperadmin, async (req: AuthReque
 diagnosticsRouter.patch('/laboratories/:id', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const data = await svc.updateLaboratory(req.params.id, req.body);
-    return res.json({ ok: true, data } satisfies ApiResponse);
-  } catch (e: any) {
-    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
-  }
-});
-
-// ─── Registration Requests (public) ───
-
-diagnosticsRouter.post('/register', async (req: AuthRequest, res) => {
-  try {
-    const data = await svc.createRegistrationRequest(req.body);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
