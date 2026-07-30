@@ -2,6 +2,7 @@ import type { Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../lib/jwt.js';
 import prisma from '../lib/prisma.js';
 import { isGuestEmail } from '../lib/guestAiQuota.js';
+import { setCsrfCookie } from './csrf.js';
 import type { AuthRequest, AuthUser } from '../types/index.js';
 
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
@@ -33,6 +34,9 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     if (!user) {
       return res.status(401).json({ ok: false, error: 'Пользователь не найден' });
     }
+
+    // Refresh CSRF token on every authenticated request
+    setCsrfCookie(res);
 
     const guestByEmail = isGuestEmail(user.email);
     if (!guestByEmail) {

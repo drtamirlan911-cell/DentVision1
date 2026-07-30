@@ -165,6 +165,12 @@ export async function apiRequest(path: string, options: RequestInit = {}): Promi
   const tz = clientTimezoneHeader();
   if (tz) headers['X-Client-Timezone'] = tz;
 
+  // CSRF token from cookie (set by backend authenticate middleware)
+  if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
+    const csrfMatch = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/);
+    if (csrfMatch) headers['x-csrf-token'] = csrfMatch[1];
+  }
+
   const finalOptions: RequestInit = { ...options, headers, credentials: 'include' };
   headers['Content-Type'] = 'application/json';
 
