@@ -806,6 +806,7 @@ model Product {
   rating      Float?
   reviewCount Int     @default(0)
   supplierId  String?
+  sharedProductId String? @map("shared_product_id") // canonical product id grouping supplier offers
   ownBrand    Boolean @default(false)
 
   // Rich catalog fields

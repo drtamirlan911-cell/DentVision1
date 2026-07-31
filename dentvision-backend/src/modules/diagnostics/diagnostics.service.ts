@@ -101,10 +101,10 @@ async function syncOrgFromEntity(
   try {
     await prisma.organization.upsert({
       where: { originalType_originalId: { originalType: type, originalId: id } },
-      update: { name, address: data.address || null, phone: data.phone || null, email: data.email || null, contacts: data.city ? { city: data.city } : undefined },
+      update: { name: data.name, address: data.address || null, phone: data.phone || null, email: data.email || null, contacts: data.city ? { city: data.city } : undefined },
       create: {
         id: uid(),
-        name,
+        name: data.name,
         type: type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY',
         address: data.address || null,
         phone: data.phone || null,

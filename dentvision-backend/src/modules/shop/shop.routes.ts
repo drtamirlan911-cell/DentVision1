@@ -798,12 +798,12 @@ shopRouter.get('/products/:id/offers', async (req, res) => {
     if (!product) return res.status(404).json({ ok: false, error: 'Not found' });
 
     // Find all supplier offers for the same shared product (same name grouping)
-    const sharedId = (product as any).sharedProductId || product.id;
+    const sharedId = product.sharedProductId || product.id;
     const offers = await prisma.product.findMany({
       where: {
         OR: [
           { id: sharedId },
-          { sharedProductId: sharedId as any },
+          { sharedProductId: sharedId },
         ],
         isActive: true,
       },
@@ -835,13 +835,13 @@ shopRouter.post('/products', authenticate, async (req: AuthRequest, res) => {
         sharedProductId = existing.sharedProductId || existing.id;
         // Ensure the canonical product also has sharedProductId set
         if (!existing.sharedProductId) {
-          await prisma.product.update({ where: { id: existing.id }, data: { sharedProductId: existing.id } as any });
+          await prisma.product.update({ where: { id: existing.id }, data: { sharedProductId: existing.id } });
         }
       }
     }
 
     const data = await prisma.product.create({
-      data: { id: uid(), supplierId: req.user.supplierId, sharedProductId: sharedProductId as any, ...req.body, price: Number(req.body.price) },
+      data: { id: uid(), supplierId: req.user.supplierId, sharedProductId: sharedProductId as string | null, ...req.body, price: Number(req.body.price) },
     });
     res.status(201).json({ ok: true, data });
   } catch (e) { res.status(500).json({ ok: false, error: 'Failed to create product' }); }
