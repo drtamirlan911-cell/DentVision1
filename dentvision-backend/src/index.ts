@@ -261,34 +261,46 @@ async function main() {
       )
     `);
     // Normalize existing organizations/persons columns to Prisma camelCase (older DBs created snake_case)
-    const fixColumns = async (table: string, renames: Array<[string, string]>, adds: string[]) => {
+    const columnExists = async (table: string, col: string) => {
+      const rows = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
+        `SELECT COUNT(*)::int AS n FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2`,
+        table, col
+      );
+      return (rows[0]?.n ?? 0) > 0;
+    };
+    const fixColumns = async (table: string, renames: Array<[string, string]>, adds: Array<[string, string]>) => {
       for (const [from, to] of renames) {
         try {
-          await prisma.$executeRawUnsafe(`ALTER TABLE "${table}" RENAME COLUMN "${from}" TO "${to}"`);
-        } catch { /* already renamed or absent */ }
+          if (await columnExists(table, from)) {
+            await prisma.$executeRawUnsafe(`ALTER TABLE "${table}" RENAME COLUMN "${from}" TO "${to}"`);
+          }
+        } catch (e: any) { console.warn(`[MIGRATION] rename ${table}.${from} failed:`, e?.message); }
       }
-      for (const col of adds) {
-        try { await prisma.$executeRawUnsafe(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS ${col}`); }
-        catch { /* ignore */ }
+      for (const [name, ddl] of adds) {
+        try {
+          if (!(await columnExists(table, name))) {
+            await prisma.$executeRawUnsafe(`ALTER TABLE "${table}" ADD COLUMN ${ddl}`);
+          }
+        } catch (e: any) { console.warn(`[MIGRATION] add ${table}.${name} failed:`, e?.message); }
       }
     };
     await fixColumns('organizations', [
       ['original_type', 'originalType'], ['original_id', 'originalId'],
       ['created_at', 'createdAt'], ['updated_at', 'updatedAt'],
     ], [
-      'ADD COLUMN IF NOT EXISTS "taxId" TEXT',
-      'ADD COLUMN IF NOT EXISTS settings JSONB',
+      ['taxId', '"taxId" TEXT'],
+      ['settings', 'settings JSONB'],
     ]);
     await fixColumns('persons', [
       ['full_name', 'fullName'], ['person_type', 'personType'],
       ['user_id', 'userId'], ['created_at', 'createdAt'], ['updated_at', 'updatedAt'],
     ], [
-      'ADD COLUMN IF NOT EXISTS email TEXT',
-      'ADD COLUMN IF NOT EXISTS bio TEXT',
-      'ADD COLUMN IF NOT EXISTS avatar TEXT',
-      'ADD COLUMN IF NOT EXISTS contacts JSONB',
-      'ADD COLUMN IF NOT EXISTS "originalType" TEXT',
-      'ADD COLUMN IF NOT EXISTS "originalId" TEXT',
+      ['email', 'email TEXT'],
+      ['bio', 'bio TEXT'],
+      ['avatar', 'avatar TEXT'],
+      ['contacts', 'contacts JSONB'],
+      ['originalType', '"originalType" TEXT'],
+      ['originalId', '"originalId" TEXT'],
     ]);
     console.log('[MIGRATION] organizations/persons columns normalized to Prisma camelCase');
     // Create RBAC + legacy membership tables (init_full_schema failed in prod, so they may be missing)
