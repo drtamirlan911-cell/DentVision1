@@ -12,8 +12,8 @@ import {
 } from '../../components/ui/ds'
 import {
   getSchoolCourses, createSchoolCourse, updateSchoolCourse, deleteSchoolCourse,
-  getSchoolClinicalCases, createSchoolClinicalCase, deleteSchoolClinicalCase,
-  getSchoolLibrary, createSchoolLibraryItem, deleteSchoolLibraryItem,
+  getSchoolClinicalCases, createSchoolClinicalCase, updateSchoolClinicalCase, deleteSchoolClinicalCase,
+  getSchoolLibrary, createSchoolLibraryItem, updateSchoolLibraryItem, deleteSchoolLibraryItem,
 } from '../../utils/api'
 
 function useMakeToast() {
@@ -260,7 +260,11 @@ function CasesManager() {
   async function save() {
     if (!form.title?.trim()) { toast.error('Введите название кейса'); return }
     setSaving(true)
-    try { await createSchoolClinicalCase(form); toast.success('Кейс сохранён'); setOpen(false); await load() }
+    try {
+      if (editing) await updateSchoolClinicalCase(editing.id, form)
+      else await createSchoolClinicalCase(form)
+      toast.success('Кейс сохранён'); setOpen(false); await load()
+    }
     catch (e: any) { toast.error(e?.message || 'Ошибка') } finally { setSaving(false) }
   }
   async function confirmDelete() {
@@ -329,13 +333,15 @@ function LibraryManager() {
   useEffect(() => { load() }, [load])
 
   function openCreate() { setEditing(null); setForm({ category: '', title: '', type: 'article', content: '', fileUrl: '', author: '', tags: '' }); setOpen(true) }
-  function openEdit(l: any) { setEditing(l); setForm({ category: l.category, title: l.title, type: l.type || 'article', content: l.content || '', fileUrl: l.fileUrl || '', author: l.author || '', tags: (l.tags || []).join(', ') }); setOpen(true) }
+  function openEdit(l: any) { setEditing(l); setForm({ category: l.category, title: l.title, type: l.type || 'article', content: l.content || '', fileUrl: l.fileUrl || l.url || '', author: l.author || '', tags: (l.tags || []).join(', ') }); setOpen(true) }
 
   async function save() {
     if (!form.title?.trim()) { toast.error('Введите название'); return }
     setSaving(true)
     try {
-      await createSchoolLibraryItem({ ...form, tags: (form.tags || '').split(',').map((t: string) => t.trim()).filter(Boolean) })
+      const payload = { ...form, tags: (form.tags || '').split(',').map((t: string) => t.trim()).filter(Boolean) }
+      if (editing) await updateSchoolLibraryItem(editing.id, payload)
+      else await createSchoolLibraryItem(payload)
       toast.success('Материал сохранён'); setOpen(false); await load()
     } catch (e: any) { toast.error(e?.message || 'Ошибка') } finally { setSaving(false) }
   }

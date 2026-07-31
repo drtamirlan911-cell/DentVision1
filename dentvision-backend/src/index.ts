@@ -6,6 +6,8 @@ import { getEventOrchestrator } from './modules/ai/os/index.js';
 import { startReminderCronInterval } from './jobs/reminderCron.js';
 import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
 import { startMessageWorker } from './modules/ai-admin/index.js';
+import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.js';
+import { uid } from './lib/helpers.js';
 
 const orchestrator = getEventOrchestrator({ logLevel: 'info' });
 
@@ -624,6 +626,35 @@ async function main() {
     console.warn('[SEED] Product rename failed (non-fatal):', err);
   }
 
+  // Backfill starter catalog for existing suppliers with no products yet.
+  try {
+    const dvSupplier = await prisma.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id FROM "suppliers" WHERE name = 'DentVision' LIMIT 1`);
+    if (dvSupplier.length > 0) {
+      const emptySuppliers = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT s.id FROM "suppliers" s WHERE s.name <> 'DentVision' AND NOT EXISTS (SELECT 1 FROM "products" p WHERE p."supplierId" = s.id) LIMIT 20`,
+      );
+      const srcProducts = await prisma.product.findMany({ where: { supplierId: dvSupplier[0].id, isActive: true }, take: 200 });
+      for (const s of emptySuppliers) {
+        if (srcProducts.length > 0) {
+          await prisma.product.createMany({
+            data: srcProducts.map((p) => ({
+              id: uid(), name: p.name, brand: p.brand, category: p.category, categoryId: p.categoryId,
+              price: p.price, oldPrice: p.oldPrice, stock: p.stock, minStock: p.minStock,
+              description: p.description, imageUrl: p.imageUrl, images: p.images, rating: p.rating,
+              reviewCount: 0, supplierId: s.id, ownBrand: false, sku: p.sku, unit: p.unit,
+              currency: p.currency, tags: p.tags, specs: p.specs, manufacturer: p.manufacturer,
+              country: p.country, compatibility: p.compatibility, isActive: true,
+              sharedProductId: p.sharedProductId || p.id,
+            })),
+          });
+          console.log(`[SEED] Starter catalog duplicated to supplier ${s.id} (${srcProducts.length} products)`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[SEED] Starter catalog backfill failed (non-fatal):', err);
+  }
+
   // School content tables
   try {
     await prisma.$executeRawUnsafe(`
@@ -650,6 +681,26 @@ async function main() {
         created_at TIMESTAMPTZ DEFAULT now()
       )
     `);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "school_library_items" ADD COLUMN IF NOT EXISTS content TEXT`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "school_library_items" ADD COLUMN IF NOT EXISTS tags JSONB`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "school_clinical_cases" ADD COLUMN IF NOT EXISTS author TEXT`);
+    // Seed curated static content into DB once (idempotent by title+category) so admin can edit/delete it.
+    for (const c of CLINICAL_CASES) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "school_clinical_cases" (id, title, description, category, difficulty, content, author)
+         SELECT gen_random_uuid(), $1, $2, $3, $4, null, $5
+         WHERE NOT EXISTS (SELECT 1 FROM "school_clinical_cases" WHERE title = $1 AND category = $3)`,
+        c.title, c.description || null, c.category || null, c.difficulty || 'intermediate', c.author || null,
+      );
+    }
+    for (const it of LIBRARY_ITEMS) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "school_library_items" (id, title, description, author, category, type, url)
+         SELECT gen_random_uuid(), $1, null, $2, $3, $4, null
+         WHERE NOT EXISTS (SELECT 1 FROM "school_library_items" WHERE title = $1 AND category = $3)`,
+        it.title, it.author || null, it.category || null, it.type || 'article',
+      );
+    }
     console.log('[MIGRATION] School content tables ready');
   } catch (err) {
     console.error('[MIGRATION] School content tables failed (non-fatal):', err);

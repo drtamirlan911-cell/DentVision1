@@ -108,6 +108,56 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
       },
     });
 
+    // Starter catalog: duplicate active DentVision products so the new supplier
+    // immediately has listings in the marketplace (with stock, so they show up).
+    try {
+      const dvSupplier = await prisma.supplier.findFirst({ where: { name: 'DentVision' } });
+      const existingCount = dvSupplier
+        ? await prisma.product.count({ where: { supplierId: supplier.id } })
+        : 0;
+      if (dvSupplier && existingCount === 0) {
+        const dvProducts = await prisma.product.findMany({
+          where: { supplierId: dvSupplier.id, isActive: true },
+          take: 200,
+        });
+        if (dvProducts.length > 0) {
+          await prisma.product.createMany({
+            data: dvProducts.map((p) => ({
+              id: uid(),
+              name: p.name,
+              brand: p.brand,
+              category: p.category,
+              categoryId: p.categoryId,
+              price: p.price,
+              oldPrice: p.oldPrice,
+              stock: p.stock,
+              minStock: p.minStock,
+              description: p.description,
+              imageUrl: p.imageUrl,
+              images: p.images,
+              rating: p.rating,
+              reviewCount: 0,
+              supplierId: supplier.id,
+              ownBrand: false,
+              sku: p.sku,
+              unit: p.unit,
+              currency: p.currency,
+              tags: p.tags,
+              specs: p.specs,
+              manufacturer: p.manufacturer,
+              country: p.country,
+              compatibility: p.compatibility,
+              isActive: true,
+              sharedProductId: p.sharedProductId || p.id,
+            })),
+          });
+          console.log(`[SUPPLIER] ${supplier.name}: duplicated ${dvProducts.length} starter products`);
+        }
+      }
+    } catch (e) {
+      console.warn('[SUPPLIER] Starter catalog duplication failed (non-fatal):', e);
+    }
+
     publish('supplier.status_changed', {
       supplierId: supplier.id,
       status: 'pending',

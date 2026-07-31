@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
+import { requireSuperadmin } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import {
@@ -53,7 +54,26 @@ function mapCourse(course: any) {
     fileUrl: course.fileUrl || null,
     meta: course.meta || null,
     created_at: course.createdAt,
+    // Round-trip rich admin fields stored in meta (subtitle, difficulty, tags, modules, ...)
+    ...((course.meta as Record<string, unknown>) || {}),
   };
+}
+
+function lessonsFromModules(modules: any): Array<{ title: string; videoUrl: string | null; content: string | null; duration: number; order: number }> {
+  const out: Array<{ title: string; videoUrl: string | null; content: string | null; duration: number; order: number }> = [];
+  let order = 0;
+  for (const m of Array.isArray(modules) ? modules : []) {
+    for (const l of Array.isArray(m.lessons) ? m.lessons : []) {
+      out.push({
+        title: l.title || m.title || 'Урок',
+        videoUrl: l.type === 'video' && l.contentUrl ? String(l.contentUrl) : null,
+        content: l.contentUrl || null,
+        duration: Number(l.duration) || 0,
+        order: order++,
+      });
+    }
+  }
+  return out;
 }
 
 async function loadDbOfferings(format: 'webinar' | 'textbook' | 'office' | 'course') {
@@ -297,6 +317,83 @@ schoolRouter.get('/courses/:id', async (req, res) => {
   }
 });
 
+schoolRouter.post('/courses', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.title || !String(b.title).trim()) {
+      return res.status(400).json({ ok: false, error: 'Название курса обязательно' });
+    }
+    const course = await prisma.course.create({
+      data: {
+        id: uid(),
+        title: String(b.title).trim(),
+        description: b.description || null,
+        author: b.instructor || null,
+        imageUrl: b.imageUrl || null,
+        price: b.price != null ? Number(b.price) : 0,
+        category: b.category || null,
+        duration: b.durationHours ? `${Number(b.durationHours) || 0} ч` : null,
+        format: 'course',
+        meta: {
+          subtitle: b.subtitle || null,
+          instructorTitle: b.instructorTitle || null,
+          difficulty: b.difficulty || 'beginner',
+          durationHours: b.durationHours || null,
+          lessonCount: b.lessonCount || null,
+          rating: b.rating || null,
+          tags: Array.isArray(b.tags) ? b.tags : [],
+          certificateEnabled: b.certificateEnabled !== false,
+          modules: Array.isArray(b.modules) ? b.modules : [],
+        },
+        lessons: { create: lessonsFromModules(b.modules) },
+      },
+    });
+    res.status(201).json({ ok: true, data: course });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to create course' }); }
+});
+
+schoolRouter.put('/courses/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const b = req.body || {};
+    const existing = await prisma.course.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Курс не найден' });
+    await prisma.lesson.deleteMany({ where: { courseId: id } });
+    const course = await prisma.course.update({
+      where: { id },
+      data: {
+        title: b.title != null ? String(b.title).trim() : undefined,
+        description: b.description ?? null,
+        author: b.instructor ?? null,
+        imageUrl: b.imageUrl ?? null,
+        price: b.price != null ? Number(b.price) : undefined,
+        category: b.category ?? null,
+        duration: b.durationHours ? `${Number(b.durationHours) || 0} ч` : null,
+        meta: {
+          subtitle: b.subtitle || null,
+          instructorTitle: b.instructorTitle || null,
+          difficulty: b.difficulty || 'beginner',
+          durationHours: b.durationHours || null,
+          lessonCount: b.lessonCount || null,
+          rating: b.rating || null,
+          tags: Array.isArray(b.tags) ? b.tags : [],
+          certificateEnabled: b.certificateEnabled !== false,
+          modules: Array.isArray(b.modules) ? b.modules : [],
+        },
+        lessons: { create: lessonsFromModules(b.modules) },
+      },
+    });
+    res.json({ ok: true, data: course });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to update course' }); }
+});
+
+schoolRouter.delete('/courses/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    await prisma.course.delete({ where: { id: req.params.id as string } });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to delete course' }); }
+});
+
 schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) => {
   try {
     const courseId = req.body.courseId || req.body.course_id;
@@ -422,24 +519,62 @@ schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, re
 schoolRouter.get('/clinical-cases', async (req, res) => {
   try {
     const category = req.query.category ? String(req.query.category) : '';
-    const data = category
-      ? CLINICAL_CASES.filter((c) => c.category === category)
-      : CLINICAL_CASES;
+    let rows: any[] = [];
+    try {
+      rows = await prisma.$queryRawUnsafe(
+        `SELECT id, title, description, category, difficulty, image_url AS "imageUrl", content, author FROM "school_clinical_cases" ORDER BY created_at ASC`,
+      );
+    } catch { /* table missing — fall through to static */ }
+    let data = rows.length > 0
+      ? rows.map((r: any) => ({ ...r, imageUrl: r.imageUrl || null, author: r.author || null }))
+      : [...CLINICAL_CASES];
+    if (category) data = data.filter((c: any) => c.category === category);
     res.json({ ok: true, data });
   } catch {
     res.status(500).json({ ok: false, error: 'Failed to fetch cases' });
   }
 });
 
+schoolRouter.post('/clinical-cases', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.title || !String(b.title).trim()) {
+      return res.status(400).json({ ok: false, error: 'Название кейса обязательно' });
+    }
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "school_clinical_cases" (id, title, description, category, difficulty, image_url, content, author) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      uid(), String(b.title).trim(), b.description || null, b.category || null, b.difficulty || 'intermediate', b.imageUrl || null, null, b.author || null,
+    );
+    res.status(201).json({ ok: true });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to create case' }); }
+});
+
+schoolRouter.put('/clinical-cases/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const b = req.body || {};
+    await prisma.$executeRawUnsafe(
+      `UPDATE "school_clinical_cases" SET title = $2, description = $3, category = $4, difficulty = $5, image_url = $6, author = $7 WHERE id = $1`,
+      req.params.id as string, String(b.title || '').trim() || 'Кейс', b.description || null, b.category || null, b.difficulty || 'intermediate', b.imageUrl || null, b.author || null,
+    );
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to update case' }); }
+});
+
 schoolRouter.get('/library', async (req, res) => {
   try {
     const category = req.query.category ? String(req.query.category) : '';
     const search = req.query.search ? String(req.query.search).toLowerCase() : '';
-    let data = [...LIBRARY_ITEMS];
-    if (category) data = data.filter((i) => i.category === category);
+    let rows: any[] = [];
+    try {
+      rows = await prisma.$queryRawUnsafe(
+        `SELECT id, title, description, author, category, type, url, content, tags FROM "school_library_items" ORDER BY created_at ASC`,
+      );
+    } catch { /* table missing — fall through to static */ }
+    let data = rows.length > 0 ? rows : [...LIBRARY_ITEMS];
+    if (category) data = data.filter((i: any) => i.category === category);
     if (search) {
       data = data.filter(
-        (i) => i.title.toLowerCase().includes(search) || i.author.toLowerCase().includes(search),
+        (i: any) => String(i.title).toLowerCase().includes(search) || String(i.author || '').toLowerCase().includes(search),
       );
     }
     res.json({ ok: true, data });
@@ -771,19 +906,7 @@ schoolRouter.post('/homework/review', authenticate, async (req: AuthRequest, res
 });
 
 // ─── Clinical Cases CRUD ───
-schoolRouter.post('/clinical-cases', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { title, description, category, difficulty, image_url, content } = req.body || {};
-    if (!title) return res.status(400).json({ ok: false, error: 'Title required' });
-    const rows = await prisma.$queryRawUnsafe<any[]>(
-      `INSERT INTO "school_clinical_cases" (title, description, category, difficulty, image_url, content) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      title, description || null, category || null, difficulty || 'intermediate', image_url || null, content ? JSON.stringify(content) : null,
-    );
-    res.status(201).json({ ok: true, data: rows[0] });
-  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to create clinical case' }); }
-});
-
-schoolRouter.delete('/clinical-cases/:id', authenticate, async (req: AuthRequest, res) => {
+schoolRouter.delete('/clinical-cases/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     await prisma.$executeRawUnsafe(`DELETE FROM "school_clinical_cases" WHERE id = $1`, req.params.id as string);
     res.json({ ok: true });
@@ -791,19 +914,30 @@ schoolRouter.delete('/clinical-cases/:id', authenticate, async (req: AuthRequest
 });
 
 // ─── Library Items CRUD ───
-schoolRouter.post('/library', authenticate, async (req: AuthRequest, res) => {
+schoolRouter.post('/library', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
-    const { title, description, author, category, type, url } = req.body || {};
-    if (!title) return res.status(400).json({ ok: false, error: 'Title required' });
+    const b = req.body || {};
+    if (!b.title || !String(b.title).trim()) return res.status(400).json({ ok: false, error: 'Название обязательно' });
     const rows = await prisma.$queryRawUnsafe<any[]>(
-      `INSERT INTO "school_library_items" (title, description, author, category, type, url) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      title, description || null, author || null, category || null, type || 'article', url || null,
+      `INSERT INTO "school_library_items" (id, title, description, author, category, type, url, content, tags) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      uid(), String(b.title).trim(), b.content || null, b.author || null, b.category || null, b.type || 'article', b.fileUrl || null, b.content || null, Array.isArray(b.tags) ? JSON.stringify(b.tags) : null,
     );
     res.status(201).json({ ok: true, data: rows[0] });
   } catch (e) { res.status(500).json({ ok: false, error: 'Failed to create library item' }); }
 });
 
-schoolRouter.delete('/library/:id', authenticate, async (req: AuthRequest, res) => {
+schoolRouter.put('/library/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const b = req.body || {};
+    await prisma.$executeRawUnsafe(
+      `UPDATE "school_library_items" SET title = $2, description = $3, author = $4, category = $5, type = $6, url = $7, content = $8, tags = $9 WHERE id = $1`,
+      req.params.id as string, String(b.title || '').trim() || 'Материал', b.content || null, b.author || null, b.category || null, b.type || 'article', b.fileUrl || null, b.content || null, Array.isArray(b.tags) ? JSON.stringify(b.tags) : null,
+    );
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to update library item' }); }
+});
+
+schoolRouter.delete('/library/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     await prisma.$executeRawUnsafe(`DELETE FROM "school_library_items" WHERE id = $1`, req.params.id as string);
     res.json({ ok: true });

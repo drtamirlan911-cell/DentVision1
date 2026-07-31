@@ -1614,8 +1614,10 @@ export async function createSchoolCourse(data: any): Promise<any> { return apiRe
 export async function updateSchoolCourse(id: string, data: any): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function deleteSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'DELETE' }); }
 export async function createSchoolClinicalCase(data: any): Promise<any> { return apiRequest('/api/school/clinical-cases', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateSchoolClinicalCase(id: string, data: any): Promise<any> { return apiRequest(`/api/school/clinical-cases/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function deleteSchoolClinicalCase(id: string): Promise<any> { return apiRequest(`/api/school/clinical-cases/${id}`, { method: 'DELETE' }); }
 export async function createSchoolLibraryItem(data: any): Promise<any> { return apiRequest('/api/school/library', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateSchoolLibraryItem(id: string, data: any): Promise<any> { return apiRequest(`/api/school/library/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function deleteSchoolLibraryItem(id: string): Promise<any> { return apiRequest(`/api/school/library/${id}`, { method: 'DELETE' }); }
 
 // ─── User Professional Profile (LinkedIn-style) ───
