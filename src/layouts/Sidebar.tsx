@@ -39,7 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'community', label: 'Сообщество', icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
   { id: 'supplier', label: 'Кабинет продавца', icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },
   { id: 'school-workspace', label: 'Кабинет лектора', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school-workspace', color: '#2DD4BF', section: 'platform' },
-  { id: 'center-workspace', label: 'Кабинет центра', icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/diagnostics/center-dashboard', color: '#27AE60', section: 'platform' },
+  { id: 'center-workspace', label: 'Кабинет центра', icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/center-workspace', color: '#27AE60', section: 'platform' },
   { id: 'profile', label: 'Профиль', icon: <User size={18} strokeWidth={1.75} />, path: '/profile', color: '#60A5FA', section: 'platform' },
   { id: 'partner-legal', label: 'Мои документы', icon: <FileText size={18} strokeWidth={1.75} />, path: '/partner-legal', color: '#C9A96E', section: 'platform' },
   { id: 'settings', label: 'Настройки', icon: <Settings size={18} strokeWidth={1.75} />, path: '/settings', color: '#94A3B8', section: 'platform' },
@@ -225,7 +225,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleCenterWorkspaceClick = async () => {
     const inOrg = authUser?.organizationType === 'DIAGNOSTIC_CENTER' || authUser?.organizationType === 'LABORATORY';
-    if (inOrg) { handleNavClick('/diagnostics/center-dashboard'); return; }
+    if (inOrg) { handleNavClick('/center-workspace'); return; }
     try {
       const res = await api.getMyContexts();
       const ctx = (res.contexts || []).find((c: any) => c.scopeType === 'DIAGNOSTIC_CENTER' || c.scopeType === 'LABORATORY');
@@ -233,12 +233,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         const tok = await api.switchContext(ctx.scopeType, ctx.scopeId);
         if (tok?.accessToken) {
           api.setTokens(tok.accessToken, tok.refreshToken || null);
-          window.location.href = '/diagnostics/center-dashboard';
+          window.location.href = '/center-workspace';
           return;
         }
       }
     } catch { /* fall through to the page */ }
-    handleNavClick('/diagnostics/center-dashboard');
+    handleNavClick('/center-workspace');
   };
 
   const renderNavSection = (items: NavItem[], sectionLabel?: string) => (

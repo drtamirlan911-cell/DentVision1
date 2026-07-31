@@ -190,6 +190,7 @@ if (container) {
                   <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
                   <Route path="school/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
                   <Route path="school-workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
+                  <Route path="center-workspace" element={<Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense>} />
 
                   {/* Diagnostics sub-app — under IntelligenceLayout sidebar */}
                   <Route path="diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsLayout /></Suspense>}>
