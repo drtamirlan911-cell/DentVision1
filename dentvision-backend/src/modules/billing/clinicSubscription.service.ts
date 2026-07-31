@@ -99,23 +99,31 @@ const PERSON_ROLE_TO_LEGACY: Record<string, string> = {
 
 /** Resolve user's role within a clinic — checks Person/Organization first, then legacy ClinicMember. */
 async function resolveClinicRole(userId: string, clinicId: string) {
-  const org = await prisma.organization.findFirst({
-    where: { originalType: 'Clinic', originalId: clinicId },
-  });
-  if (org) {
-    const person = await prisma.person.findFirst({
-      where: { userId, organizationId: org.id },
-      include: { roles: { include: { role: true } } },
+  try {
+    const org = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId },
     });
-    if (person) {
-      const unifiedRole = person.roles?.[0]?.role?.key || 'org_admin';
-      return { source: 'person' as const, role: PERSON_ROLE_TO_LEGACY[unifiedRole] || 'DOCTOR' };
+    if (org) {
+      const person = await prisma.person.findFirst({
+        where: { userId, organizationId: org.id },
+        include: { personRoles: { include: { role: true } } },
+      });
+      if (person) {
+        const unifiedRole = person.personRoles?.[0]?.role?.key || 'org_admin';
+        return { source: 'person' as const, role: PERSON_ROLE_TO_LEGACY[unifiedRole] || 'DOCTOR' };
+      }
     }
+  } catch (e: any) {
+    console.warn('[clinic-billing] org/person lookup failed (non-fatal):', e?.message);
   }
-  const member = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId, clinicId } },
-  });
-  if (member) return { source: 'member' as const, role: member.role };
+  try {
+    const member = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId, clinicId } },
+    });
+    if (member) return { source: 'member' as const, role: member.role };
+  } catch (e: any) {
+    console.warn('[clinic-billing] clinicMember lookup failed (non-fatal):', e?.message);
+  }
   return null;
 }
 

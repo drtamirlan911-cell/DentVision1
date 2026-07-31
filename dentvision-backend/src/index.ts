@@ -40,6 +40,14 @@ async function main() {
     console.error('[MIGRATION] Patient.iin failed (non-fatal):', err);
   }
 
+  // UserRole enum may be missing SUPPORT (init_full_schema was generated before it was added)
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPPORT'`);
+    console.log('[MIGRATION] UserRole enum: SUPPORT value ready');
+  } catch (err) {
+    console.error('[MIGRATION] UserRole enum SUPPORT failed (non-fatal):', err);
+  }
+
   // Diagnostic center subscriptions
   try {
     await prisma.$executeRawUnsafe(`
@@ -218,31 +226,124 @@ async function main() {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name TEXT NOT NULL,
         type TEXT NOT NULL DEFAULT 'CLINIC',
-        original_type TEXT,
-        original_id UUID,
+        "originalType" TEXT,
+        "originalId" TEXT,
+        "taxId" TEXT,
         logo TEXT,
         address TEXT,
         phone TEXT,
         email TEXT,
         contacts JSONB,
-        created_at TIMESTAMPTZ DEFAULT now(),
-        updated_at TIMESTAMPTZ,
-        UNIQUE(original_type, original_id)
+        settings JSONB,
+        "createdAt" TIMESTAMPTZ DEFAULT now(),
+        "updatedAt" TIMESTAMPTZ,
+        UNIQUE("originalType", "originalId")
       )
     `);
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "persons" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL,
-        organization_id UUID NOT NULL,
-        person_type TEXT NOT NULL DEFAULT 'STAFF',
-        full_name TEXT,
-        specialization TEXT,
+        "fullName" TEXT NOT NULL,
+        "personType" TEXT NOT NULL DEFAULT 'STAFF',
+        organization_id UUID,
+        "userId" UUID,
         phone TEXT,
-        created_at TIMESTAMPTZ DEFAULT now(),
-        updated_at TIMESTAMPTZ
+        email TEXT,
+        specialization TEXT,
+        bio TEXT,
+        avatar TEXT,
+        contacts JSONB,
+        "originalType" TEXT,
+        "originalId" TEXT,
+        "createdAt" TIMESTAMPTZ DEFAULT now(),
+        "updatedAt" TIMESTAMPTZ,
+        UNIQUE("originalType", "originalId")
       )
     `);
+    // Normalize existing organizations/persons columns to Prisma camelCase (older DBs created snake_case)
+    const fixColumns = async (table: string, renames: Array<[string, string]>, adds: string[]) => {
+      for (const [from, to] of renames) {
+        try {
+          await prisma.$executeRawUnsafe(`ALTER TABLE "${table}" RENAME COLUMN "${from}" TO "${to}"`);
+        } catch { /* already renamed or absent */ }
+      }
+      for (const col of adds) {
+        try { await prisma.$executeRawUnsafe(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS ${col}`); }
+        catch { /* ignore */ }
+      }
+    };
+    await fixColumns('organizations', [
+      ['original_type', 'originalType'], ['original_id', 'originalId'],
+      ['created_at', 'createdAt'], ['updated_at', 'updatedAt'],
+    ], [
+      'ADD COLUMN IF NOT EXISTS "taxId" TEXT',
+      'ADD COLUMN IF NOT EXISTS settings JSONB',
+    ]);
+    await fixColumns('persons', [
+      ['full_name', 'fullName'], ['person_type', 'personType'],
+      ['user_id', 'userId'], ['created_at', 'createdAt'], ['updated_at', 'updatedAt'],
+    ], [
+      'ADD COLUMN IF NOT EXISTS email TEXT',
+      'ADD COLUMN IF NOT EXISTS bio TEXT',
+      'ADD COLUMN IF NOT EXISTS avatar TEXT',
+      'ADD COLUMN IF NOT EXISTS contacts JSONB',
+      'ADD COLUMN IF NOT EXISTS "originalType" TEXT',
+      'ADD COLUMN IF NOT EXISTS "originalId" TEXT',
+    ]);
+    console.log('[MIGRATION] organizations/persons columns normalized to Prisma camelCase');
+    // Create RBAC + legacy membership tables (init_full_schema failed in prod, so they may be missing)
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "clinic_members" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "userId" UUID NOT NULL,
+        "clinicId" UUID NOT NULL,
+        role TEXT NOT NULL DEFAULT 'DOCTOR',
+        "commissionPercent" INT NOT NULL DEFAULT 30,
+        "baseSalary" INT NOT NULL DEFAULT 0,
+        "payType" TEXT NOT NULL DEFAULT 'commission',
+        "joinedAt" TIMESTAMPTZ DEFAULT now(),
+        "updatedAt" TIMESTAMPTZ,
+        UNIQUE("userId", "clinicId")
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "roles" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        key TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT,
+        "isSystem" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "person_roles" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "personId" UUID NOT NULL,
+        "roleId" UUID NOT NULL,
+        "scopeType" TEXT,
+        "scopeId" TEXT,
+        UNIQUE("personId", "roleId")
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "permissions" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        key TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT,
+        domain TEXT NOT NULL,
+        "createdAt" TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "role_permissions" (
+        "roleId" UUID NOT NULL,
+        "permissionId" UUID NOT NULL,
+        PRIMARY KEY ("roleId", "permissionId")
+      )
+    `);
+    console.log('[MIGRATION] RBAC + clinic_members tables ready');
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "payments" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
