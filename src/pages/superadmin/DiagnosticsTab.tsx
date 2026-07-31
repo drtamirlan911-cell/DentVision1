@@ -10,6 +10,7 @@ import { queryKeys } from '../../queries/keys';
 import {
   Microscope, Building2, FlaskConical, FileCheck, AlertTriangle, Check, X,
   Eye, Search, Plus, RefreshCw, Settings, DollarSign, Activity, Users, Clock,
+  TrendingUp,
 } from 'lucide-react';
 
 const fd = (d: string) => {
@@ -209,6 +210,32 @@ export default function DiagnosticsTab() {
               <StatCard label="Завершены" value={sData.completedReferrals ?? sData.completed ?? 0} icon={<Check size={18} />} />
               <StatCard label="Центры" value={sData.totalCenters ?? centerList.length} icon={<Building2 size={18} />} />
               <StatCard label="Лаборатории" value={sData.totalLabs ?? labList.length} icon={<FlaskConical size={18} />} />
+            </div>
+          )}
+
+          {/* Financial Overview */}
+          {sData.financial && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard
+                label="Общий доход (заверш.)"
+                value={`${(sData.financial.totalRevenue || 0).toLocaleString()} ₸`}
+                icon={<DollarSign size={18} />}
+              />
+              <StatCard
+                label="Комиссия платформы"
+                value={`${(sData.financial.totalCommission || 0).toLocaleString()} ₸`}
+                icon={<Activity size={18} />}
+              />
+              <StatCard
+                label="Доход за месяц"
+                value={`${(sData.financial.monthRevenue || 0).toLocaleString()} ₸`}
+                icon={<TrendingUp size={18} />}
+              />
+              <StatCard
+                label="Не оплачено"
+                value={sData.financial.unpaidCount ?? 0}
+                icon={<AlertTriangle size={18} />}
+              />
             </div>
           )}
 

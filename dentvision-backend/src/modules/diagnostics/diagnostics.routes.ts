@@ -528,13 +528,19 @@ diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res
       'IN_PROGRESS', 'COMPLETED', 'REVIEWED', 'DELIVERED', 'CLOSED', 'CANCELLED',
     ] as const;
 
-    const [total, todayCount, statusCounts, centersCount, labsCount] = await Promise.all([
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const completedStatuses = ['COMPLETED', 'REVIEWED', 'DELIVERED', 'CLOSED'];
+
+    const [total, todayCount, statusCounts, centersCount, labsCount, financialData] = await Promise.all([
       (prisma as any).referral.count(),
       (prisma as any).referral.count({
         where: {
           createdAt: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+            gte: startOfDay,
+            lt: new Date(now.getTime() + 86400000),
           },
         },
       }),
@@ -546,16 +552,48 @@ diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res
       ),
       (prisma as any).diagnosticCenter.count(),
       (prisma as any).laboratory.count(),
+      // Financial: total revenue + commissions
+      Promise.all([
+        (prisma as any).referral.aggregate({
+          _sum: { cost: true, platformFee: true },
+          where: { status: { in: completedStatuses } },
+        }),
+        (prisma as any).referral.aggregate({
+          _sum: { cost: true, platformFee: true },
+          where: { status: { in: completedStatuses }, completedAt: { gte: startOfDay } },
+        }),
+        (prisma as any).referral.aggregate({
+          _sum: { cost: true, platformFee: true },
+          where: { status: { in: completedStatuses }, completedAt: { gte: startOfMonth } },
+        }),
+        (prisma as any).referral.count({ where: { status: { in: completedStatuses }, paid: true } }),
+        (prisma as any).referral.count({ where: { status: { in: completedStatuses }, paid: false } }),
+      ]),
     ]);
 
     const byStatus: Record<string, number> = {};
-    for (const { status, count } of statusCounts) {
-      byStatus[status] = count;
-    }
+    for (const { status, count } of statusCounts) byStatus[status] = count;
+
+    const [totalFin, todayFin, monthFin, paidCount, unpaidCount] = financialData;
+    const totalRevenue = Number(totalFin._sum.cost || 0);
+    const totalCommission = Number(totalFin._sum.platformFee || 0);
 
     return res.json({
       ok: true,
-      data: { total, todayCount, byStatus, centersCount, labsCount },
+      data: {
+        total, todayCount, byStatus, centersCount, labsCount,
+        financial: {
+          totalRevenue,
+          totalCommission,
+          platformNet: totalRevenue - totalCommission,
+          todayRevenue: Number(todayFin._sum.cost || 0),
+          todayCommission: Number(todayFin._sum.platformFee || 0),
+          monthRevenue: Number(monthFin._sum.cost || 0),
+          monthCommission: Number(monthFin._sum.platformFee || 0),
+          paidCount,
+          unpaidCount,
+        },
+      },
     } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
