@@ -1559,6 +1559,28 @@ export async function createShopProduct(data: any): Promise<any> { return apiReq
 export async function updateShopProduct(id: string, data: any): Promise<any> { return apiRequest(`/api/shop/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
 export async function deleteShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`, { method: 'DELETE' }); }
 
+// ─── Shop admin (superadmin) ───
+export async function adminGetProducts(params?: { search?: string; supplierId?: string; category?: string }): Promise<any> {
+  const q = new URLSearchParams();
+  if (params?.search) q.set('search', params.search);
+  if (params?.supplierId) q.set('supplierId', params.supplierId);
+  if (params?.category) q.set('category', params.category);
+  return apiRequest(`/api/shop/admin/products?${q}`);
+}
+export async function adminUpdateProduct(id: string, data: { isActive?: boolean; category?: string; categoryId?: string }): Promise<any> {
+  return apiRequest(`/api/shop/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function adminGetReviews(approved?: boolean): Promise<any> {
+  const q = approved !== undefined ? `?approved=${approved}` : '';
+  return apiRequest(`/api/shop/admin/reviews${q}`);
+}
+export async function adminUpdateReview(id: string, isApproved: boolean): Promise<any> {
+  return apiRequest(`/api/shop/admin/reviews/${id}`, { method: 'PATCH', body: JSON.stringify({ isApproved }) });
+}
+export async function getShopAdminStats(): Promise<any> {
+  return apiRequest('/api/shop/admin/stats');
+}
+
 // ─── School content management (superadmin) ───
 export async function createSchoolCourse(data: any): Promise<any> { return apiRequest('/api/school/courses', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateSchoolCourse(id: string, data: any): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }

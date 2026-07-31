@@ -850,4 +850,86 @@ shopRouter.delete('/suppliers/:id', authenticate, requireSuperadmin, async (req:
   } catch (e: any) { res.status(e.code === 'P2025' ? 404 : 500).json({ ok: false, error: 'Failed to delete supplier' }); }
 });
 
+// ─── PRODUCTS ADMIN (superadmin) ───
+
+shopRouter.get('/admin/products', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const { search, supplierId, category } = req.query;
+    const where: any = {};
+    if (search) where.name = { contains: String(search), mode: 'insensitive' };
+    if (supplierId) where.supplierId = String(supplierId);
+    if (category) where.category = String(category);
+    const products = await prisma.product.findMany({
+      where,
+      include: { supplier: { select: { id: true, name: true } }, shopCategory: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    res.json({ ok: true, data: products });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to list products' }); }
+});
+
+shopRouter.patch('/admin/products/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const product = await prisma.product.update({
+      where: { id: req.params.id as string },
+      data: { isActive: req.body.isActive, category: req.body.category, categoryId: req.body.categoryId },
+    });
+    res.json({ ok: true, data: product });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to update product' }); }
+});
+
+// ─── REVIEWS ADMIN (superadmin) ───
+
+shopRouter.get('/admin/reviews', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const { approved } = req.query;
+    const where: any = {};
+    if (approved === 'true') where.isApproved = true;
+    if (approved === 'false') where.isApproved = false;
+    const reviews = await prisma.shopReview.findMany({
+      where,
+      include: {
+        product: { select: { id: true, name: true } },
+        user: { select: { id: true, firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    res.json({ ok: true, data: reviews });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to list reviews' }); }
+});
+
+shopRouter.patch('/admin/reviews/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const review = await prisma.shopReview.update({
+      where: { id: req.params.id as string },
+      data: { isApproved: req.body.isApproved },
+    });
+    res.json({ ok: true, data: review });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to update review' }); }
+});
+
+// ─── ANALYTICS (superadmin) ───
+
+shopRouter.get('/admin/stats', authenticate, requireSuperadmin, async (_req: AuthRequest, res) => {
+  try {
+    const [totalProducts, totalOrders, totalRevenue, activeSuppliers] = await Promise.all([
+      prisma.product.count({ where: { isActive: true } }),
+      prisma.order.count(),
+      prisma.order.aggregate({ where: { paymentStatus: 'paid' }, _sum: { total: true } }),
+      prisma.supplier.count({ where: { status: { in: ['verified', 'official_partner'] } } }),
+    ]);
+    res.json({
+      ok: true,
+      data: {
+        totalProducts,
+        totalOrders,
+        totalRevenue: totalRevenue._sum.total || 0,
+        activeSuppliers,
+      },
+    });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to load stats' }); }
+});
+
 export { shopRouter };

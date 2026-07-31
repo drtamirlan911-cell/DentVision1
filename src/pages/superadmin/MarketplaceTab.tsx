@@ -9,6 +9,7 @@ import * as api from '../../utils/api';
 import {
   ShoppingCart, Store, FileCheck, AlertTriangle, Check, X, Eye, Search,
   RefreshCw, Users, Shield, Truck, BadgeCheck, Ban,
+  Package, MessageSquare, TrendingUp,
 } from 'lucide-react';
 
 const fd = (d: string) => {
@@ -154,6 +155,13 @@ export default function MarketplaceTab() {
     qc.invalidateQueries({ queryKey: ['marketplace'] });
   };
 
+  const shopStats = useQuery({
+    queryKey: ['marketplace', 'stats'],
+    queryFn: () => api.getShopAdminStats(),
+    staleTime: 30_000,
+  });
+  const shopStatsData: any = shopStats.data?.data || shopStats.data || {};
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -164,6 +172,16 @@ export default function MarketplaceTab() {
           <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll}>Обновить</Button>
         }
       />
+
+      {/* Marketplace Financial Analytics */}
+      {!shopStats.isLoading && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Выручка (оплачено)" value={`${(shopStatsData.totalRevenue || 0).toLocaleString()} ₸`} icon={<TrendingUp size={18} />} />
+          <StatCard label="Всего заказов" value={shopStatsData.totalOrders ?? 0} icon={<ShoppingCart size={18} />} />
+          <StatCard label="Активных товаров" value={shopStatsData.totalProducts ?? 0} icon={<Package size={18} />} />
+          <StatCard label="Партнёров" value={shopStatsData.activeSuppliers ?? 0} icon={<BadgeCheck size={18} />} />
+        </div>
+      )}
 
       {suppliers.isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
