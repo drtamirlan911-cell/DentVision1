@@ -65,13 +65,24 @@ export async function listCenters(search?: string, city?: string) {
   if (search) where.name = { contains: search, mode: 'insensitive' };
   if (city) where.city = { contains: city, mode: 'insensitive' };
 
-  // Only show centers with active subscriptions (paid or trial)
+  // Show centers that have an active/trial subscription, or no subscription record yet.
+  // A subscription row is only created on the first accepted referral, so centers
+  // without one must still be visible to clinics.
   try {
-    const paidIds = await prisma.$queryRawUnsafe<Array<{ center_id: string }>>(
-      `SELECT center_id FROM "center_subscriptions" WHERE status IN ('active', 'trial')`
-    );
-    const paidSet = new Set(paidIds.map(r => r.center_id));
-    where.id = { in: [...paidSet] };
+    const [allActive, subs] = await Promise.all([
+      prisma.diagnosticCenter.findMany({ where: { active: true }, select: { id: true } }),
+      prisma.$queryRawUnsafe<Array<{ center_id: string; status: string }>>(
+        `SELECT center_id, status FROM "center_subscriptions"`
+      ),
+    ]);
+    const subByCenter = new Map(subs.map((r) => [r.center_id, r.status]));
+    const visibleIds = allActive
+      .filter((c) => {
+        const st = subByCenter.get(c.id);
+        return !st || st === 'active' || st === 'trial';
+      })
+      .map((c) => c.id);
+    where.id = { in: visibleIds };
   } catch { /* table may not exist — show all */ }
 
   return prisma.diagnosticCenter.findMany({

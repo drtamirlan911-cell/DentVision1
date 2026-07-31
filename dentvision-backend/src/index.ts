@@ -164,6 +164,20 @@ async function main() {
     console.error('[MIGRATION] Center subscription table failed (non-fatal):', err);
   }
 
+  // Backfill trial subscriptions for existing centers that don't have one yet
+  try {
+    const res = await prisma.$executeRawUnsafe(`
+      INSERT INTO "center_subscriptions" (center_id, status, trial_end)
+      SELECT dc.id::uuid, 'trial', now() + interval '30 days'
+      FROM "diagnostic_centers" dc
+      WHERE dc.active = true
+        AND NOT EXISTS (SELECT 1 FROM "center_subscriptions" cs WHERE cs.center_id = dc.id::uuid)
+    `);
+    console.log(`[MIGRATION] Center subscriptions backfilled for ${res} centers`);
+  } catch (err) {
+    console.error('[MIGRATION] Center subscription backfill failed (non-fatal):', err);
+  }
+
   // Shared product catalog — prevent duplicate listings across suppliers
   try {
     await prisma.$executeRawUnsafe(`ALTER TABLE IF EXISTS "products" ADD COLUMN IF NOT EXISTS "shared_product_id" TEXT`);
