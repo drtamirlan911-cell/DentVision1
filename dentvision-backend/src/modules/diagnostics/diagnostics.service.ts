@@ -20,10 +20,25 @@ export async function ensureCenterSubscription(centerId: string) {
       return { active: true, status: 'trial' as const };
     }
     const sub = existing[0];
+    const trialEnd = sub.trial_end ? new Date(sub.trial_end) : null;
     const paidUntil = sub.paid_until ? new Date(sub.paid_until) : null;
-    const trialEnd = paidUntil; // simplified: paid_until is the expiration
-    if (trialEnd && new Date() > trialEnd && sub.status === 'active') {
+    const effectiveEnd = paidUntil || trialEnd;
+    if (effectiveEnd && new Date() > effectiveEnd && (sub.status === 'active' || sub.status === 'trial')) {
       await prisma.$executeRawUnsafe(`UPDATE "center_subscriptions" SET status = 'expired' WHERE id = $1`, sub.id);
+      // Notify center members that they're no longer visible to clinics
+      try {
+        const members = await prisma.diagnosticCenterMember.findMany({ where: { centerId }, select: { userId: true } });
+        for (const m of members) {
+          await prisma.notification.create({
+            data: {
+              id: uid(), userId: m.userId, type: 'system',
+              title: 'Подписка истекла',
+              message: 'Ваш центр больше не отображается в списке для клиник. Продлите подписку, чтобы снова принимать направления.',
+              link: '/diagnostics/center-dashboard',
+            },
+          });
+        }
+      } catch { /* notification failure non-fatal */ }
       return { active: false, status: 'expired' as const };
     }
     return { active: sub.status === 'active' || sub.status === 'trial', status: sub.status as string };
@@ -49,6 +64,16 @@ export async function listCenters(search?: string, city?: string) {
   const where: any = { active: true };
   if (search) where.name = { contains: search, mode: 'insensitive' };
   if (city) where.city = { contains: city, mode: 'insensitive' };
+
+  // Only show centers with active subscriptions (paid or trial)
+  try {
+    const paidIds = await prisma.$queryRawUnsafe<Array<{ center_id: string }>>(
+      `SELECT center_id FROM "center_subscriptions" WHERE status IN ('active', 'trial')`
+    );
+    const paidSet = new Set(paidIds.map(r => r.center_id));
+    where.id = { in: [...paidSet] };
+  } catch { /* table may not exist — show all */ }
+
   return prisma.diagnosticCenter.findMany({
     where,
     include: { _count: { select: { studies: true, operators: true } } },
