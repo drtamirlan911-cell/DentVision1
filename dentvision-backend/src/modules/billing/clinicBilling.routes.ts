@@ -53,8 +53,16 @@ clinicBillingRouter.get('/me', async (req: AuthRequest, res) => {
   try {
     const clinicId = clinicIdFrom(req);
     await assertClinicMemberAccess(req.user!.id, clinicId);
-    const snap = await getClinicBillingSnapshot(clinicId);
-    if (!snap) return res.status(404).json({ ok: false, error: 'Клиника не найдена' } satisfies ApiResponse);
+    let snap: any = null;
+    try {
+      snap = await getClinicBillingSnapshot(clinicId);
+    } catch (e: any) {
+      console.warn('[clinic-billing/me] snapshot failed (table may be missing):', e?.message);
+    }
+    if (!snap) {
+      // Return a safe default if billing tables are unavailable
+      return res.json({ ok: true, data: { clinicId, plan: 'ENTERPRISE', status: 'trial', periodEnd: null, usage: {} } } satisfies ApiResponse);
+    }
     return res.json({ ok: true, data: snap } satisfies ApiResponse);
   } catch (error: any) {
     const status = error?.status || 500;

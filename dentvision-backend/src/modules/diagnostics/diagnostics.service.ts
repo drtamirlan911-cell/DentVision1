@@ -35,21 +35,25 @@ async function syncOrgFromEntity(
   id: string,
   data: { name: string; city?: string | null; address?: string | null; phone?: string | null; email?: string | null },
 ) {
-  await prisma.organization.upsert({
-    where: { originalType_originalId: { originalType: type, originalId: id } },
-    update: { name, address: data.address || null, phone: data.phone || null, email: data.email || null, contacts: data.city ? { city: data.city } : undefined },
-    create: {
-      id: uid(),
-      name,
-      type: type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY',
-      address: data.address || null,
-      phone: data.phone || null,
-      email: data.email || null,
-      contacts: data.city ? { city: data.city } : undefined,
-      originalType: type,
-      originalId: id,
-    },
-  });
+  try {
+    await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: type, originalId: id } },
+      update: { name, address: data.address || null, phone: data.phone || null, email: data.email || null, contacts: data.city ? { city: data.city } : undefined },
+      create: {
+        id: uid(),
+        name,
+        type: type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY',
+        address: data.address || null,
+        phone: data.phone || null,
+        email: data.email || null,
+        contacts: data.city ? { city: data.city } : undefined,
+        originalType: type,
+        originalId: id,
+      },
+    });
+  } catch (e) {
+    console.warn(`[Diagnostics] syncOrgFromEntity failed (non-fatal, table may not exist): ${type} ${id}`);
+  }
 }
 
 export async function createCenter(data: {

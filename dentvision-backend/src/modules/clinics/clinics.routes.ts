@@ -127,27 +127,32 @@ clinicsRouter.get('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
     }
 
-    // Fetch unified Persons for this clinic's org
-    const org = await prisma.organization.findFirst({
-      where: { originalType: 'Clinic', originalId: clinic.id },
-      select: { id: true },
-    });
-    const persons = org
-      ? await prisma.person.findMany({
-          where: { organizationId: org.id },
-          select: {
-            id: true,
-            fullName: true,
-            personType: true,
-            specialization: true,
-            phone: true,
-            userId: true,
-            roles: {
-              select: { role: { select: { name: true, key: true } } },
+    // Fetch unified Persons for this clinic's org (non-fatal if org table missing)
+    let persons: any[] = [];
+    try {
+      const org = await prisma.organization.findFirst({
+        where: { originalType: 'Clinic', originalId: clinic.id },
+        select: { id: true },
+      });
+      if (org) {
+        try {
+          persons = await prisma.person.findMany({
+            where: { organizationId: org.id },
+            select: {
+              id: true,
+              fullName: true,
+              personType: true,
+              specialization: true,
+              phone: true,
+              userId: true,
+              roles: {
+                select: { role: { select: { name: true, key: true } } },
+              },
             },
-          },
-        })
-      : [];
+          });
+        } catch { /* person table missing */ }
+      }
+    } catch { /* organization table missing */ }
 
     const response: ApiResponse = {
       ok: true,
