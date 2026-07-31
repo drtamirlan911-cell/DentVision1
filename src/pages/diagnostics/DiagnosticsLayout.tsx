@@ -58,8 +58,8 @@ export default function DiagnosticsLayout() {
         return;
       }
       setCtxErr('Сервер не выдал токен доступа');
-    } catch {
-      setCtxErr('Не удалось переключить кабинет');
+    } catch (e: any) {
+      setCtxErr(e?.message || 'Не удалось переключить кабинет');
     } finally {
       setSwitching(false);
     }

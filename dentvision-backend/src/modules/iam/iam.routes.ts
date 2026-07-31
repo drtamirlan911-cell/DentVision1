@@ -182,9 +182,19 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     // 1) Try unified Organization first (any type)
     const org = await prisma.organization.findUnique({ where: { id: scopeId } });
     if (org) {
-      const person = await prisma.person.findFirst({
+      let person = await prisma.person.findFirst({
         where: { userId: user.id, organizationId: scopeId },
       });
+      // Fallback: org.id may have been realigned to the entity id while the
+      // Person link was stored against the old id — resolve by originalId.
+      if (!person && org.originalId) {
+        person = await prisma.person.findFirst({
+          where: { userId: user.id, originalId: `${org.originalId}:${user.id}` },
+        });
+        if (person) {
+          await prisma.person.update({ where: { id: person.id }, data: { organizationId: scopeId } }).catch(() => {});
+        }
+      }
       if (person) {
         let supplierContext = {};
         if (org.type === 'SUPPLIER_COMPANY') {
@@ -204,6 +214,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
+      console.warn(`[IAM] switch-context: org ${scopeId} (${org.type}) found but no Person link for user ${user.id}`);
     }
 
     // 2) Legacy CLINIC switch (for users without Person record yet)

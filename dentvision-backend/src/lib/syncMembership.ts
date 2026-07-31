@@ -33,26 +33,40 @@ export async function syncPersonFromClinicMember(clinicId: string, userId: strin
   const fullName = `${user.firstName} ${user.lastName}`.trim();
   const personType = role === 'DOCTOR' ? 'DOCTOR' : 'STAFF';
 
-  const person = await prisma.person.upsert({
-    where: { originalType_originalId: { originalType: 'ClinicMember', originalId: `${clinicId}:${userId}` } },
-    update: {
-      fullName,
-      personType,
-      specialization: user.spec || undefined,
-      phone: user.phone || undefined,
-    },
-    create: {
-      id: uid(),
-      fullName,
-      personType,
-      organizationId: org.id,
-      userId: user.id,
-      specialization: user.spec || undefined,
-      phone: user.phone || undefined,
-      originalType: 'ClinicMember',
-      originalId: `${clinicId}:${userId}`,
-    },
+  // Person.userId is globally unique. Reuse the existing Person when it's the
+  // same ClinicMember, otherwise skip — never steal a Person that belongs to
+  // another org (e.g. diagnostics center) or a duplicate userId row would be created.
+  let person = await prisma.person.findFirst({
+    where: { originalType: 'ClinicMember', originalId: `${clinicId}:${userId}` },
   });
+  if (!person) {
+    const existingByUser = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
+    if (existingByUser) return;
+    person = await prisma.person.create({
+      data: {
+        id: uid(),
+        fullName,
+        personType,
+        organizationId: org.id,
+        userId: user.id,
+        specialization: user.spec || undefined,
+        phone: user.phone || undefined,
+        originalType: 'ClinicMember',
+        originalId: `${clinicId}:${userId}`,
+      },
+    });
+  } else {
+    await prisma.person.update({
+      where: { id: person.id },
+      data: {
+        fullName,
+        personType,
+        organizationId: org.id,
+        specialization: user.spec || undefined,
+        phone: user.phone || undefined,
+      },
+    });
+  }
 
   // Assign unified role
   const roleKey = CM_ROLE_TO_ROLE_KEY[role] || 'org_admin';

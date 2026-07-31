@@ -10,7 +10,7 @@ import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@pris
 export async function ensureCenterSubscription(centerId: string) {
   try {
     const existing = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT id, status, paid_until FROM "center_subscriptions" WHERE center_id = $1`, centerId
+      `SELECT id, status, paid_until FROM "center_subscriptions" WHERE center_id::text = $1`, centerId
     );
     if (existing.length === 0) {
       // Auto-create trial subscription (30 days free)
@@ -24,7 +24,7 @@ export async function ensureCenterSubscription(centerId: string) {
     const paidUntil = sub.paid_until ? new Date(sub.paid_until) : null;
     const effectiveEnd = paidUntil || trialEnd;
     if (effectiveEnd && new Date() > effectiveEnd && (sub.status === 'active' || sub.status === 'trial')) {
-      await prisma.$executeRawUnsafe(`UPDATE "center_subscriptions" SET status = 'expired' WHERE id = $1`, sub.id);
+      await prisma.$executeRawUnsafe(`UPDATE "center_subscriptions" SET status = 'expired' WHERE id::text = $1`, sub.id);
       // Notify center members that they're no longer visible to clinics
       try {
         const members = await prisma.diagnosticCenterMember.findMany({ where: { centerId }, select: { userId: true } });
@@ -50,7 +50,7 @@ export async function ensureCenterSubscription(centerId: string) {
 export async function getCenterSubscription(centerId: string) {
   try {
     const result = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM "center_subscriptions" WHERE center_id = $1`, centerId
+      `SELECT * FROM "center_subscriptions" WHERE center_id::text = $1`, centerId
     );
     return result[0] || null;
   } catch { return null; }

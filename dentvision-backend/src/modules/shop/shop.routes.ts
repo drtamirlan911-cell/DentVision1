@@ -96,7 +96,7 @@ shopRouter.get('/products', async (req, res) => {
       const sharedIds = [...new Set(mapped.map((p: any) => (p as any).sharedProductId || p.id).filter(Boolean))] as string[];
       if (sharedIds.length > 0) {
         const counts = await prisma.$queryRawUnsafe<Array<{ spid: string; cnt: number }>>(
-          `SELECT COALESCE(shared_product_id, id) as spid, COUNT(*)::int as cnt FROM products WHERE shared_product_id IN (${sharedIds.map((_, i) => `$${i + 1}`).join(',')}) OR (shared_product_id IS NULL AND id IN (${sharedIds.map((_, i) => `$${i + 1}`).join(',')})) GROUP BY 1`,
+          `SELECT COALESCE(shared_product_id, id::text) as spid, COUNT(*)::int as cnt FROM products WHERE shared_product_id IN (${sharedIds.map((_, i) => `$${i + 1}`).join(',')}) OR (shared_product_id IS NULL AND id::text IN (${sharedIds.map((_, i) => `$${i + 1}`).join(',')})) GROUP BY 1`,
           ...sharedIds, ...sharedIds
         );
         const countMap: Record<string, number> = {};

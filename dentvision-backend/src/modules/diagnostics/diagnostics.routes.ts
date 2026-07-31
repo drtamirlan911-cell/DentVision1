@@ -668,7 +668,7 @@ diagnosticsRouter.post('/centers/:id/subscription/activate', async (req: AuthReq
     await svc.ensureCenterSubscription(centerId);
     // Extend subscription by months * 30 days from today
     await (prisma as any).$executeRawUnsafe(
-      `UPDATE "center_subscriptions" SET status = 'active', paid_until = greatest(coalesce(paid_until, now()), now()) + interval '1 day' * $2 WHERE center_id = $1`,
+      `UPDATE "center_subscriptions" SET status = 'active', paid_until = greatest(coalesce(paid_until, now()), now()) + interval '1 day' * $2 WHERE center_id::text = $1`,
       centerId, months * 30
     );
     const sub = await svc.getCenterSubscription(centerId);
