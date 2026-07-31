@@ -263,8 +263,8 @@ export async function lookupInvitation(code: string): Promise<any> {
   return apiRequest(`/api/auth/invitations/lookup?code=${encodeURIComponent(code)}`);
 }
 
-export async function createDemoClinic(): Promise<any> {
-  return apiRequest('/api/auth/demo-clinic', { method: 'POST' });
+export async function createDemoClinic(data?: { name?: string; city?: string; address?: string; phone?: string }): Promise<any> {
+  return apiRequest('/api/auth/demo-clinic', { method: 'POST', body: JSON.stringify(data || {}) });
 }
 
 // ─── Clinic SaaS billing ───

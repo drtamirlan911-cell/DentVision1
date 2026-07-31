@@ -507,6 +507,18 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
 // Demo clinic endpoint — creates a temporary demo clinic with rich sample data
 authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
   try {
+    const { name, city, address, phone } = req.body as {
+      name?: string;
+      city?: string;
+      address?: string;
+      phone?: string;
+    };
+    // Real clinic data when provided (so the user can continue using it after demo).
+    const clinicName = name?.trim() || 'Демо-клиника «Дентал Плюс»';
+    const clinicCity = city?.trim() || 'Алматы';
+    const clinicAddress = address?.trim() || 'ул. Абая 150, офис 301';
+    const clinicPhone = phone?.trim() || '+7 727 123 45 67';
+
     const clinicId = uid();
     const userId = req.user!.id;
 
@@ -514,18 +526,18 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
       prisma.clinic.create({
         data: {
           id: clinicId,
-          name: 'Демо-клиника «Дентал Плюс»',
-          city: 'Алматы',
-          address: 'ул. Абая 150, офис 301',
-          phone: '+7 727 123 45 67',
+          name: clinicName,
+          city: clinicCity,
+          address: clinicAddress,
+          phone: clinicPhone,
           plan: 'ENTERPRISE',
           active: true,
         },
       }),
       prisma.organization.upsert({
         where: { originalType_originalId: { originalType: 'Clinic', originalId: clinicId } },
-        update: { name: 'Демо-клиника «Дентал Плюс»' },
-        create: { id: uid(), name: 'Демо-клиника «Дентал Плюс»', type: 'CLINIC', originalType: 'Clinic', originalId: clinicId, contacts: { city: 'Алматы' } },
+        update: { name: clinicName },
+        create: { id: uid(), name: clinicName, type: 'CLINIC', originalType: 'Clinic', originalId: clinicId, contacts: { city: clinicCity } },
       }),
       prisma.clinicMember.create({
         data: { id: uid(), userId, clinicId, role: 'OWNER' },

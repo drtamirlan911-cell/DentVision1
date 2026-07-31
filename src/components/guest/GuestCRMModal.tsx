@@ -30,7 +30,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
   const [error, setError] = useState('');
 
   const [isRegister, setIsRegister] = useState(false);
-  const [authData, setAuthData] = useState({ name: '', login: '', password: '', confirmPassword: '' });
+  const [authData, setAuthData] = useState({ name: '', login: '', password: '', confirmPassword: '', clinicName: '', clinicCity: '', clinicAddress: '', clinicPhone: '' });
   const [joinCode, setJoinCode] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -42,7 +42,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
     setLoading(false);
     setError('');
     setIsRegister(false);
-    setAuthData({ name: '', login: '', password: '', confirmPassword: '' });
+    setAuthData({ name: '', login: '', password: '', confirmPassword: '', clinicName: '', clinicCity: '', clinicAddress: '', clinicPhone: '' });
     setJoinCode('');
     setJoinLoading(false);
     setDemoLoading(false);
@@ -99,6 +99,10 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
       setError('Введите логин и пароль');
       return;
     }
+    if (pendingAction === 'demo' && !authData.clinicName.trim()) {
+      setError('Укажите название клиники');
+      return;
+    }
     setLoading(true);
     try {
       if (isRegister) {
@@ -153,7 +157,14 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
   const handleDemo = async () => {
     setDemoLoading(true);
     try {
-      const res = await api.createDemoClinic();
+      // Use real clinic data entered by the user so they can continue with it after demo.
+      const clinicData = {
+        name: authData.clinicName.trim(),
+        city: authData.clinicCity.trim(),
+        address: authData.clinicAddress.trim(),
+        phone: authData.clinicPhone.trim(),
+      };
+      const res = await api.createDemoClinic(clinicData);
       await switchClinic(res.clinic?.id || null);
       toast.success('Демо-клиника готова!');
       handleClose();
@@ -249,7 +260,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                     </h2>
                     <p className="text-xs text-[#7A8899] m-0 mb-4">
                       {pendingAction === 'demo'
-                        ? 'Войдите или зарегистрируйтесь — мы создадим для вас персональную демо-клинику с готовыми данными.'
+                        ? 'Войдите или зарегистрируйтесь и укажите данные клиники — мы создадим её с демо-данными, которые можно продолжить заполнять.'
                         : (isRegister ? 'Создайте аккаунт для доступа к CRM' : 'Войдите, чтобы продолжить')}
                     </p>
 
@@ -304,6 +315,51 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                             />
                           </div>
                         </div>
+                      )}
+
+                      {pendingAction === 'demo' && (
+                        <>
+                          <div className="flex items-center gap-2 pt-1">
+                            <Building2 size={14} className="text-[#27AE60]" />
+                            <p className="text-[11px] font-semibold text-[#7A8899] m-0">Данные вашей клиники</p>
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-[#7A8899] mb-1 block">Название клиники</label>
+                            <input
+                              value={authData.clinicName}
+                              onChange={(e) => setAuthData(d => ({ ...d, clinicName: e.target.value }))}
+                              placeholder="Например: Стоматология «Жемчуг»"
+                              className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-[#7A8899] mb-1 block">Город</label>
+                            <input
+                              value={authData.clinicCity}
+                              onChange={(e) => setAuthData(d => ({ ...d, clinicCity: e.target.value }))}
+                              placeholder="Например: Алматы"
+                              className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-[#7A8899] mb-1 block">Адрес</label>
+                            <input
+                              value={authData.clinicAddress}
+                              onChange={(e) => setAuthData(d => ({ ...d, clinicAddress: e.target.value }))}
+                              placeholder="Например: ул. Абая 150"
+                              className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-[#7A8899] mb-1 block">Телефон</label>
+                            <input
+                              value={authData.clinicPhone}
+                              onChange={(e) => setAuthData(d => ({ ...d, clinicPhone: e.target.value }))}
+                              placeholder="Например: +7 727 123 45 67"
+                              className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                            />
+                          </div>
+                        </>
                       )}
 
                       {error && (
