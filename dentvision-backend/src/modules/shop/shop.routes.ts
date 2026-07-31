@@ -736,6 +736,42 @@ shopRouter.get('/delivery-calc', async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: 'Failed to calculate delivery' }); }
 });
 
+// Product-level delivery preview: shows delivery for each product in cart without asking city
+shopRouter.get('/delivery-preview', async (req, res) => {
+  try {
+    const productIds = (req.query.ids as string || '').split(',').filter(Boolean);
+    if (!productIds.length) return res.json({ ok: true, data: [] });
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, supplierId: true, weight: true },
+    });
+    const supplierIds = [...new Set(products.map(p => p.supplierId).filter(Boolean))];
+    const zones = await prisma.deliveryZone.findMany({
+      where: { supplierId: { in: supplierIds as string[] } },
+      orderBy: { cost: 'asc' },
+    });
+    // Group by supplier: cheapest zone = default delivery
+    const bySupplier: Record<string, { minCost: number; freeFrom: number | null; days: number | null; zoneName: string }> = {};
+    for (const z of zones) {
+      if (!bySupplier[z.supplierId] || z.cost < bySupplier[z.supplierId].minCost) {
+        bySupplier[z.supplierId] = { minCost: z.cost, freeFrom: z.freeFrom, days: z.estimatedDays, zoneName: z.name };
+      }
+    }
+    const preview = products.map(p => {
+      const d = p.supplierId ? bySupplier[p.supplierId] : null;
+      return {
+        productId: p.id,
+        productName: p.name,
+        deliveryCost: d?.minCost ?? 0,
+        freeFrom: d?.freeFrom ?? null,
+        estimatedDays: d?.days ?? null,
+        zoneName: d?.zoneName ?? null,
+      };
+    });
+    res.json({ ok: true, data: preview });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to preview delivery' }); }
+});
+
 shopRouter.post('/products', authenticate, async (req: AuthRequest, res) => {
   try {
     if (!req.user?.supplierId) { res.status(403).json({ ok: false, error: 'Только поставщик' }); return; }
