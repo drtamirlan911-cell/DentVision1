@@ -122,6 +122,15 @@ export default function Patients() {
     nextVisit?: { date?: string; time?: string; service?: string } | null
   } | null>(null)
   const [openPlanIds, setOpenPlanIds] = useState<Set<string>>(new Set())
+  const [patientReferrals, setPatientReferrals] = useState<any[]>([])
+
+  useEffect(() => {
+    if (selected?.id && activeTab === 'diagnostics') {
+      api.getDiagnosticReferrals({ patientId: selected.id, limit: '20' }).then((res: any) => {
+        setPatientReferrals(res?.items || res?.data || []);
+      }).catch(() => setPatientReferrals([]));
+    }
+  }, [selected?.id, activeTab])
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -662,8 +671,52 @@ export default function Patients() {
                 </motion.div>
               )
             })}
-          </motion.div>
-        )}
+                </motion.div>
+              )}
+
+              {activeTab === 'diagnostics' && (
+                <motion.div key="diagnostics" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
+                  <p className="text-sm font-bold text-txt-primary mb-4">Диагностические направления</p>
+                  {patientReferrals.length === 0 ? (
+                    <EmptyState icon={<Microscope size={32} />} title="Нет направлений" description="Создайте направление кнопкой «Диагностика» вверху" />
+                  ) : (
+                    <div className="space-y-2">
+                      {patientReferrals.map((r: any) => {
+                        const statusInfo: any = {
+                          SENT: { label: 'Отправлено', color: '#3498DB' },
+                          ACCEPTED: { label: 'Принято', color: '#F39C12' },
+                          IN_PROGRESS: { label: 'В работе', color: '#C9A96E' },
+                          COMPLETED: { label: 'Завершено', color: '#27AE60' },
+                          REVIEWED: { label: 'Подтверждено', color: '#2ECC71' },
+                        };
+                        const si = statusInfo[r.status] || { label: r.status, color: '#95A5A6' };
+                        return (
+                          <button key={r.id} onClick={() => navigate(`/diagnostics/referrals/${r.id}`)}
+                            className="w-full text-left flex items-start gap-3 p-3 rounded-xl border border-bdr-subtle bg-white/[0.02] hover:bg-surface-1 transition-colors">
+                            <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0`} style={{ backgroundColor: si.color }} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold text-txt-primary">{r.studyType || '—'}</p>
+                                <Badge variant="outline" size="xs" style={{ borderColor: si.color, color: si.color }}>{si.label}</Badge>
+                              </div>
+                              <p className="text-xs text-txt-muted mt-0.5">{r.center?.name || r.lab?.name || '—'} · {r.clinic?.name || ''}</p>
+                              <p className="text-xs text-txt-muted">{r.cost ? `${Number(r.cost).toLocaleString()} ₸` : ''} {r.paid ? '· Оплачено' : ''}</p>
+                              {r.result?.reportText && <p className="text-xs text-txt-ghost mt-1 line-clamp-2">{r.result.reportText.slice(0, 120)}</p>}
+                            </div>
+                            <p className="text-xs text-txt-ghost shrink-0">{new Date(r.createdAt).toLocaleDateString()}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="mt-4 pt-4 border-t border-bdr-subtle">
+                    <Button variant="outline" size="sm" icon={<Microscope size={14} />}
+                      onClick={() => navigate(`/diagnostics/referrals/new?patientId=${selected!.id}&patientName=${encodeURIComponent(selected!.name || '')}&patientPhone=${selected!.phone || ''}`)}>
+                      Новое направление
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
 
         {formModal}
         {confirmDeleteModal}
@@ -681,6 +734,7 @@ export default function Patients() {
     { id: 'payment', label: 'Оплата', icon: <CreditCard size={14} /> },
     { id: 'photos', label: 'Фотопротокол', icon: <Camera size={14} /> },
     { id: 'history', label: 'История', icon: <History size={14} /> },
+    { id: 'diagnostics', label: 'Диагностика', icon: <Microscope size={14} /> },
   ]
 
   return (
