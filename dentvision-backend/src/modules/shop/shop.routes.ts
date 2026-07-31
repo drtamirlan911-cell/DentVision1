@@ -701,11 +701,39 @@ shopRouter.get('/spec-templates', async (_req, res) => {
 shopRouter.get('/delivery-zones', async (req, res) => {
   try {
     const supplierId = req.query.supplierId as string;
+    const city = req.query.city as string;
     const where: any = {};
     if (supplierId) where.supplierId = supplierId;
-    const zones = await prisma.deliveryZone.findMany({ where, orderBy: { name: 'asc' } });
-    res.json({ ok: true, data: zones });
+    const zones = await prisma.deliveryZone.findMany({ where, orderBy: { cost: 'asc' } });
+    // Filter by city if specified (cities is JSON array)
+    const filtered = city
+      ? zones.filter(z => Array.isArray(z.cities) && (z.cities as string[]).some(c => c.toLowerCase() === city.toLowerCase()))
+      : zones;
+    res.json({ ok: true, data: filtered });
   } catch (e) { res.status(500).json({ ok: false, error: 'Failed to load delivery zones' }); }
+});
+
+// Delivery calculator: what are the options for this city + cart total?
+shopRouter.get('/delivery-calc', async (req, res) => {
+  try {
+    const { city, cartTotal, supplierId } = req.query;
+    if (!city) return res.status(400).json({ ok: false, error: 'city required' });
+    const where: any = {};
+    if (supplierId) where.supplierId = String(supplierId);
+    const zones = await prisma.deliveryZone.findMany({ where, orderBy: { cost: 'asc' } });
+    // Filter zones that cover this city
+    const matching = zones.filter(z => Array.isArray(z.cities) && (z.cities as string[]).some(c => c.toLowerCase() === String(city).toLowerCase()));
+    const total = parseInt(String(cartTotal || '0'));
+    const options = matching.map(z => ({
+      zoneId: z.id, name: z.name, cost: z.cost,
+      freeFrom: z.freeFrom,
+      isFree: z.freeFrom ? total >= z.freeFrom : false,
+      actualCost: (z.freeFrom && total >= z.freeFrom) ? 0 : z.cost,
+      estimatedDays: z.estimatedDays,
+      supplierId: z.supplierId,
+    }));
+    res.json({ ok: true, data: options });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to calculate delivery' }); }
 });
 
 shopRouter.post('/products', authenticate, async (req: AuthRequest, res) => {
