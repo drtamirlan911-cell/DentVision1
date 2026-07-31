@@ -69,6 +69,7 @@ export default function Shop() {
   const [selectedCat, setSelectedCat] = useState('');
   const [sortBy, setSortBy] = useState('');
   const [loading, setLoading] = useState(true);
+  const [deliveryMap, setDeliveryMap] = useState<Record<string, { cost: number; freeFrom: number | null; days: number | null }>>({});
   const [showCart, setShowCart] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [activeBanner, setActiveBanner] = useState(0);
@@ -89,6 +90,18 @@ export default function Shop() {
       setProducts(Array.isArray(p) ? p : []);
       setPromotions(Array.isArray(prom) ? prom : []);
       setRecommendations(Array.isArray(rec) ? rec : []);
+      // Fetch delivery previews for loaded products
+      const allProducts = (Array.isArray(p) ? p : []);
+      const ids = allProducts.slice(0, 30).map((pr: any) => pr.id).join(',');
+      if (ids) {
+        api.getShopDeliveryPreview(ids).then((preview: any) => {
+          const map: Record<string, any> = {};
+          (Array.isArray(preview) ? preview : preview?.data || []).forEach((d: any) => {
+            if (d.productId) map[d.productId] = d;
+          });
+          setDeliveryMap(map);
+        }).catch(() => {});
+      }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [city]);
 
@@ -205,6 +218,21 @@ export default function Shop() {
               {product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет'}
             </span>
           </div>
+          {/* Delivery preview */}
+          {deliveryMap[product.id] && (
+            <div className="flex items-center gap-1">
+              <Truck size={12} style={{ color: deliveryMap[product.id].cost === 0 ? T.emerald : S }} />
+              <span className="text-[11px]" style={{ color: deliveryMap[product.id].cost === 0 ? T.emerald : S }}>
+                {deliveryMap[product.id].cost === 0 ? 'Бесплатно' : `от ${deliveryMap[product.id].cost.toLocaleString()} ₸`}
+                {deliveryMap[product.id].days ? ` · ${deliveryMap[product.id].days} дн` : ''}
+              </span>
+              {deliveryMap[product.id].freeFrom && deliveryMap[product.id].cost > 0 && (
+                <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  (беспл. от {deliveryMap[product.id].freeFrom!.toLocaleString()} ₸)
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-between pt-1">
             <div>
               <span className="text-lg font-bold" style={{ color: G }}>{product.price.toLocaleString()} ₸</span>

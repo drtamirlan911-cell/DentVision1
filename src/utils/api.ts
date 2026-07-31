@@ -1581,6 +1581,10 @@ export async function getShopAdminStats(): Promise<any> {
   return apiRequest('/api/shop/admin/stats');
 }
 
+export async function getShopDeliveryPreview(productIds: string): Promise<any> {
+  return apiRequest(`/api/shop/delivery-preview?ids=${productIds}`);
+}
+
 // ─── Supplier delivery zones ───
 
 export async function getSupplierDeliveryZones(): Promise<any> {
