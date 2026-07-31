@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requireSuperadmin } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import { resolveSupplierCity } from '../../lib/kzCities.js';
@@ -490,19 +491,17 @@ shopRouter.get('/favorites', authenticate, async (req: AuthRequest, res) => {
 
 shopRouter.get('/categories', async (_req, res) => {
   try {
-    const rows = await prisma.product.findMany({
-      where: { category: { not: null } },
-      select: { category: true },
-      distinct: ['category'],
-    });
-    const categories = rows
-      .map((r) => r.category)
-      .filter(Boolean)
-      .map((name) => ({ id: String(name), name: String(name), icon: 'package' }));
-    res.json({ ok: true, data: categories });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch categories' });
-  }
+    const [shopCats, productCats] = await Promise.all([
+      prisma.shopCategory.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      prisma.product.findMany({ where: { category: { not: null } }, select: { category: true }, distinct: ['category'] }),
+    ]);
+    const catSet = new Set(shopCats.map(c => c.name));
+    const extraCats = productCats
+      .map(r => r.category).filter(Boolean)
+      .filter(name => !catSet.has(name!))
+      .map(name => ({ id: String(name), name: String(name), icon: 'package', slug: String(name).toLowerCase().replace(/\s+/g, '-') }));
+    res.json({ ok: true, data: [...shopCats, ...extraCats] });
+  } catch { res.status(500).json({ ok: false, error: 'Failed to list categories' }); }
 });
 
 shopRouter.get('/suppliers', async (req, res) => {
@@ -699,8 +698,14 @@ shopRouter.get('/spec-templates', async (_req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: 'Failed' }); }
 });
 
-shopRouter.get('/delivery-zones', async (_req, res) => {
-  res.json({ ok: true, data: [] });
+shopRouter.get('/delivery-zones', async (req, res) => {
+  try {
+    const supplierId = req.query.supplierId as string;
+    const where: any = {};
+    if (supplierId) where.supplierId = supplierId;
+    const zones = await prisma.deliveryZone.findMany({ where, orderBy: { name: 'asc' } });
+    res.json({ ok: true, data: zones });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to load delivery zones' }); }
 });
 
 shopRouter.post('/products', authenticate, async (req: AuthRequest, res) => {
@@ -734,15 +739,59 @@ shopRouter.delete('/products/:id', authenticate, async (req: AuthRequest, res) =
 });
 
 shopRouter.get('/reviews', async (req, res) => {
-  res.json({ ok: true, data: [] });
+  try {
+    const productId = req.query.productId as string;
+    const where: any = { isApproved: true };
+    if (productId) where.productId = productId;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const { skip, take } = paginate(page, limit);
+    const [items, total] = await Promise.all([
+      prisma.shopReview.findMany({
+        where,
+        include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip, take,
+      }),
+      prisma.shopReview.count({ where }),
+    ]);
+    res.json({ ok: true, data: items, total, page, limit });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to load reviews' }); }
 });
 
 shopRouter.post('/reviews', authenticate, async (req: AuthRequest, res) => {
-  res.json({ ok: true, data: { id: uid(), ...req.body, userId: req.user!.id } });
+  try {
+    const { productId, rating, pros, cons, comment } = req.body || {};
+    if (!productId || !rating) return res.status(400).json({ ok: false, error: 'productId and rating are required' });
+    const existing = await prisma.shopReview.findFirst({
+      where: { productId, userId: req.user!.id },
+    });
+    if (existing) return res.status(409).json({ ok: false, error: 'Вы уже оставили отзыв' });
+    const review = await prisma.shopReview.create({
+      data: {
+        id: uid(), productId, userId: req.user!.id,
+        rating: Math.min(5, Math.max(1, Number(rating))),
+        pros: pros || null, cons: cons || null, comment: comment || null,
+      },
+    });
+    // Update product average rating
+    const avg = await prisma.shopReview.aggregate({ where: { productId, isApproved: true }, _avg: { rating: true } });
+    await prisma.product.update({ where: { id: productId }, data: { rating: avg._avg.rating || rating, reviewCount: { increment: 1 } } });
+    res.status(201).json({ ok: true, data: review });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e.message || 'Failed to create review' });
+  }
 });
 
 shopRouter.get('/products/:productId/reviews', async (req, res) => {
-  res.json({ ok: true, data: [] });
+  try {
+    const reviews = await prisma.shopReview.findMany({
+      where: { productId: req.params.productId, isApproved: true },
+      include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ ok: true, data: reviews });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to load reviews' }); }
 });
 
 // ─── SEED PRESETS (SuperAdmin) ───
@@ -757,9 +806,9 @@ shopRouter.post('/product-presets/seed', async (_req, res) => {
   }
 });
 
-// ─── CATEGORIES CRUD ───
+// ─── CATEGORIES CRUD (superadmin) ───
 
-shopRouter.post('/categories', authenticate, async (req: AuthRequest, res) => {
+shopRouter.post('/categories', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { name, description, icon } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, error: 'Название обязательно' });
@@ -774,18 +823,31 @@ shopRouter.post('/categories', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-shopRouter.delete('/categories/:id', authenticate, async (req: AuthRequest, res) => {
+shopRouter.delete('/categories/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     await prisma.shopCategory.delete({ where: { id: req.params.id as string } });
     res.json({ ok: true });
   } catch (e: any) { res.status(e.code === 'P2025' ? 404 : 500).json({ ok: false, error: 'Failed to delete category' }); }
 });
 
-shopRouter.get('/categories', async (_req, res) => {
+// ─── SUPPLIERS CRUD (superadmin) ───
+
+shopRouter.post('/suppliers', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
-    const cats = await prisma.shopCategory.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
-    res.json({ ok: true, data: cats });
-  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to list categories' }); }
+    const { name, email, phone, city, kind, description } = req.body || {};
+    if (!name) return res.status(400).json({ ok: false, error: 'Название обязательно' });
+    const supplier = await prisma.supplier.create({
+      data: { id: uid(), name, email: email || null, phone: phone || null, city: city || null, kind: kind || 'SUPPLIER', description: description || null },
+    });
+    res.status(201).json({ ok: true, data: supplier });
+  } catch (e: any) { res.status(500).json({ ok: false, error: e.message || 'Failed to create supplier' }); }
+});
+
+shopRouter.delete('/suppliers/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    await prisma.supplier.delete({ where: { id: req.params.id as string } });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(e.code === 'P2025' ? 404 : 500).json({ ok: false, error: 'Failed to delete supplier' }); }
 });
 
 export { shopRouter };
