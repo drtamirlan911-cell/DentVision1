@@ -30,6 +30,12 @@ const SKIP_PATHS = [
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
   if (SAFE_METHODS.has(req.method)) return next();
   if (SKIP_PATHS.some((p) => req.path.startsWith(p))) return next();
+  // JWT Bearer auth is inherently CSRF-safe: browsers never attach an
+  // Authorization header cross-site automatically. Skip double-submit CSRF
+  // for token-authenticated requests (also fixes cross-origin SPA where the
+  // dv_csrf cookie lives on the API domain and is unreadable by the frontend).
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) return next();
   const headerToken = req.headers[CSRF_HEADER] as string | undefined;
   const cookieToken = req.cookies?.[CSRF_COOKIE];
   if (!cookieToken || !headerToken) {
