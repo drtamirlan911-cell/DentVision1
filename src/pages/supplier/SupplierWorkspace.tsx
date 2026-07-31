@@ -4,7 +4,6 @@ import {
   Store, Package, Wallet, BarChart3, Plus, Trash2, CheckCircle2, Clock,
   ShieldCheck, Building2, Sparkles, TrendingUp, AlertTriangle, RotateCcw,
   Megaphone, Tag, Star, Truck, ArrowRight, Box, Percent, Camera, ImageIcon,
-  FileText, Download, PenLine,
 } from 'lucide-react'
 import * as api from '@/utils/api'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -17,7 +16,7 @@ import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
 
-type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'documents' | 'profile'
+type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'profile'
 
 interface SupplierCtx {
   scopeId: string
@@ -404,7 +403,6 @@ export default function SupplierWorkspace() {
     { id: 'ads', label: 'Реклама', icon: <Megaphone size={15} /> },
     { id: 'analytics', label: 'Спрос', icon: <BarChart3 size={15} /> },
     { id: 'catalog', label: 'Каталог', icon: <Package size={15} /> },
-    { id: 'documents', label: 'Документы', icon: <FileText size={15} /> },
     { id: 'profile', label: 'Профиль', icon: <Building2 size={15} /> },
   ]
 
@@ -839,9 +837,6 @@ export default function SupplierWorkspace() {
             </div>
           )}
 
-          {tab === 'documents' && token && (
-            <DocumentsTab token={token} />
-          )}
           {tab === 'profile' && me && (
             <ProfileTab me={me} canWrite={canWrite} token={token!} onSaved={() => token && loadAll(token)} />
           )}
@@ -994,153 +989,6 @@ export default function SupplierWorkspace() {
           )}
         </div>
       </Modal>
-    </div>
-  )
-}
-
-function DocumentsTab({ token }: { token: string }) {
-  const toast = useToast()
-  const [docs, setDocs] = useState<any[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [partner, setPartner] = useState<any>(null)
-  const [signing, setSigning] = useState<string | null>(null)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ legalName: '', bin: '', director: '', address: '', iban: '', phone: '', email: '' })
-
-  const load = useCallback(async () => {
-    try {
-      const [d, p] = await Promise.all([
-        api.supplierWs.documents(token),
-        api.supplierWs.partner(token).catch(() => null),
-      ])
-      setDocs(d)
-      setPartner(p)
-      if (p && typeof p === 'object') {
-        setForm((f) => ({
-          legalName: p.legalName || f.legalName, bin: p.bin || f.bin, director: p.director || f.director,
-          address: p.address || f.address, iban: p.iban || f.iban, phone: p.phone || f.phone, email: p.email || f.email,
-        }))
-      }
-    } catch (e: any) {
-      setError(e?.message || 'Документы недоступны')
-    }
-  }, [token])
-
-  useEffect(() => { load() }, [load])
-
-  const sign = async (id: string) => {
-    setSigning(id)
-    try {
-      await api.supplierWs.signDocument(token, id)
-      toast.success('Документ подписан')
-      await load()
-    } catch (e: any) {
-      toast.error(e?.message || 'Ошибка подписания')
-    } finally {
-      setSigning(null)
-    }
-  }
-
-  const saveRequisites = async () => {
-    try {
-      await api.supplierWs.updatePartner(token, form)
-      toast.success('Реквизиты сохранены, документы перегенерированы')
-      await load()
-    } catch (e: any) {
-      toast.error(e?.message || 'Ошибка')
-    }
-  }
-
-  const viewDoc = async (id: string) => {
-    try {
-      const html = await api.supplierWs.exportDocument(token, id)
-      const blob = new Blob([html], { type: 'text/html' })
-      window.open(URL.createObjectURL(blob), '_blank')
-    } catch { /* ignore */ }
-  }
-
-  const statusLabels: Record<string, string> = {
-    DRAFT: 'Ожидает подписания', REVIEW: 'На проверке', APPROVED: 'Одобрен',
-    PUBLISHED: 'Подписан', ARCHIVED: 'Архивный', EXPIRED: 'Просрочен', CANCELLED: 'Отменён',
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#0D1B2E] p-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h3 className="text-sm font-semibold text-white">Договоры и документы</h3>
-            <p className="text-xs text-[#7A8899] mt-0.5">Комиссия платформы: фиксированные 10% с каждой продажи</p>
-          </div>
-          {partner && (
-            <Button size="sm" variant="secondary" onClick={() => setShowForm(!showForm)} icon={<PenLine size={14} />}>
-              Реквизиты
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {showForm && partner && (
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Input label="Наименование юрлица" value={form.legalName} onChange={(e) => setForm((f) => ({ ...f, legalName: e.target.value }))} />
-              <Input label="БИН/ИИН" value={form.bin} onChange={(e) => setForm((f) => ({ ...f, bin: e.target.value }))} />
-              <Input label="Руководитель" value={form.director} onChange={(e) => setForm((f) => ({ ...f, director: e.target.value }))} />
-              <Input label="Юридический адрес" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
-              <Input label="IBAN" value={form.iban} onChange={(e) => setForm((f) => ({ ...f, iban: e.target.value }))} />
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Телефон" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-                <Input label="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              </div>
-            </div>
-            <Button size="sm" onClick={saveRequisites}>Сохранить реквизиты</Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {docs === null && !error && <p className="text-sm text-[#7A8899]">Загрузка документов…</p>}
-
-      {error && (
-        <EmptyState
-          icon={<FileText size={28} />}
-          title="Документы появятся после подтверждения"
-          description="Договор и NDA будут доступны для подписания сразу после создания компании продавца."
-        />
-      )}
-
-      {docs && docs.length === 0 && !error && (
-        <EmptyState icon={<FileText size={28} />} title="Документы не найдены" description="Договоры будут сформированы автоматически." />
-      )}
-
-      <div className="space-y-2">
-        {docs?.map((d: any) => {
-          const signed = d.status === 'PUBLISHED'
-          const st = statusLabels[d.status] || d.status
-          return (
-            <div key={d.id} className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#0D1B2E] p-4">
-              <div className="flex items-start gap-3">
-                <FileText size={18} className="mt-0.5 text-[#C9A96E] shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white">{d.template?.name || d.documentNumber}</p>
-                  <p className="text-[11px] text-[#7A8899] mt-0.5">
-                    № {d.documentNumber} · {d.createdAt ? new Date(d.createdAt).toLocaleDateString('ru-RU') : '—'}
-                  </p>
-                  <span className={`inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full ${signed ? 'bg-emerald-500/10 text-emerald-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                    {signed ? 'Подписан' : st}
-                  </span>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <Button size="icon-xs" variant="ghost" aria-label="Скачать" icon={<Download size={14} />} onClick={() => viewDoc(d.id)} />
-                  <Button size="sm" disabled={signed || signing === d.id} loading={signing === d.id} onClick={() => sign(d.id)}>
-                    Подписать
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }
