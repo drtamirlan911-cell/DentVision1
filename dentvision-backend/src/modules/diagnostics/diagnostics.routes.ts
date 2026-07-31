@@ -561,3 +561,53 @@ diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
 });
+
+// ─── Center Dashboard ───
+
+diagnosticsRouter.get('/centers/:id/dashboard', async (req: AuthRequest, res) => {
+  try {
+    const centerId = req.params.id as string;
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now.getTime() - now.getDay() * 86400000);
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    const [allReferrals, center] = await Promise.all([
+      (prisma as any).referral.findMany({
+        where: { centerId },
+        select: { id: true, status: true, cost: true, platformFee: true, paid: true, createdAt: true, completedAt: true, studyType: true, patientName: true, clinicId: true },
+      }),
+      prisma.diagnosticCenter.findUnique({ where: { id: centerId }, select: { name: true } }),
+    ]);
+
+    if (!center) return res.status(404).json({ ok: false, error: 'Center not found' } as any);
+
+    const completedReferrals = allReferrals.filter((r: any) => r.status === 'COMPLETED' || r.status === 'REVIEWED' || r.status === 'DELIVERED' || r.status === 'CLOSED');
+    const filterByDate = (list: any[], start: Date) => list.filter((r: any) => {
+      const d = r.completedAt ? new Date(r.completedAt) : new Date(r.createdAt);
+      return d >= start;
+    });
+
+    const sumCost = (list: any[]) => list.reduce((sum: number, r: any) => sum + (Number(r.cost) || 0), 0);
+    const sumFee = (list: any[]) => list.reduce((sum: number, r: any) => sum + (Number(r.platformFee) || 0), 0);
+
+    const todayCompleted = filterByDate(completedReferrals, startOfDay);
+    const weekCompleted = filterByDate(completedReferrals, startOfWeek);
+    const monthCompleted = filterByDate(completedReferrals, startOfMonth);
+    const yearCompleted = filterByDate(completedReferrals, startOfYear);
+
+    const revenue = { today: sumCost(todayCompleted), week: sumCost(weekCompleted), month: sumCost(monthCompleted), year: sumCost(yearCompleted), total: sumCost(completedReferrals) };
+    const commissions = { today: sumFee(todayCompleted), week: sumFee(weekCompleted), month: sumFee(monthCompleted), year: sumFee(yearCompleted), total: sumFee(completedReferrals) };
+    const netRevenue = { today: revenue.today - commissions.today, week: revenue.week - commissions.week, month: revenue.month - commissions.month, year: revenue.year - commissions.year, total: revenue.total - commissions.total };
+    const paymentStats = { paid: completedReferrals.filter((r: any) => r.paid).length, unpaid: completedReferrals.filter((r: any) => !r.paid).length };
+
+    const byStatus: Record<string, number> = {};
+    for (const r of allReferrals) byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+
+    return res.json({ ok: true, data: { name: center.name, referralCount: allReferrals.length, completedCount: completedReferrals.length, revenue, commissions, netRevenue, paymentStats, byStatus } } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});

@@ -2297,6 +2297,10 @@ export async function getDiagnosticsDashboard(clinicId?: string): Promise<any> {
   return apiRequest(`/api/diagnostics/dashboard${q}`);
 }
 
+export async function getDiagnosticsCenterDashboard(centerId: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/centers/${centerId}/dashboard`);
+}
+
 export async function getDiagnosticCenters(search?: string, city?: string): Promise<any> {
   const q = new URLSearchParams();
   if (search) q.set('search', search);

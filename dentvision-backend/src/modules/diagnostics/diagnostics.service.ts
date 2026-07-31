@@ -2,6 +2,7 @@ import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
+import { publish } from '../../lib/events.js';
 import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 
 // ─── Centers ───
@@ -278,6 +279,17 @@ export async function createReferral(data: {
     userId, clinicId: data.clinicId,
   });
 
+  publish('referral.created', {
+    referralId: referral.id,
+    clinicId: data.clinicId || '',
+    centerId: data.centerId || '',
+    doctorId: userId,
+    patientName: data.patientName || '',
+    studyType: data.studyType || '',
+    status: 'DRAFT' as ReferralStatus,
+    userId,
+  });
+
   return referral;
 }
 
@@ -323,6 +335,20 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
     action: 'REFERRAL_STATUS_CHANGED', entity: 'referral', entityId: id,
     details: { status, reason },
     userId, clinicId: referral.clinicId,
+  });
+
+  // Publish lifecycle events for workflow engine / notifications
+  publish(`referral.${status.toLowerCase()}` as any, {
+    referralId: id,
+    clinicId: referral.clinicId || '',
+    centerId: referral.centerId || '',
+    doctorId: referral.doctorId || '',
+    patientName: referral.patientName || '',
+    studyType: referral.studyType || '',
+    status,
+    userId,
+    cost: referral.cost,
+    platformFee: referral.platformFee,
   });
 
   return referral;
@@ -525,6 +551,17 @@ export async function saveAndSignResult(data: {
     action: 'RESULT_SIGNED', entity: 'referral', entityId: data.referralId,
     details: { studyType: referral.studyType, signedBy: data.doctorId },
     userId: data.doctorId, clinicId: referral.clinicId,
+  });
+
+  publish('diagnostics.result_ready', {
+    referralId: data.referralId,
+    resultId: result.id,
+    clinicId: referral.clinicId || '',
+    centerId: referral.centerId || '',
+    doctorId: data.doctorId,
+    patientName: referral.patientName || '',
+    studyType: referral.studyType || '',
+    userId: data.doctorId,
   });
 
   return result;
