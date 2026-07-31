@@ -10,7 +10,7 @@ import {
   EmptyState, Tabs, useToast, Badge, PageHeader,
 } from '../../components/ui/ds'
 import {
-  getShopProducts, createShopProduct, updateShopProduct, deleteShopProduct,
+  adminGetProducts, adminCreateProduct, adminUpdateProduct, adminDeleteProduct,
   getShopCategories, createShopCategory, deleteShopCategory,
   getShopSuppliers, createShopSupplier, deleteShopSupplier,
 } from '../../utils/api'
@@ -72,8 +72,13 @@ function ProductsManager() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [p, c, s] = await Promise.all([getShopProducts(), getShopCategories(), getShopSuppliers()])
-    setItems(p); setCategories(c); setSuppliers(s); setLoading(false)
+    const [p, c, s] = await Promise.all([adminGetProducts(), getShopCategories(), getShopSuppliers()])
+    setItems((p || []).map((x: any) => ({
+      ...x,
+      category_name: x.shopCategory?.name || x.category || '—',
+      supplier_name: x.supplier?.name || null,
+    })))
+    setCategories(c); setSuppliers(s); setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -107,8 +112,8 @@ function ProductsManager() {
         minStock: Number(form.minStock) || 0,
         tags: (form.tags || '').split(',').map((t: string) => t.trim()).filter(Boolean),
       }
-      if (editing) await updateShopProduct(editing.id, payload)
-      else await createShopProduct(payload)
+      if (editing) await adminUpdateProduct(editing.id, payload)
+      else await adminCreateProduct(payload)
       toast.success(editing ? 'Товар обновлён' : 'Товар добавлен')
       setOpen(false); await load()
     } catch (e: any) { toast.error(e?.message || 'Ошибка сохранения') }
@@ -117,7 +122,7 @@ function ProductsManager() {
 
   async function confirmDelete() {
     if (!toDelete) return
-    try { await deleteShopProduct(toDelete.id); toast.success('Товар удалён'); await load() }
+    try { await adminDeleteProduct(toDelete.id); toast.success('Товар удалён'); await load() }
     catch (e: any) { toast.error(e?.message || 'Ошибка удаления') }
     finally { setToDelete(null) }
   }

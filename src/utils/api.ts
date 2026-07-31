@@ -1567,8 +1567,14 @@ export async function adminGetProducts(params?: { search?: string; supplierId?: 
   if (params?.category) q.set('category', params.category);
   return apiRequest(`/api/shop/admin/products?${q}`);
 }
-export async function adminUpdateProduct(id: string, data: { isActive?: boolean; category?: string; categoryId?: string }): Promise<any> {
+export async function adminUpdateProduct(id: string, data: any): Promise<any> {
   return apiRequest(`/api/shop/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function adminCreateProduct(data: any): Promise<any> {
+  return apiRequest('/api/shop/admin/products', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function adminDeleteProduct(id: string): Promise<any> {
+  return apiRequest(`/api/shop/admin/products/${id}`, { method: 'DELETE' });
 }
 export async function adminGetReviews(approved?: boolean): Promise<any> {
   const q = approved !== undefined ? `?approved=${approved}` : '';

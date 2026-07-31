@@ -1000,14 +1000,78 @@ shopRouter.get('/admin/products', authenticate, requireSuperadmin, async (req: A
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to list products' }); }
 });
 
+shopRouter.post('/admin/products', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.name || !String(b.name).trim()) {
+      return res.status(400).json({ ok: false, error: 'Название обязательно' });
+    }
+    const product = await prisma.product.create({
+      data: {
+        id: uid(),
+        name: String(b.name).trim(),
+        brand: b.brand || null,
+        category: b.category || null,
+        categoryId: b.categoryId || null,
+        price: Number(b.price) || 0,
+        oldPrice: b.oldPrice != null ? Number(b.oldPrice) : null,
+        stock: Number(b.stock) || 0,
+        minStock: Number(b.minStock) || 0,
+        description: b.description || null,
+        imageUrl: b.imageUrl || null,
+        supplierId: b.supplierId || null,
+        isActive: b.isActive !== false,
+        sku: b.sku || null,
+        unit: b.unit || null,
+        manufacturer: b.manufacturer || null,
+        country: b.country || null,
+        compatibility: b.compatibility || null,
+        ownBrand: !!b.ownBrand,
+        tags: Array.isArray(b.tags) ? b.tags : undefined,
+      },
+    });
+    res.status(201).json({ ok: true, data: product });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to create product' }); }
+});
+
 shopRouter.patch('/admin/products/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
-    const product = await prisma.product.update({
-      where: { id: req.params.id as string },
-      data: { isActive: req.body.isActive, category: req.body.category, categoryId: req.body.categoryId },
-    });
+    const b = req.body || {};
+    const data: Record<string, any> = {};
+    const scalar: Array<[string, any]> = [
+      ['name', b.name],
+      ['brand', b.brand ?? null],
+      ['category', b.category ?? null],
+      ['categoryId', b.categoryId ?? null],
+      ['price', b.price != null ? Number(b.price) : undefined],
+      ['oldPrice', b.oldPrice != null ? Number(b.oldPrice) : null],
+      ['stock', b.stock != null ? Number(b.stock) : undefined],
+      ['minStock', b.minStock != null ? Number(b.minStock) : undefined],
+      ['description', b.description ?? null],
+      ['imageUrl', b.imageUrl ?? null],
+      ['supplierId', b.supplierId ?? null],
+      ['isActive', b.isActive],
+      ['sku', b.sku ?? null],
+      ['unit', b.unit ?? null],
+      ['manufacturer', b.manufacturer ?? null],
+      ['country', b.country ?? null],
+      ['compatibility', b.compatibility ?? null],
+      ['ownBrand', b.ownBrand],
+    ];
+    for (const [k, v] of scalar) {
+      if (v !== undefined) data[k] = v;
+    }
+    if (Array.isArray(b.tags)) data.tags = b.tags;
+    const product = await prisma.product.update({ where: { id: req.params.id as string }, data });
     res.json({ ok: true, data: product });
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to update product' }); }
+});
+
+shopRouter.delete('/admin/products/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    await prisma.product.delete({ where: { id: req.params.id as string } });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to delete product' }); }
 });
 
 // ─── REVIEWS ADMIN (superadmin) ───
