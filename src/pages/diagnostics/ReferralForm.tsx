@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -70,7 +70,7 @@ export default function ReferralForm() {
   const [form, setForm] = useState({
     patientName: initialPatientName, patientIin: '', patientBirth: '', patientGender: '',
     patientPhone: initialPatientPhone, patientEmail: '', pregnancy: false, allergies: '', specialNotes: '',
-    studyType: 'CBCT', complaints: '', preliminaryDx: '', studyGoal: '',
+    studyType: 'CBCT', studyCategory: 'CBCT', complaints: '', preliminaryDx: '', studyGoal: '',
     commentForDoctor: '', commentForLab: '', priority: 'NORMAL',
     centerId: '', labId: '',
   });
@@ -117,6 +117,34 @@ export default function ReferralForm() {
   });
   const labs = useMemo(() => (labsData?.data || []).map((l: any) => ({ value: l.id, label: l.name })), [labsData]);
 
+  const { data: centerStudiesData } = useQuery({
+    queryKey: queryKeys.diagnostics.centerPricing(form.centerId),
+    queryFn: () => api.getDiagnosticsCenterPricing(form.centerId),
+    enabled: !!form.centerId && category === '3D',
+  });
+  const centerStudies = useMemo(() => ((centerStudiesData?.data || []) as any[]).filter((s: any) => s.active), [centerStudiesData]);
+
+  const { data: labTestsData } = useQuery({
+    queryKey: queryKeys.diagnostics.labPricing(form.labId),
+    queryFn: () => api.getDiagnosticsLabPricing(form.labId),
+    enabled: !!form.labId && category === 'LABORATORY',
+  });
+  const labTests = useMemo(() => ((labTestsData?.data || []) as any[]).filter((t: any) => t.active), [labTestsData]);
+
+  const orgHasServices = category === '3D' ? centerStudies.length > 0 : labTests.length > 0;
+  const orgStudies = category === '3D' ? centerStudies : labTests;
+
+  // When the doctor picks a center/lab that has services, pre-select the first one
+  useEffect(() => {
+    if (orgHasServices && orgStudies.length > 0) {
+      const valid = orgStudies.some((s: any) => s.name === form.studyType);
+      if (!valid) {
+        update('studyType', orgStudies[0].name);
+        update('studyCategory', orgStudies[0].category);
+      }
+    }
+  }, [form.centerId, form.labId, category, orgHasServices]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const clinicsOpts = useMemo(() =>
     (clinics || []).map((c: any) => ({ value: c.id, label: c.name })), [clinics]);
 
@@ -153,7 +181,7 @@ export default function ReferralForm() {
       specialNotes: form.specialNotes || undefined,
       clinicId: selectedClinicId,
       doctorId: user!.id,
-      category: form.studyType as any,
+      category: (form.studyCategory || form.studyType) as any,
       studyType: form.studyType,
       complaints: form.complaints || undefined,
       preliminaryDx: form.preliminaryDx || undefined,
@@ -186,7 +214,7 @@ export default function ReferralForm() {
         <label className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3 block">Тип диагностики</label>
         <div className="flex gap-2">
           {CATEGORIES.map(c => (
-            <button key={c.value} type="button" onClick={() => { setCategory(c.value); update('studyType', STUDY_TYPES[c.value][0]?.value || ''); }}
+            <button key={c.value} type="button" onClick={() => { setCategory(c.value); const first = STUDY_TYPES[c.value][0]?.value || ''; update('studyType', first); update('studyCategory', first); }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${category === c.value ? 'bg-dv-gold/10 border-dv-gold/40 text-dv-gold' : 'bg-surface-1 border-bdr-subtle text-txt-muted hover:text-txt-primary'}`}>
               {c.icon}{c.label}
             </button>
@@ -220,15 +248,6 @@ export default function ReferralForm() {
         </div>
       </Card>
 
-      <Card padding="md">
-        <div className="flex items-center gap-2 mb-4">
-          <Microscope size={16} className="text-dv-gold" />
-          <h2 className="text-sm font-bold text-txt-primary">Исследование</h2>
-        </div>
-        <Select label="Тип исследования *" value={form.studyType} onChange={e => update('studyType', e.target.value)}
-          options={currentStudies.map(s => ({ value: s.value, label: s.label }))} />
-      </Card>
-
       {category === '3D' && (
         <Card padding="md">
           <div className="flex items-center gap-2 mb-4">
@@ -236,7 +255,7 @@ export default function ReferralForm() {
             <h2 className="text-sm font-bold text-txt-primary">Диагностический центр</h2>
           </div>
           {centers.length > 0 ? (
-            <Select label="Центр" value={form.centerId} onChange={e => update('centerId', e.target.value)}
+            <Select label="Центр" value={form.centerId} onChange={e => { update('centerId', e.target.value); update('studyType', ''); update('studyCategory', ''); }}
               options={[{ value: '', label: 'Не выбран' }, ...centers]} />
           ) : (
             <p className="text-xs text-txt-muted italic">Нет доступных центров. Добавьте центр через SuperAdmin или регистрацию.</p>
@@ -251,13 +270,40 @@ export default function ReferralForm() {
             <h2 className="text-sm font-bold text-txt-primary">Лаборатория</h2>
           </div>
           {labs.length > 0 ? (
-            <Select label="Лаборатория" value={form.labId} onChange={e => update('labId', e.target.value)}
+            <Select label="Лаборатория" value={form.labId} onChange={e => { update('labId', e.target.value); update('studyType', ''); update('studyCategory', ''); }}
               options={[{ value: '', label: 'Не выбрана' }, ...labs]} />
           ) : (
             <p className="text-xs text-txt-muted italic">Нет доступных лабораторий. Добавьте лабораторию через SuperAdmin или регистрацию.</p>
           )}
         </Card>
       )}
+
+      <Card padding="md">
+        <div className="flex items-center gap-2 mb-4">
+          <Microscope size={16} className="text-dv-gold" />
+          <h2 className="text-sm font-bold text-txt-primary">Исследование</h2>
+        </div>
+        {orgHasServices ? (
+          <>
+            <Select label="Услуга *" value={form.studyType} placeholder="Выберите услугу"
+              onChange={e => { const name = e.target.value; const s = orgStudies.find((x: any) => x.name === name); update('studyType', name); update('studyCategory', s?.category || name); }}
+              options={orgStudies.map((s: any) => ({ value: s.name, label: `${s.name}${Number(s.price) > 0 ? ` — ${Number(s.price).toLocaleString()} ₸` : ''}` }))} />
+            {form.studyType && (() => {
+              const chosen = orgStudies.find((x: any) => x.name === form.studyType);
+              if (!chosen || !Number(chosen.price)) return null;
+              return <p className="mt-2 text-sm text-txt-muted">Цена по прайсу центра: <span className="font-semibold text-dv-gold">{Number(chosen.price).toLocaleString()} ₸</span></p>;
+            })()}
+          </>
+        ) : (
+          <>
+            <Select label="Тип исследования *" value={form.studyType} onChange={e => { update('studyType', e.target.value); update('studyCategory', e.target.value); }}
+              options={currentStudies.map(s => ({ value: s.value, label: s.label }))} />
+            {(form.centerId || form.labId) && (
+              <p className="mt-2 text-xs text-txt-muted italic">У выбранного учреждения пока нет прайс-листа. Выберите тип исследования вручную — центр установит цену при принятии.</p>
+            )}
+          </>
+        )}
+      </Card>
 
       {/* Tooth selector for 3D */}
       {category === '3D' && (
