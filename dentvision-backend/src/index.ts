@@ -447,7 +447,7 @@ async function main() {
           // Анестетики
           { name: 'Убестезин форте', brand: '3M ESPE', cat: 'Анестетики', catId: anestheticsId, price: 1100, desc: 'Артикаин 4% + эпинефрин 1:100000', stock: 200, unit: 'карпула', img: svgImg('Убестезин форте', 'Анестетики') },
           { name: 'Ultracain D-S', brand: 'Sanofi', cat: 'Анестетики', catId: anestheticsId, price: 950, desc: 'Артикаин 4% + эпинефрин 1:200000', stock: 180, unit: 'карпула', img: svgImg('Ultracain D-S', 'Анестетики') },
-          { name: 'Scandonest', brand: 'Septodont', cat: 'Анестетики', catId: anestheticsId, price: 850, desc: 'Мепивакаин 3% без эпинефрина', stock: 150, unit: 'карпула', img: svgImg('Scandonest', 'Анестетики') },
+          { name: 'Мепивакаин 3% без эпинефрина', brand: 'Septodont', cat: 'Анестетики', catId: anestheticsId, price: 850, desc: 'Скандонест 3% (мепивакаин) без вазоконстриктора, карпула 1.8 мл', stock: 150, unit: 'карпула', img: svgImg('Мепивакаин 3%', 'Анестетики') },
           { name: 'Лидокаин 2%', brand: 'Биосинтез', cat: 'Анестетики', catId: anestheticsId, price: 400, desc: 'Лидокаин гидрохлорид 2%', stock: 300, unit: 'ампула', img: svgImg('Лидокаин 2%', 'Анестетики') },
           // Расходные материалы
           { name: 'Перчатки нитриловые (M)', brand: 'Unigloves', cat: 'Расходные материалы', catId: consumablesId, price: 350, desc: 'Нитриловые смотровые перчатки, размер M', stock: 500, unit: 'пара', img: svgImg('Перчатки нитриловые M', 'Расходные материалы') },
@@ -499,6 +499,16 @@ async function main() {
     }
   } catch (err) {
     console.warn('[SEED] Products seed failed (non-fatal):', err);
+  }
+
+  // Rename Scandonest -> Мепивакаин 3% без эпинефрина (idempotent, existing rows)
+  try {
+    const renamed = await prisma.$executeRawUnsafe(
+      `UPDATE "products" SET name = 'Мепивакаин 3% без эпинефрина' WHERE name = 'Scandonest'`
+    );
+    if (renamed) console.log(`[SEED] Renamed ${renamed} Scandonest -> Мепивакаин 3% без эпинефрина`);
+  } catch (err) {
+    console.warn('[SEED] Product rename failed (non-fatal):', err);
   }
 
   // School content tables
