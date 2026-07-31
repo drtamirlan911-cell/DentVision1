@@ -1,13 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, FileText, Building2, FlaskConical, Users,
   ClipboardList, Calendar, BarChart3, Settings, ChevronRight,
-  Microscope, TestTube, Shield, PenLine,
+  Microscope, TestTube, Shield, PenLine, LogIn,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
+import * as api from '@/utils/api';
 
 const DIAG_SUBNAV = [
   { id: 'dashboard', label: 'Dashboard', path: '/diagnostics', icon: <LayoutDashboard size={16} /> },
@@ -32,6 +33,48 @@ export default function DiagnosticsLayout() {
   const platformRole = user?.platformRole || role;
   const orgType = user?.organizationType || '';
   const [collapsed, setCollapsed] = useState(false);
+  const [orgContexts, setOrgContexts] = useState<any[]>([]);
+  const [switching, setSwitching] = useState(false);
+  const [ctxErr, setCtxErr] = useState('');
+
+  const loadContexts = useCallback(async () => {
+    try {
+      const res = await api.getMyContexts();
+      setOrgContexts(res.contexts || []);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { loadContexts(); }, [loadContexts]);
+
+  const switchTo = useCallback(async (scopeType: string, scopeId: string) => {
+    if (switching || !scopeId) return;
+    setSwitching(true);
+    setCtxErr('');
+    try {
+      const res = await api.switchContext(scopeType, scopeId);
+      if (res?.accessToken) {
+        api.setTokens(res.accessToken, res.refreshToken || null);
+        window.location.reload();
+        return;
+      }
+      setCtxErr('Сервер не выдал токен доступа');
+    } catch {
+      setCtxErr('Не удалось переключить кабинет');
+    } finally {
+      setSwitching(false);
+    }
+  }, [switching]);
+
+  const inCenter = orgType === 'DIAGNOSTIC_CENTER';
+  const inLab = orgType === 'LABORATORY';
+  const centerCtx = orgContexts.find((c: any) => c.scopeType === 'DIAGNOSTIC_CENTER');
+  const labCtx = orgContexts.find((c: any) => c.scopeType === 'LABORATORY');
+  const clinicCtx = orgContexts.find((c: any) => c.scopeType === 'CLINIC');
+
+  const cabinetButtons: Array<{ key: string; label: string; scopeType: string; scopeId: string }> = [];
+  if (centerCtx && !inCenter) cabinetButtons.push({ key: 'center', label: `Войти в центр${centerCtx.organization?.name ? `: ${centerCtx.organization.name}` : ''}`, scopeType: 'DIAGNOSTIC_CENTER', scopeId: centerCtx.scopeId });
+  if (labCtx && !inLab) cabinetButtons.push({ key: 'lab', label: `Войти в лабораторию${labCtx.organization?.name ? `: ${labCtx.organization.name}` : ''}`, scopeType: 'LABORATORY', scopeId: labCtx.scopeId });
+  if ((inCenter || inLab) && clinicCtx) cabinetButtons.push({ key: 'exit', label: 'Выйти из кабинета', scopeType: 'CLINIC', scopeId: clinicCtx.scopeId });
 
   const isActive = (path: string) => {
     if (path === '/diagnostics') return location.pathname === '/diagnostics';
@@ -79,6 +122,24 @@ export default function DiagnosticsLayout() {
             </button>
           ))}
         </div>
+
+        {cabinetButtons.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-bdr-subtle/50 px-2 space-y-0.5">
+            {!collapsed && <p className="text-[10px] font-bold text-txt-muted uppercase tracking-wider px-2.5 py-1">Мои кабинеты</p>}
+            {cabinetButtons.map((b) => (
+              <button
+                key={b.key}
+                onClick={() => switchTo(b.scopeType, b.scopeId)}
+                disabled={switching}
+                className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-sm text-txt-muted hover:text-txt-primary hover:bg-surface-1/50 transition-all disabled:opacity-50"
+              >
+                <LogIn size={16} className="shrink-0" />
+                {!collapsed && <span className="truncate">{b.label}</span>}
+              </button>
+            ))}
+            {ctxErr && !collapsed && <p className="px-2.5 pt-1 text-xs text-red-400">{ctxErr}</p>}
+          </div>
+        )}
       </motion.nav>
 
       {/* Content */}

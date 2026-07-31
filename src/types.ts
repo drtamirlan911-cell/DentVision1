@@ -23,6 +23,9 @@ export interface User {
   paid?: number
   password?: string
   platformRole?: string
+  organizationType?: string
+  organizationId?: string
+  personType?: string
   memberships?: Array<{ id: string; clinicId: string; role: string }>
   activeMembership?: { id: string; clinicId: string; role: string }
   createdAt?: string

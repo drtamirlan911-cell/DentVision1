@@ -400,6 +400,25 @@ async function main() {
       ['originalId', '"originalId" TEXT'],
     ]);
     console.log('[MIGRATION] organizations/persons columns normalized to Prisma camelCase');
+    // Align diagnostics org ids with entity ids (token.organizationId must equal
+    // the center/lab id used by /diagnostics routes and CenterDashboard).
+    try {
+      await prisma.$executeRawUnsafe(`
+        UPDATE "persons" SET "organization_id" = o."originalId"
+        FROM "organizations" o
+        WHERE "persons"."organization_id" = o.id
+          AND o."originalType" IN ('DiagnosticCenter','Laboratory')
+          AND o.id <> o."originalId"
+      `);
+      await prisma.$executeRawUnsafe(`
+        UPDATE "organizations" SET id = "originalId"
+        WHERE "originalType" IN ('DiagnosticCenter','Laboratory')
+          AND id <> "originalId"
+      `);
+      console.log('[MIGRATION] diagnostics org ids aligned to entity ids');
+    } catch (e: any) {
+      console.warn('[MIGRATION] align diagnostics org ids failed (non-fatal):', e?.message);
+    }
     // Create RBAC + legacy membership tables (init_full_schema failed in prod, so they may be missing)
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "clinic_members" (

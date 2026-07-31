@@ -328,7 +328,20 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
     const response: ApiResponse = {
       ok: true,
       data: {
-        user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, phone: user.phone, spec: user.spec, avatar: user.avatar, role: user.role, createdAt: user.createdAt },
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          spec: user.spec,
+          avatar: user.avatar,
+          role: user.role,
+          createdAt: user.createdAt,
+          organizationType: (req.user as any)?.organizationType,
+          organizationId: (req.user as any)?.organizationId,
+          personType: (req.user as any)?.personType,
+        },
         memberships: user.memberships.map(m => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })),
         activeMembership: user.memberships[0] ? { id: user.memberships[0].id, role: user.memberships[0].role, clinicId: user.memberships[0].clinicId, clinic: user.memberships[0].clinic } : null,
       },
