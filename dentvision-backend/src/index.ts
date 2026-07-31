@@ -204,7 +204,135 @@ async function main() {
         updated_at TIMESTAMPTZ
       )
     `);
-    console.log('[MIGRATION] Marketplace tables ready');
+    // IAM / organization / person tables
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "supplier_members" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        supplier_id UUID NOT NULL,
+        role TEXT DEFAULT 'owner',
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "organizations" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'CLINIC',
+        original_type TEXT,
+        original_id UUID,
+        logo TEXT,
+        address TEXT,
+        phone TEXT,
+        email TEXT,
+        contacts JSONB,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ,
+        UNIQUE(original_type, original_id)
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "persons" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        organization_id UUID NOT NULL,
+        person_type TEXT NOT NULL DEFAULT 'STAFF',
+        full_name TEXT,
+        specialization TEXT,
+        phone TEXT,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "payments" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        provider TEXT DEFAULT 'kaspi_qr',
+        external_id TEXT,
+        amount BIGINT NOT NULL DEFAULT 0,
+        currency TEXT DEFAULT 'KZT',
+        status TEXT DEFAULT 'pending',
+        ref_type TEXT,
+        ref_id UUID,
+        domain TEXT,
+        seller_type TEXT,
+        seller_id UUID,
+        meta JSONB,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "wallets" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        owner_type TEXT NOT NULL,
+        owner_id UUID NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'KZT',
+        balance BIGINT NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ,
+        UNIQUE(owner_type, owner_id, currency)
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "transactions" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        type TEXT DEFAULT 'sale',
+        status TEXT DEFAULT 'pending',
+        amount BIGINT NOT NULL DEFAULT 0,
+        currency TEXT DEFAULT 'KZT',
+        ref_type TEXT,
+        ref_id UUID,
+        meta JSONB,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "ledger_entries" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        transaction_id UUID,
+        wallet_id UUID,
+        direction TEXT NOT NULL DEFAULT 'credit',
+        amount BIGINT NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "commission_rules" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        domain TEXT NOT NULL,
+        scope_id UUID,
+        percent_bps INT NOT NULL DEFAULT 1000,
+        split_json JSONB,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ,
+        UNIQUE(domain, scope_id)
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "subscriptions" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        owner_type TEXT NOT NULL,
+        owner_id UUID NOT NULL,
+        plan TEXT DEFAULT 'free',
+        status TEXT DEFAULT 'active',
+        period_end TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ,
+        UNIQUE(owner_type, owner_id)
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "user_sessions" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        token_hash TEXT,
+        expired_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    console.log('[MIGRATION] Marketplace + IAM + Finance tables ready');
   } catch (err) {
     console.error('[MIGRATION] Marketplace tables failed (non-fatal):', err);
   }
