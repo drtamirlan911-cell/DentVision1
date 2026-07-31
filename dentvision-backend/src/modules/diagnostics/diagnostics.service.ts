@@ -419,37 +419,37 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
   if (status === 'CANCELLED') { update.cancelledAt = new Date(); update.cancelReason = reason; }
 
-  const referral = await prisma.referral.update({ where: { id }, data: update });
+  const updatedReferral = await prisma.referral.update({ where: { id }, data: update });
 
   // Notify diagnostic center/lab when referral is sent to them
-  if (status === 'SENT' && referral.centerId) {
+  if (status === 'SENT' && updatedReferral.centerId) {
     const centerMembers = await prisma.diagnosticCenterMember.findMany({
-      where: { centerId: referral.centerId, role: { in: ['admin', 'manager'] } },
+      where: { centerId: updatedReferral.centerId, role: { in: ['admin', 'manager'] } },
     });
     for (const m of centerMembers) {
       await prisma.notification.create({
-        data: { id: uid(), userId: m.userId, type: 'workflow', title: 'Новое направление', message: `${referral.patientName} — ${referral.studyType}. Клиника: ${referral.clinicId?.slice(0, 8) || '—'}`, link: `/diagnostics/referrals/${id}` },
+        data: { id: uid(), userId: m.userId, type: 'workflow', title: 'Новое направление', message: `${updatedReferral.patientName} — ${updatedReferral.studyType}. Клиника: ${updatedReferral.clinicId?.slice(0, 8) || '—'}`, link: `/diagnostics/referrals/${id}` },
       });
     }
   }
 
   // Notify referring doctor when center accepts and sets cost
-  if (status === 'ACCEPTED' && referral.doctorId) {
-    const costMsg = referral.cost ? ` Стоимость: ${Number(referral.cost).toLocaleString()} ₸` : '';
+  if (status === 'ACCEPTED' && updatedReferral.doctorId) {
+    const costMsg = updatedReferral.cost ? ` Стоимость: ${Number(updatedReferral.cost).toLocaleString()} ₸` : '';
     await prisma.notification.create({
-      data: { id: uid(), userId: referral.doctorId, type: 'workflow', title: 'Направление принято', message: `#${id.slice(0, 8)}: ${referral.patientName} — ${referral.studyType}.${costMsg}`, link: `/diagnostics/referrals/${id}` },
+      data: { id: uid(), userId: updatedReferral.doctorId, type: 'workflow', title: 'Направление принято', message: `#${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}.${costMsg}`, link: `/diagnostics/referrals/${id}` },
     });
   }
 
   // Notify the referring doctor when results are ready
-  if (status === 'COMPLETED' && referral.doctorId) {
+  if (status === 'COMPLETED' && updatedReferral.doctorId) {
     await prisma.notification.create({
       data: {
         id: uid(),
-        userId: referral.doctorId,
+        userId: updatedReferral.doctorId,
         type: 'workflow',
         title: 'Результат диагностики готов',
-        message: `Направление #${id.slice(0, 8)}: ${referral.patientName} — ${referral.studyType}. Результат готов к просмотру.`,
+        message: `Направление #${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}. Результат готов к просмотру.`,
         link: `/diagnostics/referrals/${id}`,
       },
     });
@@ -458,24 +458,24 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
   await writeAuditLog({
     action: 'REFERRAL_STATUS_CHANGED', entity: 'referral', entityId: id,
     details: { status, reason },
-    userId, clinicId: referral.clinicId,
+    userId, clinicId: updatedReferral.clinicId,
   });
 
   // Publish lifecycle events for workflow engine / notifications
   publish(`referral.${status.toLowerCase()}` as any, {
     referralId: id,
-    clinicId: referral.clinicId || '',
-    centerId: referral.centerId || '',
-    doctorId: referral.doctorId || '',
-    patientName: referral.patientName || '',
-    studyType: referral.studyType || '',
+    clinicId: updatedReferral.clinicId || '',
+    centerId: updatedReferral.centerId || '',
+    doctorId: updatedReferral.doctorId || '',
+    patientName: updatedReferral.patientName || '',
+    studyType: updatedReferral.studyType || '',
     status,
     userId,
-    cost: referral.cost,
-    platformFee: referral.platformFee,
+    cost: updatedReferral.cost,
+    platformFee: updatedReferral.platformFee,
   });
 
-  return referral;
+  return updatedReferral;
 }
 
 export async function deleteReferral(id: string, userId: string) {
