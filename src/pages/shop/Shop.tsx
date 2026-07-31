@@ -22,7 +22,7 @@ interface ProductItem {
   rating: number | null; review_count: number; stock: number; min_stock: number;
   category_id: string; category_name: string; category_slug?: string;
   description?: string; tags?: string[]; supplier_id?: string; supplier_name?: string;
-  supplier_status?: string; own_brand?: boolean; image_url?: string | null;
+  supplier_status?: string; supplier_count?: number; own_brand?: boolean; image_url?: string | null;
   images?: string[]; unit?: string; specs?: Record<string, unknown>;
   created_at?: string;
 }
@@ -218,6 +218,12 @@ export default function Shop() {
               {product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет'}
             </span>
           </div>
+          {/* Supplier count */}
+          {product.supplier_count && product.supplier_count > 1 && (
+            <p className="text-[10px]" style={{ color: T.purple }}>
+              {product.supplier_count} поставщика
+            </p>
+          )}
           {/* Delivery preview */}
           {deliveryMap[product.id] && (
             <div className="flex items-center gap-1">

@@ -83,13 +83,30 @@ shopRouter.get('/products', async (req, res) => {
         category_id: p.category || 'other',
         brand: p.brand || '',
         rating: p.rating ?? 4.5,
-        review_count: 0,
+        supplier_count: 1, // will be enriched below
         min_stock: 5,
         old_price: null,
         image_url: p.imageUrl || null,
         imageUrl: p.imageUrl || null,
       };
     });
+
+    // Enrich with supplier count (how many suppliers sell this product)
+    try {
+      const sharedIds = [...new Set(mapped.map((p: any) => (p as any).sharedProductId || p.id).filter(Boolean))] as string[];
+      if (sharedIds.length > 0) {
+        const counts = await prisma.$queryRawUnsafe<Array<{ spid: string; cnt: number }>>(
+          `SELECT COALESCE(shared_product_id, id) as spid, COUNT(*)::int as cnt FROM products WHERE shared_product_id IN (${sharedIds.map((_, i) => `$${i + 1}`).join(',')}) OR (shared_product_id IS NULL AND id IN (${sharedIds.map((_, i) => `$${i + 1}`).join(',')})) GROUP BY 1`,
+          ...sharedIds, ...sharedIds
+        );
+        const countMap: Record<string, number> = {};
+        for (const c of counts) countMap[c.spid] = c.cnt;
+        for (const m of mapped as any[]) {
+          const sid = (m as any).sharedProductId || m.id;
+          if (countMap[sid]) (m as any).supplier_count = countMap[sid];
+        }
+      }
+    } catch { /* non-fatal */ }
 
     // Always return plain array for frontend compatibility
     res.json({ ok: true, data: mapped });
@@ -772,10 +789,60 @@ shopRouter.get('/delivery-preview', async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: 'Failed to preview delivery' }); }
 });
 
+shopRouter.get('/products/:id/offers', async (req, res) => {
+  try {
+    const product = await prisma.product.findUnique({
+      where: { id: req.params.id as string },
+      select: { id: true, name: true, sharedProductId: true, supplierId: true },
+    });
+    if (!product) return res.status(404).json({ ok: false, error: 'Not found' });
+
+    // Find all supplier offers for the same shared product (same name grouping)
+    const sharedId = (product as any).sharedProductId || product.id;
+    const offers = await prisma.product.findMany({
+      where: {
+        OR: [
+          { id: sharedId },
+          { sharedProductId: sharedId as any },
+        ],
+        isActive: true,
+      },
+      select: {
+        id: true, price: true, stock: true, supplierId: true, rating: true,
+        supplier: { select: { id: true, name: true, rating: true, city: true } },
+      },
+      orderBy: { price: 'asc' },
+    });
+
+    res.json({ ok: true, data: { canonicalId: sharedId, offers } });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to load offers' }); }
+});
+
 shopRouter.post('/products', authenticate, async (req: AuthRequest, res) => {
   try {
     if (!req.user?.supplierId) { res.status(403).json({ ok: false, error: 'Только поставщик' }); return; }
-    const data = await prisma.product.create({ data: { id: uid(), supplierId: req.user.supplierId, ...req.body, price: Number(req.body.price) } });
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ ok: false, error: 'Название обязательно' });
+
+    // Auto-link to existing catalog product — prevent duplicate listings
+    let sharedProductId: string | null = null;
+    if (name) {
+      const existing = await prisma.product.findFirst({
+        where: { name: { equals: name, mode: 'insensitive' }, supplierId: { not: req.user.supplierId } },
+        select: { id: true, sharedProductId: true },
+      });
+      if (existing) {
+        sharedProductId = existing.sharedProductId || existing.id;
+        // Ensure the canonical product also has sharedProductId set
+        if (!existing.sharedProductId) {
+          await prisma.product.update({ where: { id: existing.id }, data: { sharedProductId: existing.id } as any });
+        }
+      }
+    }
+
+    const data = await prisma.product.create({
+      data: { id: uid(), supplierId: req.user.supplierId, sharedProductId: sharedProductId as any, ...req.body, price: Number(req.body.price) },
+    });
     res.status(201).json({ ok: true, data });
   } catch (e) { res.status(500).json({ ok: false, error: 'Failed to create product' }); }
 });

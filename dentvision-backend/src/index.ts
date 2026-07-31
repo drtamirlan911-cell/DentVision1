@@ -61,6 +61,15 @@ async function main() {
     console.error('[MIGRATION] Center subscription table failed (non-fatal):', err);
   }
 
+  // Shared product catalog — prevent duplicate listings across suppliers
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE IF EXISTS "products" ADD COLUMN IF NOT EXISTS "shared_product_id" TEXT`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "products_shared_idx" ON "products"("shared_product_id")`);
+    console.log('[MIGRATION] Product shared_product_id column ready');
+  } catch (err) {
+    console.error('[MIGRATION] Product shared_id failed (non-fatal):', err);
+  }
+
   // School content tables
   try {
     await prisma.$executeRawUnsafe(`
