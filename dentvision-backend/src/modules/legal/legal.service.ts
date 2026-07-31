@@ -1,5 +1,5 @@
 import prisma from '../../lib/prisma.js';
-import { generateDocumentNumber, nextSequence } from './legal.number.js';
+import { generateDocumentNumber, nextSequenceFromDb } from './legal.number.js';
 import { writeAuditLog } from './legal.audit.js';
 import { buildPlatformVars } from './legal.constants.js';
 import { getPlatformSettings } from './legal.platform-settings.js';
@@ -41,7 +41,7 @@ export async function buildDocumentContent(templateId: string, variables: Record
 export async function createDocumentFromTemplate(templateId: string, partnerId: string, variables: Record<string, any>, createdBy: string, options?: { effectiveDate?: string; expirationDate?: string; linkedDocs?: string[] }) {
   const template = await prisma.legalTemplate.findUnique({ where: { id: templateId } });
   if (!template) throw new Error('Template not found');
-  const docNumber = generateDocumentNumber(template.type, nextSequence());
+  const docNumber = generateDocumentNumber(template.type, await nextSequenceFromDb());
   const content = await buildDocumentContent(templateId, { ...variables, ContractNumber: docNumber, DocumentNumber: docNumber });
   const doc = await prisma.legalDocument.create({
     data: {
@@ -148,6 +148,7 @@ export async function onboardPartner(data: any, createdBy: string) {
     vars.ClinicLicense = data.license || '';
   }
   vars.Subscription = data.subscription || '';
+  vars.CommissionRate = data.commission != null ? Number(data.commission) : 10;
   const types = DOCUMENTS_PER_TYPE[data.type] || [];
   const documents: any[] = [];
   for (const tplType of types) {

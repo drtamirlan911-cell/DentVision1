@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
+import { optionalAuth } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
 import { loadClinicAccess } from '../../middleware/planGate.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -31,11 +32,11 @@ async function requireReferralAccess(req: AuthRequest, res: any, next: any) {
 
 export const diagnosticsRouter = Router();
 
-// Public registration request (must be before authenticate middleware)
-
-diagnosticsRouter.post('/register', async (req: AuthRequest, res) => {
+// Public registration request (must be before authenticate middleware).
+// optionalAuth captures the logged-in applicant (so access is granted on approve).
+diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => {
   try {
-    const data = await svc.createRegistrationRequest(req.body);
+    const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id });
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);

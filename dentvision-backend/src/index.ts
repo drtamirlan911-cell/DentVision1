@@ -7,9 +7,104 @@ import { startReminderCronInterval } from './jobs/reminderCron.js';
 import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
 import { startMessageWorker } from './modules/ai-admin/index.js';
 import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.js';
+import { onboardPartner } from './modules/legal/legal.service.js';
+import { grantDiagnosticsAccess } from './modules/diagnostics/diagnostics.service.js';
 import { uid } from './lib/helpers.js';
 
 const orchestrator = getEventOrchestrator({ logLevel: 'info' });
+
+// Legal template pack seeded at startup (idempotent by type) so agreements/NDA are
+// generated on partner onboarding. Without them onboardPartner produces zero documents.
+const LEGAL_SEED_TEMPLATES: Array<{ type: string; name: string; description: string; variables: string[]; content: string }> = [
+  {
+    type: 'SUPPLIER_AGREEMENT',
+    name: 'Агентский договор с поставщиком',
+    description: 'Агентский договор с поставщиками маркетплейса (фиксированная комиссия 10%)',
+    variables: ['SupplierName', 'SupplierBIN', 'SupplierDirector', 'SupplierDirectorDoc', 'SupplierDirectorTitle', 'SupplierAddress', 'SupplierBank', 'SupplierBIC', 'SupplierKBE', 'SupplierIBAN', 'SupplierPhone', 'SupplierEmail', 'CommissionRate', 'ContractNumber'],
+    content: [
+      '<h2>АГЕНТСКИЙ ДОГОВОР № {{ContractNumber}}</h2>',
+      '<p>г. Алматы</p>',
+      '<p><strong>DentVision</strong> (далее — «Платформа»), с одной стороны, и <strong>{{SupplierName}}</strong>, БИН {{SupplierBIN}}, в лице {{SupplierDirector}}, действующего на основании {{SupplierDirectorDoc}} ({{SupplierDirectorTitle}}), далее — «Поставщик», с другой стороны, заключили настоящий договор о нижеследующем:</p>',
+      '<h3>1. Предмет договора</h3>',
+      '<p>1.1. Платформа предоставляет Поставщику доступ к маркетплейсу стоматологических товаров; Поставщик размещает товары и принимает заказы через Платформу.</p>',
+      '<p>1.2. Реализация товаров осуществляется от имени и по поручению Платформы в рамках агентской модели.</p>',
+      '<h3>2. Комиссия Платформы</h3>',
+      '<p>2.1. За услуги Платформы Поставщик уплачивает вознаграждение в размере <strong>{{CommissionRate}}%</strong> от суммы каждой продажи (далее — «Комиссия»). Комиссия является фиксированной на весь срок действия договора.</p>',
+      '<p>2.2. Комиссия удерживается автоматически из выплат Поставщику по итогам каждого расчётного периода.</p>',
+      '<h3>3. Обязанности сторон</h3>',
+      '<p>3.1. Поставщик гарантирует актуальность остатков, сроков и цен; обрабатывает заказы в срок.</p>',
+      '<p>3.2. Платформа обеспечивает работу маркетплейса, приём платежей и передачу заказов.</p>',
+      '<h3>4. Реквизиты сторон</h3>',
+      '<p><strong>Платформа:</strong> DentVision, г. Алматы, ул. Абая 150, офис 301.</p>',
+      '<p><strong>Поставщик:</strong> {{SupplierName}}, БИН {{SupplierBIN}}, юридический адрес: {{SupplierAddress}}, телефон: {{SupplierPhone}}, e-mail: {{SupplierEmail}}, банк: {{SupplierBank}}, БИК: {{SupplierBIC}}, КБЕ: {{SupplierKBE}}, IBAN: {{SupplierIBAN}}.</p>',
+      '<p>Настоящий договор вступает в силу с момента подписания и действует до момента прекращения размещения товаров на Платформе.</p>',
+    ].join('\n'),
+  },
+  {
+    type: 'NDA',
+    name: 'Соглашение о конфиденциальности (NDA)',
+    description: 'Двустороннее соглашение о конфиденциальности',
+    variables: ['SupplierName', 'SupplierBIN', 'SupplierDirector', 'ContractNumber', 'PartnerName', 'PartnerBIN'],
+    content: [
+      '<h2>СОГЛАШЕНИЕ О КОНФИДЕНЦИАЛЬНОСТИ № {{ContractNumber}}</h2>',
+      '<p>г. Алматы</p>',
+      '<p>DentVision (далее — «Платформа») и <strong>{{SupplierName}}</strong> (БИН {{SupplierBIN}}) в лице {{SupplierDirector}} (далее — «Сторона») заключили настоящее соглашение о конфиденциальности.</p>',
+      '<p><strong>1.</strong> Стороны обязуются не разглашать конфиденциальную информацию, полученную при сотрудничестве: коммерческие условия, персональные данные, сведения о клиентах, партнёрах и внутренней работе платформы.</p>',
+      '<p><strong>2.</strong> Конфиденциальная информация используется исключительно в целях исполнения договора между Сторонами.</p>',
+      '<p><strong>3.</strong> Обязательства сторон по настоящему соглашению действуют в течение 3 (трёх) лет после прекращения сотрудничества.</p>',
+    ].join('\n'),
+  },
+  {
+    type: 'DIAGNOSTICS_AGREEMENT',
+    name: 'Договор с диагностическим центром',
+    description: 'Договор услуг с диагностическими центрами + реферальная система',
+    variables: ['DiagnosticsName', 'DiagnosticsBIN', 'DiagnosticsAddress', 'DiagnosticsPhone', 'DiagnosticsEmail', 'DiagnosticsIBAN', 'CommissionRate', 'ContractNumber'],
+    content: [
+      '<h2>ДОГОВОР ОБ ОКАЗАНИИ УСЛУГ № {{ContractNumber}}</h2>',
+      '<p>г. Алматы</p>',
+      '<p>DentVision (далее — «Платформа») и <strong>{{DiagnosticsName}}</strong> (БИН {{DiagnosticsBIN}}, далее — «Центр») заключили настоящий договор.</p>',
+      '<h3>1. Предмет</h3>',
+      '<p>1.1. Центр принимает пациентов по направлениям, сформированным в Платформе, выполняет диагностические исследования и загружает результаты.</p>',
+      '<h3>2. Комиссия Платформы</h3>',
+      '<p>2.1. Комиссия Платформы за реферальный поток составляет <strong>{{CommissionRate}}%</strong> от суммы оказанных услуг.</p>',
+      '<p>2.2. Комиссия удерживается из выплат Центру по итогам расчётного периода.</p>',
+      '<h3>3. Реквизиты Центра</h3>',
+      '<p>{{DiagnosticsName}}, БИН {{DiagnosticsBIN}}, адрес: {{DiagnosticsAddress}}, телефон: {{DiagnosticsPhone}}, e-mail: {{DiagnosticsEmail}}, IBAN: {{DiagnosticsIBAN}}.</p>',
+    ].join('\n'),
+  },
+  {
+    type: 'LABORATORY_AGREEMENT',
+    name: 'Договор с зуботехнической лабораторией',
+    description: 'Договор об оказании услуг зуботехнической лаборатории',
+    variables: ['LaboratoryName', 'LaboratoryBIN', 'LaboratoryAddress', 'LaboratoryPhone', 'LaboratoryEmail', 'LaboratoryIBAN', 'CommissionRate', 'ContractNumber'],
+    content: [
+      '<h2>ДОГОВОР ОБ ОКАЗАНИИ УСЛУГ № {{ContractNumber}}</h2>',
+      '<p>г. Алматы</p>',
+      '<p>DentVision (далее — «Платформа») и <strong>{{LaboratoryName}}</strong> (БИН {{LaboratoryBIN}}, далее — «Лаборатория») заключили настоящий договор.</p>',
+      '<h3>1. Предмет</h3>',
+      '<p>1.1. Лаборатория принимает заказы от клиник платформы и выполняет зуботехнические работы.</p>',
+      '<h3>2. Комиссия Платформы</h3>',
+      '<p>2.1. Комиссия Платформы составляет <strong>{{CommissionRate}}%</strong> от суммы выполненных заказов.</p>',
+      '<h3>3. Реквизиты Лаборатории</h3>',
+      '<p>{{LaboratoryName}}, БИН {{LaboratoryBIN}}, адрес: {{LaboratoryAddress}}, телефон: {{LaboratoryPhone}}, e-mail: {{LaboratoryEmail}}, IBAN: {{LaboratoryIBAN}}.</p>',
+    ].join('\n'),
+  },
+  {
+    type: 'CLINIC_AGREEMENT',
+    name: 'Договор с клиникой (публичная оферта)',
+    description: 'Публичная оферта для подключения клиник к платформе DentVision',
+    variables: ['ClinicName', 'ClinicBIN', 'ClinicAddress', 'ClinicPhone', 'ClinicEmail', 'ClinicIBAN', 'ClinicDirectorTitle', 'ClinicLicense', 'ContractNumber'],
+    content: [
+      '<h2>ДОГОВОР О ПОДКЛЮЧЕНИИ К ПЛАТФОРМЕ № {{ContractNumber}}</h2>',
+      '<p>г. Алматы</p>',
+      '<p>DentVision (далее — «Платформа») и клиника <strong>{{ClinicName}}</strong> (БИН {{ClinicBIN}}, далее — «Клиника») заключили настоящий договор.</p>',
+      '<h3>1. Предмет</h3>',
+      '<p>1.1. Платформа предоставляет Клинике доступ к CRM, системе записи, финансам и маркетплейсу; лицензия на медицинскую деятельность: {{ClinicLicense}}.</p>',
+      '<h3>2. Реквизиты Клиники</h3>',
+      '<p>{{ClinicName}}, БИН {{ClinicBIN}}, адрес: {{ClinicAddress}}, телефон: {{ClinicPhone}}, e-mail: {{ClinicEmail}}, IBAN: {{ClinicIBAN}}, руководитель: {{ClinicDirectorTitle}}.</p>',
+    ].join('\n'),
+  },
+];
 
 const DB_RETRIES = 5;
 const DB_RETRY_DELAY_MS = 5000;
@@ -704,6 +799,155 @@ async function main() {
     console.log('[MIGRATION] School content tables ready');
   } catch (err) {
     console.error('[MIGRATION] School content tables failed (non-fatal):', err);
+  }
+
+  // ─── Legal templates (idempotent seed) — supplier/clinic agreements + NDA ───
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'TemplateType') THEN
+          EXECUTE 'CREATE TYPE "TemplateType" AS ENUM (''CLINIC_AGREEMENT'',''DIAGNOSTICS_AGREEMENT'',''LABORATORY_AGREEMENT'',''MARKETPLACE_AGREEMENT'',''SUPPLIER_AGREEMENT'',''LECTURER_AGREEMENT'',''ACADEMY_AGREEMENT'',''NDA'',''PRIVACY_POLICY'',''TERMS_OF_SERVICE'',''AI_POLICY'',''COOKIE_POLICY'',''DPA'',''SLA'',''API_AGREEMENT'',''REFERRAL_AGREEMENT'')';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DocumentStatus') THEN
+          EXECUTE 'CREATE TYPE "DocumentStatus" AS ENUM (''DRAFT'',''REVIEW'',''APPROVED'',''PUBLISHED'',''ARCHIVED'',''EXPIRED'',''CANCELLED'')';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PartnerType') THEN
+          EXECUTE 'CREATE TYPE "PartnerType" AS ENUM (''MANUFACTURER'',''DISTRIBUTOR'',''ACADEMY'',''LABORATORY'',''OFFICIAL_PARTNER'',''CLINIC'',''DIAGNOSTIC_CENTER'',''SUPPLIER'',''LECTURER'',''EDUCATION_CENTER'',''RESELLER'',''CORPORATE'')';
+        END IF;
+      END $$;
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "legal_templates" (
+        id TEXT PRIMARY KEY,
+        type "TemplateType" NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        blocks TEXT[] DEFAULT '{}',
+        variables JSONB,
+        "currentVersion" INTEGER DEFAULT 1,
+        "createdAt" TIMESTAMPTZ DEFAULT now(),
+        "updatedAt" TIMESTAMPTZ DEFAULT now(),
+        "createdBy" TEXT NOT NULL
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "legal_template_versions" (
+        id TEXT PRIMARY KEY,
+        "templateId" TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        changelog TEXT,
+        status "DocumentStatus" DEFAULT 'DRAFT',
+        "publishedAt" TIMESTAMPTZ,
+        "approvedBy" TEXT,
+        "createdAt" TIMESTAMPTZ DEFAULT now(),
+        "createdBy" TEXT NOT NULL
+      )
+    `);
+
+    const legalAdmin = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM "users" WHERE role IN ('SUPERADMIN','ADMIN') LIMIT 1`,
+    );
+    if (legalAdmin.length > 0) {
+      let seeded = 0;
+      for (const tpl of LEGAL_SEED_TEMPLATES) {
+        const exists = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id FROM "legal_templates" WHERE type = $1 LIMIT 1`, tpl.type,
+        );
+        if (exists.length > 0) continue;
+        const inserted = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          `INSERT INTO "legal_templates" (id, type, name, description, blocks, variables, "currentVersion", "createdBy", "createdAt", "updatedAt")
+           VALUES (gen_random_uuid()::text, $1::"TemplateType", $2, $3, '{}', $4::jsonb, 1, $5, NOW(), NOW())
+           RETURNING id`,
+          tpl.type, tpl.name, tpl.description, JSON.stringify(tpl.variables), legalAdmin[0].id,
+        );
+        if (inserted[0]) {
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO "legal_template_versions" (id, "templateId", version, content, status, "createdBy", "createdAt", changelog)
+             VALUES (gen_random_uuid()::text, $1, 1, $2, 'DRAFT', $3, NOW(), $4)`,
+            inserted[0].id, tpl.content, legalAdmin[0].id, 'Первоначальная версия из пакета юридических документов',
+          );
+          seeded++;
+        }
+      }
+      console.log(`[LEGAL] Templates ready (${seeded} new)`);
+    } else {
+      console.warn('[LEGAL] No superadmin/admin found — skipping legal template seed');
+    }
+  } catch (err) {
+    console.error('[LEGAL] Template seed failed (non-fatal):', err);
+  }
+
+  // ─── Supplier legal partners backfill (existing suppliers get agreement + 10% commission) ───
+  try {
+    const legalAdmin = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM "users" WHERE role IN ('SUPERADMIN','ADMIN') LIMIT 1`,
+    );
+    if (legalAdmin.length > 0) {
+      const members = await prisma.supplierMember.findMany({ include: { supplier: true } });
+      let onboarded = 0;
+      for (const m of members) {
+        const existing = await prisma.legalPartner.findUnique({ where: { userId: m.userId } });
+        if (existing) continue;
+        const s = m.supplier;
+        await onboardPartner({
+          userId: m.userId,
+          type: 'SUPPLIER',
+          legalName: s.name,
+          bin: s.bin || '',
+          director: s.contactPerson || '',
+          address: s.legalAddress || '',
+          iban: '',
+          phone: s.phone || '',
+          email: s.email || '',
+          commission: 10,
+        }, legalAdmin[0].id);
+        await prisma.supplier.update({ where: { id: s.id }, data: { commissionRate: 1000 } });
+        onboarded++;
+      }
+      if (onboarded) console.log(`[LEGAL] Onboarded ${onboarded} existing supplier legal partners (10% commission)`);
+    }
+  } catch (err) {
+    console.warn('[LEGAL] Supplier legal backfill failed (non-fatal):', err);
+  }
+
+  // ─── Diagnostics: applicant org access ───
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "registration_requests" ADD COLUMN IF NOT EXISTS "userId" TEXT`);
+    console.log('[MIGRATION] registration_requests.userId column ready');
+  } catch (err) {
+    console.error('[MIGRATION] registration_requests.userId failed (non-fatal):', err);
+  }
+
+  // Backfill access for already-approved registrations (match applicant by email) so the
+  // request creator gets the center/lab org right away.
+  try {
+    const approved = await prisma.$queryRawUnsafe<Array<{ id: string; type: string; email: string | null }>>(
+      `SELECT id, type, email FROM "registration_requests" WHERE status = 'APPROVED'`,
+    );
+    let linked = 0;
+    for (const r of approved) {
+      if (!r.email) continue;
+      const user = await prisma.user.findUnique({
+        where: { email: String(r.email).toLowerCase().trim() },
+        select: { id: true },
+      });
+      if (!user) continue;
+      if (r.type === 'center') {
+        const center = await prisma.diagnosticCenter.findFirst({ where: { email: r.email }, orderBy: { createdAt: 'desc' } });
+        if (!center) continue;
+        const ok = await grantDiagnosticsAccess('DiagnosticCenter', center.id, user.id, 'owner');
+        if (ok) linked++;
+      } else {
+        const lab = await prisma.laboratory.findFirst({ where: { email: r.email }, orderBy: { createdAt: 'desc' } });
+        if (!lab) continue;
+        const ok = await grantDiagnosticsAccess('Laboratory', lab.id, user.id, 'owner');
+        if (ok) linked++;
+      }
+    }
+    if (linked) console.log(`[DIAGNOSTICS] Backfilled org access for ${linked} approved registrations`);
+  } catch (err) {
+    console.warn('[DIAGNOSTICS] Approved-registration access backfill failed (non-fatal):', err);
   }
 
   // Initialize Event Bus

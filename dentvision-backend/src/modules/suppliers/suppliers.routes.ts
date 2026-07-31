@@ -6,6 +6,7 @@ import { requirePermission } from '../../middleware/rbac.js';
 import { requirePlatformOps } from '../../middleware/platformOps.js';
 import { publish } from '../../lib/events.js';
 import { paginate, paginatedResponse, uid } from '../../lib/helpers.js';
+import { onboardPartner } from '../legal/legal.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,6 +60,34 @@ suppliersRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
+// Auto-create the LegalPartner (SUPPLIER) + SUPPLIER_AGREEMENT/NDA documents and
+// persist the fixed 10% marketplace commission so they land for signing right away.
+async function ensureSupplierLegalPartner(
+  supplier: { name: string; bin?: string | null; legalAddress?: string | null; contactPerson?: string | null; phone?: string | null; email?: string | null },
+  userId: string,
+) {
+  try {
+    const existing = await prisma.legalPartner.findUnique({ where: { userId } });
+    if (existing) return existing;
+    const partner = await onboardPartner({
+      userId,
+      type: 'SUPPLIER',
+      legalName: supplier.name || '',
+      bin: supplier.bin || '',
+      director: supplier.contactPerson || '',
+      address: supplier.legalAddress || '',
+      iban: '',
+      phone: supplier.phone || '',
+      email: supplier.email || '',
+      commission: 10,
+    }, userId);
+    return partner;
+  } catch (e) {
+    console.warn('[SUPPLIER] Legal partner onboarding failed (non-fatal):', (e as Error).message);
+    return null;
+  }
+}
+
 // POST /api/suppliers/register — self-serve: create supplier company + owner membership.
 // Must be registered BEFORE /:id routes.
 suppliersRouter.post('/register', async (req: AuthRequest, res) => {
@@ -70,6 +99,8 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
 
     const existing = await prisma.supplierMember.findFirst({ where: { userId: req.user!.id } });
     if (existing) {
+      const existingSupplier = await prisma.supplier.findUnique({ where: { id: existing.supplierId } });
+      if (existingSupplier) await ensureSupplierLegalPartner(existingSupplier, req.user!.id);
       return res.status(409).json({
         ok: false,
         error: 'Вы уже привязаны к поставщику. Откройте кабинет продавца.',
@@ -87,6 +118,7 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
         phone: phone || req.user!.email || null,
         email: email || req.user!.email || null,
         status: 'pending',
+        commissionRate: 1000, // fixed 10% marketplace commission (bps)
         members: {
           create: { userId: req.user!.id, role: 'owner' },
         },
@@ -107,6 +139,9 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
         originalId: supplier.id,
       },
     });
+
+    // Supplier agreement + NDA land for signing immediately (fixed 10% commission).
+    await ensureSupplierLegalPartner(supplier, req.user!.id);
 
     // Starter catalog: duplicate active DentVision products so the new supplier
     // immediately has listings in the marketplace (with stock, so they show up).

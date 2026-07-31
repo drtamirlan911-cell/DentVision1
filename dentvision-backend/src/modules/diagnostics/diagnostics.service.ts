@@ -173,10 +173,80 @@ export async function updateLaboratory(id: string, data: any) {
 export async function createRegistrationRequest(data: {
   type: 'center' | 'laboratory';
   name: string; city?: string; address?: string; phone?: string; email?: string; comment?: string;
+  userId?: string;
 }) {
   return prisma.registrationRequest.create({
     data: { id: uid(), ...data, status: 'PENDING' },
   });
+}
+
+/**
+ * Grant an approved registration applicant access to the created org:
+ * membership row + Person + unified role, so the org appears in
+ * /api/iam/me/contexts and switch-context works for any org type.
+ */
+export async function grantDiagnosticsAccess(
+  type: 'DiagnosticCenter' | 'Laboratory',
+  entityId: string,
+  userId: string,
+  role: string,
+) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+    });
+    if (!user) return false;
+
+    const entity = type === 'DiagnosticCenter'
+      ? await prisma.diagnosticCenter.findUnique({ where: { id: entityId } })
+      : await prisma.laboratory.findUnique({ where: { id: entityId } });
+    if (!entity) return false;
+
+    await syncOrgFromEntity(type, entityId, {
+      name: entity.name, city: entity.city, address: entity.address, phone: entity.phone, email: entity.email,
+    });
+    const org = await prisma.organization.findFirst({ where: { originalType: type, originalId: entityId } });
+    if (!org) return false;
+
+    if (type === 'DiagnosticCenter') {
+      await prisma.diagnosticCenterMember.upsert({
+        where: { centerId_userId: { centerId: entityId, userId } },
+        update: { role },
+        create: { id: uid(), centerId: entityId, userId, role },
+      });
+    } else {
+      await prisma.laboratoryMember.upsert({
+        where: { labId_userId: { labId: entityId, userId } },
+        update: { role },
+        create: { id: uid(), labId: entityId, userId, role },
+      });
+    }
+
+    const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Участник';
+    const originalType = type === 'DiagnosticCenter' ? 'DiagnosticCenterMember' : 'LaboratoryMember';
+    const person = await prisma.person.upsert({
+      where: { originalType_originalId: { originalType, originalId: `${entityId}:${userId}` } },
+      update: { fullName, personType: 'STAFF', organizationId: org.id, userId: user.id },
+      create: {
+        id: uid(), fullName, personType: 'STAFF', organizationId: org.id, userId: user.id,
+        originalType, originalId: `${entityId}:${userId}`,
+      },
+    });
+
+    const dbRole = await prisma.role.findUnique({ where: { key: 'org_admin' } });
+    if (dbRole) {
+      await prisma.personRole.upsert({
+        where: { personId_roleId: { personId: person.id, roleId: dbRole.id } },
+        update: {},
+        create: { personId: person.id, roleId: dbRole.id },
+      });
+    }
+    return true;
+  } catch (e) {
+    console.warn(`[Diagnostics] grantDiagnosticsAccess failed (${type} ${entityId}):`, (e as Error).message);
+    return false;
+  }
 }
 
 export async function listRegistrationRequests(status?: string) {
@@ -193,6 +263,8 @@ export async function approveRegistrationRequest(id: string, reviewerId: string)
   if (!req) throw new Error('Registration request not found');
   if (req.status !== 'PENDING') throw new Error('Request already processed');
 
+  const applicantId = (req as any).userId || reviewerId;
+
   if (req.type === 'center') {
     const centerId = uid();
     await prisma.diagnosticCenter.create({
@@ -202,12 +274,8 @@ export async function approveRegistrationRequest(id: string, reviewerId: string)
         active: true,
       },
     });
-    // Auto-add the superadmin who approved this as center admin (so center has an owner)
-    try {
-      await prisma.diagnosticCenterMember.create({
-        data: { id: uid(), centerId, userId: reviewerId, role: 'admin' },
-      });
-    } catch { /* member may already exist */ }
+    // Grant the applicant access (owner). Falls back to the approving admin.
+    await grantDiagnosticsAccess('DiagnosticCenter', centerId, applicantId, 'owner');
     await syncOrgFromEntity('DiagnosticCenter', centerId, { name: req.name, city: req.city, address: req.address, phone: req.phone, email: req.email });
   } else {
     const labId = uid();
@@ -218,11 +286,7 @@ export async function approveRegistrationRequest(id: string, reviewerId: string)
         active: true,
       },
     });
-    try {
-      await prisma.laboratoryMember.create({
-        data: { id: uid(), labId, userId: reviewerId, role: 'admin' },
-      });
-    } catch { /* member may already exist */ }
+    await grantDiagnosticsAccess('Laboratory', labId, applicantId, 'owner');
     await syncOrgFromEntity('Laboratory', labId, { name: req.name, city: req.city, address: req.address, phone: req.phone, email: req.email });
   }
 

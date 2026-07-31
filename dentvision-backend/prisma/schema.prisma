@@ -2570,6 +2570,7 @@ model RegistrationRequest {
   phone      String?
   email      String?
   comment    String?
+  userId     String? // applicant platform user (captured via optionalAuth on submit)
   status     String   @default("PENDING") // PENDING | APPROVED | REJECTED
   reviewerId String?
   reviewNote String?

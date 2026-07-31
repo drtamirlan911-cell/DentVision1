@@ -395,6 +395,12 @@ export const supplierWs = {
   upsertCashbackRule: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/cashback-rules', t, { method: 'PUT', body: JSON.stringify(b) }),
   deleteCashbackRule: (t: string, id: string) => supplierFetch(`/api/supplier/cashback-rules/${id}`, t, { method: 'DELETE' }),
   requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/payouts', t, { method: 'POST', body: JSON.stringify(b) }),
+  documents: (t: string) => supplierFetch('/api/partner/legal/documents', t),
+  signDocument: (t: string, id: string) => supplierFetch(`/api/partner/legal/documents/${id}/sign`, t, { method: 'POST' }),
+  partner: (t: string) => supplierFetch('/api/partner/legal/partner', t),
+  updatePartner: (t: string, b: Record<string, unknown>) => supplierFetch('/api/partner/legal/partner', t, { method: 'PUT', body: JSON.stringify(b) }),
+  exportDocument: (t: string, id: string) =>
+    fetch(`${API_URL}/api/partner/legal/documents/${id}/export`, { headers: { Authorization: `Bearer ${t}` } }).then((r) => r.text()),
 };
 
 async function lecturerFetch(path: string, token: string, options: RequestInit = {}): Promise<any> {

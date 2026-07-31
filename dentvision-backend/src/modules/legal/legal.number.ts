@@ -1,3 +1,5 @@
+import prisma from '../../lib/prisma.js';
+
 const prefixMap: Record<string, string> = {
   CLINIC_AGREEMENT: 'CLN',
   DIAGNOSTICS_AGREEMENT: 'DGN',
@@ -28,6 +30,22 @@ let _counter = 0;
 export function nextSequence(): number {
   _counter += 1;
   return _counter;
+}
+
+/**
+ * Derive the sequence from the DB so numbers stay unique across restarts
+ * (documentNumber is unique). Falls back to the in-process counter.
+ */
+export async function nextSequenceFromDb(): Promise<number> {
+  try {
+    const rows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT count(*)::int AS c FROM "legal_documents"`,
+    );
+    return (rows?.[0]?.c || 0) + 1;
+  } catch {
+    _counter += 1;
+    return _counter;
+  }
 }
 
 export function resetSequence(val = 0): void {
