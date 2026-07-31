@@ -39,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'community', label: 'Сообщество', icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
   { id: 'supplier', label: 'Кабинет продавца', icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },
   { id: 'school-workspace', label: 'Кабинет лектора', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school-workspace', color: '#2DD4BF', section: 'platform' },
+  { id: 'center-workspace', label: 'Кабинет центра', icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/diagnostics/center-dashboard', color: '#27AE60', section: 'platform' },
   { id: 'profile', label: 'Профиль', icon: <User size={18} strokeWidth={1.75} />, path: '/profile', color: '#60A5FA', section: 'platform' },
   { id: 'partner-legal', label: 'Мои документы', icon: <FileText size={18} strokeWidth={1.75} />, path: '/partner-legal', color: '#C9A96E', section: 'platform' },
   { id: 'settings', label: 'Настройки', icon: <Settings size={18} strokeWidth={1.75} />, path: '/settings', color: '#94A3B8', section: 'platform' },
@@ -187,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const serviceItems = isSuperAdmin ? NAV_ITEMS : (isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.id === 'crm') return true;
     if (item.id === 'profile' || item.id === 'settings' || item.id === 'partner-legal') return true;
-    if (item.id === 'supplier' || item.id === 'school-workspace') return true;
+    if (item.id === 'supplier' || item.id === 'school-workspace' || item.id === 'center-workspace') return true;
     if (item.id === 'jobs' || item.id === 'community') return true;
     if (item.id === 'diagnostics') return canAccessPage(allowedPages, 'diagnostics') || canAccessPage(allowedPages, 'diagnostics-referrals');
     if (item.id === 'shop') return allowedPages.length === 0 || canAccessPage(allowedPages, 'shop');
@@ -222,6 +223,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (isMobile && sidebarOpen) toggleSidebar();
   };
 
+  const handleCenterWorkspaceClick = async () => {
+    const inOrg = authUser?.organizationType === 'DIAGNOSTIC_CENTER' || authUser?.organizationType === 'LABORATORY';
+    if (inOrg) { handleNavClick('/diagnostics/center-dashboard'); return; }
+    try {
+      const res = await api.getMyContexts();
+      const ctx = (res.contexts || []).find((c: any) => c.scopeType === 'DIAGNOSTIC_CENTER' || c.scopeType === 'LABORATORY');
+      if (ctx?.scopeId) {
+        const tok = await api.switchContext(ctx.scopeType, ctx.scopeId);
+        if (tok?.accessToken) {
+          api.setTokens(tok.accessToken, tok.refreshToken || null);
+          window.location.href = '/diagnostics/center-dashboard';
+          return;
+        }
+      }
+    } catch { /* fall through to the page */ }
+    handleNavClick('/diagnostics/center-dashboard');
+  };
+
   const renderNavSection = (items: NavItem[], sectionLabel?: string) => (
     <>
       {!collapsed && sectionLabel && (
@@ -246,6 +265,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               if (isCrm && !collapsed) {
                 setCrmOpen((v) => !v);
                 if (!location.pathname.startsWith('/crm')) handleNavClick(item.path);
+              } else if (item.id === 'center-workspace') {
+                handleCenterWorkspaceClick();
               } else {
                 handleNavClick(item.path);
               }

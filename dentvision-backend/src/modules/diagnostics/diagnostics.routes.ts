@@ -6,6 +6,7 @@ import { requireSuperadmin } from '../../middleware/rbac.js';
 import { loadClinicAccess } from '../../middleware/planGate.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import * as svc from './diagnostics.service.js';
+import { uid } from '../../lib/helpers.js';
 import prisma from '../../lib/prisma.js';
 
 // C3: Verify user has clinic membership for the referral's clinic
@@ -387,11 +388,42 @@ diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) =>
       studies.map((s) =>
         (prisma as any).diagnosticStudy.update({
           where: { id: s.id, centerId },
-          data: { price: s.price },
+          data: {
+            ...(s.price !== undefined ? { price: s.price } : {}),
+            ...(s.active !== undefined ? { active: s.active } : {}),
+          },
         })
       )
     );
     return res.json({ ok: true, data: updates } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+// Create a new service (study) for a center — center members or superadmin
+diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => {
+  try {
+    const centerId = req.params.id;
+    if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const { name, category, price, description, durationMin } = req.body || {};
+    if (!name || !category) {
+      return res.status(400).json({ ok: false, error: 'Поля name и category обязательны' } satisfies ApiResponse);
+    }
+    const study = await (prisma as any).diagnosticStudy.create({
+      data: {
+        id: uid(),
+        centerId,
+        name: String(name),
+        category: String(category),
+        price: Number(price) > 0 ? Number(price) : 0,
+        description: description || null,
+        durationMin: durationMin ? Number(durationMin) : null,
+      },
+    });
+    return res.json({ ok: true, data: study } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
@@ -628,6 +660,58 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res)
     }
 
     return res.json({ ok: true } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+// ─── Cashier: collect payment for a center referral ───
+
+diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, res) => {
+  try {
+    const centerId = req.params.id;
+    if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const { referralId, cost, platformFee } = req.body || {};
+    if (!referralId) {
+      return res.status(400).json({ ok: false, error: 'referralId обязателен' } satisfies ApiResponse);
+    }
+    const costNum = Number(cost);
+    if (!costNum || costNum <= 0) {
+      return res.status(400).json({ ok: false, error: 'Укажите корректную сумму оплаты' } satisfies ApiResponse);
+    }
+
+    const referral = await (prisma as any).referral.findUnique({
+      where: { id: referralId },
+      select: { id: true, centerId: true, paid: true, clinicId: true },
+    });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' } as any);
+    if (referral.centerId !== centerId) return res.status(403).json({ ok: false, error: 'Направление не относится к этому центру' } as any);
+    if (referral.paid) return res.status(409).json({ ok: false, error: 'Уже оплачено' } as any);
+
+    // Platform commission: explicit fee or default 10% of the collected amount
+    const feeNum = platformFee !== undefined && Number(platformFee) >= 0 ? Number(platformFee) : Math.round(costNum * 0.1);
+
+    await (prisma as any).referral.update({
+      where: { id: referralId },
+      data: { cost: costNum, platformFee: feeNum, paid: true, paidAt: new Date() },
+    });
+
+    // Record diagnostic sale through Commission Engine
+    try {
+      const { recordSale } = await import('../finance/finance.service.js');
+      await recordSale({
+        domain: 'diagnostics',
+        sellerType: 'CLINIC' as any,
+        sellerId: centerId,
+        amountMinor: BigInt(Math.round(costNum * 100)),
+        refType: 'referral',
+        refId: referralId,
+      });
+    } catch (e) { console.warn('[Diagnostics] Cashier commission sale failed (non-fatal):', e); }
+
+    return res.json({ ok: true, data: { cost: costNum, platformFee: feeNum, net: costNum - feeNum } } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }

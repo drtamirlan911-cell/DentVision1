@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Building2, FileText, Clock, CheckCircle, XCircle, Search,
   PlayCircle, Activity, RefreshCw, Eye, DollarSign, Save, FlaskConical,
-  Sparkles, Upload, TrendingUp, ArrowDown, Wallet,
+  Sparkles, Upload, TrendingUp, ArrowDown, Wallet, Plus, ReceiptText, Trash2, X,
 } from 'lucide-react';
 import { Tabs } from '@/components/ui/ds/Misc';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
@@ -28,6 +28,8 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   REVIEWED: { label: 'Просмотрено', color: '#95A5A6' },
   CANCELLED: { label: 'Отменено', color: '#E74C3C' },
 };
+
+const DIAG_CATEGORIES = ['CBCT', 'OPG', 'TRG', 'TMJ', 'STL', 'FACE_SCAN', 'DICOM', 'ALLERGY', 'HISTOLOGY', 'PCR', 'MICROBIOLOGY', 'BLOOD', 'GENETICS', 'BIOPSY', 'SALIVA', 'PATHOLOGY', 'OTHER'];
 
 function CenterReferralsTab({ centerId }: { centerId: string }) {
   const navigate = useNavigate();
@@ -276,6 +278,7 @@ function CenterReferralsTab({ centerId }: { centerId: string }) {
 
 function CenterServicesTab({ centerId }: { centerId: string }) {
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const { data: studiesData, isLoading } = useQuery({
     queryKey: queryKeys.diagnostics.centerPricing(centerId),
@@ -285,6 +288,8 @@ function CenterServicesTab({ centerId }: { centerId: string }) {
 
   const studies = Array.isArray(studiesData?.data) ? studiesData.data : [];
   const [prices, setPrices] = useState<Record<string, string>>({});
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', category: 'CBCT', price: '' });
 
   useEffect(() => {
     if (studies.length > 0) {
@@ -299,6 +304,17 @@ function CenterServicesTab({ centerId }: { centerId: string }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.diagnostics.centerPricing(centerId) }),
   });
 
+  const createMutation = useMutation({
+    mutationFn: (data: { name: string; category: string; price?: number }) => api.createDiagnosticsCenterStudy(centerId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.diagnostics.centerPricing(centerId) });
+      setAddOpen(false);
+      setAddForm({ name: '', category: 'CBCT', price: '' });
+      toast.success('Услуга добавлена');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const handleSave = () => {
     const updates = Object.entries(prices)
       .filter(([, v]) => v !== '')
@@ -306,11 +322,19 @@ function CenterServicesTab({ centerId }: { centerId: string }) {
     if (updates.length > 0) saveMutation.mutate(updates);
   };
 
+  const handleCreate = () => {
+    if (!addForm.name.trim()) { toast.error('Укажите название услуги'); return; }
+    createMutation.mutate({ name: addForm.name.trim(), category: addForm.category, price: parseFloat(addForm.price) || 0 });
+  };
+
   return (
     <Card padding="md">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-txt-primary">Прайс-лист услуг</h3>
-        <Button variant="primary" size="sm" icon={<Save size={14} />} onClick={handleSave} loading={saveMutation.isPending}>Сохранить</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" icon={<Plus size={14} />} onClick={() => setAddOpen(true)}>Добавить услугу</Button>
+          <Button variant="primary" size="sm" icon={<Save size={14} />} onClick={handleSave} loading={saveMutation.isPending}>Сохранить</Button>
+        </div>
       </div>
       {isLoading ? <Skeleton className="h-48" /> : (
         <div className="overflow-x-auto">
@@ -335,10 +359,38 @@ function CenterServicesTab({ centerId }: { centerId: string }) {
                 </tr>
               ))}
               {studies.length === 0 && (
-                <tr><td colSpan={4} className="py-8 text-center text-txt-muted">Нет услуг. Добавьте их через панель администратора.</td></tr>
+                <tr><td colSpan={4} className="py-8 text-center text-txt-muted">Нет услуг. Добавьте первую услугу.</td></tr>
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {addOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAddOpen(false)}>
+          <Card padding="lg" className="max-w-sm w-full mx-4" onClick={(e: any) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-txt-primary mb-4">Добавить услугу</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-txt-muted block mb-1">Название услуги</label>
+                <input type="text" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} placeholder="Напр. Конусно-лучевая КТ" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+              </div>
+              <div>
+                <label className="text-xs text-txt-muted block mb-1">Категория</label>
+                <select value={addForm.category} onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))} className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
+                  {DIAG_CATEGORIES.map((c) => (<option key={c} value={c}>{c}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-txt-muted block mb-1">Цена (₸)</label>
+                <input type="number" value={addForm.price} onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))} placeholder="Напр. 15000" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" size="sm" onClick={() => setAddOpen(false)}>Отмена</Button>
+                <Button variant="primary" size="sm" onClick={handleCreate} loading={createMutation.isPending} disabled={!addForm.name.trim()}>Добавить</Button>
+              </div>
+            </div>
+          </Card>
         </div>
       )}
     </Card>
@@ -415,6 +467,191 @@ function CenterPaymentsTab({ centerId }: { centerId: string }) {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+function CenterCashierTab({ centerId }: { centerId: string }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
+    queryKey: queryKeys.diagnostics.centerPayments(centerId),
+    queryFn: () => api.getDiagnosticsCenterPayments(centerId),
+    enabled: !!centerId,
+  });
+
+  const { data: studiesData, isLoading: studiesLoading } = useQuery({
+    queryKey: queryKeys.diagnostics.centerPricing(centerId),
+    queryFn: () => api.getDiagnosticsCenterPricing(centerId),
+    enabled: !!centerId,
+  });
+
+  const referrals = (paymentsData?.data?.referrals || []).filter((r: any) => !r.paid);
+  const studies = Array.isArray(studiesData?.data) ? studiesData.data.filter((s: any) => s.active) : [];
+
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [cart, setCart] = useState<Array<{ studyId: string; name: string; price: number }>>([]);
+  const [paidAmount, setPaidAmount] = useState('');
+  const [feePercent, setFeePercent] = useState('10');
+
+  const selected = referrals.find((r: any) => r.id === selectedId) || null;
+
+  const baseCost = Number(selected?.cost || 0);
+  const servicesTotal = cart.reduce((sum, c) => sum + Number(c.price || 0), 0);
+  const total = baseCost + servicesTotal;
+  const paid = parseFloat(paidAmount) || total;
+  const fee = Math.round((paid * (parseFloat(feePercent) || 0)) / 100);
+  const net = paid - fee;
+
+  const pickReferral = (id: string) => {
+    setSelectedId(id);
+    setCart([]);
+    setPaidAmount('');
+  };
+
+  const addToCart = (s: any) => {
+    if (cart.some((c) => c.studyId === s.id)) return;
+    setCart((prev) => [...prev, { studyId: s.id, name: s.name, price: Number(s.price || 0) }]);
+  };
+
+  const collectMutation = useMutation({
+    mutationFn: (payload: { referralId: string; cost: number; platformFee: number }) =>
+      api.collectDiagnosticsCashierPayment(centerId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.diagnostics.centerPayments(centerId) });
+      queryClient.invalidateQueries({ queryKey: ['diagnostics'] });
+      queryClient.invalidateQueries({ queryKey: ['diagnostics', 'center-dashboard', centerId] });
+      toast.success(`Оплата ${paid.toLocaleString()} ₸ принята`);
+      setSelectedId('');
+      setCart([]);
+      setPaidAmount('');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (paymentsLoading || studiesLoading) return <Skeleton className="h-64" />;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      {/* Queue */}
+      <div className="lg:col-span-2 space-y-3">
+        <Card padding="md">
+          <h3 className="text-sm font-semibold text-txt-primary mb-3">Очередь оплаты ({referrals.length})</h3>
+          {referrals.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет неоплаченных направлений</div>
+          ) : (
+            <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+              {referrals.map((r: any) => {
+                const active = r.id === selectedId;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => pickReferral(r.id)}
+                    className={`w-full text-left rounded-xl border px-3 py-2.5 transition-colors ${active ? 'border-dv-gold bg-dv-gold/10' : 'border-bdr-subtle bg-surface-1/40 hover:border-dv-gold/40'}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-txt-primary truncate">{r.patientName || 'Неизвестно'}</span>
+                      <Badge variant="outline" className="text-txt-muted border-bdr-subtle shrink-0">{r.status}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 text-xs text-txt-muted">
+                      <span className="truncate">{r.studyType || '—'}</span>
+                      <span className="font-semibold text-txt-primary shrink-0 ml-2">{Number(r.cost || 0).toLocaleString()} ₸</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Service catalog */}
+        <Card padding="md">
+          <h3 className="text-sm font-semibold text-txt-primary mb-3">Услуги центра (добавить к оплате)</h3>
+          {studies.length === 0 ? (
+            <p className="text-sm text-txt-muted">Услуги не заданы. Добавьте их во вкладке «Услуги и цены».</p>
+          ) : (
+            <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
+              {studies.map((s: any) => (
+                <button
+                  key={s.id}
+                  onClick={() => addToCart(s)}
+                  disabled={cart.some((c) => c.studyId === s.id)}
+                  className="w-full flex items-center justify-between gap-2 rounded-lg border border-bdr-subtle px-3 py-2 text-left hover:border-dv-gold/40 transition-colors disabled:opacity-40"
+                >
+                  <span className="text-sm text-txt-primary truncate">{s.name}</span>
+                  <span className="text-sm font-semibold text-dv-gold shrink-0">{Number(s.price || 0).toLocaleString()} ₸</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Check */}
+      <div className="lg:col-span-3">
+        <Card padding="lg" className="h-full">
+          {!selected ? (
+            <div className="flex flex-col items-center justify-center h-full min-h-[320px] text-center gap-2 text-txt-muted">
+              <ReceiptText size={40} className="opacity-20" />
+              <p className="text-sm">Выберите направление слева, чтобы начать приём оплаты</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-txt-primary">Касса — {selected.patientName || 'Пациент'}</h3>
+                  <p className="text-xs text-txt-muted mt-0.5">{selected.studyType || 'Услуга'} · {new Date(selected.createdAt).toLocaleDateString()}</p>
+                </div>
+                <Badge variant="outline" className="text-dv-gold border-dv-gold/30">Чек</Badge>
+              </div>
+
+              <div className="space-y-1.5 mb-4">
+                <div className="flex items-center justify-between text-sm py-1.5 border-b border-bdr-subtle/60">
+                  <span className="text-txt-muted">Направление · {selected.studyType || '—'}</span>
+                  <span className="text-txt-primary font-medium">{baseCost.toLocaleString()} ₸</span>
+                </div>
+                {cart.map((c) => (
+                  <div key={c.studyId} className="flex items-center justify-between text-sm py-1.5 border-b border-bdr-subtle/60">
+                    <span className="text-txt-muted">{c.name}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="text-txt-primary font-medium">{Number(c.price).toLocaleString()} ₸</span>
+                      <button onClick={() => setCart((prev) => prev.filter((x) => x.studyId !== c.studyId))} className="text-txt-ghost hover:text-error transition-colors" aria-label="Убрать">
+                        <X size={14} />
+                      </button>
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between text-sm font-semibold pt-2">
+                  <span className="text-txt-primary">Стоимость услуг</span>
+                  <span className="text-txt-primary">{total.toLocaleString()} ₸</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label className="text-xs text-txt-muted block mb-1">Пациент платит (₸)</label>
+                  <input type="number" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} placeholder={String(total)} className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                </div>
+                <div>
+                  <label className="text-xs text-txt-muted block mb-1">Комиссия платформы (%)</label>
+                  <input type="number" value={feePercent} onChange={(e) => setFeePercent(e.target.value)} className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-surface-1 border border-bdr-subtle p-4 space-y-2 mb-4">
+                <div className="flex justify-between text-sm"><span className="text-txt-muted">Принято от пациента</span><span className="text-txt-primary font-semibold">{paid.toLocaleString()} ₸</span></div>
+                <div className="flex justify-between text-sm"><span className="text-txt-muted">Комиссия платформы</span><span className="text-dv-gold">{fee.toLocaleString()} ₸</span></div>
+                <div className="flex justify-between text-sm border-t border-bdr-subtle pt-2"><span className="text-txt-primary font-semibold">К выплате центру</span><span className="text-success font-bold">{net.toLocaleString()} ₸</span></div>
+              </div>
+
+              <Button variant="primary" className="w-full" icon={<Wallet size={16} />} loading={collectMutation.isPending} disabled={paid <= 0} onClick={() => collectMutation.mutate({ referralId: selected.id, cost: paid, platformFee: fee })}>
+                Принять оплату {paid.toLocaleString()} ₸
+              </Button>
+            </>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
@@ -504,8 +741,9 @@ export default function CenterDashboard() {
   }, [isOwnOrg, ownOrgId]);
 
   const tabs = [
+    { id: 'cashier', label: 'Касса', icon: <Wallet size={14} /> },
     { id: 'referrals', label: 'Направления', icon: <FileText size={14} /> },
-    { id: 'finance', label: 'Финансы', icon: <Wallet size={14} /> },
+    { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
     { id: 'services', label: 'Услуги и цены', icon: <FlaskConical size={14} /> },
     { id: 'payments', label: 'Оплаты', icon: <DollarSign size={14} /> },
   ];
@@ -534,6 +772,7 @@ export default function CenterDashboard() {
       {centerId && (
         <>
           <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+          {activeTab === 'cashier' && <CenterCashierTab centerId={centerId} />}
           {activeTab === 'referrals' && <CenterReferralsTab centerId={centerId} />}
           {activeTab === 'finance' && <CenterFinanceTab centerId={centerId} />}
           {activeTab === 'services' && <CenterServicesTab centerId={centerId} />}

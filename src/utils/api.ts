@@ -2482,6 +2482,9 @@ export const getDiagnosticsCenterPricing = (centerId: string) =>
 export const updateDiagnosticsCenterPricing = (centerId: string, studies: { id: string; price: number }[]) =>
   apiRequest(`/api/diagnostics/centers/${centerId}/pricing`, { method: 'PATCH', body: JSON.stringify({ studies }) });
 
+export const createDiagnosticsCenterStudy = (centerId: string, data: { name: string; category: string; price?: number; description?: string; durationMin?: number }) =>
+  apiRequest(`/api/diagnostics/centers/${centerId}/pricing`, { method: 'POST', body: JSON.stringify(data) });
+
 export const getDiagnosticsLabPricing = (labId: string) =>
   apiRequest(`/api/diagnostics/laboratories/${labId}/pricing`);
 
@@ -2490,6 +2493,9 @@ export const updateDiagnosticsLabPricing = (labId: string, tests: { id: string; 
 
 export const getDiagnosticsCenterPayments = (centerId: string) =>
   apiRequest(`/api/diagnostics/centers/${centerId}/payments`);
+
+export const collectDiagnosticsCashierPayment = (centerId: string, payload: { referralId: string; cost: number; platformFee?: number }) =>
+  apiRequest(`/api/diagnostics/centers/${centerId}/cashier/collect`, { method: 'POST', body: JSON.stringify(payload) });
 
 export const getDiagnosticsLabPayments = (labId: string) =>
   apiRequest(`/api/diagnostics/laboratories/${labId}/payments`);
