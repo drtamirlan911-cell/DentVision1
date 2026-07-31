@@ -23,6 +23,7 @@ const SKIP_PATHS = [
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
   '/api/public/',
+  '/api/guest/',
   '/api/health',
   '/api/diagnostics/register',
 ];
