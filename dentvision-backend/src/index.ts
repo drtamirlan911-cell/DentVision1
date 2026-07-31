@@ -343,7 +343,7 @@ async function main() {
     const supCount = await prisma.$queryRawUnsafe<Array<{ cnt: number }>>(`SELECT COUNT(*)::int as cnt FROM "suppliers"`);
     if (supCount[0].cnt === 0) {
       await prisma.$executeRawUnsafe(
-        `INSERT INTO "suppliers" (id, name, kind, status, email, phone, city, legal_address, description, rating, commission_rate, is_active) VALUES (gen_random_uuid(), 'DentVision', 'DISTRIBUTOR', 'official_partner', 'supplier@dentvision.kz', '+7 727 123 45 67', 'Алматы', 'ул. Абая 150, офис 301', 'Официальный поставщик стоматологических материалов и оборудования DentVision', 4.8, 500, true) ON CONFLICT DO NOTHING`
+        `INSERT INTO "suppliers" (id, name, kind, status, email, phone, city, "legalAddress", description, rating, "commissionRate", "isActive") VALUES (gen_random_uuid(), 'DentVision', 'DISTRIBUTOR', 'official_partner', 'supplier@dentvision.kz', '+7 727 123 45 67', 'Алматы', 'ул. Абая 150, офис 301', 'Официальный поставщик стоматологических материалов и оборудования DentVision', 4.8, 500, true) ON CONFLICT DO NOTHING`
       );
       console.log('[SEED] DentVision supplier created');
     }
@@ -366,7 +366,7 @@ async function main() {
       ];
       for (const c of categories) {
         await prisma.$executeRawUnsafe(
-          `INSERT INTO "shop_categories" (id, name, slug, description, sort_order) VALUES (gen_random_uuid(), $1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+          `INSERT INTO "shop_categories" (id, name, slug, description, "sortOrder") VALUES (gen_random_uuid(), $1,$2,$3,$4) ON CONFLICT DO NOTHING`,
           c.name, c.slug, c.description, c.sortOrder
         );
       }
@@ -492,7 +492,7 @@ async function main() {
         ];
         for (const p of products) {
           await prisma.$executeRawUnsafe(
-            `INSERT INTO "products" (id, name, brand, category, category_id, price, description, stock, unit, image_url, supplier_id, is_active) VALUES (gen_random_uuid(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true) ON CONFLICT DO NOTHING`,
+            `INSERT INTO "products" (id, name, brand, category, "categoryId", price, description, stock, unit, "imageUrl", "supplierId", "isActive") VALUES (gen_random_uuid(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true) ON CONFLICT DO NOTHING`,
             p.name, p.brand, p.cat, p.catId, p.price, p.desc, p.stock, p.unit, p.img, sid
           );
         }
