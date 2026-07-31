@@ -243,6 +243,7 @@ app.use('/api/partner/legal', legalPartnerRouter);
 app.use('/api/finance', financeRouter);
 app.use('/api/disputes', disputesRouter);
 app.use('/api/ai-admin/webhook', webhookGatewayRouter);
+app.use('/api/ai-governance', aiGovernanceRouter);
 app.use('/api/meta', metaRouter);
 
 // ─── Universal Organization / Person API (Phase 2) ───

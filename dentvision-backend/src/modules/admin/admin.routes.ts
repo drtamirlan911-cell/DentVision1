@@ -391,7 +391,7 @@ adminRouter.get('/users/:id', authenticate, requireSuperadmin, async (req: AuthR
     const id = req.params.id as string;
     const user = await prisma.user.findUnique({
       where: { id },
-      include: { memberships: { select: { clinicId: true, role: true, clinic: { select: { name: true } } } } },
+      include: { memberships: { select: { clinicId: true }, take: 1 } },
     });
     if (!user) return res.status(404).json({ ok: false, error: 'User not found' } satisfies ApiResponse);
     res.json({ ok: true, data: serializeUser(user) } satisfies ApiResponse);

@@ -24,7 +24,7 @@ const STATUS_TRANSITIONS: Record<SupplierStatus, SupplierStatus[]> = {
   pending: ['documents_review', 'suspended'],
   documents_review: ['verified', 'pending', 'suspended'],
   verified: ['official_partner', 'suspended'],
-  official_partner: ['suspended'],
+  official_partner: ['verified', 'suspended'],
   suspended: ['verified', 'pending'],
 };
 

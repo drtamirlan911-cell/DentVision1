@@ -404,9 +404,9 @@ export default function MarketplaceTab() {
                     variant="success"
                     icon={<Check size={16} />}
                     loading={changeStatus.isPending}
-                    onClick={() => changeStatus.mutate({ id: detailData.id, status: 'verified' })}
+                    onClick={() => changeStatus.mutate({ id: detailData.id, status: 'documents_review' })}
                   >
-                    Верифицировать
+                    На проверку
                   </Button>
                   <Button
                     variant="danger"
