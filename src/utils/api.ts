@@ -1581,6 +1581,24 @@ export async function getShopAdminStats(): Promise<any> {
   return apiRequest('/api/shop/admin/stats');
 }
 
+// ─── Supplier delivery zones ───
+
+export async function getSupplierDeliveryZones(): Promise<any> {
+  return supplierFetch('/api/supplier/delivery-zones', 'GET');
+}
+
+export async function createSupplierDeliveryZone(data: { name: string; cities?: string[]; cost?: number; freeFrom?: number; estimatedDays?: number }): Promise<any> {
+  return supplierFetch('/api/supplier/delivery-zones', 'POST', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateSupplierDeliveryZone(id: string, data: any): Promise<any> {
+  return supplierFetch(`/api/supplier/delivery-zones/${id}`, 'PUT', { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function deleteSupplierDeliveryZone(id: string): Promise<any> {
+  return supplierFetch(`/api/supplier/delivery-zones/${id}`, 'DELETE', { method: 'DELETE' });
+}
+
 // ─── School content management (superadmin) ───
 export async function createSchoolCourse(data: any): Promise<any> { return apiRequest('/api/school/courses', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateSchoolCourse(id: string, data: any): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }

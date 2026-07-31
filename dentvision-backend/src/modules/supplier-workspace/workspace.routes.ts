@@ -394,4 +394,75 @@ supplierWorkspaceRouter.get('/analytics', async (req: AuthRequest, res) => {
   }
 });
 
+// ─── Delivery Zones ───
+
+supplierWorkspaceRouter.get('/delivery-zones', requireSupplierContext, async (req: AuthRequest, res) => {
+  try {
+    const zones = await prisma.deliveryZone.findMany({
+      where: { supplierId: req.user!.supplierId },
+      orderBy: { name: 'asc' },
+    });
+    return res.json({ ok: true, data: zones } satisfies ApiResponse);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: 'Ошибка загрузки зон доставки' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.post('/delivery-zones', requireSupplierWrite, async (req: AuthRequest, res) => {
+  try {
+    const { name, cities, cost, freeFrom, estimatedDays } = req.body || {};
+    if (!name) return res.status(400).json({ ok: false, error: 'Название зоны обязательно' } satisfies ApiResponse);
+    const zone = await prisma.deliveryZone.create({
+      data: {
+        id: uid(),
+        supplierId: req.user!.supplierId!,
+        name,
+        cities: cities || [],
+        cost: cost ? parseInt(cost) : 0,
+        freeFrom: freeFrom ? parseInt(freeFrom) : null,
+        estimatedDays: estimatedDays ? parseInt(estimatedDays) : null,
+      },
+    });
+    return res.status(201).json({ ok: true, data: zone } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message || 'Ошибка создания зоны' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.put('/delivery-zones/:id', requireSupplierWrite, async (req: AuthRequest, res) => {
+  try {
+    const existing = await prisma.deliveryZone.findUnique({ where: { id: req.params.id as string } });
+    if (!existing || existing.supplierId !== req.user!.supplierId) {
+      return res.status(404).json({ ok: false, error: 'Зона не найдена' } satisfies ApiResponse);
+    }
+    const { name, cities, cost, freeFrom, estimatedDays } = req.body || {};
+    const zone = await prisma.deliveryZone.update({
+      where: { id: req.params.id as string },
+      data: {
+        ...(name && { name }),
+        ...(cities !== undefined && { cities }),
+        ...(cost !== undefined && { cost: parseInt(cost) }),
+        ...(freeFrom !== undefined && { freeFrom: freeFrom ? parseInt(freeFrom) : null }),
+        ...(estimatedDays !== undefined && { estimatedDays: estimatedDays ? parseInt(estimatedDays) : null }),
+      },
+    });
+    return res.json({ ok: true, data: zone } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message || 'Ошибка обновления зоны' } satisfies ApiResponse);
+  }
+});
+
+supplierWorkspaceRouter.delete('/delivery-zones/:id', requireSupplierWrite, async (req: AuthRequest, res) => {
+  try {
+    const existing = await prisma.deliveryZone.findUnique({ where: { id: req.params.id as string } });
+    if (!existing || existing.supplierId !== req.user!.supplierId) {
+      return res.status(404).json({ ok: false, error: 'Зона не найдена' } satisfies ApiResponse);
+    }
+    await prisma.deliveryZone.delete({ where: { id: req.params.id as string } });
+    return res.json({ ok: true } satisfies ApiResponse);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: 'Ошибка удаления зоны' } satisfies ApiResponse);
+  }
+});
+
 export default supplierWorkspaceRouter;
