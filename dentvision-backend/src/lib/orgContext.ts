@@ -96,10 +96,10 @@ export async function resolveClinicAccess(userId: string, clinicId: string): Pro
   if (org) {
     const person = await prisma.person.findFirst({
       where: { userId, organizationId: org.id },
-      include: { roles: { include: { role: true } } },
+      include: { personRoles: { include: { role: true } } },
     });
     if (person) {
-      const unifiedRole = person.roles?.[0]?.role?.key || 'org_admin';
+      const unifiedRole = person.personRoles?.[0]?.role?.key || 'org_admin';
       return { role: PERSON_ROLE_MAP[unifiedRole] || 'DOCTOR' };
     }
   }

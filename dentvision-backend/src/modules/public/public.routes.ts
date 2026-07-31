@@ -69,7 +69,6 @@ publicRouter.get('/clinic/:clinicId', async (req, res) => {
     });
     const persons = org ? await prisma.person.findMany({
       where: { organizationId: org.id, personType: 'DOCTOR', userId: { not: null } },
-      include: { user: { select: { id: true, firstName: true, lastName: true, spec: true, avatar: true, phone: true } } },
     }) : [];
 
     const memberSet = new Set(members.map(m => m.userId));
@@ -84,11 +83,11 @@ publicRouter.get('/clinic/:clinicId', async (req, res) => {
         phone: m.user.phone || undefined,
       })),
       ...extraPersons.map((p) => ({
-        id: p.user!.id,
+        id: p.userId!,
         name: p.fullName,
         spec: p.specialization || undefined,
-        avatar: p.user!.avatar || undefined,
-        phone: p.user!.phone || undefined,
+        avatar: p.avatar || undefined,
+        phone: p.phone || undefined,
       })),
     ];
 

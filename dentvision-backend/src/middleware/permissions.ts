@@ -27,7 +27,7 @@ export function requirePermission(...keys: string[]) {
             organizationId: scopeId,
           },
           include: {
-            roles: {
+            personRoles: {
               include: {
                 role: {
                   include: {
@@ -41,7 +41,7 @@ export function requirePermission(...keys: string[]) {
 
         if (person) {
           const userPerms = new Set<string>();
-          for (const pr of person.roles) {
+          for (const pr of person.personRoles) {
             for (const rp of pr.role.permissions) {
               userPerms.add(rp.permission.key);
             }

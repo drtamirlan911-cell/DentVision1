@@ -105,7 +105,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       where: { userId },
       include: {
         organization: { select: { id: true, name: true, type: true, logo: true } },
-        roles: { include: { role: true } },
+        personRoles: { include: { role: true } },
       },
     });
 
@@ -116,7 +116,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         scopeType: p.organization!.type,
         scopeId: p.organization!.id,
         personType: p.personType,
-        roleKey: p.roles.map((pr) => pr.role.key).join(',') || p.personType.toLowerCase(),
+        roleKey: p.personRoles.map((pr) => pr.role.key).join(',') || p.personType.toLowerCase(),
         organization: {
           id: p.organization!.id,
           name: p.organization!.name,
@@ -186,11 +186,19 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         where: { userId: user.id, organizationId: scopeId },
       });
       if (person) {
+        let supplierContext = {};
+        if (org.type === 'SUPPLIER_COMPANY') {
+          const member = await prisma.supplierMember.findUnique({
+            where: { userId_supplierId: { userId: user.id, supplierId: scopeId } },
+          });
+          if (member) supplierContext = { supplierId: scopeId, supplierRole: member.role };
+        }
         const tokens = generateTokens({
           ...base,
           organizationId: scopeId,
           organizationType: org.type,
           personType: person.personType,
+          ...supplierContext,
           // Legacy compat: if CLINIC, also set clinicId
           ...(org.type === 'CLINIC' ? { clinicId: scopeId } : {}),
         });

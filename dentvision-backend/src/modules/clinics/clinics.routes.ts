@@ -145,7 +145,7 @@ clinicsRouter.get('/:id', authenticate, async (req, res) => {
               specialization: true,
               phone: true,
               userId: true,
-              roles: {
+              personRoles: {
                 select: { role: { select: { name: true, key: true } } },
               },
             },
