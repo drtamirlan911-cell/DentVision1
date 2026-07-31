@@ -562,6 +562,38 @@ diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res
   }
 });
 
+// ─── Payment Settlement ───
+
+diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const referral = await (prisma as any).referral.findUnique({ where: { id }, select: { id: true, status: true, cost: true, platformFee: true, centerId: true, paid: true, clinicId: true } });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' } as any);
+    if (referral.paid) return res.status(409).json({ ok: false, error: 'Уже оплачено' } as any);
+
+    await (prisma as any).referral.update({ where: { id }, data: { paid: true, paidAt: new Date() } });
+
+    // Record diagnostic sale through Commission Engine
+    if (referral.cost && referral.centerId) {
+      try {
+        const { recordSale } = await import('../finance/finance.service.js');
+        await recordSale({
+          domain: 'diagnostics',
+          sellerType: 'CLINIC' as any,
+          sellerId: referral.centerId,
+          amountMinor: BigInt(Math.round(Number(referral.cost) * 100)),
+          refType: 'referral',
+          refId: id,
+        });
+      } catch (e) { console.warn('[Diagnostics] Commission sale recording failed (non-fatal):', e); }
+    }
+
+    return res.json({ ok: true } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
 // ─── Center Dashboard ───
 
 diagnosticsRouter.get('/centers/:id/dashboard', async (req: AuthRequest, res) => {

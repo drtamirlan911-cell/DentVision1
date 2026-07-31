@@ -317,6 +317,26 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
 
   const referral = await prisma.referral.update({ where: { id }, data: update });
 
+  // Notify diagnostic center/lab when referral is sent to them
+  if (status === 'SENT' && referral.centerId) {
+    const centerMembers = await prisma.diagnosticCenterMember.findMany({
+      where: { centerId: referral.centerId, role: { in: ['admin', 'manager'] } },
+    });
+    for (const m of centerMembers) {
+      await prisma.notification.create({
+        data: { id: uid(), userId: m.userId, type: 'workflow', title: 'Новое направление', message: `${referral.patientName} — ${referral.studyType}. Клиника: ${referral.clinicId?.slice(0, 8) || '—'}`, link: `/diagnostics/referrals/${id}` },
+      });
+    }
+  }
+
+  // Notify referring doctor when center accepts and sets cost
+  if (status === 'ACCEPTED' && referral.doctorId) {
+    const costMsg = referral.cost ? ` Стоимость: ${Number(referral.cost).toLocaleString()} ₸` : '';
+    await prisma.notification.create({
+      data: { id: uid(), userId: referral.doctorId, type: 'workflow', title: 'Направление принято', message: `#${id.slice(0, 8)}: ${referral.patientName} — ${referral.studyType}.${costMsg}`, link: `/diagnostics/referrals/${id}` },
+    });
+  }
+
   // Notify the referring doctor when results are ready
   if (status === 'COMPLETED' && referral.doctorId) {
     await prisma.notification.create({
@@ -437,10 +457,31 @@ export async function getDashboardStats(clinicId?: string) {
 export async function aiGenerateResult(referralId: string, userId: string) {
   const referral = await prisma.referral.findUnique({
     where: { id: referralId },
-    include: { clinic: { select: { name: true } } },
+    include: { clinic: { select: { name: true } }, files: { select: { fileUrl: true, fileName: true } } },
   });
   if (!referral) throw new Error('Referral not found');
 
+  const category = referral.category as string;
+  // 3D imaging categories — never auto-modify Patient Card
+  const imagingCategories = ['CBCT', 'OPG', 'TRG', 'TMJ', 'STL', 'FACE_SCAN', 'DICOM'];
+  if (imagingCategories.includes(category)) {
+    const aiContent = await simpleChat(
+      `Ты — врач-рентгенолог. Опиши результат ${referral.studyType} для пациента ${referral.patientName}.
+Жалобы: ${referral.complaints || 'не указаны'}. Предв. диагноз: ${referral.preliminaryDx || 'нет'}.
+Цель: ${referral.studyGoal || 'не указана'}. Выдай заключение: 1) описание, 2) находки, 3) заключение, 4) рекомендации.`,
+      'Заключение рентгенолога на русском языке.',
+      { maxTokens: 1000 },
+    );
+    return upsertResult(referralId, aiContent);
+  }
+
+  // Lab categories — extract indicators, compare with patient history, propose changes
+  const labCategories = ['ALLERGY', 'HISTOLOGY', 'PCR', 'MICROBIOLOGY', 'BLOOD', 'GENETICS', 'BIOPSY', 'SALIVA', 'PATHOLOGY'];
+  if (labCategories.includes(category)) {
+    return aiAnalyzeLabResult(referralId, referral, userId);
+  }
+
+  // Generic prompt
   const prompt = `Ты — ассистент стоматолога. На основе данных направления напиши заключение диагностического исследования.
 
 Пациент: ${referral.patientName}
@@ -459,19 +500,84 @@ export async function aiGenerateResult(referralId: string, userId: string) {
 4. Рекомендации`;
 
   const aiContent = await simpleChat(prompt, 'Сгенерируй заключение на русском языке.', { maxTokens: 1000 });
+  return upsertResult(referralId, aiContent);
+}
 
+async function upsertResult(referralId: string, aiContent: string) {
   const existing = await prisma.diagnosticResult.findUnique({ where: { referralId } });
-
   if (existing) {
-    return prisma.diagnosticResult.update({
-      where: { referralId },
-      data: { reportText: aiContent, aiGenerated: true },
+    return prisma.diagnosticResult.update({ where: { referralId }, data: { reportText: aiContent, aiGenerated: true } });
+  }
+  return prisma.diagnosticResult.create({ data: { id: uid(), referralId, reportText: aiContent, aiGenerated: true } });
+}
+
+async function aiAnalyzeLabResult(referralId: string, referral: any, _userId: string) {
+  // Build prompt to extract structured indicators from lab result data
+  const fileUrls = referral.files?.map((f: any) => f.fileUrl).filter(Boolean) || [];
+  const hasFiles = fileUrls.length > 0;
+
+  const prompt = `Ты — лабораторный аналитик. Пациент: ${referral.patientName}. Исследование: ${referral.studyType}.
+${hasFiles ? 'К направлению приложены файлы результатов анализов.' : 'Анализируй по типу исследования.'}
+
+Извлеки из результатов следующие показатели (если применимо):
+- Название показателя
+- Значение
+- Единица измерения
+- Референсные значения (норма)
+- Отклонение (↑ или ↓)
+
+Для каждого показателя отметь: "в норме", "выше нормы", "ниже нормы".
+
+Клиника: ${referral.clinic?.name || ''}.
+Направляющий врач: ${referral.doctorName || ''}.
+
+Выдай ответ в формате:
+📋 **Показатели:**
+
+| Показатель | Значение | Норма | Отклонение |
+|---|---|---|---|
+| ... | ... | ... | ... |
+
+📝 **Заключение:** (общая оценка результатов)
+
+⚠️ **Рекомендации:** (что проверить / проконсультироваться)
+
+💡 **Предложение:** AI обнаружил следующие изменения. Рекомендуется добавить их в карточку пациента после подтверждения врача.`;
+
+  const aiContent = await simpleChat(prompt, 'Проанализируй лабораторные показатели на русском.', { maxTokens: 1200 });
+
+  // Store AI analysis with indicators flag for doctor review
+  const result = await prisma.diagnosticResult.upsert({
+    where: { referralId },
+    update: {
+      reportText: aiContent,
+      aiGenerated: true,
+      aiSummary: '🔬 Лабораторные показатели извлечены. Требуется подтверждение врача для внесения в карту пациента.',
+    },
+    create: {
+      id: uid(),
+      referralId,
+      reportText: aiContent,
+      aiGenerated: true,
+      aiSummary: '🔬 Лабораторные показатели извлечены. Требуется подтверждение врача для внесения в карту пациента.',
+    },
+  });
+
+  // Notify referring doctor that indicators need review
+  if (referral.doctorId) {
+    await prisma.notification.create({
+      data: {
+        id: uid(),
+        userId: referral.doctorId,
+        type: 'workflow',
+        title: 'AI обнаружил лабораторные данные',
+        message: `Направление #${referralId.slice(0, 8)} — ${referral.patientName}. Показатели извлечены. Проверьте и подтвердите внесение в карту пациента.`,
+        link: `/diagnostics/referrals/${referralId}`,
+      },
     });
   }
 
-  return prisma.diagnosticResult.create({
-    data: { id: uid(), referralId, reportText: aiContent, aiGenerated: true },
-  });
+  return result;
 }
 
 export async function saveAndSignResult(data: {

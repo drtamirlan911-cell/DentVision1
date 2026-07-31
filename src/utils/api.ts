@@ -2297,6 +2297,10 @@ export async function getDiagnosticsDashboard(clinicId?: string): Promise<any> {
   return apiRequest(`/api/diagnostics/dashboard${q}`);
 }
 
+export async function markDiagnosticReferralPaid(id: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/referrals/${id}/mark-paid`, { method: 'POST', body: '{}' });
+}
+
 export async function getDiagnosticsCenterDashboard(centerId: string): Promise<any> {
   return apiRequest(`/api/diagnostics/centers/${centerId}/dashboard`);
 }
