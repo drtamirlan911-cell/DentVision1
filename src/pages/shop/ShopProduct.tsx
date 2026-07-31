@@ -104,19 +104,19 @@ export default function ShopProduct() {
         ownBrand: !!product.ownBrand,
       });
     }
-    toast.success(`��������� ${qty} ${qty === 1 ? '�����' : '������'}`);
+    toast.success(`Добавлено ${qty} ${qty === 1 ? 'товар' : 'товара'}`);
   };
 
   const handleToggleFav = () => {
     if (!product) return;
     toggleFav({ id: product.id, name: product.name, brand: product.brand, price: product.price, rating: product.rating || 0 });
-    toast.success(favActive ? '������ �� ����������' : '��������� � ���������');
+    toast.success(favActive ? 'Удалено из избранного' : 'Добавлено в избранное');
   };
 
   const handleSubmitReview = async () => {
-    if (!user) { toast.error('�������, ����� �������� �����'); return; }
+    if (!user) { toast.error('Войдите, чтобы оставить отзыв'); return; }
     if (!reviewForm.comment.trim() && !reviewForm.pros.trim() && !reviewForm.cons.trim()) {
-      toast.error('�������� ����� ������'); return;
+      toast.error('Напишите текст отзыва'); return;
     }
     setReviewLoading(true);
     try {
@@ -127,11 +127,11 @@ export default function ShopProduct() {
         cons: reviewForm.cons || undefined,
         comment: reviewForm.comment || undefined,
       });
-      toast.success('����� ��������');
+      toast.success('Отзыв отправлен');
       setReviewForm({ rating: 5, pros: '', cons: '', comment: '' });
       api.getShopReviews(id || '').then(setReviews).catch(() => {});
     } catch {
-      toast.error('�� ������� ��������� �����');
+      toast.error('Не удалось отправить отзыв');
     } finally {
       setReviewLoading(false);
     }
@@ -161,23 +161,23 @@ export default function ShopProduct() {
   if (!product) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-20">
-        <EmptyState icon={<Package size={48} />} title="����� �� ������" description="��������� � �������" />
+        <EmptyState icon={<Package size={48} />} title="Товар не найден" description="Вернитесь в каталог" />
       </div>
     );
   }
 
   const tabs = [
-    { key: 'description', label: '��������' },
-    { key: 'specs', label: '��������������' },
-    { key: 'reviews', label: `������ (${reviews.length})` },
-    { key: 'delivery', label: '��������' },
+    { key: 'description', label: 'Описание' },
+    { key: 'specs', label: 'Характеристики' },
+    { key: 'reviews', label: `Отзывы (${reviews.length})` },
+    { key: 'delivery', label: 'Доставка' },
   ];
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-gray-400">
-        <button onClick={() => navigate('/shop')} className="hover:text-dv-gold transition-colors">�����������</button>
+        <button onClick={() => navigate('/shop')} className="hover:text-dv-gold transition-colors">Маркетплейс</button>
         <ChevronRight size={12} />
         {product.category_name && (
           <>
@@ -211,7 +211,7 @@ export default function ShopProduct() {
                 <Badge variant="default" className="bg-dv-gold text-white">DentVision</Badge>
               )}
               {product.stock <= 0 && (
-                <Badge variant="default" className="bg-gray-800 text-white">��� � �������</Badge>
+                <Badge variant="default" className="bg-gray-800 text-white">Нет в наличии</Badge>
               )}
             </div>
           </div>
@@ -245,31 +245,31 @@ export default function ShopProduct() {
                   className={i <= Math.round(product.rating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'} />
               ))}
             </div>
-            <span className="text-sm font-bold text-gray-900">{product.rating?.toFixed(1) || '�'}</span>
-            <span className="text-sm text-gray-400">({product.reviewCount || 0} �������)</span>
+            <span className="text-sm font-bold text-gray-900">{product.rating?.toFixed(1) || '—'}</span>
+            <span className="text-sm text-gray-400">({product.reviewCount || 0} отзывов)</span>
           </div>
 
           {/* Price */}
           <div className="flex items-baseline gap-3">
-            <span className="text-3xl font-bold text-gray-900">{product.price.toLocaleString()} ?</span>
+            <span className="text-3xl font-bold text-gray-900">{product.price.toLocaleString()} ₸</span>
             {hasDiscount && (
-              <span className="text-lg text-gray-400 line-through">{product.oldPrice.toLocaleString()} ?</span>
+              <span className="text-lg text-gray-400 line-through">{product.oldPrice.toLocaleString()} ₸</span>
             )}
           </div>
 
           {/* DentCash */}
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-            <p className="text-sm font-semibold text-emerald-700">������ DentCash ~3% � ? {Math.round(product.price * 0.03).toLocaleString()} ?</p>
-            <p className="text-xs text-emerald-500 mt-0.5">���������� ����� ��������</p>
+            <p className="text-sm font-semibold text-emerald-700">Кэшбэк DentCash ~3% ≈ {Math.round(product.price * 0.03).toLocaleString()} ₸</p>
+            <p className="text-xs text-emerald-500 mt-0.5">Зачисление после доставки</p>
           </div>
 
           {/* Stock */}
           <div className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${product.stock > 0 ? 'bg-emerald-500' : 'bg-red-500'}`} />
             <span className={`text-sm font-medium ${product.stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-              {product.stock > 0 ? `� �������: ${product.stock} ${product.unit || '��'}` : '��� � �������'}
+              {product.stock > 0 ? `В наличии: ${product.stock} ${product.unit || 'шт'}` : 'Нет в наличии'}
             </span>
-            {product.sku && <span className="text-xs text-gray-400 ml-auto">���. {product.sku}</span>}
+            {product.sku && <span className="text-xs text-gray-400 ml-auto">Арт. {product.sku}</span>}
           </div>
 
           {/* Supplier info */}
@@ -277,7 +277,7 @@ export default function ShopProduct() {
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 flex items-center gap-3">
               <Truck size={18} className="text-dv-gold" />
               <div className="text-sm">
-                <span className="text-gray-500">���������: </span>
+                <span className="text-gray-500">Поставщик: </span>
                 <span className="font-semibold text-gray-900">{product.supplier.name}</span>
               </div>
             </div>
@@ -296,7 +296,7 @@ export default function ShopProduct() {
             </div>
             <Button variant="primary" size="lg" className="flex-1" disabled={product.stock <= 0}
               onClick={handleAddToCart}>
-              <ShoppingCart size={16} /> {product.stock > 0 ? '�������� � �������' : '��� � �������'}
+              <ShoppingCart size={16} /> {product.stock > 0 ? 'В корзину' : 'Нет в наличии'}
             </Button>
             <button aria-label="Toggle favorite" onClick={handleToggleFav}
               className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50">
@@ -338,7 +338,7 @@ export default function ShopProduct() {
           {/* Description */}
           {activeTab === 'description' && (
             <div className="prose prose-sm max-w-none text-gray-600 leading-relaxed">
-              {product.description || '��� ��������'}
+              {product.description || 'Нет описания'}
             </div>
           )}
 
@@ -348,14 +348,14 @@ export default function ShopProduct() {
               {/* Template-based specs */}
               {specTemplate.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">��������������</h3>
+                  <h3 className="text-sm font-bold text-gray-900 mb-3">Характеристики</h3>
                   <div className="divide-y divide-gray-50 border border-gray-100 rounded-xl overflow-hidden">
                     {specTemplate.map((tmpl) => {
                       const val = product.specs?.[tmpl.name];
                       return (
                         <div key={tmpl.id} className="flex justify-between py-2.5 px-4 text-sm bg-white">
                           <span className="text-gray-500">{tmpl.name}</span>
-                          <span className="font-medium text-gray-900">{val ?? '�'}{tmpl.unit ? ` ${tmpl.unit}` : ''}</span>
+                          <span className="font-medium text-gray-900">{val ?? '—'}{tmpl.unit ? ` ${tmpl.unit}` : ''}</span>
                         </div>
                       );
                     })}
@@ -365,7 +365,7 @@ export default function ShopProduct() {
               {/* Raw specs */}
               {specsMap.length > 0 && specTemplate.length === 0 && (
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">��������������</h3>
+                  <h3 className="text-sm font-bold text-gray-900 mb-3">Характеристики</h3>
                   <div className="divide-y divide-gray-50 border border-gray-100 rounded-xl overflow-hidden">
                     {specsMap.map((s) => (
                       <div key={s.label} className="flex justify-between py-2.5 px-4 text-sm bg-white">
@@ -378,17 +378,17 @@ export default function ShopProduct() {
               )}
               {/* Product info fields */}
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-3">����� ����������</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">Про товар</h3>
                 <div className="divide-y divide-gray-50 border border-gray-100 rounded-xl overflow-hidden">
                   {[
-                    ['�����', product.brand],
-                    ['�������', product.sku],
-                    ['���������', product.category_name],
-                    ['������ ������������', product.country],
-                    ['�������������', product.manufacturer],
-                    ['���', product.weight ? `${product.weight} ��` : null],
-                    ['������� ���������', product.unit],
-                    ['���� ��������', product.expiryDate ? new Date(product.expiryDate).toLocaleDateString('ru-RU') : null],
+                    ['Бренд', product.brand],
+                    ['Артикул', product.sku],
+                    ['Категория', product.category_name],
+                    ['Страна производства', product.country],
+                    ['Производитель', product.manufacturer],
+                    ['Вес', product.weight ? `${product.weight} г` : null],
+                    ['Единица измерения', product.unit],
+                    ['Срок годности', product.expiryDate ? new Date(product.expiryDate).toLocaleDateString('ru-RU') : null],
                   ].filter(([_, v]) => v).map(([label, value]) => (
                     <div key={String(label)} className="flex justify-between py-2.5 px-4 text-sm bg-white">
                       <span className="text-gray-500">{String(label)}</span>
@@ -405,7 +405,7 @@ export default function ShopProduct() {
             <div className="space-y-6">
               {/* Review Form */}
               <div className="bg-gray-50 border border-gray-100 rounded-xl p-5">
-                <h4 className="text-sm font-bold text-gray-900 mb-3">�������� �����</h4>
+                <h4 className="text-sm font-bold text-gray-900 mb-3">Оставить отзыв</h4>
                 {user ? (
                   <>
                     <div className="flex items-center gap-1 mb-3">
@@ -417,17 +417,17 @@ export default function ShopProduct() {
                       ))}
                     </div>
                     <input value={reviewForm.pros} onChange={e => setReviewForm(p => ({ ...p, pros: e.target.value }))}
-                      placeholder="�����" className="!rounded-lg !mb-2" />
+                      placeholder="Плюсы" className="!rounded-lg !mb-2" />
                     <input value={reviewForm.cons} onChange={e => setReviewForm(p => ({ ...p, cons: e.target.value }))}
-                      placeholder="������" className="!rounded-lg !mb-2" />
+                      placeholder="Минусы" className="!rounded-lg !mb-2" />
                     <textarea value={reviewForm.comment} onChange={e => setReviewForm(p => ({ ...p, comment: e.target.value }))}
-                      placeholder="��� �����" rows={3} className="!rounded-lg !mb-3" />
+                      placeholder="Ваш отзыв" rows={3} className="!rounded-lg !mb-3" />
                     <Button variant="primary" size="sm" onClick={handleSubmitReview} disabled={reviewLoading}>
-                      {reviewLoading ? '��������...' : '��������� �����'}
+                      {reviewLoading ? 'Отправка...' : 'Отправить отзыв'}
                     </Button>
                   </>
                 ) : (
-                  <p className="text-sm text-gray-400">������� � �������, ����� �������� �����</p>
+                  <p className="text-sm text-gray-400">Войдите в аккаунт, чтобы оставить отзыв</p>
                 )}
               </div>
 
@@ -440,7 +440,7 @@ export default function ShopProduct() {
                         {review.user?.name?.[0] || '?'}
                       </div>
                       <div>
-                        <span className="text-sm font-semibold text-gray-900">{review.user?.name || '������������'}</span>
+                        <span className="text-sm font-semibold text-gray-900">{review.user?.name || 'Пользователь'}</span>
                         <div className="flex gap-0.5 mt-0.5">
                           {[1, 2, 3, 4, 5].map((j) => (
                             <Star key={j} size={10} className={j <= review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'} />
@@ -458,7 +458,7 @@ export default function ShopProduct() {
                 </div>
               )) : (
                 <EmptyState icon={<MessageSquare size={36} className="text-gray-200" />}
-                  title="���� ��� �������" description="������ ������, ��� ������� �����" />
+                  title="Отзывов пока нет" description="Будьте первым, кто оставит отзыв" />
               )}
             </div>
           )}
@@ -467,9 +467,9 @@ export default function ShopProduct() {
           {activeTab === 'delivery' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
-                { icon: Truck, title: '���������', desc: '�� ������� DentVision. ���������.' },
-                { icon: MapPin, title: '�������� ��������', desc: '�� ������ �� 1-3 ���. ��������� ������� �� ����.' },
-                { icon: Clock, title: '��������� ������', desc: '� ������� 1 �������� ��� ����� ������.' },
+                { icon: Truck, title: 'Доставка', desc: 'Отправляем со склада DentVision. Гарантия подлинности.' },
+                { icon: MapPin, title: 'Курьер по городу', desc: 'По городу за 1-3 часа. Привезём заказ на дом.' },
+                { icon: Clock, title: 'Быстрая доставка', desc: 'В течение 1 рабочего дня после заказа.' },
               ].map((item, i) => (
                 <div key={i} className="flex gap-3.5 p-4 bg-gray-50 rounded-xl">
                   <div className="w-10 h-10 rounded-xl bg-dv-gold/10 flex items-center justify-center shrink-0">
@@ -489,7 +489,7 @@ export default function ShopProduct() {
       {/* Related Products */}
       {relatedProducts.length > 0 && (
         <section>
-          <h3 className="text-lg font-bold text-gray-900 mb-4">������� ������</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">Похожие товары</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {relatedProducts.slice(0, 8).map((rel: any) => {
               const imgUrl = rel.imageUrl || null;
@@ -506,7 +506,7 @@ export default function ShopProduct() {
                   </div>
                   <p className="text-[11px] text-dv-gold font-semibold">{rel.brand || ''}</p>
                   <p className="text-sm font-bold text-gray-900 truncate">{rel.name}</p>
-                  <p className="text-sm font-bold text-gray-900 mt-1">{rel.price.toLocaleString()} ?</p>
+                  <p className="text-sm font-bold text-gray-900 mt-1">{rel.price.toLocaleString()} ₸</p>
                 </motion.div>
               );
             })}
