@@ -397,11 +397,23 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
 
   const update: any = { status };
   if (status === 'ACCEPTED' || status === 'IN_PROGRESS') {
-    if (cost !== undefined) {
-      update.cost = cost;
-      // Platform commission: 10% of cost, enforced (never optional)
-      update.platformFee = platformFee !== undefined ? platformFee : Math.round(Number(cost) * 0.1);
+    // Auto-populate cost from center's own price list (platform knows the price)
+    let resolvedCost = cost;
+    if (resolvedCost === undefined && referral.centerId && referral.studyType) {
+      try {
+        const study = await prisma.diagnosticStudy.findFirst({
+          where: { centerId: referral.centerId, active: true, name: { contains: referral.studyType, mode: 'insensitive' } },
+          select: { price: true },
+        });
+        if (study?.price) resolvedCost = Number(study.price);
+      } catch { /* use whatever center provided */ }
     }
+    if (resolvedCost === undefined) {
+      throw new Error('Укажите стоимость исследования или установите цену в прайс-листе центра.');
+    }
+    update.cost = resolvedCost;
+    // Platform fee: 10% of cost — always enforced
+    update.platformFee = platformFee !== undefined ? platformFee : Math.round(Number(resolvedCost) * 0.1);
   }
   if (status === 'COMPLETED') update.completedAt = new Date();
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }

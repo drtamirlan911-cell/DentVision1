@@ -635,6 +635,27 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res)
 // ─── Center Subscription ───
 
 diagnosticsRouter.get('/centers/:id/subscription', async (req: AuthRequest, res) => {
+
+// ─── Quick price lookup ───
+
+diagnosticsRouter.get('/centers/:id/study-price', async (req: AuthRequest, res) => {
+  try {
+    const studyName = req.query.study as string;
+    if (!studyName) return res.status(400).json({ ok: false, error: 'study query required' } as any);
+    const study = await (prisma as any).diagnosticStudy.findFirst({
+      where: { centerId: req.params.id as string, active: true, name: { contains: studyName, mode: 'insensitive' } },
+      select: { id: true, name: true, price: true },
+    });
+    if (!study) return res.json({ ok: true, data: { name: studyName, price: null, message: 'Цена не установлена' } } as any);
+    return res.json({ ok: true, data: study } as any);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } as any);
+  }
+});
+
+// ─── Center Subscription ───
+
+diagnosticsRouter.get('/centers/:id/subscription', async (req: AuthRequest, res) => {
   try {
     const data = await svc.getCenterSubscription(req.params.id as string);
     return res.json({ ok: true, data: data || { status: 'trial', amountMonthly: 20000 } } satisfies ApiResponse);
