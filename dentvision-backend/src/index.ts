@@ -70,8 +70,156 @@ async function main() {
     console.error('[MIGRATION] Product shared_id failed (non-fatal):', err);
   }
 
+  // Ensure marketplace tables exist (init_full_schema migration may have failed)
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "shop_categories" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        description TEXT,
+        icon TEXT,
+        image_url TEXT,
+        sort_order INT DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        parent_id UUID,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "products" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        brand TEXT,
+        category TEXT,
+        category_id UUID,
+        price INT NOT NULL DEFAULT 0,
+        old_price INT,
+        stock INT DEFAULT 0,
+        min_stock INT DEFAULT 0,
+        description TEXT,
+        image_url TEXT,
+        images JSONB,
+        rating DOUBLE PRECISION DEFAULT 4.5,
+        review_count INT DEFAULT 0,
+        supplier_id UUID,
+        own_brand BOOLEAN DEFAULT false,
+        sku TEXT,
+        unit TEXT,
+        currency TEXT DEFAULT 'KZT',
+        tags JSONB,
+        specs JSONB,
+        weight DOUBLE PRECISION,
+        manufacturer TEXT,
+        country TEXT,
+        is_active BOOLEAN DEFAULT true,
+        compatibility TEXT,
+        seo_title TEXT,
+        seo_description TEXT,
+        video_url TEXT,
+        model3d_url TEXT,
+        expiry_date TIMESTAMPTZ,
+        shared_product_id UUID,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "suppliers" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        kind TEXT DEFAULT 'SUPPLIER',
+        status TEXT DEFAULT 'pending',
+        email TEXT,
+        phone TEXT,
+        city TEXT,
+        legal_address TEXT,
+        description TEXT,
+        logo TEXT,
+        rating DOUBLE PRECISION DEFAULT 0,
+        review_count INT DEFAULT 0,
+        order_count INT DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        commission_rate INT DEFAULT 500,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "delivery_zones" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        supplier_id UUID NOT NULL,
+        name TEXT NOT NULL,
+        cities JSONB DEFAULT '[]',
+        cost INT DEFAULT 0,
+        free_from INT,
+        estimated_days INT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "orders" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        clinic_id UUID,
+        user_id UUID NOT NULL,
+        items JSONB DEFAULT '[]',
+        status TEXT DEFAULT 'pending',
+        total INT DEFAULT 0,
+        meta JSONB,
+        delivery_address TEXT,
+        delivery_method TEXT,
+        delivery_cost INT DEFAULT 0,
+        payment_method TEXT,
+        payment_status TEXT DEFAULT 'pending',
+        recipient_name TEXT,
+        recipient_phone TEXT,
+        supplier_id UUID,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "favorites" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        product_id UUID NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        UNIQUE(user_id, product_id)
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "shop_reviews" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id UUID NOT NULL,
+        user_id UUID NOT NULL,
+        rating INT NOT NULL DEFAULT 5,
+        pros TEXT,
+        cons TEXT,
+        comment TEXT,
+        images JSONB,
+        is_approved BOOLEAN DEFAULT true,
+        helpful_count INT DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ
+      )
+    `);
+    console.log('[MIGRATION] Marketplace tables ready');
+  } catch (err) {
+    console.error('[MIGRATION] Marketplace tables failed (non-fatal):', err);
+  }
+
   // Seed marketplace catalog
   try {
+    // Ensure DentVision supplier exists
+    const supCount = await prisma.$queryRawUnsafe<Array<{ cnt: number }>>(`SELECT COUNT(*)::int as cnt FROM "suppliers"`);
+    if (supCount[0].cnt === 0) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "suppliers" (id, name, kind, status, email, phone, city, legal_address, description, rating, commission_rate, is_active) VALUES (gen_random_uuid(), 'DentVision', 'DISTRIBUTOR', 'official_partner', 'supplier@dentvision.kz', '+7 727 123 45 67', 'Алматы', 'ул. Абая 150, офис 301', 'Официальный поставщик стоматологических материалов и оборудования DentVision', 4.8, 500, true) ON CONFLICT DO NOTHING`
+      );
+      console.log('[SEED] DentVision supplier created');
+    }
+
     const catCount = await prisma.$queryRawUnsafe<Array<{ cnt: number }>>(`SELECT COUNT(*)::int as cnt FROM "shop_categories"`);
     if (catCount[0].cnt === 0) {
       const categories = [
