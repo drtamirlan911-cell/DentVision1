@@ -58,7 +58,10 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
       if (isAuthenticated) {
         void handleDemo();
       } else {
-        void handleQuickDemoLogin();
+        // Guests never enter a shared seeded account. They register first,
+        // then get their own private demo clinic via createDemoClinic().
+        setPendingAction('demo');
+        setStep('auth');
       }
       return;
     }
@@ -76,32 +79,6 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
     }
   };
 
-  /** Seeded demo clinic (owner@) — one tap into live CRM without registration. */
-  const handleQuickDemoLogin = async () => {
-    setDemoLoading(true);
-    setError('');
-    const demoLogin = String(import.meta.env.VITE_DEMO_LOGIN || 'owner@dentvision.kz').trim();
-    const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || 'Demo1234!').trim();
-    try {
-      await login(demoLogin, demoPassword);
-      toast.success('Демо-клиника открыта');
-      handleClose();
-      navigate('/crm/schedule');
-    } catch (err) {
-      // Fall back to manual auth → createDemoClinic flow with a clear message
-      const msg = err instanceof Error ? err.message : '';
-      setError(
-        msg.includes('401') || /неверн|invalid|password|парол/i.test(msg)
-          ? 'Демо-аккаунт недоступен на этом окружении. Войдите своим логином или зарегистрируйтесь — затем нажмите «Демо».'
-          : 'Не удалось открыть демо. Войдите или зарегистрируйтесь, затем попробуйте снова.',
-      );
-      setPendingAction('demo');
-      setStep('auth');
-    } finally {
-      setDemoLoading(false);
-    }
-  };
-
   React.useEffect(() => {
     if (!open) {
       autoStartedRef.current = false;
@@ -109,7 +86,9 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
     }
     if (autoStartDemo && !autoStartedRef.current) {
       autoStartedRef.current = true;
-      void handleQuickDemoLogin();
+      // Guest "Открыть демо-клинику" → register first, then create own demo clinic.
+      setPendingAction('demo');
+      setStep('auth');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when modal opens with autoStartDemo
   }, [open, autoStartDemo]);
@@ -264,10 +243,14 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                     </button>
 
                     <h2 className="text-lg font-bold text-white m-0 mb-1">
-                      {isRegister ? 'Регистрация' : 'Вход в аккаунт'}
+                      {pendingAction === 'demo'
+                        ? (isRegister ? 'Регистрация' : 'Вход')
+                        : (isRegister ? 'Регистрация' : 'Вход в аккаунт')}
                     </h2>
                     <p className="text-xs text-[#7A8899] m-0 mb-4">
-                      {isRegister ? 'Создайте аккаунт для доступа к CRM' : 'Войдите, чтобы продолжить'}
+                      {pendingAction === 'demo'
+                        ? 'Войдите или зарегистрируйтесь — мы создадим для вас персональную демо-клинику с готовыми данными.'
+                        : (isRegister ? 'Создайте аккаунт для доступа к CRM' : 'Войдите, чтобы продолжить')}
                     </p>
 
                     <div className="space-y-3">
