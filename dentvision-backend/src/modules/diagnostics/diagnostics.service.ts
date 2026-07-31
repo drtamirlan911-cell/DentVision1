@@ -5,6 +5,44 @@ import { simpleChat } from '../ai/llm/client.js';
 import { publish } from '../../lib/events.js';
 import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 
+// ─── Center Subscription ───
+
+export async function ensureCenterSubscription(centerId: string) {
+  try {
+    const existing = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, status, paid_until FROM "center_subscriptions" WHERE center_id = $1`, centerId
+    );
+    if (existing.length === 0) {
+      // Auto-create trial subscription (30 days free)
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "center_subscriptions" (center_id, status, trial_end) VALUES ($1, 'trial', now() + interval '30 days')`, centerId
+      );
+      return { active: true, status: 'trial' as const };
+    }
+    const sub = existing[0];
+    const paidUntil = sub.paid_until ? new Date(sub.paid_until) : null;
+    const trialEnd = paidUntil; // simplified: paid_until is the expiration
+    if (trialEnd && new Date() > trialEnd && sub.status === 'active') {
+      await prisma.$executeRawUnsafe(`UPDATE "center_subscriptions" SET status = 'expired' WHERE id = $1`, sub.id);
+      return { active: false, status: 'expired' as const };
+    }
+    return { active: sub.status === 'active' || sub.status === 'trial', status: sub.status as string };
+  } catch {
+    return { active: true, status: 'trial' as const }; // fail open if table missing
+  }
+}
+
+export async function getCenterSubscription(centerId: string) {
+  try {
+    const result = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT * FROM "center_subscriptions" WHERE center_id = $1`, centerId
+    );
+    return result[0] || null;
+  } catch { return null; }
+}
+
+const DIAGNOSTIC_COMMISSION_BPS = 1000; // 10%
+
 // ─── Centers ───
 
 export async function listCenters(search?: string, city?: string) {
@@ -321,10 +359,24 @@ export async function updateReferral(id: string, data: any, userId: string) {
 }
 
 export async function changeReferralStatus(id: string, status: ReferralStatus, userId: string, reason?: string, cost?: number, platformFee?: number) {
+  const referral = await prisma.referral.findUnique({ where: { id } });
+  if (!referral) throw new Error('Referral not found');
+
+  // Enforce center subscription check when accepting referrals
+  if (status === 'ACCEPTED' && referral.centerId) {
+    const sub = await ensureCenterSubscription(referral.centerId);
+    if (!sub.active) {
+      throw new Error('Подписка диагностического центра истекла. Для приёма направлений требуется активная подписка (20 000 ₸/мес).');
+    }
+  }
+
   const update: any = { status };
   if (status === 'ACCEPTED' || status === 'IN_PROGRESS') {
-    if (cost !== undefined) update.cost = cost;
-    if (platformFee !== undefined) update.platformFee = platformFee;
+    if (cost !== undefined) {
+      update.cost = cost;
+      // Platform commission: 10% of cost, enforced (never optional)
+      update.platformFee = platformFee !== undefined ? platformFee : Math.round(Number(cost) * 0.1);
+    }
   }
   if (status === 'COMPLETED') update.completedAt = new Date();
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }

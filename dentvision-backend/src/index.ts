@@ -42,6 +42,25 @@ async function main() {
     console.error('[MIGRATION] Patient.iin failed (non-fatal):', err);
   }
 
+  // Diagnostic center subscriptions
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "center_subscriptions" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        center_id UUID NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'trial',
+        trial_end TIMESTAMPTZ DEFAULT (now() + interval '30 days'),
+        amount_monthly INT NOT NULL DEFAULT 20000,
+        paid_until TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    console.log('[MIGRATION] Center subscription table ready');
+  } catch (err) {
+    console.error('[MIGRATION] Center subscription table failed (non-fatal):', err);
+  }
+
   // School content tables
   try {
     await prisma.$executeRawUnsafe(`

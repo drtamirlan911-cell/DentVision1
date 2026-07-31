@@ -594,6 +594,34 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res)
   }
 });
 
+// ─── Center Subscription ───
+
+diagnosticsRouter.get('/centers/:id/subscription', async (req: AuthRequest, res) => {
+  try {
+    const data = await svc.getCenterSubscription(req.params.id as string);
+    return res.json({ ok: true, data: data || { status: 'trial', amountMonthly: 20000 } } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.post('/centers/:id/subscription/activate', async (req: AuthRequest, res) => {
+  try {
+    const centerId = req.params.id as string;
+    const months = Math.max(1, parseInt(req.body?.months || '1'));
+    await svc.ensureCenterSubscription(centerId);
+    // Extend subscription by months * 30 days from today
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "center_subscriptions" SET status = 'active', paid_until = greatest(coalesce(paid_until, now()), now()) + interval '1 day' * $2 WHERE center_id = $1`,
+      centerId, months * 30
+    );
+    const sub = await svc.getCenterSubscription(centerId);
+    return res.json({ ok: true, data: sub } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
 // ─── Center Dashboard ───
 
 diagnosticsRouter.get('/centers/:id/dashboard', async (req: AuthRequest, res) => {
