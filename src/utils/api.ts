@@ -1551,10 +1551,10 @@ export async function markAllNotificationsRead(): Promise<any> {
 }
 
 // ─── Shop content management (superadmin) ───
-export async function createShopCategory(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteShopCategory(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function createShopSupplier(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteShopSupplier(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function createShopCategory(data: any): Promise<any> { return apiRequest('/api/shop/categories', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteShopCategory(id: string): Promise<any> { return apiRequest(`/api/shop/categories/${id}`, { method: 'DELETE' }); }
+export async function createShopSupplier(data: any): Promise<any> { return apiRequest('/api/shop/suppliers', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteShopSupplier(id: string): Promise<any> { return apiRequest(`/api/shop/suppliers/${id}`, { method: 'DELETE' }); }
 export async function createShopProduct(data: any): Promise<any> { return apiRequest('/api/shop/products', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateShopProduct(id: string, data: any): Promise<any> { return apiRequest(`/api/shop/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
 export async function deleteShopProduct(id: string): Promise<any> { return apiRequest(`/api/shop/products/${id}`, { method: 'DELETE' }); }
@@ -1563,10 +1563,10 @@ export async function deleteShopProduct(id: string): Promise<any> { return apiRe
 export async function createSchoolCourse(data: any): Promise<any> { return apiRequest('/api/school/courses', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateSchoolCourse(id: string, data: any): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function deleteSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'DELETE' }); }
-export async function createSchoolClinicalCase(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteSchoolClinicalCase(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function createSchoolLibraryItem(data: any): Promise<any> { return Promise.resolve({ ok: true }); }
-export async function deleteSchoolLibraryItem(id: string): Promise<any> { return Promise.resolve({ ok: true }); }
+export async function createSchoolClinicalCase(data: any): Promise<any> { return apiRequest('/api/school/clinical-cases', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteSchoolClinicalCase(id: string): Promise<any> { return apiRequest(`/api/school/clinical-cases/${id}`, { method: 'DELETE' }); }
+export async function createSchoolLibraryItem(data: any): Promise<any> { return apiRequest('/api/school/library', { method: 'POST', body: JSON.stringify(data) }); }
+export async function deleteSchoolLibraryItem(id: string): Promise<any> { return apiRequest(`/api/school/library/${id}`, { method: 'DELETE' }); }
 
 // ─── User Professional Profile (LinkedIn-style) ───
 export async function getMyProfile(): Promise<any> {
@@ -1646,7 +1646,14 @@ async function biRequest(path: string, options: RequestInit = {}): Promise<any> 
   };
   if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  if (res.status === 401 && _refreshToken) {
+    try {
+      const newToken = await refreshAccessToken();
+      headers['Authorization'] = `Bearer ${newToken}`;
+      res = await fetch(`${API_URL}${path}`, { ...options, headers });
+    } catch { /* proceed to throw below */ }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) return data.data;
@@ -1662,7 +1669,14 @@ async function opsRequest(path: string, options: RequestInit = {}): Promise<any>
   if (opsKey) headers['X-Platform-Ops-Key'] = opsKey;
   if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  if (res.status === 401 && _refreshToken) {
+    try {
+      const newToken = await refreshAccessToken();
+      headers['Authorization'] = `Bearer ${newToken}`;
+      res = await fetch(`${API_URL}${path}`, { ...options, headers });
+    } catch { /* proceed to throw below */ }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) return data.data;

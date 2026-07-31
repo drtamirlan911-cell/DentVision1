@@ -770,4 +770,44 @@ schoolRouter.post('/homework/review', authenticate, async (req: AuthRequest, res
   }
 });
 
+// ─── Clinical Cases CRUD ───
+schoolRouter.post('/clinical-cases', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { title, description, category, difficulty, image_url, content } = req.body || {};
+    if (!title) return res.status(400).json({ ok: false, error: 'Title required' });
+    const rows = await prisma.$queryRawUnsafe<any[]>(
+      `INSERT INTO "school_clinical_cases" (title, description, category, difficulty, image_url, content) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      title, description || null, category || null, difficulty || 'intermediate', image_url || null, content ? JSON.stringify(content) : null,
+    );
+    res.status(201).json({ ok: true, data: rows[0] });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to create clinical case' }); }
+});
+
+schoolRouter.delete('/clinical-cases/:id', authenticate, async (req: AuthRequest, res) => {
+  try {
+    await prisma.$executeRawUnsafe(`DELETE FROM "school_clinical_cases" WHERE id = $1`, req.params.id as string);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to delete clinical case' }); }
+});
+
+// ─── Library Items CRUD ───
+schoolRouter.post('/library', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { title, description, author, category, type, url } = req.body || {};
+    if (!title) return res.status(400).json({ ok: false, error: 'Title required' });
+    const rows = await prisma.$queryRawUnsafe<any[]>(
+      `INSERT INTO "school_library_items" (title, description, author, category, type, url) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      title, description || null, author || null, category || null, type || 'article', url || null,
+    );
+    res.status(201).json({ ok: true, data: rows[0] });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to create library item' }); }
+});
+
+schoolRouter.delete('/library/:id', authenticate, async (req: AuthRequest, res) => {
+  try {
+    await prisma.$executeRawUnsafe(`DELETE FROM "school_library_items" WHERE id = $1`, req.params.id as string);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to delete library item' }); }
+});
+
 export { schoolRouter };

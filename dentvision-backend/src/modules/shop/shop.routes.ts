@@ -757,4 +757,35 @@ shopRouter.post('/product-presets/seed', async (_req, res) => {
   }
 });
 
+// ─── CATEGORIES CRUD ───
+
+shopRouter.post('/categories', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { name, description, icon } = req.body || {};
+    if (!name) return res.status(400).json({ ok: false, error: 'Название обязательно' });
+    const slug = (req.body.slug as string) || name.toLowerCase().replace(/\s+/g, '-');
+    const cat = await prisma.shopCategory.create({
+      data: { id: uid(), name, slug, description: description || null, icon: icon || null },
+    });
+    res.status(201).json({ ok: true, data: cat });
+  } catch (e: any) {
+    if (e.code === 'P2002') return res.status(409).json({ ok: false, error: 'Категория с таким slug уже существует' });
+    res.status(500).json({ ok: false, error: 'Failed to create category' });
+  }
+});
+
+shopRouter.delete('/categories/:id', authenticate, async (req: AuthRequest, res) => {
+  try {
+    await prisma.shopCategory.delete({ where: { id: req.params.id as string } });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(e.code === 'P2025' ? 404 : 500).json({ ok: false, error: 'Failed to delete category' }); }
+});
+
+shopRouter.get('/categories', async (_req, res) => {
+  try {
+    const cats = await prisma.shopCategory.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
+    res.json({ ok: true, data: cats });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Failed to list categories' }); }
+});
+
 export { shopRouter };

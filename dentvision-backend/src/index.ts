@@ -42,6 +42,37 @@ async function main() {
     console.error('[MIGRATION] Patient.iin failed (non-fatal):', err);
   }
 
+  // School content tables
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "school_clinical_cases" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        description TEXT,
+        category TEXT,
+        difficulty TEXT DEFAULT 'intermediate',
+        image_url TEXT,
+        content JSONB,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "school_library_items" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        description TEXT,
+        author TEXT,
+        category TEXT,
+        type TEXT DEFAULT 'article',
+        url TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    console.log('[MIGRATION] School content tables ready');
+  } catch (err) {
+    console.error('[MIGRATION] School content tables failed (non-fatal):', err);
+  }
+
   // Initialize Event Bus
   try {
     await eventBus.connect();
