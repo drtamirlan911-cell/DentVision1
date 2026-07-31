@@ -632,10 +632,6 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res)
   }
 });
 
-// ─── Center Subscription ───
-
-diagnosticsRouter.get('/centers/:id/subscription', async (req: AuthRequest, res) => {
-
 // ─── Quick price lookup ───
 
 diagnosticsRouter.get('/centers/:id/study-price', async (req: AuthRequest, res) => {
