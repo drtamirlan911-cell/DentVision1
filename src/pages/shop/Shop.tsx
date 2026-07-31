@@ -97,7 +97,11 @@ export default function Shop() {
         api.getShopDeliveryPreview(ids).then((preview: any) => {
           const map: Record<string, any> = {};
           (Array.isArray(preview) ? preview : preview?.data || []).forEach((d: any) => {
-            if (d.productId) map[d.productId] = d;
+            if (d.productId) map[d.productId] = {
+              cost: d.deliveryCost ?? d.cost ?? 0,
+              freeFrom: d.freeFrom ?? null,
+              days: d.estimatedDays ?? d.days ?? null,
+            };
           });
           setDeliveryMap(map);
         }).catch(() => {});
