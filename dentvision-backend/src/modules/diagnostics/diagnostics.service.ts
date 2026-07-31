@@ -225,14 +225,27 @@ export async function grantDiagnosticsAccess(
 
     const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Участник';
     const originalType = type === 'DiagnosticCenter' ? 'DiagnosticCenterMember' : 'LaboratoryMember';
-    const person = await prisma.person.upsert({
-      where: { originalType_originalId: { originalType, originalId: `${entityId}:${userId}` } },
-      update: { fullName, personType: 'STAFF', organizationId: org.id, userId: user.id },
-      create: {
-        id: uid(), fullName, personType: 'STAFF', organizationId: org.id, userId: user.id,
-        originalType, originalId: `${entityId}:${userId}`,
-      },
-    });
+    // Person.userId is globally unique — reuse an existing Person for this user
+    // instead of creating a second one (unique(userId) would otherwise fail).
+    let person = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
+    if (!person) {
+      person = await prisma.person.findFirst({
+        where: { originalType, originalId: `${entityId}:${userId}` },
+      });
+    }
+    if (person) {
+      person = await prisma.person.update({
+        where: { id: person.id },
+        data: { fullName, personType: 'STAFF', organizationId: org.id, originalType, originalId: `${entityId}:${userId}` },
+      });
+    } else {
+      person = await prisma.person.create({
+        data: {
+          id: uid(), fullName, personType: 'STAFF', organizationId: org.id, userId: user.id,
+          originalType, originalId: `${entityId}:${userId}`,
+        },
+      });
+    }
 
     const dbRole = await prisma.role.findUnique({ where: { key: 'org_admin' } });
     if (dbRole) {

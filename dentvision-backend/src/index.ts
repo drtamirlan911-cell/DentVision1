@@ -871,7 +871,7 @@ async function main() {
       let seeded = 0;
       for (const tpl of LEGAL_SEED_TEMPLATES) {
         const exists = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
-          `SELECT id FROM "legal_templates" WHERE type = $1 LIMIT 1`, tpl.type,
+          `SELECT id FROM "legal_templates" WHERE type = $1::"TemplateType" LIMIT 1`, tpl.type,
         );
         if (exists.length > 0) continue;
         const inserted = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
