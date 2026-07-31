@@ -139,6 +139,12 @@ export async function approveRegistrationRequest(id: string, reviewerId: string)
         active: true,
       },
     });
+    // Auto-add the superadmin who approved this as center admin (so center has an owner)
+    try {
+      await prisma.diagnosticCenterMember.create({
+        data: { id: uid(), centerId, userId: reviewerId, role: 'admin' },
+      });
+    } catch { /* member may already exist */ }
     await syncOrgFromEntity('DiagnosticCenter', centerId, { name: req.name, city: req.city, address: req.address, phone: req.phone, email: req.email });
   } else {
     const labId = uid();
@@ -149,6 +155,11 @@ export async function approveRegistrationRequest(id: string, reviewerId: string)
         active: true,
       },
     });
+    try {
+      await prisma.laboratoryMember.create({
+        data: { id: uid(), labId, userId: reviewerId, role: 'admin' },
+      });
+    } catch { /* member may already exist */ }
     await syncOrgFromEntity('Laboratory', labId, { name: req.name, city: req.city, address: req.address, phone: req.phone, email: req.email });
   }
 
