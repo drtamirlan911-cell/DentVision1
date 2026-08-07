@@ -15,6 +15,14 @@ export default {
           'gold-dim': '#8B6F3E',
           'gold-muted': 'rgba(201, 169, 110, 0.15)',
         },
+        // Brand palette sampled from the DentVision logo
+        brand: {
+          navy: '#1C3E6B',
+          'navy-ink': '#121A37',
+          teal: '#2AA4B4',
+          'teal-text': '#157594',
+          cyan: '#54CFE0',
+        },
         // Surface hierarchy (CSS vars — switch with html.dark / html.light)
         surface: {
           0: 'var(--dv-surface-0)',

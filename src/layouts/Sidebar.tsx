@@ -16,6 +16,7 @@ import * as api from '@/utils/api';
 import { useAuth, canManageClinicSettings } from '@/store/auth.store';
 import { useGuestStore } from '@/store/guest.store';
 import { canAccessPage } from '@/lib/roleAccess';
+import { Logo } from '@/components/brand';
 import type { User as UserType, RoleInfo } from '@/types';
 
 interface NavItem {
@@ -399,21 +400,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       >
         <div className={cn('flex items-center min-w-0', collapsed ? 'justify-center' : 'gap-2.5')}>
-          <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-            style={{
-              background: 'linear-gradient(145deg, var(--dv-sidebar-brand-bg), rgba(201,169,110,0.08))',
-              boxShadow: 'inset 0 0 0 1px var(--dv-sidebar-brand-border), 0 4px 16px rgba(201,169,110,0.12)',
-            }}
-          >
-            <Stethoscope size={17} className="text-dv-gold" strokeWidth={1.75} />
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <h1 className="text-[13px] font-bold text-dv-gold tracking-tight truncate leading-tight">DentVision</h1>
-              <p className="text-[10px] text-txt-muted truncate leading-tight mt-0.5">SuperApp</p>
-            </div>
-          )}
+          <Logo
+            variant={collapsed ? 'icon' : 'compact'}
+            height={collapsed ? 34 : 30}
+            responsive={false}
+            title="DentVision"
+          />
         </div>
         {!isGuest && (
           <button

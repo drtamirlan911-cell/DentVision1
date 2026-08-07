@@ -6,13 +6,13 @@ import { useAuth } from '@/store/auth.store'
 import { Button, Input } from '@/components/ui/ds'
 import { cn } from '@/lib/utils'
 import {
-  Stethoscope,
   Eye,
   EyeOff,
   AlertTriangle,
   Check,
   LogIn,
 } from 'lucide-react'
+import { Logo } from '@/components/brand'
 import Register from './Register'
 
 const containerVariants: Variants = {
@@ -162,14 +162,8 @@ export default function Login() {
         >
           <motion.div variants={itemVariants} transition={easing} className="text-center">
             <div className="mb-3 flex justify-center">
-              <div className="relative">
-                <div className="absolute inset-0 bg-dv-gold/20 blur-2xl rounded-full" />
-                <Stethoscope size={44} className="relative text-dv-gold drop-shadow-[0_4px_12px_rgba(201,169,110,0.4)]" />
-              </div>
+              <Logo variant="full" height={54} responsive={false} title="DentVision" />
             </div>
-            <h1 className="font-serif text-[28px] font-bold text-txt-primary tracking-tight">
-              DentVision
-            </h1>
             <p className="text-xs text-txt-muted mt-1.5 max-w-[240px] mx-auto leading-relaxed">
               CRM-система для стоматологических клиник
             </p>
