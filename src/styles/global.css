@@ -43,6 +43,17 @@
     --dv-sidebar-brand-border: rgba(201,169,110,0.35);
     --dv-sidebar-glow-gold: rgba(201,169,110,0.45);
     --dv-sidebar-glow-blue: rgba(56,189,248,0.35);
+    /* Brand / logo tokens (defaults tuned for dark surfaces) */
+    --brand-navy: #1C3E6B;
+    --brand-teal: #2AA4B4;
+    --brand-cyan: #54CFE0;
+    --logo-max-width: 12rem;
+    --logo-safe-area: 0.4em;
+    --logo-from: #7DB4D8;
+    --logo-to: #6FE3F0;
+    --logo-ink: #EAF2F8;
+    --logo-accent: #57CFE0;
+    --logo-muted: #9FB0C0;
   }
 
   html[data-shell='compact'] {
@@ -86,6 +97,12 @@
     --dv-sidebar-brand-border: rgba(201,169,110,0.25);
     --dv-sidebar-glow-gold: rgba(201,169,110,0.20);
     --dv-sidebar-glow-blue: rgba(56,189,248,0.15);
+    /* Brand / logo tokens on light surfaces: navy -> teal, dark ink */
+    --logo-from: #1C3E6B;
+    --logo-to: #2AA4B4;
+    --logo-ink: #121A37;
+    --logo-accent: #157594;
+    --logo-muted: #5D6170;
   }
 
   * {
