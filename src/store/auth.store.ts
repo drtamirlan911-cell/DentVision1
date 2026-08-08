@@ -182,6 +182,7 @@ interface AuthState {
   loading: boolean
   error: string | null
   _restoring: boolean
+  _restorePromise: Promise<void> | null
 
   login: (loginStr: string, password: string) => Promise<boolean>
   logout: () => void
@@ -318,6 +319,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: false,
   error: null,
   _restoring: false,
+  _restorePromise: null,
 
   // ─── Derived helpers (do NOT use getters on the state object —
   // Zustand Object.assign freezes getters into stale snapshots on set()).
@@ -336,39 +338,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ loading: false })
       return
     }
-    // Prevent concurrent restores (e.g. sidebar + layout both reacting
-    // to a context switch at the same time).
-    if (get()._restoring) return
-    set({ loading: true, _restoring: true })
-    try {
-      const me = await hydrateAuthFromMe()
-      let accessToken = stored.accessToken
-      let refreshToken = stored.refreshToken
-      if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken)) {
-        const switched = await api.switchClinic(me.activeMembership.clinicId)
-        accessToken = switched.accessToken || accessToken
-        refreshToken = switched.refreshToken || refreshToken
-        api.setTokens(accessToken, refreshToken)
+    // Prevent concurrent restores (e.g. sidebar + layout both reacting to a
+    // context switch at the same time). Callers that `await` this must wait for
+    // the in-flight restore rather than returning early: RequirePage renders a
+    // spinner while `loading` is true, so an early return handed the caller a
+    // resolved promise while the UI was still blocked.
+    const inFlight = get()._restorePromise
+    if (inFlight) return inFlight
+
+    const run = (async () => {
+      set({ loading: true, _restoring: true })
+      try {
+        const me = await hydrateAuthFromMe()
+        let accessToken = stored.accessToken
+        let refreshToken = stored.refreshToken
+        if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken)) {
+          const switched = await api.switchClinic(me.activeMembership.clinicId)
+          accessToken = switched.accessToken || accessToken
+          refreshToken = switched.refreshToken || refreshToken
+          api.setTokens(accessToken, refreshToken)
+        }
+        set({
+          user: me.user,
+          token: accessToken,
+          refreshToken,
+          clinic: buildClinicFromMembership(me.activeMembership),
+          clinics: me.memberships,
+          activeMembership: me.activeMembership,
+          activeClinic: buildClinicFromMembership(me.activeMembership),
+          permissions: me.permissions,
+          pages: me.pages,
+          effectiveRole: me.effectiveRole || null,
+          capabilities: me.capabilities,
+        })
+      } catch {
+        api.clearTokens()
+        set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, permissions: [], effectiveRole: null })
+      } finally {
+        // Always in `finally`: leaving `loading` true on any path freezes every
+        // RequirePage-wrapped screen behind a spinner with no way to recover.
+        set({ loading: false, _restoring: false, _restorePromise: null })
       }
-      set({
-        user: me.user,
-        token: accessToken,
-        refreshToken,
-        clinic: buildClinicFromMembership(me.activeMembership),
-        clinics: me.memberships,
-        activeMembership: me.activeMembership,
-        activeClinic: buildClinicFromMembership(me.activeMembership),
-        permissions: me.permissions,
-        pages: me.pages,
-        effectiveRole: me.effectiveRole || null,
-        capabilities: me.capabilities,
-        loading: false,
-        _restoring: false,
-      })
-    } catch {
-      api.clearTokens()
-      set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, permissions: [], effectiveRole: null, loading: false, _restoring: false })
-    }
+    })()
+
+    set({ _restorePromise: run })
+    return run
   },
 
   // ─── Login ───

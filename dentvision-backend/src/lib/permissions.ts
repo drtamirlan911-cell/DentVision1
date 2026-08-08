@@ -296,6 +296,22 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
   return Array.from(pages);
 }
 
+/**
+ * Pages for a caller, from their effective permissions UNION their role.
+ *
+ * Never narrower than the role matrix alone. The DB permission graph is
+ * additive to the matrix everywhere else (`requirePermission` allows when
+ * either grants), and page visibility has to match: a Person seeded with a
+ * couple of narrow keys must not silently revoke the pages their role has
+ * always had.
+ */
+export function pagesForCaller(permissions: readonly string[], role: string | null | undefined): string[] {
+  return Array.from(new Set([
+    ...pagesForPermissions(permissions),
+    ...(role ? pagesForRole(role) : []),
+  ]));
+}
+
 /** Derive visible CRM pages from a role's permission set. */
 export function pagesForRole(role: string): string[] {
   return pagesForPermissions(

@@ -23,13 +23,17 @@ const LEGACY_ROLES: { key: string; name: string; description: string; permission
     key: 'seller',
     name: 'Продавец (поставщик)',
     description: 'Supplier management access',
-    permissionKeys: ['supplier.manage', 'inventory.read'],
+    // `supplier.manage` is a legacy alias that LEGACY_KEY_MAP resolves to
+    // `shop.manage`; seeded verbatim it belongs to a "supplier" module that
+    // MODULE_PAGES knows nothing about, so it contributed no page at all and a
+    // seller's page list came out as inventory-only.
+    permissionKeys: ['supplier.manage', 'shop.manage', 'shop.read', 'inventory.read'],
   },
   {
     key: 'lecturer',
     name: 'Лектор',
     description: 'Academy course management',
-    permissionKeys: ['academy.manage'],
+    permissionKeys: ['academy.manage', 'academy.read'],
   },
 ];
 
