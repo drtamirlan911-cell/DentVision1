@@ -2437,6 +2437,9 @@ model Referral {
   platformFee      Decimal?           @default(0)
   paid             Boolean            @default(false)
   paidAt           DateTime?
+  // Platform settlement: once a paid referral's platformFee is rolled into a
+  // Settlement, this links it so it can never be counted twice.
+  settlementId     String?
   // Audit
   reviewerId       String?
   reviewedAt       DateTime?
@@ -2458,6 +2461,7 @@ model Referral {
   files       ReferralFile[]
   comments    ReferralComment[]
   result      DiagnosticResult?
+  settlement  Settlement?       @relation("SettlementReferrals", fields: [settlementId], references: [id], onDelete: SetNull)
 
   @@index([clinicId])
   @@index([centerId])
@@ -2466,7 +2470,35 @@ model Referral {
   @@index([patientId])
   @@index([status])
   @@index([createdAt])
+  @@index([settlementId])
   @@map("referrals")
+}
+
+/// Periodic platform-commission settlement owed by a diagnostic center / lab.
+/// Patients pay the center directly; the platform collects its accrued
+/// `Referral.platformFee` from the center via these settlements.
+model Settlement {
+  id              String     @id @default(uuid())
+  ownerType       String // 'CENTER' | 'LAB'
+  ownerId         String
+  periodStart     DateTime
+  periodEnd       DateTime
+  referralCount   Int        @default(0)
+  /// Total commission for the period, in minor units (тиын).
+  commissionMinor BigInt     @default(0)
+  status          String     @default("open") // open | invoiced | paid | void
+  paymentId       String?
+  dueDate         DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  referrals Referral[] @relation("SettlementReferrals")
+
+  @@index([ownerType, ownerId])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+  @@map("settlements")
 }
 
 model ReferralFile {
