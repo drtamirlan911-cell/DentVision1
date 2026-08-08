@@ -1038,7 +1038,7 @@ authRouter.post('/reset-password', async (req, res) => {
 
     const entry = await prisma.passwordReset.findFirst({
       where: { token },
-      include: { user: { select: { email: true } } },
+      include: { user: { select: { id: true, email: true } } },
     });
 
     if (!entry) {
