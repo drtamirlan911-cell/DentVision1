@@ -18,7 +18,7 @@ export { Skeleton, CardSkeleton, ListSkeleton } from './Skeleton'
 
 export { EmptyState } from './EmptyState'
 
-export { StatCard, PageHeader } from './StatCard'
+export { StatCard, PageHeader, HeroStat } from './StatCard'
 
 export { Tabs, Separator, Switch } from './Misc'
 

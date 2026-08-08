@@ -2497,6 +2497,16 @@ export const getDiagnosticsCenterPayments = (centerId: string) =>
 export const collectDiagnosticsCashierPayment = (centerId: string, payload: { referralId: string; cost: number; platformFee?: number }) =>
   apiRequest(`/api/diagnostics/centers/${centerId}/cashier/collect`, { method: 'POST', body: JSON.stringify(payload) });
 
+export const createDiagnosticsLabTest = (labId: string, data: { name: string; category: string; price?: number }) =>
+  apiRequest(`/api/diagnostics/laboratories/${labId}/pricing`, { method: 'POST', body: JSON.stringify(data) });
+
+export const collectDiagnosticsLabCashierPayment = (labId: string, payload: { referralId: string; cost: number }) =>
+  apiRequest(`/api/diagnostics/laboratories/${labId}/cashier/collect`, { method: 'POST', body: JSON.stringify(payload) });
+
+export async function getDiagnosticsLabDashboard(labId: string): Promise<any> {
+  return apiRequest(`/api/diagnostics/laboratories/${labId}/dashboard`);
+}
+
 export const getDiagnosticsLabPayments = (labId: string) =>
   apiRequest(`/api/diagnostics/laboratories/${labId}/payments`);
 

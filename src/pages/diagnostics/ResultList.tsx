@@ -10,11 +10,8 @@ import { Button } from '@/components/ui/ds/Button';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
+import { StatusPill } from './workspace/Pipeline';
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  COMPLETED: { label: 'Готов', color: '#27AE60' },
-  REVIEWED: { label: 'Просмотрен', color: '#95A5A6' },
-};
 
 export default function ResultList() {
   const navigate = useNavigate();
@@ -62,7 +59,6 @@ export default function ResultList() {
       ) : (
         <div className="space-y-2">
           {items.map((r: any) => {
-            const si = STATUS_MAP[r.status] || { label: r.status, color: '#95A5A6' };
             return (
               <Card key={r.id} padding="md" hover className="cursor-pointer" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)}>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -72,7 +68,7 @@ export default function ResultList() {
                   <div className="flex-1 min-w-0 w-full">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-txt-primary">{r.patientName || 'Неизвестно'}</p>
-                      <Badge variant="outline" style={{ borderColor: si.color, color: si.color, fontSize: 10 }}>{si.label}</Badge>
+                      <StatusPill status={r.status} />
                     </div>
                     <p className="text-xs text-txt-muted mt-0.5">
                       {r.studyType || r.labTestType || 'Исследование'}
