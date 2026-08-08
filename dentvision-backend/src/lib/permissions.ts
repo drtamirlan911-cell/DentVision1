@@ -14,7 +14,7 @@ type Module =
   | 'patients' | 'appointments' | 'medical' | 'billing' | 'inventory'
   | 'lab' | 'staff' | 'settings' | 'analytics' | 'diagnostics'
   | 'academy' | 'shop' | 'community' | 'audit' | 'admin' | 'bi'
-  | 'profile' | 'backup' | 'security' | 'dashboard';
+  | 'profile' | 'backup' | 'security' | 'dashboard' | 'platform';
 
 // ─── Actions ───
 type Action = 'read' | 'write' | 'delete' | 'manage';
@@ -137,6 +137,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     bi:           ['read'],
     admin:        ['read'],
     shop:         ['read'],
+    analytics:    ['read'],
   },
 };
 
@@ -254,6 +255,20 @@ export function permissionsForRole(role: string | null | undefined): PermissionK
 
 // ─── Module → canonical CRM page IDs (used by frontend sidebar/navigation) ───
 
+/**
+ * Pages every authenticated caller gets, whatever their role.
+ *
+ * Not a role at all — this is what being logged in means: the marketplace and
+ * academy catalogues, the public diagnostics directory, and one's own profile
+ * and settings. Suppliers, lecturers and buyers hold no clinic role and so
+ * received an empty page list, which the frontend read as "deny everything";
+ * `PLATFORM_ROLES.user` in the legacy config is exactly this set.
+ */
+export const BASE_PAGES: readonly string[] = [
+  'shop', 'school', 'profile', 'settings',
+  'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-laboratories',
+];
+
 export const MODULE_PAGES: Record<string, string[]> = {
   patients:     ['patients', 'medical-card', 'visits', 'dental-chart', 'documents', 'treatment-plans', 'icd10'],
   appointments: ['schedule', 'reminders'],
@@ -261,7 +276,7 @@ export const MODULE_PAGES: Record<string, string[]> = {
   inventory:    ['inventory'],
   lab:          ['lab'],
   staff:        ['staff'],
-  settings:     ['clinic-settings', 'settings'],
+  settings:     ['clinic-settings'],
   analytics:    ['analytics'],
   // `diagnostics-labs` and `diagnostics-laboratories` are the same page under
   // two ids — both appear in the frontend route table, so both must resolve.
@@ -276,6 +291,9 @@ export const MODULE_PAGES: Record<string, string[]> = {
   backup:       ['backup'],
   security:     ['security'],
   dashboard:    ['dashboard'],
+  // Platform console screens. Nothing grants `platform.*` except the SUPERADMIN
+  // wildcard, which is the whole point.
+  platform:     ['quality', 'platform-finance', 'ai-governance', 'support', 'supplier'],
 };
 
 /**
@@ -313,6 +331,7 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
  */
 export function pagesForCaller(permissions: readonly string[], role: string | null | undefined): string[] {
   return Array.from(new Set([
+    ...BASE_PAGES,
     ...pagesForPermissions(permissions),
     ...(role ? pagesForRole(role) : []),
   ]));
