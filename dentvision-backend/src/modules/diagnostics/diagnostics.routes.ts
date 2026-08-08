@@ -607,7 +607,28 @@ diagnosticsRouter.get('/platform/commissions', requireSuperadmin, async (_req: A
       { revenueCollected: 0, commissionAccrued: 0, commissionDue: 0, commissionUpcoming: 0 },
     );
 
-    return res.json({ ok: true, data: { rows, totals } } satisfies ApiResponse);
+    // Actual collection state from the settlement layer (commissionMinor in тиын).
+    const { minorToTenge } = await import('../../lib/money.js');
+    const settlementGroups: Array<{ status: string; _sum: { commissionMinor: bigint | null }; _count: { _all: number } }> =
+      await (prisma as any).settlement
+        .groupBy({ by: ['status'], _sum: { commissionMinor: true }, _count: { _all: true } })
+        .catch(() => []);
+    const settleTenge = (status: string) => {
+      const g = settlementGroups.find((x) => x.status === status);
+      return g ? minorToTenge(g._sum.commissionMinor ?? 0n) : 0;
+    };
+    const settleCount = (status: string) =>
+      settlementGroups.find((x) => x.status === status)?._count._all || 0;
+    const settlements = {
+      open: settleTenge('open'),
+      invoiced: settleTenge('invoiced'),
+      paid: settleTenge('paid'),
+      // "Outstanding" = invoiced but not yet paid (a pay-link is out).
+      outstanding: settleTenge('open') + settleTenge('invoiced'),
+      counts: { open: settleCount('open'), invoiced: settleCount('invoiced'), paid: settleCount('paid') },
+    };
+
+    return res.json({ ok: true, data: { rows, totals, settlements } } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
