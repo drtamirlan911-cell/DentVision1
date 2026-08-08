@@ -9,7 +9,7 @@ import {
 import { T } from '../../lib/design-tokens';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
-import { useAuth, canManageClinicSettings } from '@/store/auth.store';
+import { useAuth } from '@/store/auth.store';
 import { Button } from '../../components/ui/ds/Button';
 import { Badge } from '../../components/ui/ds/Badge';
 import { EmptyState } from '../../components/ui/ds/EmptyState';

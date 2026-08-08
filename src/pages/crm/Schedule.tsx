@@ -20,7 +20,7 @@ import {
   startSyncQueueListener,
 } from '@/lib/syncQueue'
 import { useAuth, canAcceptPayment } from '@/store/auth.store'
-import { canAccessPage } from '@/lib/roleAccess'
+import { useIam } from '@/iam/useIam'
 import { cn, today } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card'
@@ -77,6 +77,7 @@ const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 export default function Schedule() {
   const outlet = useOutletContext<{ clinic?: Clinic; user?: UserType; roleInfo?: RoleInfo }>() || {}
   const { user, roleInfo, clinic: authClinic, role } = useAuth()
+  const iam = useIam()
   // Match Staff / IntelligenceLayout: prefer outlet + auth clinic over JWT claim alone.
   // Appointments API is JWT-scoped (works even with a stale user.clinicId), but
   // getClinicStaff(clinicId) needs the real clinic id — otherwise the grid is empty
@@ -203,7 +204,7 @@ export default function Schedule() {
 
   const ownDataOnly = !!roleInfo?.ownDataOnly
   const readOnly = !!roleInfo?.readOnly
-  const canOpenCashier = canAccessPage(roleInfo?.pages, 'cashier') || canAccessPage(roleInfo?.pages, 'finance')
+  const canOpenCashier = iam.canAccessPage('cashier') || iam.canAccessPage('finance')
   const canManageScheduleBoard = !ownDataOnly && !readOnly
 
   const dayAppts = useMemo(() => {

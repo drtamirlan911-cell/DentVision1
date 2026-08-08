@@ -14,9 +14,9 @@ import { Badge } from '@/components/ui/ds/Badge';
 import { Tooltip } from '@/components/ui/ds/Tooltip';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
-import { useAuth, canManageClinicSettings } from '@/store/auth.store';
+import { useAuth } from '@/store/auth.store';
+import { useIam } from '@/iam';
 import { useGuestStore } from '@/store/guest.store';
-import { canAccessPage } from '@/lib/roleAccess';
 import { Logo } from '@/components/brand';
 import type { User as UserType, RoleInfo } from '@/types';
 
@@ -90,6 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [crmOpen, setCrmOpen] = React.useState(location.pathname.startsWith('/crm'));
   const sidebarWidth = !sidebarVisible && !isMobile ? 0 : (collapsed ? 76 : 248);
   const { user: authUser, role: authRole, roleInfo: authRoleInfo, activeMembership } = useAuth();
+  const iam = useIam();
   const clinicId = authUser?.clinicId || '';
   const { t } = useTranslation();
 
@@ -156,17 +157,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (location.pathname.startsWith('/crm')) setCrmOpen(true);
   }, [location.pathname]);
 
-  const allowedPages = authRoleInfo?.pages?.length
-    ? authRoleInfo.pages
-    : ((roleInfo as any)?.pages || []);
-  const isAdmin = allowedPages.includes('admin');
-  const showClinicSettings =
-    allowedPages.includes('clinic-settings') ||
-    !!(authRoleInfo as any)?.canManageClinicSettings ||
-    !!(roleInfo as any)?.canManageClinicSettings ||
-    canManageClinicSettings(authRole) ||
-    canManageClinicSettings(activeMembership?.role) ||
-    canManageClinicSettings(authUser?.role);
+  const isAdmin = iam.pages.includes('admin');
+  const showClinicSettings = iam.can('canManageClinicSettings');
 
   const prefetchFor = useCallback((id: string) => {
     if ((id === 'crm' || id === 'analytics') && (!clinicId || isGuest)) return;
@@ -194,23 +186,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (item.id === 'profile' || item.id === 'settings' || item.id === 'partner-legal') return true;
     if (item.id === 'supplier' || item.id === 'school-workspace' || item.id === 'center-workspace' || item.id === 'lab-workspace') return true;
     if (item.id === 'jobs' || item.id === 'community') return true;
-    if (item.id === 'diagnostics') return canAccessPage(allowedPages, 'diagnostics') || canAccessPage(allowedPages, 'diagnostics-referrals');
-    if (item.id === 'shop') return allowedPages.length === 0 || canAccessPage(allowedPages, 'shop');
-    if (item.id === 'school') return allowedPages.length === 0 || canAccessPage(allowedPages, 'school');
-    if (item.id === 'analytics') return canAccessPage(allowedPages, 'analytics');
+    if (item.id === 'diagnostics') return iam.canAccessPage('diagnostics') || iam.canAccessPage('diagnostics-referrals');
+    if (item.id === 'shop') return iam.pages.length === 0 || iam.canAccessPage('shop');
+    if (item.id === 'school') return iam.pages.length === 0 || iam.canAccessPage('school');
+    if (item.id === 'analytics') return iam.canAccessPage('analytics');
     if (item.id === 'bi') {
       const r = String(authRole || '').toLowerCase();
       return r === 'owner' || r === 'director' || r === 'superadmin';
     }
-    return canAccessPage(allowedPages, item.id) || allowedPages.length === 0;
+    return iam.canAccessPage(item.id) || iam.pages.length === 0;
   }));
 
   const visibleCrmSubnav = CRM_SUBNAV.filter((sub) => {
     if ((sub as { adminOnly?: boolean }).adminOnly) {
-      return showClinicSettings || canAccessPage(allowedPages, sub.id);
+      return showClinicSettings || iam.canAccessPage(sub.id);
     }
-    if (!allowedPages.length) return false;
-    return canAccessPage(allowedPages, sub.id);
+    if (!iam.pages.length) return false;
+    return iam.canAccessPage(sub.id);
   });
 
   const handleNavClick = (path: string) => {

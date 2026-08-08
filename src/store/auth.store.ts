@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { User, Clinic, UserRole } from '@/types'
+import { User, Clinic, UserRole, RoleCapabilities } from '@/types'
 import * as api from '@/utils/api'
 import { useGuestStore } from './guest.store'
 import { useAIStore } from './ai.store'
@@ -165,6 +165,20 @@ interface AuthState {
   activeMembership: Membership | null
   activeClinic: Clinic | null
   permissions: string[]
+  pages: string[]
+  effectiveRole: string | null
+  capabilities: {
+    canSeeSalary: boolean
+    canAddStaff: boolean
+    canSeeAudit: boolean
+    canBackup: boolean
+    canSeeReports: boolean
+    canSeeExpenses: boolean
+    canManageClinicSettings: boolean
+    canManageFinance: boolean
+    ownDataOnly: boolean
+    readOnly: boolean
+  }
   loading: boolean
   error: string | null
 
@@ -225,7 +239,26 @@ async function hydrateAuthFromMe() {
     mapActiveMembership(me.activeMembership),
     memberships,
   )
-  return { user, memberships, activeMembership, permissions: me.permissions || [] }
+  return { 
+    user, 
+    memberships, 
+    activeMembership, 
+    permissions: me.permissions || [], 
+    pages: me.pages || [],
+    effectiveRole: me.effectiveRole || null,
+    capabilities: me.capabilities || {
+      canSeeSalary: false,
+      canAddStaff: false,
+      canSeeAudit: false,
+      canBackup: false,
+      canSeeReports: false,
+      canSeeExpenses: false,
+      canManageClinicSettings: false,
+      canManageFinance: false,
+      ownDataOnly: false,
+      readOnly: false,
+    }
+  }
 }
 
 function getTokenClinicId(token: string | null | undefined): string | null {
@@ -278,6 +311,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   activeMembership: null,
   activeClinic: null,
   permissions: [],
+  pages: [],
+  effectiveRole: null,
+  capabilities: { canSeeSalary: false, canAddStaff: false, canSeeAudit: false, canBackup: false, canSeeReports: false, canSeeExpenses: false, canManageClinicSettings: false, canManageFinance: false, ownDataOnly: false, readOnly: false },
   loading: false,
   error: null,
 
@@ -318,11 +354,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         activeMembership: me.activeMembership,
         activeClinic: buildClinicFromMembership(me.activeMembership),
         permissions: me.permissions,
+        pages: me.pages,
+        effectiveRole: me.effectiveRole || null,
+        capabilities: me.capabilities,
         loading: false,
       })
     } catch {
       api.clearTokens()
-      set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, permissions: [], loading: false })
+      set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, permissions: [], effectiveRole: null, loading: false })
     }
   },
 
@@ -344,6 +383,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         memberships,
       )
       let permissions: string[] = Array.isArray(result.permissions) ? result.permissions : []
+      let pages: string[] = Array.isArray(result.pages) ? result.pages : []
+      let effectiveRole: string | null = result.effectiveRole || null
+      let capabilities = result.capabilities || {
+        canSeeSalary: false,
+        canAddStaff: false,
+        canSeeAudit: false,
+        canBackup: false,
+        canSeeReports: false,
+        canSeeExpenses: false,
+        canManageClinicSettings: false,
+        canManageFinance: false,
+        ownDataOnly: false,
+        readOnly: false,
+      }
 
       // Only the absence of the `memberships` key means the response used
       // an older/partial contract — an explicit empty array is a valid
@@ -354,6 +407,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         memberships = me.memberships
         activeMembership = pickActiveMembership(me.activeMembership, memberships)
         permissions = me.permissions
+        pages = me.pages
+        effectiveRole = me.effectiveRole
+        capabilities = me.capabilities
       }
 
       set({
@@ -365,6 +421,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         activeMembership,
         activeClinic: buildClinicFromMembership(activeMembership),
         permissions,
+        pages,
+        effectiveRole,
+        capabilities,
         loading: false,
         error: null,
       })
@@ -380,7 +439,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     try { useAIStore.getState().resetAI() } catch { /* ignore */ }
     api.clearTokens()
-    set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, permissions: [], loading: false, error: null })
+    set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, permissions: [], pages: [], effectiveRole: null, capabilities: { canSeeSalary: false, canAddStaff: false, canSeeAudit: false, canBackup: false, canSeeReports: false, canSeeExpenses: false, canManageClinicSettings: false, canManageFinance: false, ownDataOnly: false, readOnly: false }, loading: false, error: null })
   },
 
   // ─── Register ───
@@ -473,17 +532,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             : me.activeMembership,
           me.memberships,
         )
-        set({
-          user: me.user,
-          clinics: me.memberships,
-          token: result?.accessToken || get().token,
-          refreshToken: result?.refreshToken ?? get().refreshToken,
-          activeMembership,
-          clinic: buildClinicFromMembership(activeMembership),
-          activeClinic: buildClinicFromMembership(activeMembership),
-          permissions: me.permissions,
-        })
-        return
+set({
+            user: me.user,
+            clinics: me.memberships,
+            token: result?.accessToken || get().token,
+            refreshToken: result?.refreshToken ?? get().refreshToken,
+            activeMembership,
+            clinic: buildClinicFromMembership(activeMembership),
+            activeClinic: buildClinicFromMembership(activeMembership),
+            permissions: me.permissions,
+            pages: me.pages,
+            effectiveRole: me.effectiveRole || null,
+            capabilities: me.capabilities,
+          })
+          return
       }
 
       set({
@@ -493,6 +555,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         clinic: buildClinicFromMembership(activeMembership),
         activeClinic: buildClinicFromMembership(activeMembership),
         permissions: Array.isArray(result?.permissions) ? result.permissions : get().permissions,
+        pages: Array.isArray(result?.pages) ? result.pages : get().pages,
+        effectiveRole: result?.effectiveRole || get().effectiveRole,
+        capabilities: result.capabilities || get().capabilities,
       })
     } catch (err) {
       set({ error: (err as Error).message || 'Failed to switch clinic' })
@@ -531,6 +596,9 @@ export function useAuth() {
   const activeMembership = useAuthStore((s) => s.activeMembership)
   const activeClinic = useAuthStore((s) => s.activeClinic)
   const permissions = useAuthStore((s) => s.permissions)
+  const pages = useAuthStore((s) => s.pages)
+  const effectiveRole = useAuthStore((s) => s.effectiveRole)
+  const capabilities = useAuthStore((s) => s.capabilities)
   const loading = useAuthStore((s) => s.loading)
   const error = useAuthStore((s) => s.error)
   const login = useAuthStore((s) => s.login)
@@ -548,7 +616,7 @@ export function useAuth() {
   const roleInfo = resolveRoleInfo(activeMembership, user)
   const mode = activeMembership ? ('workspace' as const) : ('personal' as const)
 
-  return {
+return {
     user,
     clinic,
     clinics,
@@ -567,6 +635,9 @@ export function useAuth() {
     isAuthenticated: !!user,
     role,
     roleInfo,
+    pages,
+    capabilities,
+    effectiveRole,
     permissions,
     can,
     allClinics,

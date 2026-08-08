@@ -5,7 +5,9 @@ import {
   Users, UserPlus, Shield, Stethoscope, Briefcase, Crown, Phone, Mail,
   Calendar, Lock, Edit, Eye, EyeOff, Clock, Award, Settings, Copy, Check, Link2, Camera, Trash2,
 } from 'lucide-react'
-import { useAuth, ORG_ROLES, canManageClinicSettings } from '@/store/auth.store'
+import { useAuth } from '@/store/auth.store'
+import { ORG_ROLES } from '@/store/auth.store'
+import { useIam } from '@/iam/useIam'
 import { useDataQuery } from '@/queries/useDataQuery'
 import { queryKeys } from '@/queries/keys'
 import { useQueryClient } from '@tanstack/react-query'
@@ -135,6 +137,7 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 export default function Staff() {
   const { clinic, user } = useOutletContext<OutletContext>()
   const { addStaffMember, roleInfo, role, activeMembership } = useAuth()
+  const iam = useIam()
   const clinicId = clinic?.id || user?.clinicId || ''
   const { users: staff } = useDataQuery(clinicId)
   const queryClient = useQueryClient()
@@ -168,10 +171,7 @@ export default function Staff() {
   const [editingStaff, setEditingStaff] = useState<UserType | null>(null)
   const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter)
 
-  const canManage =
-    !!roleInfo?.canAddStaff ||
-    canManageClinicSettings(role) ||
-    canManageClinicSettings(activeMembership?.role)
+  const canManage = !!roleInfo?.canAddStaff || iam.can('canManageClinicSettings')
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -58,6 +58,27 @@ export interface IamContext {
    * (Step 2+). When present, `hasPermission` prefers it over the role matrix.
    */
   permissions?: string[] | null
+  /**
+   * Server-provided page visibility (Step 3). When present, `canAccessPage`
+   * uses this instead of the legacy roleInfo.pages.
+   */
+  pages?: string[] | null
+  /**
+   * Server-provided capability flags (Step 3). When present, `can` prefers
+   * these over the legacy roleInfo flags.
+   */
+  capabilities?: {
+    canSeeSalary: boolean
+    canAddStaff: boolean
+    canSeeAudit: boolean
+    canBackup: boolean
+    canSeeReports: boolean
+    canSeeExpenses: boolean
+    canManageClinicSettings: boolean
+    canManageFinance: boolean
+    ownDataOnly: boolean
+    readOnly: boolean
+  } | null
 }
 
 export interface IamResolver {
@@ -86,9 +107,27 @@ export function createIamResolver(ctx: IamContext): IamResolver {
     ? (Array.from(new Set(ctx.permissions.filter(isIamPermission))) as IamPermission[])
     : permissionsForRole(role)
 
+  // Server-provided pages for page visibility (Step 3).
+  const pages = ctx.pages && ctx.pages.length > 0 ? ctx.pages : (roleInfo.pages || [])
+
+  // Server-provided capability flags (Step 3).
+  const capabilities = ctx.capabilities || {
+    canSeeSalary: !!roleInfo.canSeeSalary,
+    canSeeOwnSalary: !!roleInfo.canSeeOwnSalary,
+    canSeeSuperAdmin: !!roleInfo.canSeeSuperAdmin,
+    canAddStaff: !!roleInfo.canAddStaff,
+    canSeeAudit: !!roleInfo.canSeeAudit,
+    canBackup: !!roleInfo.canBackup,
+    canSeeReports: !!roleInfo.canSeeReports,
+    canSeeExpenses: !!roleInfo.canSeeExpenses,
+    canManageClinicSettings: !!roleInfo.canManageClinicSettings,
+    canManageFinance: !!roleInfo.canManageFinance,
+    ownDataOnly: !!roleInfo.ownDataOnly,
+    readOnly: !!roleInfo.readOnly,
+  }
+
   const canAccessPage = (pageId: string | null | undefined): boolean => {
     if (!pageId) return true
-    const pages = roleInfo.pages || []
     if (pages.length === 0) return false
     if (pages.includes(pageId)) return true
     // finance ↔ cashier alias (same CRM Касса surface)
@@ -98,10 +137,10 @@ export function createIamResolver(ctx: IamContext): IamResolver {
   }
 
   return {
-    can: (capability) => !!roleInfo[capability],
+    can: (capability) => capabilities[capability as keyof typeof capabilities] ?? false,
     hasPermission: (key) => effective.includes(key),
     canAccessPage,
-    pages: roleInfo.pages || [],
+    pages,
     role,
     permissions: effective,
     isPersonal: !ctx.roleInfo?.pages || ctx.roleInfo.pages.length === 0,

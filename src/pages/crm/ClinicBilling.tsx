@@ -8,7 +8,8 @@ import { Navigate } from 'react-router-dom'
 import {
   CreditCard, Check, Zap, Crown, Star, AlertTriangle, RefreshCw,
 } from 'lucide-react'
-import { useAuth, canManageClinicSettings } from '@/store/auth.store'
+import { useAuth } from '@/store/auth.store'
+import { useIam } from '@/iam/useIam'
 import { useToast } from '@/components/ui/ds/Toast'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Card, CardContent } from '@/components/ui/ds/Card'
@@ -35,12 +36,10 @@ function fmtDate(d: string | Date | null | undefined): string {
 }
 
 export default function ClinicBilling() {
-  const { user, role, activeMembership } = useAuth()
+  const { user } = useAuth()
+  const iam = useIam()
   const toast = useToast()
-  const canManage =
-    canManageClinicSettings(role) ||
-    canManageClinicSettings(activeMembership?.role) ||
-    canManageClinicSettings(user?.role)
+  const canManage = iam.can('canManageClinicSettings')
 
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)

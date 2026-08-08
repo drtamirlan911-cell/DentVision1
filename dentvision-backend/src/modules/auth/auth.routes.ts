@@ -232,6 +232,7 @@ authRouter.post('/login', async (req, res) => {
         permissions: effectivePermissions,
         pages: pagesForPermissions(effectivePermissions),
         capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole),
+        effectiveRole: scopedRole,
         ...tokens,
       },
     };

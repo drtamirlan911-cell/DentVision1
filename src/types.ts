@@ -50,6 +50,19 @@ export interface RoleInfo {
   pages?: string[]
 }
 
+export interface RoleCapabilities {
+  canSeeSalary: boolean
+  canAddStaff: boolean
+  canSeeAudit: boolean
+  canBackup: boolean
+  canSeeReports: boolean
+  canSeeExpenses: boolean
+  canManageClinicSettings: boolean
+  canManageFinance: boolean
+  ownDataOnly: boolean
+  readOnly: boolean
+}
+
 // ─── Clinic ─────────────────────────────────────────────────────
 
 export interface Clinic {
@@ -508,4 +521,18 @@ export interface LoginResponse {
   memberships?: Array<{ id: string; clinicId: string; role: string }>
   activeMembership?: { id: string; clinicId: string; role: string }
   permissions?: string[]
+  pages?: string[]
+  effectiveRole?: string
+  capabilities?: {
+    canSeeSalary: boolean
+    canAddStaff: boolean
+    canSeeAudit: boolean
+    canBackup: boolean
+    canSeeReports: boolean
+    canSeeExpenses: boolean
+    canManageClinicSettings: boolean
+    canManageFinance: boolean
+    ownDataOnly: boolean
+    readOnly: boolean
+  }
 }

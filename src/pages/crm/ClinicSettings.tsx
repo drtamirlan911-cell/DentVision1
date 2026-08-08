@@ -10,7 +10,8 @@ import {
   DollarSign, Users, Link2, Copy, Check, QrCode, BookOpen, ExternalLink,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth, canManageClinicSettings } from '@/store/auth.store'
+import { useAuth } from '@/store/auth.store'
+import { useIam } from '@/iam/useIam'
 import { useToast } from '@/components/ui/ds/Toast'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card'
@@ -93,9 +94,10 @@ export default function ClinicSettingsPage() {
   const outlet = useOutletContext<OutletCtx>() || {}
   const navigate = useNavigate()
   const auth = useAuth()
+  const iam = useIam()
   const clinicId = outlet.clinic?.id || auth.clinic?.id || auth.user?.clinicId || ''
   const role = auth.activeMembership?.role || auth.role
-  const allowed = canManageClinicSettings(role) || !!auth.roleInfo?.canManageClinicSettings
+  const allowed = iam.can('canManageClinicSettings') || !!auth.roleInfo?.canManageClinicSettings
   const { showToast } = useToast()
   const queryClient = useQueryClient()
 

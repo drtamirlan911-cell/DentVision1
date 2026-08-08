@@ -154,4 +154,16 @@ describe('resolver — behavior parity with legacy role config', () => {
     expect(r.canAccessPage('schedule')).toBe(false)
     expect(r.isPersonal).toBe(true)
   })
+
+  it('effectiveRole wins over the legacy role when server provides it', () => {
+    // Server returns effectiveRole=ADMIN but the legacy role still says doctor.
+    const r = createIamResolver({
+      role: 'doctor',
+      roleInfo: makeRoleInfo('doctor'),
+      permissions: permissionsForBackendRole('ADMIN'),
+    })
+    expect(r.role).toBe('doctor')
+    // Server-provided permissions drive decisions, not the legacy role.
+    expect(r.hasPermission('finance.manage')).toBe(true)
+  })
 })

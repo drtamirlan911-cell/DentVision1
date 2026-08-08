@@ -9,12 +9,21 @@ import { createIamResolver, type IamResolver, type IamRoleInfo } from './resolve
  * effective permissions exposed by `/me` (Step 2). The resolver already prefers
  * server-provided permissions over the shared role matrix, so once a consumer
  * uses `useIam()` it automatically follows backend policy.
+ *
+ * Step 3: now also reads server-provided `pages` and `capabilities` for
+ * page visibility and capability flags.
  */
 export function useIam(): IamResolver {
-  const { role, roleInfo, permissions } = useAuth()
+  const { role, roleInfo, permissions, pages, capabilities, effectiveRole } = useAuth()
 
   return useMemo(
-    () => createIamResolver({ role, roleInfo: roleInfo as unknown as IamRoleInfo, permissions }),
-    [role, roleInfo, permissions],
+    () => createIamResolver({
+      role: effectiveRole || role,
+      roleInfo: roleInfo as unknown as IamRoleInfo,
+      permissions,
+      pages,
+      capabilities,
+    }),
+    [role, effectiveRole, roleInfo, permissions, pages, capabilities],
   )
 }

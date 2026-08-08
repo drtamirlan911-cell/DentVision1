@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Car
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
 import { Switch } from '@/components/ui/ds/Misc'
-import { useAuth, canManageClinicSettings } from '@/store/auth.store'
+import { useAuth } from '@/store/auth.store'
+import { useIam } from '@/iam/useIam'
 import { useUIStore } from '@/store/ui.store'
 import { useToast } from '@/components/ui/ds/Toast'
 
@@ -39,6 +40,7 @@ export default function SettingsPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const { user, clinic, roleInfo, role, activeMembership, logout } = useAuth()
+  const iam = useIam()
   const darkMode = useUIStore((s) => s.darkMode)
   const notifications = useUIStore((s) => s.notifications)
   const autoSave = useUIStore((s) => s.autoSave)
@@ -48,10 +50,8 @@ export default function SettingsPage() {
 
   const canManageServices = roleInfo?.pages?.includes('settings')
   const showClinicSettings =
-    canManageClinicSettings(role) ||
-    canManageClinicSettings(activeMembership?.role) ||
-    !!roleInfo?.canManageClinicSettings ||
-    !!roleInfo?.pages?.includes('clinic-settings')
+    iam.can('canManageClinicSettings') ||
+    iam.canAccessPage('clinic-settings')
   const clinicId = clinic?.id || activeMembership?.clinicId || user?.clinicId || ''
   const clinicName = clinic?.name || 'вашей клиники'
 
