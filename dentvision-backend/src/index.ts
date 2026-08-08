@@ -211,6 +211,15 @@ async function main() {
   await connectDb();
   await ensureSchemaMigrationsTable();
 
+  // Seed the unified permission catalog on every start so the DB vocabulary
+  // (Permission rows + Role → Permission links) always matches the matrix.
+  try {
+    const { seedPermissions } = await import('../prisma/seed-permissions.js');
+    await seedPermissions();
+  } catch (err) {
+    console.warn('[SEED] Permission seeding failed (non-fatal):', err);
+  }
+
   // Run schema migrations
   await runOnceMigration('patients_iin', 'Patient.iin column', async () => {
     await prisma.$executeRawUnsafe(`ALTER TABLE IF EXISTS "patients" ADD COLUMN IF NOT EXISTS "iin" TEXT`);
