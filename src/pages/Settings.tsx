@@ -1,7 +1,11 @@
-﻿import React from 'react'
+﻿import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Settings as SettingsIcon, User, Shield, Palette, LayoutGrid, Building2, CreditCard, ExternalLink } from 'lucide-react'
+import {
+  Settings as SettingsIcon, User, Shield, Palette, LayoutGrid,
+  Building2, CreditCard, ExternalLink, Store, GraduationCap, Brain,
+  BarChart3, Bell, Save, LogOut, ChevronRight,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
@@ -20,26 +24,19 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 }
 
-interface ServiceToggle {
-  key: string
-  name: string
-  desc: string
-  locked?: boolean
-}
+interface TabDef { id: string; label: string; icon: React.ReactNode }
 
-const SERVICE_TOGGLES: ServiceToggle[] = [
-  { key: 'crm', name: 'CRM', desc: 'Расписание, пациенты, лечение', locked: true },
-  { key: 'shop', name: 'Магазин (Shop)', desc: 'Маркетплейс товаров' },
-  { key: 'school', name: 'Школа (School)', desc: 'Образовательная платформа' },
-  { key: 'ai', name: 'AI Помощник', desc: 'ИИ для диагностики' },
-  { key: 'analytics', name: 'Аналитика', desc: 'Отчёты и метрики' },
-  { key: 'settings', name: 'Настройки', desc: 'Управление клиникой' },
+const TABS: TabDef[] = [
+  { id: 'clinic', label: 'Клиника', icon: <Building2 size={14} /> },
+  { id: 'profile', label: 'Профиль', icon: <User size={14} /> },
+  { id: 'security', label: 'Безопасность', icon: <Shield size={14} /> },
 ]
 
 export default function SettingsPage() {
+  const [tab, setTab] = useState('clinic')
   const navigate = useNavigate()
   const toast = useToast()
-  const { user, clinic, roleInfo, role, activeMembership, logout } = useAuth()
+  const { user, clinic, activeMembership, logout } = useAuth()
   const iam = useIam()
   const darkMode = useUIStore((s) => s.darkMode)
   const notifications = useUIStore((s) => s.notifications)
@@ -48,7 +45,6 @@ export default function SettingsPage() {
   const setNotifications = useUIStore((s) => s.setNotifications)
   const setAutoSave = useUIStore((s) => s.setAutoSave)
 
-  const canManageServices = roleInfo?.pages?.includes('settings')
   const showClinicSettings =
     iam.can('canManageClinicSettings') ||
     iam.canAccessPage('clinic-settings')
@@ -62,35 +58,54 @@ export default function SettingsPage() {
 
   const onNotifications = async (next: boolean) => {
     setNotifications(next)
-    if (!next) {
-      toast.success('Браузерные уведомления выключены')
-      return
-    }
+    if (!next) { toast.success('Уведомления выключены'); return }
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      toast.info('Браузер не поддерживает push-уведомления')
-      return
+      toast.info('Браузер не поддерживает push-уведомления'); return
     }
     if (Notification.permission === 'denied') {
-      toast.error('Разрешение заблокировано в настройках браузера')
-      return
+      toast.error('Разрешение заблокировано в настройках браузера'); return
     }
     if (Notification.permission === 'default') {
       const perm = await Notification.requestPermission()
-      if (perm !== 'granted') {
-        toast.error('Разрешение на уведомления не получено')
-        return
-      }
+      if (perm !== 'granted') { toast.error('Разрешение не получено'); return }
     }
-    toast.success('Браузерные уведомления включены')
+    toast.success('Уведомления включены')
   }
 
   const onAutoSave = (next: boolean) => {
     setAutoSave(next)
-    toast.success(next ? 'Автосохранение черновиков включено' : 'Автосохранение выключено')
+    toast.success(next ? 'Автосохранение включено' : 'Автосохранение выключено')
   }
 
+  // ── shared helpers ──
+
+  const SettingRow = ({ label, sub, children }: { label: React.ReactNode; sub?: string; children: React.ReactNode }) => (
+    <div className="flex items-center justify-between min-h-11 py-2">
+      <div>
+        <p className="text-sm font-medium text-txt-primary">{label}</p>
+        {sub && <p className="text-2xs text-txt-muted">{sub}</p>}
+      </div>
+      {children}
+    </div>
+  )
+
+  const LinkCard = ({ icon, title, desc, btn, onClick }: { icon: React.ReactNode; title: string; desc: string; btn: string; onClick: () => void }) => (
+    <Card className="hover:border-dv-gold/20 transition-colors">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <span className="text-dv-gold">{icon}</span>
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex items-center justify-between gap-3 flex-wrap pt-0">
+        <p className="text-xs text-txt-muted">{desc}</p>
+        <Button size="sm" className="min-h-11 shrink-0" onClick={onClick}>{btn}</Button>
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="max-w-full overflow-x-hidden mx-auto space-y-6 px-3 sm:px-4 lg:px-6">
+    <motion.div variants={container} initial="hidden" animate="show" className="max-w-full overflow-x-hidden mx-auto space-y-5 px-3 sm:px-4 lg:px-6">
       <motion.div variants={item}>
         <PageHeader
           title="Настройки"
@@ -99,197 +114,166 @@ export default function SettingsPage() {
         />
       </motion.div>
 
-      {showClinicSettings && clinicId && (
-        <motion.div variants={item}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 size={16} className="text-dv-gold" />
-                Настройки клиники
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-between gap-3 flex-wrap">
-              <p className="text-sm text-txt-muted">
-                Профиль клиники, часы работы, напоминания и кресла — индивидуально для «{clinicName}».
-              </p>
-              <Button size="sm" className="min-h-11" onClick={() => navigate('/crm/clinic-settings')}>
-                Открыть
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+      {/* ── Tab bar ── */}
+      <motion.div variants={item} className="flex gap-1 p-1 rounded-xl bg-surface-1 border border-bdr-subtle w-fit overflow-x-auto max-w-full no-scrollbar">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+              tab === t.id
+                ? 'bg-dv-gold/15 text-dv-gold'
+                : 'text-txt-muted hover:text-txt-primary hover:bg-white/[0.04]'
+            }`}
+          >
+            {t.icon}
+            {t.label}
+          </button>
+        ))}
+      </motion.div>
 
-      {showClinicSettings && clinicId && (
-        <motion.div variants={item}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard size={16} className="text-dv-gold" />
-                Тариф и оплата
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-between gap-3 flex-wrap">
-              <p className="text-sm text-txt-muted">
-                Пробный период, смена тарифа и оплата подписки клиники по QR.
-              </p>
-              <Button size="sm" className="min-h-11" onClick={() => navigate('/crm/billing')}>
-                Открыть
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+      {/* ═══ КЛИНИКА ═══ */}
+      {tab === 'clinic' && (
+        <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
+          {showClinicSettings && clinicId && (
+            <>
+              <motion.div variants={item}>
+                <LinkCard
+                  icon={<Building2 size={16} />}
+                  title="Настройки клиники"
+                  desc={`Профиль, часы работы, напоминания — «${clinicName}»`}
+                  btn="Открыть"
+                  onClick={() => navigate('/crm/clinic-settings')}
+                />
+              </motion.div>
+              <motion.div variants={item}>
+                <LinkCard
+                  icon={<CreditCard size={16} />}
+                  title="Тариф и оплата"
+                  desc="Пробный период, смена тарифа, оплата по QR"
+                  btn="Открыть"
+                  onClick={() => navigate('/crm/billing')}
+                />
+              </motion.div>
+              <motion.div variants={item}>
+                <LinkCard
+                  icon={<CreditCard size={16} />}
+                  title="Kaspi кассы"
+                  desc="QR на кассе идёт на ваш Kaspi/банк, не на DentVision"
+                  btn="Подключить"
+                  onClick={() => navigate('/crm/settings')}
+                />
+              </motion.div>
+            </>
+          )}
 
-      {showClinicSettings && clinicId && (
-        <motion.div variants={item}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard size={16} className="text-dv-gold" />
-                Kaspi кассы клиники
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-between gap-3 flex-wrap">
-              <p className="text-sm text-txt-muted">
-                QR на кассе идёт на ваш Kaspi/банк, не на DentVision. Инструкция внутри настроек клиники.
-              </p>
-              <Button size="sm" className="min-h-11" onClick={() => navigate('/crm/settings')}>
-                Подключить
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Services */}
-      {canManageServices && (
-        <motion.div variants={item}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <LayoutGrid size={16} className="text-dv-gold" />
-                Сервисы
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xs text-txt-muted mb-4">
-                Управление доступом к сервисам появится в следующем обновлении. Сейчас все модули включены для вашего тарифа.
-              </p>
-              <div className="space-y-4">
-                {SERVICE_TOGGLES.map((s) => (
-                  <div key={s.key} className="flex items-center justify-between min-h-11 opacity-80">
-                    <div>
-                      <p className="text-sm font-medium text-txt-primary">{s.name}</p>
-                      <p className="text-2xs text-txt-muted">{s.desc}</p>
+          <motion.div variants={item}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <LayoutGrid size={16} className="text-dv-gold" />
+                  Сервисы
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {[
+                  { icon: <Store size={14} />, label: 'CRM', sub: 'Расписание, пациенты, лечение', locked: true },
+                  { icon: <Store size={14} />, label: 'Магазин (Shop)', sub: 'Маркетплейс товаров' },
+                  { icon: <GraduationCap size={14} />, label: 'Школа (School)', sub: 'Образовательная платформа' },
+                  { icon: <Brain size={14} />, label: 'AI Помощник', sub: 'ИИ для диагностики' },
+                  { icon: <BarChart3 size={14} />, label: 'Аналитика', sub: 'Отчёты и метрики' },
+                ].map((s) => (
+                  <div key={s.label} className="flex items-center justify-between min-h-11 py-1.5 opacity-80">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-txt-muted">{s.icon}</span>
+                      <div>
+                        <p className="text-sm font-medium text-txt-primary">{s.label}</p>
+                        <p className="text-2xs text-txt-muted">{s.sub}</p>
+                      </div>
                     </div>
-                    <Switch
-                      checked
-                      disabled
-                      onCheckedChange={() => {}}
-                    />
+                    <Switch checked disabled onCheckedChange={() => {}} />
                   </div>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
         </motion.div>
       )}
 
-      {/* Profile */}
-      <motion.div variants={item}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User size={16} className="text-dv-gold" />
-              Профиль
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between min-h-11 py-2">
-                <span className="text-sm text-txt-secondary">Имя</span>
-                <span className="text-sm font-medium text-txt-primary">{user?.name || user?.login}</span>
-              </div>
-              <div className="flex items-center justify-between min-h-11 py-2">
-                <span className="text-sm text-txt-secondary">Роль</span>
-                <span className="text-sm font-medium text-txt-primary capitalize">{user?.role}</span>
-              </div>
-              <div className="flex items-center justify-between min-h-11 py-2">
-                <span className="text-sm text-txt-secondary">Клиника</span>
-                <span className="text-sm font-medium text-txt-primary">{clinic?.name || '—'}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {/* ═══ ПРОФИЛЬ ═══ */}
+      {tab === 'profile' && (
+        <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
+          <motion.div variants={item}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User size={16} className="text-dv-gold" />
+                  Профиль
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                <SettingRow label="Имя">{user?.name || user?.login}</SettingRow>
+                <SettingRow label="Роль">{user?.role}</SettingRow>
+                <SettingRow label="Клиника">{clinic?.name || '—'}</SettingRow>
+                <div className="pt-2">
+                  <Button size="sm" variant="ghost" className="min-h-11" icon={<ChevronRight size={14} />} onClick={() => navigate('/profile')}>
+                    Редактировать профиль
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
 
-      {/* Preferences */}
-      <motion.div variants={item}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Palette size={16} className="text-dv-gold" />
-              Настройки интерфейса
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between min-h-11">
-                <div>
-                  <p className="text-sm font-medium text-txt-primary">Тёмная тема</p>
-                  <p className="text-2xs text-txt-muted">Сохраняется на этом устройстве</p>
-                </div>
-                <Switch checked={darkMode} onCheckedChange={onDarkMode} />
-              </div>
-              <div className="flex items-center justify-between min-h-11">
-                <div>
-                  <p className="text-sm font-medium text-txt-primary">Уведомления</p>
-                  <p className="text-2xs text-txt-muted">Push в браузере, когда вкладка в фоне</p>
-                </div>
-                <Switch checked={notifications} onCheckedChange={onNotifications} />
-              </div>
-              <div className="flex items-center justify-between min-h-11">
-                <div>
-                  <p className="text-sm font-medium text-txt-primary">Автосохранение</p>
-                  <p className="text-2xs text-txt-muted">Черновики форм в CRM сохраняются локально</p>
-                </div>
-                <Switch checked={autoSave} onCheckedChange={onAutoSave} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+          <motion.div variants={item}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Palette size={16} className="text-dv-gold" />
+                  Интерфейс
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <SettingRow label="Тёмная тема" sub="Сохраняется на этом устройстве">
+                  <Switch checked={darkMode} onCheckedChange={onDarkMode} />
+                </SettingRow>
+                <SettingRow label={<span className="flex items-center gap-1.5"><Bell size={13} /> Уведомления</span>} sub="Push в браузере, когда вкладка в фоне">
+                  <Switch checked={notifications} onCheckedChange={onNotifications} />
+                </SettingRow>
+                <SettingRow label={<span className="flex items-center gap-1.5"><Save size={13} /> Автосохранение</span>} sub="Черновики форм в CRM сохраняются локально">
+                  <Switch checked={autoSave} onCheckedChange={onAutoSave} />
+                </SettingRow>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
+      )}
 
-      {/* Security */}
-      <motion.div variants={item}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield size={16} className="text-dv-gold" />
-              Безопасность
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <Button variant="secondary" size="sm" className="min-h-11" onClick={() => navigate('/forgot-password')}>
-                Изменить пароль
-              </Button>
-              <Button variant="secondary" size="sm" className="min-h-11" icon={<ExternalLink size={14} />} onClick={() => navigate('/security')}>
-                Security & Compliance
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="min-h-11 text-error hover:bg-error/10"
-                onClick={() => { logout(); navigate('/login') }}
-              >
-                Выйти из аккаунта
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {/* ═══ БЕЗОПАСНОСТЬ ═══ */}
+      {tab === 'security' && (
+        <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
+          <motion.div variants={item}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield size={16} className="text-dv-gold" />
+                  Безопасность
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button variant="secondary" size="sm" className="min-h-11 w-full justify-start" onClick={() => navigate('/forgot-password')}>
+                  Изменить пароль
+                </Button>
+                <Button variant="secondary" size="sm" className="min-h-11 w-full justify-start" icon={<ExternalLink size={14} />} onClick={() => navigate('/security')}>
+                  Security & Compliance
+                </Button>
+                <Button variant="ghost" size="sm" className="min-h-11 w-full justify-start text-error hover:bg-error/10" icon={<LogOut size={14} />} onClick={() => { logout(); navigate('/login') }}>
+                  Выйти из аккаунта
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
+      )}
     </motion.div>
   )
 }
