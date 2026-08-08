@@ -3,11 +3,6 @@ import { PERMISSIONS, ROLE_PERMISSIONS } from '../src/lib/permissions.js';
 
 const prisma = new PrismaClient();
 
-// Unified permission catalog (domain.action) — single source of truth is
-// src/lib/permissions.ts. Domain is derived from the key prefix.
-const ALL_PERMISSIONS = Object.values(PERMISSIONS);
-const permissionDomain = (key: string) => key.split('.')[0];
-
 // Legacy alias roles referenced by src/lib/syncMembership.ts and existing
 // PersonRole assignments. They reuse permissions from the unified catalog so
 // old rows keep resolving against the new vocabulary.
@@ -37,6 +32,21 @@ const LEGACY_ROLES: { key: string; name: string; description: string; permission
     permissionKeys: ['academy.manage'],
   },
 ];
+
+// Unified permission catalog (domain.action) — single source of truth is
+// src/lib/permissions.ts. Domain is derived from the key prefix.
+// IMPORTANT: PERMISSIONS (legacy compat) is NOT exhaustive — many role-matrix
+// keys like medical.read or lab.write only exist in ROLE_PERMISSIONS.  The
+// catalog MUST include every key the matrix produces so that `findMany` in
+// the role-linking loop below actually finds Permission rows for each key.
+const ALL_PERMISSIONS: string[] = [
+  ...new Set([
+    ...Object.values(PERMISSIONS),
+    ...Object.values(ROLE_PERMISSIONS).flat(),
+    ...LEGACY_ROLES.flatMap(r => r.permissionKeys),
+  ]),
+];
+const permissionDomain = (key: string) => key.split('.')[0];
 
 // Canonical roles derived from ROLE_PERMISSIONS, keyed by the lowercase backend
 // role name so the DB lookup in GET /api/iam/permissions (role.toLowerCase())
