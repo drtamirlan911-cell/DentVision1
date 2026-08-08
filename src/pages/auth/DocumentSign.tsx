@@ -63,11 +63,10 @@ export default function DocumentSign() {
     }
     setSigning(true);
     try {
-      const docId = doc?.id || doc?.documentId || token;
-      const res = await fetch(`${API_URL}/api/documents/${docId}/sign`, {
+      const res = await fetch(`${API_URL}/api/public/document/${token}/sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature_data: signatureData, signed_by_name: name, token }),
+        body: JSON.stringify({ signatureData, signedByName: name }),
       });
       if (!res.ok) throw new Error('Sign failed');
       setSigned(true);
