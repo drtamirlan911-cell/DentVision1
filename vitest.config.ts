@@ -19,6 +19,7 @@ export default defineConfig({
     include: [
       'src/**/*.test.{ts,tsx}',
       'dentvision-backend/src/**/*.test.ts',
+      'dentvision-backend/prisma/**/*.test.ts',
     ],
     exclude: ['node_modules', 'dist', 'server'],
   },
