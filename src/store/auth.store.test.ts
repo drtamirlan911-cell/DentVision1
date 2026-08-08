@@ -24,6 +24,7 @@ beforeEach(() => {
     clinics: [],
     activeMembership: null,
     activeClinic: null,
+    permissions: [],
     loading: false,
     error: null,
   })
@@ -99,6 +100,37 @@ describe('auth store - clinics', () => {
     } as any)
     await useAuthStore.getState().login('doc', 'pass')
     expect(useAuthStore.getState().clinics).toHaveLength(2)
+  })
+})
+
+describe('auth store - permissions', () => {
+  it('stores server permissions on login', async () => {
+    vi.mocked(api.login).mockResolvedValue({
+      user: { id: '1', name: 'Doc' },
+      tokens: { accessToken: 'at', refreshToken: 'rt' },
+      memberships: [{ clinicId: 'c1', role: 'doctor' }],
+      activeMembership: { clinicId: 'c1', role: 'doctor' },
+      permissions: ['patient.read', 'appointment.write'],
+    } as any)
+    await useAuthStore.getState().login('doc', 'pass')
+    expect(useAuthStore.getState().permissions).toEqual(['patient.read', 'appointment.write'])
+  })
+
+  it('defaults permissions to [] on older login contract', async () => {
+    vi.mocked(api.login).mockResolvedValue({
+      user: { id: '1', name: 'Doc' },
+      tokens: { accessToken: 'at', refreshToken: 'rt' },
+      memberships: [{ clinicId: 'c1', role: 'doctor' }],
+      activeMembership: { clinicId: 'c1', role: 'doctor' },
+    } as any)
+    await useAuthStore.getState().login('doc', 'pass')
+    expect(useAuthStore.getState().permissions).toEqual([])
+  })
+
+  it('clears permissions on logout', async () => {
+    useAuthStore.setState({ permissions: ['patient.read'] })
+    useAuthStore.getState().logout()
+    expect(useAuthStore.getState().permissions).toEqual([])
   })
 })
 

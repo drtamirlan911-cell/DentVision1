@@ -7,6 +7,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { onboardPartner } from '../legal/legal.service.js';
 import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
+import { permissionsForRole } from '../../lib/permissions.js';
 
 async function ensureOrgAndPerson(clinicId: string, userId: string, role: string) {
   const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { name: true, city: true } });
@@ -215,6 +216,7 @@ authRouter.post('/login', async (req, res) => {
           clinic: m.clinic,
         })),
         activeMembership,
+        permissions: permissionsForRole(activeMembership?.role || user.role),
         ...tokens,
       },
     };
@@ -344,6 +346,7 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
         },
         memberships: user.memberships.map(m => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })),
         activeMembership: user.memberships[0] ? { id: user.memberships[0].id, role: user.memberships[0].role, clinicId: user.memberships[0].clinicId, clinic: user.memberships[0].clinic } : null,
+        permissions: permissionsForRole(user.memberships[0]?.role || user.role),
       },
     };
 

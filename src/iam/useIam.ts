@@ -5,14 +5,16 @@ import { createIamResolver, type IamResolver, type IamRoleInfo } from './resolve
 /**
  * React hook exposing the IAM resolver for the active auth context.
  *
- * Step 1 adapter: reads the legacy role/roleInfo from `useAuth` so behavior is
- * identical to today. In Step 3 the resolver will prefer backend permissions.
+ * Adapter over `useAuth`: reads the legacy role/roleInfo plus the server-side
+ * effective permissions exposed by `/me` (Step 2). The resolver already prefers
+ * server-provided permissions over the shared role matrix, so once a consumer
+ * uses `useIam()` it automatically follows backend policy.
  */
 export function useIam(): IamResolver {
-  const { role, roleInfo } = useAuth()
+  const { role, roleInfo, permissions } = useAuth()
 
   return useMemo(
-    () => createIamResolver({ role, roleInfo: roleInfo as unknown as IamRoleInfo }),
-    [role, roleInfo],
+    () => createIamResolver({ role, roleInfo: roleInfo as unknown as IamRoleInfo, permissions }),
+    [role, roleInfo, permissions],
   )
 }

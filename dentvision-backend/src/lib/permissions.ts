@@ -37,6 +37,8 @@ export const PERMISSIONS = {
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 // Role → granted permissions. SUPERADMIN is a wildcard handled in roleHasPermission().
+// DIRECTOR is not a UserRole enum value but is used by the frontend and other
+// modules; treat it as OWNER-equivalent. SUPPORT is a read-mostly role.
 //
 // BI access matrix:
 //   OWNER         → bi.clinic (full clinic BI)
@@ -48,6 +50,13 @@ export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 //   LAB           → (none)
 //   SUPERADMIN    → bi.clinic + bi.network + bi.platform + bi.finance (all)
 const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
+  DIRECTOR: [
+    'patient.read', 'patient.write', 'patient.delete',
+    'appointment.read', 'appointment.write', 'appointment.delete',
+    'inventory.read', 'inventory.write', 'inventory.delete',
+    'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
+    'bi.clinic', 'bi.finance',
+  ],
   OWNER: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
@@ -77,6 +86,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   CASHIER: ['patient.read', 'appointment.read', 'inventory.read'],
   LAB: ['appointment.read', 'inventory.read'],
   STUDENT: [],
+  SUPPORT: ['patient.read', 'appointment.read', 'inventory.read', 'bi.clinic'],
 };
 
 export function roleHasPermission(role: UserRole | string | undefined | null, key: PermissionKey): boolean {

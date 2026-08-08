@@ -507,4 +507,5 @@ export interface LoginResponse {
   roleInfo?: RoleInfo
   memberships?: Array<{ id: string; clinicId: string; role: string }>
   activeMembership?: { id: string; clinicId: string; role: string }
+  permissions?: string[]
 }
