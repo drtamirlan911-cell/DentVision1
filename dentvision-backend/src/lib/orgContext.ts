@@ -34,12 +34,13 @@ export async function resolveOrgContext(user: AuthUser) {
 
 /**
  * Get the effective clinicId from a user's context.
- * If the org is a CLINIC, returns its id; otherwise tries user.clinicId.
+ *
+ * `organizationId` is not a clinic id — Organization rows carry their own ids
+ * and record the mirrored entity in `originalId`. `authenticate` already
+ * resolves the clinic id for a CLINIC organization, so that is the only field
+ * to read here.
  */
 export function getClinicId(user: AuthUser): string | undefined {
-  if (user.organizationType === 'CLINIC' && user.organizationId) {
-    return user.organizationId;
-  }
   return user.clinicId;
 }
 
