@@ -239,13 +239,16 @@ export const MODULE_PAGES: Record<string, string[]> = {
   bi:           ['bi'],
 };
 
-/** Derive visible CRM pages from a role's permission set. */
-export function pagesForRole(role: string): string[] {
-  const perms = role === 'SUPERADMIN'
-    ? buildPermissionKeys(MATRIX['SUPERADMIN'])
-    : (ROLE_PERMISSIONS[role] || []);
+/**
+ * Derive visible CRM pages from an effective permission set.
+ *
+ * Takes the resolved permissions rather than a role name so the DB permission
+ * graph drives page visibility too — a role whose PersonRole grants more (or
+ * less) than the matrix gets pages that match what it can actually do.
+ */
+export function pagesForPermissions(permissions: readonly string[]): string[] {
   const pages = new Set<string>();
-  for (const perm of perms) {
+  for (const perm of permissions) {
     if (perm === '*') {
       for (const p of Object.values(MODULE_PAGES)) p.forEach((id) => pages.add(id));
       return Array.from(pages);
@@ -255,6 +258,13 @@ export function pagesForRole(role: string): string[] {
     if (modPages) modPages.forEach((p) => pages.add(p));
   }
   return Array.from(pages);
+}
+
+/** Derive visible CRM pages from a role's permission set. */
+export function pagesForRole(role: string): string[] {
+  return pagesForPermissions(
+    role === 'SUPERADMIN' ? buildPermissionKeys(MATRIX['SUPERADMIN']) : ROLE_PERMISSIONS[role] || [],
+  );
 }
 
 // ─── Capability flags derived from permissions ───
@@ -272,21 +282,35 @@ export interface RoleCapabilities {
   readOnly: boolean;
 }
 
-export function capabilitiesForRole(role: string): RoleCapabilities {
-  const perms = new Set(ROLE_PERMISSIONS[role] || []);
-  const r = role.toUpperCase();
+/**
+ * Capability flags for an effective permission set.
+ *
+ * Most flags fall out of the permissions; `canBackup`, `ownDataOnly` and
+ * `readOnly` have no permission key behind them and stay keyed on the role.
+ */
+export function capabilitiesForPermissions(
+  permissions: readonly string[],
+  role: string,
+): RoleCapabilities {
+  const perms = new Set(permissions);
+  const has = (key: string) => perms.has('*') || perms.has(key);
+  const r = String(role || '').toUpperCase();
   return {
-    canSeeSalary:            perms.has('staff.read'),
-    canAddStaff:             perms.has('staff.write'),
-    canSeeAudit:             perms.has('audit.read'),
+    canSeeSalary:            has('staff.read'),
+    canAddStaff:             has('staff.write'),
+    canSeeAudit:             has('audit.read'),
     canBackup:               r === 'SUPERADMIN' || r === 'OWNER' || r === 'DIRECTOR',
-    canSeeReports:           perms.has('analytics.read'),
-    canSeeExpenses:          perms.has('billing.manage'),
-    canManageClinicSettings: perms.has('settings.manage'),
-    canManageFinance:        perms.has('billing.manage'),
+    canSeeReports:           has('analytics.read'),
+    canSeeExpenses:          has('billing.manage'),
+    canManageClinicSettings: has('settings.manage'),
+    canManageFinance:        has('billing.manage'),
     ownDataOnly:             r === 'DOCTOR' || r === 'ASSISTANT',
     readOnly:                r === 'ASSISTANT' || r === 'STUDENT',
   };
+}
+
+export function capabilitiesForRole(role: string): RoleCapabilities {
+  return capabilitiesForPermissions(permissionsForRole(role), role);
 }
 
 // ─── Role-to-module quick check ───
