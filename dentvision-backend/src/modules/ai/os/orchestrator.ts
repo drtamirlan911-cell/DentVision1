@@ -19,7 +19,8 @@
 
 import { env } from '../../../config.js';
 import prisma from '../../../lib/prisma.js';
-import { agentsForRole, toolsForRole } from './registry.js';
+import { agentsForRole } from './registry.js';
+import { resolveAiToolAccess } from './access.js';
 import { executeTool, toolSchemasFor, localizeNavKeysInMessage, type ToolContext } from './tools.js';
 import {
   personaLabel,
@@ -269,7 +270,31 @@ async function saveMessage(
   }
 }
 
-export async function orchestrate(input: OrchestratorInput): Promise<OrchestratorResult> {
+/**
+ * Mutating tools treat `confirmed: true` as "the user approved this" and write
+ * immediately. The flag must therefore never be settable by the model: nothing
+ * stopped the planning step from passing it on the first call — including when
+ * the text it is planning over came from a patient message or an uploaded
+ * document. Confirmation belongs to the explicit `/confirm` round-trip, which
+ * runs under full `authenticate`.
+ */
+export function stripModelConfirmation(args: Record<string, unknown>): Record<string, unknown> {
+  if (!('confirmed' in args)) return args;
+  const { confirmed: _ignored, ...rest } = args;
+  return rest;
+}
+
+export async function orchestrate(rawInput: OrchestratorInput): Promise<OrchestratorResult> {
+  // Authorization is resolved from the database up front, and everything below
+  // works off the resolved values: the caller-supplied role and clinicId arrive
+  // from a JWT claim (`/query` runs under optionalAuth) and are never trusted.
+  const access = await resolveAiToolAccess({
+    userId: rawInput.userId,
+    clinicId: rawInput.clinicId,
+    isGuest: rawInput.isGuest,
+  });
+  const input: OrchestratorInput = { ...rawInput, role: access.role, clinicId: access.clinicId };
+
   await saveMessage(input.sessionId, 'user', input.text, {
     userId: input.userId,
     clinicId: input.clinicId,
@@ -426,8 +451,8 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
     }
   }
 
-  // UNDERSTAND — resolve permissions into the concrete tool surface.
-  const allowedTools = toolsForRole(input.role);
+  // UNDERSTAND — the concrete tool surface, resolved from the DB above.
+  const allowedTools = access.allowed;
   const toolSchemas = toolSchemasFor(allowedTools);
   const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role };
   const currencyCode = await resolveClinicCurrency(input.clinicId);
@@ -566,7 +591,7 @@ export async function orchestrate(input: OrchestratorInput): Promise<Orchestrato
         /* pass empty args; the tool will report what's missing */
       }
 
-      const result = await executeTool(call.name || '', args, toolCtx, allowedTools);
+      const result = await executeTool(call.name || '', stripModelConfirmation(args), toolCtx, allowedTools);
       toolsUsed.push(call.name || 'unknown');
 
       if (result.needsConfirmation) {
