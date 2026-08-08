@@ -5,7 +5,7 @@ import { validate } from '../../middleware/validate.js';
 import { z } from 'zod';
 import { aiService } from './core/ai.service.js';
 import { improveResponseWithLLM } from './core/llm.service.js';
-import { orchestrate, orchestratorEnabled } from './os/orchestrator.js';
+import { orchestrate, orchestratorEnabled, isProviderUnavailableError } from './os/orchestrator.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
 import { logAIInteraction } from './lib/auditLogger.js';
@@ -363,6 +363,22 @@ async function processQuery(
         activePersonaLabel: result.activePersonaLabel,
       };
     } catch (error) {
+      // A dead provider (no credits, revoked key) cannot be fixed by falling
+      // back — the intent router's improveResponseWithLLM calls the same API
+      // again, so the user waits through a second round-trip for nothing.
+      if (isProviderUnavailableError(error)) {
+        console.error('[AI OS] provider unavailable — answering without the LLM:', error);
+        return {
+          message:
+            'ИИ-ассистент временно недоступен: закончились кредиты у провайдера модели. '
+            + 'Разделы платформы работают как обычно — расписание, пациенты, финансы и склад открываются напрямую.',
+          intent: 'AI_UNAVAILABLE',
+          suggestions: ['Открыть расписание', 'Открыть пациентов', 'Открыть финансы'],
+          toolsUsed: [],
+          learnedHint,
+          learnedLabels,
+        };
+      }
       console.error('[AI OS] orchestrator failed, falling back to intent router:', error);
     }
   }

@@ -107,8 +107,15 @@ export function createIamResolver(ctx: IamContext): IamResolver {
     ? (Array.from(new Set(ctx.permissions.filter(isIamPermission))) as IamPermission[])
     : permissionsForRole(role)
 
-  // Server-provided pages for page visibility (Step 3).
-  const pages = ctx.pages && ctx.pages.length > 0 ? ctx.pages : (roleInfo.pages || [])
+  // Server-provided pages for page visibility (Step 3), UNION the legacy list.
+  //
+  // Additive, never a replacement — mirroring `requirePermission` on the
+  // backend, which allows when the DB graph OR the role matrix grants. A
+  // supplier's Person carries `supplier.manage` + `inventory.read`, which the
+  // server maps to pages ['inventory', 'profile']; treating that as the whole
+  // truth silently revoked shop / school / diagnostics from the legacy config
+  // and bounced them onto a clinic page they cannot open.
+  const pages = Array.from(new Set([...(ctx.pages || []), ...(roleInfo.pages || [])]))
 
   // Server-provided capability flags (Step 3).
   const capabilities = ctx.capabilities || {

@@ -9,7 +9,7 @@ import { onboardPartner } from '../legal/legal.service.js';
 import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { resolveAuthContext } from '../../lib/authContext.js';
-import { pagesForPermissions, capabilitiesForPermissions } from '../../lib/permissions.js';
+import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permissions.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 
 async function ensureOrgAndPerson(clinicId: string, userId: string, role: string) {
@@ -230,7 +230,7 @@ authRouter.post('/login', async (req, res) => {
         })),
         activeMembership,
         permissions: effectivePermissions,
-        pages: pagesForPermissions(effectivePermissions),
+        pages: pagesForCaller(effectivePermissions, scopedRole),
         capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole),
         effectiveRole: scopedRole,
         ...tokens,
@@ -380,7 +380,7 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
         memberships: user.memberships.map(m => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })),
         activeMembership: user.memberships[0] ? { id: user.memberships[0].id, role: user.memberships[0].role, clinicId: user.memberships[0].clinicId, clinic: user.memberships[0].clinic } : null,
         permissions: effectivePermissions,
-        pages: pagesForPermissions(effectivePermissions),
+        pages: pagesForCaller(effectivePermissions, scopedRole),
         capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole),
         effectiveRole: scopedRole,
       },

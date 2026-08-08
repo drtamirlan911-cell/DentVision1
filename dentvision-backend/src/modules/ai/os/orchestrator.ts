@@ -49,6 +49,31 @@ import {
 import { sanitizeUserInput, buildSafeInstructions } from '../lib/promptGuard.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
+
+/**
+ * A provider failure that retrying or falling back cannot fix — exhausted
+ * credits, a revoked key, a disabled account.
+ *
+ * Worth distinguishing: on any orchestrator error the caller drops to the
+ * deterministic intent router, which then calls the same dead provider again
+ * through improveResponseWithLLM. The user waits through two round-trips to be
+ * told nothing. These failures short-circuit instead.
+ */
+export interface ProviderError extends Error {
+  providerUnavailable?: boolean;
+}
+
+export function isProviderUnavailable(status: number, detail: string): boolean {
+  if (status === 401 || status === 403) return true;
+  if (status !== 429) return false;
+  // 429 is both "slow down" (retryable) and "no credits" (terminal).
+  return /insufficient_quota|credit_balance_exhausted|billing|no credits/i.test(detail);
+}
+
+export function isProviderUnavailableError(error: unknown): boolean {
+  return Boolean(error && (error as ProviderError).providerUnavailable);
+}
+
 const MAX_TOOL_ROUNDS = 6;
 const REQUEST_TIMEOUT_MS = 45_000;
 
@@ -219,7 +244,11 @@ async function callModel(
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    throw new Error(`OpenAI ${res.status}: ${detail.slice(0, 300)}`);
+    const error = new Error(`OpenAI ${res.status}: ${detail.slice(0, 300)}`);
+    if (isProviderUnavailable(res.status, detail)) {
+      (error as ProviderError).providerUnavailable = true;
+    }
+    throw error;
   }
   const payload = (await res.json()) as ResponsesAPIResult;
   const outText =
