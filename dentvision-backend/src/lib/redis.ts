@@ -16,6 +16,10 @@ export function getRedis(): Redis | null {
 
   try {
     _redis = new Redis(url, {
+      // BullMQ (Queue + Worker, the only consumers of this connection today)
+      // requires maxRetriesPerRequest: null on any connection used for
+      // blocking commands — the Worker throws "must be null" at construction
+      // otherwise.
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       lazyConnect: true,
