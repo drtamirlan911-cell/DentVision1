@@ -15,7 +15,9 @@ export function startMessageWorker(): void {
     return
   }
 
-  const worker = new Worker<NormalizedMessage>(
+  let worker: Worker<NormalizedMessage>;
+  try {
+    worker = new Worker<NormalizedMessage>(
     'ai-admin-messages',
     async (job) => {
       const msg = job.data
@@ -72,11 +74,14 @@ export function startMessageWorker(): void {
       connection: redis,
       concurrency: 3,
     },
-  )
+  );
 
   worker.on('failed', (job, err) => {
-    console.error(`[worker] Job ${job?.id} failed:`, err)
-  })
+    console.error(`[worker] Job ${job?.id} failed:`, err);
+  });
 
-  console.log('[ai-admin] Message worker started')
+  console.log('[ai-admin] Message worker started');
+  } catch (err) {
+    console.error('[ai-admin] Worker start failed (non-fatal):', err);
+  }
 }

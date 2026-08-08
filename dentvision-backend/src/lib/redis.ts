@@ -16,7 +16,7 @@ export function getRedis(): Redis | null {
 
   try {
     _redis = new Redis(url, {
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: null,
       enableReadyCheck: false,
       lazyConnect: true,
       retryStrategy(times) {
