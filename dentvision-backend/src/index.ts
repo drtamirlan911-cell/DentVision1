@@ -105,6 +105,40 @@ const LEGAL_SEED_TEMPLATES: Array<{ type: string; name: string; description: str
       '<p>{{ClinicName}}, БИН {{ClinicBIN}}, адрес: {{ClinicAddress}}, телефон: {{ClinicPhone}}, e-mail: {{ClinicEmail}}, IBAN: {{ClinicIBAN}}, руководитель: {{ClinicDirectorTitle}}.</p>',
     ].join('\n'),
   },
+  {
+    type: 'LECTURER_AGREEMENT',
+    name: 'Договор с лектором',
+    description: 'Договор на размещение курсов и вебинаров лектором на платформе',
+    variables: ['LecturerName', 'LecturerBIN', 'LecturerAddress', 'LecturerPhone', 'LecturerEmail', 'LecturerIBAN', 'CommissionRate', 'ContractNumber'],
+    content: [
+      '<h2>ДОГОВОР С ЛЕКТОРОМ № {{ContractNumber}}</h2>',
+      '<p>г. Алматы</p>',
+      '<p>DentVision (далее — «Платформа») и <strong>{{LecturerName}}</strong> (БИН {{LecturerBIN}}, далее — «Лектор») заключили настоящий договор.</p>',
+      '<h3>1. Предмет</h3>',
+      '<p>1.1. Лектор размещает образовательные курсы и вебинары на платформе через Academy OS; Платформа обеспечивает доступ слушателей.</p>',
+      '<h3>2. Комиссия Платформы</h3>',
+      '<p>2.1. Комиссия Платформы составляет <strong>{{CommissionRate}}%</strong> от стоимости проданных курсов.</p>',
+      '<h3>3. Реквизиты Лектора</h3>',
+      '<p>{{LecturerName}}, БИН {{LecturerBIN}}, адрес: {{LecturerAddress}}, телефон: {{LecturerPhone}}, e-mail: {{LecturerEmail}}, IBAN: {{LecturerIBAN}}.</p>',
+    ].join('\n'),
+  },
+  {
+    type: 'ACADEMY_AGREEMENT',
+    name: 'Договор с учебным центром',
+    description: 'Договор на размещение академии / учебного центра на платформе',
+    variables: ['AcademyName', 'AcademyBIN', 'AcademyAddress', 'AcademyPhone', 'AcademyEmail', 'AcademyIBAN', 'CommissionRate', 'ContractNumber'],
+    content: [
+      '<h2>ДОГОВОР С УЧЕБНЫМ ЦЕНТРОМ № {{ContractNumber}}</h2>',
+      '<p>г. Алматы</p>',
+      '<p>DentVision (далее — «Платформа») и <strong>{{AcademyName}}</strong> (БИН {{AcademyBIN}}, далее — «Академия») заключили настоящий договор.</p>',
+      '<h3>1. Предмет</h3>',
+      '<p>1.1. Академия размещает программы обучения и курсы на платформе; Платформа привлекает слушателей и обеспечивает техническую инфраструктуру.</p>',
+      '<h3>2. Комиссия Платформы</h3>',
+      '<p>2.1. Комиссия Платформы составляет <strong>{{CommissionRate}}%</strong> от стоимости проданных курсов и программ.</p>',
+      '<h3>3. Реквизиты Академии</h3>',
+      '<p>{{AcademyName}}, БИН {{AcademyBIN}}, адрес: {{AcademyAddress}}, телефон: {{AcademyPhone}}, e-mail: {{AcademyEmail}}, IBAN: {{AcademyIBAN}}.</p>',
+    ].join('\n'),
+  },
 ];
 
 const DB_RETRIES = 5;
@@ -1118,7 +1152,6 @@ async function main() {
     } catch (err) {
       console.warn('[AI_ADMIN] Worker start failed (non-fatal):', err);
     }
-  });
   });
 }
 

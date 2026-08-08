@@ -176,13 +176,46 @@ patientPortalRouter.get('/documents', ensurePatient, async (req: AuthRequest, re
     const docs = await (prisma as any).document.findMany({
       where: { patientId: pid },
       select: {
-        id: true, docType: true, title: true, signedAt: true, createdAt: true,
+        id: true, docType: true, title: true, url: true,
+        signed: true, signedAt: true, signatureData: true,
+        createdAt: true,
         clinic: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
     return res.json({ ok: true, data: docs });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Document content (decodes data:text/plain;... URLs for viewing/download)
+patientPortalRouter.get('/documents/:id/content', ensurePatient, async (req: AuthRequest, res) => {
+  try {
+    const pid = resolvePatientId(req);
+    const doc = await (prisma as any).document.findFirst({
+      where: { id: req.params.id, patientId: pid },
+      select: { url: true, type: true, title: true },
+    });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Документ не найден' });
+
+    const url = String(doc.url || '');
+    // data:text/plain;charset=utf-8;base64,... or data:text/plain;charset=utf-8,...
+    if (url.startsWith('data:text/plain')) {
+      const base64Match = url.match(/;base64,(.+)$/);
+      const content = base64Match
+        ? Buffer.from(base64Match[1], 'base64').toString('utf-8')
+        : decodeURIComponent(url.replace(/^data:text\/plain;charset=utf-8,/, ''));
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.title || 'document')}.txt"`);
+      return res.send(content);
+    }
+    // External URL or mock-storage path — redirect
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return res.redirect(url);
+    }
+    return res.json({ ok: false, error: 'Документ недоступен для скачивания' });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }

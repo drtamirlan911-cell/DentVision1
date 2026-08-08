@@ -395,7 +395,12 @@ function DocumentsTab() {
                   {isSigned ? t('patientPortal.documents.signed') : t('patientPortal.documents.pending')}
                 </Badge>
                 {isSigned ? (
-                  <Button size="sm" variant="ghost" icon={<Eye size={14} />} disabled>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={<Eye size={14} />}
+                    onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}/api/patient-portal/documents/${d.id}/content`, '_blank')}
+                  >
                     {t('patientPortal.documents.view')}
                   </Button>
                 ) : (
