@@ -1,7 +1,7 @@
 import React from 'react'
 import { cn } from '@/lib/utils'
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info' | 'gold' | 'outline'
+type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info' | 'gold' | 'outline' | 'filled'
 type BadgeSize = 'xs' | 'sm' | 'md'
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -18,6 +18,8 @@ const variantStyles: Record<BadgeVariant, string> = {
   info: 'bg-info/10 text-info border-info/20',
   gold: 'bg-dv-gold/10 text-dv-gold border-dv-gold/20',
   outline: 'bg-transparent text-txt-secondary border-bdr',
+  // Neutral filled base — callers supply their own bg/text via className.
+  filled: 'bg-white/5 text-txt-primary border-transparent',
 }
 
 const sizeStyles: Record<BadgeSize, string> = {

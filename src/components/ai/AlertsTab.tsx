@@ -34,6 +34,14 @@ const PRIORITY_CONFIG = {
   },
 }
 
+/** Map numeric priority (higher = more urgent) to a visual level.
+ * Mirrors the store's mapPriority thresholds (see ai.store.ts). */
+function priorityLevel(priority: number): 'high' | 'medium' | 'low' {
+  if (priority >= 8) return 'high'
+  if (priority >= 4) return 'medium'
+  return 'low'
+}
+
 const ACTION_PATHS: Record<string, string> = {
   OpenSchedule: '/crm/schedule',
   OpenCashier: '/crm/finance',
@@ -85,13 +93,13 @@ export function AlertsTab() {
       </div>
       <AnimatePresence mode="popLayout">
         {proactiveAlerts.map((alert, i) => {
-          const config = PRIORITY_CONFIG[alert.priority] || PRIORITY_CONFIG.low
+          const config = PRIORITY_CONFIG[priorityLevel(alert.priority)] || PRIORITY_CONFIG.low
           const Icon = config.icon
           const actionType = alert.action?.type
 
           return (
             <motion.div
-              key={`${alert.message}-${i}`}
+              key={`${alert.id}-${i}`}
               initial={{ opacity: 0, x: -12, scale: 0.97 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 12, scale: 0.97 }}
@@ -107,7 +115,7 @@ export function AlertsTab() {
                       <Badge variant="outline" size="xs">{config.label}</Badge>
                       <span className="text-[10px] text-txt-ghost uppercase">{alert.type}</span>
                     </div>
-                    <p className="text-xs text-txt-primary leading-snug">{alert.message}</p>
+                    <p className="text-xs text-txt-primary leading-snug">{alert.text}</p>
                     {actionType && ACTION_PATHS[actionType] && (
                       <button
                         type="button"
