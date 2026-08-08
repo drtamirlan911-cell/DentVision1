@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireMinRole } from '../../middleware/rbac.js';
+import { uid } from '../../lib/helpers.js';
 import type { AuthRequest } from '../../types/index.js';
 import type { ApiResponse } from '../../types/index.js';
 
@@ -78,9 +79,9 @@ auditRouter.get('/', async (req: AuthRequest, res) => {
 
 auditRouter.post('/backup', async (req: AuthRequest, res) => {
   try {
-    const clinicId = req.user!.clinicId;
+    const clinicId = req.user!.clinicId || (req.body?.clinicId as string | undefined);
     if (!clinicId) {
-      return res.status(400).json({ ok: false, error: 'Клиника не определена' });
+      return res.status(400).json({ ok: false, error: 'Клиника не определена. Укажите clinicId в теле запроса.' });
     }
 
     const [
@@ -123,7 +124,7 @@ auditRouter.post('/backup', async (req: AuthRequest, res) => {
         id: m.id,
         role: m.role,
         joinedAt: m.joinedAt,
-        user: {
+        user: m.user ? {
           id: m.user.id,
           email: m.user.email,
           firstName: m.user.firstName,
@@ -131,7 +132,7 @@ auditRouter.post('/backup', async (req: AuthRequest, res) => {
           role: m.user.role,
           phone: m.user.phone,
           spec: m.user.spec,
-        },
+        } : null,
       })),
       patients,
       appointments,
@@ -149,7 +150,7 @@ auditRouter.post('/backup', async (req: AuthRequest, res) => {
 
     await prisma.auditLog.create({
       data: {
-        id: (await import('../../lib/helpers.js')).uid(),
+        id: uid(),
         userId: req.user!.id,
         clinicId,
         action: 'BACKUP_CREATED',
