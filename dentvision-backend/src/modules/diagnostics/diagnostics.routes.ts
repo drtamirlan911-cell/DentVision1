@@ -8,6 +8,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import * as svc from './diagnostics.service.js';
 import { uid } from '../../lib/helpers.js';
 import prisma from '../../lib/prisma.js';
+import { assertOrgAccess } from '../../lib/orgContext.js';
 
 // C3: Verify user has clinic membership for the referral's clinic
 /**
@@ -28,12 +29,8 @@ export function requireReferralAccess(includeCenterLab = false) {
       });
       if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' });
 
-      if (req.user?.role === 'SUPERADMIN') return next();
       if (referral.doctorId === req.user!.id) return next();
-      const member = await prisma.clinicMember.findFirst({
-        where: { userId: req.user!.id, clinicId: referral.clinicId },
-      });
-      if (member) return next();
+      if (await assertOrgAccess(req.user!, referral.clinicId)) return next();
       if (includeCenterLab) {
         if (referral.centerId && hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', referral.centerId)) return next();
         if (referral.labId && hasOrgAccess(req.user, 'LABORATORY', referral.labId)) return next();
@@ -69,8 +66,7 @@ export async function authorizeReferralListScope(
     return { ok: false, status: 403, error: 'Нет доступа к лаборатории' };
   }
   if (clinicId && !centerId && !labId) {
-    const member = await prisma.clinicMember.findFirst({ where: { userId: user!.id, clinicId } });
-    if (!member) return { ok: false, status: 403, error: 'Нет доступа к клинике' };
+    if (!(await assertOrgAccess(user!, clinicId))) return { ok: false, status: 403, error: 'Нет доступа к клинике' };
   }
   return { ok: true };
 }
@@ -277,10 +273,9 @@ diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => {
     if (!clinicId) {
       return res.status(400).json({ ok: false, error: 'Выберите клинику' });
     }
-    const member = await prisma.clinicMember.findFirst({
-      where: { userId: req.user!.id, clinicId },
-    });
-    if (!member) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
+    if (!(await assertOrgAccess(req.user!, clinicId))) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
+    }
     const userId = req.user!.id;
     const data = await svc.createReferral({ ...req.body, doctorId: userId }, userId);
     return res.json({ ok: true, data } satisfies ApiResponse);
@@ -866,7 +861,7 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res)
     const role = String((req.user as any)?.role || '').toLowerCase();
     const isSuper = role === 'superadmin';
     const isClinicMember = referral.clinicId
-      ? Boolean(await prisma.clinicMember.findFirst({ where: { userId: req.user!.id, clinicId: referral.clinicId }, select: { userId: true } }))
+      ? await assertOrgAccess(req.user!, referral.clinicId)
       : false;
     const hasCenter = referral.centerId ? hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', referral.centerId) : false;
     const hasLab = referral.labId ? hasOrgAccess(req.user, 'LABORATORY', referral.labId) : false;
