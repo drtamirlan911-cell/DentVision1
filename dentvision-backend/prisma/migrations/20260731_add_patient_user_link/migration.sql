@@ -1,25 +1,44 @@
--- AlterTable (try both PascalCase and lowercase table names)
+-- Links a Patient to a platform User account.
+--
+-- Every statement is guarded and idempotent. The previous version created both
+-- "Patient_userId_idx" and "patients_userId_idx" unconditionally, outside the
+-- table-name guard — only one of those tables can exist, so the migration
+-- failed with 42P01 in every database, and a failed migration blocks every
+-- migration after it.
 DO $$
+DECLARE
+  patient_table text;
+  user_table    text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = "Patient") THEN
-    ALTER TABLE "Patient" ADD COLUMN IF NOT EXISTS "userId" TEXT;
-  ELSIF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = "patients") THEN
-    ALTER TABLE "patients" ADD COLUMN IF NOT EXISTS "userId" TEXT;
+  SELECT table_name INTO patient_table FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_name IN ('Patient', 'patients') LIMIT 1;
+
+  IF patient_table IS NULL THEN
+    RAISE NOTICE 'patient table absent — nothing to do';
+    RETURN;
   END IF;
-END $$;
 
--- CreateIndex (both variants)
-CREATE INDEX IF NOT EXISTS "Patient_userId_idx" ON "Patient"("userId");
-CREATE INDEX IF NOT EXISTS "patients_userId_idx" ON "patients"("userId");
+  EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS "userId" TEXT', patient_table);
+  EXECUTE format(
+    'CREATE INDEX IF NOT EXISTS %I ON public.%I ("userId")',
+    patient_table || '_userId_idx', patient_table
+  );
 
--- AddForeignKey (try both table name variants)
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = "Patient") THEN
-    ALTER TABLE "Patient" ADD CONSTRAINT "Patient_userId_fkey"
-      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-  ELSIF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = "patients") THEN
-    ALTER TABLE "patients" ADD CONSTRAINT "patients_userId_fkey"
-      FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  SELECT table_name INTO user_table FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_name IN ('User', 'users') LIMIT 1;
+
+  IF user_table IS NULL THEN
+    RETURN;
+  END IF;
+
+  -- Postgres has no ADD CONSTRAINT IF NOT EXISTS.
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_schema = 'public' AND constraint_name = patient_table || '_userId_fkey'
+  ) THEN
+    EXECUTE format(
+      'ALTER TABLE public.%I ADD CONSTRAINT %I FOREIGN KEY ("userId") REFERENCES public.%I("id") ON DELETE SET NULL ON UPDATE CASCADE',
+      patient_table, patient_table || '_userId_fkey', user_table
+    );
   END IF;
 END $$;

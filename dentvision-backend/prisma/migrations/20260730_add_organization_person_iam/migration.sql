@@ -1,5 +1,5 @@
 -- CreateTable: organizations
-CREATE TABLE "organizations" (
+CREATE TABLE IF NOT EXISTS "organizations" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "type" TEXT NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE "organizations" (
 );
 
 -- CreateTable: persons
-CREATE TABLE "persons" (
+CREATE TABLE IF NOT EXISTS "persons" (
     "id" TEXT NOT NULL,
     "full_name" TEXT NOT NULL,
     "person_type" TEXT NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE "persons" (
 );
 
 -- CreateTable: permissions
-CREATE TABLE "permissions" (
+CREATE TABLE IF NOT EXISTS "permissions" (
     "id" TEXT NOT NULL,
     "key" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE "permissions" (
 );
 
 -- CreateTable: roles
-CREATE TABLE "roles" (
+CREATE TABLE IF NOT EXISTS "roles" (
     "id" TEXT NOT NULL,
     "key" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE "roles" (
 );
 
 -- CreateTable: role_permissions
-CREATE TABLE "role_permissions" (
+CREATE TABLE IF NOT EXISTS "role_permissions" (
     "role_id" TEXT NOT NULL,
     "permission_id" TEXT NOT NULL,
 
@@ -72,7 +72,7 @@ CREATE TABLE "role_permissions" (
 );
 
 -- CreateTable: person_roles
-CREATE TABLE "person_roles" (
+CREATE TABLE IF NOT EXISTS "person_roles" (
     "id" TEXT NOT NULL,
     "person_id" TEXT NOT NULL,
     "role_id" TEXT NOT NULL,
@@ -83,26 +83,49 @@ CREATE TABLE "person_roles" (
 );
 
 -- CreateIndexes
-CREATE UNIQUE INDEX "organizations_original_type_original_id_key" ON "organizations"("original_type", "original_id");
-CREATE INDEX "organizations_type_idx" ON "organizations"("type");
-CREATE INDEX "organizations_name_idx" ON "organizations"("name");
+CREATE UNIQUE INDEX IF NOT EXISTS "organizations_original_type_original_id_key" ON "organizations"("original_type", "original_id");
+CREATE INDEX IF NOT EXISTS "organizations_type_idx" ON "organizations"("type");
+CREATE INDEX IF NOT EXISTS "organizations_name_idx" ON "organizations"("name");
 
-CREATE UNIQUE INDEX "persons_user_id_key" ON "persons"("user_id");
-CREATE UNIQUE INDEX "persons_original_type_original_id_key" ON "persons"("original_type", "original_id");
-CREATE INDEX "persons_person_type_idx" ON "persons"("person_type");
-CREATE INDEX "persons_organization_id_idx" ON "persons"("organization_id");
+-- The global unique on persons(user_id) that used to be created here is gone:
+-- it limited the unified model to one organization per user and is replaced by
+-- the per-organization unique in 20260808_person_multi_org. Re-creating it here
+-- would undo that migration on any database where this one runs afterwards.
+CREATE UNIQUE INDEX IF NOT EXISTS "persons_original_type_original_id_key" ON "persons"("original_type", "original_id");
+CREATE INDEX IF NOT EXISTS "persons_person_type_idx" ON "persons"("person_type");
+CREATE INDEX IF NOT EXISTS "persons_organization_id_idx" ON "persons"("organization_id");
 
-CREATE UNIQUE INDEX "permissions_key_key" ON "permissions"("key");
-CREATE UNIQUE INDEX "roles_key_key" ON "roles"("key");
-CREATE UNIQUE INDEX "person_roles_person_id_role_id_key" ON "person_roles"("person_id", "role_id");
-CREATE INDEX "person_roles_person_id_idx" ON "person_roles"("person_id");
-CREATE INDEX "person_roles_role_id_idx" ON "person_roles"("role_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "permissions_key_key" ON "permissions"("key");
+CREATE UNIQUE INDEX IF NOT EXISTS "roles_key_key" ON "roles"("key");
+CREATE UNIQUE INDEX IF NOT EXISTS "person_roles_person_id_role_id_key" ON "person_roles"("person_id", "role_id");
+CREATE INDEX IF NOT EXISTS "person_roles_person_id_idx" ON "person_roles"("person_id");
+CREATE INDEX IF NOT EXISTS "person_roles_role_id_idx" ON "person_roles"("role_id");
 
 -- AddForeignKeys
-ALTER TABLE "persons" ADD CONSTRAINT "persons_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_schema = 'public' AND constraint_name = 'persons_organization_id_fkey') THEN
+    ALTER TABLE "persons" ADD CONSTRAINT "persons_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
-ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_fkey" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_schema = 'public' AND constraint_name = 'role_permissions_role_id_fkey') THEN
+    ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_schema = 'public' AND constraint_name = 'role_permissions_permission_id_fkey') THEN
+    ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_fkey" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
-ALTER TABLE "person_roles" ADD CONSTRAINT "person_roles_person_id_fkey" FOREIGN KEY ("person_id") REFERENCES "persons"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "person_roles" ADD CONSTRAINT "person_roles_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_schema = 'public' AND constraint_name = 'person_roles_person_id_fkey') THEN
+    ALTER TABLE "person_roles" ADD CONSTRAINT "person_roles_person_id_fkey" FOREIGN KEY ("person_id") REFERENCES "persons"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_schema = 'public' AND constraint_name = 'person_roles_role_id_fkey') THEN
+    ALTER TABLE "person_roles" ADD CONSTRAINT "person_roles_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
