@@ -29,6 +29,10 @@ export async function resolveUserPermissions(
           include: { role: { include: { permissions: { include: { permission: true } } } } },
         },
       },
+      // A user can now hold a Person in several organizations, so an unscoped
+      // lookup must not depend on whatever row the database returns first —
+      // pin it to the oldest membership.
+      orderBy: { createdAt: 'asc' },
     });
     if (person) {
       const perms = new Set<string>();
