@@ -1,22 +1,26 @@
 // @ts-nocheck
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
+import { uid } from '../../lib/helpers.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requireConsent } from '../../middleware/consentGate.js';
+import { decryptPatientFields, encryptField } from '../../lib/phi.js';
 import type { AuthRequest } from '../../types/index.js';
 
 export const patientPortalRouter = Router();
 patientPortalRouter.use(authenticate);
+patientPortalRouter.use(requireConsent());
 
 async function getPatientRecord(userId: string) {
   const patient = await (prisma as any).patient.findFirst({
     where: { userId },
     select: {
       id: true, firstName: true, lastName: true, phone: true,
-      email: true, iin: true, clinicId: true,
+      email: true, iin: true, medicalHistory: true, clinicId: true,
       clinic: { select: { id: true, name: true } },
     },
   });
-  return patient;
+  return decryptPatientFields(patient);
 }
 
 // Patient profile
@@ -34,7 +38,7 @@ patientPortalRouter.get('/me', async (req: AuthRequest, res) => {
         },
       });
       if (!byEmail) return res.json({ ok: true, data: { noPatientRecord: true } });
-      return res.json({ ok: true, data: byEmail });
+      return res.json({ ok: true, data: decryptPatientFields(byEmail) });
     }
     return res.json({ ok: true, data: patient });
   } catch (e: any) {
@@ -201,6 +205,133 @@ patientPortalRouter.get('/diagnostics', ensurePatient, async (req: AuthRequest, 
       take: 30,
     });
     return res.json({ ok: true, data: referrals });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─────────────── Profile update ───────────────
+patientPortalRouter.put('/me/profile', ensurePatient, async (req: AuthRequest, res) => {
+  try {
+    const pid = resolvePatientId(req);
+    const body = req.body || {};
+    const data: Record<string, unknown> = {};
+    if (body.phone !== undefined) data.phone = String(body.phone);
+    if (body.email !== undefined) data.email = String(body.email);
+    if (body.address !== undefined) data.address = String(body.address);
+    if (body.medicalHistory !== undefined) data.medicalHistory = encryptField(String(body.medicalHistory));
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ ok: false, error: 'Нет полей для обновления' });
+    }
+    await (prisma as any).patient.update({ where: { id: pid }, data });
+    return res.json({ ok: true, data: { updated: Object.keys(data) } });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─────────────── Clinic search for linking ───────────────
+patientPortalRouter.get('/clinics', async (req: AuthRequest, res) => {
+  try {
+    const search = String(req.query.search || '').trim();
+    if (!search || search.length < 2) {
+      return res.json({ ok: true, data: [] });
+    }
+    const clinics = await (prisma as any).clinic.findMany({
+      where: { name: { contains: search, mode: 'insensitive' } },
+      select: { id: true, name: true, city: true },
+      take: 10,
+    });
+    return res.json({ ok: true, data: clinics });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─────────────── Clinic linking ───────────────
+patientPortalRouter.post('/link', async (req: AuthRequest, res) => {
+  try {
+    const body = req.body || {};
+    const clinicId = body.clinicId as string;
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: 'clinicId обязателен' });
+    }
+
+    const clinic = await (prisma as any).clinic.findUnique({
+      where: { id: clinicId },
+      select: { id: true, name: true },
+    });
+    if (!clinic) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+
+    const user = req.user!;
+
+    // Already linked by userId?
+    let existing = await (prisma as any).patient.findFirst({
+      where: { clinicId: clinic.id, userId: user.id },
+    });
+    if (existing) {
+      return res.json({ ok: true, data: { patientId: existing.id, clinicName: clinic.name, alreadyLinked: true } });
+    }
+
+    // Staff may have created a patient record with email but no userId — link it
+    if (user.email) {
+      existing = await (prisma as any).patient.findFirst({
+        where: { clinicId: clinic.id, email: user.email, userId: null },
+      });
+      if (existing) {
+        await (prisma as any).patient.update({
+          where: { id: existing.id },
+          data: { userId: user.id },
+        });
+        return res.json({ ok: true, data: { patientId: existing.id, clinicName: clinic.name, linkedExisting: true } });
+      }
+    }
+
+    // Create new patient record
+    const patient = await (prisma as any).patient.create({
+      data: {
+        id: uid(),
+        clinicId: clinic.id,
+        userId: user.id,
+        firstName: user.firstName || user.email?.split('@')[0] || 'Пациент',
+        lastName: user.lastName || '',
+        email: user.email || null,
+        phone: null,
+      },
+      select: { id: true },
+    });
+
+    return res.json({ ok: true, data: { patientId: patient.id, clinicName: clinic.name } });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─────────────── Cancel appointment ───────────────
+patientPortalRouter.post('/appointments/:id/cancel', ensurePatient, async (req: AuthRequest, res) => {
+  try {
+    const pid = resolvePatientId(req);
+    const appointmentId = req.params.id;
+    const appt = await (prisma as any).appointment.findFirst({
+      where: { id: appointmentId, patientId: pid },
+    });
+    if (!appt) return res.status(404).json({ ok: false, error: 'Запись не найдена' });
+    if (appt.status === 'cancelled' || appt.status === 'completed' || appt.status === 'no_show') {
+      return res.status(400).json({ ok: false, error: 'Нельзя отменить запись в этом статусе' });
+    }
+    if (appt.status === 'confirmed') {
+      // Allow cancellation but mark as patient-requested
+      await (prisma as any).appointment.update({
+        where: { id: appointmentId },
+        data: { status: 'cancelled', notes: `${appt.notes || ''}\n[Отмена пациентом через портал]`.trim() },
+      });
+    } else {
+      await (prisma as any).appointment.update({
+        where: { id: appointmentId },
+        data: { status: 'cancelled' },
+      });
+    }
+    return res.json({ ok: true, data: { cancelled: true } });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }

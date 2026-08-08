@@ -2,7 +2,7 @@
  * Channel-aware notification dispatch.
  *
  * The in-app record is the source of truth and is always created. Additional
- * channels (WhatsApp, SMS) are best-effort: they only fire when the clinic has
+ * channels (WhatsApp, SMS, email) are best-effort: they only fire when the clinic has
  * enabled them AND the channel is actually configured AND the recipient identity
  * is known, and any channel failure is swallowed so it can never break the in-app
  * notification.
@@ -11,15 +11,21 @@ import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { sendMessage } from '../ai-admin/sender/messenger.sender.js';
 import type { Channel } from '../ai-admin/webhook/types.js';
+import { createSmsProvider } from '../../services/messaging.js';
+import type { SmsProvider } from '../../services/messaging.js';
 
-/** Pluggable SMS gateway. No provider is configured yet → getSmsProvider returns null. */
-export interface SmsProvider {
-  send(to: string, text: string): Promise<void>;
+/** Pluggable email gateway. No provider is configured yet → getEmailProvider returns null. */
+export interface EmailProvider {
+  send(to: string, subject: string, html: string): Promise<void>;
+}
+
+function getEmailProvider(): EmailProvider | null {
+  // Wire SendGrid / SES / custom SMTP here (env-gated). Until then email is skipped.
+  return null;
 }
 
 function getSmsProvider(): SmsProvider | null {
-  // Wire a real gateway here (env-gated) when one is available. Until then SMS is skipped.
-  return null;
+  return createSmsProvider();
 }
 
 export interface DispatchInput {
@@ -35,6 +41,7 @@ export interface DispatchResult {
   inApp: boolean;
   whatsapp: boolean;
   sms: boolean;
+  email: boolean;
 }
 
 function composeText(input: DispatchInput): string {
@@ -46,7 +53,7 @@ function composeText(input: DispatchInput): string {
  * Never throws — channel errors are logged and ignored.
  */
 export async function dispatchNotification(input: DispatchInput): Promise<DispatchResult> {
-  const result: DispatchResult = { inApp: false, whatsapp: false, sms: false };
+  const result: DispatchResult = { inApp: false, whatsapp: false, sms: false, email: false };
 
   // 1) In-app — always, and it is the source of truth.
   try {
@@ -67,20 +74,19 @@ export async function dispatchNotification(input: DispatchInput): Promise<Dispat
 
   if (!input.clinicId) return result;
 
-  // Resolve clinic channel prefs + recipient phone (needed for WhatsApp/SMS).
+  // Resolve clinic channel prefs + recipient contact (needed for WhatsApp/SMS/email).
   const [clinic, user] = await Promise.all([
     prisma.clinic.findUnique({ where: { id: input.clinicId }, select: { settings: true } }).catch(() => null),
-    prisma.user.findUnique({ where: { id: input.userId }, select: { phone: true } }).catch(() => null),
+    prisma.user.findUnique({ where: { id: input.userId }, select: { phone: true, email: true } }).catch(() => null),
   ]);
   const settings = (clinic?.settings && typeof clinic.settings === 'object'
     ? clinic.settings
     : {}) as Record<string, unknown>;
   const phone = user?.phone ? String(user.phone).replace(/[^\d]/g, '') : '';
-  if (!phone) return result;
   const text = composeText(input);
 
-  // 2) WhatsApp — best-effort. Requires an active WHATSAPP config for the clinic.
-  if (settings.whatsappEnabled !== false) {
+  // 2) WhatsApp — best-effort. Requires active WHATSAPP config + phone.
+  if (phone && settings.whatsappEnabled !== false) {
     try {
       const cfg = await prisma.clinicMessengerConfig.findFirst({
         where: { clinicId: input.clinicId, channel: 'WHATSAPP' as never, isActive: true },
@@ -101,8 +107,8 @@ export async function dispatchNotification(input: DispatchInput): Promise<Dispat
     }
   }
 
-  // 3) SMS — best-effort via pluggable provider (none configured yet → skipped).
-  if (settings.smsEnabled) {
+  // 3) SMS — best-effort. Requires a configured provider + phone.
+  if (phone && settings.smsEnabled) {
     const sms = getSmsProvider();
     if (sms) {
       try {
@@ -110,6 +116,20 @@ export async function dispatchNotification(input: DispatchInput): Promise<Dispat
         result.sms = true;
       } catch (e) {
         console.warn('[notify] sms failed:', (e as Error)?.message);
+      }
+    }
+  }
+
+  // 4) Email — best-effort. Requires a configured provider + recipient email.
+  const email = user?.email || '';
+  if (email && settings.emailEnabled) {
+    const mailer = getEmailProvider();
+    if (mailer) {
+      try {
+        await mailer.send(email, input.title, input.message);
+        result.email = true;
+      } catch (e) {
+        console.warn('[notify] email failed:', (e as Error)?.message);
       }
     }
   }
@@ -124,7 +144,7 @@ export async function dispatchNotification(input: DispatchInput): Promise<Dispat
  * recipient but only when the clinic has them configured.
  */
 export async function dispatchNotifications(inputs: DispatchInput[]): Promise<DispatchResult> {
-  const result: DispatchResult = { inApp: false, whatsapp: false, sms: false };
+  const result: DispatchResult = { inApp: false, whatsapp: false, sms: false, email: false };
   if (inputs.length === 0) return result;
 
   // 1) In-app — always, batched, and it is the source of truth.
@@ -154,8 +174,8 @@ export async function dispatchNotifications(inputs: DispatchInput[]): Promise<Di
       .findMany({ where: { id: { in: clinicIds } }, select: { id: true, settings: true } })
       .catch((): Array<{ id: string; settings: unknown }> => []),
     prisma.user
-      .findMany({ where: { id: { in: userIds } }, select: { id: true, phone: true } })
-      .catch((): Array<{ id: string; phone: string | null }> => []),
+      .findMany({ where: { id: { in: userIds } }, select: { id: true, phone: true, email: true } })
+      .catch((): Array<{ id: string; phone: string | null; email: string | null }> => []),
     prisma.clinicMessengerConfig
       .findMany({
         where: { clinicId: { in: clinicIds }, channel: 'WHATSAPP' as never, isActive: true },
@@ -175,6 +195,9 @@ export async function dispatchNotifications(inputs: DispatchInput[]): Promise<Di
   const phoneByUser = new Map(
     users.map((u): [string, string] => [u.id, String(u.phone || '').replace(/[^\d]/g, '')]),
   );
+  const emailByUser = new Map(
+    users.map((u): [string, string] => [u.id, u.email || '']),
+  );
   const configByClinic = new Map(
     configs.map(
       (cfg): [string, { accessToken: string | null; phoneNumberId: string | null }] => [
@@ -185,13 +208,13 @@ export async function dispatchNotifications(inputs: DispatchInput[]): Promise<Di
   );
 
   for (const input of inputs) {
-    const phone = phoneByUser.get(input.userId) || '';
-    if (!input.clinicId || !phone) continue;
+    if (!input.clinicId) continue;
     const settings = settingsByClinic.get(input.clinicId) || {};
+    const phone = phoneByUser.get(input.userId) || '';
     const text = composeText(input);
 
-    // 2) WhatsApp — best-effort. Requires an active WHATSAPP config for the clinic.
-    if (settings.whatsappEnabled !== false) {
+    // 2) WhatsApp — best-effort. Requires active WHATSAPP config + phone.
+    if (phone && settings.whatsappEnabled !== false) {
       const cfg = configByClinic.get(input.clinicId);
       if (cfg?.accessToken && cfg.phoneNumberId) {
         try {
@@ -209,8 +232,8 @@ export async function dispatchNotifications(inputs: DispatchInput[]): Promise<Di
       }
     }
 
-    // 3) SMS — best-effort via pluggable provider (none configured yet → skipped).
-    if (settings.smsEnabled) {
+    // 3) SMS — best-effort. Requires a configured provider + phone.
+    if (phone && settings.smsEnabled) {
       const sms = getSmsProvider();
       if (sms) {
         try {
@@ -218,6 +241,20 @@ export async function dispatchNotifications(inputs: DispatchInput[]): Promise<Di
           result.sms = true;
         } catch (e) {
           console.warn('[notify] sms failed:', (e as Error)?.message);
+        }
+      }
+    }
+
+    // 4) Email — best-effort. Requires a configured provider + recipient email.
+    const email = emailByUser.get(input.userId) || '';
+    if (email && settings.emailEnabled) {
+      const mailer = getEmailProvider();
+      if (mailer) {
+        try {
+          await mailer.send(email, input.title, input.message);
+          result.email = true;
+        } catch (e) {
+          console.warn('[notify] email failed:', (e as Error)?.message);
         }
       }
     }

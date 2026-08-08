@@ -913,7 +913,31 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
   }
 });
 
-/** 👍/👎 feedback — fuels few-shot personalization. */
+/** Proactive feed: screen-contextual suggestions + ALL pending-actions across the clinic. */
+aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
+  try {
+    const screen = String(req.query.screen || '').trim();
+
+    const userId = req.user?.id;
+    const clinicId = req.user?.clinicId;
+    if (!userId) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
+
+    const { buildDigitalTwin, buildProactiveAlerts, buildContextualSuggestions } = await import('./core/digitalTwin.js');
+    const twin = await buildDigitalTwin(userId, clinicId || null, { isGuest: false });
+    if (!twin) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
+
+    const allAlerts = clinicId ? await buildProactiveAlerts({ userId, clinicId, role: (twin as any).role }) : [];
+    const suggestions = screen ? buildContextualSuggestions(twin as any, screen, allAlerts) : [];
+    const feed = allAlerts.slice(0, 30);
+
+    res.json({ ok: true, data: { suggestions, feed } });
+  } catch (error) {
+    console.error('[AI Proactive]', error);
+    res.json({ ok: true, data: { suggestions: [], feed: [] } });
+  }
+});
+
+
 aiRouter.post('/feedback', authenticate, async (req: AuthRequest, res) => {
   try {
     const rating = String(req.body?.rating || '').toLowerCase();

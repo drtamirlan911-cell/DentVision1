@@ -3,6 +3,7 @@ import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
 import { publish } from '../../lib/events.js';
+import { dispatchNotifications } from '../notifications/dispatch.service.js';
 import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 
 // ─── Center Subscription ───
@@ -756,17 +757,15 @@ ${hasFiles ? 'К направлению приложены файлы резул
   });
 
   // Notify referring doctor that indicators need review
-  if (referral.doctorId) {
-    await prisma.notification.create({
-      data: {
-        id: uid(),
-        userId: referral.doctorId,
-        type: 'workflow',
-        title: 'AI обнаружил лабораторные данные',
-        message: `Направление #${referralId.slice(0, 8)} — ${referral.patientName}. Показатели извлечены. Проверьте и подтвердите внесение в карту пациента.`,
-        link: `/diagnostics/referrals/${referralId}`,
-      },
-    });
+  if (referral.doctorId && referral.clinicId) {
+    await dispatchNotifications([{
+      userId: referral.doctorId,
+      clinicId: referral.clinicId,
+      type: 'workflow',
+      title: 'AI обнаружил лабораторные данные',
+      message: `Направление #${referralId.slice(0, 8)} — ${referral.patientName}. Показатели извлечены. Проверьте и подтвердите внесение в карту пациента.`,
+      link: `/diagnostics/referrals/${referralId}`,
+    }]);
   }
 
   return result;
@@ -810,39 +809,66 @@ export async function saveAndSignResult(data: {
         id: uid(),
         patientId: referral.patientId,
         doctorId: data.doctorId,
-        diagnosis: referral.preliminaryDx || undefined,
+        diagnosis: referral.preliminaryDx || data.conclusion || undefined,
         complaints: referral.complaints || undefined,
-        treatment: { type: 'diagnostic_result', studyType: referral.studyType, reportText: data.reportText, conclusion: data.conclusion },
-        notes: `Результат диагностики: ${referral.studyType}. Направление #${referral.id.slice(0, 8)}`,
+        treatment: {
+          type: 'diagnostic_result',
+          studyType: referral.studyType,
+          reportText: data.reportText,
+          conclusion: data.conclusion,
+          _aiGenerated: true,
+          _source: 'diagnostic',
+        },
+        notes: `[AI-ввод] Результат диагностики: ${referral.studyType}. Направление #${referral.id.slice(0, 8)}. Проверьте данные.`,
       },
     });
   }
 
-  // Notify the diagnostic center/lab that result was reviewed
-  const notifyUserIds: string[] = [];
+  // Collect notification recipients: center/lab staff + referring clinic
+  const notifyUserIds = new Set<string>();
+
+  // Referring doctor
+  if (referral.doctorId) notifyUserIds.add(referral.doctorId);
+
+  // Clinic members who can see the result
+  if (referral.clinicId) {
+    const clinicMembers = await prisma.clinicMember.findMany({
+      where: { clinicId: referral.clinicId, role: { in: ['OWNER', 'ADMIN', 'DOCTOR'] } },
+      select: { userId: true, clinicId: true },
+    }).catch(() => [] as Array<{ userId: string; clinicId: string }>);
+    // Notify the referring doctor's colleagues (skip the doctor themselves, already added)
+    for (const m of clinicMembers) {
+      if (m.userId !== referral.doctorId) notifyUserIds.add(m.userId);
+    }
+  }
+
+  // Center/lab staff
   if (referral.centerId) {
     const centerMembers = await prisma.diagnosticCenterMember.findMany({
       where: { centerId: referral.centerId, role: { in: ['admin', 'manager'] } },
-    });
-    notifyUserIds.push(...centerMembers.map(m => m.userId));
+    }).catch(() => [] as Array<{ userId: string }>);
+    for (const m of centerMembers) notifyUserIds.add(m.userId);
   }
   if (referral.labId) {
     const labMembers = await prisma.laboratoryMember.findMany({
       where: { labId: referral.labId, role: { in: ['admin', 'manager'] } },
-    });
-    notifyUserIds.push(...labMembers.map(m => m.userId));
+    }).catch(() => [] as Array<{ userId: string }>);
+    for (const m of labMembers) notifyUserIds.add(m.userId);
   }
-  for (const uid2 of [...new Set(notifyUserIds)]) {
-    await prisma.notification.create({
-      data: {
-        id: uid(),
-        userId: uid2,
-        type: 'workflow',
-        title: 'Результат подтверждён',
-        message: `Врач ${referral.doctorName || 'доктор'} подтвердил результат по направлению #${referral.id.slice(0, 8)} (${referral.patientName})`,
+
+  if (notifyUserIds.size > 0) {
+    const title = 'Результат диагностики подтверждён';
+    const message = `Врач ${referral.doctorName || 'доктор'} подтвердил результат по направлению #${referral.id.slice(0, 8)} (${referral.patientName}). Данные автоматически внесены в карту пациента.`;
+    await dispatchNotifications(
+      Array.from(notifyUserIds).map((userId) => ({
+        userId,
+        clinicId: referral.clinicId || undefined,
+        type: 'workflow' as const,
+        title,
+        message,
         link: `/diagnostics/referrals/${referral.id}`,
-      },
-    });
+      })),
+    );
   }
 
   await writeAuditLog({

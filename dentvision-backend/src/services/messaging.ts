@@ -21,6 +21,29 @@ function twilioConfigured(): boolean {
   return !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && (env.TWILIO_FROM_NUMBER || env.TWILIO_WHATSAPP_FROM));
 }
 
+function twilioSmsConfigured(): boolean {
+  return !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM_NUMBER);
+}
+
+/** Standard SmsProvider interface — shared between messaging layer and notification dispatch. */
+export interface SmsProvider {
+  send(to: string, text: string): Promise<void>;
+}
+
+/**
+ * Create an SMS provider backed by Twilio.
+ * Returns null when Twilio SMS is not configured → dispatch skips SMS.
+ */
+export function createSmsProvider(): SmsProvider | null {
+  if (!twilioSmsConfigured()) return null;
+  return {
+    async send(to, text) {
+      const result = await sendSms(to, text);
+      if (!result.ok) throw new Error(result.error || 'Twilio SMS failed');
+    },
+  };
+}
+
 export async function sendSms(toPhone: string, body: string): Promise<SendMessageResult> {
   const to = normalizePhone(toPhone);
   if (!to) return { ok: false, channel: 'sms', error: 'Нет телефона' };

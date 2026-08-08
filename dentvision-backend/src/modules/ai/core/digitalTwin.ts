@@ -728,11 +728,217 @@ export async function buildProactiveAlerts(opts: {
     console.warn('[proactive] clinic load signals failed', e);
   }
 
+  // ─── Diagnostics referrals awaiting action ───
+  try {
+    const [pendingReferrals, pendingResults] = await Promise.all([
+      prisma.referral.count({
+        where: { clinicId, status: { in: ['SENT', 'DRAFT', 'SCHEDULED'] } },
+      }),
+      prisma.referral.count({
+        where: {
+          clinicId,
+          status: { in: ['COMPLETED', 'REVIEWED'] },
+          result: { signedBy: null },
+        },
+      }),
+    ]);
+    if (pendingReferrals > 0) {
+      alerts.push({
+        type: 'pending_referral', category: 'diagnostics',
+        text: `Направлений на диагностику: ${pendingReferrals} в работе`,
+        message: `Направлений на диагностику: ${pendingReferrals} в работе`,
+        priority: 6,
+        action: { type: 'OpenDiagnostics', path: `/diagnostics?filter=pending` },
+      });
+    }
+    if (pendingResults > 0) {
+      alerts.push({
+        type: 'pending_result', category: 'diagnostics',
+        text: `Результатов диагностики ждут подписи: ${pendingResults}`,
+        message: `Результатов диагностики ждут подписи: ${pendingResults}`,
+        priority: 8,
+        action: { type: 'OpenDiagnostics', path: `/diagnostics?filter=results` },
+      });
+    }
+  } catch { /* optional */ }
+
+  // ─── Marketplace orders awaiting action ───
+  try {
+    const newOrders = await prisma.order.count({
+      where: { clinicId, status: { in: ['pending', 'confirmed', 'processing'] } },
+    });
+    if (newOrders > 0) {
+      alerts.push({
+        type: 'new_order', category: 'marketplace',
+        text: `Заказов в маркетплейсе: ${newOrders} в обработке`,
+        message: `Заказов в маркетплейсе: ${newOrders} в обработке`,
+        priority: 6,
+        action: { type: 'OpenMarketplace', path: '/shop?filter=orders' },
+      });
+    }
+  } catch { /* optional */ }
+
+  // ─── Lab orders awaiting action ───
+  try {
+    const pendingLab = await prisma.labOrder.count({
+      where: { clinicId, status: { in: ['pending', 'in_progress'] } },
+    });
+    if (pendingLab > 0) {
+      alerts.push({
+        type: 'pending_lab', category: 'lab',
+        text: `Лабораторных заказов в работе: ${pendingLab}`,
+        message: `Лабораторных заказов в работе: ${pendingLab}`,
+        priority: 6,
+        action: { type: 'OpenLab', path: '/crm/lab' },
+      });
+    }
+  } catch { /* optional */ }
+
+  // ─── New appointments today (not yet seen by staff) ───
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayNew = await prisma.appointment.count({
+      where: { clinicId, date: today, status: { in: ['pending', 'confirmed'] } },
+    });
+    if (todayNew > 0) {
+      alerts.push({
+        type: 'today_appointments', category: 'schedule',
+        text: `Сегодня записей: ${todayNew}. Проверьте расписание.`,
+        message: `Сегодня записей: ${todayNew}. Проверьте расписание.`,
+        priority: 7,
+        action: { type: 'OpenSchedule', path: '/crm/schedule?filter=today' },
+      });
+    }
+  } catch { /* optional */ }
+
   const sorted = alerts.sort((a, b) => b.priority - a.priority);
   try {
     const { filterAlertsForRole } = await import('./jarvisBriefing.js');
-    return filterAlertsForRole(sorted, opts.role).slice(0, 12);
+    return filterAlertsForRole(sorted, opts.role).slice(0, 30);
   } catch {
-    return sorted.slice(0, 12);
+    return sorted.slice(0, 30);
   }
+}
+
+// ─── Screen-aware contextual suggestions ───
+
+export type ProactiveSuggestionAction = { type: string; path?: string };
+
+export interface ProactiveSuggestion {
+  type: string;
+  text: string;
+  priority: number;
+  action?: ProactiveSuggestionAction;
+  icon?: string;
+}
+
+/**
+ * Pure function: given the user's twin role, the current screen route, and
+ * already-computed alerts, return screen-contextual suggestions (top 5).
+ */
+export function buildContextualSuggestions(
+  twin: { role?: string; kpis?: Array<{ label: string; value: unknown }> },
+  screen: string,
+  alerts: Array<{ text: string; priority: number; type: string; action?: ProactiveSuggestionAction }>,
+): ProactiveSuggestion[] {
+  const role = String(twin.role || '').toUpperCase();
+  const suggestions: ProactiveSuggestion[] = [];
+
+  const screenMap: Array<{ match: RegExp; suggestions: () => ProactiveSuggestion[] }> = [
+    {
+      match: /schedule|appointment|calendar/i,
+      suggestions: () => {
+        const items: ProactiveSuggestion[] = [
+          { type: 'schedule', text: 'Откройте расписание — видны загрузка врачей и свободные слоты', priority: 5, action: { type: 'Navigate', params: { to: '/crm/schedule' } } },
+        ];
+        const todayAppt = alerts.find(a => a.type === 'today_appointments');
+        if (todayAppt) items.push({ type: 'appointment', text: todayAppt.text, priority: 7, action: { type: 'FilterToday' } });
+        const recall = alerts.find(a => a.type === 'recall');
+        if (recall) items.push({ type: 'recall', text: recall.text, priority: 8, action: recall.action });
+        return items;
+      },
+    },
+    {
+      match: /patient|medical/i,
+      suggestions: () => {
+        const items: ProactiveSuggestion[] = [
+          { type: 'patients', text: 'Поиск по имени, телефону или ИИН — быстро найти карту', priority: 4, action: { type: 'FocusSearch' } },
+        ];
+        const openPlans = alerts.find(a => a.type === 'open_treatment_plans');
+        if (openPlans) items.push({ type: 'treatment', text: openPlans.text, priority: 6, action: openPlans.action });
+        const followUp = alerts.find(a => a.type === 'follow_up');
+        if (followUp) items.push({ type: 'followup', text: followUp.text, priority: 7, action: followUp.action });
+        return items;
+      },
+    },
+    {
+      match: /billing|invoice|payment|finance/i,
+      suggestions: () => {
+        const items: ProactiveSuggestion[] = [];
+        const overdue = alerts.filter(a => a.type === 'overdue_invoice');
+        if (overdue.length) items.push({ type: 'overdue', text: `${overdue.length} просроченных счёта — отправьте напоминание`, priority: 9, action: { type: 'FilterOverdue' } });
+        const subscription = alerts.find(a => a.type === 'subscription');
+        if (subscription) items.push({ type: 'subscription', text: subscription.text, priority: 8, action: subscription.action });
+        return items;
+      },
+    },
+    {
+      match: /inventory|stock|warehouse/i,
+      suggestions: () => {
+        const items: ProactiveSuggestion[] = [];
+        const low = alerts.filter(a => a.type === 'low_inventory');
+        if (low.length) items.push({ type: 'low_stock', text: `${low.length} позиций на минимуме — пора заказать`, priority: 8, action: { type: 'FilterLow' } });
+        return items;
+      },
+    },
+    {
+      match: /diagnostic|referral|center|lab/i,
+      suggestions: () => {
+        const items: ProactiveSuggestion[] = [
+          { type: 'diagnostics', text: 'Проверьте inbox — результаты диагностики ждут подписи', priority: 7, action: { type: 'Navigate', params: { to: '/diagnostics/referrals' } } },
+        ];
+        const pending = alerts.filter(a => a.type === 'pending_referral');
+        if (pending.length) items.push({ type: 'pending', text: `${pending.length} направлений в работе`, priority: 7, action: { type: 'FilterPending' } });
+        return items;
+      },
+    },
+    {
+      match: /marketplace|shop|order/i,
+      suggestions: () => {
+        const items: ProactiveSuggestion[] = [];
+        const orders = alerts.find(a => a.type === 'new_order');
+        if (orders) items.push({ type: 'orders', text: orders.text, priority: 7, action: orders.action });
+        if (role === 'OWNER' || role === 'ADMIN' || role === 'SUPERADMIN') {
+          items.push({ type: 'commission', text: 'Отчёт по комиссиям маркетплейса доступен в BI', priority: 4, action: { type: 'Navigate', params: { to: '/crm/bi' } } });
+        }
+        return items;
+      },
+    },
+    {
+      match: /school|academy|course/i,
+      suggestions: () => {
+        const items: ProactiveSuggestion[] = [
+          { type: 'courses', text: 'Новые курсы и вебинары — записывайте сотрудников', priority: 4, action: { type: 'Navigate', params: { to: '/school' } } },
+        ];
+        return items;
+      },
+    },
+  ];
+
+  // Match first applicable screen
+  for (const entry of screenMap) {
+    if (entry.match.test(screen)) {
+      suggestions.push(...entry.suggestions());
+      break;
+    }
+  }
+
+  // Always append top-priority cross-cutting alerts
+  const topAlerts = alerts.filter(a => a.priority >= 8).slice(0, 3);
+  for (const a of topAlerts) {
+    suggestions.push({ type: a.type, text: a.text, priority: a.priority, action: a.action as ProactiveSuggestionAction });
+  }
+
+  return suggestions.slice(0, 5);
 }
