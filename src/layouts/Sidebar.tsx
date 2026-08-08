@@ -15,7 +15,7 @@ import { Tooltip } from '@/components/ui/ds/Tooltip';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { useAuth, useAuthStore } from '@/store/auth.store';
-import { canAccessPage, firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess';
+import { firstAllowedCrmPath } from '@/lib/roleAccess';
 import { useIam } from '@/iam';
 import { useGuestStore } from '@/store/guest.store';
 import { Logo } from '@/components/brand';
@@ -182,6 +182,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const isSuperAdmin = authRole === 'superadmin';
 
+  // Stash the current clinic token before switching to a workspace context
+  // so navigating back to CRM/clinic pages can auto-restore full permissions.
+  const saveClinicContext = () => {
+    try {
+      const stored = api.loadTokens();
+      if (stored) localStorage.setItem('dv_clinic_backup', JSON.stringify(stored));
+    } catch { /* ignore */ }
+  };
+  const restoreClinicIfNeeded = async () => {
+    if (!authUser?.organizationType || authUser.organizationType === 'CLINIC') return;
+    try {
+      const raw = localStorage.getItem('dv_clinic_backup');
+      if (!raw) return;
+      const { accessToken, refreshToken } = JSON.parse(raw);
+      api.setTokens(accessToken, refreshToken || null);
+      localStorage.removeItem('dv_clinic_backup');
+      await useAuthStore.getState().restoreSession();
+    } catch { /* ignore */ }
+  };
+
   const serviceItems = isSuperAdmin ? NAV_ITEMS : (isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.id === 'crm') return true;
     if (item.id === 'profile' || item.id === 'settings' || item.id === 'partner-legal' || item.id === 'diagnostics') return true;
@@ -231,10 +251,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (ctx?.scopeId) {
         const tok = await api.switchContext(ctx.scopeType, ctx.scopeId);
         if (tok?.accessToken) {
+          saveClinicContext();
           api.setTokens(tok.accessToken, tok.refreshToken || null);
-          // Rehydrate store under the new context without a full page reload.
-          // restoreSession already calls hydrateAuthFromMe internally so
-          // user / pages / permissions / effectiveRole are all refreshed.
           await useAuthStore.getState().restoreSession();
           navigate('/center-workspace');
           return;
@@ -264,13 +282,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <motion.button
             type="button"
             aria-current={isActive ? 'page' : undefined}
-            onClick={() => {
+            onClick={async () => {
               if (isCrm && !collapsed) {
                 setCrmOpen((v) => !v);
-                if (!location.pathname.startsWith('/crm')) handleNavClick(crmEntryPath);
+                if (!location.pathname.startsWith('/crm')) {
+                  await restoreClinicIfNeeded();
+                  handleNavClick(crmEntryPath);
+                }
               } else if (item.id === 'center-workspace') {
                 handleCenterWorkspaceClick();
               } else {
+                if (isCrm) { await restoreClinicIfNeeded(); }
                 handleNavClick(item.path);
               }
             }}
