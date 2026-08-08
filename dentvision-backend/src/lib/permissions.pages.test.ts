@@ -14,8 +14,8 @@ describe('pagesForPermissions', () => {
   });
 
   it('maps a module permission to that module’s pages', () => {
-    expect(pagesForPermissions(['inventory.read'])).toEqual(['inventory']);
-    expect(pagesForPermissions(['appointments.read'])).toEqual(['schedule', 'reminders']);
+    expect(pagesForPermissions(['inventory.read'])).toEqual(['inventory', 'profile']);
+    expect(pagesForPermissions(['appointments.read'])).toEqual(['schedule', 'reminders', 'profile']);
   });
 
   it('unions pages across permissions without duplicating', () => {
@@ -23,14 +23,21 @@ describe('pagesForPermissions', () => {
     expect(pages).toEqual([...new Set(pages)]);
     expect(pages).toContain('schedule');
     expect(pages).toContain('inventory');
+    expect(pages).toContain('profile');
   });
 
   it('grants nothing for an empty permission set', () => {
     expect(pagesForPermissions([])).toEqual([]);
   });
 
-  it('ignores permissions whose module has no pages', () => {
-    expect(pagesForPermissions(['community.read'])).toEqual([]);
+  it('grants only the shared profile for a permission with no pages', () => {
+    expect(pagesForPermissions(['community.read'])).toEqual(['profile']);
+  });
+
+  it('maps settings + audit modules to their platform pages', () => {
+    expect(pagesForPermissions(['settings.manage', 'audit.read'])).toEqual(
+      expect.arrayContaining(['settings', 'clinic-settings', 'audit']),
+    );
   });
 
   it('never shows the admin console to a clinic role', () => {

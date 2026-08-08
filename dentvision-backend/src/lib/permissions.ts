@@ -13,7 +13,8 @@
 type Module =
   | 'patients' | 'appointments' | 'medical' | 'billing' | 'inventory'
   | 'lab' | 'staff' | 'settings' | 'analytics' | 'diagnostics'
-  | 'academy' | 'shop' | 'community' | 'audit' | 'admin' | 'bi';
+  | 'academy' | 'shop' | 'community' | 'audit' | 'admin' | 'bi'
+  | 'profile' | 'backup' | 'security';
 
 // ─── Actions ───
 type Action = 'read' | 'write' | 'delete' | 'manage';
@@ -41,6 +42,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     community:    ['read', 'write'],
     audit:        ['read'],
     bi:           ['read'],
+    backup:       ['read'],
   },
 
   ADMIN: {
@@ -180,6 +182,7 @@ export const PERMISSIONS = {
   BI_NETWORK: 'admin.read',
   BI_PLATFORM: 'admin.read',
   BI_FINANCE: 'billing.manage',
+  BACKUP_READ: 'backup.read',
 } as const;
 
 /**
@@ -254,15 +257,18 @@ export const MODULE_PAGES: Record<string, string[]> = {
   inventory:    ['inventory'],
   lab:          ['lab'],
   staff:        ['staff'],
-  settings:     ['clinic-settings'],
+  settings:     ['clinic-settings', 'settings'],
   analytics:    ['analytics'],
   diagnostics:  ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings'],
   academy:      ['school'],
   shop:         ['shop', 'promotions'],
   community:    [],
-  audit:        [],
+  audit:        ['audit'],
   admin:        ['admin'],
   bi:           ['bi'],
+  profile:      ['profile'],
+  backup:       ['backup'],
+  security:     ['security'],
 };
 
 /**
@@ -283,6 +289,9 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
     const modPages = MODULE_PAGES[mod];
     if (modPages) modPages.forEach((p) => pages.add(p));
   }
+  // The profile page is open to every authenticated user (it was in every
+  // legacy role's pages list) even though no profile.* permission exists.
+  if (permissions.length > 0) pages.add('profile');
   return Array.from(pages);
 }
 
