@@ -221,7 +221,7 @@ export function roleHasPermission(role: string | undefined | null, key: Permissi
 }
 
 /** Legacy key → new key (backward compat for routes still using old names). */
-const LEGACY_KEY_MAP: Record<string, string> = {
+export const LEGACY_KEY_MAP: Record<string, string> = {
   'patient.read': 'patients.read',
   'patient.write': 'patients.write',
   'patient.delete': 'patients.delete',
@@ -269,6 +269,7 @@ export const MODULE_PAGES: Record<string, string[]> = {
   profile:      ['profile'],
   backup:       ['backup'],
   security:     ['security'],
+  dashboard:    ['dashboard'],
 };
 
 /**

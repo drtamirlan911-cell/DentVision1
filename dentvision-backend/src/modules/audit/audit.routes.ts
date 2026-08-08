@@ -79,7 +79,12 @@ auditRouter.get('/', async (req: AuthRequest, res) => {
 
 auditRouter.post('/backup', async (req: AuthRequest, res) => {
   try {
-    const clinicId = req.user!.clinicId || (req.body?.clinicId as string | undefined);
+    // Only superadmins may pass an arbitrary clinicId; ordinary users
+    // are always scoped to their own JWT-resolved clinic.
+    const isSuper = req.user?.role === 'SUPERADMIN';
+    const clinicId = isSuper
+      ? (req.user!.clinicId || (req.body?.clinicId as string | undefined))
+      : req.user!.clinicId;
     if (!clinicId) {
       return res.status(400).json({ ok: false, error: 'Клиника не определена. Укажите clinicId в теле запроса.' });
     }

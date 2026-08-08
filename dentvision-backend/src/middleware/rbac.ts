@@ -2,7 +2,7 @@ import type { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
 import type { AuthRequest } from '../types/index.js';
 import type { UserRole } from '@prisma/client';
-import { roleHasPermission, type PermissionKey } from '../lib/permissions.js';
+import { roleHasPermission, LEGACY_KEY_MAP, type PermissionKey } from '../lib/permissions.js';
 
 const ROLE_HIERARCHY: Record<string, number> = {
   SUPERADMIN: 5,
@@ -74,7 +74,11 @@ export function requirePermission(...keys: (PermissionKey | string)[]) {
           for (const pr of person.personRoles) {
             for (const rp of pr.role.permissions) userPerms.add(rp.permission.key);
           }
-          if (keys.every((k) => userPerms.has(k))) return next();
+          // Map legacy route keys (e.g. 'patient.read') to DB vocabulary (e.g. 'patients.read')
+          // so the Person→Role→Permission graph is actually used instead of always
+          // falling through to the matrix fallback.
+          const resolved = keys.map((k) => (LEGACY_KEY_MAP as Record<string, string>)[k] || k);
+          if (resolved.every((k) => userPerms.has(k))) return next();
         }
       }
 

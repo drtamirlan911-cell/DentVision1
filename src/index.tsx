@@ -211,10 +211,10 @@ if (container) {
                   </Route>
 
                   {/* Superadmin content management */}
-                  <Route path="shop/admin" element={<Suspense fallback={<PageLoader />}><ShopAdmin /></Suspense>} />
-                  <Route path="school/admin" element={<Suspense fallback={<PageLoader />}><SchoolAdmin /></Suspense>} />
+                  <Route path="shop/admin" element={guarded('admin', <ShopAdmin />)} />
+                  <Route path="school/admin" element={guarded('admin', <SchoolAdmin />)} />
                   {/* Legal Engine */}
-                  <Route path="legal" element={<Suspense fallback={<PageLoader />}><LegalLayout /></Suspense>} />
+                  <Route path="legal" element={guarded('admin', <LegalLayout />)} />
                   <Route path="partner-legal" element={<Suspense fallback={<PageLoader />}><PartnerLegal /></Suspense>} />
                 </Route>
 

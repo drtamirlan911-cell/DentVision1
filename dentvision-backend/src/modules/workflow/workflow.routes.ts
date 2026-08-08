@@ -10,8 +10,22 @@ export const workflowRouter = Router();
 
 workflowRouter.use(authenticate);
 
+/** Resolve the caller's own clinic id; never trust a query param without superadmin. */
+function ownScope(req: AuthRequest, queryScope?: string): string | null {
+  if (req.user?.role === 'SUPERADMIN') return queryScope || req.user?.clinicId || null;
+  return req.user?.clinicId || null;
+}
+
+async function getOwnWorkflow(req: AuthRequest, id: string): Promise<any | null> {
+  const clinicId = req.user?.clinicId;
+  if (!clinicId) return null;
+  return prisma.workflow.findFirst({
+    where: { id, scopeType: 'CLINIC', scopeId: clinicId },
+  });
+}
+
 workflowRouter.get('/', async (req: AuthRequest, res) => {
-  const scopeId = (req.query.scopeId as string) || req.user?.clinicId;
+  const scopeId = ownScope(req, req.query.scopeId as string | undefined);
   if (!scopeId) {
     return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
   }
@@ -25,7 +39,7 @@ workflowRouter.get('/', async (req: AuthRequest, res) => {
 workflowRouter.post('/', requirePermission('workflow.manage'), async (req: AuthRequest, res) => {
   try {
     const { name, trigger, graph, status, scopeId } = req.body || {};
-    const clinicId = scopeId || req.user?.clinicId;
+    const clinicId = ownScope(req, scopeId);
     if (!name || !trigger || !graph) {
       return res.status(400).json({ ok: false, error: 'name, trigger и graph обязательны' } satisfies ApiResponse);
     }
@@ -52,7 +66,7 @@ workflowRouter.post('/', requirePermission('workflow.manage'), async (req: AuthR
 
 workflowRouter.patch('/:id', requirePermission('workflow.manage'), async (req: AuthRequest, res) => {
   try {
-    const existing = await prisma.workflow.findUnique({ where: { id: req.params.id as string } });
+    const existing = await getOwnWorkflow(req, req.params.id as string);
     if (!existing) {
       return res.status(404).json({ ok: false, error: 'Автоматизация не найдена' } satisfies ApiResponse);
     }
@@ -75,7 +89,7 @@ workflowRouter.patch('/:id', requirePermission('workflow.manage'), async (req: A
 
 // Manual run (test).
 workflowRouter.post('/:id/run', requirePermission('workflow.manage'), async (req: AuthRequest, res) => {
-  const workflow = await prisma.workflow.findUnique({ where: { id: req.params.id as string } });
+  const workflow = await getOwnWorkflow(req, req.params.id as string);
   if (!workflow) {
     return res.status(404).json({ ok: false, error: 'Автоматизация не найдена' } satisfies ApiResponse);
   }
@@ -84,8 +98,12 @@ workflowRouter.post('/:id/run', requirePermission('workflow.manage'), async (req
 });
 
 workflowRouter.get('/:id/runs', async (req: AuthRequest, res) => {
+  const workflow = await getOwnWorkflow(req, req.params.id as string);
+  if (!workflow) {
+    return res.status(404).json({ ok: false, error: 'Автоматизация не найдена' } satisfies ApiResponse);
+  }
   const runs = await prisma.workflowRun.findMany({
-    where: { workflowId: req.params.id as string },
+    where: { workflowId: workflow.id },
     orderBy: { startedAt: 'desc' },
     take: 50,
   });
