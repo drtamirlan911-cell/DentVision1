@@ -485,7 +485,7 @@ export default function Patients() {
   // ── List View ──────────────────────────────────────────────
   if (!selected) {
     return (
-      <div className="dv-page py-4 md:py-6">
+      <div className="dv-page max-w-full px-3 sm:px-4 lg:px-6 py-4 md:py-6">
         <PageHeader
           title="Пациенты"
           subtitle={`База пациентов клиники · ${patients.length} чел.`}
@@ -525,7 +525,7 @@ export default function Patients() {
               variant={filterCat === k ? 'outline' : 'ghost'}
               size="sm"
               onClick={() => setFilterCat(k)}
-              className={filterCat === k ? 'border-dv-gold/50 text-dv-gold' : ''}
+              className={cn(filterCat === k ? 'border-dv-gold/50 text-dv-gold' : '', 'min-h-[44px] sm:min-h-0')}
             >
               {label}
             </Button>
@@ -570,6 +570,7 @@ export default function Patients() {
                       size="xs"
                       variant="secondary"
                       icon={<Send size={12} />}
+                      className="min-h-[44px] sm:min-h-0"
                       onClick={() => {
                         window.open(r.waLink, '_blank', 'noopener,noreferrer')
                         showToast(`Recall: ${r.patient.name}`, 'success')
@@ -581,6 +582,7 @@ export default function Patients() {
                       size="xs"
                       variant="ghost"
                       icon={<Calendar size={12} />}
+                      className="min-h-[44px] sm:min-h-0"
                       onClick={() => navigate(`/crm/schedule?patient=${r.patient.id}`)}
                     >
                       Записать
@@ -738,18 +740,19 @@ export default function Patients() {
   ]
 
   return (
-    <div className="dv-page py-4 md:py-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="dv-page max-w-full px-3 sm:px-4 lg:px-6 py-4 md:py-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => {
           setSelected(null)
           usePatientStore.getState().closePatient()
         }}>
           К списку
         </Button>
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex flex-wrap gap-2 justify-start sm:justify-end">
           <Button
             variant="outline"
             icon={<FileText size={16} />}
+            className="min-h-[44px] sm:min-h-0"
             onClick={() => navigate(`/crm/medical-card?patient=${selected.id}`)}
           >
             Медкарта
@@ -757,6 +760,7 @@ export default function Patients() {
           <Button
             variant="outline"
             icon={<FileText size={16} />}
+            className="min-h-[44px] sm:min-h-0"
             onClick={() => navigate(`/crm/treatment-plans?patient=${selected.id}`)}
           >
             План лечения
@@ -764,17 +768,18 @@ export default function Patients() {
           <Button
             variant="outline"
             icon={<Microscope size={16} />}
+            className="min-h-[44px] sm:min-h-0"
             onClick={() => navigate(`/diagnostics/referrals/new?patientId=${selected.id}&patientName=${encodeURIComponent(selected.name)}&patientPhone=${selected.phone || ''}`)}
           >
             Диагностика
           </Button>
-          <Button variant="secondary" icon={<FileText size={16} />} onClick={() => openEdit(selected)}>
+          <Button variant="secondary" icon={<FileText size={16} />} className="min-h-[44px] sm:min-h-0" onClick={() => openEdit(selected)}>
             Редактировать
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-5">
         {/* Patient card */}
         <div className="space-y-4">
           <Card padding="lg">
@@ -862,11 +867,11 @@ export default function Patients() {
 
         {/* Right panel */}
         <Card padding="none" className="overflow-hidden">
-          <div className="border-b border-bdr-subtle px-5">
+          <div className="border-b border-bdr-subtle px-3 sm:px-5">
             <Tabs tabs={PATIENT_TABS} active={activeTab} onChange={setActiveTab} size="sm" />
           </div>
 
-          <div className="p-5">
+          <div className="p-3 sm:p-5">
             <AnimatePresence mode="wait">
               {activeTab === 'info' && (
                 <motion.div key="info" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
@@ -933,7 +938,7 @@ export default function Patients() {
                 <motion.div key="payment" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
                   <p className="text-sm font-bold text-txt-primary mb-4">Оплата и финансовые операции</p>
 
-                  <div className="grid grid-cols-3 gap-3 mb-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
                     {[
                       { label: 'Всего оплачено', value: patientAppts.filter(a => a.status === 'done' || (a as any).status === 'completed').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-success' },
                       { label: 'Ожидает оплаты', value: patientAppts.filter(a => a.status === 'confirmed' || a.status === 'scheduled').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-warning' },
@@ -990,7 +995,7 @@ export default function Patients() {
                         hint="Покажите QR пациенту. После оплаты нажмите «Проверить оплату»."
                       />
                     ) : (
-                    <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
                       <Input
                         label="Сумма (₸)"
                         type="number"
@@ -1012,6 +1017,7 @@ export default function Patients() {
                       <Button
                         icon={<CreditCard size={16} />}
                         loading={payBusy}
+                        className="min-h-[44px] sm:min-h-0"
                         onClick={async () => {
                           if (!selected?.id) { showToast('Выберите пациента', 'warning'); return }
                           if (!payment.amount || Number(payment.amount) <= 0) { showToast('Укажите сумму', 'warning'); return }
@@ -1108,7 +1114,7 @@ export default function Patients() {
                     return (
                       <div className="space-y-2">
                         {patientReceipts.map((r: any) => (
-                          <div key={r.id} className="flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
+                          <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
                             <div>
                               <p className="text-sm font-semibold text-txt-primary">{r.service || r.notes || 'Оплата'}</p>
                               <p className="text-xs text-txt-muted mt-0.5">{fd(r.date || r.paidAt || r.createdAt)}</p>
@@ -1117,7 +1123,7 @@ export default function Patients() {
                           </div>
                         ))}
                         {fromAppts.map(a => (
-                          <div key={a.id} className="flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
+                          <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
                             <div>
                               <p className="text-sm font-semibold text-txt-primary">{a.reason || a.service || '---'}</p>
                               <p className="text-xs text-txt-muted mt-0.5">{fd(a.date)} · {a.time}</p>
@@ -1141,14 +1147,14 @@ export default function Patients() {
                         size="sm"
                         icon={PHOTO_ICONS[key]}
                         onClick={() => setPhotoCategory(key)}
-                        className={photoCategory === key ? 'border-dv-gold/50 text-dv-gold' : ''}
+                        className={cn(photoCategory === key ? 'border-dv-gold/50 text-dv-gold' : '', 'min-h-[44px] sm:min-h-0')}
                       >
                         {label}
                       </Button>
                     ))}
                   </div>
 
-                  <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-bdr rounded-xl cursor-pointer text-txt-secondary text-sm hover:border-dv-gold/40 hover:text-dv-gold transition-all mb-4">
+                  <label className="flex flex-col items-center justify-center p-6 sm:p-8 border-2 border-dashed border-bdr rounded-xl cursor-pointer text-txt-secondary text-sm hover:border-dv-gold/40 hover:text-dv-gold transition-all mb-4">
                     <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
                     <Camera size={32} className="mb-2 text-txt-muted" />
                     Нажмите для загрузки фото

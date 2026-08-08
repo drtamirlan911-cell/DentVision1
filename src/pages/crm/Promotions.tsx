@@ -98,20 +98,20 @@ export default function Promotions() {
   }), [promotions])
 
   return (
-    <div className="dv-page py-4 md:py-6">
+    <div className="dv-page max-w-full overflow-x-hidden py-4 md:py-6">
       <PageHeader
         title="Акции и промоции"
         subtitle={`${clinic?.name} · ${stats.active} активных`}
         icon={<Target size={20} />}
         actions={
-          <Button icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
+          <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
             Новая акция
           </Button>
         }
       />
 
       <motion.div
-        className="grid grid-cols-3 gap-3 mb-5"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5"
         variants={stagger}
         initial="hidden"
         animate="show"
@@ -137,7 +137,7 @@ export default function Promotions() {
         ].map(f => (
           <Button key={f.key} variant={filter === f.key ? 'outline' : 'ghost'} size="sm"
             onClick={() => setFilter(f.key)}
-            className={filter === f.key ? 'border-dv-gold/50 text-dv-gold' : ''}>
+            className={filter === f.key ? 'border-dv-gold/50 text-dv-gold min-h-11' : 'min-h-11'}>
             {f.label}
           </Button>
         ))}
@@ -196,24 +196,25 @@ export default function Promotions() {
         onClose={() => setModalOpen(false)}
         title={editing ? 'Редактировать акцию' : 'Новая акция'}
         size="md"
+        className="max-w-full sm:max-w-md xl:max-w-xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Название *" value={form.title}
             onChange={e => setForm({ ...form, title: e.target.value })}
-            placeholder="Скидка на отбеливание" required icon={<Target size={16} />} />
+            placeholder="Скидка на отбеливание" required icon={<Target size={16} />} className="min-h-11" />
           <Textarea label="Описание" value={form.description}
             onChange={e => setForm({ ...form, description: e.target.value })}
             placeholder="Подробное описание акции..." rows={3} />
-          <div className="grid grid-cols-2 gap-3 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
             <Input label="Скидка (%)" type="number" min="0" max="100" value={form.discountPercent}
-              onChange={e => setForm({ ...form, discountPercent: Number(e.target.value) })} />
+              onChange={e => setForm({ ...form, discountPercent: Number(e.target.value) })} className="min-h-11" />
             <Switch checked={form.active} onCheckedChange={(v: boolean) => setForm({ ...form, active: v })} label="Активна" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Дата начала" type="date" value={form.startDate}
-              onChange={e => setForm({ ...form, startDate: e.target.value })} />
+              onChange={e => setForm({ ...form, startDate: e.target.value })} className="min-h-11" />
             <Input label="Дата окончания" type="date" value={form.endDate}
-              onChange={e => setForm({ ...form, endDate: e.target.value })} />
+              onChange={e => setForm({ ...form, endDate: e.target.value })} className="min-h-11" />
           </div>
           <div>
             <p className="text-xs font-semibold text-txt-secondary mb-2">Услуги (акция на)</p>
@@ -224,16 +225,16 @@ export default function Promotions() {
                   <Button key={s.id} type="button" size="xs"
                     variant={selected ? 'outline' : 'ghost'}
                     onClick={() => toggleService(s.id)}
-                    className={selected ? 'border-dv-gold/50 text-dv-gold' : ''}>
+                    className={selected ? 'border-dv-gold/50 text-dv-gold min-h-11' : 'min-h-11'}>
                     {s.name}
                   </Button>
                 )
               })}
             </div>
           </div>
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">{editing ? 'Сохранить' : 'Создать'}</Button>
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" className="flex-1 min-h-11">{editing ? 'Сохранить' : 'Создать'}</Button>
+            <Button type="button" variant="ghost" className="min-h-11" onClick={() => setModalOpen(false)}>Отмена</Button>
           </div>
         </form>
       </Modal>

@@ -357,11 +357,11 @@ export default function Staff() {
               <p className="text-xs text-txt-muted">для {inviteResult.email}</p>
             )}
           </div>
-          <div className="flex gap-2">
-            <Button className="flex-1" icon={copied ? <Check size={16} /> : <Copy size={16} />} onClick={copyInviteCode}>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button className="w-full sm:flex-1 min-h-11" icon={copied ? <Check size={16} /> : <Copy size={16} />} onClick={copyInviteCode}>
               {copied ? 'Скопировано' : 'Скопировать код'}
             </Button>
-            <Button variant="ghost" onClick={() => { setInviteResult(null); setInviteForm({ email: '', role: 'doctor', expiresInDays: 7 }) }}>
+            <Button className="w-full sm:w-auto min-h-11" variant="ghost" onClick={() => { setInviteResult(null); setInviteForm({ email: '', role: 'doctor', expiresInDays: 7 }) }}>
               Ещё приглашение
             </Button>
           </div>
@@ -399,11 +399,11 @@ export default function Staff() {
             min={1}
             max={90}
           />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1" disabled={inviteSaving} icon={<Link2 size={16} />}>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button type="submit" className="w-full sm:flex-1 min-h-11" disabled={inviteSaving} icon={<Link2 size={16} />}>
               {inviteSaving ? 'Создание…' : 'Создать приглашение'}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setInviteOpen(false)}>Отмена</Button>
+            <Button type="button" className="w-full sm:w-auto min-h-11" variant="ghost" onClick={() => setInviteOpen(false)}>Отмена</Button>
           </div>
         </form>
       )}
@@ -444,7 +444,7 @@ export default function Staff() {
             { value: 'mixed', label: 'Оклад + %' },
           ]}
         />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {(form.payType === 'commission' || form.payType === 'mixed') && (
             <Input
               label="% от услуг"
@@ -484,7 +484,7 @@ export default function Staff() {
           />
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="Телефон"
             value={form.phone}
@@ -557,6 +557,7 @@ export default function Staff() {
                 type="button"
                 variant="secondary"
                 size="sm"
+                className="min-h-11"
                 icon={<Camera size={14} />}
                 loading={photoUploading}
                 onClick={() => photoInputRef.current?.click()}
@@ -568,6 +569,7 @@ export default function Staff() {
                   type="button"
                   variant="ghost"
                   size="sm"
+                  className="min-h-11"
                   onClick={() => setForm({ ...form, photoUrl: '' })}
                 >
                   Убрать
@@ -582,7 +584,7 @@ export default function Staff() {
             <p className="text-xs font-semibold text-txt-secondary mb-3 flex items-center gap-1.5">
               <Calendar size={14} /> График работы врача
             </p>
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <Input
                 label="Начало рабочего дня"
                 type="time"
@@ -610,7 +612,7 @@ export default function Staff() {
                       setForm({ ...form, workSchedule: { ...form.workSchedule!, workDays: updated } })
                     }}
                     className={cn(
-                      'px-2.5 py-1 text-xs font-medium rounded-md border transition-colors',
+                      'px-2.5 py-1 min-h-11 min-w-11 text-xs font-medium rounded-md border transition-colors',
                       isSelected
                         ? 'border-dv-gold/50 bg-dv-gold/10 text-dv-gold'
                         : 'border-bdr-subtle bg-transparent text-txt-muted hover:text-txt-secondary'
@@ -661,9 +663,9 @@ export default function Staff() {
           )}
         </div>
 
-        <div className="flex gap-2 pt-2">
-          <Button type="submit" className="flex-1">{editingStaff ? 'Сохранить' : 'Добавить сотрудника'}</Button>
-          <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+        <div className="flex flex-col sm:flex-row gap-2 pt-2">
+          <Button type="submit" className="w-full sm:flex-1 min-h-11">{editingStaff ? 'Сохранить' : 'Добавить сотрудника'}</Button>
+          <Button type="button" className="w-full sm:w-auto min-h-11" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
         </div>
       </form>
     </Modal>
@@ -678,15 +680,15 @@ export default function Staff() {
     >
       {profileModal && (
         <>
-          <div className="flex items-center gap-4 mb-5">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 mb-5">
             <Avatar
               name={profileModal.name}
               src={profileModal.photoUrl}
               size="xl"
             />
-            <div>
+            <div className="min-w-0 text-center sm:text-left">
               <p className="text-lg font-bold text-txt-primary">{profileModal.name}</p>
-              <div className="flex gap-2 mt-1">
+              <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-1">
                 <Badge variant={ROLE_BADGE[profileModal.role] as any || 'default'}>{ROLE_LABELS[profileModal.role]}</Badge>
                 {profileModal.spec && <Badge variant="info">{profileModal.spec}</Badge>}
               </div>
@@ -719,14 +721,15 @@ export default function Staff() {
             )}
           </div>
 
-          <div className="flex gap-2 mt-5 flex-wrap">
+          <div className="flex flex-col sm:flex-row gap-2 mt-5">
             {canManage && (
-              <Button className="flex-1" icon={<Edit size={16} />} onClick={() => { setProfileModal(null); openEditStaff(profileModal) }}>
+              <Button className="w-full sm:flex-1 min-h-11" icon={<Edit size={16} />} onClick={() => { setProfileModal(null); openEditStaff(profileModal) }}>
                 Редактировать
               </Button>
             )}
             {canManage && profileModal.id !== user?.id && (
               <Button
+                className="w-full sm:w-auto min-h-11"
                 variant="danger"
                 icon={<Trash2 size={16} />}
                 loading={deletingId === profileModal.id}
@@ -735,7 +738,7 @@ export default function Staff() {
                 Удалить
               </Button>
             )}
-            <Button variant="ghost" onClick={() => setProfileModal(null)}>Закрыть</Button>
+            <Button className="w-full sm:w-auto min-h-11" variant="ghost" onClick={() => setProfileModal(null)}>Закрыть</Button>
           </div>
         </>
       )}
@@ -750,11 +753,11 @@ export default function Staff() {
         icon={<Users size={20} />}
         actions={
           canManage ? (
-            <div className="flex gap-2 flex-wrap">
-              <Button icon={<Link2 size={16} />} onClick={openInvite}>
+            <div className="flex flex-col sm:flex-row gap-2 w-full">
+              <Button className="w-full sm:w-auto min-h-11" icon={<Link2 size={16} />} onClick={openInvite}>
                 Пригласить
               </Button>
-              <Button variant="secondary" icon={<UserPlus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditingStaff(null); setModalOpen(true) }}>
+              <Button className="w-full sm:w-auto min-h-11" variant="secondary" icon={<UserPlus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditingStaff(null); setModalOpen(true) }}>
                 Добавить вручную
               </Button>
             </div>
@@ -764,7 +767,7 @@ export default function Staff() {
 
       {/* Role count cards */}
       <motion.div
-        className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"
         variants={stagger}
         initial="hidden"
         animate="show"
@@ -804,7 +807,7 @@ export default function Staff() {
           description={canManage ? 'Добавьте первого сотрудника' : 'Нет данных'}
           action={
             canManage ? (
-              <Button icon={<Link2 size={16} />} onClick={openInvite}>
+              <Button className="min-h-11" icon={<Link2 size={16} />} onClick={openInvite}>
                 Пригласить
               </Button>
             ) : undefined
@@ -812,7 +815,7 @@ export default function Staff() {
         />
       ) : (
         <motion.div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
           variants={stagger}
           initial="hidden"
           animate="show"
@@ -841,7 +844,7 @@ export default function Staff() {
                           <p className="text-sm font-bold text-txt-primary group-hover:text-dv-gold transition-colors truncate">
                             {member.name}
                           </p>
-                          <div className="flex items-center gap-1.5 mt-1">
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
                             <Badge variant={ROLE_BADGE[member.role] as any || 'default'} size="sm">
                               {ROLE_LABELS[member.role] || member.role}
                             </Badge>
@@ -912,11 +915,11 @@ export default function Staff() {
 
                     {/* Actions */}
                     {canManage && (
-                      <div className="mt-3 flex gap-2">
+                      <div className="mt-3 flex flex-col sm:flex-row gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="flex-1"
+                          className="w-full sm:flex-1 min-h-11"
                           icon={<Edit size={14} />}
                           onClick={(e) => { e.stopPropagation(); openEditStaff(member) }}
                         >
@@ -926,7 +929,7 @@ export default function Staff() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-error hover:text-error"
+                            className="w-full sm:w-auto text-error hover:text-error min-h-11"
                             icon={<Trash2 size={14} />}
                             loading={deletingId === member.id}
                             onClick={(e) => { e.stopPropagation(); void handleDeleteStaff(member) }}

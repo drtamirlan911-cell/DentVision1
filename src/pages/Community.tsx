@@ -235,14 +235,14 @@ export default function CommunityPage() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="dv-page max-w-3xl mx-auto space-y-4 sm:space-y-5 py-4 md:py-6 overflow-x-hidden"
+      className="dv-page max-w-full xl:max-w-3xl mx-auto space-y-4 sm:space-y-5 py-4 md:py-6 overflow-x-hidden"
     >
       <PageHeader
         title="Сообщество"
         subtitle="Лента · комментарии · личные сообщения"
         icon={<Users size={20} />}
         actions={
-          <Button size="sm" variant="secondary" icon={<GraduationCap size={14} />} onClick={() => navigate('/school')}>
+          <Button className="min-h-11" size="sm" variant="secondary" icon={<GraduationCap size={14} />} onClick={() => navigate('/school')}>
             Курсы
           </Button>
         }
@@ -260,7 +260,7 @@ export default function CommunityPage() {
             type="button"
             onClick={() => setTab(t.id)}
             className={cn(
-              'flex-1 relative py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors',
+              'flex-1 relative py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors min-h-11',
               tab === t.id ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-primary',
             )}
           >
@@ -296,7 +296,7 @@ export default function CommunityPage() {
                   rows={3}
                 />
                 <div className="flex items-center justify-end gap-2">
-                  <Button size="sm" onClick={publish} disabled={!draft.trim() || publishing}>
+                  <Button className="min-h-11" size="sm" onClick={publish} disabled={!draft.trim() || publishing}>
                     {publishing ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
                     Опубликовать
                   </Button>
@@ -313,7 +313,7 @@ export default function CommunityPage() {
                   type="button"
                   onClick={() => setTopic(t)}
                   className={cn(
-                    'shrink-0 px-3 py-1.5 rounded-full text-xs border transition-colors',
+                    'shrink-0 px-3 py-1.5 rounded-full text-xs border transition-colors min-h-11',
                     topic === t ? 'bg-dv-gold/15 border-dv-gold/30 text-dv-gold' : 'border-bdr-subtle text-txt-muted',
                   )}
                 >
@@ -347,7 +347,7 @@ export default function CommunityPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="shrink-0"
+                          className="shrink-0 min-h-11"
                           icon={<MessageCircle size={14} />}
                           onClick={() => void messageAuthor(post.authorId)}
                         >
@@ -364,7 +364,7 @@ export default function CommunityPage() {
                     <div className="flex items-center gap-3 sm:gap-4 pt-1 text-txt-muted">
                       <button
                         type="button"
-                        className={cn('inline-flex items-center gap-1.5 text-xs', post.liked ? 'text-error' : 'hover:text-txt-primary')}
+                        className={cn('inline-flex items-center gap-1.5 text-xs min-h-11', post.liked ? 'text-error' : 'hover:text-txt-primary')}
                         onClick={() => void toggleLike(post.id)}
                       >
                         <Heart size={14} fill={post.liked ? 'currentColor' : 'none'} />
@@ -372,7 +372,7 @@ export default function CommunityPage() {
                       </button>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary"
+                        className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary min-h-11"
                         onClick={() => void openComments(post.id)}
                       >
                         <MessageSquare size={14} />
@@ -380,14 +380,14 @@ export default function CommunityPage() {
                       </button>
                       <button
                         type="button"
-                        className={cn('inline-flex items-center gap-1.5 text-xs', post.saved ? 'text-dv-gold' : 'hover:text-txt-primary')}
+                        className={cn('inline-flex items-center gap-1.5 text-xs min-h-11', post.saved ? 'text-dv-gold' : 'hover:text-txt-primary')}
                         onClick={() => void toggleSave(post.id)}
                       >
                         <Bookmark size={14} fill={post.saved ? 'currentColor' : 'none'} />
                       </button>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary ml-auto"
+                        className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary ml-auto min-h-11"
                         onClick={() => void sharePost(post)}
                       >
                         <Share2 size={14} />
@@ -405,10 +405,10 @@ export default function CommunityPage() {
       {commentPostId && (
         <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center">
           <button type="button" className="absolute inset-0 bg-black/60" aria-label="Закрыть" onClick={() => setCommentPostId(null)} />
-          <div className="relative w-full sm:max-w-md max-h-[80dvh] rounded-t-2xl sm:rounded-2xl border border-bdr-subtle bg-surface-1 shadow-modal flex flex-col overflow-hidden">
+          <div className="relative w-full sm:max-w-md lg:max-w-lg xl:max-w-xl max-h-[80dvh] rounded-t-2xl sm:rounded-2xl border border-bdr-subtle bg-surface-1 shadow-modal flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-bdr-subtle shrink-0">
               <p className="text-sm font-semibold text-txt-primary">Комментарии</p>
-              <button type="button" aria-label="Close comments" onClick={() => setCommentPostId(null)} className="p-1.5 rounded-lg text-txt-muted hover:bg-white/5">
+              <button type="button" aria-label="Close comments" onClick={() => setCommentPostId(null)} className="p-1.5 rounded-lg text-txt-muted hover:bg-white/5 min-h-11 min-w-11 flex items-center justify-center">
                 <X size={16} />
               </button>
             </div>
@@ -443,7 +443,7 @@ export default function CommunityPage() {
                   }
                 }}
               />
-              <Button size="sm" icon={<Send size={14} />} onClick={() => void sendComment()} disabled={!commentDraft.trim()} aria-label="Отправить комментарий" />
+              <Button className="min-h-11" size="sm" icon={<Send size={14} />} onClick={() => void sendComment()} disabled={!commentDraft.trim()} aria-label="Отправить комментарий" />
             </div>
           </div>
         </div>

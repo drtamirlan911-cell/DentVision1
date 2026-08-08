@@ -126,17 +126,17 @@ export default function QualityCenterTab() {
   const totalIssues = critical + serious + moderate + minor
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-txt-primary">Quality Center</h2>
           <p className="text-sm text-txt-muted">Автоматический контроль качества, безопасности и производительности</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {lastRun && (
             <span className="text-xs text-txt-muted">Проверено: {lastRun.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
           )}
-          <Button icon={<RefreshCw size={16} className={scanning ? 'animate-spin' : undefined} />} variant="secondary" loading={scanning} onClick={runScan}>
+          <Button icon={<RefreshCw size={16} className={scanning ? 'animate-spin' : undefined} />} variant="secondary" loading={scanning} onClick={runScan} className="min-h-11">
             {scanning ? 'Проверка…' : 'Запустить проверку'}
           </Button>
         </div>
@@ -151,7 +151,7 @@ export default function QualityCenterTab() {
           { id: 'diagnostics', label: 'Diagnostics', icon: <Search size={15} /> },
         ] as { id: QCTab; label: string; icon: React.ReactNode }[]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 min-h-11 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
             {t.icon}{t.label}
           </button>
         ))}
@@ -160,7 +160,7 @@ export default function QualityCenterTab() {
       <AnimatePresence mode="wait">
         {tab === 'accessibility' && (
           <motion.div key="a11y" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <GlassCard padding="md" className="flex items-center justify-center">
                 <ScoreCircle value={70} label="Accessibility" color="#C9A96E" />
               </GlassCard>
@@ -168,9 +168,9 @@ export default function QualityCenterTab() {
               <StatCard label="Serious" value={serious} icon={<AlertTriangle size={18} />} />
               <StatCard label="Moderate" value={moderate} icon={<AlertTriangle size={18} />} />
             </div>
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between items-center gap-2">
               <p className="text-xs text-txt-muted">Всего проблем: {totalIssues} · Исправлено: {passes}</p>
-              <Input placeholder="Поиск..." value={filter} onChange={e => setFilter(e.target.value)} className="max-w-xs" clearable />
+              <Input placeholder="Поиск..." value={filter} onChange={e => setFilter(e.target.value)} className="w-full sm:max-w-xs min-h-11" clearable />
             </div>
             <Card padding="none">
               <div className="overflow-x-auto">
@@ -230,7 +230,7 @@ export default function QualityCenterTab() {
 
         {tab === 'performance' && (
           <motion.div key="perf" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <GlassCard padding="md" className="flex items-center justify-center">
                 <ScoreCircle value={72} label="Performance" color="#4e8cff" />
               </GlassCard>
@@ -244,7 +244,7 @@ export default function QualityCenterTab() {
                 <ScoreCircle value={89} label="SEO" color="#A78BFA" />
               </GlassCard>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Bundle Size" value="1.8 MB" icon={<Code size={18} />} />
               <StatCard label="First Paint" value="1.8s" icon={<Gauge size={18} />} />
               <StatCard label="TTI" value="3.2s" icon={<Gauge size={18} />} />
@@ -273,7 +273,7 @@ export default function QualityCenterTab() {
 
         {tab === 'code-quality' && (
           <motion.div key="cq" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="ESLint Errors" value={MOCK_CODE_QUALITY.eslint.errors} icon={<XCircle size={18} />} />
               <StatCard label="ESLint Warnings" value={MOCK_CODE_QUALITY.eslint.warnings} icon={<AlertTriangle size={18} />} />
               <StatCard label="TS Errors" value={MOCK_CODE_QUALITY.typescript.errors} icon={<XCircle size={18} />} />

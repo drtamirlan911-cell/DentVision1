@@ -127,7 +127,7 @@ export default function ShopOrders() {
   );
 
   return (
-    <div className="p-6 max-w-[900px] mx-auto">
+    <div className="p-6 w-full max-w-full overflow-x-hidden mx-auto sm:max-w-[900px]">
       <PageHeader title="Мои заказы" subtitle="История покупок в Магазине" icon={<Package size={22} />} />
 
       {pendingPay?.payment && (
@@ -159,7 +159,7 @@ export default function ShopOrders() {
               <motion.div key={o.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
                 <Card hover={false} className={payingOrderId === o.id ? 'ring-1 ring-[#C9A96E]/40' : undefined}>
                   <CardContent>
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-white">Заказ #{o.id.slice(0, 8)}</span>
                         <Badge variant={st.variant} size="xs">{st.label}</Badge>
@@ -173,7 +173,7 @@ export default function ShopOrders() {
                         const price = Number(it.price || 0);
                         return (
                           <div key={it.id || `${o.id}-${idx}`} className="flex justify-between text-xs">
-                            <span className="text-[var(--slate-light)]">{name} <span className="text-[var(--slate)]">×{qty}</span></span>
+                            <span className="text-[var(--slate-light)] break-words min-w-0">{name} <span className="text-[var(--slate)]">×{qty}</span></span>
                             <span className="text-white">{tg(price * qty)}</span>
                           </div>
                         );

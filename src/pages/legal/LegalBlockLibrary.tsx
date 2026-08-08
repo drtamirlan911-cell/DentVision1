@@ -125,14 +125,14 @@ export default function LegalBlockLibrary() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       <div className="flex flex-wrap gap-2 justify-end">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск блоков..."
-            className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+            className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56 min-h-11" />
         </div>
-        <Button icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditId(null); setModal('create'); }}>
+        <Button className="min-h-11" icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditId(null); setModal('create'); }}>
           Создать блок
         </Button>
       </div>
@@ -186,11 +186,11 @@ export default function LegalBlockLibrary() {
                     <td className="px-4 py-3 text-xs text-txt-muted">{fd(b.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
-                        <Button size="icon-sm" variant="ghost" aria-label="Редактировать" onClick={() => openEdit(b)} title="Редактировать">
+                        <Button size="icon-sm" variant="ghost" className="min-h-11" aria-label="Редактировать" onClick={() => openEdit(b)} title="Редактировать">
                           <Edit3 size={14} />
                         </Button>
                         {b.isActive !== false && (
-                          <Button size="icon-sm" variant="ghost" aria-label="Деактивировать" onClick={() => {
+                          <Button size="icon-sm" variant="ghost" className="min-h-11" aria-label="Деактивировать" onClick={() => {
                             if (confirm('Деактивировать блок?')) deleteBlock.mutate(b.id);
                           }} title="Деактивировать" loading={deleteBlock.isPending && deleteBlock.variables === b.id}>
                             <Trash2 size={14} />
@@ -207,26 +207,26 @@ export default function LegalBlockLibrary() {
       )}
 
       <Modal open={!!modal} onClose={() => { setModal(false); setForm(EMPTY_FORM); setEditId(null); }}
-        title={modal === 'edit' ? 'Редактировать блок' : 'Новый блок'}>
+        title={modal === 'edit' ? 'Редактировать блок' : 'Новый блок'} size="lg">
         <form onSubmit={e => {
           e.preventDefault();
           if (!form.name.trim()) { toast.warn('Введите название'); return; }
           if (modal === 'edit' && editId) updateBlock.mutate({ id: editId, data: form });
           else createBlock.mutate(form);
         }} className="space-y-4">
-          <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required placeholder="Введите название блока" />
-          <Select label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} options={CATEGORY_OPTIONS} />
+          <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required placeholder="Введите название блока" className="min-h-11" />
+          <Select label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} options={CATEGORY_OPTIONS} className="min-h-11" />
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-txt-secondary">Содержимое</label>
             <textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} rows={5} placeholder="Текст блока с переменными {{name}}"
               className="flex w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle placeholder:text-txt-muted transition-all duration-200 resize-none focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20 px-3 py-2 min-h-[80px]" />
           </div>
           <Input label="Переменные (через запятую)" value={form.variables} onChange={e => setForm({ ...form, variables: e.target.value })} placeholder="name, date, amount" />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createBlock.isPending || updateBlock.isPending}>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" loading={createBlock.isPending || updateBlock.isPending} className="min-h-11">
               {modal === 'edit' ? 'Сохранить' : 'Создать блок'}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => { setModal(false); setForm(EMPTY_FORM); setEditId(null); }}>Отмена</Button>
+            <Button type="button" variant="ghost" onClick={() => { setModal(false); setForm(EMPTY_FORM); setEditId(null); }} className="min-h-11">Отмена</Button>
           </div>
         </form>
       </Modal>

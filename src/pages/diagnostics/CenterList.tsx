@@ -53,8 +53,8 @@ export default function CenterList() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-4 md:p-6 space-y-6 max-w-full overflow-x-hidden">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-txt-primary">Диагностические центры</h1>
           <p className="text-sm text-txt-muted mt-0.5">Все центры 3D-диагностики в системе</p>
@@ -67,13 +67,13 @@ export default function CenterList() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
+      <div className="relative w-full max-w-sm">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Поиск по названию..."
-          className="w-full bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold"
+          className="w-full bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 min-h-11 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold"
         />
       </div>
 
@@ -103,7 +103,7 @@ export default function CenterList() {
                   </div>
                 </div>
                 {isSuperAdmin && (
-                  <button onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-surface-1 text-txt-muted hover:text-dv-gold transition-colors">
+                  <button onClick={() => openEdit(c)} className="inline-flex items-center justify-center min-h-11 min-w-11 p-1.5 rounded-lg hover:bg-surface-1 text-txt-muted hover:text-dv-gold transition-colors">
                     <Edit2 size={14} />
                   </button>
                 )}
@@ -123,37 +123,37 @@ export default function CenterList() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowModal(false)}>
-          <Card padding="lg" className="w-full max-w-md mx-4" onClick={(e: any) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto" onClick={() => setShowModal(false)}>
+          <Card padding="lg" className="w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto" onClick={(e: any) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-txt-primary">{editItem ? 'Редактировать центр' : 'Добавить центр'}</h3>
-              <button aria-label="Close" onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-surface-1 text-txt-muted"><X size={18} /></button>
+              <button aria-label="Close" onClick={() => setShowModal(false)} className="inline-flex items-center justify-center min-h-11 min-w-11 p-1 rounded-lg hover:bg-surface-1 text-txt-muted"><X size={18} /></button>
             </div>
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Название *</label>
                 <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 min-h-11 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Город</label>
                 <input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })}
-                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 min-h-11 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Адрес</label>
                 <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
-                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 min-h-11 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Телефон</label>
                 <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
-                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 min-h-11 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Email</label>
                 <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                  className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 min-h-11 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">

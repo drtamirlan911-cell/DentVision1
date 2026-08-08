@@ -95,13 +95,13 @@ export default function OrganizationsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-full overflow-x-hidden space-y-6">
       <PageHeader
         title="Организации"
         icon={<Building2 size={24} />}
         actions={
-          <div className="flex gap-2">
-            <Button variant="primary" onClick={openCreate}><Plus size={16} /> Создать</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" onClick={openCreate} className="min-h-11"><Plus size={16} /> Создать</Button>
           </div>
         }
       />
@@ -109,18 +109,20 @@ export default function OrganizationsPage() {
       <Card>
         <CardContent>
           <div className="flex flex-wrap gap-3 mb-4">
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <Select
                 value={typeFilter}
                 onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
                 options={ORG_TYPE_OPTIONS}
+                className="min-h-11"
               />
             </div>
-            <div className="w-64">
+            <div className="w-full sm:w-64">
               <Input
                 placeholder="Поиск по названию..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="min-h-11"
               />
             </div>
           </div>
@@ -156,10 +158,10 @@ export default function OrganizationsPage() {
                       <td className="py-3 px-2 text-slate-400">{fd(org.createdAt)}</td>
                       <td className="py-3 px-2 text-right">
                         <div className="flex gap-1 justify-end">
-                          <Button size="icon-sm" variant="ghost" onClick={() => openEdit(org)} title="Редактировать">
+                          <Button size="icon-sm" variant="ghost" onClick={() => openEdit(org)} title="Редактировать" className="min-h-11">
                             <Pencil size={14} />
                           </Button>
-                          <Button size="icon-sm" variant="ghost" onClick={() => { if (confirm('Удалить?')) deleteMut.mutate(org.id); }} title="Удалить">
+                          <Button size="icon-sm" variant="ghost" onClick={() => { if (confirm('Удалить?')) deleteMut.mutate(org.id); }} title="Удалить" className="min-h-11">
                             <Trash2 size={14} />
                           </Button>
                         </div>
@@ -173,25 +175,25 @@ export default function OrganizationsPage() {
 
           {pagination.pages > 1 && (
             <div className="flex justify-center gap-2 mt-4">
-              <Button variant="ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Назад</Button>
+              <Button variant="ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="min-h-11">Назад</Button>
               <span className="text-sm text-slate-400 self-center">{pagination.page} / {pagination.pages}</span>
-              <Button variant="ghost" disabled={page >= pagination.pages} onClick={() => setPage(p => p + 1)}>Вперёд</Button>
+              <Button variant="ghost" disabled={page >= pagination.pages} onClick={() => setPage(p => p + 1)} className="min-h-11">Вперёд</Button>
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? 'Редактировать организацию' : 'Создать организацию'}>
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? 'Редактировать организацию' : 'Создать организацию'} size="lg">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="Название *" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} required />
-          <Select label="Тип *" value={form.type} onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))} options={ORG_TYPE_OPTIONS.filter(o => o.value)} />
-          <Input label="БИН/ИНН" value={form.taxId} onChange={(e) => setForm(f => ({ ...f, taxId: e.target.value }))} />
-          <Input label="Адрес" value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} />
-          <Input label="Телефон" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} />
-          <Input label="Email" type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} />
-          <div className="flex gap-2 justify-end pt-2">
-            <Button variant="ghost" onClick={() => setShowModal(false)}>Отмена</Button>
-            <Button variant="primary" type="submit" loading={createMut.isPending}>Сохранить</Button>
+          <Input label="Название *" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} required className="min-h-11" />
+          <Select label="Тип *" value={form.type} onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))} options={ORG_TYPE_OPTIONS.filter(o => o.value)} className="min-h-11" />
+          <Input label="БИН/ИНН" value={form.taxId} onChange={(e) => setForm(f => ({ ...f, taxId: e.target.value }))} className="min-h-11" />
+          <Input label="Адрес" value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} className="min-h-11" />
+          <Input label="Телефон" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} className="min-h-11" />
+          <Input label="Email" type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} className="min-h-11" />
+          <div className="flex flex-wrap gap-2 justify-end pt-2">
+            <Button variant="ghost" onClick={() => setShowModal(false)} className="min-h-11">Отмена</Button>
+            <Button variant="primary" type="submit" loading={createMut.isPending} className="min-h-11">Сохранить</Button>
           </div>
         </form>
       </Modal>

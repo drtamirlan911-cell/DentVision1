@@ -302,13 +302,13 @@ export default function Lab() {
   }
 
   return (
-    <div className="dv-page py-4 md:py-6">
+    <div className="dv-page py-4 md:py-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Лаборатория"
         subtitle="Управление лабораторными заказами"
         icon={<FlaskConical size={20} />}
         actions={
-          <Button icon={<Plus size={16} />} onClick={openNew}>
+          <Button icon={<Plus size={16} />} onClick={openNew} className="min-h-11">
             Новый заказ
           </Button>
         }
@@ -393,45 +393,47 @@ export default function Lab() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <Select
             label="Пациент из базы"
+            className="min-h-11"
             value={form.patientId}
             onChange={e => handlePatientSelect(e.target.value)}
             options={patientOptions}
           />
           <Input
             label="Пациент (свободный ввод)"
+            className="min-h-11"
             value={form.patientName}
             onChange={e => setForm({ ...form, patientName: e.target.value })}
             placeholder="ФИО пациента (если не выбран из базы)"
           />
-          <div className="grid grid-cols-2 gap-3">
-            <Select label="Тип работы" value={form.labType}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select label="Тип работы" value={form.labType} className="min-h-11"
               onChange={e => setForm({ ...form, labType: e.target.value })}
               options={LAB_TYPES} required />
-            <Select label="Материал" value={form.material}
+            <Select label="Материал" value={form.material} className="min-h-11"
               onChange={e => setForm({ ...form, material: e.target.value })}
               options={MATERIALS} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Номер зуба" value={form.toothNumber}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="Номер зуба" value={form.toothNumber} className="min-h-11"
               onChange={e => setForm({ ...form, toothNumber: e.target.value })}
               placeholder="11, 21, 36..." />
-            <Input label="Цвет (Shade)" value={form.shade}
+            <Input label="Цвет (Shade)" value={form.shade} className="min-h-11"
               onChange={e => setForm({ ...form, shade: e.target.value })}
               placeholder="A1, A2, B1..." />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Срок готовности" type="date" value={form.dueDate}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="Срок готовности" type="date" value={form.dueDate} className="min-h-11"
               onChange={e => setForm({ ...form, dueDate: e.target.value })} required />
-            <Select label="Статус" value={form.status}
+            <Select label="Статус" value={form.status} className="min-h-11"
               onChange={e => setForm({ ...form, status: e.target.value })}
               options={Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
           </div>
-          <Input label="Комментарии для техника" value={form.notes}
+          <Input label="Комментарии для техника" value={form.notes} className="min-h-11"
             onChange={e => setForm({ ...form, notes: e.target.value })}
             placeholder="Особые пожелания, уточнения..." />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">Сохранить</Button>
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" className="flex-1 min-h-11">Сохранить</Button>
+            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} className="min-h-11">Отмена</Button>
           </div>
         </form>
       </Modal>

@@ -102,20 +102,20 @@ export default function DentalChart() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="dv-page max-w-6xl mx-auto space-y-3 sm:space-y-4 md:space-y-6 py-3 md:py-6"
+      className="dv-page max-w-full xl:max-w-6xl mx-auto overflow-x-hidden space-y-3 sm:space-y-4 md:space-y-6 py-3 md:py-6"
     >
       <PageHeader
         title="Зубная карта"
         subtitle="FDI · анатомия корней · импланты · план лечения"
         icon={<Smile size={20} />}
         actions={
-          <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => navigate('/crm/treatment-plans')}>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" className="min-h-11 sm:min-h-10" onClick={() => navigate('/crm/treatment-plans')}>
               Планы лечения
               <ArrowRight size={14} className="ml-1.5" />
             </Button>
             {selected && (
-              <Button size="sm" onClick={saveChart} disabled={!dirty || saving}>
+              <Button size="sm" className="min-h-11 sm:min-h-10" onClick={saveChart} disabled={!dirty || saving}>
                 <Save size={14} className="mr-1.5" />
                 {saving ? 'Сохранение…' : 'Сохранить'}
               </Button>
@@ -133,7 +133,7 @@ export default function DentalChart() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Пациент…"
-                className="pl-9"
+                className="pl-9 min-h-11 sm:min-h-10"
               />
             </div>
             <div className="max-h-[60vh] overflow-y-auto space-y-1">
@@ -147,7 +147,7 @@ export default function DentalChart() {
                       setSelectedId(p.id)
                       void usePatientStore.getState().openPatient(p.id)
                     }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                    className={`w-full text-left px-3 py-2 min-h-11 sm:min-h-10 rounded-lg text-sm transition-colors ${
                       selectedId === p.id
                         ? 'bg-dv-gold/15 text-dv-gold border border-dv-gold/20'
                         : 'text-txt-secondary hover:bg-white/5'
@@ -172,7 +172,7 @@ export default function DentalChart() {
               />
             ) : (
               <div className="space-y-3 sm:space-y-4">
-                <div className="flex items-center justify-between gap-2 sm:gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
                   <div className="min-w-0">
                     <h2 className="text-sm sm:text-base font-semibold text-txt-primary truncate">{selected.name || (selected as any).fullName}</h2>
                     <p className="text-xs text-txt-muted">
@@ -183,17 +183,20 @@ export default function DentalChart() {
                   <Button
                     size="sm"
                     variant="secondary"
+                    className="min-h-11 sm:min-h-10"
                     onClick={() => navigate(`/crm/patients?patient=${selected.id}&tab=odontogram`)}
                   >
                     Полная карта
                   </Button>
                 </div>
-                <ToothLegend />
-                <Odontogram3D
-                  patientTeeth={teeth}
-                  onToothClick={(n) => setSelectedTooth(n)}
-                  selectedTooth={selectedTooth}
-                />
+                <div className="overflow-x-auto w-full">
+                  <ToothLegend />
+                  <Odontogram3D
+                    patientTeeth={teeth}
+                    onToothClick={(n) => setSelectedTooth(n)}
+                    selectedTooth={selectedTooth}
+                  />
+                </div>
                 {selectedTooth && (
                   <SurfaceEditor
                     toothNumber={selectedTooth}

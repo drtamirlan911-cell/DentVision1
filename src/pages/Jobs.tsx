@@ -146,18 +146,18 @@ export default function JobsPage() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mx-auto space-y-6 p-4 md:p-6">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-full md:max-w-5xl mx-auto space-y-6 p-4 md:p-6 overflow-x-hidden">
       <PageHeader
         title="Jobs"
         subtitle="Кадровый рынок стоматологии · live API"
         icon={<Briefcase size={20} />}
         actions={
-          <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => navigate('/', { state: { aiQuery: 'Найди вакансии ортодонта' } })}>
+          <div className="flex flex-wrap gap-2">
+            <Button className="min-h-11" size="sm" variant="secondary" onClick={() => navigate('/', { state: { aiQuery: 'Найди вакансии ортодонта' } })}>
               Спросить AI
             </Button>
             {user && (
-              <Button size="sm" onClick={() => openPost('vacancy')}>
+              <Button className="min-h-11" size="sm" onClick={() => openPost('vacancy')}>
                 <Plus size={14} className="mr-1.5" />
                 Разместить
               </Button>
@@ -216,6 +216,7 @@ export default function JobsPage() {
                 {v.kind !== 'resume' && (
                   <div className="flex justify-end">
                     <Button
+                      className="min-h-11"
                       size="sm"
                       variant={applied.includes(v.id) ? 'secondary' : 'primary'}
                       disabled={applied.includes(v.id)}
@@ -237,13 +238,14 @@ export default function JobsPage() {
         onClose={() => setPostOpen(false)}
         title={postKind === 'resume' ? 'Объявление о поиске работы' : 'Разместить вакансию'}
         size="lg"
+        className="lg:max-w-xl xl:max-w-2xl"
       >
         <div className="space-y-3">
           <div className="flex gap-2 mb-1">
-            <Button size="sm" variant={postKind === 'vacancy' ? 'primary' : 'secondary'} onClick={() => setPostKind('vacancy')}>
+            <Button className="min-h-11" size="sm" variant={postKind === 'vacancy' ? 'primary' : 'secondary'} onClick={() => setPostKind('vacancy')}>
               Вакансия
             </Button>
-            <Button size="sm" variant={postKind === 'resume' ? 'primary' : 'secondary'} onClick={() => setPostKind('resume')}>
+            <Button className="min-h-11" size="sm" variant={postKind === 'resume' ? 'primary' : 'secondary'} onClick={() => setPostKind('resume')}>
               Ищу работу
             </Button>
           </div>
@@ -288,8 +290,8 @@ export default function JobsPage() {
             placeholder="Терапия, Эндодонтия"
           />
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setPostOpen(false)}>Отмена</Button>
-            <Button onClick={submitPost} disabled={saving}>
+            <Button className="min-h-11" variant="secondary" onClick={() => setPostOpen(false)}>Отмена</Button>
+            <Button className="min-h-11" onClick={submitPost} disabled={saving}>
               {saving ? 'Публикация…' : 'Опубликовать'}
             </Button>
           </div>

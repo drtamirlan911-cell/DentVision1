@@ -172,17 +172,18 @@ export default function Reminders() {
                   )}
                 </div>
                 {!readOnly && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-start sm:justify-end">
                     <Button
                       variant="primary"
                       size="sm"
+                      className="min-h-11"
                       icon={<MessageSquare size={14} />}
                       onClick={() => handleSend(r)}
                     >
                       Отправить WhatsApp
                     </Button>
                     {!r.sent && (
-                      <Button variant="outline" size="sm" onClick={() => handleMark(r)}>
+                      <Button variant="outline" size="sm" className="min-h-11" onClick={() => handleMark(r)}>
                         Отметить
                       </Button>
                     )}
@@ -201,7 +202,7 @@ export default function Reminders() {
       initial="hidden"
       animate="show"
       variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }}
-      className="dv-page space-y-6 py-4 md:py-6"
+      className="dv-page max-w-full overflow-x-hidden space-y-6 py-4 md:py-6"
     >
       {/* Header */}
       <PageHeader
@@ -211,12 +212,12 @@ export default function Reminders() {
         actions={
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {!readOnly && (
-              <Button variant="secondary" size="sm" onClick={handleServerCron} disabled={cronRunning}>
+              <Button variant="secondary" size="sm" className="min-h-11" onClick={handleServerCron} disabled={cronRunning}>
                 {cronRunning ? 'Рассылка…' : 'Серверная рассылка'}
               </Button>
             )}
             {(pendingAppt + pendingUrgent + pendingHyg) > 0 ? (
-              <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2 text-xs font-bold text-warning">
+              <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2 text-xs font-bold text-warning min-h-11">
                 <AlertTriangle size={14} />
                 {pendingAppt + pendingUrgent + pendingHyg} требуют внимания
               </div>
@@ -227,12 +228,12 @@ export default function Reminders() {
 
       {/* Tabs */}
       <motion.div variants={fadeUp}>
-        <div className="flex gap-1 rounded-xl bg-white/5 p-1">
+        <div className="flex flex-wrap gap-1 rounded-xl bg-white/5 p-1">
           {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 ${
+              className={`flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 min-h-11 ${
                 tab === t.id
                   ? 'bg-dv-gold/20 text-dv-gold'
                   : 'text-txt-muted hover:bg-white/5'
@@ -307,17 +308,18 @@ export default function Reminders() {
                         </div>
                       </div>
                       {!readOnly && (
-                        <div className="flex gap-2">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            icon={<MessageSquare size={14} />}
-                            onClick={() => handleSend(r)}
-                          >
+                        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-start sm:justify-end">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          className="min-h-11"
+                          icon={<MessageSquare size={14} />}
+                          onClick={() => handleSend(r)}
+                        >
                             Отправить WhatsApp
                           </Button>
                           {!r.sent && (
-                            <Button variant="outline" size="sm" onClick={() => handleMark(r)}>
+                            <Button variant="outline" size="sm" className="min-h-11" onClick={() => handleMark(r)}>
                               Отметить
                             </Button>
                           )}
@@ -361,6 +363,7 @@ export default function Reminders() {
                         <Button
                           variant="primary"
                           size="sm"
+                          className="min-h-11"
                           icon={<MessageSquare size={14} />}
                           onClick={() => {
                             const link = buildWaLink(

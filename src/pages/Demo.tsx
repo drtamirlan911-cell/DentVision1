@@ -55,7 +55,7 @@ export default function Demo() {
   const [activeStep, setActiveStep] = useState(0);
 
   return (
-    <div className="min-h-screen bg-surface-0">
+    <div className="min-h-screen bg-surface-0 max-w-full overflow-x-hidden">
       {/* Hero */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-dv-gold/5 via-transparent to-transparent" />
@@ -105,7 +105,7 @@ export default function Demo() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.5 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16"
+            className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-4 mt-16"
           >
             {STATS.map((stat) => (
               <div key={stat.label} className="text-center p-4 rounded-xl bg-surface-1 border border-bdr-subtle">
@@ -122,7 +122,7 @@ export default function Demo() {
         <h2 className="text-xl md:text-2xl font-bold text-txt-primary text-center mb-10">
           Возможности платформы
         </h2>
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6">
           {DEMO_STEPS.map((step, i) => {
             const Icon = step.icon;
             const isActive = activeStep === i;

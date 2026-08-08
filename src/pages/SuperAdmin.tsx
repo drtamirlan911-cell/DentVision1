@@ -242,7 +242,7 @@ export default function SuperAdmin() {
         return (
           <div className="space-y-6">
             {s && (
-              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
                 <Stat label="Клиник" value={s.totalClinics} icon={<Building2 size={18} />} tab="clinics" />
                 <Stat label="Активных" value={s.activeClinics} icon={<CheckCircle size={18} />} tab="clinics" />
                 <Stat label="Заблокировано" value={s.blockedClinics} icon={<Ban size={18} />} tab="clinics" />
@@ -253,11 +253,11 @@ export default function SuperAdmin() {
             )}
 
             <Card padding="none">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-bdr-subtle">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-bdr-subtle">
                 <h3 className="text-sm font-semibold text-txt-primary flex items-center gap-2">
                   <AlertTriangle size={15} className="text-warning" /> Требуют внимания
                 </h3>
-                <button onClick={() => handleTabChange('clinics')} className="text-xs text-dv-gold hover:text-dv-gold-light">Все клиники</button>
+                <button onClick={() => handleTabChange('clinics')} className="text-xs text-dv-gold hover:text-dv-gold-light min-h-11">Все клиники</button>
               </div>
               {attention.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-txt-muted">Всё в порядке — нет истекающих или заблокированных клиник.</div>
@@ -274,11 +274,11 @@ export default function SuperAdmin() {
                       </Badge>
                       <div className="flex gap-1">
                         {blocked ? (
-                          <Button size="xs" variant="ghost" onClick={() => toggleClinic.mutate(c.id)}>Активировать</Button>
+                          <Button size="xs" variant="ghost" className="min-h-11" onClick={() => toggleClinic.mutate(c.id)}>Активировать</Button>
                         ) : (
                           <>
-                            <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 1 })}>+1 мес</Button>
-                            <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 3 })}>+3 мес</Button>
+                            <Button size="xs" variant="ghost" className="min-h-11" onClick={() => extendSub.mutate({ id: c.id, months: 1 })}>+1 мес</Button>
+                            <Button size="xs" variant="ghost" className="min-h-11" onClick={() => extendSub.mutate({ id: c.id, months: 3 })}>+3 мес</Button>
                           </>
                         )}
                       </div>
@@ -310,14 +310,14 @@ export default function SuperAdmin() {
       }
       case 'clinics': return (
         <>
-          <div className="flex justify-end mb-2">
-            <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end mb-2">
+            <div className="flex flex-wrap gap-2">
               <div className="relative">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
-                  className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+                  className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
               </div>
-              <Button icon={<Plus size={16} />} onClick={() => { setEditClinic(null); setClinicForm({ name: '', city: '', phone: '', email: '', address: '', plan: 'starter' }); setClinicModal('create'); }}>Клиника</Button>
+              <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => { setEditClinic(null); setClinicForm({ name: '', city: '', phone: '', email: '', address: '', plan: 'starter' }); setClinicModal('create'); }}>Клиника</Button>
             </div>
           </div>
           <Card padding="none">
@@ -362,8 +362,8 @@ export default function SuperAdmin() {
                                 </div>
                                 <div className="text-xs text-txt-muted mb-1">{fd(sub.endDate)}</div>
                                 <div className="flex gap-1">
-                                  <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 1 })}>+1</Button>
-                                  <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 3 })}>+3</Button>
+                                  <Button size="xs" variant="ghost" className="min-h-11" onClick={() => extendSub.mutate({ id: c.id, months: 1 })}>+1</Button>
+                                  <Button size="xs" variant="ghost" className="min-h-11" onClick={() => extendSub.mutate({ id: c.id, months: 3 })}>+3</Button>
                                 </div>
                               </div>
                             ) : <span className="text-xs text-txt-muted">—</span>}
@@ -373,9 +373,9 @@ export default function SuperAdmin() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
-                              <Button size="icon-sm" variant="ghost" aria-label="Редактировать" onClick={() => { setEditClinic(c); setClinicForm({ name: c.name, city: c.city || '', phone: c.phone || '', email: c.email || '', address: c.address || '', plan: c.plan || 'starter' }); setClinicModal('edit'); }}><Pencil size={14} /></Button>
-                              <Button size="icon-sm" variant="ghost" aria-label={c.active ? 'Заблокировать' : 'Активировать'} onClick={() => toggleClinic.mutate(c.id)}>{c.active ? <Ban size={14} /> : <CheckCircle size={14} />}</Button>
-                              <Button size="icon-sm" variant="danger" aria-label="Удалить" onClick={() => setDeleteModal(c)}><Trash2 size={14} /></Button>
+                              <Button size="icon-sm" variant="ghost" className="min-h-11" aria-label="Редактировать" onClick={() => { setEditClinic(c); setClinicForm({ name: c.name, city: c.city || '', phone: c.phone || '', email: c.email || '', address: c.address || '', plan: c.plan || 'starter' }); setClinicModal('edit'); }}><Pencil size={14} /></Button>
+                              <Button size="icon-sm" variant="ghost" className="min-h-11" aria-label={c.active ? 'Заблокировать' : 'Активировать'} onClick={() => toggleClinic.mutate(c.id)}>{c.active ? <Ban size={14} /> : <CheckCircle size={14} />}</Button>
+                              <Button size="icon-sm" variant="danger" className="min-h-11" aria-label="Удалить" onClick={() => setDeleteModal(c)}><Trash2 size={14} /></Button>
                             </div>
                           </td>
                         </motion.tr>
@@ -393,14 +393,14 @@ export default function SuperAdmin() {
       );
       case 'users': return (
         <>
-          <div className="flex justify-end mb-2">
-            <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end mb-2">
+            <div className="flex flex-wrap gap-2">
               <div className="relative">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
-                  className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+                  className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
               </div>
-              <Button icon={<UserPlus size={16} />} onClick={() => { setUserForm({ login: '', name: '', email: '', role: 'doctor', clinicId: '', password: '' }); setNewUserPw(null); setUserModal(true); }}>Пользователь</Button>
+              <Button icon={<UserPlus size={16} />} className="min-h-11" onClick={() => { setUserForm({ login: '', name: '', email: '', role: 'doctor', clinicId: '', password: '' }); setNewUserPw(null); setUserModal(true); }}>Пользователь</Button>
             </div>
           </div>
           <Card padding="none">
@@ -425,8 +425,8 @@ export default function SuperAdmin() {
                       <td className="px-4 py-3 text-sm text-txt-muted">{u.clinicName || '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
-                          <Button size="icon-sm" variant="ghost" title="Reset password" onClick={() => { setPwModal(u); setPw(''); }}><KeyRound size={14} /></Button>
-                          <Button size="icon-sm" variant="danger" title="Delete user" onClick={() => { if (confirm(`Удалить ${u.name}?`)) deleteUser.mutate(u.id); }}><Trash2 size={14} /></Button>
+                          <Button size="icon-sm" variant="ghost" className="min-h-11" title="Reset password" onClick={() => { setPwModal(u); setPw(''); }}><KeyRound size={14} /></Button>
+                          <Button size="icon-sm" variant="danger" className="min-h-11" title="Delete user" onClick={() => { if (confirm(`Удалить ${u.name}?`)) deleteUser.mutate(u.id); }}><Trash2 size={14} /></Button>
                         </div>
                       </td>
                     </tr>
@@ -442,8 +442,8 @@ export default function SuperAdmin() {
       );
       case 'support': return (
         <>
-          <div className="flex justify-end mb-2">
-            <Button icon={<Headphones size={16} />} onClick={() => { setSupportForm({ login: '', name: '', email: '', password: '' }); setNewSupportPw(null); setSupportModal(true); }}>Ассистент</Button>
+          <div className="flex flex-wrap justify-end mb-2">
+            <Button icon={<Headphones size={16} />} className="min-h-11" onClick={() => { setSupportForm({ login: '', name: '', email: '', password: '' }); setNewSupportPw(null); setSupportModal(true); }}>Ассистент</Button>
           </div>
           <Card padding="none">
             <div className="overflow-x-auto">
@@ -468,7 +468,7 @@ export default function SuperAdmin() {
                       <td className="px-4 py-3 text-sm text-txt-muted">{u.email || '—'}</td>
                       <td className="px-4 py-3 text-xs text-txt-muted">{u.createdAt ? fd(u.createdAt) : '—'}</td>
                       <td className="px-4 py-3">
-                        <Button size="icon-sm" variant="danger" title="Delete assistant" onClick={() => { if (confirm(`Удалить ассистента ${u.name}?`)) deleteSupport.mutate(u.id); }}><Trash2 size={14} /></Button>
+                        <Button size="icon-sm" variant="danger" className="min-h-11" title="Delete assistant" onClick={() => { if (confirm(`Удалить ассистента ${u.name}?`)) deleteSupport.mutate(u.id); }}><Trash2 size={14} /></Button>
                       </td>
                     </tr>
                   ))}
@@ -486,12 +486,12 @@ export default function SuperAdmin() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="p-6 space-y-6">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="p-4 sm:p-6 space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Управление платформой"
         subtitle="DentVision Platform Admin"
         icon={<Shield size={20} />}
-        actions={<Button icon={<RefreshCw size={16} />} variant="ghost" onClick={() => qc.invalidateQueries()}>Обновить</Button>}
+                actions={<Button icon={<RefreshCw size={16} />} variant="ghost" className="min-h-11" onClick={() => qc.invalidateQueries()}>Обновить</Button>}
       />
 
       {(() => {
@@ -506,7 +506,7 @@ export default function SuperAdmin() {
                   <button
                     key={g.id}
                     onClick={() => { handleTabChange(g.tabs.includes(tab) ? tab : g.tabs[0]); setSearch(''); }}
-                    className={`px-3.5 py-1.5 rounded-md text-sm font-semibold whitespace-nowrap transition-colors ${active ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}
+                    className={`px-3.5 py-1.5 min-h-11 rounded-md text-sm font-semibold whitespace-nowrap transition-colors ${active ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}
                   >
                     {g.label}
                   </button>
@@ -519,7 +519,7 @@ export default function SuperAdmin() {
                   <button
                     key={t.id}
                     onClick={() => { handleTabChange(t.id); setSearch(''); }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors ${tab === t.id ? 'bg-dv-gold/10 text-dv-gold font-medium' : 'text-txt-muted hover:text-txt-secondary'}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 min-h-11 rounded-md text-sm whitespace-nowrap transition-colors ${tab === t.id ? 'bg-dv-gold/10 text-dv-gold font-medium' : 'text-txt-muted hover:text-txt-secondary'}`}
                   >
                     {t.icon}{t.label}
                   </button>
@@ -533,7 +533,7 @@ export default function SuperAdmin() {
       {renderTab()}
 
       <Modal open={!!clinicModal} onClose={() => setClinicModal(false)} title={clinicModal === 'edit' ? 'Редактировать клинику' : 'Новая клиника'}>
-        <form onSubmit={e => { e.preventDefault(); if (!clinicForm.name.trim()) { showToast('Введите название', 'warning'); return; } if (clinicModal === 'edit' && editClinic) updateClinic.mutate({ id: editClinic.id, ...clinicForm }); else createClinic.mutate(clinicForm); }} className="space-y-4">
+        <form onSubmit={e => { e.preventDefault(); if (!clinicForm.name.trim()) { showToast('Введите название', 'warning'); return; } if (clinicModal === 'edit' && editClinic) updateClinic.mutate({ id: editClinic.id, ...clinicForm }); else createClinic.mutate(clinicForm); }} className="space-y-4 max-w-full overflow-x-hidden">
           <Input label="Название *" value={clinicForm.name} onChange={e => setClinicForm({ ...clinicForm, name: e.target.value })} required />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Город" value={clinicForm.city} onChange={e => setClinicForm({ ...clinicForm, city: e.target.value })} />
@@ -550,16 +550,16 @@ export default function SuperAdmin() {
               Будет создан аккаунт директора с логином <code>admin_&lt;slug&gt;</code> и временным паролем.
             </div>
           )}
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createClinic.isPending || updateClinic.isPending}>{clinicModal === 'edit' ? 'Сохранить' : 'Создать клинику'}</Button>
-            <Button type="button" variant="ghost" onClick={() => setClinicModal(false)}>Отмена</Button>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" className="min-h-11" loading={createClinic.isPending || updateClinic.isPending}>{clinicModal === 'edit' ? 'Сохранить' : 'Создать клинику'}</Button>
+            <Button type="button" variant="ghost" className="min-h-11" onClick={() => setClinicModal(false)}>Отмена</Button>
           </div>
         </form>
       </Modal>
 
       <Modal open={userModal} onClose={() => { setUserModal(false); setNewUserPw(null); }} title="Новый пользователь">
         {newUserPw ? (
-          <div className="space-y-4">
+          <div className="space-y-4 max-w-full overflow-x-hidden">
             <div className="bg-success/10 border border-success/20 rounded-lg p-4 text-center">
               <UserCheck size={24} className="mx-auto text-success mb-2" />
               <p className="text-sm text-txt-primary font-medium">Пользователь создан!</p>
@@ -569,18 +569,18 @@ export default function SuperAdmin() {
                 <Button size="icon-sm" variant="ghost" title="Copy password" onClick={() => copyToClip(newUserPw)}><Copy size={14} /></Button>
               </div>
             </div>
-            <Button className="w-full" onClick={() => setNewUserPw(null)}>Готово</Button>
+            <Button className="w-full min-h-11" onClick={() => setNewUserPw(null)}>Готово</Button>
           </div>
         ) : (
-          <form onSubmit={e => { e.preventDefault(); if (!userForm.login.trim() || !userForm.name.trim()) { showToast('Логин и имя обязательны', 'warning'); return; } createUser.mutate(userForm); }} className="space-y-4">
+          <form onSubmit={e => { e.preventDefault(); if (!userForm.login.trim() || !userForm.name.trim()) { showToast('Логин и имя обязательны', 'warning'); return; } createUser.mutate(userForm); }} className="space-y-4 max-w-full overflow-x-hidden">
             <Input label="Логин *" value={userForm.login} onChange={e => setUserForm({ ...userForm, login: e.target.value })} required />
             <Input label="Имя *" value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} required />
             <Input label="Email" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} type="email" />
             <Select label="Роль" value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })}
               options={[{ value: 'doctor', label: 'Врач' }, { value: 'assistant', label: 'Ассистент' }, { value: 'admin', label: 'Администратор' }, { value: 'reception', label: 'Регистратор' }, { value: 'manager', label: 'Менеджер' }, { value: 'laboratory', label: 'Лаборант' }, { value: 'owner', label: 'Руководитель' }]} />
-            <div className="flex gap-2 pt-2">
-              <Button type="submit" loading={createUser.isPending}>Создать</Button>
-              <Button type="button" variant="ghost" onClick={() => setUserModal(false)}>Отмена</Button>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button type="submit" className="min-h-11" loading={createUser.isPending}>Создать</Button>
+              <Button type="button" variant="ghost" className="min-h-11" onClick={() => setUserModal(false)}>Отмена</Button>
             </div>
           </form>
         )}
@@ -588,7 +588,7 @@ export default function SuperAdmin() {
 
       <Modal open={supportModal} onClose={() => { setSupportModal(false); setNewSupportPw(null); }} title="Новый ассистент поддержки">
         {newSupportPw ? (
-          <div className="space-y-4">
+          <div className="space-y-4 max-w-full overflow-x-hidden">
             <div className="bg-success/10 border border-success/20 rounded-lg p-4 text-center">
               <Headphones size={24} className="mx-auto text-success mb-2" />
               <p className="text-sm text-txt-primary font-medium">Ассистент создан!</p>
@@ -597,26 +597,26 @@ export default function SuperAdmin() {
                 <Button size="icon-sm" variant="ghost" title="Copy password" onClick={() => copyToClip(newSupportPw)}><Copy size={14} /></Button>
               </div>
             </div>
-            <Button className="w-full" onClick={() => setNewSupportPw(null)}>Готово</Button>
+            <Button className="w-full min-h-11" onClick={() => setNewSupportPw(null)}>Готово</Button>
           </div>
         ) : (
-          <form onSubmit={e => { e.preventDefault(); if (!supportForm.login.trim() || !supportForm.name.trim()) { showToast('Логин и имя обязательны', 'warning'); return; } createSupport.mutate(supportForm); }} className="space-y-4">
+          <form onSubmit={e => { e.preventDefault(); if (!supportForm.login.trim() || !supportForm.name.trim()) { showToast('Логин и имя обязательны', 'warning'); return; } createSupport.mutate(supportForm); }} className="space-y-4 max-w-full overflow-x-hidden">
             <Input label="Логин *" value={supportForm.login} onChange={e => setSupportForm({ ...supportForm, login: e.target.value })} required />
             <Input label="Имя *" value={supportForm.name} onChange={e => setSupportForm({ ...supportForm, name: e.target.value })} required />
             <Input label="Email" value={supportForm.email} onChange={e => setSupportForm({ ...supportForm, email: e.target.value })} type="email" />
             <div className="bg-dv-gold/5 border border-dv-gold/20 rounded-lg p-3 text-xs text-txt-secondary">
               Ассистент получит роль <strong>support</strong> — доступ к аналитике, настройкам и управлению платформой.
             </div>
-            <div className="flex gap-2 pt-2">
-              <Button type="submit" loading={createSupport.isPending}>Создать</Button>
-              <Button type="button" variant="ghost" onClick={() => setSupportModal(false)}>Отмена</Button>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button type="submit" className="min-h-11" loading={createSupport.isPending}>Создать</Button>
+              <Button type="button" variant="ghost" className="min-h-11" onClick={() => setSupportModal(false)}>Отмена</Button>
             </div>
           </form>
         )}
       </Modal>
 
       <Modal open={!!pwModal} onClose={() => { setPwModal(null); setPw(''); }} title={`Сброс пароля: ${pwModal?.name || ''}`}>
-        <form onSubmit={e => { e.preventDefault(); if (!pw || pw.length < 6) { showToast('Минимум 6 символов', 'warning'); return; } resetPw.mutate({ id: pwModal.id, password: pw }); }} className="space-y-4">
+        <form onSubmit={e => { e.preventDefault(); if (!pw || pw.length < 6) { showToast('Минимум 6 символов', 'warning'); return; } resetPw.mutate({ id: pwModal.id, password: pw }); }} className="space-y-4 max-w-full overflow-x-hidden">
           <div className="text-sm text-txt-secondary">Логин: <strong className="text-txt-primary font-mono">{pwModal?.login}</strong></div>
           <div className="relative">
             <Input label="Новый пароль *" type={showPw ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} placeholder="Минимум 6 символов" required />
@@ -624,22 +624,24 @@ export default function SuperAdmin() {
               {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={resetPw.isPending}>Сбросить</Button>
-            <Button type="button" variant="ghost" onClick={() => { setPwModal(null); setPw(''); }}>Отмена</Button>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" className="min-h-11" loading={resetPw.isPending}>Сбросить</Button>
+            <Button type="button" variant="ghost" className="min-h-11" onClick={() => { setPwModal(null); setPw(''); }}>Отмена</Button>
           </div>
         </form>
       </Modal>
 
       <Modal open={!!deleteModal} onClose={() => setDeleteModal(null)} title="Удаление клиники" size="sm">
-        <AlertTriangle size={20} className="text-warning mb-3" />
-        <div className="text-sm text-txt-secondary mb-6">
-          Удалить клинику <strong className="text-txt-primary">{deleteModal?.name}</strong>?<br /><br />
-          Это действие необратимо. Все данные будут удалены.
-        </div>
-        <div className="flex gap-2">
-          <Button variant="danger" className="flex-1" loading={deleteClinic.isPending} onClick={() => deleteClinic.mutate(deleteModal.id)}>Удалить</Button>
-          <Button variant="ghost" onClick={() => setDeleteModal(null)}>Отмена</Button>
+        <div className="max-w-full overflow-x-hidden">
+          <AlertTriangle size={20} className="text-warning mb-3" />
+          <div className="text-sm text-txt-secondary mb-6">
+            Удалить клинику <strong className="text-txt-primary">{deleteModal?.name}</strong>?<br /><br />
+            Это действие необратимо. Все данные будут удалены.
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="danger" className="flex-1 min-h-11" loading={deleteClinic.isPending} onClick={() => deleteClinic.mutate(deleteModal.id)}>Удалить</Button>
+            <Button variant="ghost" className="min-h-11" onClick={() => setDeleteModal(null)}>Отмена</Button>
+          </div>
         </div>
       </Modal>
     </motion.div>

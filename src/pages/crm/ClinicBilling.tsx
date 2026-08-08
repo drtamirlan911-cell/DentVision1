@@ -160,12 +160,12 @@ export default function ClinicBilling() {
   const status = String(sub?.status || 'active')
 
   return (
-    <div className="dv-page max-w-5xl mx-auto py-4 md:py-6 space-y-6">
+    <div className="dv-page max-w-full overflow-x-hidden xl:max-w-5xl mx-auto py-4 md:py-6 space-y-6">
       <PageHeader
         title="Тариф и оплата"
         subtitle="Пробный период, смена тарифа и оплата подписки клиники"
         actions={
-          <Button size="sm" variant="secondary" icon={<RefreshCw size={14} />} onClick={load} disabled={loading}>
+          <Button size="sm" variant="secondary" className="min-h-11" icon={<RefreshCw size={14} />} onClick={load} disabled={loading}>
             Обновить
           </Button>
         }
@@ -189,7 +189,7 @@ export default function ClinicBilling() {
                     {data?.daysLeft != null ? ` · осталось ${data.daysLeft} дн.` : ''}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {data?.expired && <Badge variant="outline">Истекла / приостановлена</Badge>}
                   {!data?.expired && status === 'trialing' && <Badge variant="gold">Пробный период</Badge>}
                   {!data?.expired && status === 'active' && <Badge variant="success">Активна</Badge>}
@@ -200,7 +200,7 @@ export default function ClinicBilling() {
               </div>
 
               {data?.usage && (
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg border border-bdr-subtle bg-white/[0.02] px-2 py-2">
                     <p className="text-[10px] text-txt-muted m-0">Пациенты</p>
                     <p className="text-sm font-semibold text-txt-primary m-0">
@@ -254,14 +254,14 @@ export default function ClinicBilling() {
             />
           )}
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <p className="text-xs text-txt-muted">Период оплаты:</p>
             {[1, 3, 6, 12].map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setMonths(m)}
-                className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${
+                className={`px-2.5 py-1 min-h-11 rounded-md text-xs border transition-colors ${
                   months === m
                     ? 'border-dv-gold text-dv-gold bg-dv-gold/10'
                     : 'border-white/[0.08] text-txt-muted hover:text-txt-primary'
@@ -272,15 +272,15 @@ export default function ClinicBilling() {
             ))}
           </div>
 
-          <div className="grid md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {plans.map((p) => {
               const isCurrent = currentPlan === p.id || (currentPlan === 'free' && p.id === 'starter')
               const total = (p.priceTenge || 0) * (p.priceTenge > 0 ? months : 1)
               return (
                 <Card key={p.id} className={p.popular ? 'ring-1 ring-dv-gold/40' : undefined}>
                   <CardContent className="p-5 space-y-3 h-full flex flex-col">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {PLAN_ICON[p.id] || <CreditCard size={18} />}
                         <p className="text-sm font-semibold text-txt-primary">{p.name}</p>
                       </div>
@@ -302,7 +302,7 @@ export default function ClinicBilling() {
                       ))}
                     </ul>
                     <Button
-                      className="w-full"
+                      className="w-full min-h-11"
                       variant={isCurrent && !data?.expired && !data?.expiringSoon ? 'secondary' : 'primary'}
                       disabled={!!busy || (isCurrent && status === 'active' && !data?.expiringSoon && p.priceTenge === 0)}
                       onClick={() => checkout(p.id)}

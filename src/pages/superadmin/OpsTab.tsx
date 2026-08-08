@@ -86,12 +86,12 @@ export default function OpsTab() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader icon={<Shield size={20} className="text-dv-gold" />} title="Ops Command Center" subtitle="Управление платформой и автоматизации" />
 
-      <div className="flex gap-2 border-b border-bdr-subtle pb-2">
+      <div className="flex flex-wrap gap-2 border-b border-bdr-subtle pb-2">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setSubTab(t.id)} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary' : 'text-txt-muted hover:text-txt-secondary'}`}>{t.label}</button>
+          <button key={t.id} onClick={() => setSubTab(t.id)} className={`px-3 py-1.5 min-h-11 rounded-md text-sm font-medium transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary' : 'text-txt-muted hover:text-txt-secondary'}`}>{t.label}</button>
         ))}
       </div>
 
@@ -101,7 +101,7 @@ export default function OpsTab() {
         <>
           {subTab === 'overview' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                 <StatCard icon={<Building2 size={18} />} label="Клиники" value={ov?.totalClinics ?? clinicList.length} />
                 <StatCard icon={<Users size={18} />} label="Пользователи" value={ov?.totalUsers ?? 0} />
                 <StatCard icon={<Users size={18} />} label="Пациенты" value={ov?.totalPatients ?? 0} />
@@ -201,7 +201,7 @@ export default function OpsTab() {
                 <Card padding="md">
                   <div className="flex items-center gap-2 mb-3"><ShoppingCart size={16} className="text-yellow-400" /><h4 className="text-sm font-semibold text-txt-primary">Поставщики</h4></div>
                   <p className="text-xs text-txt-muted mb-4">Продвинуть всех поставников из pending в documents_review</p>
-                  <Button size="sm" onClick={() => advanceSuppliers.mutate()} loading={advanceSuppliers.isPending}>
+                  <Button size="sm" className="min-h-11" onClick={() => advanceSuppliers.mutate()} loading={advanceSuppliers.isPending}>
                     <RefreshCw size={14} className="mr-1" /> Продвинуть заявки
                   </Button>
                 </Card>
@@ -209,7 +209,7 @@ export default function OpsTab() {
                 <Card padding="md">
                   <div className="flex items-center gap-2 mb-3"><GraduationCap size={16} className="text-blue-400" /><h4 className="text-sm font-semibold text-txt-primary">Лекторы</h4></div>
                   <p className="text-xs text-txt-muted mb-4">Верифицировать новых лекторов с документами</p>
-                  <Button size="sm" onClick={() => verifyLecturers.mutate()} loading={verifyLecturers.isPending}>
+                  <Button size="sm" className="min-h-11" onClick={() => verifyLecturers.mutate()} loading={verifyLecturers.isPending}>
                     <Check size={14} className="mr-1" /> Верифицировать
                   </Button>
                 </Card>
@@ -217,7 +217,7 @@ export default function OpsTab() {
                 <Card padding="md">
                   <div className="flex items-center gap-2 mb-3"><Clock size={16} className="text-red-400" /><h4 className="text-sm font-semibold text-txt-primary">Подписки</h4></div>
                   <p className="text-xs text-txt-muted mb-4">Продлить подписки, истекающие в течение 14 дней</p>
-                  <Button size="sm" onClick={() => extendExpiring.mutate()} loading={extendExpiring.isPending}>
+                  <Button size="sm" className="min-h-11" onClick={() => extendExpiring.mutate()} loading={extendExpiring.isPending}>
                     <RefreshCw size={14} className="mr-1" /> Продлить истекающие
                   </Button>
                 </Card>
@@ -229,9 +229,9 @@ export default function OpsTab() {
 
       <Modal open={!!planModal} onClose={() => setPlanModal(null)} title={`Тариф: ${planModal?.name || ''}`}>
         <div className="space-y-4">
-          <Select label="Новый тариф" value={newPlan} onChange={e => setNewPlan(e.target.value)} options={[{ value: 'starter', label: 'Starter (Бесплатно)' }, { value: 'professional', label: 'Professional (49 900 ₸/мес)' }, { value: 'enterprise', label: 'Enterprise (149 900 ₸/мес)' }]} />
-          <div className="flex gap-2">
-            <Button onClick={() => { if (planModal) changePlan.mutate({ id: planModal.id, plan: newPlan }); }} loading={changePlan.isPending}>Применить</Button>
+          <Select label="Новый тариф" className="min-h-11" value={newPlan} onChange={e => setNewPlan(e.target.value)} options={[{ value: 'starter', label: 'Starter (Бесплатно)' }, { value: 'professional', label: 'Professional (49 900 ₸/мес)' }, { value: 'enterprise', label: 'Enterprise (149 900 ₸/мес)' }]} />
+          <div className="flex flex-wrap gap-2">
+            <Button className="min-h-11" onClick={() => { if (planModal) changePlan.mutate({ id: planModal.id, plan: newPlan }); }} loading={changePlan.isPending}>Применить</Button>
             <Button variant="ghost" onClick={() => setPlanModal(null)}>Отмена</Button>
           </div>
         </div>
@@ -239,9 +239,9 @@ export default function OpsTab() {
 
       <Modal open={!!extendModal} onClose={() => setExtendModal(null)} title={`Продление: ${extendModal?.name || ''}`}>
         <div className="space-y-4">
-          <Select label="Месяцев" value={String(extendMonths)} onChange={e => setExtendMonths(Number(e.target.value))} options={[1, 2, 3, 6, 12].map(m => ({ value: String(m), label: `${m} мес.` }))} />
-          <div className="flex gap-2">
-            <Button onClick={() => { if (extendModal) extendSub.mutate({ id: extendModal.id, months: extendMonths }); }} loading={extendSub.isPending}>Продлить</Button>
+          <Select label="Месяцев" className="min-h-11" value={String(extendMonths)} onChange={e => setExtendMonths(Number(e.target.value))} options={[1, 2, 3, 6, 12].map(m => ({ value: String(m), label: `${m} мес.` }))} />
+          <div className="flex flex-wrap gap-2">
+            <Button className="min-h-11" onClick={() => { if (extendModal) extendSub.mutate({ id: extendModal.id, months: extendMonths }); }} loading={extendSub.isPending}>Продлить</Button>
             <Button variant="ghost" onClick={() => setExtendModal(null)}>Отмена</Button>
           </div>
         </div>

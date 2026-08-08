@@ -47,27 +47,27 @@ export default function LegalSettings() {
     onError: (e: any) => toast.showToast(e.message || 'Ошибка', 'error'),
   });
 
-  if (isLoading) return <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>;
+  if (isLoading) return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <GlassCard padding="md">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Scale size={18} className="text-dv-gold" />
             <h3 className="text-sm font-semibold text-txt-primary">Реквизиты ТОО «DentVision»</h3>
           </div>
-          <Button size="sm" icon={<Save size={14} />} onClick={() => saveMutation.mutate()} loading={saveMutation.isPending}>
+          <Button size="sm" icon={<Save size={14} />} onClick={() => saveMutation.mutate()} loading={saveMutation.isPending} className="min-h-11">
             Сохранить
           </Button>
         </div>
         <p className="text-xs text-txt-muted mb-4">Эти данные подставляются во все шаблоны документов через переменные <code className="text-dv-gold">{'{{PLATFORM_*}}'}</code>.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {FIELDS.map(f => (
             <div key={f.key}>
               <label className="text-xs text-txt-secondary mb-1 block">{f.label}</label>
               <input
-                className="w-full px-3 py-2 bg-surface-1 border border-bdr-subtle rounded-lg text-sm text-txt-primary font-mono focus:outline-none focus:border-dv-gold"
+                className="w-full px-3 py-2 min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg text-sm text-txt-primary font-mono focus:outline-none focus:border-dv-gold"
                 value={form[f.key] || ''}
                 onChange={e => setForm({ ...form, [f.key]: e.target.value })}
               />

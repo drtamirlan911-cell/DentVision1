@@ -64,7 +64,7 @@ export default function Pricing() {
   const { setRegistrationModal } = useGuestStore();
 
   return (
-    <div className="min-h-screen bg-surface-0">
+    <div className="min-h-screen bg-surface-0 max-w-full overflow-x-hidden">
       <div className="max-w-5xl mx-auto px-4 py-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -83,7 +83,7 @@ export default function Pricing() {
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {PLANS.map((plan, i) => {
             const Icon = plan.icon;
             return (
@@ -135,7 +135,7 @@ export default function Pricing() {
                 <motion.button
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setRegistrationModal(true)}
-                  className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-colors ${
+                  className={`w-full min-h-11 py-2.5 rounded-lg font-semibold text-sm transition-colors ${
                     plan.popular
                       ? 'bg-dv-gold text-surface-0 hover:bg-dv-gold/90'
                       : 'bg-surface-2 text-txt-primary border border-bdr-subtle hover:bg-surface-3'

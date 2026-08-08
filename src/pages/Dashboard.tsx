@@ -130,7 +130,7 @@ function QuickStats({ data }: { data: ReturnType<typeof useDataQuery> }) {
   }, [data])
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       <StatCard
         label="Записей сегодня"
         value={stats.todayCount}
@@ -170,7 +170,7 @@ function ServiceGrid() {
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate(tile.path)}
             className={cn(
-              'relative overflow-hidden rounded-xl border border-bdr-subtle p-4 text-left',
+              'relative overflow-hidden rounded-xl border border-bdr-subtle p-4 text-left min-h-11',
               'bg-gradient-to-br',
               tile.gradient,
               'hover:border-bdr/50 transition-all duration-200 group'
@@ -215,14 +215,14 @@ function UpcomingAppointments({ data }: { data: ReturnType<typeof useDataQuery> 
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex-wrap">
         <CardTitle className="flex items-center gap-2">
           <Clock size={16} className="text-dv-gold" />
           Ближайшие записи
         </CardTitle>
         <button
           onClick={() => navigate('/crm/schedule')}
-          className="text-xs text-dv-gold hover:text-dv-gold-light transition-colors"
+          className="text-xs text-dv-gold hover:text-dv-gold-light transition-colors min-h-11"
         >
           Все записи
         </button>
@@ -281,14 +281,14 @@ function QuickActions() {
   return (
     <div>
       <h3 className="text-sm font-semibold text-txt-secondary mb-3 px-1">Быстрые действия</h3>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {actions.map((action) => (
           <motion.button
             key={action.label}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => navigate(action.path)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised border border-bdr-subtle text-txt-secondary text-sm hover:bg-surface-raised-hover hover:border-bdr/50 hover:text-txt-primary transition-all duration-200"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised border border-bdr-subtle text-txt-secondary text-sm hover:bg-surface-raised-hover hover:border-bdr/50 hover:text-txt-primary transition-all duration-200 min-h-11"
           >
             <span className="text-txt-muted">{action.icon}</span>
             {action.label}
@@ -308,10 +308,10 @@ export default function Dashboard() {
       variants={container}
       initial="hidden"
       animate="show"
-      className="max-w-6xl mx-auto space-y-6"
+      className="max-w-full overflow-x-hidden mx-auto space-y-6"
     >
       {/* Greeting */}
-      <motion.div variants={item} className="flex items-center justify-between">
+      <motion.div variants={item} className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-txt-primary">
             {getGreeting()}, {user?.name || user?.login}

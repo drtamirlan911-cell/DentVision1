@@ -156,20 +156,20 @@ export default function AIGovernanceTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="AI Governance"
         subtitle="Мониторинг и управление AI-действиями платформы"
         icon={<Brain size={20} />}
         actions={
-          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll}>Обновить</Button>
+          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll} className="min-h-11">Обновить</Button>
         }
       />
 
       <div className="flex gap-1 bg-surface-2 rounded-lg p-1 overflow-x-auto">
         {SUB_TABS.map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 min-h-11 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
             {t.icon}{t.label}
           </button>
         ))}
@@ -178,11 +178,11 @@ export default function AIGovernanceTab() {
       {subTab === 'overview' && (
         <div className="space-y-6">
           {stats.isLoading || aiActions.isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Всего AI-действий" value={totalActions} icon={<Brain size={18} />} />
               <StatCard label="Подтверждено" value={confirmedCount} icon={<CheckCircle size={18} />} />
               <StatCard label="Ожидают" value={pendingCount} icon={<AlertTriangle size={18} />} />
@@ -263,7 +263,7 @@ export default function AIGovernanceTab() {
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
               <input value={logSearch} onChange={e => setLogSearch(e.target.value)} placeholder="Поиск по журналу..."
-                className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-64" />
+                className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-64" />
             </div>
           </div>
 
@@ -330,10 +330,10 @@ export default function AIGovernanceTab() {
               AI-проверка соответствия
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Select label="Тип объекта" value={reviewType} onChange={e => { setReviewType(e.target.value); setReviewResult(null); }} options={REVIEW_TYPE_OPTIONS} />
-              <Input label="ID объекта" value={reviewId} onChange={e => { setReviewId(e.target.value); setReviewResult(null); }} placeholder="Введите UUID или ID" />
+              <Select label="Тип объекта" className="min-h-11" value={reviewType} onChange={e => { setReviewType(e.target.value); setReviewResult(null); }} options={REVIEW_TYPE_OPTIONS} />
+              <Input label="ID объекта" className="min-h-11" value={reviewId} onChange={e => { setReviewId(e.target.value); setReviewResult(null); }} placeholder="Введите UUID или ID" />
               <div className="flex items-end">
-                <Button icon={<Search size={16} />} onClick={() => {
+                <Button icon={<Search size={16} />} className="min-h-11" onClick={() => {
                   if (!reviewId.trim()) { toast.warn('Введите ID объекта'); return; }
                   runReview.mutate({ type: reviewType, id: reviewId.trim() });
                 }} loading={runReview.isPending} disabled={!reviewId.trim()}>
@@ -433,7 +433,7 @@ export default function AIGovernanceTab() {
               <div className="relative">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
                 <input value={supplierSearch} onChange={e => { setSupplierSearch(e.target.value); setSupplierSearch(e.target.value); }} placeholder="Найти поставщика..."
-                  className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-64" />
+                  className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-64" />
               </div>
             </div>
           </Card>
@@ -538,8 +538,8 @@ export default function AIGovernanceTab() {
               </div>
             )}
             {selectedAction.status === 'pending' && (
-              <div className="flex justify-end pt-2 border-t border-bdr-subtle">
-                <Button icon={<CheckCircle size={16} />} onClick={() => confirmAction.mutate(selectedAction.id)} loading={confirmAction.isPending}>
+              <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-bdr-subtle">
+                <Button icon={<CheckCircle size={16} />} className="min-h-11" onClick={() => confirmAction.mutate(selectedAction.id)} loading={confirmAction.isPending}>
                   Подтвердить действие
                 </Button>
               </div>

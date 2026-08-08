@@ -183,7 +183,7 @@ export default function PlatformOpsCommandCenter() {
   ]
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-4">
+    <div className="mx-auto w-full max-w-full overflow-x-hidden p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <ShieldCheck size={18} className="text-dv-gold" />
@@ -193,12 +193,12 @@ export default function PlatformOpsCommandCenter() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="secondary" icon={<RefreshCw size={14} />} onClick={refresh} disabled={loading}>Refresh</Button>
-          <Button size="sm" variant="danger" onClick={lock}>Lock</Button>
+          <Button size="sm" variant="secondary" className="min-h-11" icon={<RefreshCw size={14} />} onClick={refresh} disabled={loading}>Refresh</Button>
+          <Button size="sm" variant="danger" className="min-h-11" onClick={lock}>Lock</Button>
         </div>
       </div>
 
-      <div className="flex gap-1 border-b border-white/[0.06]">
+      <div className="flex flex-wrap gap-1 border-b border-white/[0.06]">
         {TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
@@ -219,7 +219,7 @@ export default function PlatformOpsCommandCenter() {
       {/* ─── OVERVIEW ─── */}
       {tab === 'overview' && overview && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
             {[
               ['Клиники', stats.activeClinics, `${stats.blockedClinics || 0} блок.`],
               ['MRR', fmtMoney(stats.mrr), 'подписки'],
@@ -245,19 +245,19 @@ export default function PlatformOpsCommandCenter() {
                 <p className="text-sm font-semibold text-txt-primary">Автоматизации (one-click)</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" disabled={!!busy}
+                <Button size="sm" className="min-h-11" disabled={!!busy}
                   onClick={() => run('auto-sup', async () => { await api.opsAutoAdvanceSuppliers(false) }, 'Поставщики с документами → на проверку')}>
                   Поставщики: в ревью
                 </Button>
-                <Button size="sm" variant="primary" disabled={!!busy}
+                <Button size="sm" variant="primary" className="min-h-11" disabled={!!busy}
                   onClick={() => run('auto-sup-v', async () => { await api.opsAutoAdvanceSuppliers(true) }, 'Поставщики в ревью → VERIFIED')}>
                   Поставщики: подтвердить ревью
                 </Button>
-                <Button size="sm" disabled={!!busy}
+                <Button size="sm" className="min-h-11" disabled={!!busy}
                   onClick={() => run('auto-lec', async () => { await api.opsAutoVerifyLecturers() }, 'Лекторы с документами → VERIFIED')}>
                   School: верифицировать NEW
                 </Button>
-                <Button size="sm" disabled={!!busy}
+                <Button size="sm" className="min-h-11" disabled={!!busy}
                   onClick={() => run('auto-ext', async () => { await api.opsAutoExtendClinics(1) }, 'Истекающие клиники +1 мес')}>
                   Клиники: продлить истекающие +1м
                 </Button>
@@ -265,7 +265,7 @@ export default function PlatformOpsCommandCenter() {
             </CardContent>
           </Card>
 
-          <div className="grid md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <QueueCard title="Поставщики на проверке" icon={<Store size={14} />}
               onOpen={() => setTab('suppliers')}
               items={(queues.suppliersPending || []).map((s: any) => ({
@@ -310,21 +310,21 @@ export default function PlatformOpsCommandCenter() {
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
                   <select
-                    className="dv-select !w-auto h-8 px-2 text-xs"
+                    className="dv-select !w-auto min-h-11 px-2 text-xs"
                     value={String(c.plan || 'DEMO').toLowerCase() === 'standard' ? 'starter' : String(c.plan || 'demo').toLowerCase()}
                     onChange={(e) => run(`plan-${c.id}`, async () => { await api.opsClinicPlan(c.id, e.target.value) }, 'План обновлён')}
                   >
                     {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
-                  <Button size="sm" variant="secondary" icon={<CalendarPlus size={13} />} disabled={busy === `ext-${c.id}`}
+                  <Button size="sm" variant="secondary" className="min-h-11" icon={<CalendarPlus size={13} />} disabled={busy === `ext-${c.id}`}
                     onClick={() => run(`ext-${c.id}`, async () => { await api.opsClinicExtend(c.id, 1) }, '+1 месяц')}>+1м</Button>
-                  <Button size="sm" variant="secondary" disabled={busy === `ext3-${c.id}`}
+                  <Button size="sm" variant="secondary" className="min-h-11" disabled={busy === `ext3-${c.id}`}
                     onClick={() => run(`ext3-${c.id}`, async () => { await api.opsClinicExtend(c.id, 3) }, '+3 месяца')}>+3м</Button>
                   {c.active ? (
-                    <Button size="sm" variant="danger" icon={<Ban size={13} />} disabled={busy === `sus-${c.id}`}
+                    <Button size="sm" variant="danger" className="min-h-11" icon={<Ban size={13} />} disabled={busy === `sus-${c.id}`}
                       onClick={() => run(`sus-${c.id}`, async () => { await api.opsClinicSuspend(c.id) }, 'Клиника приостановлена')}>Suspend</Button>
                   ) : (
-                    <Button size="sm" variant="primary" icon={<CheckCircle2 size={13} />} disabled={busy === `act-${c.id}`}
+                    <Button size="sm" variant="primary" className="min-h-11" icon={<CheckCircle2 size={13} />} disabled={busy === `act-${c.id}`}
                       onClick={() => run(`act-${c.id}`, async () => { await api.opsClinicActivate(c.id) }, 'Клиника активирована')}>Activate</Button>
                   )}
                 </div>
@@ -339,7 +339,7 @@ export default function PlatformOpsCommandCenter() {
         <div className="space-y-4">
           <p className="text-xs text-txt-muted">Академий: {school.academies?.length || 0} · Лекторов: {school.lecturers?.length || 0} · Курсов: {school.courseCount || 0}</p>
           {(school.academies || []).length > 0 && (
-            <div className="grid sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {(school.academies || []).slice(0, 8).map((a: any) => (
                 <Card key={a.id}>
                   <CardContent className="p-3">
@@ -370,7 +370,7 @@ export default function PlatformOpsCommandCenter() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {(LEVEL_FLOW[l.level] || []).map((next) => (
-                      <Button key={next} size="sm" variant={next === 'VERIFIED' || next === 'EXPERT' ? 'primary' : 'secondary'}
+                      <Button key={next} size="sm" className="min-h-11" variant={next === 'VERIFIED' || next === 'EXPERT' ? 'primary' : 'secondary'}
                         disabled={busy === `lvl-${l.id}-${next}`}
                         onClick={() => run(`lvl-${l.id}-${next}`, async () => { await api.opsLecturerLevel(l.id, next) }, `Level → ${LEVEL_LABEL[next]}`)}>
                         → {LEVEL_LABEL[next] || next}
@@ -405,7 +405,7 @@ export default function PlatformOpsCommandCenter() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {(SUPPLIER_FLOW[s.status] || []).map((next) => (
-                    <Button key={next} size="sm"
+                    <Button key={next} size="sm" className="min-h-11"
                       variant={next === 'VERIFIED' || next === 'OFFICIAL_PARTNER' ? 'primary' : 'secondary'}
                       disabled={busy === `st-${s.id}-${next}`}
                       onClick={() => run(`st-${s.id}-${next}`, async () => { await api.opsSetSupplierStatus(s.id, next) }, `Статус → ${SUPPLIER_LABEL[next]}`)}>
@@ -419,7 +419,7 @@ export default function PlatformOpsCommandCenter() {
                       onChange={(e) => setMemberEmail((m) => ({ ...m, [s.id]: e.target.value }))}
                       placeholder="seller@example.com" />
                   </div>
-                  <Button size="sm" disabled={busy === `mem-${s.id}`}
+                  <Button size="sm" className="min-h-11" disabled={busy === `mem-${s.id}`}
                     onClick={() => run(`mem-${s.id}`, async () => {
                       const email = (memberEmail[s.id] || '').trim()
                       if (!email) throw new Error('Email обязателен')

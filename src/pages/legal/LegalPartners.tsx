@@ -113,14 +113,14 @@ export default function LegalPartners() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       <div className="flex flex-wrap gap-2 justify-end">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск партнёров..."
-            className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+            className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-56 min-h-11" />
         </div>
-        <Button icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setModal(true); }}>
+        <Button icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setModal(true); }} className="min-h-11">
           Создать партнёра
         </Button>
       </div>
@@ -171,7 +171,7 @@ export default function LegalPartners() {
                     {expandedId === p.id && (
                       <tr key={`${p.id}-expanded`}>
                         <td colSpan={8} className="px-4 py-3 bg-surface-2/50">
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <h4 className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-2 flex items-center gap-1">
                                 <FileText size={14} /> Документы
@@ -220,30 +220,30 @@ export default function LegalPartners() {
         </Card>
       )}
 
-      <Modal open={modal} onClose={() => { setModal(false); setForm(EMPTY_FORM); }} title="Новый партнёр">
+      <Modal open={modal} onClose={() => { setModal(false); setForm(EMPTY_FORM); }} title="Новый партнёр" size="lg">
         <form onSubmit={e => {
           e.preventDefault();
           if (!form.legalName.trim()) { toast.warn('Введите наименование'); return; }
           createPartner.mutate(form);
         }} className="space-y-4">
-          <Select label="Тип *" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} options={PARTNER_TYPE_OPTIONS} />
-          <Input label="Наименование *" value={form.legalName} onChange={e => setForm({ ...form, legalName: e.target.value })} required placeholder="Полное наименование" />
+          <Select label="Тип *" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} options={PARTNER_TYPE_OPTIONS} className="min-h-11" />
+          <Input label="Наименование *" value={form.legalName} onChange={e => setForm({ ...form, legalName: e.target.value })} required placeholder="Полное наименование" className="min-h-11" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="БИН" value={form.bin} onChange={e => setForm({ ...form, bin: e.target.value })} placeholder="БИН/ИИН" />
-            <Input label="Директор" value={form.director} onChange={e => setForm({ ...form, director: e.target.value })} placeholder="ФИО руководителя" />
+            <Input label="БИН" value={form.bin} onChange={e => setForm({ ...form, bin: e.target.value })} placeholder="БИН/ИИН" className="min-h-11" />
+            <Input label="Директор" value={form.director} onChange={e => setForm({ ...form, director: e.target.value })} placeholder="ФИО руководителя" className="min-h-11" />
           </div>
-          <Input label="Адрес" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Юридический адрес" />
+          <Input label="Адрес" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Юридический адрес" className="min-h-11" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="IBAN" value={form.iban} onChange={e => setForm({ ...form, iban: e.target.value })} placeholder="KZ123456..." />
-            <Input label="Комиссия (%)" type="number" step="0.01" min="0" max="100" value={form.commission} onChange={e => setForm({ ...form, commission: e.target.value })} placeholder="5.00" />
+            <Input label="IBAN" value={form.iban} onChange={e => setForm({ ...form, iban: e.target.value })} placeholder="KZ123456..." className="min-h-11" />
+            <Input label="Комиссия (%)" type="number" step="0.01" min="0" max="100" value={form.commission} onChange={e => setForm({ ...form, commission: e.target.value })} placeholder="5.00" className="min-h-11" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Телефон" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+7 (XXX) XXX-XX-XX" />
-            <Input label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" placeholder="email@example.com" />
+            <Input label="Телефон" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+7 (XXX) XXX-XX-XX" className="min-h-11" />
+            <Input label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" placeholder="email@example.com" className="min-h-11" />
           </div>
           <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createPartner.isPending}>Создать партнёра</Button>
-            <Button type="button" variant="ghost" onClick={() => { setModal(false); setForm(EMPTY_FORM); }}>Отмена</Button>
+            <Button type="submit" loading={createPartner.isPending} className="min-h-11">Создать партнёра</Button>
+            <Button type="button" variant="ghost" onClick={() => { setModal(false); setForm(EMPTY_FORM); }} className="min-h-11">Отмена</Button>
           </div>
         </form>
       </Modal>

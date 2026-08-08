@@ -124,7 +124,7 @@ export default function MedicalCard() {
   );
 
   return (
-    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
+    <div className="dv-page fade-in max-w-full space-y-6 overflow-x-hidden py-4 md:py-6">
       <PageHeader
         title="Электронная медицинская карта"
         subtitle="Полная медицинская информация пациента (МКБ-10, аллергии, история)"
@@ -140,7 +140,7 @@ export default function MedicalCard() {
               placeholder="Поиск пациента..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="min-h-11 w-full pl-9 sm:min-h-0"
             />
           </div>
           <div className="max-h-[500px] space-y-1 overflow-y-auto">
@@ -181,14 +181,14 @@ export default function MedicalCard() {
                       {selectedPatient?.gender ? ` · ${selectedPatient.gender === 'M' ? 'Мужской' : 'Женский'}` : ''}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {editing ? (
                       <>
-                        <Button variant="primary" icon={<Save size={14} />} onClick={saveCard}>Сохранить</Button>
-                        <Button variant="secondary" icon={<X size={14} />} onClick={() => setEditing(false)}>Отмена</Button>
+                        <Button className="min-h-11 sm:min-h-0" variant="primary" icon={<Save size={14} />} onClick={saveCard}>Сохранить</Button>
+                        <Button className="min-h-11 sm:min-h-0" variant="secondary" icon={<X size={14} />} onClick={() => setEditing(false)}>Отмена</Button>
                       </>
                     ) : (
-                      <Button variant="primary" icon={<Edit3 size={14} />} onClick={startEdit}>
+                      <Button className="min-h-11 sm:min-h-0" variant="primary" icon={<Edit3 size={14} />} onClick={startEdit}>
                         {existingCard ? 'Редактировать' : 'Создать карту'}
                       </Button>
                     )}
@@ -235,16 +235,16 @@ export default function MedicalCard() {
                     {editing ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Field label="Группа крови">
-                          <select className="dv-select" value={form.bloodType} onChange={e => setForm(f => ({ ...f, bloodType: e.target.value }))}>
+                          <select className="dv-select min-h-11 sm:min-h-0" value={form.bloodType} onChange={e => setForm(f => ({ ...f, bloodType: e.target.value }))}>
                             <option value="">—</option>
                             {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
                           </select>
                         </Field>
                         <Field label="Страховая компания">
-                          <input value={form.insuranceProvider} onChange={e => setForm(f => ({ ...f, insuranceProvider: e.target.value }))} placeholder="Название страховщика" />
+                          <input className="min-h-11 sm:min-h-0" value={form.insuranceProvider} onChange={e => setForm(f => ({ ...f, insuranceProvider: e.target.value }))} placeholder="Название страховщика" />
                         </Field>
                         <Field label="Номер полиса">
-                          <input value={form.insuranceNumber} onChange={e => setForm(f => ({ ...f, insuranceNumber: e.target.value }))} placeholder="Номер полиса" />
+                          <input className="min-h-11 sm:min-h-0" value={form.insuranceNumber} onChange={e => setForm(f => ({ ...f, insuranceNumber: e.target.value }))} placeholder="Номер полиса" />
                         </Field>
                       </div>
                     ) : (
@@ -359,10 +359,10 @@ export default function MedicalCard() {
                     {editing ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Field label="Контактное лицо">
-                          <input value={form.emergencyContact} onChange={e => setForm(f => ({ ...f, emergencyContact: e.target.value }))} placeholder="ФИО контактного лица" />
+                          <input className="min-h-11 sm:min-h-0" value={form.emergencyContact} onChange={e => setForm(f => ({ ...f, emergencyContact: e.target.value }))} placeholder="ФИО контактного лица" />
                         </Field>
                         <Field label="Телефон">
-                          <input value={form.emergencyPhone} onChange={e => setForm(f => ({ ...f, emergencyPhone: e.target.value }))} placeholder="+7..." />
+                          <input className="min-h-11 sm:min-h-0" value={form.emergencyPhone} onChange={e => setForm(f => ({ ...f, emergencyPhone: e.target.value }))} placeholder="+7..." />
                         </Field>
                       </div>
                     ) : (

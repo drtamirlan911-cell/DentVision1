@@ -116,13 +116,13 @@ export default function Visits() {
   };
 
   return (
-    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
+    <div className="dv-page fade-in max-w-full space-y-6 overflow-x-hidden py-4 md:py-6">
       <PageHeader
         title="Журнал посещений"
         subtitle="Все визиты пациентов с диагнозами и МКБ-10"
         icon={<ClipboardList size={24} className="text-dv-gold" />}
         actions={
-          <Button variant="primary" icon={<Plus size={16} />} onClick={() => { resetForm(); setShowForm(true); }}>
+          <Button variant="primary" className="min-h-11" icon={<Plus size={16} />} onClick={() => { resetForm(); setShowForm(true); }}>
             Новое посещение
           </Button>
         }
@@ -137,32 +137,32 @@ export default function Visits() {
                   <Stethoscope size={16} className="text-dv-gold" />
                   {editingId ? 'Редактирование посещения' : 'Новое посещение'}
                 </span>
-                <Button variant="ghost" size="icon-sm" icon={<X size={18} />} onClick={resetForm} aria-label="Закрыть форму" />
+                <Button variant="ghost" size="icon-sm" className="min-h-11" icon={<X size={18} />} onClick={resetForm} aria-label="Закрыть форму" />
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Пациент *</label>
-                    <select className="dv-select" value={form.patientId} onChange={e => setForm(f => ({ ...f, patientId: e.target.value }))}>
+                    <select className="dv-select min-h-11" value={form.patientId} onChange={e => setForm(f => ({ ...f, patientId: e.target.value }))}>
                       <option value="">Выберите...</option>
                       {(patients || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Врач</label>
-                    <select className="dv-select" value={form.doctorId} onChange={e => setForm(f => ({ ...f, doctorId: e.target.value }))}>
+                    <select className="dv-select min-h-11" value={form.doctorId} onChange={e => setForm(f => ({ ...f, doctorId: e.target.value }))}>
                       <option value="">Выберите...</option>
                       {(doctors || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Код МКБ-10</label>
-                    <input value={form.icd10Codes} onChange={e => setForm(f => ({ ...f, icd10Codes: e.target.value }))} placeholder="K02.1, K04.0..." />
+                    <input className="min-h-11" value={form.icd10Codes} onChange={e => setForm(f => ({ ...f, icd10Codes: e.target.value }))} placeholder="K02.1, K04.0..." />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Жалобы пациента</label>
                     <textarea rows={2} value={form.chiefComplaint} onChange={e => setForm(f => ({ ...f, chiefComplaint: e.target.value }))} placeholder="На что жалуется пациент..." />
@@ -172,7 +172,7 @@ export default function Visits() {
                     <textarea rows={2} value={form.diagnosis} onChange={e => setForm(f => ({ ...f, diagnosis: e.target.value }))} placeholder="Поставленный диагноз..." />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">План лечения</label>
                     <textarea rows={2} value={form.treatmentPlan} onChange={e => setForm(f => ({ ...f, treatmentPlan: e.target.value }))} placeholder="План лечения..." />
@@ -182,25 +182,25 @@ export default function Visits() {
                     <textarea rows={2} value={form.proceduresDone} onChange={e => setForm(f => ({ ...f, proceduresDone: e.target.value }))} placeholder="Что было сделано..." />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Назначения</label>
                     <textarea rows={2} value={form.prescriptions} onChange={e => setForm(f => ({ ...f, prescriptions: e.target.value }))} placeholder="Лекарства, рекомендации..." />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Следующий визит</label>
-                      <input type="date" value={form.nextVisitDate} onChange={e => setForm(f => ({ ...f, nextVisitDate: e.target.value }))} />
+                      <input className="min-h-11" type="date" value={form.nextVisitDate} onChange={e => setForm(f => ({ ...f, nextVisitDate: e.target.value }))} />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Примечания</label>
-                      <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="..." />
+                      <input className="min-h-11" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="..." />
                     </div>
                   </div>
                 </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="secondary" onClick={resetForm}>Отмена</Button>
-                  <Button variant="primary" icon={<Save size={14} />} onClick={saveVisit}>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button variant="secondary" className="min-h-11" onClick={resetForm}>Отмена</Button>
+                  <Button variant="primary" className="min-h-11" icon={<Save size={14} />} onClick={saveVisit}>
                     {editingId ? 'Обновить' : 'Добавить'}
                   </Button>
                 </div>
@@ -212,7 +212,7 @@ export default function Visits() {
 
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-        <input placeholder="Поиск по пациенту, диагнозу, МКБ-10..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
+        <input placeholder="Поиск по пациенту, диагнозу, МКБ-10..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="min-h-11 pl-9" />
       </div>
 
       <div className="space-y-3">
@@ -236,7 +236,7 @@ export default function Visits() {
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <button
                         type="button"
-                        className="text-sm font-bold text-txt-primary hover:text-dv-gold transition-colors"
+                        className="min-h-11 text-sm font-bold text-txt-primary hover:text-dv-gold transition-colors"
                         onClick={() => {
                           const pid = visit.patientId || (visit as any).patient_id
                           if (pid) navigate(`/crm/patients?patient=${pid}`)
@@ -269,6 +269,7 @@ export default function Visits() {
                         <Button
                           size="xs"
                           variant="ghost"
+                          className="min-h-11"
                           icon={<Smile size={12} />}
                           onClick={() => navigate(`/crm/dental-chart?patient=${visit.patientId || (visit as any).patient_id}`)}
                         >
@@ -277,6 +278,7 @@ export default function Visits() {
                         <Button
                           size="xs"
                           variant="ghost"
+                          className="min-h-11"
                           icon={<FileText size={12} />}
                           onClick={() => navigate(`/crm/treatment-plans?patient=${visit.patientId || (visit as any).patient_id}`)}
                         >
@@ -285,6 +287,7 @@ export default function Visits() {
                         <Button
                           size="xs"
                           variant="ghost"
+                          className="min-h-11"
                           icon={<Calendar size={12} />}
                           onClick={() => navigate(`/crm/schedule`)}
                         >
@@ -293,6 +296,7 @@ export default function Visits() {
                         <Button
                           size="xs"
                           variant="secondary"
+                          className="min-h-11"
                           icon={<ArrowRight size={12} />}
                           onClick={() => navigate(`/crm/medical-card?patient=${visit.patientId || (visit as any).patient_id}`)}
                         >

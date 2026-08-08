@@ -35,15 +35,15 @@ export default function LegalAITab() {
   const isPending = explainMut.isPending || diffMut.isPending || checkMut.isPending;
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2 border-b border-bdr-subtle pb-3">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
+      <div className="flex flex-wrap gap-2 border-b border-bdr-subtle pb-3">
         {[
           { key: 'explain', label: 'Объяснить', icon: <Sparkles size={14} /> },
           { key: 'diff', label: 'Сравнить версии', icon: <GitBranch size={14} /> },
           { key: 'check', label: 'Проверить ошибки', icon: <AlertTriangle size={14} /> },
         ].map(m => (
           <button key={m.key} onClick={() => { setMode(m.key as any); setResult(null); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${mode === m.key ? 'bg-dv-gold text-dv-black font-semibold' : 'text-txt-secondary hover:text-txt-primary bg-surface-2'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all min-h-11 ${mode === m.key ? 'bg-dv-gold text-dv-black font-semibold' : 'text-txt-secondary hover:text-txt-primary bg-surface-2'}`}>
             {m.icon} {m.label}
           </button>
         ))}
@@ -55,13 +55,13 @@ export default function LegalAITab() {
             {mode === 'explain' && (
               <div className="space-y-3">
                 <p className="text-xs text-txt-muted">Вставьте текст документа для AI-объяснения (юридическая суть, риски, ключевые положения)</p>
-                <select value={language} onChange={e => setLanguage(e.target.value)} className="w-full rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary px-3 py-2">
+                <select value={language} onChange={e => setLanguage(e.target.value)} className="w-full rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary px-3 py-2 min-h-11">
                   <option value="ru">Русский</option>
                   <option value="kz">Қазақша</option>
                   <option value="en">English</option>
                 </select>
                 <textarea value={content} onChange={e => setContent(e.target.value)} rows={10} className="w-full rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary p-3 font-mono resize-y outline-none focus:ring-1 focus:ring-dv-gold/50" placeholder="Введите содержание документа..." />
-                <Button onClick={() => explainMut.mutate({ content, language })} loading={isPending}>Объяснить</Button>
+                <Button onClick={() => explainMut.mutate({ content, language })} loading={isPending} className="min-h-11">Объяснить</Button>
               </div>
             )}
             {mode === 'diff' && (
@@ -71,14 +71,14 @@ export default function LegalAITab() {
                 <textarea value={v1} onChange={e => setV1(e.target.value)} rows={6} className="w-full rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary p-3 font-mono resize-y outline-none focus:ring-1 focus:ring-dv-gold/50" />
                 <p className="text-xs font-semibold text-txt-secondary">Версия 2</p>
                 <textarea value={v2} onChange={e => setV2(e.target.value)} rows={6} className="w-full rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary p-3 font-mono resize-y outline-none focus:ring-1 focus:ring-dv-gold/50" />
-                <Button onClick={() => diffMut.mutate({ v1, v2 })} loading={isPending}>Сравнить</Button>
+                <Button onClick={() => diffMut.mutate({ v1, v2 })} loading={isPending} className="min-h-11">Сравнить</Button>
               </div>
             )}
             {mode === 'check' && (
               <div className="space-y-3">
                 <p className="text-xs text-txt-muted">AI-проверка документа на юридические ошибки и противоречия</p>
                 <textarea value={content} onChange={e => setContent(e.target.value)} rows={10} className="w-full rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary p-3 font-mono resize-y outline-none focus:ring-1 focus:ring-dv-gold/50" />
-                <Button onClick={() => checkMut.mutate({ content })} loading={isPending}>Проверить</Button>
+                <Button onClick={() => checkMut.mutate({ content })} loading={isPending} className="min-h-11">Проверить</Button>
               </div>
             )}
           </CardContent>

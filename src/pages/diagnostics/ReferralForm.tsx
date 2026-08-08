@@ -201,9 +201,9 @@ export default function ReferralForm() {
 
   return (
     <motion.form onSubmit={handleSubmit} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-      className="p-6 space-y-6 max-w-4xl">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon-sm" aria-label="Назад" onClick={() => navigate('/diagnostics')}><ArrowLeft size={18} /></Button>
+      className="p-6 space-y-6 max-w-4xl max-w-full overflow-x-hidden">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="ghost" size="icon-sm" aria-label="Назад" className="min-h-11" onClick={() => navigate('/diagnostics')}><ArrowLeft size={18} /></Button>
         <div>
           <h1 className="text-xl font-bold text-txt-primary">Новое направление</h1>
           <p className="text-sm text-txt-muted mt-0.5">Заполните информацию для направления на диагностику</p>
@@ -212,10 +212,10 @@ export default function ReferralForm() {
 
       <Card padding="md">
         <label className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3 block">Тип диагностики</label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {CATEGORIES.map(c => (
             <button key={c.value} type="button" onClick={() => { setCategory(c.value); const first = STUDY_TYPES[c.value][0]?.value || ''; update('studyType', first); update('studyCategory', first); }}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${category === c.value ? 'bg-dv-gold/10 border-dv-gold/40 text-dv-gold' : 'bg-surface-1 border-bdr-subtle text-txt-muted hover:text-txt-primary'}`}>
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border min-h-11 ${category === c.value ? 'bg-dv-gold/10 border-dv-gold/40 text-dv-gold' : 'bg-surface-1 border-bdr-subtle text-txt-muted hover:text-txt-primary'}`}>
               {c.icon}{c.label}
             </button>
           ))}
@@ -227,7 +227,7 @@ export default function ReferralForm() {
           <User size={16} className="text-dv-gold" />
           <h2 className="text-sm font-bold text-txt-primary">Пациент</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-3">
           <Input label="ФИО *" value={form.patientName} onChange={e => update('patientName', e.target.value)} placeholder="Иванов Иван Иванович" required />
           <Input label="ИИН" value={form.patientIin} onChange={e => update('patientIin', e.target.value)} placeholder="12 цифр" />
           <Input label="Дата рождения" type="date" value={form.patientBirth} onChange={e => update('patientBirth', e.target.value)} />
@@ -329,10 +329,10 @@ export default function ReferralForm() {
 
       <Card padding="md">
         <h2 className="text-sm font-bold text-txt-primary mb-3">Приоритет</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {PRIORITIES.map(p => (
             <button key={p.value} type="button" onClick={() => update('priority', p.value)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${form.priority === p.value ? 'border-dv-gold/40 bg-dv-gold/10' : 'border-bdr-subtle bg-surface-1'}`}>
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border min-h-11 ${form.priority === p.value ? 'border-dv-gold/40 bg-dv-gold/10' : 'border-bdr-subtle bg-surface-1'}`}>
               {p.label}
             </button>
           ))}
@@ -347,13 +347,13 @@ export default function ReferralForm() {
         <FileUploader onUpload={handleFileUpload} files={files.map(f => ({ ...f, fileType: f.fileType }))} onDelete={handleDeleteFile} />
       </Card>
 
-      <div className="flex items-center justify-between p-4 bg-surface-1 rounded-xl border border-bdr-subtle">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-surface-1 rounded-xl border border-bdr-subtle">
         <div className="text-xs text-txt-muted">
           {selectedClinicId ? 'Направление от клиники — без ограничений' : 'Личный режим — до 5 направлений в день'}
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => navigate('/diagnostics')}>Отмена</Button>
-          <Button type="submit" variant="primary" loading={createMutation.isPending} icon={<Send size={16} />}>
+          <Button variant="ghost" className="min-h-11" onClick={() => navigate('/diagnostics')}>Отмена</Button>
+          <Button type="submit" variant="primary" className="min-h-11" loading={createMutation.isPending} icon={<Send size={16} />}>
             Отправить направление
           </Button>
         </div>

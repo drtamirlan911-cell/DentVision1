@@ -47,16 +47,16 @@ export default function DiagnosticPatients() {
     : patients;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
       <div>
         <h1 className="text-xl font-bold text-txt-primary">Пациенты диагностики</h1>
         <p className="text-sm text-txt-muted mt-0.5">Все пациенты, которым назначались исследования</p>
       </div>
 
-      <div className="relative max-w-xs">
+      <div className="relative flex flex-wrap w-full sm:max-w-xs">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по имени или телефону..."
-          className="w-full bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+          className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
       </div>
 
       {isLoading ? (
@@ -74,7 +74,7 @@ export default function DiagnosticPatients() {
             const lastRef = p.referrals[p.referrals.length - 1];
             const activeCount = p.referrals.filter((r: any) => r.status === 'IN_PROGRESS' || r.status === 'ACCEPTED').length;
             return (
-              <Card key={p.id || p.name} padding="md" hover className="cursor-pointer" onClick={() => navigate(`/diagnostics/referrals/${lastRef?.id}`)}>
+              <Card key={p.id || p.name} padding="md" hover className="cursor-pointer min-h-11" onClick={() => navigate(`/diagnostics/referrals/${lastRef?.id}`)}>
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-dv-gold/10 flex items-center justify-center text-dv-gold text-sm font-bold shrink-0">
                     {p.name.charAt(0)}

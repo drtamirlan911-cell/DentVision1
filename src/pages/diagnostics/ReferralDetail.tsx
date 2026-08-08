@@ -77,9 +77,9 @@ export default function ReferralDetail() {
   const statusInfo = STATUS_MAP[referral.status] || { label: referral.status, variant: 'default' as const };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-4xl">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon-sm" aria-label="Назад" onClick={() => navigate('/diagnostics/referrals')}><ArrowLeft size={18} /></Button>
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-4xl max-w-full overflow-x-hidden">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="ghost" size="icon-sm" aria-label="Назад" className="min-h-11" onClick={() => navigate('/diagnostics/referrals')}><ArrowLeft size={18} /></Button>
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-txt-primary">{referral.patientName}</h1>
@@ -89,7 +89,7 @@ export default function ReferralDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
         <Card padding="md">
           <h3 className="text-sm font-semibold text-txt-primary mb-3">Информация о пациенте</h3>
           <div className="space-y-2 text-sm">
@@ -147,22 +147,22 @@ export default function ReferralDetail() {
 
       {/* Result section */}
       <Card padding="md">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <h3 className="text-sm font-semibold text-txt-primary">Результат исследования</h3>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {!result && (referral.status === 'COMPLETED' || referral.status === 'IN_PROGRESS') && (
-              <Button variant="outline" size="xs" icon={<Sparkles size={14} />}
+              <Button variant="outline" size="xs" className="min-h-11" icon={<Sparkles size={14} />}
                 loading={aiMutation.isPending} onClick={() => aiMutation.mutate()}>
                 AI Заключение
               </Button>
             )}
             {result && !result.signedBy && (
               <>
-                <Button variant="ghost" size="xs" icon={<Edit3 size={14} />}
+                <Button variant="ghost" size="xs" className="min-h-11" icon={<Edit3 size={14} />}
                   onClick={() => setEditing(!editing)}>
                   {editing ? 'Отмена' : 'Редактировать'}
                 </Button>
-                <Button variant="primary" size="xs" icon={<CheckCircle size={14} />}
+                <Button variant="primary" size="xs" className="min-h-11" icon={<CheckCircle size={14} />}
                   loading={signMutation.isPending} onClick={() => signMutation.mutate()}>
                   Подтвердить
                 </Button>

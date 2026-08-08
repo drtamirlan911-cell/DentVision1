@@ -27,7 +27,7 @@ export default function ShopSuppliers() {
   );
 
   return (
-    <div className="p-6 max-w-[900px] mx-auto">
+    <div className="p-6 w-full max-w-full overflow-x-hidden mx-auto sm:max-w-[900px]">
       <PageHeader title="Поставщики" subtitle="Надёжные партнёры Магазина" icon={<Truck size={22} />} />
 
       {suppliers.length === 0 ? (
@@ -38,14 +38,14 @@ export default function ShopSuppliers() {
             <motion.div key={s.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
               <Card hover>
                 <CardContent>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                     <h3 className="text-sm font-bold text-white m-0">{s.name}</h3>
                     {s.rating > 0 && <span className="flex items-center gap-0.5 text-xs text-[#C9A96E]"><Star size={12} className="fill-[#C9A96E]" /> {s.rating}</span>}
                   </div>
                   <div className="space-y-1.5 text-xs text-[var(--slate-light)]">
                     {s.country && <p className="flex items-center gap-1.5"><MapPin size={12} /> {s.city ? `${s.city}, ${s.country}` : s.country}</p>}
                     {s.phone && <p className="flex items-center gap-1.5"><Phone size={12} /> {s.phone}</p>}
-                    {s.website && <p className="flex items-center gap-1.5"><Globe size={12} /> {s.website}</p>}
+                    {s.website && <p className="flex items-center gap-1.5 break-all"><Globe size={12} /> {s.website}</p>}
                     <p className="flex items-center gap-1.5"><Truck size={12} /> Доставка: {s.deliveryDays} дн. {s.deliveryCost === 0 ? '· бесплатно' : `· ${s.deliveryCost} ₸`}</p>
                   </div>
                 </CardContent>

@@ -249,20 +249,20 @@ export default function FinanceTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Finance Management"
         subtitle="Финансы и биллинг платформы"
         icon={<DollarSign size={20} />}
         actions={
-          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll}>Обновить</Button>
+          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll} className="min-h-11">Обновить</Button>
         }
       />
 
       <div className="flex gap-1 bg-surface-2 rounded-lg p-1 overflow-x-auto">
         {SUB_TABS.map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 min-h-11 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
             {t.icon}{t.label}
           </button>
         ))}
@@ -271,11 +271,11 @@ export default function FinanceTab() {
       {subTab === 'overview' && (
         <div className="space-y-6">
           {report.isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Транзакции" value={totalTransactions} icon={<ArrowUpDown size={18} />} />
               <StatCard label="Баланс платформы" value={fmtKzt(platformBalance)} icon={<Wallet size={18} />} />
               <StatCard label="Комиссии" value={fmtKzt(totalCommissions)} icon={<TrendingUp size={18} />} />
@@ -340,15 +340,15 @@ export default function FinanceTab() {
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
               <input value={txSearch} onChange={e => { setTxSearch(e.target.value); setTxPage(1); }} placeholder="Поиск..."
-                className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-48" />
+                className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-48" />
             </div>
-            <Select value={txType} onChange={e => { setTxType(e.target.value); setTxPage(1); }} options={TX_TYPE_OPTIONS} size="sm" className="w-auto min-w-[130px]" />
-            <Select value={txStatus} onChange={e => { setTxStatus(e.target.value); setTxPage(1); }} options={TX_STATUS_OPTIONS} size="sm" className="w-auto min-w-[130px]" />
+            <Select value={txType} onChange={e => { setTxType(e.target.value); setTxPage(1); }} options={TX_TYPE_OPTIONS} size="sm" className="w-auto min-w-[130px] min-h-11" />
+            <Select value={txStatus} onChange={e => { setTxStatus(e.target.value); setTxPage(1); }} options={TX_STATUS_OPTIONS} size="sm" className="w-auto min-w-[130px] min-h-11" />
             <input type="date" value={txDateFrom} onChange={e => { setTxDateFrom(e.target.value); setTxPage(1); }}
-              className="px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold/50" />
+              className="px-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold/50" />
             <input type="date" value={txDateTo} onChange={e => { setTxDateTo(e.target.value); setTxPage(1); }}
-              className="px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold/50" />
-            <Button icon={<Plus size={16} />} onClick={() => setManualModal(true)}>Транзакция</Button>
+              className="px-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold/50" />
+            <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => setManualModal(true)}>Транзакция</Button>
           </div>
 
           {transactions.isLoading ? (
@@ -482,8 +482,8 @@ export default function FinanceTab() {
 
       {subTab === 'commissions' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button icon={<Plus size={16} />} onClick={() => { setCommEdit(null); setCommForm({ name: '', percent: '', targetType: 'PLATFORM', description: '' }); setCommModal(true); }}>Правило</Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => { setCommEdit(null); setCommForm({ name: '', percent: '', targetType: 'PLATFORM', description: '' }); setCommModal(true); }}>Правило</Button>
           </div>
 
           {commissionRules.isLoading ? (
@@ -614,7 +614,7 @@ export default function FinanceTab() {
                     <p className="text-xs text-txt-muted">{ledgerData.message || (ledgerData.healthy || ledgerData.balanced ? 'Двойная балансировка соблюдена' : 'Обнаружены расхождения')}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="p-3 rounded-lg bg-surface-2 border border-bdr-subtle">
                     <p className="text-xs text-txt-muted mb-1">Всего записей</p>
                     <p className="text-lg font-bold text-txt-primary">{ledgerData.totalEntries ?? ledgerData.total ?? '—'}</p>
@@ -682,7 +682,7 @@ export default function FinanceTab() {
               )}
 
               <div className="flex justify-center">
-                <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={() => ledgerHealth.refetch()}>Проверить леджер</Button>
+                <Button icon={<RefreshCw size={16} />} className="min-h-11" variant="ghost" onClick={() => ledgerHealth.refetch()}>Проверить леджер</Button>
               </div>
             </>
           )}
@@ -702,14 +702,14 @@ export default function FinanceTab() {
             description: manualForm.description,
           });
         }} className="space-y-4">
-          <Select label="Кошелёк *" value={manualForm.walletId} onChange={e => setManualForm({ ...manualForm, walletId: e.target.value })}
+          <Select label="Кошелёк *" className="min-h-11" value={manualForm.walletId} onChange={e => setManualForm({ ...manualForm, walletId: e.target.value })}
             options={[{ value: '', label: 'Выберите кошелёк' }, ...walletList.map((w: any) => ({ value: w.id, label: `${w.name || w.type} (${fmtKzt(w.balance || 0)})` }))]} />
-          <Select label="Тип *" value={manualForm.type} onChange={e => setManualForm({ ...manualForm, type: e.target.value as 'CREDIT' | 'DEBIT' })}
+          <Select label="Тип *" className="min-h-11" value={manualForm.type} onChange={e => setManualForm({ ...manualForm, type: e.target.value as 'CREDIT' | 'DEBIT' })}
             options={[{ value: 'CREDIT', label: 'Приход (CREDIT)' }, { value: 'DEBIT', label: 'Расход (DEBIT)' }]} />
-          <Input label="Сумма (₸) *" type="number" min="0" step="100" value={manualForm.amount} onChange={e => setManualForm({ ...manualForm, amount: e.target.value })} placeholder="0" />
-          <Input label="Описание *" value={manualForm.description} onChange={e => setManualForm({ ...manualForm, description: e.target.value })} placeholder="Описание транзакции" />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createManualTx.isPending}>Создать</Button>
+          <Input label="Сумма (₸) *" className="min-h-11" type="number" min="0" step="100" value={manualForm.amount} onChange={e => setManualForm({ ...manualForm, amount: e.target.value })} placeholder="0" />
+          <Input label="Описание *" className="min-h-11" value={manualForm.description} onChange={e => setManualForm({ ...manualForm, description: e.target.value })} placeholder="Описание транзакции" />
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" className="min-h-11" loading={createManualTx.isPending}>Создать</Button>
             <Button type="button" variant="ghost" onClick={() => setManualModal(false)}>Отмена</Button>
           </div>
         </form>
@@ -724,15 +724,15 @@ export default function FinanceTab() {
           if (commEdit) updateCommRule.mutate({ id: commEdit.id, ...payload });
           else createCommRule.mutate(payload);
         }} className="space-y-4">
-          <Input label="Название *" value={commForm.name} onChange={e => setCommForm({ ...commForm, name: e.target.value })} placeholder="Название правила" />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Процент (%) *" type="number" step="0.01" min="0" max="100" value={commForm.percent} onChange={e => setCommForm({ ...commForm, percent: e.target.value })} placeholder="5.00" />
-            <Select label="Тип" value={commForm.targetType} onChange={e => setCommForm({ ...commForm, targetType: e.target.value })}
+          <Input label="Название *" className="min-h-11" value={commForm.name} onChange={e => setCommForm({ ...commForm, name: e.target.value })} placeholder="Название правила" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="Процент (%) *" className="min-h-11" type="number" step="0.01" min="0" max="100" value={commForm.percent} onChange={e => setCommForm({ ...commForm, percent: e.target.value })} placeholder="5.00" />
+            <Select label="Тип" className="min-h-11" value={commForm.targetType} onChange={e => setCommForm({ ...commForm, targetType: e.target.value })}
               options={[{ value: 'PLATFORM', label: 'Платформа' }, { value: 'SELLER', label: 'Продавец' }, { value: 'CATEGORY', label: 'Категория' }]} />
           </div>
-          <Input label="Описание" value={commForm.description} onChange={e => setCommForm({ ...commForm, description: e.target.value })} placeholder="Описание правила" />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createCommRule.isPending || updateCommRule.isPending}>{commEdit ? 'Сохранить' : 'Создать'}</Button>
+          <Input label="Описание" className="min-h-11" value={commForm.description} onChange={e => setCommForm({ ...commForm, description: e.target.value })} placeholder="Описание правила" />
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" className="min-h-11" loading={createCommRule.isPending || updateCommRule.isPending}>{commEdit ? 'Сохранить' : 'Создать'}</Button>
             <Button type="button" variant="ghost" onClick={() => { setCommModal(false); setCommEdit(null); }}>Отмена</Button>
           </div>
         </form>
@@ -787,7 +787,7 @@ export default function FinanceTab() {
                 <p className="text-sm text-txt-secondary">{disputeDetail.refType}{disputeDetail.refId ? ` / ${disputeDetail.refId}` : ''}</p>
               </div>
             )}
-            <div className="flex justify-end pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setDisputeDetail(null)}>Закрыть</Button>
             </div>
           </div>

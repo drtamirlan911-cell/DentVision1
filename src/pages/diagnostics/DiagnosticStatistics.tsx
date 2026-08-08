@@ -46,10 +46,10 @@ export default function DiagnosticStatistics() {
   const maxCount = Math.max(...Object.values(statusCounts), 1);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
       <h1 className="text-xl font-bold text-txt-primary">Статистика</h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Всего', value: dashData?.total ?? 0, icon: <BarChart3 size={18} />, color: '#3498DB' },
           { label: 'За сегодня', value: dashData?.todayCount ?? 0, icon: <TrendingUp size={18} />, color: '#C9A96E' },

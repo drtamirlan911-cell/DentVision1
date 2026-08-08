@@ -245,20 +245,20 @@ export default function AcademyTab() {
   const isLoading = academiesQuery.isLoading || lecturersQuery.isLoading;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Academy Management"
         subtitle="Управление академиями и лекторами"
         icon={<GraduationCap size={20} />}
         actions={
-          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll}>Обновить</Button>
+          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll} className="min-h-11">Обновить</Button>
         }
       />
 
       <div className="flex gap-1 bg-surface-2 rounded-lg p-1 overflow-x-auto">
         {SUB_TABS.map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 min-h-11 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
             {t.icon}{t.label}
           </button>
         ))}
@@ -267,11 +267,11 @@ export default function AcademyTab() {
       {subTab === 'overview' && (
         <div className="space-y-6">
           {isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard label="Академии" value={academyList.length} icon={<GraduationCap size={18} />} />
               <StatCard label="Лекторы" value={lecturerList.length} icon={<Users size={18} />} />
               <StatCard label="Курсы" value={totalCourses} icon={<BookOpen size={18} />} />
@@ -284,7 +284,7 @@ export default function AcademyTab() {
               {isLoading ? (
                 <Skeleton className="h-32 rounded-xl" />
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {EXPERT_LEVELS.map(level => {
                     const count = lecturerList.filter((l: any) => l.level === level).length;
                     return (
@@ -365,8 +365,8 @@ export default function AcademyTab() {
 
       {subTab === 'academies' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button icon={<Plus size={16} />} onClick={() => setAcademyModal(true)}>Академия</Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button icon={<Plus size={16} />} onClick={() => setAcademyModal(true)} className="min-h-11">Академия</Button>
           </div>
 
           {academiesQuery.isLoading ? (
@@ -468,7 +468,7 @@ export default function AcademyTab() {
                     </div>
                   </div>
                 )}
-                <div className="flex justify-end pt-2">
+                <div className="flex flex-wrap justify-end gap-2 pt-2">
                   <Button variant="ghost" onClick={() => setSelectedAcademy(null)}>Закрыть</Button>
                 </div>
               </div>
@@ -483,10 +483,10 @@ export default function AcademyTab() {
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
-                className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-48" />
+                className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-48" />
             </div>
-            <Select value={levelFilter} onChange={e => setLevelFilter(e.target.value)} options={LEVEL_FILTER_OPTIONS} size="sm" className="w-auto min-w-[140px]" />
-            <Button icon={<Plus size={16} />} onClick={() => setLecturerModal(true)}>Лектор</Button>
+            <Select value={levelFilter} onChange={e => setLevelFilter(e.target.value)} options={LEVEL_FILTER_OPTIONS} size="sm" className="w-auto min-w-[140px] min-h-11" />
+            <Button icon={<Plus size={16} />} onClick={() => setLecturerModal(true)} className="min-h-11">Лектор</Button>
           </div>
 
           {lecturersQuery.isLoading ? (
@@ -586,7 +586,7 @@ export default function AcademyTab() {
                     <ExpertLevelIndicator level={l.level || 'new'} />
                   </div>
 
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex flex-wrap gap-2 pt-2">
                     {canAdvance && (
                       <Button icon={<Star size={16} />} onClick={() => {
                         advanceLevel.mutate(l.id);
@@ -620,7 +620,7 @@ export default function AcademyTab() {
             <EmptyState icon={<FileText size={40} />} title="Нет данных" description="Лекторы появятся после добавления" />
           ) : (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <GlassCard padding="md">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-gray-500/10 text-gray-400"><FileText size={18} /></div>
@@ -776,7 +776,7 @@ export default function AcademyTab() {
                   </div>
                 )}
 
-                <div className="flex gap-2 pt-2">
+                <div className="flex flex-wrap gap-2 pt-2">
                   <Button icon={<CheckCircle size={16} />} variant="success" onClick={() => verifyLecturer.mutate({ id: verifyDetail.id, action: 'approve' })}
                     loading={verifyLecturer.isPending}>
                     Одобрить
@@ -802,11 +802,11 @@ export default function AcademyTab() {
           } else {
             createAcademy.mutate({ name: academyForm.name, description: academyForm.description });
           }
-        }} className="space-y-4">
-          <Input label="Название *" value={academyForm.name} onChange={e => setAcademyForm({ ...academyForm, name: e.target.value })} placeholder="Название академии" />
-          <Textarea label="Описание" value={academyForm.description} onChange={e => setAcademyForm({ ...academyForm, description: e.target.value })} placeholder="Описание академии" rows={3} />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createAcademy.isPending || updateAcademy.isPending}>{editingAcademy ? 'Сохранить' : 'Создать'}</Button>
+        }}         className="space-y-4">
+          <Input label="Название *" className="min-h-11" value={academyForm.name} onChange={e => setAcademyForm({ ...academyForm, name: e.target.value })} placeholder="Название академии" />
+          <Textarea label="Описание" className="min-h-11" value={academyForm.description} onChange={e => setAcademyForm({ ...academyForm, description: e.target.value })} placeholder="Описание академии" rows={3} />
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" className="min-h-11" loading={createAcademy.isPending || updateAcademy.isPending}>{editingAcademy ? 'Сохранить' : 'Создать'}</Button>
             <Button type="button" variant="ghost" onClick={() => { setAcademyModal(false); setEditingAcademy(null); setAcademyForm({ name: '', description: '' }); }}>Отмена</Button>
           </div>
         </form>
@@ -820,12 +820,12 @@ export default function AcademyTab() {
           if (!lecturerForm.speciality.trim()) { toast.warn('Укажите специальность'); return; }
           createLecturer.mutate({ userId: lecturerForm.userId, academyId: lecturerForm.academyId, speciality: lecturerForm.speciality });
         }} className="space-y-4">
-          <Input label="ID пользователя *" value={lecturerForm.userId} onChange={e => setLecturerForm({ ...lecturerForm, userId: e.target.value })} placeholder="ID пользователя" />
-          <Select label="Академия *" value={lecturerForm.academyId} onChange={e => setLecturerForm({ ...lecturerForm, academyId: e.target.value })}
+          <Input label="ID пользователя *" className="min-h-11" value={lecturerForm.userId} onChange={e => setLecturerForm({ ...lecturerForm, userId: e.target.value })} placeholder="ID пользователя" />
+          <Select label="Академия *" className="min-h-11" value={lecturerForm.academyId} onChange={e => setLecturerForm({ ...lecturerForm, academyId: e.target.value })}
             options={[{ value: '', label: 'Выберите академию' }, ...academyList.map((a: any) => ({ value: a.id, label: a.name || 'Без названия' }))]} />
-          <Input label="Специальность *" value={lecturerForm.speciality} onChange={e => setLecturerForm({ ...lecturerForm, speciality: e.target.value })} placeholder="Специальность лектора" />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createLecturer.isPending}>Добавить</Button>
+          <Input label="Специальность *" className="min-h-11" value={lecturerForm.speciality} onChange={e => setLecturerForm({ ...lecturerForm, speciality: e.target.value })} placeholder="Специальность лектора" />
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" className="min-h-11" loading={createLecturer.isPending}>Добавить</Button>
             <Button type="button" variant="ghost" onClick={() => setLecturerModal(false)}>Отмена</Button>
           </div>
         </form>

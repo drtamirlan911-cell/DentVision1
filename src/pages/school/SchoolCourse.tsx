@@ -254,9 +254,9 @@ export default function SchoolCourse() {
   if (!course) return <div className="py-10 text-center text-[var(--slate)]">Курс не найден</div>;
 
   return (
-    <div className="min-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px))]">
-      <div className="px-3 sm:px-6 py-3 border-b border-[var(--border-subtle)]">
-        <div className="flex items-center gap-2 text-xs text-[var(--slate)] min-w-0 overflow-hidden">
+    <div className="min-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px))] max-w-full overflow-x-hidden">
+        <div className="px-3 sm:px-6 py-3 border-b border-[var(--border-subtle)]">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--slate)] min-w-0 overflow-hidden">
           <button
             onClick={() => navigate('/school')}
             className="flex items-center gap-1 bg-transparent border-none text-[#C9A96E] cursor-pointer font-inherit text-xs shrink-0"
@@ -318,7 +318,7 @@ export default function SchoolCourse() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleEnroll}
-                  className="w-full py-2.5 px-4 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit"
+                  className="w-full py-2.5 px-4 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit min-h-11"
                 >
                   {course.price != null && Number(course.price) > 0
                     ? `Купить · ${Number(course.price).toLocaleString('ru-RU')} ₸`
@@ -364,7 +364,7 @@ export default function SchoolCourse() {
                 <div key={mod.id} className="mb-1">
                   <button
                     onClick={() => toggleModule(mod.id)}
-                    className="w-full flex items-center gap-2 py-2.5 px-3 bg-white/[0.02] border-none rounded-lg text-white text-xs font-semibold cursor-pointer font-inherit text-left"
+                    className="w-full flex items-center gap-2 py-2.5 px-3 min-h-11 bg-white/[0.02] border-none rounded-lg text-white text-xs font-semibold cursor-pointer font-inherit text-left"
                   >
                     <span className="w-[22px] h-[22px] rounded-md bg-[#C9A96E]/15 flex items-center justify-center text-[10px] font-bold text-[#C9A96E] shrink-0">
                       {mi + 1}
@@ -390,7 +390,7 @@ export default function SchoolCourse() {
                             <button
                               key={lesson.id}
                               onClick={() => setActiveLesson(lesson)}
-                              className={`w-full flex items-center gap-2.5 py-2 px-3 pl-[42px] bg-transparent border-none rounded text-xs cursor-pointer font-inherit text-left transition-all duration-150 ${
+                              className={`w-full flex items-center gap-2.5 py-2 px-3 pl-[42px] min-h-11 bg-transparent border-none rounded text-xs cursor-pointer font-inherit text-left transition-all duration-150 ${
                                 isActive
                                   ? 'border-l-[3px] border-l-[#C9A96E] text-[#C9A96E] bg-[#C9A96E]/[0.12]'
                                   : 'border-l-[3px] border-l-transparent text-[var(--slate-light)]'
@@ -489,7 +489,7 @@ export default function SchoolCourse() {
                           <p className="text-sm text-txt-primary font-medium">{qi + 1}. {q.text}</p>
                           <div className="space-y-1.5">
                             {(q.options || []).map((opt: string, oi: number) => (
-                              <label key={oi} className={`flex items-center gap-2 text-sm px-2.5 py-2 rounded-lg cursor-pointer border ${
+                              <label key={oi} className={`flex items-center gap-2 text-sm px-2.5 py-2 rounded-lg cursor-pointer border min-h-11 ${
                                 examAnswers[q.id] === oi
                                   ? 'border-dv-gold/40 bg-dv-gold/10 text-dv-gold'
                                   : 'border-transparent hover:bg-white/5 text-txt-secondary'
@@ -509,6 +509,7 @@ export default function SchoolCourse() {
                       ))}
                       <Button
                         size="sm"
+                        className="min-h-11"
                         onClick={submitExam}
                         disabled={examSubmitting || Object.keys(examAnswers).length < (exam.questions?.length || 0)}
                       >
@@ -571,13 +572,13 @@ export default function SchoolCourse() {
               )}
             </div>
 
-            <div className="flex items-center justify-between mt-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-5">
               <button
                 onClick={() => {
                   const idx = allLessons.findIndex(l => l.id === activeLesson.id);
                   if (idx > 0) setActiveLesson(allLessons[idx - 1]);
                 }}
-                className="py-2 px-4 rounded-lg border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] text-xs font-semibold cursor-pointer font-inherit"
+                className="py-2 px-4 rounded-lg border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] text-xs font-semibold cursor-pointer font-inherit min-h-11"
               >
                 ← Предыдущий
               </button>
@@ -585,6 +586,7 @@ export default function SchoolCourse() {
                 <Button
                   variant="primary"
                   size="sm"
+                  className="min-h-11"
                   onClick={() => markComplete(activeLesson.id)}
                   disabled={completedLessons.includes(activeLesson.id)}
                 >
@@ -596,6 +598,7 @@ export default function SchoolCourse() {
               <Button
                 variant="primary"
                 size="sm"
+                className="min-h-11"
                 onClick={() => {
                   const idx = allLessons.findIndex(l => l.id === activeLesson.id);
                   if (idx < allLessons.length - 1) setActiveLesson(allLessons[idx + 1]);
@@ -646,13 +649,13 @@ export default function SchoolCourse() {
                         key={s}
                         type="button"
                         onClick={() => askTutor(s)}
-                        className="text-[10px] px-2.5 py-1 rounded-md border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] cursor-pointer font-inherit"
+                        className="text-[10px] px-2.5 py-1 rounded-md border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] cursor-pointer font-inherit min-h-11"
                       >
                         {s}
                       </button>
                     ))}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap sm:flex-nowrap gap-2">
                     <input
                       value={tutorInput}
                       onChange={(e) => setTutorInput(e.target.value)}
@@ -660,7 +663,7 @@ export default function SchoolCourse() {
                       placeholder="Вопрос AI Tutor…"
                       className="flex-1 rounded-lg bg-white/[0.04] border border-[var(--border-subtle)] px-3 py-2 text-xs text-white font-inherit outline-none"
                     />
-                    <Button size="sm" onClick={() => askTutor()} disabled={tutorBusy || !tutorInput.trim()}>
+                    <Button size="sm" className="min-h-11" onClick={() => askTutor()} disabled={tutorBusy || !tutorInput.trim()}>
                       <Send size={14} />
                     </Button>
                   </div>

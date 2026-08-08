@@ -30,20 +30,20 @@ export default function ResultList() {
   const total = data?.total || items.length;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-4 sm:p-6 space-y-6 max-w-full overflow-x-hidden">
       <div>
         <h1 className="text-xl font-bold text-txt-primary">Результаты исследований</h1>
         <p className="text-sm text-txt-muted mt-0.5">Завершённые и просмотренные исследования</p>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 w-full sm:max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по пациенту..."
-            className="w-full bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+            className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
         </div>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
+          className="w-full sm:w-auto min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
           <option value="">Все результаты</option>
           <option value="COMPLETED">Готово</option>
           <option value="REVIEWED">Просмотрено</option>
@@ -65,12 +65,12 @@ export default function ResultList() {
             const si = STATUS_MAP[r.status] || { label: r.status, color: '#95A5A6' };
             return (
               <Card key={r.id} padding="md" hover className="cursor-pointer" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)}>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center shrink-0">
                     <CheckCircle size={20} className="text-success" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0 w-full">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-txt-primary">{r.patientName || 'Неизвестно'}</p>
                       <Badge variant="outline" style={{ borderColor: si.color, color: si.color, fontSize: 10 }}>{si.label}</Badge>
                     </div>
@@ -85,7 +85,7 @@ export default function ResultList() {
                       {new Date(r.updatedAt || r.createdAt).toLocaleString()}
                     </p>
                   </div>
-                  <Button size="xs" variant="ghost" icon={<Eye size={14} />} onClick={(e: any) => { e.stopPropagation(); navigate(`/diagnostics/referrals/${r.id}`); }}>
+                  <Button size="xs" variant="ghost" icon={<Eye size={14} />} className="min-h-11" onClick={(e: any) => { e.stopPropagation(); navigate(`/diagnostics/referrals/${r.id}`); }}>
                     Открыть
                   </Button>
                 </div>

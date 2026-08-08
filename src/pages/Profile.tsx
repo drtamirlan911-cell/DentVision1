@@ -24,13 +24,13 @@ function Section({ icon, title, onAdd, children }: { icon: React.ReactNode; titl
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex flex-wrap items-center justify-between gap-2">
           <span className="flex items-center gap-2">
             <span className="text-dv-gold">{icon}</span>
             {title}
           </span>
           {onAdd && (
-            <Button variant="ghost" size="sm" icon={<Plus size={14} />} onClick={onAdd}>
+            <Button variant="ghost" size="sm" icon={<Plus size={14} />} onClick={onAdd} className="min-h-11">
               Добавить
             </Button>
           )}
@@ -195,7 +195,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="dv-page fade-in space-y-4 sm:space-y-5 max-w-3xl mx-auto pb-10 pt-3 sm:pt-6 overflow-x-hidden">
+    <div className="dv-page fade-in max-w-full overflow-x-hidden space-y-4 sm:space-y-5 pb-10 pt-3 sm:pt-6">
       <PageHeader
         title="Мой профиль"
         subtitle="Визитка, кэшбэк DentCash и профессиональные данные"
@@ -239,7 +239,7 @@ export default function Profile() {
                 </div>
               </div>
             </div>
-            <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={openEdit} className="w-full sm:w-auto sm:self-start">
+            <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={openEdit} className="w-full sm:w-auto sm:self-start min-h-11">
               Редактировать
             </Button>
           </div>
@@ -259,7 +259,7 @@ export default function Profile() {
       {/* ─── About ─── */}
       <Section icon={<UserIcon size={16} />} title="О себе">
         {profile?.bio ? <p className="text-sm text-txt-secondary leading-relaxed whitespace-pre-line">{profile.bio}</p> : <Empty text="Добавьте информацию о себе — нажмите «Редактировать»" />}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div className="flex items-center gap-2 text-sm text-txt-secondary"><Mail size={14} className="text-txt-muted" /> {profile?.email || '—'}</div>
           <div className="flex items-center gap-2 text-sm text-txt-secondary"><Phone size={14} className="text-txt-muted" /> {profile?.phone || '—'}</div>
         </div>
@@ -301,7 +301,7 @@ export default function Profile() {
       {/* ─── Certificates ─── */}
       <Section icon={<GraduationCap size={16} />} title="Сертификаты и обучение" onAdd={() => { setForm({}); setModal('cert') }}>
         {certificates.length ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {certificates.map(c => (
               <div key={c.id} className="group relative rounded-lg border border-bdr-subtle bg-white/[0.02] p-3">
                 <p className="text-sm font-semibold text-txt-primary pr-6">{c.title}</p>
@@ -317,7 +317,7 @@ export default function Profile() {
       {/* ─── Portfolio ─── */}
       <Section icon={<FolderGit2 size={16} />} title="Портфолио" onAdd={() => { setForm({}); setModal('port') }}>
         {portfolio.length ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {portfolio.map(p => (
               <div key={p.id} className="group relative rounded-lg border border-bdr-subtle bg-white/[0.02] p-3">
                 {p.imageUrl && <img src={p.imageUrl} alt={p.title} className="h-32 w-full object-cover rounded-md mb-2" />}
@@ -394,13 +394,13 @@ export default function Profile() {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><LogOut size={16} className="text-dv-gold" /> Безопасность</CardTitle></CardHeader>
         <CardContent>
-          <Button variant="danger" icon={<LogOut size={16} />} onClick={handleLogout} className="w-full md:w-auto">Выйти из системы</Button>
+          <Button variant="danger" icon={<LogOut size={16} />} onClick={handleLogout} className="w-full md:w-auto min-h-11">Выйти из системы</Button>
         </CardContent>
       </Card>
 
       {/* ─── Edit modal ─── */}
-      <Modal open={editing} onClose={() => setEditing(false)} title="Редактировать профиль" size="lg">
-        <div className="space-y-3">
+      <Modal open={editing} onClose={() => setEditing(false)} title="Редактировать профиль" size="lg" className="max-w-full sm:max-w-xl md:max-w-2xl lg:max-w-4xl">
+        <div className="space-y-3 max-h-[70vh] sm:max-h-[80vh] overflow-y-auto pr-1">
           <div className="rounded-xl border border-bdr-subtle bg-white/[0.02] p-3 space-y-3">
             <div className="flex items-center gap-3">
               <Avatar name={fullName || '?'} size="lg" src={editForm.photoUrl || profile?.photoUrl} />
@@ -427,6 +427,7 @@ export default function Profile() {
                 icon={<Camera size={14} />}
                 loading={photoUploading}
                 onClick={() => photoInputRef.current?.click()}
+                className="min-h-11"
               >
                 Загрузить фото
               </Button>
@@ -436,6 +437,7 @@ export default function Profile() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setEditForm({ ...editForm, photoUrl: '' })}
+                  className="min-h-11"
                 >
                   Убрать
                 </Button>
@@ -443,29 +445,29 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Имя" value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
-            <Input label="Фамилия" value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
-            <Input label="Username (для публичной ссылки)" value={editForm.username} onChange={e => setEditForm({ ...editForm, username: e.target.value.replace(/\s/g, '') })} />
-            <Input label="Специализация" value={editForm.spec} onChange={e => setEditForm({ ...editForm, spec: e.target.value })} />
-            <Input label="Город" value={editForm.city} onChange={e => setEditForm({ ...editForm, city: e.target.value })} />
-            <Input label="Страна" value={editForm.country} onChange={e => setEditForm({ ...editForm, country: e.target.value })} />
-            <Input label="Телефон" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
-            <Input label="Email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
-            <Input label="Опыт (лет)" type="number" value={editForm.experienceYears} onChange={e => setEditForm({ ...editForm, experienceYears: Number(e.target.value) })} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <Input label="Имя" value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} className="min-h-11" />
+            <Input label="Фамилия" value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} className="min-h-11" />
+            <Input label="Username (для публичной ссылки)" value={editForm.username} onChange={e => setEditForm({ ...editForm, username: e.target.value.replace(/\s/g, '') })} className="min-h-11" />
+            <Input label="Специализация" value={editForm.spec} onChange={e => setEditForm({ ...editForm, spec: e.target.value })} className="min-h-11" />
+            <Input label="Город" value={editForm.city} onChange={e => setEditForm({ ...editForm, city: e.target.value })} className="min-h-11" />
+            <Input label="Страна" value={editForm.country} onChange={e => setEditForm({ ...editForm, country: e.target.value })} className="min-h-11" />
+            <Input label="Телефон" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} className="min-h-11" />
+            <Input label="Email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} className="min-h-11" />
+            <Input label="Опыт (лет)" type="number" value={editForm.experienceYears} onChange={e => setEditForm({ ...editForm, experienceYears: Number(e.target.value) })} className="min-h-11" />
           </div>
-          <Input label="Заголовок (headline)" value={editForm.headline} onChange={e => setEditForm({ ...editForm, headline: e.target.value })} placeholder="Напр.: Врач-ортопед, имплантолог" />
-          <Textarea label="О себе" value={editForm.bio} onChange={e => setEditForm({ ...editForm, bio: e.target.value })} />
+          <Input label="Заголовок (headline)" value={editForm.headline} onChange={e => setEditForm({ ...editForm, headline: e.target.value })} placeholder="Напр.: Врач-ортопед, имплантолог" className="min-h-11" />
+          <Textarea label="О себе" value={editForm.bio} onChange={e => setEditForm({ ...editForm, bio: e.target.value })} className="min-h-11" />
           <div>
             <label className="block text-xs font-medium text-txt-secondary mb-1.5">Видимость профиля</label>
-            <select className="dv-select" value={editForm.visibility} onChange={e => setEditForm({ ...editForm, visibility: e.target.value })}>
+            <select className="dv-select min-h-11" value={editForm.visibility} onChange={e => setEditForm({ ...editForm, visibility: e.target.value })}>
               <option value="public">Публичный</option>
               <option value="private">Скрытый</option>
             </select>
           </div>
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setEditing(false)} className="w-full sm:w-auto">Отмена</Button>
-            <Button variant="primary" icon={<Pencil size={14} />} onClick={saveProfile} className="w-full sm:w-auto">Сохранить</Button>
+          <div className="flex flex-col-reverse sm:flex-row flex-wrap justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setEditing(false)} className="w-full sm:w-auto min-h-11">Отмена</Button>
+            <Button variant="primary" icon={<Pencil size={14} />} onClick={saveProfile} className="w-full sm:w-auto min-h-11">Сохранить</Button>
           </div>
         </div>
       </Modal>
@@ -473,49 +475,49 @@ export default function Profile() {
       {/* ─── Add modals ─── */}
       <Modal open={modal === 'skill'} onClose={() => setModal(null)} title="Добавить навык">
         <div className="space-y-3">
-          <Input label="Название" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Напр.: Эстетическая реставрация" />
-          <Input label="Уровень (необязательно)" value={form.level || ''} onChange={e => setForm({ ...form, level: e.target.value })} placeholder="Напр.: Продвинутый" />
-          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)}>Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd}>Добавить</Button></div>
+          <Input label="Название" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Напр.: Эстетическая реставрация" className="min-h-11" />
+          <Input label="Уровень (необязательно)" value={form.level || ''} onChange={e => setForm({ ...form, level: e.target.value })} placeholder="Напр.: Продвинутый" className="min-h-11" />
+          <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)} className="min-h-11">Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd} className="min-h-11">Добавить</Button></div>
         </div>
       </Modal>
 
       <Modal open={modal === 'cert'} onClose={() => setModal(null)} title="Добавить сертификат">
         <div className="space-y-3">
-          <Input label="Название" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} />
-          <Input label="Кто выдал" value={form.issuer || ''} onChange={e => setForm({ ...form, issuer: e.target.value })} />
-          <Input label="Год" type="number" value={form.year || ''} onChange={e => setForm({ ...form, year: e.target.value })} />
-          <Input label="URL файла (необязательно)" value={form.fileUrl || ''} onChange={e => setForm({ ...form, fileUrl: e.target.value })} />
-          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)}>Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd}>Добавить</Button></div>
+          <Input label="Название" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} className="min-h-11" />
+          <Input label="Кто выдал" value={form.issuer || ''} onChange={e => setForm({ ...form, issuer: e.target.value })} className="min-h-11" />
+          <Input label="Год" type="number" value={form.year || ''} onChange={e => setForm({ ...form, year: e.target.value })} className="min-h-11" />
+          <Input label="URL файла (необязательно)" value={form.fileUrl || ''} onChange={e => setForm({ ...form, fileUrl: e.target.value })} className="min-h-11" />
+          <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)} className="min-h-11">Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd} className="min-h-11">Добавить</Button></div>
         </div>
       </Modal>
 
       <Modal open={modal === 'ach'} onClose={() => setModal(null)} title="Добавить достижение">
         <div className="space-y-3">
-          <Input label="Название" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} />
-          <Textarea label="Описание" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} />
-          <Input label="Дата" type="date" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />
-          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)}>Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd}>Добавить</Button></div>
+          <Input label="Название" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} className="min-h-11" />
+          <Textarea label="Описание" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} className="min-h-11" />
+          <Input label="Дата" type="date" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} className="min-h-11" />
+          <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)} className="min-h-11">Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd} className="min-h-11">Добавить</Button></div>
         </div>
       </Modal>
 
       <Modal open={modal === 'port'} onClose={() => setModal(null)} title="Добавить работу в портфолио">
         <div className="space-y-3">
-          <Input label="Название" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} />
-          <Textarea label="Описание" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} />
-          <Input label="URL изображения" value={form.imageUrl || ''} onChange={e => setForm({ ...form, imageUrl: e.target.value })} />
-          <Input label="Ссылка" value={form.link || ''} onChange={e => setForm({ ...form, link: e.target.value })} />
-          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)}>Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd}>Добавить</Button></div>
+          <Input label="Название" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} className="min-h-11" />
+          <Textarea label="Описание" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} className="min-h-11" />
+          <Input label="URL изображения" value={form.imageUrl || ''} onChange={e => setForm({ ...form, imageUrl: e.target.value })} className="min-h-11" />
+          <Input label="Ссылка" value={form.link || ''} onChange={e => setForm({ ...form, link: e.target.value })} className="min-h-11" />
+          <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)} className="min-h-11">Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd} className="min-h-11">Добавить</Button></div>
         </div>
       </Modal>
 
       <Modal open={modal === 'case'} onClose={() => setModal(null)} title="Добавить клинический кейс">
         <div className="space-y-3">
-          <Input label="Название" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} />
-          <Textarea label="Описание" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} />
-          <Input label="Фото «До» (URL)" value={form.beforeImage || ''} onChange={e => setForm({ ...form, beforeImage: e.target.value })} />
-          <Input label="Фото «После» (URL)" value={form.afterImage || ''} onChange={e => setForm({ ...form, afterImage: e.target.value })} />
-          <Input label="Теги (через запятую)" value={form.tags || ''} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="имплантация, эстетика" />
-          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)}>Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd}>Добавить</Button></div>
+          <Input label="Название" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} className="min-h-11" />
+          <Textarea label="Описание" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} className="min-h-11" />
+          <Input label="Фото «До» (URL)" value={form.beforeImage || ''} onChange={e => setForm({ ...form, beforeImage: e.target.value })} className="min-h-11" />
+          <Input label="Фото «После» (URL)" value={form.afterImage || ''} onChange={e => setForm({ ...form, afterImage: e.target.value })} className="min-h-11" />
+          <Input label="Теги (через запятую)" value={form.tags || ''} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="имплантация, эстетика" className="min-h-11" />
+          <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)} className="min-h-11">Отмена</Button><Button variant="primary" icon={<Plus size={14} />} onClick={submitAdd} className="min-h-11">Добавить</Button></div>
         </div>
       </Modal>
     </div>

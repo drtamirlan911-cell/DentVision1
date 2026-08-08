@@ -42,7 +42,7 @@ export default function Backup() {
   const metadata = backupData?.metadata;
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="fade-in max-w-full overflow-x-hidden space-y-6">
       <PageHeader
         title="Резервное копирование"
         subtitle="Создание и загрузка резервных копий данных клиники"
@@ -63,7 +63,7 @@ export default function Backup() {
           </div>
           <Button
             variant="primary"
-            className="w-full"
+            className="w-full min-h-11"
             loading={loading}
             icon={!loading ? <Database size={14} /> : undefined}
             onClick={createBackup}
@@ -84,7 +84,7 @@ export default function Backup() {
           </div>
           <Button
             variant="secondary"
-            className="w-full"
+            className="w-full min-h-11"
             disabled={!backupData}
             icon={<Download size={14} />}
             onClick={downloadBackup}
@@ -136,7 +136,7 @@ export default function Backup() {
             <CardContent>
               <div className="space-y-4">
                 {metadata && (
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="rounded-lg bg-white/5 p-3 text-center">
                       <p className="text-2xl font-bold text-txt-primary">{metadata.tables}</p>
                       <p className="text-[10px] uppercase text-txt-muted">Таблиц</p>

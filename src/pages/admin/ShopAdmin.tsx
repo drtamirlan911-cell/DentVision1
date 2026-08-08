@@ -35,7 +35,7 @@ export default function ShopAdmin() {
   if (user?.role !== 'superadmin') return <Navigate to="/shop" replace />
 
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-4">
+    <div className="w-full max-w-6xl mx-auto p-4 space-y-4 overflow-x-hidden">
       <PageHeader
         title="Кабинет продавца"
         subtitle="Управляйте товарами, категориями и поставщиками Магазина"
@@ -133,9 +133,9 @@ function ProductsManager() {
     <Card>
       <CardHeader>
         <CardTitle>Товары ({items.length})</CardTitle>
-        <div className="flex gap-2">
-          <Input placeholder="Поиск..." value={query} onChange={e => setQuery(e.target.value)} icon={<Search size={16} />} className="w-48" />
-          <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
+        <div className="flex flex-wrap gap-2">
+          <Input placeholder="Поиск..." value={query} onChange={e => setQuery(e.target.value)} icon={<Search size={16} />} className="w-full sm:w-48 min-h-11" />
+          <Button onClick={openCreate} icon={<Plus size={16} />} className="min-h-11">Добавить</Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -143,7 +143,7 @@ function ProductsManager() {
           : filtered.length === 0 ? <EmptyState icon={<Package size={16} />} title="Нет товаров" description="Добавьте первый товар в Магазин" />
             : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[600px]">
                   <thead>
                     <tr className="text-left text-muted-foreground border-b">
                       <th className="py-2 pr-2">Название</th><th className="pr-2">Бренд</th>
@@ -174,25 +174,25 @@ function ProductsManager() {
       </CardContent>
 
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Редактировать товар' : 'Новый товар'} size="lg">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          <Input label="Бренд" value={form.brand} onChange={e => setForm({ ...form, brand: e.target.value })} />
-          <Input label="Модель" value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="min-h-11" />
+          <Input label="Бренд" value={form.brand} onChange={e => setForm({ ...form, brand: e.target.value })} className="min-h-11" />
+          <Input label="Модель" value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} className="min-h-11" />
           <Select label="Категория" value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })}
-            options={categories.map(c => ({ value: c.id, label: c.name }))} placeholder="Выберите" />
+            options={categories.map(c => ({ value: c.id, label: c.name }))} placeholder="Выберите" className="min-h-11" />
           <Select label="Поставщик" value={form.supplierId} onChange={e => setForm({ ...form, supplierId: e.target.value })}
-            options={suppliers.map(s => ({ value: s.id, label: s.name }))} placeholder="Выберите" />
-          <Input label="Цена (₸) *" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
-          <Input label="Старая цена (₸)" type="number" value={form.oldPrice} onChange={e => setForm({ ...form, oldPrice: e.target.value })} />
-          <Input label="Остаток" type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} />
-          <Input label="Мин. остаток" type="number" value={form.minStock} onChange={e => setForm({ ...form, minStock: e.target.value })} />
-          <Input label="Теги (через запятую)" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} className="md:col-span-2" />
-          <Input label="Картинка (URL)" value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} className="md:col-span-2" />
-          <Textarea label="Описание" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="md:col-span-2" />
+            options={suppliers.map(s => ({ value: s.id, label: s.name }))} placeholder="Выберите" className="min-h-11" />
+          <Input label="Цена (₸) *" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} className="min-h-11" />
+          <Input label="Старая цена (₸)" type="number" value={form.oldPrice} onChange={e => setForm({ ...form, oldPrice: e.target.value })} className="min-h-11" />
+          <Input label="Остаток" type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} className="min-h-11" />
+          <Input label="Мин. остаток" type="number" value={form.minStock} onChange={e => setForm({ ...form, minStock: e.target.value })} className="min-h-11" />
+          <Input label="Теги (через запятую)" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} className="min-h-11 sm:col-span-2" />
+          <Input label="Картинка (URL)" value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} className="min-h-11 sm:col-span-2" />
+          <Textarea label="Описание" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="sm:col-span-2" />
         </div>
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
-          <Button onClick={save} loading={saving}>{editing ? 'Сохранить' : 'Добавить'}</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)} className="min-h-11">Отмена</Button>
+          <Button onClick={save} loading={saving} className="min-h-11">{editing ? 'Сохранить' : 'Добавить'}</Button>
         </div>
       </Modal>
 
@@ -235,7 +235,7 @@ function CategoriesManager() {
     <Card>
       <CardHeader>
         <CardTitle>Категории ({items.length})</CardTitle>
-        <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
+        <Button onClick={openCreate} icon={<Plus size={16} />} className="min-h-11">Добавить</Button>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
@@ -258,16 +258,16 @@ function CategoriesManager() {
             )}
       </CardContent>
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Редактировать категорию' : 'Новая категория'}>
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          <Input label="Slug *" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="naprimer-instrument" />
-          <Input label="Иконка (emoji/символ)" value={form.icon} onChange={e => setForm({ ...form, icon: e.target.value })} />
-          <Input label="Порядок" type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} />
-          <Textarea label="Описание" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="col-span-2" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="min-h-11" />
+          <Input label="Slug *" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="naprimer-instrument" className="min-h-11" />
+          <Input label="Иконка (emoji/символ)" value={form.icon} onChange={e => setForm({ ...form, icon: e.target.value })} className="min-h-11" />
+          <Input label="Порядок" type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} className="min-h-11" />
+          <Textarea label="Описание" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="sm:col-span-2" />
         </div>
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
-          <Button onClick={save} loading={saving}>{editing ? 'Сохранить' : 'Добавить'}</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)} className="min-h-11">Отмена</Button>
+          <Button onClick={save} loading={saving} className="min-h-11">{editing ? 'Сохранить' : 'Добавить'}</Button>
         </div>
       </Modal>
       <ConfirmModal open={!!toDelete} onClose={() => setToDelete(null)} onConfirm={confirmDelete}
@@ -325,14 +325,14 @@ function SuppliersManager() {
     <Card>
       <CardHeader>
         <CardTitle>Поставщики ({items.length})</CardTitle>
-        <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
+        <Button onClick={openCreate} icon={<Plus size={16} />} className="min-h-11">Добавить</Button>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
           : items.length === 0 ? <EmptyState icon={<Truck size={16} />} title="Нет поставщиков" description="Добавьте поставщиков оборудования" />
             : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[600px]">
                   <thead>
                     <tr className="text-left text-muted-foreground border-b">
                       <th className="py-2 pr-2">Название</th><th className="pr-2">Город</th>
@@ -359,9 +359,9 @@ function SuppliersManager() {
             )}
       </CardContent>
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Редактировать поставщика' : 'Новый поставщик'} size="lg">
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          <Input label="Страна" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="min-h-11" />
+          <Input label="Страна" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} className="min-h-11" />
           <div>
             <CityFilter
               label="Город"
@@ -371,17 +371,17 @@ function SuppliersManager() {
               showPopularChips={false}
             />
           </div>
-          <Input label="Телефон" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-          <Input label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-          <Input label="Сайт" value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} />
-          <Input label="Рейтинг" type="number" step="0.1" value={form.rating} onChange={e => setForm({ ...form, rating: e.target.value })} />
-          <Input label="Доставка, дней" type="number" value={form.deliveryDays} onChange={e => setForm({ ...form, deliveryDays: e.target.value })} />
-          <Input label="Стоимость доставки (₸)" type="number" value={form.deliveryCost} onChange={e => setForm({ ...form, deliveryCost: e.target.value })} />
-          <Input label="Бесплатно от (₸)" type="number" value={form.freeDeliveryFrom} onChange={e => setForm({ ...form, freeDeliveryFrom: e.target.value })} />
+          <Input label="Телефон" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="min-h-11" />
+          <Input label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="min-h-11" />
+          <Input label="Сайт" value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} className="min-h-11" />
+          <Input label="Рейтинг" type="number" step="0.1" value={form.rating} onChange={e => setForm({ ...form, rating: e.target.value })} className="min-h-11" />
+          <Input label="Доставка, дней" type="number" value={form.deliveryDays} onChange={e => setForm({ ...form, deliveryDays: e.target.value })} className="min-h-11" />
+          <Input label="Стоимость доставки (₸)" type="number" value={form.deliveryCost} onChange={e => setForm({ ...form, deliveryCost: e.target.value })} className="min-h-11" />
+          <Input label="Бесплатно от (₸)" type="number" value={form.freeDeliveryFrom} onChange={e => setForm({ ...form, freeDeliveryFrom: e.target.value })} className="min-h-11" />
         </div>
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
-          <Button onClick={save} loading={saving}>{editing ? 'Сохранить' : 'Добавить'}</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)} className="min-h-11">Отмена</Button>
+          <Button onClick={save} loading={saving} className="min-h-11">{editing ? 'Сохранить' : 'Добавить'}</Button>
         </div>
       </Modal>
       <ConfirmModal open={!!toDelete} onClose={() => setToDelete(null)} onConfirm={confirmDelete}

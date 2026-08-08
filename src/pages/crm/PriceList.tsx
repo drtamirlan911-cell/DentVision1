@@ -183,34 +183,34 @@ export default function PriceList() {
   ]
 
   return (
-    <div className="dv-page py-4 md:py-6">
+    <div className="dv-page py-4 md:py-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Прайс-лист"
         subtitle={`${clinic?.name} · Индивидуальные цены для клиники`}
         icon={<DollarSign size={20} />}
         actions={
           <div className="flex gap-2 flex-wrap">
-            <Button icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
+            <Button icon={<Plus size={16} />} onClick={() => setAddOpen(true)} className="min-h-11">
               Добавить услугу
             </Button>
             <Button variant="secondary" icon={<Download size={16} />}
-              onClick={() => showToast('Прайс экспортирован в Excel', 'success')}>
+              onClick={() => showToast('Прайс экспортирован в Excel', 'success')} className="min-h-11">
               Экспорт
             </Button>
           </div>
         }
       />
 
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
+      <div className="flex flex-wrap gap-2 mb-5">
         <Button variant={selectedCategory === 'all' ? 'outline' : 'ghost'} size="sm"
           onClick={() => setSelectedCategory('all')}
-          className={selectedCategory === 'all' ? 'border-dv-gold/50 text-dv-gold' : ''}>
+          className={cn('min-h-11', selectedCategory === 'all' ? 'border-dv-gold/50 text-dv-gold' : '')}>
           Все услуги
         </Button>
         {categories.map(cat => (
           <Button key={cat} variant={selectedCategory === cat ? 'outline' : 'ghost'} size="sm"
             onClick={() => setSelectedCategory(cat)}
-            className={selectedCategory === cat ? 'border-dv-gold/50 text-dv-gold' : ''}>
+            className={cn('min-h-11', selectedCategory === cat ? 'border-dv-gold/50 text-dv-gold' : '')}>
             {cat}
           </Button>
         ))}
@@ -250,10 +250,10 @@ export default function PriceList() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex gap-1 justify-end">
-                        <Button variant="ghost" size="icon-sm" icon={<Edit size={14} />} onClick={() => openEdit(service)} aria-label="Редактировать цену" />
+                        <Button variant="ghost" size="icon-sm" icon={<Edit size={14} />} onClick={() => openEdit(service)} aria-label="Редактировать цену" className="min-h-11 min-w-11" />
                         {isCustomPrice && (
                           <Button variant="ghost" size="icon-sm" icon={<RotateCcw size={14} />}
-                            onClick={() => handleReset(service.id)} className="text-error/60 hover:text-error" aria-label="Сбросить цену" />
+                            onClick={() => handleReset(service.id)} className="text-error/60 hover:text-error min-h-11 min-w-11" aria-label="Сбросить цену" />
                         )}
                       </div>
                     </td>
@@ -265,7 +265,7 @@ export default function PriceList() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <StatCard label="Изменённых цен" value={Object.keys(clinicPrices).filter(id => ALL_SERVICES.some(s => s.id === id && clinicPrices[id] !== s.price)).length} icon={<DollarSign size={18} />} />
         <StatCard label="Своих услуг" value={customServices.length} icon={<Plus size={18} />} />
         <StatCard label="Всего услуг" value={allServices.length} icon={<DollarSign size={18} />} />
@@ -276,6 +276,7 @@ export default function PriceList() {
         onClose={() => setModalOpen(false)}
         title={editingService ? `Редактировать цену: ${editingService.name}` : 'Редактировать цену'}
         size="md"
+        className="max-w-full sm:max-w-md"
       >
         {editingService && (
           <div className="space-y-4">
@@ -285,10 +286,11 @@ export default function PriceList() {
               value={editingService.price}
               onChange={e => setEditingService({ ...editingService, price: Number(e.target.value) })}
               autoFocus
+              className="min-h-11"
             />
             <div className="flex gap-2 pt-2">
-              <Button onClick={handleSave} className="flex-1">Сохранить</Button>
-              <Button variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+              <Button onClick={handleSave} className="flex-1 min-h-11">Сохранить</Button>
+              <Button variant="ghost" onClick={() => setModalOpen(false)} className="min-h-11">Отмена</Button>
             </div>
           </div>
         )}
@@ -299,6 +301,7 @@ export default function PriceList() {
         onClose={() => setAddOpen(false)}
         title="Добавить услугу в прайс"
         size="md"
+        className="max-w-full sm:max-w-md"
       >
         <div className="space-y-4">
           <Input
@@ -307,12 +310,14 @@ export default function PriceList() {
             onChange={e => setNewService({ ...newService, name: e.target.value })}
             placeholder="Профгигиена AirFlow"
             autoFocus
+            className="min-h-11"
           />
           <Select
             label="Категория"
             value={newService.cat}
             onChange={e => setNewService({ ...newService, cat: e.target.value })}
             options={categoryOptions}
+            className="min-h-11"
           />
           <Input
             label="Цена (₸) *"
@@ -320,6 +325,7 @@ export default function PriceList() {
             value={newService.price || ''}
             onChange={e => setNewService({ ...newService, price: Number(e.target.value) })}
             placeholder="15000"
+            className="min-h-11"
           />
           <Input
             label="Себестоимость материалов (₸)"
@@ -327,13 +333,14 @@ export default function PriceList() {
             value={newService.matCost || ''}
             onChange={e => setNewService({ ...newService, matCost: Number(e.target.value) })}
             placeholder="2000"
+            className="min-h-11"
           />
           <p className="text-2xs text-txt-muted -mt-2">Учитывается в зарплате врача: (цена − материалы) × %</p>
           <div className="flex gap-2 pt-2">
-            <Button onClick={handleAddService} disabled={saving} className="flex-1">
+            <Button onClick={handleAddService} disabled={saving} className="flex-1 min-h-11">
               {saving ? 'Сохранение…' : 'Добавить'}
             </Button>
-            <Button variant="ghost" onClick={() => setAddOpen(false)}>Отмена</Button>
+            <Button variant="ghost" onClick={() => setAddOpen(false)} className="min-h-11">Отмена</Button>
           </div>
         </div>
       </Modal>

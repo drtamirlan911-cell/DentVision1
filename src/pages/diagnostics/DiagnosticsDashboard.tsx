@@ -36,18 +36,18 @@ export default function DiagnosticsDashboard() {
   const recent = data?.recent || [];
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-txt-primary">Diagnostics Dashboard</h1>
           <p className="text-sm text-txt-muted mt-0.5">Единый центр диагностики — 3D и лабораторные исследования</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="primary" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')}>
+          <Button variant="primary" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')} className="min-h-11">
             Новое направление
           </Button>
           {isSuperAdmin && (
-            <Button variant="ghost" icon={<Database size={14} />} onClick={async () => {
+            <Button variant="ghost" icon={<Database size={14} />} className="min-h-11" onClick={async () => {
               setSeeding(true);
               try { await api.seedDiagnosticsTestData(); queryClient.invalidateQueries(); } catch { /* seed failed, ignore */ }
               setSeeding(false);
@@ -58,7 +58,7 @@ export default function DiagnosticsDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         {stats.map((s, i) => (
           <GlassCard key={i} padding="md" hover>
             {isLoading ? (
@@ -78,7 +78,7 @@ export default function DiagnosticsDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card padding="md">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <h3 className="text-sm font-semibold text-txt-primary">Последние исследования</h3>
             <Button variant="ghost" size="xs" icon={<ArrowRight size={14} />} onClick={() => navigate('/diagnostics/referrals')}>
               Все
@@ -94,7 +94,7 @@ export default function DiagnosticsDashboard() {
           ) : (
             <div className="space-y-2">
               {recent.slice(0, 5).map((r: any) => (
-                <div key={r.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-1/50 cursor-pointer transition-colors"
+                <div key={r.id} className="flex items-center gap-3 p-2 min-h-11 rounded-lg hover:bg-surface-1/50 cursor-pointer transition-colors"
                   onClick={() => navigate(`/diagnostics/referrals/${r.id}`)}>
                   <div className="w-8 h-8 rounded-lg bg-dv-gold/10 flex items-center justify-center text-dv-gold text-xs font-bold">
                     {r.patientName?.slice(0, 1) || '?'}
@@ -114,17 +114,17 @@ export default function DiagnosticsDashboard() {
           <h3 className="text-sm font-semibold text-txt-primary mb-3">Быстрые действия</h3>
           <div className="space-y-2">
             <button onClick={() => navigate('/diagnostics/referrals/new')}
-              className="w-full flex items-center gap-3 p-3 rounded-xl bg-dv-gold/5 border border-dv-gold/20 hover:bg-dv-gold/10 transition-colors text-left">
+              className="w-full flex items-center gap-3 p-3 min-h-11 rounded-xl bg-dv-gold/5 border border-dv-gold/20 hover:bg-dv-gold/10 transition-colors text-left">
               <FileText size={18} className="text-dv-gold" />
               <div><p className="text-sm font-medium text-txt-primary">Создать направление</p><p className="text-xs text-txt-muted">3D или лаборатория</p></div>
             </button>
             <button onClick={() => navigate('/diagnostics/centers')}
-              className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-1/50 border border-bdr-subtle hover:bg-surface-1 transition-colors text-left">
+              className="w-full flex items-center gap-3 p-3 min-h-11 rounded-xl bg-surface-1/50 border border-bdr-subtle hover:bg-surface-1 transition-colors text-left">
               <Activity size={18} className="text-info" />
               <div><p className="text-sm font-medium text-txt-primary">Найти диагностический центр</p><p className="text-xs text-txt-muted">Поиск по городу и исследованиям</p></div>
             </button>
             <button onClick={() => navigate('/diagnostics/results')}
-              className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-1/50 border border-bdr-subtle hover:bg-surface-1 transition-colors text-left">
+              className="w-full flex items-center gap-3 p-3 min-h-11 rounded-xl bg-surface-1/50 border border-bdr-subtle hover:bg-surface-1 transition-colors text-left">
               <CheckCircle size={18} className="text-success" />
               <div><p className="text-sm font-medium text-txt-primary">Просмотреть результаты</p><p className="text-xs text-txt-muted">Готовые исследования</p></div>
             </button>

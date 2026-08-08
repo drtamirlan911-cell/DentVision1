@@ -111,7 +111,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md p-6 rounded-2xl bg-surface-1 border border-white/10"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md md:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6 rounded-2xl bg-surface-1 border border-white/10"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-6">
@@ -150,7 +150,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setIsRegister(false)}
-                    className={`flex-1 py-3 px-4 rounded-xl font-medium text-sm transition-all ${!isRegister
+                    className={`flex-1 min-h-11 py-3 px-4 rounded-xl font-medium text-sm transition-all ${!isRegister
                       ? 'bg-dv-gold/15 text-dv-gold border border-dv-gold/30'
                       : 'bg-surface-2 text-txt-secondary border border-white/5 hover:bg-white/5'}
                   `}
@@ -161,7 +161,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setIsRegister(true)}
-                    className={`flex-1 py-3 px-4 rounded-xl font-medium text-sm transition-all ${isRegister
+                    className={`flex-1 min-h-11 py-3 px-4 rounded-xl font-medium text-sm transition-all ${isRegister
                       ? 'bg-dv-gold/15 text-dv-gold border border-dv-gold/30'
                       : 'bg-surface-2 text-txt-secondary border border-white/5 hover:bg-white/5'}
                   `}
@@ -241,7 +241,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                     whileTap={{ scale: 0.98 }}
                     onClick={isRegister ? handleRegister : handleLogin}
                     disabled={loading}
-                    className="w-full py-3 px-4 rounded-xl bg-dv-gold text-surface-0 font-semibold hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full min-h-11 py-3 px-4 rounded-xl bg-dv-gold text-surface-0 font-semibold hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {loading ? <Loader2 size={18} className="animate-spin" /> : (isRegister ? <UserPlus size={18} /> : <LogIn size={18} />)}
                     {loading ? t('auth.wait') : (isRegister ? t('auth.register') : t('auth.login'))}
@@ -260,7 +260,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleClose}
-                    className="w-full py-3 px-4 rounded-xl border border-white/10 bg-surface-2 text-txt-primary hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
+                    className="w-full min-h-11 py-3 px-4 rounded-xl border border-white/10 bg-surface-2 text-txt-primary hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
                   >
                     <span>{t('auth.continue_as_guest')}</span>
                   </motion.button>

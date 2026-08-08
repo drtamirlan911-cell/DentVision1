@@ -163,19 +163,19 @@ export default function MarketplaceTab() {
   const shopStatsData: any = shopStats.data?.data || shopStats.data || {};
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Marketplace Moderation"
         subtitle="Модерация поставщиков и партнёров маркетплейса"
         icon={<ShoppingCart size={20} />}
         actions={
-          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll}>Обновить</Button>
+          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll} className="min-h-11">Обновить</Button>
         }
       />
 
       {/* Marketplace Financial Analytics */}
       {!shopStats.isLoading && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Выручка (оплачено)" value={`${(shopStatsData.totalRevenue || 0).toLocaleString()} ₸`} icon={<TrendingUp size={18} />} />
           <StatCard label="Всего заказов" value={shopStatsData.totalOrders ?? 0} icon={<ShoppingCart size={18} />} />
           <StatCard label="Активных товаров" value={shopStatsData.totalProducts ?? 0} icon={<Package size={18} />} />
@@ -184,11 +184,11 @@ export default function MarketplaceTab() {
       )}
 
       {suppliers.isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Всего поставщиков" value={totalCount} icon={<Store size={18} />} />
           <StatCard label="Ожидают" value={pendingCount} icon={<AlertTriangle size={18} />} />
           <StatCard label="Верифицированы" value={verifiedCount} icon={<Check size={18} />} />
@@ -199,11 +199,11 @@ export default function MarketplaceTab() {
       <GlassCard padding="md">
         <p className="text-xs font-semibold text-txt-muted uppercase tracking-wider mb-4">Pipeline поставщиков</p>
         {suppliers.isLoading ? (
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {PIPELINE_STATUSES.map((st, idx) => {
               const cfg = PIPELINE_CONFIG[st];
               return (
@@ -266,7 +266,7 @@ export default function MarketplaceTab() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Поиск поставщиков..."
-              className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56"
+              className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-56"
             />
           </div>
           <Select
@@ -274,7 +274,7 @@ export default function MarketplaceTab() {
             onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
             options={STATUS_FILTER_OPTIONS}
             size="sm"
-            className="w-auto min-w-[150px]"
+            className="w-auto min-w-[150px] min-h-11"
           />
         </div>
 

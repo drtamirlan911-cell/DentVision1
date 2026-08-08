@@ -299,7 +299,7 @@ export default function ClinicSettingsPage() {
       initial="hidden"
       animate="show"
       variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }}
-      className="max-w-3xl mx-auto space-y-5 p-1"
+      className="max-w-full mx-auto space-y-5 p-1"
     >
       <motion.div variants={fadeUp} className="flex items-start justify-between gap-3 flex-wrap">
         <PageHeader
@@ -307,7 +307,7 @@ export default function ClinicSettingsPage() {
           subtitle="Индивидуальная конфигурация этой клиники"
           icon={<Settings size={20} />}
         />
-        <Button onClick={saveAll} disabled={saving} icon={<Save size={14} />}>
+        <Button className="min-h-11" onClick={saveAll} disabled={saving} icon={<Save size={14} />}>
           {saving ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </motion.div>
@@ -320,10 +320,10 @@ export default function ClinicSettingsPage() {
               Профиль клиники
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid sm:grid-cols-2 gap-3">
+          <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Input label="Название" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} />
             <Input label="Город" value={profile.city} onChange={(e) => setProfile({ ...profile, city: e.target.value })} />
-            <Input label="Адрес" value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} className="sm:col-span-2" />
+            <Input label="Адрес" value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} className="sm:col-span-2 lg:col-span-3" />
             <Input label="Телефон" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />
             <Input label="Логотип (URL)" value={profile.logo} onChange={(e) => setProfile({ ...profile, logo: e.target.value })} />
             <Select
@@ -367,7 +367,7 @@ export default function ClinicSettingsPage() {
                   key={d.value}
                   type="button"
                   onClick={() => toggleWorkDay(d.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  className={`px-3 py-1.5 min-h-11 rounded-lg text-xs font-semibold border transition-colors ${
                     workDaySet.has(d.value)
                       ? 'bg-dv-gold/20 border-dv-gold/40 text-dv-gold'
                       : 'border-bdr-subtle text-txt-muted hover:text-txt-secondary'
@@ -377,7 +377,7 @@ export default function ClinicSettingsPage() {
                 </button>
               ))}
             </div>
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Input label="Начало дня" type="time" value={settings.workStart || '08:00'} onChange={(e) => setSettings({ ...settings, workStart: e.target.value })} />
               <Input label="Конец дня" type="time" value={settings.workEnd || '20:00'} onChange={(e) => setSettings({ ...settings, workEnd: e.target.value })} />
               <Input label="Обед с" type="time" value={settings.lunchStart || '12:00'} onChange={(e) => setSettings({ ...settings, lunchStart: e.target.value })} />
@@ -405,7 +405,7 @@ export default function ClinicSettingsPage() {
                 ]}
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-txt-primary">Овербукинг</p>
                 <p className="text-2xs text-txt-muted">Разрешить конфликтные записи с подтверждением</p>
@@ -415,7 +415,7 @@ export default function ClinicSettingsPage() {
                 onCheckedChange={(v: boolean) => setSettings({ ...settings, overbookingAllowed: v })}
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-txt-primary">Обязательное кресло</p>
                 <p className="text-2xs text-txt-muted">Требовать выбор кресла при записи</p>
@@ -447,7 +447,7 @@ export default function ClinicSettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Input
                 label="Напоминание за (часов)"
                 type="number"
@@ -487,7 +487,7 @@ export default function ClinicSettingsPage() {
                 ]}
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-txt-primary">WhatsApp-рассылка</p>
                 <p className="text-2xs text-txt-muted">Серверный cron / deep-link</p>
@@ -497,7 +497,7 @@ export default function ClinicSettingsPage() {
                 onCheckedChange={(v: boolean) => setSettings({ ...settings, whatsappEnabled: v })}
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-txt-primary">SMS</p>
                 <p className="text-2xs text-txt-muted">Требует Twilio на сервере</p>
@@ -507,7 +507,7 @@ export default function ClinicSettingsPage() {
                 onCheckedChange={(v: boolean) => setSettings({ ...settings, smsEnabled: v })}
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-txt-primary">Уведомлять о неявках</p>
               </div>
@@ -562,7 +562,7 @@ export default function ClinicSettingsPage() {
               </p>
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 text-xs text-dv-gold hover:underline bg-transparent border-none cursor-pointer p-0 font-inherit"
+                className="inline-flex items-center gap-1.5 min-h-11 text-xs text-dv-gold hover:underline bg-transparent border-none cursor-pointer p-0 font-inherit"
                 onClick={() => setShowPayHelp((v) => !v)}
               >
                 <BookOpen size={13} />
@@ -611,7 +611,7 @@ export default function ClinicSettingsPage() {
             />
 
             {(settings.payments?.mode === 'static' || settings.payments?.mode === 'unconfigured') && (
-              <div className="grid sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <Input
                   label="Телефон Kaspi клиники"
                   value={settings.payments?.kaspiPhone || ''}
@@ -644,7 +644,7 @@ export default function ClinicSettingsPage() {
                   })}
                   placeholder="https://api.apipay.kz/api/v1"
                 />
-                <div className="grid sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <Input
                     label={settings.payments?.apiKeySet ? 'API Key (оставлен прежний, введите новый чтобы заменить)' : 'API Key'}
                     type="password"
@@ -673,7 +673,7 @@ export default function ClinicSettingsPage() {
                       type="button"
                       size="sm"
                       variant="secondary"
-                      className="mt-5"
+                      className="mt-5 min-h-11"
                       icon={copiedWebhook ? <Check size={14} /> : <Copy size={14} />}
                       onClick={async () => {
                         try {
@@ -706,13 +706,13 @@ export default function ClinicSettingsPage() {
                 <DollarSign size={16} className="text-dv-gold" />
                 Прайс — добавить услугу
               </span>
-              <Button size="sm" variant="ghost" onClick={() => navigate('/crm/pricelist')}>
+              <Button className="min-h-11" size="sm" variant="ghost" onClick={() => navigate('/crm/pricelist')}>
                 Весь прайс
               </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Input
                 label="Название"
                 value={serviceForm.name}
@@ -733,7 +733,7 @@ export default function ClinicSettingsPage() {
                 placeholder="15000"
               />
             </div>
-            <Button onClick={addService} disabled={serviceSaving} icon={<Plus size={14} />}>
+            <Button className="min-h-11" onClick={addService} disabled={serviceSaving} icon={<Plus size={14} />}>
               {serviceSaving ? 'Сохранение…' : 'Добавить в прайс'}
             </Button>
           </CardContent>
@@ -748,7 +748,7 @@ export default function ClinicSettingsPage() {
                 <Users size={16} className="text-dv-gold" />
                 Сотрудники — приглашение
               </span>
-              <Button size="sm" variant="ghost" onClick={() => navigate('/crm/staff')}>
+              <Button className="min-h-11" size="sm" variant="ghost" onClick={() => navigate('/crm/staff')}>
                 Список сотрудников
               </Button>
             </CardTitle>
@@ -764,10 +764,11 @@ export default function ClinicSettingsPage() {
                   <p className="text-xl font-bold tracking-[0.2em] text-dv-gold font-mono">{inviteCode}</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <Button icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={copyCode}>
+                  <Button className="min-h-11" icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={copyCode}>
                     {copied ? 'Скопировано' : 'Скопировать'}
                   </Button>
                   <Button
+                    className="min-h-11"
                     variant="secondary"
                     onClick={() => {
                       setInviteCode(null)
@@ -780,7 +781,7 @@ export default function ClinicSettingsPage() {
               </div>
             ) : (
               <>
-                <div className="grid sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <Input
                     label="Email (необязательно)"
                     type="email"
@@ -801,7 +802,7 @@ export default function ClinicSettingsPage() {
                     onChange={(e) => setInviteForm({ ...inviteForm, expiresInDays: Number(e.target.value) || 7 })}
                   />
                 </div>
-                <Button onClick={createInvite} disabled={inviteSaving} icon={<Link2 size={14} />}>
+                <Button className="min-h-11" onClick={createInvite} disabled={inviteSaving} icon={<Link2 size={14} />}>
                   {inviteSaving ? 'Создание…' : 'Создать приглашение'}
                 </Button>
               </>
@@ -819,28 +820,28 @@ export default function ClinicSettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Input
                 value={newChairName}
                 onChange={(e) => setNewChairName(e.target.value)}
                 placeholder="Название кресла"
                 className="flex-1"
               />
-              <Button variant="secondary" onClick={addChair} icon={<Plus size={14} />}>
+              <Button className="min-h-11" variant="secondary" onClick={addChair} icon={<Plus size={14} />}>
                 Добавить
               </Button>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-x-auto">
               {chairs.length === 0 && (
                 <p className="text-xs text-txt-muted">Кресла появятся автоматически или добавьте вручную</p>
               )}
               {chairs.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-2 p-3 rounded-xl border border-bdr-subtle bg-surface-raised">
+                <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl border border-bdr-subtle bg-surface-raised">
                   <div className="flex items-center gap-2">
                     <Badge variant="gold" size="xs">{c.sortOrder ?? '—'}</Badge>
                     <span className="text-sm font-medium text-txt-primary">{c.name}</span>
                   </div>
-                  <Button variant="ghost" size="sm" icon={<Trash2 size={14} />} onClick={() => removeChair(c.id)}>
+                  <Button className="min-h-11" variant="ghost" size="sm" icon={<Trash2 size={14} />} onClick={() => removeChair(c.id)}>
                     Скрыть
                   </Button>
                 </div>

@@ -157,7 +157,7 @@ export default function IntegrationsMessaging() {
         <button
           onClick={() => handleConnect(channel)}
           disabled={loading}
-          className={`mt-4 w-full rounded-lg py-2.5 text-sm font-medium transition-all ${
+          className={`mt-4 w-full min-h-11 rounded-lg py-2.5 text-sm font-medium transition-all ${
             connected
               ? 'border border-gray-200 text-gray-700 hover:bg-gray-50'
               : 'text-white hover:opacity-90'
@@ -181,7 +181,7 @@ export default function IntegrationsMessaging() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <div className="mx-auto w-full max-w-full overflow-x-hidden p-4 md:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Интеграции</h1>
         <p className="mt-1 text-gray-500">
@@ -196,7 +196,7 @@ export default function IntegrationsMessaging() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {renderCard('WHATSAPP')}
         {renderCard('INSTAGRAM')}
       </div>

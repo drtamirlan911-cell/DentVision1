@@ -84,29 +84,29 @@ export default function AuditLog() {
   };
 
   return (
-    <div className="fade-in space-y-6">
+    <div className="fade-in max-w-full overflow-x-hidden space-y-6">
       <PageHeader
         title="Аудит-журнал"
         subtitle="Кто что изменил и когда — полный аудит всех действий"
         icon={<Shield size={24} className="text-dv-gold" />}
         actions={
-          <>
-            <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={() => setRefreshKey(k => k + 1)}>
+          <div className="flex flex-wrap gap-2">
+            <Button className="min-h-11" variant="secondary" icon={<RefreshCw size={14} />} onClick={() => setRefreshKey(k => k + 1)}>
               Обновить
             </Button>
-            <Button variant="primary" icon={<Download size={14} />} onClick={exportLogs}>
+            <Button className="min-h-11" variant="primary" icon={<Download size={14} />} onClick={exportLogs}>
               Экспорт CSV
             </Button>
-          </>
+          </div>
         }
       />
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-          <input placeholder="Поиск по пользователю, типу..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
+          <input placeholder="Поиск по пользователю, типу..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9 min-h-11" />
         </div>
-        <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="dv-select w-full md:w-56">
+        <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="dv-select w-full md:w-56 min-h-11">
           {actionTypes.map(a => (
             <option key={a} value={a}>{a === 'all' ? 'Все действия' : (getActionInfo(a).l || a)}</option>
           ))}

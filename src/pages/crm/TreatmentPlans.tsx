@@ -159,7 +159,7 @@ export default function TreatmentPlans() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="dv-page max-w-5xl mx-auto space-y-6 py-4 md:py-6"
+      className="dv-page max-w-full overflow-x-hidden space-y-6 py-4 md:py-6"
     >
       <PageHeader
         title="Планы лечения"
@@ -167,12 +167,12 @@ export default function TreatmentPlans() {
         icon={<ClipboardList size={20} />}
         actions={
           <>
-            <Button size="sm" variant="secondary" onClick={() => navigate('/crm/dental-chart')}>
+            <Button size="sm" variant="secondary" className="min-h-11" onClick={() => navigate('/crm/dental-chart')}>
               <span className="hidden sm:inline">Зубная карта</span>
               <span className="sm:hidden">Карта</span>
               <ArrowRight size={14} className="ml-1.5" />
             </Button>
-            <Button size="sm" onClick={openNew} icon={<Plus size={14} />}>
+            <Button size="sm" className="min-h-11" onClick={openNew} icon={<Plus size={14} />}>
               <span className="hidden sm:inline">Новый план</span>
               <span className="sm:hidden">Новый</span>
             </Button>
@@ -180,7 +180,7 @@ export default function TreatmentPlans() {
         }
       />
 
-      <motion.div className="relative max-w-md">
+      <motion.div className="relative w-full max-w-md">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
         <Input
           value={search}
@@ -200,7 +200,7 @@ export default function TreatmentPlans() {
           title="Планов пока нет"
           description="Создайте план с услугами и этапами — сумма посчитается автоматически."
           action={
-            <Button size="sm" onClick={openNew} icon={<Plus size={14} />}>
+            <Button size="sm" className="min-h-11" onClick={openNew} icon={<Plus size={14} />}>
               Создать план
             </Button>
           }
@@ -228,7 +228,7 @@ export default function TreatmentPlans() {
                       <p className="text-sm text-txt-secondary line-clamp-2">{p.diagnosis || p.notes}</p>
                     )}
                     {stages.length > 0 && (
-                      <div className="space-y-1.5 pt-1">
+                      <div className="space-y-1.5 pt-1 overflow-x-auto">
                         <p className="text-[11px] text-txt-muted">Этапы</p>
                         {stages.map((s, i) => (
                           <div key={s.id || i} className="flex items-center gap-2 flex-wrap">
@@ -253,6 +253,7 @@ export default function TreatmentPlans() {
                                   <Button
                                     size="xs"
                                     variant="ghost"
+                                    className="min-h-11"
                                     onClick={async () => {
                                       try {
                                         await api.updateTreatmentPlanStage(p.id, s.id || String(i), { status: 'in_progress' });
@@ -268,6 +269,7 @@ export default function TreatmentPlans() {
                                   <Button
                                     size="xs"
                                     variant="secondary"
+                                    className="min-h-11"
                                     onClick={async () => {
                                       try {
                                         await api.updateTreatmentPlanStage(p.id, s.id || String(i), { status: 'done' });
@@ -282,6 +284,7 @@ export default function TreatmentPlans() {
                                 <Button
                                   size="xs"
                                   variant="ghost"
+                                  className="min-h-11"
                                   onClick={() => navigate(`/crm/schedule?patient=${p.patientId}`)}
                                 >
                                   Записать
@@ -289,6 +292,7 @@ export default function TreatmentPlans() {
                                 <Button
                                   size="xs"
                                   variant="ghost"
+                                  className="min-h-11"
                                   onClick={() => navigate(`/crm/cashier?patient=${p.patientId}&plan=${p.id}&stage=${s.id || i}`)}
                                 >
                                   Счёт
@@ -301,13 +305,13 @@ export default function TreatmentPlans() {
                     )}
                   </motion.div>
                   {p.patientId && (
-                    <div className="flex flex-col gap-2 shrink-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-2 shrink-0">
                       {!p.legacy && (
                         <>
-                          <Button size="sm" onClick={() => openEdit(p)} icon={<Pencil size={14} />}>
+                          <Button size="sm" className="min-h-11" onClick={() => openEdit(p)} icon={<Pencil size={14} />}>
                             Редактировать
                           </Button>
-                          <Button size="sm" variant="secondary" onClick={() => handlePrintPlan(p)} icon={<Printer size={14} />}>
+                          <Button size="sm" variant="secondary" className="min-h-11" onClick={() => handlePrintPlan(p)} icon={<Printer size={14} />}>
                             Печать / PDF
                           </Button>
                         </>
@@ -315,6 +319,7 @@ export default function TreatmentPlans() {
                       <Button
                         size="sm"
                         variant="secondary"
+                        className="min-h-11"
                         onClick={() => navigate(`/crm/patients?patient=${p.patientId}&tab=odontogram`)}
                       >
                         Карта пациента
@@ -324,7 +329,7 @@ export default function TreatmentPlans() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-error/80 hover:text-error"
+                          className="min-h-11 text-error/80 hover:text-error"
                           icon={<Trash2 size={14} />}
                           onClick={async () => {
                             if (!window.confirm('Удалить план лечения?')) return;

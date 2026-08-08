@@ -317,13 +317,13 @@ export default function Shop() {
     const displayCats = categories.slice(0, 12);
     return (
       <section>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap">
           <h2 className="text-lg font-bold text-white">Категории</h2>
             <button onClick={() => navigate('/shop?all_categories=1')} className="text-xs font-medium hover:underline" style={{ color: G }}>
               Все категории <ChevronRight size={14} className="inline" />
           </button>
         </div>
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {displayCats.map((cat) => (
             <button key={cat.id} onClick={() => { setSelectedCat(cat.slug); navigate(`/shop?category=${cat.slug}`); }}
               className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all group"
@@ -366,9 +366,9 @@ export default function Shop() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+      <div className="max-w-full overflow-x-hidden mx-auto px-4 py-8 space-y-8 sm:max-w-7xl">
         <div className="rounded-2xl animate-pulse" style={{ background: CARD, height: 260 }} />
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex flex-col items-center gap-2 p-3 rounded-xl" style={{ background: CARD }}>
               <div className="w-12 h-12 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }} />
@@ -376,7 +376,7 @@ export default function Shop() {
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="rounded-xl overflow-hidden" style={{ background: CARD }}>
               <div className="aspect-square animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
@@ -394,9 +394,9 @@ export default function Shop() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8 pb-24">
+    <div className="max-w-full overflow-x-hidden mx-auto px-4 py-6 space-y-8 pb-24 sm:max-w-7xl">
       {/* --- Top Bar --- */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="flex-1 relative">
           <form onSubmit={handleSearch}>
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: S }} />
@@ -407,12 +407,12 @@ export default function Shop() {
                 background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`,
                 color: '#fff', borderRadius: 12, fontSize: 13, outline: 'none'
               }}
-              className="placeholder:text-[#7A8899] focus:border-[#C9A96E]/50 transition-colors" />
+              className="placeholder:text-[#7A8899] focus:border-[#C9A96E]/50 transition-colors min-h-11" />
           </form>
         </div>
         <div className="relative">
           <button onClick={() => setCityOpen(!cityOpen)}
-            className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium transition-colors whitespace-nowrap"
+            className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium transition-colors whitespace-nowrap min-h-11"
             style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`, color: city ? '#fff' : S }}>
             <MapPin size={14} className={city ? 'text-dv-gold' : ''} />
             {city || 'Весь Казахстан'}
@@ -440,7 +440,7 @@ export default function Shop() {
                 </div>
                 <div className="border-t" style={{ borderColor: BDR_SUB }} />
                 <select value={city} onChange={(e) => { updateCity(e.target.value); setCityOpen(false) }}
-                  className="w-full mt-2 rounded-lg px-3 py-1.5 text-xs outline-none"
+                  className="w-full mt-2 rounded-lg px-3 py-1.5 text-xs outline-none min-h-11"
                   style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`, color: '#fff' }}>
                   {KZ_CITY_OPTIONS.map(o => (
                     <option key={o.value} value={o.value} style={{ background: '#0D1B2E' }}>{o.label}</option>
@@ -451,7 +451,7 @@ export default function Shop() {
           )}
         </div>
         <button onClick={() => setShowCart(true)}
-          className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
+          className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors min-h-11"
           style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}` }}>
           <ShoppingCart size={18} style={{ color: S }} />
           {cartCount > 0 && (
@@ -462,7 +462,7 @@ export default function Shop() {
           )}
         </button>
         <button onClick={() => navigate('/supplier')}
-          className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium whitespace-nowrap transition-colors"
+          className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium whitespace-nowrap transition-colors min-h-11"
           style={{ background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E' }}>
           <Store size={14} /> Стать поставщиком
         </button>
@@ -480,7 +480,7 @@ export default function Shop() {
       {/* --- Promoted (discounted) --- */}
       {promotedProducts.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Zap size={18} style={{ color: T.ruby }} /> Хиты продаж
             </h2>
@@ -489,7 +489,7 @@ export default function Shop() {
             </button>
           </div>
           <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {promotedProducts.map((p) => <ProductCard key={p.id} product={p} />)}
           </motion.div>
         </section>
@@ -498,13 +498,13 @@ export default function Shop() {
       {/* --- AI Recommendations --- */}
       {recommendations.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Sparkles size={18} style={{ color: T.purple }} /> Рекомендуем
             </h2>
           </div>
           <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {recommendations.map((p) => <ProductCard key={p.id} product={p} />)}
           </motion.div>
         </section>
@@ -513,7 +513,7 @@ export default function Shop() {
       {/* --- Featured --- */}
       {featuredProducts.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <TrendingUp size={18} style={{ color: G }} /> Популярные бренды
             </h2>
@@ -522,7 +522,7 @@ export default function Shop() {
             </button>
           </div>
           <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {featuredProducts.map((p) => <ProductCard key={p.id} product={p} />)}
           </motion.div>
         </section>
@@ -530,10 +530,10 @@ export default function Shop() {
 
       {/* --- All Products --- */}
       <section>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap">
           <h2 className="text-lg font-bold text-white">Все товары</h2>
-          <div className="flex items-center gap-2">
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          <div className="flex items-center gap-2 flex-wrap">
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="min-h-11"
               style={{
                 fontSize: 12, border: `1px solid ${BDR_SUB}`, borderRadius: 8,
                 padding: '4px 8px', background: 'rgba(255,255,255,0.05)', color: '#fff', outline: 'none'
@@ -549,7 +549,7 @@ export default function Shop() {
           <EmptyState icon={<Package size={32} />} title="Ничего не найдено" description="Попробуйте изменить параметры поиска" />
         ) : (
           <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.03 } } }}
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filteredProducts.map((p) => <ProductCard key={p.id} product={p} />)}
           </motion.div>
         )}
@@ -563,7 +563,7 @@ export default function Shop() {
             onClick={() => setShowCart(false)}>
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="w-full max-w-sm h-full overflow-y-auto" style={{ background: '#0D1B2E', borderLeft: `1px solid ${BDR}` }}
+              className="w-full max-w-full h-full overflow-y-auto sm:max-w-sm" style={{ background: '#0D1B2E', borderLeft: `1px solid ${BDR}` }}
               onClick={e => e.stopPropagation()}>
               <div className="sticky top-0 z-10 p-4 flex items-center justify-between" style={{ background: '#0D1B2E', borderBottom: `1px solid ${BDR_SUB}` }}>
                 <h2 className="font-bold text-lg text-white">Корзина</h2>

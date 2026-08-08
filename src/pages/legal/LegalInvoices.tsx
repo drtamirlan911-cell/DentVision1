@@ -51,23 +51,24 @@ export default function LegalInvoices() {
   if (isLoading) return <div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>;
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div className="flex gap-2">
-          <div className="relative">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
+      <div className="flex flex-wrap gap-2 justify-between items-center">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-auto">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-48" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-48 min-h-11" />
           </div>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary px-2 py-1.5">
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary px-2 py-1.5 min-h-11">
             <option value="">Все статусы</option>
             {['unpaid', 'paid', 'overdue', 'pending', 'refund', 'partial'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <Button icon={<Plus size={16} />} onClick={() => { setForm({ partnerId: '', amountKzt: '', dueAt: '', description: '' }); setCreateModal(true); }}>Инвойс</Button>
+        <Button icon={<Plus size={16} />} onClick={() => { setForm({ partnerId: '', amountKzt: '', dueAt: '', description: '' }); setCreateModal(true); }} className="min-h-11">Инвойс</Button>
       </div>
 
       <Card padding="none">
-        <table className="w-full border-collapse">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-bdr-subtle">
               {['Номер', 'Партнёр', 'Сумма', 'Статус', 'Создан', 'Оплачен', 'Действия'].map(h => (
@@ -92,6 +93,7 @@ export default function LegalInvoices() {
             {filtered.length === 0 && <tr><td colSpan={7} className="px-4 py-12"><EmptyState icon={<Receipt size={40} />} title="Нет инвойсов" description="Создайте первый инвойс" /></td></tr>}
           </tbody>
         </table>
+        </div>
       </Card>
 
       <Modal open={createModal} onClose={() => setCreateModal(false)} title="Новый инвойс">

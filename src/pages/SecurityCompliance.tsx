@@ -95,7 +95,7 @@ export default function SecurityCompliance() {
   const consentMap = new Map(consents.map((c) => [c.type, c.accepted]));
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
+    <div className="max-w-full md:max-w-4xl mx-auto p-4 md:p-6 space-y-6 overflow-x-hidden">
       <PageHeader
         title="Security & Compliance"
         subtitle="Безопасность, согласия, аудит AI и управление сессиями"
@@ -121,10 +121,10 @@ export default function SecurityCompliance() {
           {/* Active Sessions */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex flex-wrap items-center gap-2">
                 <Monitor size={16} className="text-dv-gold" />
                 Активные сессии ({sessions.length})
-                <Button size="sm" variant="danger" className="ml-auto" onClick={handleExpireAll} disabled={busy === 'expire-all'}>
+                <Button size="sm" variant="danger" className="ml-auto min-h-11" onClick={handleExpireAll} disabled={busy === 'expire-all'}>
                   Завершить все
                 </Button>
               </CardTitle>
@@ -145,7 +145,7 @@ export default function SecurityCompliance() {
                           </p>
                         </div>
                       </div>
-                      <Button size="sm" variant="ghost" className="text-error shrink-0" onClick={() => handleExpireSession(s.id)} disabled={busy === `session-${s.id}`}>
+                      <Button size="sm" variant="ghost" className="text-error shrink-0 min-h-11" onClick={() => handleExpireSession(s.id)} disabled={busy === `session-${s.id}`}>
                         Завершить
                       </Button>
                     </div>
@@ -188,7 +188,7 @@ export default function SecurityCompliance() {
           {/* Consent Management */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex flex-wrap items-center gap-2">
                 <CheckCircle2 size={16} className="text-dv-gold" />
                 Согласия на обработку данных
               </CardTitle>
@@ -216,7 +216,7 @@ export default function SecurityCompliance() {
           {/* AI Action Log */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex flex-wrap items-center gap-2">
                 <Brain size={16} className="text-dv-gold" />
                 AI Governance — история действий
               </CardTitle>
@@ -240,7 +240,7 @@ export default function SecurityCompliance() {
                         <p className="text-xs text-txt-muted mt-0.5">{a.model || '—'} · {a.createdAt ? new Date(a.createdAt).toLocaleString('ru-RU') : '—'}</p>
                       </div>
                       {!a.doctorConfirmed && (
-                        <Button size="sm" variant="primary" onClick={() => handleConfirmAI(a.id)} disabled={busy === `ai-${a.id}`}>
+                        <Button size="sm" variant="primary" className="min-h-11" onClick={() => handleConfirmAI(a.id)} disabled={busy === `ai-${a.id}`}>
                           Подтвердить
                         </Button>
                       )}

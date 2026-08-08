@@ -364,7 +364,7 @@ export default function SupplierWorkspace() {
 
   if (contexts.length === 0) {
     return (
-      <div className="p-6 max-w-[900px] mx-auto space-y-4">
+      <div className="p-6 max-w-full md:max-w-[900px] overflow-x-hidden mx-auto space-y-4">
         <PageHeader
           title="Кабинет продавца"
           subtitle="Продажи, остатки, AI и реклама в маркетплейсе DentVision"
@@ -386,8 +386,8 @@ export default function SupplierWorkspace() {
               <Input label="Контактное лицо" value={regForm.contactPerson} onChange={(e) => setRegForm({ ...regForm, contactPerson: e.target.value })} />
             </div>
             <Input label="Юр. адрес" value={regForm.legalAddress} onChange={(e) => setRegForm({ ...regForm, legalAddress: e.target.value })} />
-            <div className="flex justify-end pt-1">
-              <Button onClick={handleRegister} disabled={regSaving}>{regSaving ? 'Создание…' : 'Создать кабинет'}</Button>
+            <div className="flex flex-wrap justify-end pt-1">
+              <Button className="min-h-11" onClick={handleRegister} disabled={regSaving}>{regSaving ? 'Создание…' : 'Создать кабинет'}</Button>
             </div>
           </CardContent>
         </Card>
@@ -407,7 +407,7 @@ export default function SupplierWorkspace() {
   ]
 
   return (
-    <div className="p-4 md:p-6 max-w-[1100px] mx-auto space-y-5">
+    <div className="p-4 md:p-6 max-w-full xl:max-w-[1280px] overflow-x-hidden mx-auto space-y-5">
       <PageHeader
         title="Кабинет продавца"
         subtitle={`${me?.name || 'Поставщик'} · кабинет продавца DentVision`}
@@ -437,7 +437,7 @@ export default function SupplierWorkspace() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-2.5 min-h-11 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
               tab === t.id ? 'border-[#C9A96E] text-[#C9A96E]' : 'border-transparent text-[#7A8899] hover:text-white'
             }`}
           >
@@ -459,14 +459,14 @@ export default function SupplierWorkspace() {
         >
           {tab === 'overview' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                   <Sparkles size={16} className="text-[#C9A96E]" /> AI-рекомендации
                 </h3>
                 {canWrite && (
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => setPromoOpen(true)} icon={<Tag size={14} />}>Акция</Button>
-                    <Button size="sm" onClick={() => setAddOpen(true)} icon={<Plus size={14} />}>Товар</Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="secondary" className="min-h-11" onClick={() => setPromoOpen(true)} icon={<Tag size={14} />}>Акция</Button>
+                    <Button size="sm" className="min-h-11" onClick={() => setAddOpen(true)} icon={<Plus size={14} />}>Товар</Button>
                   </div>
                 )}
               </div>
@@ -565,12 +565,12 @@ export default function SupplierWorkspace() {
                       {canWrite && !['delivered', 'cancelled', 'refunded'].includes(o.status) && (
                         <div className="flex flex-wrap gap-2 pt-1">
                           {o.status !== 'packing' && (
-                            <Button size="xs" variant="secondary" onClick={() => handleOrderStatus(o.id, 'packing')}>В сборку</Button>
+                            <Button size="xs" variant="secondary" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'packing')}>В сборку</Button>
                           )}
                           {o.status !== 'shipped' && (
-                            <Button size="xs" variant="secondary" onClick={() => handleOrderStatus(o.id, 'shipped')}>Отправить</Button>
+                            <Button size="xs" variant="secondary" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'shipped')}>Отправить</Button>
                           )}
-                          <Button size="xs" onClick={() => handleOrderStatus(o.id, 'delivered')}>Доставлен</Button>
+                          <Button size="xs" className="min-h-11" onClick={() => handleOrderStatus(o.id, 'delivered')}>Доставлен</Button>
                         </div>
                       )}
                     </CardContent>
@@ -582,9 +582,9 @@ export default function SupplierWorkspace() {
 
           {tab === 'stock' && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-[#7A8899]">Управление остатками · низкий порог ≤ 5 шт</p>
-                {canWrite && <Button size="sm" onClick={() => setAddOpen(true)} icon={<Plus size={14} />}>Добавить</Button>}
+                {canWrite && <Button size="sm" className="min-h-11" onClick={() => setAddOpen(true)} icon={<Plus size={14} />}>Добавить</Button>}
               </div>
               {products.length === 0 ? (
                 <EmptyState icon={<Box size={28} />} title="Нет товаров" description="Добавьте первый SKU в каталог." />
@@ -629,7 +629,7 @@ export default function SupplierWorkspace() {
               ) : (
                 (dash.returns as any[]).map((r) => (
                   <Card key={r.id}>
-                    <CardContent className="p-4 flex justify-between gap-3">
+                    <CardContent className="p-4 flex flex-wrap justify-between gap-3">
                       <div>
                         <p className="text-sm text-white">{r.reason}</p>
                         <p className="text-xs text-[#7A8899] mt-1">{r.refType} · {r.refId}</p>
@@ -664,7 +664,7 @@ export default function SupplierWorkspace() {
                         onChange={(e) => setDefaultCb(e.target.value)}
                         className="w-28"
                       />
-                      <Button size="sm" loading={cbSaving} onClick={() => void saveDefaultCashback()}>
+                      <Button size="sm" className="min-h-11" loading={cbSaving} onClick={() => void saveDefaultCashback()}>
                         Сохранить
                       </Button>
                     </div>
@@ -686,9 +686,9 @@ export default function SupplierWorkspace() {
                 </CardContent>
               </Card>
 
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-[#7A8899]">Акции с повышенным кэшбэком (до 15%)</p>
-                {canWrite && <Button size="sm" onClick={() => setPromoOpen(true)} icon={<Tag size={14} />}>Создать акцию</Button>}
+                {canWrite && <Button size="sm" className="min-h-11" onClick={() => setPromoOpen(true)} icon={<Tag size={14} />}>Создать акцию</Button>}
               </div>
               {(dash?.promotions || []).length > 0 ? (
                 <div className="space-y-2">
@@ -779,7 +779,7 @@ export default function SupplierWorkspace() {
                   description="Когда клиники начнут чаще покупать ваши позиции, здесь появятся сигналы роста."
                 />
               )}
-              <Button variant="outline" icon={<Wallet size={15} />} disabled={!canWrite || Number(kpis.balanceMinor) <= 0} onClick={handlePayout}>
+              <Button variant="outline" className="min-h-11" icon={<Wallet size={15} />} disabled={!canWrite || Number(kpis.balanceMinor) <= 0} onClick={handlePayout}>
                 Запросить выплату ({fmtMoney(kpis.balanceMinor)})
               </Button>
             </div>
@@ -787,17 +787,17 @@ export default function SupplierWorkspace() {
 
           {tab === 'catalog' && (
             <div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <p className="text-sm text-[#7A8899]">Товаров: {products.length}</p>
-                <div className="flex gap-2">
-                  {canWrite && <Button size="sm" variant="ghost" icon={<Sparkles size={14} />} onClick={() => { loadPresets(); setImportOpen(true) }}>Быстрый импорт</Button>}
-                  {canWrite && <Button size="sm" icon={<Plus size={15} />} onClick={() => setAddOpen(true)}>Добавить товар</Button>}
+                <div className="flex flex-wrap gap-2">
+                  {canWrite && <Button size="sm" variant="ghost" className="min-h-11" icon={<Sparkles size={14} />} onClick={() => { loadPresets(); setImportOpen(true) }}>Быстрый импорт</Button>}
+                  {canWrite && <Button size="sm" className="min-h-11" icon={<Plus size={15} />} onClick={() => setAddOpen(true)}>Добавить товар</Button>}
                 </div>
               </div>
               {products.length === 0 ? (
                 <EmptyState icon={<Package size={32} />} title="Нет товаров" description="Добавьте первый товар в каталог." />
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {products.map((p: any, i: number) => (
                     <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}>
                       <Card>
@@ -823,7 +823,7 @@ export default function SupplierWorkspace() {
                               </div>
                             </div>
                             {canWrite && (
-                              <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors shrink-0" aria-label="Удалить">
+                              <button onClick={() => handleDelete(p.id)} className="p-1.5 min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors shrink-0" aria-label="Удалить">
                                 <Trash2 size={15} />
                               </button>
                             )}
@@ -843,10 +843,10 @@ export default function SupplierWorkspace() {
         </motion.div>
       </AnimatePresence>
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый товар">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый товар" className="w-full max-w-full sm:max-w-lg lg:max-w-xl">
         <div className="space-y-3">
           <Input label="Название *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Имплант титановый BLT" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Цена, ₸ *" type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} placeholder="150000" />
             <Input label="Остаток" type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} placeholder="10" />
           </div>
@@ -884,6 +884,7 @@ export default function SupplierWorkspace() {
               type="button"
               variant="secondary"
               size="sm"
+              className="min-h-11"
               icon={<Camera size={14} />}
               loading={photoUploading}
               onClick={() => photoInputRef.current?.click()}
@@ -891,20 +892,20 @@ export default function SupplierWorkspace() {
               {form.imageUrl ? 'Заменить фото' : 'Добавить фото'}
             </Button>
           </div>
-          <div className="flex gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setAddOpen(false)}>Отмена</Button>
-            <Button loading={saving} onClick={handleAdd} icon={<Plus size={15} />}>Добавить</Button>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button variant="ghost" className="min-h-11" onClick={() => setAddOpen(false)}>Отмена</Button>
+            <Button loading={saving} className="min-h-11" onClick={handleAdd} icon={<Plus size={15} />}>Добавить</Button>
           </div>
         </div>
       </Modal>
 
-      <Modal open={promoOpen} onClose={() => setPromoOpen(false)} title="Запустить акцию">
+      <Modal open={promoOpen} onClose={() => setPromoOpen(false)} title="Запустить акцию" className="w-full max-w-full sm:max-w-lg lg:max-w-xl">
         <div className="space-y-3">
           <label className="text-xs text-[#7A8899] block">Товар</label>
           <select
             value={promoForm.productId}
             onChange={(e) => setPromoForm((f) => ({ ...f, productId: e.target.value }))}
-            className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+            className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 min-h-11 text-sm text-white"
           >
             <option value="">Выберите товар…</option>
             {products.map((p: any) => (
@@ -920,9 +921,9 @@ export default function SupplierWorkspace() {
             onChange={(e) => setPromoForm((f) => ({ ...f, cashbackPercent: e.target.value }))}
             placeholder="до 15%"
           />
-          <div className="flex gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setPromoOpen(false)}>Отмена</Button>
-            <Button loading={saving} onClick={handlePromo} icon={<Tag size={15} />}>Запустить</Button>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button variant="ghost" className="min-h-11" onClick={() => setPromoOpen(false)}>Отмена</Button>
+            <Button loading={saving} className="min-h-11" onClick={handlePromo} icon={<Tag size={15} />}>Запустить</Button>
           </div>
         </div>
       </Modal>
@@ -960,7 +961,7 @@ export default function SupplierWorkspace() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
                     <Input
                       placeholder="Цена, ₸"
                       type="number"
@@ -976,6 +977,7 @@ export default function SupplierWorkspace() {
                     />
                     <Button
                       size="sm"
+                      className="min-h-11"
                       icon={<Plus size={13} />}
                       loading={quickAdding === preset.id}
                       onClick={() => handleQuickAdd(preset)}
@@ -1026,12 +1028,12 @@ function ProfileTab({ me, canWrite, token, onSaved }: { me: any; canWrite: boole
   return (
     <div className="max-w-[560px] space-y-3">
       <Input label="Название компании" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} disabled={!canWrite} />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Input label="БИН" value={form.bin} onChange={(e) => setForm((f) => ({ ...f, bin: e.target.value }))} disabled={!canWrite} />
         <Input label="Контактное лицо" value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} disabled={!canWrite} />
       </div>
       <Input label="Юридический адрес" value={form.legalAddress} onChange={(e) => setForm((f) => ({ ...f, legalAddress: e.target.value }))} disabled={!canWrite} />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Input label="Телефон" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} disabled={!canWrite} />
         <Input label="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} disabled={!canWrite} />
       </div>

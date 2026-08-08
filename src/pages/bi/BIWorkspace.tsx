@@ -231,13 +231,13 @@ export default function BIWorkspace() {
   }))
 
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-4">
+    <div className="max-w-full overflow-x-hidden mx-auto p-4 sm:p-6 space-y-4">
       <PageHeader
         title="Business Intelligence"
         subtitle="Финансовая аналитика · Unit Economics · AI CFO · Command Center"
         icon={<BarChart3 size={20} />}
         actions={
-          <Button size="sm" variant="secondary" icon={<RefreshCw size={14} />}
+          <Button className="min-h-11" size="sm" variant="secondary" icon={<RefreshCw size={14} />}
             onClick={tab === 'dashboard' || tab === 'clinic' || tab === 'network' || tab === 'platform' ? loadDashboard : refreshCommand}
             disabled={loading}>
             Обновить
@@ -322,7 +322,7 @@ export default function BIWorkspace() {
           ) : d ? (
             <>
               {/* SaaS Metrics */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatCard label="MRR" value={fmtMoney(d.mrr?.mrr)} icon={<DollarSign size={18} />}
                   change={d.mrr?.mrrGrowthPct ? { value: d.mrr.mrrGrowthPct, positive: d.mrr.mrrGrowthPct > 0 } : undefined} />
                 <StatCard label="ARR" value={fmtMoney(d.mrr?.arr)} icon={<TrendingUp size={18} />} />
@@ -335,7 +335,7 @@ export default function BIWorkspace() {
               <Card>
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-txt-primary mb-3">Unit Economics (30 дней)</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {[
                       ['Выручка/клиника', fmtMoney(d.unitEconomics?.revenuePerClinic)],
                       ['Выручка/доктор', fmtMoney(d.unitEconomics?.revenuePerDoctor)],
@@ -348,7 +348,7 @@ export default function BIWorkspace() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-3">
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <div className="text-center">
                       <p className={`text-lg font-bold ${d.unitEconomics?.grossMargin >= 50 ? 'text-green-400' : 'text-yellow-400'}`}>
                         {d.unitEconomics?.grossMargin || 0}%
@@ -370,7 +370,7 @@ export default function BIWorkspace() {
               </Card>
 
               {/* SaaS Overview */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <Card>
                   <CardContent className="p-3 text-center">
                     <p className="text-xl font-bold text-txt-primary">{d.mrr?.activeClinics || 0}</p>
@@ -401,7 +401,7 @@ export default function BIWorkspace() {
               <Card>
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-txt-primary mb-3">Cash Flow — 12 месяцев</h3>
-                  <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
                     <div className="text-center">
                       <p className="text-lg font-bold text-green-400">{fmtMoney(d.cashFlow?.totalRevenue)}</p>
                       <p className="text-[10px] text-txt-muted">Общая выручка</p>
@@ -429,7 +429,7 @@ export default function BIWorkspace() {
               <Card>
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-txt-primary mb-3">Прогноз — 3 сценария</h3>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {[
                       ['Оптимистичный', d.scenarios?.optimistic?.[11]?.cumulative, 'green', d.scenarios?.breakEven?.optimistic],
                       ['Базовый', d.scenarios?.base?.[11]?.cumulative, 'blue', d.scenarios?.breakEven?.base],
@@ -483,7 +483,7 @@ export default function BIWorkspace() {
         <div className="space-y-4">
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <Brain size={16} className="text-dv-gold" />
                 <h3 className="text-sm font-semibold text-txt-primary">AI CFO Agent</h3>
               </div>
@@ -491,15 +491,15 @@ export default function BIWorkspace() {
                 Задайте вопрос по финансам или получите ежедневный брифинг
               </p>
               <div className="flex gap-2 mb-4">
-                <Button size="sm" onClick={() => { setCfoInput(''); setCfoMessages(m => [...m, { role: 'user', text: 'Дай ежедневный брифинг' }]); setCfoLoading(true); api.biCfoChat('Дай ежедневный брифинг').then(d => setCfoMessages(m => [...m, { role: 'cfo', text: d.reply || 'Нет ответа' }])).catch(() => setCfoMessages(m => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])).finally(() => setCfoLoading(false)); }}
+                <Button className="min-h-11" size="sm" onClick={() => { setCfoInput(''); setCfoMessages(m => [...m, { role: 'user', text: 'Дай ежедневный брифинг' }]); setCfoLoading(true); api.biCfoChat('Дай ежедневный брифинг').then(d => setCfoMessages(m => [...m, { role: 'cfo', text: d.reply || 'Нет ответа' }])).catch(() => setCfoMessages(m => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])).finally(() => setCfoLoading(false)); }}
                   disabled={cfoLoading}>
                   Ежедневный брифинг
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => { setCfoInput(''); setCfoMessages(m => [...m, { role: 'user', text: 'Проанализируй MRR и churn' }]); setCfoLoading(true); api.biCfoChat('Проанализируй MRR и churn').then(d => setCfoMessages(m => [...m, { role: 'cfo', text: d.reply || 'Нет ответа' }])).catch(() => setCfoMessages(m => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])).finally(() => setCfoLoading(false)); }}
+                <Button className="min-h-11" size="sm" variant="secondary" onClick={() => { setCfoInput(''); setCfoMessages(m => [...m, { role: 'user', text: 'Проанализируй MRR и churn' }]); setCfoLoading(true); api.biCfoChat('Проанализируй MRR и churn').then(d => setCfoMessages(m => [...m, { role: 'cfo', text: d.reply || 'Нет ответа' }])).catch(() => setCfoMessages(m => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])).finally(() => setCfoLoading(false)); }}
                   disabled={cfoLoading}>
                   Анализ MRR
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => { setCfoInput(''); setCfoMessages(m => [...m, { role: 'user', text: 'Прогноз на 12 месяцев' }]); setCfoLoading(true); api.biCfoChat('Прогноз на 12 месяцев').then(d => setCfoMessages(m => [...m, { role: 'cfo', text: d.reply || 'Нет ответа' }])).catch(() => setCfoMessages(m => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])).finally(() => setCfoLoading(false)); }}
+                <Button className="min-h-11" size="sm" variant="secondary" onClick={() => { setCfoInput(''); setCfoMessages(m => [...m, { role: 'user', text: 'Прогноз на 12 месяцев' }]); setCfoLoading(true); api.biCfoChat('Прогноз на 12 месяцев').then(d => setCfoMessages(m => [...m, { role: 'cfo', text: d.reply || 'Нет ответа' }])).catch(() => setCfoMessages(m => [...m, { role: 'cfo', text: 'Ошибка связи с AI CFO' }])).finally(() => setCfoLoading(false)); }}
                   disabled={cfoLoading}>
                   Прогноз
                 </Button>
@@ -536,8 +536,8 @@ export default function BIWorkspace() {
                 <Input value={cfoInput} onChange={(e) => setCfoInput(e.target.value)}
                   placeholder="Вопрос AI CFO…"
                   onKeyDown={(e) => e.key === 'Enter' && sendCfoMessage()}
-                  className="flex-1" />
-                <Button onClick={sendCfoMessage} disabled={cfoLoading || !cfoInput.trim()}>Отправить</Button>
+                  className="flex-1 min-h-11" />
+                <Button className="min-h-11" onClick={sendCfoMessage} disabled={cfoLoading || !cfoInput.trim()}>Отправить</Button>
               </div>
             </CardContent>
           </Card>
@@ -552,27 +552,28 @@ export default function BIWorkspace() {
           {!unlocked ? (
             <Card className="max-w-md mx-auto">
               <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 text-txt-primary">
+                <div className="flex flex-wrap items-center gap-2 text-txt-primary">
                   <Lock size={18} className="text-dv-gold" />
                   <h2 className="text-sm font-semibold">Platform Ops — Access Key</h2>
                 </div>
                 <Input type="password" autoComplete="off" spellCheck={false} label="Access key"
                   value={gateKey} onChange={(e) => setGateKey(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && unlock()} />
-                <Button className="w-full" onClick={unlock}>Continue</Button>
+                  onKeyDown={(e) => e.key === 'Enter' && unlock()}
+                  className="min-h-11" />
+                <Button className="w-full min-h-11" onClick={unlock}>Continue</Button>
               </CardContent>
             </Card>
           ) : (
             <>
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <ShieldCheck size={18} className="text-dv-gold" />
                   <div>
                     <h2 className="text-sm font-semibold text-txt-primary">Platform Ops Command Center</h2>
                     <p className="text-xs text-txt-muted">Скрытый контур · подписки · school · поставщики</p>
                   </div>
                 </div>
-                <Button size="sm" variant="danger" onClick={lock}>Lock</Button>
+                <Button className="min-h-11" size="sm" variant="danger" onClick={lock}>Lock</Button>
               </div>
 
               <div className="flex gap-1 border-b border-white/[0.06]">
@@ -618,24 +619,24 @@ export default function BIWorkspace() {
 
                   <Card>
                     <CardContent className="p-4 space-y-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Zap size={16} className="text-dv-gold" />
                         <p className="text-sm font-semibold text-txt-primary">Автоматизации (one-click)</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" disabled={!!busy}
+                        <Button className="min-h-11" size="sm" disabled={!!busy}
                           onClick={() => run('auto-sup', async () => { await api.opsAutoAdvanceSuppliers(false) }, 'Поставщики с документами → на проверку')}>
                           Поставщики: в ревью
                         </Button>
-                        <Button size="sm" variant="primary" disabled={!!busy}
+                        <Button className="min-h-11" size="sm" variant="primary" disabled={!!busy}
                           onClick={() => run('auto-sup-v', async () => { await api.opsAutoAdvanceSuppliers(true) }, 'Поставщики в ревью → VERIFIED')}>
                           Поставщики: подтвердить ревью
                         </Button>
-                        <Button size="sm" disabled={!!busy}
+                        <Button className="min-h-11" size="sm" disabled={!!busy}
                           onClick={() => run('auto-lec', async () => { await api.opsAutoVerifyLecturers() }, 'Лекторы с документами → VERIFIED')}>
                           School: верифицировать NEW
                         </Button>
-                        <Button size="sm" disabled={!!busy}
+                        <Button className="min-h-11" size="sm" disabled={!!busy}
                           onClick={() => run('auto-ext', async () => { await api.opsAutoExtendClinics(1) }, 'Истекающие клиники +1 мес')}>
                           Клиники: продлить истекающие +1м
                         </Button>
@@ -688,21 +689,21 @@ export default function BIWorkspace() {
                         </div>
                         <div className="flex flex-wrap gap-2 items-center">
                           <select
-                            className="dv-select !w-auto h-8 px-2 text-xs"
+                            className="dv-select !w-auto h-8 px-2 text-xs min-h-11"
                             value={String(c.plan || 'DEMO').toLowerCase() === 'standard' ? 'starter' : String(c.plan || 'demo').toLowerCase()}
                             onChange={(e) => run(`plan-${c.id}`, async () => { await api.opsClinicPlan(c.id, e.target.value) }, 'План обновлён')}
                           >
                             {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
                           </select>
-                          <Button size="sm" variant="secondary" icon={<CalendarPlus size={13} />} disabled={busy === `ext-${c.id}`}
+                          <Button className="min-h-11" size="sm" variant="secondary" icon={<CalendarPlus size={13} />} disabled={busy === `ext-${c.id}`}
                             onClick={() => run(`ext-${c.id}`, async () => { await api.opsClinicExtend(c.id, 1) }, '+1 месяц')}>+1м</Button>
-                          <Button size="sm" variant="secondary" disabled={busy === `ext3-${c.id}`}
+                          <Button className="min-h-11" size="sm" variant="secondary" disabled={busy === `ext3-${c.id}`}
                             onClick={() => run(`ext3-${c.id}`, async () => { await api.opsClinicExtend(c.id, 3) }, '+3 месяца')}>+3м</Button>
                           {c.active ? (
-                            <Button size="sm" variant="danger" icon={<Ban size={13} />} disabled={busy === `sus-${c.id}`}
+                            <Button className="min-h-11" size="sm" variant="danger" icon={<Ban size={13} />} disabled={busy === `sus-${c.id}`}
                               onClick={() => run(`sus-${c.id}`, async () => { await api.opsClinicSuspend(c.id) }, 'Клиника приостановлена')}>Suspend</Button>
                           ) : (
-                            <Button size="sm" variant="primary" icon={<CheckCircle2 size={13} />} disabled={busy === `act-${c.id}`}
+                            <Button className="min-h-11" size="sm" variant="primary" icon={<CheckCircle2 size={13} />} disabled={busy === `act-${c.id}`}
                               onClick={() => run(`act-${c.id}`, async () => { await api.opsClinicActivate(c.id) }, 'Клиника активирована')}>Activate</Button>
                           )}
                         </div>
@@ -728,7 +729,7 @@ export default function BIWorkspace() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {(LEVEL_FLOW[l.level] || []).map((next) => (
-                            <Button key={next} size="sm" variant={next === 'VERIFIED' || next === 'EXPERT' ? 'primary' : 'secondary'}
+                            <Button className="min-h-11" key={next} size="sm" variant={next === 'VERIFIED' || next === 'EXPERT' ? 'primary' : 'secondary'}
                               disabled={busy === `lvl-${l.id}-${next}`}
                               onClick={() => run(`lvl-${l.id}-${next}`, async () => { await api.opsLecturerLevel(l.id, next) }, `Level → ${LEVEL_LABEL[next]}`)}>
                               → {LEVEL_LABEL[next] || next}
@@ -760,7 +761,7 @@ export default function BIWorkspace() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {(SUPPLIER_FLOW[s.status] || []).map((next) => (
-                            <Button key={next} size="sm"
+                            <Button className="min-h-11" key={next} size="sm"
                               variant={next === 'VERIFIED' || next === 'OFFICIAL_PARTNER' ? 'primary' : 'secondary'}
                               disabled={busy === `st-${s.id}-${next}`}
                               onClick={() => run(`st-${s.id}-${next}`, async () => { await api.opsSetSupplierStatus(s.id, next) }, `Статус → ${SUPPLIER_LABEL[next]}`)}>
@@ -772,9 +773,10 @@ export default function BIWorkspace() {
                           <div className="flex-1 w-full">
                             <Input label="Привязать пользователя (email)" value={memberEmail[s.id] || ''}
                               onChange={(e) => setMemberEmail((m) => ({ ...m, [s.id]: e.target.value }))}
-                              placeholder="seller@example.com" />
+                              placeholder="seller@example.com"
+                              className="min-h-11" />
                           </div>
-                          <Button size="sm" disabled={busy === `mem-${s.id}`}
+                          <Button className="min-h-11" size="sm" disabled={busy === `mem-${s.id}`}
                             onClick={() => run(`mem-${s.id}`, async () => {
                               const email = (memberEmail[s.id] || '').trim()
                               if (!email) throw new Error('Email обязателен')

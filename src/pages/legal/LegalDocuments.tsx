@@ -157,15 +157,15 @@ export default function LegalDocuments() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       <div className="flex flex-wrap gap-2 justify-end">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по номеру..."
-            className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+            className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-56 min-h-11" />
         </div>
-        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} options={STATUS_OPTIONS} size="sm" className="w-auto min-w-[140px]" />
-        <Button icon={<Plus size={16} />} onClick={() => { setCreateForm({ templateId: '', partnerId: '', variables: '' }); setCreateModal(true); }}>
+        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} options={STATUS_OPTIONS} size="sm" className="w-full sm:w-auto min-w-[140px] min-h-11" />
+        <Button icon={<Plus size={16} />} onClick={() => { setCreateForm({ templateId: '', partnerId: '', variables: '' }); setCreateModal(true); }} className="min-h-11">
           Создать документ
         </Button>
       </div>
@@ -217,7 +217,8 @@ export default function LegalDocuments() {
                             <div className="flex gap-2">
                               {FORWARD_TRANSITIONS[d.status]?.length > 0 && (
                                 <Button size="sm" icon={<FileInput size={14} />}
-                                  onClick={() => { setStatusModal({ id: d.id, currentStatus: d.status }); setStatusForm({ status: '', changelog: '' }); }}>
+                                  onClick={() => { setStatusModal({ id: d.id, currentStatus: d.status }); setStatusForm({ status: '', changelog: '' }); }}
+                                  className="min-h-11">
                                   Сменить статус
                                 </Button>
                               )}
@@ -284,7 +285,7 @@ export default function LegalDocuments() {
         </Card>
       )}
 
-      <Modal open={createModal} onClose={() => setCreateModal(false)} title="Новый документ">
+      <Modal open={createModal} onClose={() => setCreateModal(false)} title="Новый документ" size="lg">
         <form onSubmit={e => {
           e.preventDefault();
           if (!createForm.templateId) { toast.warn('Выберите шаблон'); return; }

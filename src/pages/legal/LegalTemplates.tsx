@@ -125,14 +125,14 @@ export default function LegalTemplates() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       <div className="flex flex-wrap gap-2 justify-end">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск шаблонов..."
-            className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+            className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-56 min-h-11" />
         </div>
-        <Button icon={<Plus size={16} />} onClick={() => { setForm({ type: 'CONTRACT', name: '', description: '' }); setModal(true); }}>
+        <Button icon={<Plus size={16} />} onClick={() => { setForm({ type: 'CONTRACT', name: '', description: '' }); setModal(true); }} className="min-h-11">
           Создать шаблон
         </Button>
       </div>
@@ -215,14 +215,15 @@ export default function LegalTemplates() {
                             </div>
                             <div className="flex gap-2">
                               {t.versions?.[0]?.status !== 'ARCHIVED' && (
-                                <Button size="sm" icon={<Send size={14} />} onClick={() => setPublishId(t.id)}>
+                                <Button size="sm" icon={<Send size={14} />} onClick={() => setPublishId(t.id)} className="min-h-11">
                                   Опубликовать версию
                                 </Button>
                               )}
                               {t.versions?.[0]?.status === 'PUBLISHED' && (
                                 <Button size="sm" variant="ghost" icon={<Archive size={14} />}
                                   onClick={() => { if (confirm('Архивировать шаблон?')) archiveTemplate.mutate(t.id); }}
-                                  loading={archiveTemplate.isPending}>
+                                  loading={archiveTemplate.isPending}
+                                  className="min-h-11">
                                   Архивировать
                                 </Button>
                               )}

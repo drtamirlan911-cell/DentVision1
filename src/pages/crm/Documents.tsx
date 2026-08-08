@@ -431,7 +431,7 @@ function TemplateCard({ template, onSelect }: { template: TemplateItem; onSelect
   return (
     <button
       onClick={() => onSelect(template)}
-      className="rounded-xl border border-bdr-subtle bg-surface-raised p-3 text-left transition-all hover:border-dv-gold/30 hover:bg-surface-raised-hover"
+      className="min-h-11 rounded-xl border border-bdr-subtle bg-surface-raised p-3 text-left transition-all hover:border-dv-gold/30 hover:bg-surface-raised-hover"
     >
       <p className="text-xs font-bold text-txt-primary truncate">{template.title}</p>
       <p className="text-[10px] text-txt-muted mt-0.5">{template.type}</p>
@@ -656,7 +656,7 @@ export default function Documents() {
   };
 
   return (
-    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
+    <div className="dv-page fade-in max-w-full space-y-6 py-4 md:py-6">
       <PageHeader
         title="Электронные документы"
         subtitle="Согласия, рецепты, направления, договоры, справки, заключения"
@@ -720,10 +720,10 @@ export default function Documents() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Тип документа *</label>
-                    <select className="dv-select" value={form.doc_type} onChange={e => setForm(f => ({ ...f, doc_type: e.target.value }))}>
+                    <select className="dv-select min-h-11" value={form.doc_type} onChange={e => setForm(f => ({ ...f, doc_type: e.target.value }))}>
                       <option value="">Выберите...</option>
                       {DOC_TEMPLATES.map(cat => (
                         <optgroup key={cat.category} label={cat.category}>
@@ -734,34 +734,34 @@ export default function Documents() {
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Пациент</label>
-                    <select className="dv-select" value={form.patient_id} onChange={e => handlePatientChange(e.target.value)}>
+                    <select className="dv-select min-h-11" value={form.patient_id} onChange={e => handlePatientChange(e.target.value)}>
                       <option value="">Не выбран</option>
                       {(patients || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Врач</label>
-                    <select className="dv-select" value={form.doctor_id} onChange={e => handleDoctorChange(e.target.value)}>
+                    <select className="dv-select min-h-11" value={form.doctor_id} onChange={e => handleDoctorChange(e.target.value)}>
                       <option value="">Не выбран</option>
                       {(doctors || []).map(d => <option key={d.id} value={d.id}>{d.name}{d.spec ? ` (${d.spec})` : ''}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Статус</label>
-                    <select className="dv-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                    <select className="dv-select min-h-11" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
                       {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}
                     </select>
                   </div>
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Название *</label>
-                  <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Название документа..." />
+                  <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Название документа..." className="min-h-11 w-full" />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase text-txt-muted">Содержание</label>
-                  <textarea rows={16} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="Текст документа..." className="font-mono text-xs leading-relaxed" />
+                  <textarea rows={16} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="Текст документа..." className="w-full font-mono text-xs leading-relaxed" />
                 </div>
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                   <Button variant="secondary" onClick={resetForm}>Отмена</Button>
                   <Button variant="primary" icon={<Save size={14} />} onClick={saveDocument}>
                     {editingId ? 'Обновить' : 'Создать'}
@@ -773,12 +773,12 @@ export default function Documents() {
         </motion.div>
       )}
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap gap-3">
+        <div className="relative w-full md:flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-          <input placeholder="Поиск по названию, пациенту, содержанию..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
+          <input placeholder="Поиск по названию, пациенту, содержанию..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="min-h-11 w-full pl-9" />
         </div>
-        <select value={filterType} onChange={e => setFilterType(e.target.value)} className="dv-select w-full md:w-56">
+        <select value={filterType} onChange={e => setFilterType(e.target.value)} className="dv-select min-h-11 w-full md:w-56">
           {allTypes.map(t => (
             <option key={t} value={t}>{t === 'all' ? 'Все типы' : t}</option>
           ))}

@@ -119,7 +119,7 @@ export default function Login() {
   const displayError = error || localError
 
   return (
-    <div className="relative min-h-screen min-h-[100dvh] bg-surface-0 flex items-center justify-center p-4 sm:p-5 overflow-hidden" style={{ paddingTop: 'max(1rem, var(--dv-safe-top, 0px))', paddingBottom: 'max(1rem, var(--dv-safe-bottom, 0px))' }}>
+    <div className="relative min-h-screen min-h-[100dvh] max-w-full overflow-x-hidden bg-surface-0 flex items-center justify-center p-4 sm:p-5 overflow-hidden" style={{ paddingTop: 'max(1rem, var(--dv-safe-top, 0px))', paddingBottom: 'max(1rem, var(--dv-safe-bottom, 0px))' }}>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute -top-48 -right-48 w-[600px] h-[600px] rounded-full"
@@ -147,7 +147,7 @@ export default function Login() {
         animate="visible"
         transition={cardEasing}
         className={cn(
-          'relative z-10 w-full max-w-[420px]',
+          'relative z-10 w-full max-w-md sm:max-w-lg',
           'bg-white/[0.03] backdrop-blur-2xl',
           'border border-dv-gold/20',
           'rounded-2xl py-9 px-6 sm:px-8',
@@ -190,6 +190,7 @@ export default function Login() {
               placeholder="admin_c1"
               autoComplete="username"
               error={touched.login ? errors.login : undefined}
+              className="min-h-11"
             />
 
             <div className="space-y-1">
@@ -202,6 +203,7 @@ export default function Login() {
                 placeholder="••••••••"
                 autoComplete="current-password"
                 error={touched.password ? errors.password : undefined}
+                className="min-h-11"
                 suffix={
                   <button
                     type="button"
@@ -253,7 +255,7 @@ export default function Login() {
               disabled={loading}
               variant="primary"
               size="lg"
-              className="w-full h-10 text-sm font-bold"
+              className="w-full min-h-11 text-sm font-bold"
             >
               {loading ? 'Вход…' : 'Войти в систему'}
             </Button>
@@ -262,7 +264,7 @@ export default function Login() {
           <motion.div
             variants={itemVariants}
             transition={easing}
-            className="flex items-center justify-between gap-3 bg-success/5 border border-success/15 rounded-xl px-4 py-3"
+            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-success/5 border border-success/15 rounded-xl px-4 py-3"
           >
             <div>
               <div className="text-xs text-success font-bold">Новая клиника?</div>
@@ -273,7 +275,7 @@ export default function Login() {
               variant="outline"
               size="sm"
               onClick={() => setShowRegister(true)}
-              className="shrink-0 border-success/30 text-success hover:bg-success/10 hover:border-success/50 hover:text-success"
+              className="w-full sm:w-auto sm:shrink-0 min-h-11 border-success/30 text-success hover:bg-success/10 hover:border-success/50 hover:text-success"
             >
               Зарегистрироваться →
             </Button>

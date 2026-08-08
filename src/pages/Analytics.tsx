@@ -53,7 +53,7 @@ export default function Analytics() {
   const hasData = patients.length + appointments.length + receipts.length > 0
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="max-w-6xl mx-auto space-y-6 p-4 md:p-6">
+    <motion.div variants={container} initial="hidden" animate="show" className="max-w-full overflow-x-hidden mx-auto space-y-6 p-4 md:p-6">
       <motion.div variants={item}>
         <PageHeader
           title="Аналитика"
@@ -69,7 +69,7 @@ export default function Analytics() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {[
               { label: 'Всего пациентов', value: patients.length, icon: <Users size={18} />, color: '#C9A96E' },
               { label: 'Записей', value: appointments.length, icon: <Calendar size={18} />, color: '#2980B9' },

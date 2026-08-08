@@ -90,16 +90,16 @@ export default function DiagnosticsLayout() {
   [platformRole, orgType]);
 
   return (
-    <div className="flex h-full gap-0">
+    <div className="flex h-full gap-0 max-w-full overflow-x-hidden">
       {/* Left sub-navigation */}
       <motion.nav
         animate={{ width: collapsed ? 56 : 220 }}
-        className="shrink-0 bg-surface-2/50 border-r border-bdr-subtle flex flex-col py-3 overflow-hidden"
+        className="shrink-0 bg-surface-2/50 border-r border-bdr-subtle flex flex-col py-3 overflow-hidden max-md:!w-14"
       >
         <div className="px-3 pb-3 mb-2 border-b border-bdr-subtle/50">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center gap-2 text-xs font-bold text-txt-muted uppercase tracking-wider hover:text-txt-primary transition-colors w-full"
+            className="flex items-center gap-2 text-xs font-bold text-txt-muted uppercase tracking-wider hover:text-txt-primary transition-colors w-full min-h-11"
           >
             <ChevronRight size={14} className={cn('transition-transform', collapsed ? 'rotate-180' : '')} />
             {!collapsed && <span>Diagnostics</span>}
@@ -111,7 +111,7 @@ export default function DiagnosticsLayout() {
               key={item.id}
               onClick={() => navigate(item.path)}
               className={cn(
-                'flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-sm transition-all',
+                'flex items-center gap-2.5 w-full px-2.5 py-2 min-h-11 rounded-lg text-sm transition-all',
                 isActive(item.path)
                   ? 'bg-dv-gold/10 text-dv-gold font-medium'
                   : 'text-txt-muted hover:text-txt-primary hover:bg-surface-1/50'
@@ -131,7 +131,7 @@ export default function DiagnosticsLayout() {
                 key={b.key}
                 onClick={() => switchTo(b.scopeType, b.scopeId)}
                 disabled={switching}
-                className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-sm text-txt-muted hover:text-txt-primary hover:bg-surface-1/50 transition-all disabled:opacity-50"
+                className="flex items-center gap-2.5 w-full px-2.5 py-2 min-h-11 rounded-lg text-sm text-txt-muted hover:text-txt-primary hover:bg-surface-1/50 transition-all disabled:opacity-50"
               >
                 <LogIn size={16} className="shrink-0" />
                 {!collapsed && <span className="truncate">{b.label}</span>}

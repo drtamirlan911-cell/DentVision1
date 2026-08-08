@@ -81,12 +81,12 @@ export default function MyClinics() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080F1A] p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#080F1A] p-6 relative max-w-full overflow-x-hidden">
       <style>{GLOBAL_CSS}</style>
       <div className="absolute w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,#C9A96E05_0%,transparent_70%)] -top-32 -right-32 pointer-events-none" />
 
       <div className="max-w-[760px] mx-auto relative z-10">
-        <div className="flex items-center gap-3 mb-1">
+        <div className="flex flex-wrap items-center gap-3 mb-1">
           <Building2 size={26} className="text-[#C9A96E]" />
           <h1 className="text-2xl font-bold text-white m-0">Мои клиники</h1>
         </div>
@@ -104,7 +104,7 @@ export default function MyClinics() {
                   custom={i}
                   initial="hidden" animate="visible" variants={fadeUp}
                   onClick={() => enterClinic(m.clinicId)}
-                  className="w-full flex items-center gap-4 p-4 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px] hover:border-[#C9A96E]/40 transition-all text-left cursor-pointer"
+                  className="w-full flex items-center gap-4 p-4 min-h-11 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px] hover:border-[#C9A96E]/40 transition-all text-left cursor-pointer"
                 >
                   <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold shrink-0"
                     style={{ background: (m.clinic?.color || '#C9A96E') + '22', color: m.clinic?.color || '#C9A96E' }}>
@@ -126,7 +126,7 @@ export default function MyClinics() {
         )}
 
         <h2 className="text-xs uppercase tracking-[0.08em] text-[#7A8899] mb-3">Действия</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           <ActionCard
             icon={<Plus size={22} />}
             title="Создать клинику"
@@ -158,7 +158,7 @@ export default function MyClinics() {
           />
         </div>
 
-        <div className="mt-8 p-4 bg-white/[0.03] border border-[rgba(255,255,255,0.06)] rounded-xl flex items-start gap-3">
+        <div className="mt-8 p-4 bg-white/[0.03] border border-[rgba(255,255,255,0.06)] rounded-xl flex flex-wrap items-start gap-3">
           <Sparkles size={18} className="text-[#C9A96E] mt-0.5 shrink-0" />
           <p className="text-xs text-[#B0BEC5] leading-relaxed m-0">
             Не хотите создавать клинику? Вы уже можете пользоваться <span className="text-[#C9A96E]">Магазином</span>, <span className="text-[#C9A96E]">Академией</span> и <span className="text-[#C9A96E]">AI-ассистентом</span> в личном режиме. CRM активируется только после выбора рабочего пространства.
@@ -167,7 +167,7 @@ export default function MyClinics() {
       </div>
 
       {/* Create modal */}
-      <Modal open={activeTab === 'create'} onClose={() => setActiveTab('list')} title="Создание клиники">
+      <Modal open={activeTab === 'create'} onClose={() => setActiveTab('list')} title="Создание клиники" className="w-full max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
         <div className="space-y-3">
           <Input label="Название клиники *" value={createForm.name} onChange={(e) => setCreateForm(f => ({ ...f, name: e.target.value }))} placeholder="Стоматология «Улыбка»" />
           <div className="grid grid-cols-2 gap-3">
@@ -176,7 +176,7 @@ export default function MyClinics() {
           </div>
           <Input label="Адрес" value={createForm.address} onChange={(e) => setCreateForm(f => ({ ...f, address: e.target.value }))} placeholder="ул. Абая 10" />
           <Input label="Телефон" value={createForm.phone} onChange={(e) => setCreateForm(f => ({ ...f, phone: e.target.value }))} placeholder="+7 777 000 00 00" />
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-wrap gap-3 pt-2">
             <Button variant="ghost" onClick={() => setActiveTab('list')}>Отмена</Button>
             <Button variant="primary" loading={creating} onClick={handleCreate} icon={<Building2 size={15} />}>
               Создать клинику
@@ -186,7 +186,7 @@ export default function MyClinics() {
       </Modal>
 
       {/* Join modal */}
-      <Modal open={activeTab === 'join'} onClose={() => setActiveTab('list')} title="Присоединиться к клинике">
+      <Modal open={activeTab === 'join'} onClose={() => setActiveTab('list')} title="Присоединиться к клинике" className="w-full max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
         <div className="space-y-3">
           <div>
             <label className="text-xs text-[#B0BEC5] mb-1.5 block">Код приглашения</label>
@@ -197,7 +197,7 @@ export default function MyClinics() {
           <div className="flex items-center gap-2 text-xs text-[#7A8899]">
             <QrCode size={14} /> <Link2 size={14} /> Также можно присоединиться по ссылке-приглашению
           </div>
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-wrap gap-3 pt-2">
             <Button variant="ghost" onClick={() => setActiveTab('list')}>Отмена</Button>
             <Button variant="primary" loading={joining} onClick={handleJoin} icon={<LogIn size={15} />}>
               Присоединиться
@@ -215,7 +215,7 @@ function ActionCard({ icon, title, desc, color, onClick, loading }: { icon: Reac
       whileHover={{ y: -3 }}
       disabled={loading}
       onClick={onClick}
-      className="p-5 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px] text-left cursor-pointer hover:border-[rgba(201,169,110,0.4)] transition-all flex flex-col gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+      className="p-5 min-h-11 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px] text-left cursor-pointer hover:border-[rgba(201,169,110,0.4)] transition-all flex flex-col gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
     >
       <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: color + '22', color }}>{icon}</div>
       <div>

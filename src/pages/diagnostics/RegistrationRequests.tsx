@@ -43,18 +43,18 @@ export default function RegistrationRequests() {
   });
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-txt-primary">Заявки на регистрацию</h1>
           <p className="text-sm text-txt-muted mt-0.5">Центры и лаборатории, ожидающие подтверждения</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {['', 'PENDING', 'APPROVED', 'REJECTED'].map(s => (
           <button key={s} onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-11 ${
               statusFilter === s ? 'bg-dv-gold text-black' : 'bg-surface-1 text-txt-muted hover:text-txt-primary'
             }`}>
             {s ? STATUS_CONFIG[s]?.label : 'Все'}
@@ -77,7 +77,7 @@ export default function RegistrationRequests() {
             const sc = STATUS_CONFIG[r.status] || { label: r.status, color: '#95A5A6' };
             return (
               <Card key={r.id} padding="md">
-                <div className="flex items-start gap-4">
+                <div className="flex flex-wrap items-start gap-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                     r.type === 'center' ? 'bg-dv-gold/10' : 'bg-purple-500/10'
                   }`}>
@@ -100,11 +100,11 @@ export default function RegistrationRequests() {
                   </div>
                   {r.status === 'PENDING' && (
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button size="xs" variant="primary" onClick={() => approveMutation.mutate(r.id)}
+                      <Button size="xs" variant="primary" className="min-h-11" onClick={() => approveMutation.mutate(r.id)}
                         disabled={approveMutation.isPending}>
                         <CheckCircle size={14} className="mr-1" />Подтвердить
                       </Button>
-                      <Button size="xs" variant="ghost" onClick={() => setRejectModal({ id: r.id, name: r.name })}>
+                      <Button size="xs" variant="ghost" className="min-h-11" onClick={() => setRejectModal({ id: r.id, name: r.name })}>
                         <XCircle size={14} className="mr-1" />Отклонить
                       </Button>
                     </div>
@@ -118,8 +118,8 @@ export default function RegistrationRequests() {
 
       {/* Reject modal */}
       {rejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setRejectModal(null)}>
-          <Card padding="lg" className="w-full max-w-sm mx-4" onClick={(e: any) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRejectModal(null)}>
+          <Card padding="lg" className="w-full max-w-sm max-h-[90vh] overflow-y-auto mx-4" onClick={(e: any) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-txt-primary mb-2">Отклонить заявку</h3>
             <p className="text-sm text-txt-muted mb-3">{rejectModal.name}</p>
             <div>

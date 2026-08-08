@@ -190,14 +190,14 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
 
           <motion.div
-            className="relative w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#0D1B2E] shadow-2xl overflow-hidden"
+            className="relative w-full max-w-full sm:max-w-lg rounded-2xl border border-white/[0.08] bg-[#0D1B2E] shadow-2xl max-h-[92dvh] flex flex-col overflow-hidden"
             initial={{ scale: 0.92, opacity: 0, y: 30 }}
             animate={{ scale: 1, opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 300 } }}
             exit={{ scale: 0.92, opacity: 0, y: 30, transition: { duration: 0.15 } }}
           >
             <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#C9A96E]/8 to-transparent pointer-events-none" />
 
-            <div className="relative p-6 pb-0">
+            <div className="relative p-6 pb-0 flex-1 overflow-y-auto overscroll-contain min-h-0">
               <button aria-label="Close" onClick={handleClose} className="absolute top-4 right-4 p-1.5 rounded-lg text-[#7A8899] hover:text-white hover:bg-white/5 transition-colors">
                 <X size={18} />
               </button>
@@ -274,7 +274,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                             value={authData.name}
                             onChange={(e) => setAuthData(d => ({ ...d, name: e.target.value }))}
                             placeholder={t('auth.your_name')}
-                            className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                            className="w-full px-3 py-2.5 min-h-11 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                           />
                         </div>
                       )}
@@ -286,7 +286,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                             value={authData.login}
                             onChange={(e) => setAuthData(d => ({ ...d, login: e.target.value }))}
                             placeholder="email@clinic.kz"
-                            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                            className="w-full pl-9 pr-3 py-2.5 min-h-11 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                           />
                         </div>
                       </div>
@@ -299,7 +299,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                             value={authData.password}
                             onChange={(e) => setAuthData(d => ({ ...d, password: e.target.value }))}
                             placeholder={t('auth.password')}
-                            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                            className="w-full pl-9 pr-3 py-2.5 min-h-11 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                           />
                         </div>
                       </div>
@@ -313,7 +313,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                               value={authData.confirmPassword}
                               onChange={(e) => setAuthData(d => ({ ...d, confirmPassword: e.target.value }))}
                               placeholder={t('auth.repeat_password')}
-                              className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                              className="w-full pl-9 pr-3 py-2.5 min-h-11 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
                         </div>
@@ -331,7 +331,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                               value={authData.clinicName}
                               onChange={(e) => setAuthData(d => ({ ...d, clinicName: e.target.value }))}
                               placeholder={t('auth.clinic_name_placeholder')}
-                              className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                              className="w-full px-3 py-2.5 min-h-11 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
                           <div>
@@ -340,7 +340,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                               value={authData.clinicCity}
                               onChange={(e) => setAuthData(d => ({ ...d, clinicCity: e.target.value }))}
                               placeholder={t('auth.city_placeholder')}
-                              className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                              className="w-full px-3 py-2.5 min-h-11 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
                           <div>
@@ -349,7 +349,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                               value={authData.clinicAddress}
                               onChange={(e) => setAuthData(d => ({ ...d, clinicAddress: e.target.value }))}
                               placeholder={t('auth.address_placeholder')}
-                              className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                              className="w-full px-3 py-2.5 min-h-11 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
                           <div>
@@ -358,7 +358,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                               value={authData.clinicPhone}
                               onChange={(e) => setAuthData(d => ({ ...d, clinicPhone: e.target.value }))}
                               placeholder={t('auth.phone_placeholder')}
-                              className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
+                              className="w-full px-3 py-2.5 min-h-11 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
                         </>
@@ -373,7 +373,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                       <button
                         onClick={handleAuth}
                         disabled={loading}
-                        className="w-full py-2.5 rounded-xl bg-[#C9A96E] text-[#080F1A] font-semibold text-sm hover:bg-[#C9A96E]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="w-full py-2.5 min-h-11 rounded-xl bg-[#C9A96E] text-[#080F1A] font-semibold text-sm hover:bg-[#C9A96E]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {loading ? <Loader2 size={16} className="animate-spin" /> : (isRegister ? <UserPlus size={16} /> : <LogIn size={16} />)}
                         {loading ? t('auth.wait') : (isRegister ? t('auth.register') : t('auth.login'))}
@@ -414,7 +414,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                           value={joinCode}
                           onChange={(e) => setJoinCode(e.target.value)}
                           placeholder={t('auth.invite_code_placeholder')}
-                          className="w-full px-3 py-3 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm font-mono tracking-wider text-center focus:outline-none focus:border-[#3498DB]/50 placeholder-[#4A5568]"
+                          className="w-full px-3 py-3 min-h-11 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm font-mono tracking-wider text-center focus:outline-none focus:border-[#3498DB]/50 placeholder-[#4A5568]"
                           onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
                         />
                       </div>
@@ -422,7 +422,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                       <button
                         onClick={handleJoin}
                         disabled={joinLoading || !joinCode.trim()}
-                        className="w-full py-2.5 rounded-xl bg-[#3498DB] text-white font-semibold text-sm hover:bg-[#3498DB]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="w-full py-2.5 min-h-11 rounded-xl bg-[#3498DB] text-white font-semibold text-sm hover:bg-[#3498DB]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {joinLoading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
                         {joinLoading ? t('auth.joining') : t('auth.join')}

@@ -177,20 +177,20 @@ export default function DiagnosticsTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Diagnostics Management"
         subtitle="Управление диагностикой платформы"
         icon={<Microscope size={20} />}
         actions={
-          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll}>Обновить</Button>
+          <Button icon={<RefreshCw size={16} />} variant="ghost" onClick={refreshAll} className="min-h-11">Обновить</Button>
         }
       />
 
       <div className="flex gap-1 bg-surface-2 rounded-lg p-1 overflow-x-auto">
         {SUB_TABS.map(t => (
           <button key={t.id} onClick={() => { setSubTab(t.id); setSearch(''); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 min-h-11 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${subTab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
             {t.icon}{t.label}
           </button>
         ))}
@@ -199,11 +199,11 @@ export default function DiagnosticsTab() {
       {subTab === 'overview' && (
         <div className="space-y-6">
           {stats.isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
               <StatCard label="Всего направлений" value={sData.totalReferrals ?? sData.total ?? 0} icon={<FileCheck size={18} />} />
               <StatCard label="Сегодня" value={sData.todayReferrals ?? sData.today ?? 0} icon={<Clock size={18} />} />
               <StatCard label="Ожидают" value={sData.pendingReferrals ?? sData.pending ?? 0} icon={<AlertTriangle size={18} />} />
@@ -215,7 +215,7 @@ export default function DiagnosticsTab() {
 
           {/* Financial Overview */}
           {sData.financial && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
                 label="Общий доход (заверш.)"
                 value={`${(sData.financial.totalRevenue || 0).toLocaleString()} ₸`}
@@ -277,9 +277,9 @@ export default function DiagnosticsTab() {
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
               <input value={refSearch} onChange={e => { setRefSearch(e.target.value); setRefPage(1); }} placeholder="Поиск направлений..."
-                className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+                className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-56" />
             </div>
-            <Select value={refStatus} onChange={e => { setRefStatus(e.target.value); setRefPage(1); }} options={STATUS_OPTIONS} size="sm" className="w-auto min-w-[140px]" />
+            <Select value={refStatus} onChange={e => { setRefStatus(e.target.value); setRefPage(1); }} options={STATUS_OPTIONS} size="sm" className="w-auto min-w-[140px] min-h-11" />
           </div>
 
           {referrals.isLoading ? (
@@ -330,14 +330,14 @@ export default function DiagnosticsTab() {
 
       {subTab === 'centers' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            <div className="flex flex-wrap gap-2">
               <div className="relative">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
-                  className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+                  className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-56" />
               </div>
-              <Button icon={<Plus size={16} />} onClick={() => { setEditCenter(null); setCenterForm({ name: '', city: '', phone: '', email: '', address: '' }); setCenterModal('create'); }}>Центр</Button>
+              <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => { setEditCenter(null); setCenterForm({ name: '', city: '', phone: '', email: '', address: '' }); setCenterModal('create'); }}>Центр</Button>
             </div>
           </div>
 
@@ -393,14 +393,14 @@ export default function DiagnosticsTab() {
 
       {subTab === 'labs' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            <div className="flex flex-wrap gap-2">
               <div className="relative">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
-                  className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
+                  className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-56" />
               </div>
-              <Button icon={<Plus size={16} />} onClick={() => { setEditLab(null); setLabForm({ name: '', city: '', phone: '', email: '' }); setLabModal('create'); }}>Лаборатория</Button>
+              <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => { setEditLab(null); setLabForm({ name: '', city: '', phone: '', email: '' }); setLabModal('create'); }}>Лаборатория</Button>
             </div>
           </div>
 
@@ -525,15 +525,15 @@ export default function DiagnosticsTab() {
               });
             }} className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <Select label="Центр" value={commissionForm.centerId} onChange={e => setCommissionForm({ ...commissionForm, centerId: e.target.value, labId: e.target.value ? '' : commissionForm.labId })}
+                <Select label="Центр" className="min-h-11" value={commissionForm.centerId} onChange={e => setCommissionForm({ ...commissionForm, centerId: e.target.value, labId: e.target.value ? '' : commissionForm.labId })}
                   options={[{ value: '', label: '—' }, ...centerList.map((c: any) => ({ value: c.id, label: c.name }))]} />
-                <Select label="Лаборатория" value={commissionForm.labId} onChange={e => setCommissionForm({ ...commissionForm, labId: e.target.value })}
+                <Select label="Лаборатория" className="min-h-11" value={commissionForm.labId} onChange={e => setCommissionForm({ ...commissionForm, labId: e.target.value })}
                   options={[{ value: '', label: '—' }, ...labList.map((l: any) => ({ value: l.id, label: l.name }))]} />
-                <Input label="Процент (%)" type="number" step="0.01" min="0" max="100" value={commissionForm.percentBps} onChange={e => setCommissionForm({ ...commissionForm, percentBps: e.target.value })} placeholder="5.00" />
-                <Input label="Описание" value={commissionForm.description} onChange={e => setCommissionForm({ ...commissionForm, description: e.target.value })} placeholder="Описание правила" />
+                <Input label="Процент (%)" className="min-h-11" type="number" step="0.01" min="0" max="100" value={commissionForm.percentBps} onChange={e => setCommissionForm({ ...commissionForm, percentBps: e.target.value })} placeholder="5.00" />
+                <Input label="Описание" className="min-h-11" value={commissionForm.description} onChange={e => setCommissionForm({ ...commissionForm, description: e.target.value })} placeholder="Описание правила" />
               </div>
-              <div className="flex justify-end">
-                <Button type="submit" icon={<Plus size={16} />} loading={createCommission.isPending}>Создать правило</Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="submit" className="min-h-11" icon={<Plus size={16} />} loading={createCommission.isPending}>Создать правило</Button>
               </div>
             </form>
           </Card>
@@ -589,15 +589,15 @@ export default function DiagnosticsTab() {
           if (centerModal === 'edit' && editCenter) updateCenter.mutate({ id: editCenter.id, ...centerForm });
           else createCenter.mutate(centerForm);
         }} className="space-y-4">
-          <Input label="Название *" value={centerForm.name} onChange={e => setCenterForm({ ...centerForm, name: e.target.value })} required />
+          <Input label="Название *" className="min-h-11" value={centerForm.name} onChange={e => setCenterForm({ ...centerForm, name: e.target.value })} required />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Город" value={centerForm.city} onChange={e => setCenterForm({ ...centerForm, city: e.target.value })} />
-            <Input label="Телефон" value={centerForm.phone} onChange={e => setCenterForm({ ...centerForm, phone: e.target.value })} />
+            <Input label="Город" className="min-h-11" value={centerForm.city} onChange={e => setCenterForm({ ...centerForm, city: e.target.value })} />
+            <Input label="Телефон" className="min-h-11" value={centerForm.phone} onChange={e => setCenterForm({ ...centerForm, phone: e.target.value })} />
           </div>
-          <Input label="Email" value={centerForm.email} onChange={e => setCenterForm({ ...centerForm, email: e.target.value })} type="email" />
-          <Input label="Адрес" value={centerForm.address} onChange={e => setCenterForm({ ...centerForm, address: e.target.value })} />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createCenter.isPending || updateCenter.isPending}>{centerModal === 'edit' ? 'Сохранить' : 'Создать центр'}</Button>
+          <Input label="Email" className="min-h-11" value={centerForm.email} onChange={e => setCenterForm({ ...centerForm, email: e.target.value })} type="email" />
+          <Input label="Адрес" className="min-h-11" value={centerForm.address} onChange={e => setCenterForm({ ...centerForm, address: e.target.value })} />
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button type="submit" className="min-h-11" loading={createCenter.isPending || updateCenter.isPending}>{centerModal === 'edit' ? 'Сохранить' : 'Создать центр'}</Button>
             <Button type="button" variant="ghost" onClick={() => setCenterModal(false)}>Отмена</Button>
           </div>
         </form>
@@ -623,14 +623,14 @@ export default function DiagnosticsTab() {
                           updated[idx] = { ...updated[idx], price: Number(e.target.value) || 0 };
                           setPricingItems(updated);
                         }}
-                        className="w-28 h-8 px-2 rounded-lg bg-white/[0.03] border border-bdr-subtle text-sm text-txt-primary text-right focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20" />
+                        className="w-28 min-h-11 px-2 rounded-lg bg-white/[0.03] border border-bdr-subtle text-sm text-txt-primary text-right focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20" />
                       <span className="text-xs text-txt-muted">₸</span>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-            <div className="flex gap-2 pt-2">
+            <div className="flex flex-wrap gap-2 pt-2">
               <Button onClick={() => {
                 if (!pricingModal) return;
                 savePricing.mutate({
@@ -651,14 +651,14 @@ export default function DiagnosticsTab() {
           if (labModal === 'edit' && editLab) updateLab.mutate({ id: editLab.id, ...labForm });
           else createLab.mutate(labForm);
         }} className="space-y-4">
-          <Input label="Название *" value={labForm.name} onChange={e => setLabForm({ ...labForm, name: e.target.value })} required />
+          <Input label="Название *" className="min-h-11" value={labForm.name} onChange={e => setLabForm({ ...labForm, name: e.target.value })} required />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Город" value={labForm.city} onChange={e => setLabForm({ ...labForm, city: e.target.value })} />
-            <Input label="Телефон" value={labForm.phone} onChange={e => setLabForm({ ...labForm, phone: e.target.value })} />
+            <Input label="Город" className="min-h-11" value={labForm.city} onChange={e => setLabForm({ ...labForm, city: e.target.value })} />
+            <Input label="Телефон" className="min-h-11" value={labForm.phone} onChange={e => setLabForm({ ...labForm, phone: e.target.value })} />
           </div>
-          <Input label="Email" value={labForm.email} onChange={e => setLabForm({ ...labForm, email: e.target.value })} type="email" />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" loading={createLab.isPending || updateLab.isPending}>{labModal === 'edit' ? 'Сохранить' : 'Создать лабораторию'}</Button>
+          <Input label="Email" className="min-h-11" value={labForm.email} onChange={e => setLabForm({ ...labForm, email: e.target.value })} type="email" />
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button type="submit" className="min-h-11" loading={createLab.isPending || updateLab.isPending}>{labModal === 'edit' ? 'Сохранить' : 'Создать лабораторию'}</Button>
             <Button type="button" variant="ghost" onClick={() => setLabModal(false)}>Отмена</Button>
           </div>
         </form>
@@ -706,7 +706,7 @@ export default function DiagnosticsTab() {
                 <p className="text-sm text-txt-secondary">{refDetail.notes}</p>
               </div>
             )}
-            <div className="flex justify-end pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setRefDetail(null)}>Закрыть</Button>
             </div>
           </div>

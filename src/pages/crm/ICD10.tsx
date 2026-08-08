@@ -106,25 +106,25 @@ export default function ICD10() {
   }, [codes, selectedCategory]);
 
   return (
-    <div className="dv-page fade-in space-y-6 py-4 md:py-6">
+    <div className="dv-page fade-in max-w-full overflow-x-hidden space-y-6 py-4 md:py-6">
       <PageHeader
         title="Справочник МКБ-10"
         subtitle="Международная классификация болезней (стоматология)"
         icon={<BookOpen size={24} className="text-dv-gold" />}
       />
 
-      <div className="flex flex-col gap-4 md:flex-row md:items-center">
+      <div className="flex flex-col flex-wrap gap-4 md:flex-row md:items-center">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input
             placeholder="Поиск по коду или названию (например K02 или кариес)…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="min-h-11 w-full pl-9"
           />
         </div>
         <select
-          className="dv-select w-full md:w-64"
+          className="dv-select min-h-11 w-full md:w-64"
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
@@ -136,7 +136,7 @@ export default function ICD10() {
         </select>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {loading ? (
           <div className="col-span-full flex justify-center py-20">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" />

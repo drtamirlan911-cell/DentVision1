@@ -105,7 +105,7 @@ function CenterReferralsTab({ centerId }: { centerId: string }) {
   return (
     <div className="space-y-4">
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <GlassCard padding="sm">
           <div className="flex items-center gap-2"><Activity size={16} className="text-info" /><span className="text-xs text-txt-muted">Всего</span></div>
           <p className="text-xl font-bold text-txt-primary mt-1">{stats.total}</p>
@@ -136,13 +136,13 @@ function CenterReferralsTab({ centerId }: { centerId: string }) {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск по пациенту..." className="w-full bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск по пациенту..." className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
           <option value="">Все статусы</option>
           {Object.entries(STATUS_MAP).map(([key, v]) => (<option key={key} value={key}>{v.label}</option>))}
         </select>
-        <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={() => refetch()}>Обновить</Button>
+        <Button variant="ghost" size="sm" className="min-h-11" icon={<RefreshCw size={14} />} onClick={() => refetch()}>Обновить</Button>
       </div>
 
       {/* Referrals table */}
@@ -172,7 +172,7 @@ function CenterReferralsTab({ centerId }: { centerId: string }) {
                   return (
                     <tr key={r.id} className="border-b border-bdr-subtle/50 hover:bg-surface-1/30 transition-colors">
                       <td className="py-2.5 pr-3">
-                        <button onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} className="font-medium text-txt-primary hover:text-dv-gold transition-colors">{r.patientName || 'Неизвестно'}</button>
+                        <button onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} className="min-h-11 flex items-center font-medium text-txt-primary hover:text-dv-gold transition-colors">{r.patientName || 'Неизвестно'}</button>
                       </td>
                       <td className="py-2.5 pr-3 text-txt-muted">{r.studyType || '—'}</td>
                       <td className="py-2.5 pr-3 text-txt-muted">{r.clinic?.name || r.clinicName || '—'}</td>
@@ -189,15 +189,15 @@ function CenterReferralsTab({ centerId }: { centerId: string }) {
                       <td className="py-2.5 pr-3">
                         <div className="flex items-center gap-1">
                           {r.status === 'SENT' && (
-                            <Button size="xs" variant="primary" onClick={() => setCostModal(r.id)}>Принять</Button>
+                            <Button size="xs" variant="primary" className="min-h-11" onClick={() => setCostModal(r.id)}>Принять</Button>
                           )}
                           {r.status === 'ACCEPTED' && (
-                            <Button size="xs" variant="primary" onClick={() => statusMutation.mutate({ id: r.id, status: 'IN_PROGRESS' })}>Начать</Button>
+                            <Button size="xs" variant="primary" className="min-h-11" onClick={() => statusMutation.mutate({ id: r.id, status: 'IN_PROGRESS' })}>Начать</Button>
                           )}
                           {r.status === 'IN_PROGRESS' && (
-                            <Button size="xs" variant="primary" onClick={() => { setResultModal(r.id); setReportText(''); setConclusion(''); setResultFiles([]); }}>Результат</Button>
+                            <Button size="xs" variant="primary" className="min-h-11" onClick={() => { setResultModal(r.id); setReportText(''); setConclusion(''); setResultFiles([]); }}>Результат</Button>
                           )}
-                          <Button size="xs" variant="ghost" icon={<Eye size={14} />} aria-label="View" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} />
+                          <Button size="xs" variant="ghost" className="min-h-11" icon={<Eye size={14} />} aria-label="View" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} />
                         </div>
                       </td>
                     </tr>
@@ -217,15 +217,15 @@ function CenterReferralsTab({ centerId }: { centerId: string }) {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Стоимость услуги (₸)</label>
-                <input type="number" value={costValue} onChange={(e) => setCostValue(e.target.value)} placeholder="Напр. 15000" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                <input type="number" value={costValue} onChange={(e) => setCostValue(e.target.value)} placeholder="Напр. 15000" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Комиссия платформы (₸, опционально)</label>
-                <input type="number" value={feeValue} onChange={(e) => setFeeValue(e.target.value)} placeholder="Напр. 1500" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                <input type="number" value={feeValue} onChange={(e) => setFeeValue(e.target.value)} placeholder="Напр. 1500" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="ghost" size="sm" onClick={() => setCostModal(null)}>Отмена</Button>
-                <Button variant="primary" size="sm" onClick={() => handleAccept(costModal)} disabled={!costValue || parseFloat(costValue) <= 0}>Принять</Button>
+                <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setCostModal(null)}>Отмена</Button>
+                <Button variant="primary" size="sm" className="min-h-11" onClick={() => handleAccept(costModal)} disabled={!costValue || parseFloat(costValue) <= 0}>Принять</Button>
               </div>
             </div>
           </Card>
@@ -241,7 +241,7 @@ function CenterReferralsTab({ centerId }: { centerId: string }) {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs text-txt-muted">Заключение / Описание результата</label>
-                  <Button variant="ghost" size="xs" icon={<Sparkles size={12} />} onClick={() => aiMutation.mutate(resultModal)} loading={aiMutation.isPending}>AI</Button>
+                  <Button variant="ghost" size="xs" className="min-h-11" icon={<Sparkles size={12} />} onClick={() => aiMutation.mutate(resultModal)} loading={aiMutation.isPending}>AI</Button>
                 </div>
                 <Textarea value={reportText} onChange={(e) => setReportText(e.target.value)} rows={6} placeholder="Введите заключение или сгенерируйте AI" />
               </div>
@@ -265,8 +265,8 @@ function CenterReferralsTab({ centerId }: { centerId: string }) {
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="ghost" size="sm" onClick={() => setResultModal(null)}>Отмена</Button>
-                <Button variant="primary" size="sm" onClick={() => signMutation.mutate(resultModal)} loading={signMutation.isPending} disabled={!reportText}>Отправить результат</Button>
+                <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setResultModal(null)}>Отмена</Button>
+                <Button variant="primary" size="sm" className="min-h-11" onClick={() => signMutation.mutate(resultModal)} loading={signMutation.isPending} disabled={!reportText}>Отправить результат</Button>
               </div>
             </div>
           </Card>
@@ -329,11 +329,11 @@ function CenterServicesTab({ centerId }: { centerId: string }) {
 
   return (
     <Card padding="md">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h3 className="text-sm font-semibold text-txt-primary">Прайс-лист услуг</h3>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" icon={<Plus size={14} />} onClick={() => setAddOpen(true)}>Добавить услугу</Button>
-          <Button variant="primary" size="sm" icon={<Save size={14} />} onClick={handleSave} loading={saveMutation.isPending}>Сохранить</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="sm" className="min-h-11" icon={<Plus size={14} />} onClick={() => setAddOpen(true)}>Добавить услугу</Button>
+          <Button variant="primary" size="sm" className="min-h-11" icon={<Save size={14} />} onClick={handleSave} loading={saveMutation.isPending}>Сохранить</Button>
         </div>
       </div>
       {isLoading ? <Skeleton className="h-48" /> : (
@@ -353,7 +353,7 @@ function CenterServicesTab({ centerId }: { centerId: string }) {
                   <td className="py-2.5 pr-3 font-medium text-txt-primary">{s.name}</td>
                   <td className="py-2.5 pr-3 text-txt-muted">{s.category}</td>
                   <td className="py-2.5 pr-3">
-                    <input type="number" value={prices[s.id] ?? ''} onChange={(e) => setPrices((p: any) => ({ ...p, [s.id]: e.target.value }))} className="w-28 bg-surface-1 border border-bdr-subtle rounded-lg px-2 py-1 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                    <input type="number" value={prices[s.id] ?? ''} onChange={(e) => setPrices((p: any) => ({ ...p, [s.id]: e.target.value }))} className="w-28 min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-2 py-1 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
                   </td>
                   <td className="py-2.5 pr-3"><Badge variant="outline" style={{ borderColor: s.active ? '#27AE60' : '#E74C3C', color: s.active ? '#27AE60' : '#E74C3C' }}>{s.active ? 'Активна' : 'Не активна'}</Badge></td>
                 </tr>
@@ -373,21 +373,21 @@ function CenterServicesTab({ centerId }: { centerId: string }) {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Название услуги</label>
-                <input type="text" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} placeholder="Напр. Конусно-лучевая КТ" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                <input type="text" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} placeholder="Напр. Конусно-лучевая КТ" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Категория</label>
-                <select value={addForm.category} onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))} className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
+                <select value={addForm.category} onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))} className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
                   {DIAG_CATEGORIES.map((c) => (<option key={c} value={c}>{c}</option>))}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Цена (₸)</label>
-                <input type="number" value={addForm.price} onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))} placeholder="Напр. 15000" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                <input type="number" value={addForm.price} onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))} placeholder="Напр. 15000" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="ghost" size="sm" onClick={() => setAddOpen(false)}>Отмена</Button>
-                <Button variant="primary" size="sm" onClick={handleCreate} loading={createMutation.isPending} disabled={!addForm.name.trim()}>Добавить</Button>
+                <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setAddOpen(false)}>Отмена</Button>
+                <Button variant="primary" size="sm" className="min-h-11" onClick={handleCreate} loading={createMutation.isPending} disabled={!addForm.name.trim()}>Добавить</Button>
               </div>
             </div>
           </Card>
@@ -411,7 +411,7 @@ function CenterPaymentsTab({ centerId }: { centerId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <GlassCard padding="sm">
           <div className="flex items-center gap-2"><DollarSign size={16} className="text-success" /><span className="text-xs text-txt-muted">Выручка</span></div>
           <p className="text-xl font-bold text-txt-primary mt-1">{Number(totals.totalRevenue).toLocaleString()} ₸</p>
@@ -548,7 +548,7 @@ function CenterCashierTab({ centerId }: { centerId: string }) {
                   <button
                     key={r.id}
                     onClick={() => pickReferral(r.id)}
-                    className={`w-full text-left rounded-xl border px-3 py-2.5 transition-colors ${active ? 'border-dv-gold bg-dv-gold/10' : 'border-bdr-subtle bg-surface-1/40 hover:border-dv-gold/40'}`}
+                    className={`w-full min-h-11 text-left rounded-xl border px-3 py-2.5 transition-colors ${active ? 'border-dv-gold bg-dv-gold/10' : 'border-bdr-subtle bg-surface-1/40 hover:border-dv-gold/40'}`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-txt-primary truncate">{r.patientName || 'Неизвестно'}</span>
@@ -573,11 +573,11 @@ function CenterCashierTab({ centerId }: { centerId: string }) {
           ) : (
             <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
               {studies.map((s: any) => (
-                <button
+                  <button
                   key={s.id}
                   onClick={() => addToCart(s)}
                   disabled={cart.some((c) => c.studyId === s.id)}
-                  className="w-full flex items-center justify-between gap-2 rounded-lg border border-bdr-subtle px-3 py-2 text-left hover:border-dv-gold/40 transition-colors disabled:opacity-40"
+                  className="w-full min-h-11 flex items-center justify-between gap-2 rounded-lg border border-bdr-subtle px-3 py-2 text-left hover:border-dv-gold/40 transition-colors disabled:opacity-40"
                 >
                   <span className="text-sm text-txt-primary truncate">{s.name}</span>
                   <span className="text-sm font-semibold text-dv-gold shrink-0">{Number(s.price || 0).toLocaleString()} ₸</span>
@@ -598,7 +598,7 @@ function CenterCashierTab({ centerId }: { centerId: string }) {
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
                   <h3 className="text-lg font-semibold text-txt-primary">Касса — {selected.patientName || 'Пациент'}</h3>
                   <p className="text-xs text-txt-muted mt-0.5">{selected.studyType || 'Услуга'} · {new Date(selected.createdAt).toLocaleDateString()}</p>
@@ -616,7 +616,7 @@ function CenterCashierTab({ centerId }: { centerId: string }) {
                     <span className="text-txt-muted">{c.name}</span>
                     <span className="flex items-center gap-2">
                       <span className="text-txt-primary font-medium">{Number(c.price).toLocaleString()} ₸</span>
-                      <button onClick={() => setCart((prev) => prev.filter((x) => x.studyId !== c.studyId))} className="text-txt-ghost hover:text-error transition-colors" aria-label="Убрать">
+                      <button onClick={() => setCart((prev) => prev.filter((x) => x.studyId !== c.studyId))} className="min-h-11 w-8 flex items-center justify-center text-txt-ghost hover:text-error transition-colors" aria-label="Убрать">
                         <X size={14} />
                       </button>
                     </span>
@@ -631,11 +631,11 @@ function CenterCashierTab({ centerId }: { centerId: string }) {
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
                   <label className="text-xs text-txt-muted block mb-1">Пациент платит (₸)</label>
-                  <input type="number" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} placeholder={String(total)} className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                  <input type="number" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} placeholder={String(total)} className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
                 </div>
                 <div>
                   <label className="text-xs text-txt-muted block mb-1">Комиссия платформы (%)</label>
-                  <input type="number" value={feePercent} onChange={(e) => setFeePercent(e.target.value)} className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                  <input type="number" value={feePercent} onChange={(e) => setFeePercent(e.target.value)} className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
                 </div>
               </div>
 
@@ -645,7 +645,7 @@ function CenterCashierTab({ centerId }: { centerId: string }) {
                 <div className="flex justify-between text-sm border-t border-bdr-subtle pt-2"><span className="text-txt-primary font-semibold">К выплате центру</span><span className="text-success font-bold">{net.toLocaleString()} ₸</span></div>
               </div>
 
-              <Button variant="primary" className="w-full" icon={<Wallet size={16} />} loading={collectMutation.isPending} disabled={paid <= 0} onClick={() => collectMutation.mutate({ referralId: selected.id, cost: paid, platformFee: fee })}>
+              <Button variant="primary" className="w-full min-h-11" icon={<Wallet size={16} />} loading={collectMutation.isPending} disabled={paid <= 0} onClick={() => collectMutation.mutate({ referralId: selected.id, cost: paid, platformFee: fee })}>
                 Принять оплату {paid.toLocaleString()} ₸
               </Button>
             </>
@@ -670,7 +670,7 @@ function CenterFinanceTab({ centerId }: { centerId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <GlassCard padding="sm">
           <div className="flex items-center gap-2"><TrendingUp size={16} className="text-success" /><span className="text-xs text-txt-muted">Доход сегодня</span></div>
           <p className="text-xl font-bold text-txt-primary mt-1">{fmt(d.revenue?.today)}</p>
@@ -704,7 +704,7 @@ function CenterFinanceTab({ centerId }: { centerId: string }) {
         </Card>
         <Card padding="md">
           <h3 className="text-sm font-semibold text-txt-primary mb-3">Статусы направлений</h3>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {(d.byStatus ? Object.entries(d.byStatus as Record<string, number>).sort(([,a],[,b]) => (b as number) - (a as number)) : []).map(([status, count]) => {
               const statusInfo = STATUS_MAP[status] || { label: status, color: '#95A5A6' };
               return (
@@ -749,7 +749,7 @@ export default function CenterDashboard() {
   ];
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-full p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-txt-primary">Панель диагностического центра</h1>
@@ -759,9 +759,9 @@ export default function CenterDashboard() {
 
       {!isOwnOrg && (
         <Card padding="md">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Building2 size={18} className="text-dv-gold shrink-0" />
-            <select value={centerId} onChange={(e) => setCenterId(e.target.value)} className="flex-1 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
+            <select value={centerId} onChange={(e) => setCenterId(e.target.value)} className="flex-1 min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
               <option value="">Выберите диагностический центр</option>
               {centers.map((c: any) => (<option key={c.id} value={c.id}>{c.name} — {c.city}</option>))}
             </select>
@@ -771,7 +771,9 @@ export default function CenterDashboard() {
 
       {centerId && (
         <>
-          <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+          </div>
           {activeTab === 'cashier' && <CenterCashierTab centerId={centerId} />}
           {activeTab === 'referrals' && <CenterReferralsTab centerId={centerId} />}
           {activeTab === 'finance' && <CenterFinanceTab centerId={centerId} />}

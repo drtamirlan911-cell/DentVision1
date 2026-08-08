@@ -133,7 +133,7 @@ export default function PartnerLegal() {
           <Scale size={48} className="mx-auto mb-3 text-txt-muted" />
           <h2 className="text-lg font-bold text-txt-primary mb-2">Юридические документы</h2>
           <p className="text-sm text-txt-muted mb-4">У вашей клиники ещё нет юридических документов в системе. Заполните реквизиты для их создания.</p>
-          <Button onClick={() => setShowLegalForm(true)}>Заполнить реквизиты</Button>
+          <Button className="min-h-11" onClick={() => setShowLegalForm(true)}>Заполнить реквизиты</Button>
         </GlassCard>
       </div>
     );
@@ -162,7 +162,7 @@ export default function PartnerLegal() {
               <div key={f.key}>
                 <label className="text-xs text-txt-secondary mb-1 block">{f.label}</label>
                 <input
-                  className="w-full px-3 py-2 bg-surface-1 border border-bdr-subtle rounded-lg text-sm text-txt-primary focus:outline-none focus:border-dv-gold"
+                  className="w-full px-3 py-2 min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg text-sm text-txt-primary focus:outline-none focus:border-dv-gold"
                   placeholder={f.placeholder}
                   value={(legalForm as any)[f.key]}
                   onChange={e => setLegalForm({ ...legalForm, [f.key]: e.target.value })}
@@ -172,8 +172,8 @@ export default function PartnerLegal() {
           </div>
           {onboardMutation.isError && <p className="text-xs text-red-400 mt-3">{(onboardMutation.error as any)?.message || 'Ошибка'}</p>}
           <div className="flex gap-2 mt-4">
-            <Button onClick={() => onboardMutation.mutate()} loading={onboardMutation.isPending} className="flex-1">Создать документы</Button>
-            <Button variant="ghost" onClick={() => setShowLegalForm(false)}>Отмена</Button>
+            <Button className="min-h-11 flex-1" onClick={() => onboardMutation.mutate()} loading={onboardMutation.isPending}>Создать документы</Button>
+            <Button variant="ghost" className="min-h-11" onClick={() => setShowLegalForm(false)}>Отмена</Button>
           </div>
         </GlassCard>
       </div>
@@ -187,7 +187,7 @@ export default function PartnerLegal() {
           <Scale size={48} className="mx-auto mb-3 text-red-400" />
           <h2 className="text-lg font-bold text-txt-primary mb-2">Ошибка загрузки</h2>
           <p className="text-sm text-txt-muted mb-4">{(error as any)?.message || 'Неизвестная ошибка'}</p>
-          <Button onClick={() => qc.invalidateQueries({ queryKey: ['partner-legal-docs'] })}>Повторить</Button>
+          <Button className="min-h-11" onClick={() => qc.invalidateQueries({ queryKey: ['partner-legal-docs'] })}>Повторить</Button>
         </GlassCard>
       </div>
     );
@@ -204,7 +204,7 @@ export default function PartnerLegal() {
           <div className="flex gap-1">
             <Button size="icon-xs" variant="ghost" aria-label="Просмотр">{expandedDoc === d.id ? <ChevronDown size={14} /> : <Eye size={14} />}</Button>
             {(d.status === 'DRAFT' || d.status === 'REVIEW') && (
-              <Button size="xs" icon={<CheckCircle size={12} />} onClick={(e) => {
+              <Button size="xs" icon={<CheckCircle size={12} />} className="min-h-11" onClick={(e) => {
                 e.stopPropagation();
                 const p = partnerInfo as any;
                 if (p && (!p.legalName || !p.bin || !p.director || !p.address || !p.iban)) {
@@ -233,13 +233,13 @@ export default function PartnerLegal() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="w-full max-w-full overflow-x-hidden space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Scale size={20} className="text-dv-gold" />
           <h2 className="text-lg font-bold text-txt-primary">Партнёрский портал Legal Engine</h2>
         </div>
-        <Button size="xs" variant="outline" onClick={() => setEditLegal(true)}>Реквизиты</Button>
+        <Button size="xs" variant="outline" className="min-h-11" onClick={() => setEditLegal(true)}>Реквизиты</Button>
       </div>
 
       {pendingDocs.length > 0 && (
@@ -247,14 +247,16 @@ export default function PartnerLegal() {
           <CardHeader className="px-4 pt-4 pb-0">
             <CardTitle><div className="flex items-center gap-2 text-dv-gold"><FileText size={16} /> Требуют подписания ({pendingDocs.length})</div></CardTitle>
           </CardHeader>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-bdr-subtle">
-                {['Номер', 'Тип', 'Статус', 'Создан', 'Действия'].map(h => <th key={h} className="px-3 py-2 text-left text-xs font-bold text-txt-muted uppercase">{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>{pendingDocs.map(renderDocRow)}</tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-bdr-subtle">
+                  {['Номер', 'Тип', 'Статус', 'Создан', 'Действия'].map(h => <th key={h} className="px-3 py-2 text-left text-xs font-bold text-txt-muted uppercase">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>{pendingDocs.map(renderDocRow)}</tbody>
+            </table>
+          </div>
         </Card>
       )}
 
@@ -265,14 +267,16 @@ export default function PartnerLegal() {
         {(!docsArr.length) ? (
           <EmptyState icon={<FileText size={32} />} title="Нет документов" description="У вас пока нет юридических документов" />
         ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-bdr-subtle">
-                {['Номер', 'Тип', 'Статус', 'Создан', 'Действия'].map(h => <th key={h} className="px-3 py-2 text-left text-xs font-bold text-txt-muted uppercase">{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>{docsArr.map(renderDocRow)}</tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-bdr-subtle">
+                  {['Номер', 'Тип', 'Статус', 'Создан', 'Действия'].map(h => <th key={h} className="px-3 py-2 text-left text-xs font-bold text-txt-muted uppercase">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>{docsArr.map(renderDocRow)}</tbody>
+            </table>
+          </div>
         )}
       </Card>
 
@@ -283,23 +287,25 @@ export default function PartnerLegal() {
         {(!invoices || (Array.isArray(invoices) && invoices.length === 0)) ? (
           <EmptyState icon={<Receipt size={32} />} title="Нет инвойсов" />
         ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-bdr-subtle">
-                {['Номер', 'Сумма', 'Статус', 'Создан'].map(h => <th key={h} className="px-3 py-2 text-left text-xs font-bold text-txt-muted uppercase">{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {(Array.isArray(invoices) ? invoices : []).map((inv: any) => (
-                <tr key={inv.id} className="border-b border-bdr-subtle/50">
-                  <td className="px-3 py-2 text-sm font-mono text-txt-primary">{inv.invoiceNumber}</td>
-                  <td className="px-3 py-2 text-sm font-semibold text-txt-primary">{fmtKzt(inv.amountKzt)}</td>
-                  <td className="px-3 py-2"><Badge size="xs" className={statusColors[inv.status] || ''}>{inv.status}</Badge></td>
-                  <td className="px-3 py-2 text-xs text-txt-muted">{fd(inv.createdAt)}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-bdr-subtle">
+                  {['Номер', 'Сумма', 'Статус', 'Создан'].map(h => <th key={h} className="px-3 py-2 text-left text-xs font-bold text-txt-muted uppercase">{h}</th>)}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(Array.isArray(invoices) ? invoices : []).map((inv: any) => (
+                  <tr key={inv.id} className="border-b border-bdr-subtle/50">
+                    <td className="px-3 py-2 text-sm font-mono text-txt-primary">{inv.invoiceNumber}</td>
+                    <td className="px-3 py-2 text-sm font-semibold text-txt-primary">{fmtKzt(inv.amountKzt)}</td>
+                    <td className="px-3 py-2"><Badge size="xs" className={statusColors[inv.status] || ''}>{inv.status}</Badge></td>
+                    <td className="px-3 py-2 text-xs text-txt-muted">{fd(inv.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
@@ -340,8 +346,8 @@ export default function PartnerLegal() {
           ))}
           {updateLegalMutation.isError && <p className="text-xs text-red-400">{(updateLegalMutation.error as any)?.message}</p>}
           <div className="flex gap-2 pt-2">
-            <Button onClick={() => updateLegalMutation.mutate()} loading={updateLegalMutation.isPending}>Сохранить</Button>
-            <Button variant="ghost" onClick={() => setEditLegal(false)}>Отмена</Button>
+            <Button className="min-h-11" onClick={() => updateLegalMutation.mutate()} loading={updateLegalMutation.isPending}>Сохранить</Button>
+            <Button variant="ghost" className="min-h-11" onClick={() => setEditLegal(false)}>Отмена</Button>
           </div>
         </div>
       </Modal>
@@ -351,8 +357,8 @@ export default function PartnerLegal() {
           <p className="text-sm text-txt-secondary">Подтверждая подписание, вы соглашаетесь с условиями документа в соответствии с законодательством Республики Казахстан.</p>
           <p className="text-xs text-txt-muted">Электронная подпись приравнивается к собственноручной (Закон РК «Об электронном документе и ЭЦП»).</p>
           <div className="flex gap-2 pt-2">
-            <Button onClick={() => { if (signConfirm) signMutation.mutate(signConfirm); }} loading={signMutation.isPending}>Подписать</Button>
-            <Button variant="ghost" onClick={() => setSignConfirm(null)}>Отмена</Button>
+            <Button className="min-h-11" onClick={() => { if (signConfirm) signMutation.mutate(signConfirm); }} loading={signMutation.isPending}>Подписать</Button>
+            <Button variant="ghost" className="min-h-11" onClick={() => setSignConfirm(null)}>Отмена</Button>
           </div>
         </div>
       </Modal>

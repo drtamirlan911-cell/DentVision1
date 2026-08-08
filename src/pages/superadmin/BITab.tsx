@@ -215,7 +215,7 @@ export default function BITab() {
 
   if (dashboardLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-full overflow-x-hidden">
         <Skeleton className="h-12 w-64" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
@@ -231,14 +231,14 @@ export default function BITab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Business Intelligence"
         subtitle="Платформенная аналитика и AI CFO"
         icon={<BarChart3 className="text-primary" size={24} />}
       />
 
-      <div className="flex gap-2 p-1 bg-surface/50 rounded-xl w-fit">
+      <div className="flex flex-wrap gap-2 p-1 bg-surface/50 rounded-xl w-full sm:w-fit">
         {subTabs.map((tab) => (
           <button
             key={tab.id}
@@ -470,19 +470,20 @@ export default function BITab() {
                 <div ref={chatEndRef} />
               </div>
 
-              <div className="flex gap-2 pt-4 border-t border-border/50">
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-border/50">
                 <Input
                   placeholder="Задайте вопрос о финансах..."
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyPress={handleKeyPress}
                   disabled={cfoChatMutation.isPending}
-                  className="flex-1"
+                  className="flex-1 min-h-11"
                 />
                 <Button
                   onClick={handleSendMessage}
                   disabled={!chatInput.trim() || cfoChatMutation.isPending}
                   size="icon"
+                  className="min-h-11 min-w-11"
                 >
                   {cfoChatMutation.isPending ? (
                     <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />

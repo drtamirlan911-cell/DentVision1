@@ -424,7 +424,7 @@ export default function Cashier() {
   ]
 
   return (
-    <div className="dv-page py-4 md:py-6">
+    <div className="dv-page max-w-full overflow-x-hidden py-4 md:py-6">
       <PageHeader
         title="Финансы"
         subtitle="Касса, зарплаты, расходы и P&L клиники"
@@ -435,6 +435,7 @@ export default function Cashier() {
               variant="ghost"
               size="sm"
               icon={<Settings2 size={16} />}
+              className="min-h-11 sm:min-h-0"
               onClick={() => setShowSettings((v) => !v)}
             >
               Касса
@@ -443,14 +444,15 @@ export default function Cashier() {
               variant="ghost"
               size="sm"
               icon={<ExternalLink size={16} />}
+              className="min-h-11 sm:min-h-0"
               onClick={() => navigate('/crm/inventory')}
             >
               Склад
             </Button>
-            <Button variant="secondary" icon={<Plus size={16} />} onClick={() => setExpModalOpen(true)}>
+            <Button variant="secondary" icon={<Plus size={16} />} className="min-h-11 sm:min-h-0" onClick={() => setExpModalOpen(true)}>
               Расход
             </Button>
-            <Button icon={<Plus size={16} />} onClick={handleNewTransaction}>
+            <Button icon={<Plus size={16} />} className="min-h-11 sm:min-h-0" onClick={handleNewTransaction}>
               Оплата
             </Button>
           </>
@@ -482,6 +484,7 @@ export default function Cashier() {
                 variant="outline"
                 size="sm"
                 icon={<CreditCard size={14} />}
+                className="min-h-11 sm:min-h-0"
                 onClick={() => handleQuickPayment(preset)}
               >
                 {preset.name} · {money(preset.price)}
@@ -537,7 +540,7 @@ export default function Cashier() {
                     placeholder="Поиск..."
                     value={searchUnpaid}
                     onChange={e => setSearchUnpaid(e.target.value)}
-                    className="pl-9 !h-8 !text-xs !w-48"
+                    className="pl-9 !h-8 !text-xs w-full sm:w-48"
                   />
                 </div>
               </div>
@@ -558,15 +561,15 @@ export default function Cashier() {
                         key={appt.id}
                         initial={{ opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center justify-between p-4 rounded-xl border border-warning/20 bg-warning/5 hover:bg-warning/8 transition-colors"
+                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border border-warning/20 bg-warning/5 hover:bg-warning/8 transition-colors gap-3 sm:gap-0"
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
                             <User size={14} className="text-txt-muted flex-shrink-0" />
                             <span className="text-sm font-semibold text-txt-primary truncate">{patient?.name || 'Пациент'}</span>
                             <Badge variant="warning" size="xs">Не оплачено</Badge>
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-txt-secondary">
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-txt-secondary">
                             {appt.serviceName && (
                               <span className="flex items-center gap-1">
                                 <Stethoscope size={12} className="text-txt-muted" />
@@ -576,7 +579,7 @@ export default function Cashier() {
                             {doctor && <span className="text-txt-muted">{doctor.name}</span>}
                             <span className="text-txt-muted">{appt.date} · {appt.time}</span>
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             {appt.diagnosis && (
                               <span className="text-2xs text-dv-gold font-medium">{appt.diagnosis?.split(' — ')[0]}</span>
                             )}
@@ -585,11 +588,12 @@ export default function Cashier() {
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                        <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 w-full sm:w-auto sm:ml-3">
                           <span className="text-lg font-bold text-warning">{money(appt.servicePrice || 0)}</span>
                           <Button
                             size="sm"
                             icon={<CreditCard size={14} />}
+                            className="min-h-11 sm:min-h-0"
                             onClick={() => openPaymentModal(appt)}
                           >
                             Оплата
@@ -645,7 +649,7 @@ export default function Cashier() {
                                 variant="ghost"
                                 size="icon-sm"
                                 icon={<Trash2 size={14} />}
-                                className="text-error/60 hover:text-error"
+                                className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 text-error/60 hover:text-error"
                                 onClick={() => voidReceipt(r.id)}
                                 aria-label="Удалить операцию"
                               />
@@ -672,16 +676,17 @@ export default function Cashier() {
               )}
               <div className="space-y-2.5">
                 {debtRows.map((d, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-error/20 bg-error/5">
+                  <div key={i} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border border-error/20 bg-error/5 gap-3 sm:gap-0">
                     <div>
                       <p className="text-sm font-semibold text-txt-primary">{d.patient}</p>
                       <p className="text-xs text-txt-muted mt-0.5">от {fd(d.date)}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap w-full sm:w-auto">
                       <span className="text-lg font-bold text-error">{money(d.amount)}</span>
                       <Button
                         size="sm"
                         icon={<CreditCard size={14} />}
+                        className="min-h-11 sm:min-h-0"
                         onClick={() => openDebtPayment(d)}
                       >
                         Оплатить
@@ -690,6 +695,7 @@ export default function Cashier() {
                         variant="ghost"
                         size="sm"
                         icon={<Send size={14} />}
+                        className="min-h-11 sm:min-h-0"
                         onClick={() => {
                           if (!d.phone) {
                             showToast('У пациента нет телефона', 'warning')
@@ -717,6 +723,7 @@ export default function Cashier() {
                   variant="outline"
                   size="sm"
                   icon={<Download size={14} />}
+                  className="min-h-11 sm:min-h-0"
                   disabled={!financeReport}
                   onClick={() => {
                     downloadCsv(
@@ -743,7 +750,7 @@ export default function Cashier() {
                 <EmptyState icon={<TrendingUp size={32} />} title="Нет данных" description="Оплатите счета — отчёт появится автоматически" />
               ) : (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <StatCard label="Выручка" value={money(financeReport.totals?.revenue || 0)} icon={<DollarSign size={16} />} />
                     <StatCard label="Оплат" value={String(financeReport.totals?.paidCount || 0)} icon={<CheckCircle size={16} />} />
                     <StatCard label="Расходы" value={money(financeReport.totals?.expenses || 0)} icon={<TrendingDown size={16} />} />
@@ -843,7 +850,7 @@ export default function Cashier() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="Пациент"
               value={form.patientId}
@@ -876,7 +883,7 @@ export default function Cashier() {
             onChange={e => setForm({ ...form, service: e.target.value })}
             placeholder="Название услуги"
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="Способ оплаты"
               value={form.paymentMethod}
@@ -900,13 +907,13 @@ export default function Cashier() {
             value={form.notes}
             onChange={e => setForm({ ...form, notes: e.target.value })}
           />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1" loading={payBusy} icon={<CreditCard size={16} />}>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button type="submit" className="flex-1 min-h-11 sm:min-h-0" loading={payBusy} icon={<CreditCard size={16} />}>
               {isOnlineQrMethod(form.paymentMethod) && form.paymentType !== 'credit'
                 ? `Создать QR ${form.amount ? money(Number(form.amount)) : ''}`
                 : `Принять оплату ${form.amount ? money(Number(form.amount)) : ''}`}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => { setModalOpen(false); setPendingPay(null) }}>Отмена</Button>
+            <Button type="button" variant="ghost" className="min-h-11 sm:min-h-0" onClick={() => { setModalOpen(false); setPendingPay(null) }}>Отмена</Button>
           </div>
         </form>
         )}
@@ -917,6 +924,7 @@ export default function Cashier() {
         open={expModalOpen}
         onClose={() => setExpModalOpen(false)}
         title="Новый расход"
+        className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2"
       >
         <form onSubmit={handleExpenseSubmit} className="space-y-4">
           <Select
@@ -945,9 +953,9 @@ export default function Cashier() {
             value={expenseForm.notes}
             onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })}
           />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">Добавить</Button>
-            <Button type="button" variant="ghost" onClick={() => setExpModalOpen(false)}>Отмена</Button>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button type="submit" className="flex-1 min-h-11 sm:min-h-0">Добавить</Button>
+            <Button type="button" variant="ghost" className="min-h-11 sm:min-h-0" onClick={() => setExpModalOpen(false)}>Отмена</Button>
           </div>
         </form>
       </Modal>

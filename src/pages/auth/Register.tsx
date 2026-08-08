@@ -58,11 +58,11 @@ export default function Register({ onBack }: RegisterProps) {
   const displayError = error || localError;
 
   return (
-    <div className="min-h-screen bg-surface-0 flex items-center justify-center p-5 relative overflow-hidden">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-surface-0 flex items-center justify-center p-5 relative overflow-hidden">
       <div className="absolute w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,rgba(201,169,110,0.06)_0%,transparent_70%)] -top-24 -right-24 pointer-events-none" />
       <div className="absolute w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,rgba(39,174,96,0.05)_0%,transparent_70%)] -bottom-20 -left-20 pointer-events-none" />
 
-      <div className="w-full max-w-[480px] bg-surface-1 border border-dv-gold/15 rounded-[18px] py-9 px-8 shadow-[0_40px_80px_rgba(0,0,0,0.5)] relative z-10">
+      <div className="w-full max-w-md sm:max-w-lg bg-surface-1 border border-dv-gold/15 rounded-[18px] py-9 px-8 shadow-[0_40px_80px_rgba(0,0,0,0.5)] relative z-10">
         <div className="text-center mb-7">
           <div className="mb-2.5 flex justify-center text-dv-gold">
             <UserPlus size={40} />
@@ -102,15 +102,15 @@ export default function Register({ onBack }: RegisterProps) {
             После регистрации вы сразу получаете доступ к <span className="text-dv-gold">Магазину</span>, <span className="text-dv-gold">Академии</span> и <span className="text-dv-gold">AI-ассистенту</span>. Клинику можно создать или присоединиться к ней позже.
           </div>
 
-          <div className="mt-6 flex gap-2.5">
-            <button type="button" onClick={onBack} className="px-[18px] py-[11px] bg-white/[0.06] border border-bdr-subtle rounded-lg text-txt-muted text-[13px] cursor-pointer">
+          <div className="mt-6 flex flex-col sm:flex-row gap-2.5">
+            <button type="button" onClick={onBack} className="w-full sm:w-auto min-h-11 px-[18px] py-[11px] bg-white/[0.06] border border-bdr-subtle rounded-lg text-txt-muted text-[13px] cursor-pointer">
               ← Назад
             </button>
             <button
               type="button"
               onClick={handleSubmit}
               disabled={loading}
-              className={`flex-1 py-[11px] border-none rounded-lg text-surface-0 text-sm font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(201,169,110,0.3)] ${
+              className={`w-full sm:w-auto sm:flex-1 min-h-11 py-[11px] border-none rounded-lg text-surface-0 text-sm font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(201,169,110,0.3)] ${
                 loading ? 'bg-dv-gold/60 cursor-not-allowed' : 'bg-gradient-to-r from-dv-gold to-[#8B6F3E] cursor-pointer'
               }`}
             >
@@ -153,7 +153,7 @@ function Field({ label, value, onChange, placeholder, type = 'text', hint }: Fie
         value={value}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#C9A96E] transition-colors"
+        className="w-full min-h-11 bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#C9A96E] transition-colors"
       />
       {hint && <div className="text-[11px] text-[#7A8899] mt-1">{hint}</div>}
     </div>

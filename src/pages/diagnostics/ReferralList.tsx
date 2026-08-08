@@ -101,33 +101,33 @@ export default function ReferralList() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 sm:p-6 space-y-4 max-w-full overflow-x-hidden">
+      <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-txt-primary">Направления</h1>
           <p className="text-sm text-txt-muted mt-0.5">{total} всего</p>
         </div>
-        <Button variant="primary" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')}>
+        <Button variant="primary" className="min-h-11" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')}>
           Новое направление
         </Button>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col md:flex-row md:items-center gap-3">
+        <div className="relative flex-1 max-w-full sm:max-w-sm">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input value={search} onChange={e => handleSearch(e.target.value)}
             placeholder="Поиск по имени или ИИН..."
-            className="w-full pl-9 pr-3 py-2 bg-surface-1 border border-bdr-subtle rounded-lg text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:border-dv-gold/40" />
+            className="w-full min-h-11 pl-9 pr-3 py-2 bg-surface-1 border border-bdr-subtle rounded-lg text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:border-dv-gold/40" />
           {search && (
             <button aria-label="Clear search" onClick={() => handleSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-txt-muted hover:text-txt-primary">
               <X size={14} />
             </button>
           )}
         </div>
-        <div className="flex gap-1 overflow-x-auto">
+        <div className="flex flex-wrap gap-1 overflow-x-auto">
           {STATUS_OPTS.map(s => (
             <button key={s.value} onClick={() => setFilter('status', s.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${statusFilter === s.value ? 'bg-dv-gold/10 text-dv-gold border border-dv-gold/20' : 'text-txt-muted hover:text-txt-primary bg-surface-1 border border-transparent'}`}>
+              className={`min-h-11 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${statusFilter === s.value ? 'bg-dv-gold/10 text-dv-gold border border-dv-gold/20' : 'text-txt-muted hover:text-txt-primary bg-surface-1 border border-transparent'}`}>
               {s.label}
             </button>
           ))}
@@ -140,7 +140,7 @@ export default function ReferralList() {
         <Card padding="lg" className="text-center py-16">
           <FileText size={40} className="mx-auto text-txt-muted mb-3" />
           <p className="text-txt-muted text-sm">Нет направлений</p>
-          <Button variant="primary" className="mt-4" onClick={() => navigate('/diagnostics/referrals/new')}>
+          <Button variant="primary" className="mt-4 min-h-11" onClick={() => navigate('/diagnostics/referrals/new')}>
             Создать первое направление
           </Button>
         </Card>
@@ -167,7 +167,7 @@ export default function ReferralList() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {r.status === 'DRAFT' && (
-                        <Button variant="ghost" size="icon-sm" aria-label="Удалить" onClick={e => { e.stopPropagation(); deleteMutation.mutate(r.id); }}>
+                        <Button variant="ghost" size="icon-sm" className="min-h-11 min-w-11" aria-label="Удалить" onClick={e => { e.stopPropagation(); deleteMutation.mutate(r.id); }}>
                           <Trash2 size={14} className="text-error" />
                         </Button>
                       )}
@@ -180,11 +180,11 @@ export default function ReferralList() {
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 pt-4">
-              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setFilter('page', String(page - 1))}>
+              <Button variant="ghost" size="sm" className="min-h-11" disabled={page <= 1} onClick={() => setFilter('page', String(page - 1))}>
                 Назад
               </Button>
               <span className="text-sm text-txt-muted px-2">{page} из {totalPages}</span>
-              <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setFilter('page', String(page + 1))}>
+              <Button variant="ghost" size="sm" className="min-h-11" disabled={page >= totalPages} onClick={() => setFilter('page', String(page + 1))}>
                 Вперёд
               </Button>
             </div>

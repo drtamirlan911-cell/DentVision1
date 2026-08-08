@@ -41,7 +41,7 @@ export default function ShopFavorites() {
   );
 
   return (
-    <div className="p-6 max-w-[900px] mx-auto">
+    <div className="p-6 w-full max-w-full overflow-x-hidden mx-auto sm:max-w-[900px]">
       <PageHeader title="Избранное" subtitle="Сохранённые товары" icon={<Heart size={22} />} />
 
       {favs.length === 0 ? (
@@ -51,7 +51,7 @@ export default function ShopFavorites() {
           {favs.map((f, i) => (
             <motion.div key={f.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
               <Card hover>
-                <CardContent className="flex items-center gap-3">
+                <CardContent className="flex items-center gap-3 flex-wrap">
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/shop/${f.productId}`)}>
                     <p className="text-[10px] text-[#C9A96E] font-semibold uppercase">{f.brand}</p>
                     <p className="text-sm font-bold text-white truncate">{f.name}</p>
@@ -61,10 +61,10 @@ export default function ShopFavorites() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Button variant="primary" size="icon" aria-label="В корзину" onClick={() => { addToCart({ id: f.productId, name: f.name, brand: f.brand, price: f.price }); toast.success('Добавлено в корзину'); }}>
+                    <Button variant="primary" size="icon" aria-label="В корзину" className="min-h-11 min-w-11" onClick={() => { addToCart({ id: f.productId, name: f.name, brand: f.brand, price: f.price }); toast.success('Добавлено в корзину'); }}>
                       <ShoppingCart size={15} />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => remove(f.productId)}>
+                    <Button variant="ghost" size="icon" aria-label="Удалить" className="min-h-11 min-w-11" onClick={() => remove(f.productId)}>
                       <Trash2 size={15} className="text-error" />
                     </Button>
                   </div>

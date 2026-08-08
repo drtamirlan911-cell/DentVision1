@@ -741,7 +741,7 @@ export default function Schedule() {
   ]
 
   return (
-    <motion.div variants={stagger} initial="hidden" animate="show" className="dv-page max-w-7xl mx-auto space-y-4 py-4 md:py-6">
+    <motion.div variants={stagger} initial="hidden" animate="show" className="dv-page max-w-7xl mx-auto space-y-4 px-3 sm:px-4 lg:px-6 py-4 md:py-6">
       {crmLoading && (
         <div className="rounded-xl border border-bdr-subtle bg-surface-2/60 px-4 py-3 text-sm text-txt-secondary flex items-center gap-2">
           <Loader2 size={16} className="animate-spin text-dv-gold shrink-0" />
@@ -770,7 +770,7 @@ export default function Schedule() {
           subtitle="Управление записями и лист ожидания"
           icon={<Calendar size={20} />}
           actions={
-            <>
+            <div className="flex flex-wrap gap-2 items-center justify-end">
               <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
                 <span className="hidden sm:inline">Печать дня</span>
               </Button>
@@ -779,7 +779,7 @@ export default function Schedule() {
               </Button>
               {canOpenCashier && (
                 <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>
-                  <span className="hidden xs:inline sm:inline">Касса</span>
+                  <span className="hidden sm:inline">Касса</span>
                 </Button>
               )}
               {!readOnly && (
@@ -795,7 +795,7 @@ export default function Schedule() {
                   {dayWaitList.length > 0 && <Badge variant="error" size="xs">{dayWaitList.length}</Badge>}
                 </Button>
               )}
-            </>
+            </div>
           }
         />
       </motion.div>
@@ -840,16 +840,16 @@ export default function Schedule() {
           {/* Controls bar */}
           <motion.div variants={fadeUp} className="flex flex-col gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
             <div className="flex items-center gap-2 flex-wrap">
-              <Button variant="ghost" size="icon-sm" aria-label="Назад" onClick={() => shiftPeriod(-1)}><ChevronLeft size={16} /></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Назад" onClick={() => shiftPeriod(-1)} className="!min-w-11 !min-h-11"><ChevronLeft size={16} /></Button>
               <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
-                className="h-8 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none min-w-0" />
-              <Button variant="ghost" size="icon-sm" aria-label="Вперёд" onClick={() => shiftPeriod(1)}><ChevronRight size={16} /></Button>
+                className="h-9 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none min-w-0" />
+              <Button variant="ghost" size="icon-sm" aria-label="Вперёд" onClick={() => shiftPeriod(1)} className="!min-w-11 !min-h-11"><ChevronRight size={16} /></Button>
               <Button variant="outline" size="sm" onClick={() => setSelDate(today())}>Сегодня</Button>
 
-              <div className="flex rounded-lg border border-bdr-subtle overflow-hidden">
+              <div className="flex flex-wrap rounded-lg border border-bdr-subtle overflow-hidden">
                 {([['day', 'День'], ['week', 'Неделя']] as const).map(([key, label]) => (
                   <button key={key} onClick={() => setPeriodMode(key)}
-                    className={cn('px-3 py-1.5 text-xs font-semibold transition-colors',
+                    className={cn('px-3 py-1.5 text-xs font-semibold transition-colors min-h-9',
                       periodMode === key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
                     {label}
                   </button>
@@ -875,7 +875,7 @@ export default function Schedule() {
                     { key: 'single' as const, label: 'Общий', labelFull: 'Общий' },
                   ]).map(m => (
                     <button key={m.key} onClick={() => setViewMode(m.key)}
-                      className={cn('px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap',
+                      className={cn('px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap min-h-9',
                         viewMode === m.key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
                       <span className="sm:hidden">{m.label}</span>
                       <span className="hidden sm:inline">{m.labelFull}</span>
@@ -1090,7 +1090,7 @@ export default function Schedule() {
         /* Waiting List */
         <motion.div variants={fadeUp}>
           <Card padding="none">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-bdr-subtle">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-bdr-subtle">
               <div className="flex items-center gap-2">
                 <ListOrdered size={16} className="text-dv-gold" />
                 <span className="text-sm font-semibold text-txt-primary">Лист ожидания</span>
@@ -1120,9 +1120,9 @@ export default function Schedule() {
                         <td className="px-4 py-2.5 text-txt-secondary">{(w as any).preferredService || '—'}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex gap-1">
-                            <Button size="icon-xs" variant="ghost" onClick={() => handlePromoteFromWait(w)} title="Записать"><CheckCircle size={13} className="text-success" /></Button>
-                            <Button size="icon-xs" variant="ghost" onClick={() => { const ww = w as any; setEditWaitId(w.id); setWaitForm({ patientId: ww.patientId || '', patientName: ww.patientName || '', patientPhone: ww.patientPhone || '', doctorId: ww.doctorId || '', preferredDate: ww.preferredDate || '', preferredTime: ww.preferredTime || '', preferredService: ww.preferredService || '', notes: ww.notes || '' }); setWaitModalOpen(true) }} title="Редактировать"><GripVertical size={13} className="text-dv-gold" /></Button>
-                            <Button size="icon-xs" variant="ghost" onClick={() => handleDeleteWait(w.id)} title="Удалить"><Trash2 size={13} className="text-error" /></Button>
+                            <Button size="icon-xs" variant="ghost" onClick={() => handlePromoteFromWait(w)} title="Записать" className="!min-w-11 !min-h-11"><CheckCircle size={13} className="text-success" /></Button>
+                            <Button size="icon-xs" variant="ghost" onClick={() => { const ww = w as any; setEditWaitId(w.id); setWaitForm({ patientId: ww.patientId || '', patientName: ww.patientName || '', patientPhone: ww.patientPhone || '', doctorId: ww.doctorId || '', preferredDate: ww.preferredDate || '', preferredTime: ww.preferredTime || '', preferredService: ww.preferredService || '', notes: ww.notes || '' }); setWaitModalOpen(true) }} title="Редактировать" className="!min-w-11 !min-h-11"><GripVertical size={13} className="text-dv-gold" /></Button>
+                            <Button size="icon-xs" variant="ghost" onClick={() => handleDeleteWait(w.id)} title="Удалить" className="!min-w-11 !min-h-11"><Trash2 size={13} className="text-error" /></Button>
                           </div>
                         </td>
                       </tr>
@@ -1137,7 +1137,7 @@ export default function Schedule() {
         /* Online bookings */
         <motion.div variants={fadeUp}>
           <Card padding="none">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-bdr-subtle">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-bdr-subtle">
               <div className="flex items-center gap-2">
                 <Globe size={16} className="text-dv-gold" />
                 <span className="text-sm font-semibold text-txt-primary">Онлайн-заявки</span>
@@ -1176,10 +1176,10 @@ export default function Schedule() {
                         <td className="px-4 py-2.5 text-txt-secondary">{b.serviceName || '—'}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex gap-1">
-                            <Button size="icon-xs" variant="ghost" onClick={() => handleConfirmBooking(b)} title="Подтвердить">
+                            <Button size="icon-xs" variant="ghost" onClick={() => handleConfirmBooking(b)} title="Подтвердить" className="!min-w-11 !min-h-11">
                               <CheckCircle size={13} className="text-success" />
                             </Button>
-                            <Button size="icon-xs" variant="ghost" onClick={() => handleRejectBooking(b.id)} title="Отклонить">
+                            <Button size="icon-xs" variant="ghost" onClick={() => handleRejectBooking(b.id)} title="Отклонить" className="!min-w-11 !min-h-11">
                               <XCircle size={13} className="text-error" />
                             </Button>
                           </div>
@@ -1196,7 +1196,7 @@ export default function Schedule() {
 
       {/* Appointment Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editAppt ? 'Редактировать запись' : 'Новая запись'} size="lg" className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2">
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3 overflow-y-auto">
           {!showNewPatient ? (
             <>
               <Select label="Пациент" value={form.patientId} onChange={e => setForm({ ...form, patientId: e.target.value })} options={patientOptions} required />
@@ -1230,7 +1230,7 @@ export default function Schedule() {
             onChange={e => { const svc = ALL_SERVICES.find(s => s.id === e.target.value); setForm({ ...form, service: e.target.value }); if (svc) { setForm(f => ({ ...f, serviceName: svc.name, servicePrice: svc.price })); } }}
             options={serviceOptions} required />
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Select label="Время" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} options={HOURS.map(h => ({ value: h, label: h }))} required />
             <Select label="Длительность" value={String(form.duration)} onChange={e => setForm({ ...form, duration: Number(e.target.value) })} options={[{ value: '30', label: '30 мин' }, { value: '45', label: '45 мин' }, { value: '60', label: '1 час' }, { value: '90', label: '1.5 ч' }, { value: '120', label: '2 часа' }]} />
             <Select label="Статус" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
@@ -1245,7 +1245,7 @@ export default function Schedule() {
                 placeholder="Введите код или название диагноза..."
                 value={form.diagnosis}
                 onChange={e => setForm({ ...form, diagnosis: e.target.value })}
-                className="pl-9"
+                className="w-full pl-9"
                 list="icd10-suggestions"
               />
               <datalist id="icd10-suggestions">
@@ -1350,9 +1350,9 @@ export default function Schedule() {
         </form>
       </Modal>
 
-      <Modal open={closeOpen} onClose={() => setCloseOpen(false)} title="Закрыть приём" size="lg">
+      <Modal open={closeOpen} onClose={() => setCloseOpen(false)} title="Закрыть приём" size="lg" className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2">
         {closeAppt && (
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto">
             <p className="text-sm text-txt-secondary">
               Укажите выполненные услуги и заметки. При включённом авто-списании материалы уйдут со склада.
             </p>
@@ -1365,7 +1365,7 @@ export default function Schedule() {
             <div className="space-y-2">
               <p className="text-xs font-semibold text-txt-muted uppercase tracking-wider">Услуги</p>
               {closeServices.map((s, idx) => (
-                <div key={idx} className="flex gap-2 items-end">
+                <div key={idx} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
                   <Input
                     label="Услуга"
                     value={s.name}
@@ -1385,9 +1385,9 @@ export default function Schedule() {
                       next[idx] = { ...next[idx], price: Number(e.target.value) }
                       setCloseServices(next)
                     }}
-                    className="w-28"
+                    className="w-full sm:w-28"
                   />
-                  <Button variant="ghost" size="icon-sm" icon={<Trash2 size={14} />} onClick={() => setCloseServices(closeServices.filter((_, i) => i !== idx))} aria-label="Удалить услугу" />
+                  <Button variant="ghost" size="icon-sm" icon={<Trash2 size={14} />} onClick={() => setCloseServices(closeServices.filter((_, i) => i !== idx))} aria-label="Удалить услугу" className="!min-w-11 !min-h-11" />
                 </div>
               ))}
               <div className="flex gap-2 flex-wrap">
@@ -1431,7 +1431,7 @@ export default function Schedule() {
                   Принять оплату и завершить
                 </Button>
               )}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button className="flex-1" variant={canTakePayment ? 'secondary' : undefined} disabled={closeSaving} onClick={handleCloseVisit}>
                   {closeSaving ? 'Сохранение…' : canTakePayment ? 'Завершить без оплаты' : 'Завершить приём'}
                 </Button>
@@ -1466,7 +1466,7 @@ export default function Schedule() {
 
       {/* Waiting List Modal */}
       <Modal open={waitModalOpen} onClose={() => setWaitModalOpen(false)} title={editWaitId ? 'Редактировать запись' : 'Добавить в лист ожидания'} className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2">
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-y-auto">
           <Select label="Пациент (из базы)" value={waitForm.patientId}
             onChange={e => { const p = patients.find(pt => pt.id === e.target.value); setWaitForm({ ...waitForm, patientId: e.target.value, patientName: p?.name || waitForm.patientName, patientPhone: p?.phone || waitForm.patientPhone }) }}
             options={[{ value: '', label: '— Или введите вручную —' }, ...patients.map(p => ({ value: p.id, label: p.name }))]} />
@@ -1483,7 +1483,7 @@ export default function Schedule() {
           </div>
           <Input label="Желаемая услуга" value={waitForm.preferredService} onChange={e => setWaitForm({ ...waitForm, preferredService: e.target.value })} placeholder="Консультация, отбеливание..." />
           <Input label="Заметки" value={waitForm.notes} onChange={e => setWaitForm({ ...waitForm, notes: e.target.value })} placeholder="Дополнительная информация" />
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-wrap gap-2 pt-2">
             <Button onClick={handleSaveWait} className="flex-1">{editWaitId ? 'Обновить' : 'Добавить'}</Button>
             <Button variant="ghost" onClick={() => { setWaitModalOpen(false); setEditWaitId(null) }}>Отмена</Button>
           </div>

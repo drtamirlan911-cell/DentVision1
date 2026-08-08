@@ -143,7 +143,7 @@ export default function ShopCheckout() {
           icon={<ShoppingBag size={36} />}
           title="Корзина пуста"
           description="Добавьте товары из каталога, чтобы оформить заказ"
-          action={<Button variant="primary" onClick={() => navigate('/shop')}>В каталог</Button>}
+          action={<Button variant="primary" className="min-h-11" onClick={() => navigate('/shop')}>В каталог</Button>}
         />
       </div>
     );
@@ -220,7 +220,7 @@ export default function ShopCheckout() {
   };
 
   return (
-    <div className="p-6 max-w-[900px] mx-auto">
+    <div className="p-6 w-full max-w-full overflow-x-hidden mx-auto sm:max-w-[900px]">
       <button
         onClick={() => navigate('/shop')}
         className="flex items-center gap-1 bg-transparent border-none text-[#C9A96E] cursor-pointer font-inherit text-xs mb-3"
@@ -251,19 +251,19 @@ export default function ShopCheckout() {
                 <Truck size={16} className="text-[#C9A96E]" /> Данные доставки
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <Input label="Контактное лицо" value={form.contactName} onChange={set('contactName')} placeholder="Имя" />
-                <Input label="Телефон" value={form.phone} onChange={set('phone')} placeholder="+7..." />
+                <Input label="Контактное лицо" value={form.contactName} onChange={set('contactName')} placeholder="Имя" className="min-h-11" />
+                <Input label="Телефон" value={form.phone} onChange={set('phone')} placeholder="+7..." className="min-h-11" />
               </div>
               <div className="mt-2.5">
-                <Input label="Адрес доставки" value={form.delivery_address} onChange={set('delivery_address')} placeholder="Город, улица, дом" />
+                <Input label="Адрес доставки" value={form.delivery_address} onChange={set('delivery_address')} placeholder="Город, улица, дом" className="min-h-11" />
               </div>
               <div className="mt-3">
                 <label className="text-xs text-[var(--slate)] mb-1.5 block">Купить для</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setForm(f => ({ ...f, buyFor: 'self' }))}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all ${
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all min-h-11 ${
                       form.buyFor === 'self' ? 'border-[#C9A96E]/60 bg-[#C9A96E]/10 text-[#C9A96E]' : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)]'
                     }`}
                   >
@@ -273,7 +273,7 @@ export default function ShopCheckout() {
                     type="button"
                     disabled={!canBuyForClinic}
                     onClick={() => setForm(f => ({ ...f, buyFor: 'clinic' }))}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed min-h-11 ${
                       form.buyFor === 'clinic' ? 'border-[#C9A96E]/60 bg-[#C9A96E]/10 text-[#C9A96E]' : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)]'
                     }`}
                   >
@@ -284,7 +284,7 @@ export default function ShopCheckout() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2.5">
                 <div>
                   <label className="text-xs text-[var(--slate)] mb-1 block">Способ доставки</label>
-                  <select className="dv-select" value={form.delivery_method} onChange={set('delivery_method')}>
+                  <select className="dv-select min-h-11" value={form.delivery_method} onChange={set('delivery_method')}>
                     <option value="courier">Курьер</option>
                     <option value="self">Самовывоз</option>
                     <option value="post">Почта</option>
@@ -292,7 +292,7 @@ export default function ShopCheckout() {
                 </div>
                 <div>
                   <label className="text-xs text-[var(--slate)] mb-1 block">Зона доставки</label>
-                  <select className="dv-select" value={form.delivery_zone_id} onChange={set('delivery_zone_id')}>
+                  <select className="dv-select min-h-11" value={form.delivery_zone_id} onChange={set('delivery_zone_id')}>
                     <option value="">По умолчанию (2500 ₸)</option>
                     {deliveryZones.map((z: any) => (
                       <option key={z.id} value={z.id}>
@@ -304,7 +304,7 @@ export default function ShopCheckout() {
                 </div>
                 <div>
                   <label className="text-xs text-[var(--slate)] mb-1 block">Оплата</label>
-                  <select className="dv-select" value={form.payment_method} onChange={set('payment_method')}>
+                  <select className="dv-select min-h-11" value={form.payment_method} onChange={set('payment_method')}>
                     <option value="qr">Kaspi QR</option>
                     <option value="card">Картой онлайн</option>
                     <option value="cash">Наличными при получении</option>
@@ -313,7 +313,7 @@ export default function ShopCheckout() {
               </div>
               <div className="mt-2.5">
                 <label className="text-xs text-[var(--slate)] mb-1 block">Комментарий</label>
-                <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Примечание к заказу" className="!rounded-lg" />
+                <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Примечание к заказу" className="!rounded-lg min-h-11" />
               </div>
             </CardContent>
           </Card>
@@ -381,7 +381,7 @@ export default function ShopCheckout() {
                     <span className="text-white">Итого:</span><span className="text-[#C9A96E]">{money(total)}</span>
                   </div>
                 </div>
-                <Button variant="primary" size="lg" className="w-full mt-4 flex items-center justify-center gap-2" disabled={submitting} onClick={handleSubmit}>
+                <Button variant="primary" size="lg" className="w-full mt-4 flex items-center justify-center gap-2 min-h-11" disabled={submitting} onClick={handleSubmit}>
                   {submitting ? 'Оформляем...' : <><CreditCard size={16} /> Подтвердить заказ</>}
                 </Button>
               </CardContent>

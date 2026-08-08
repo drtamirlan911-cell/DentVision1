@@ -90,7 +90,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="max-w-3xl mx-auto space-y-6">
+    <motion.div variants={container} initial="hidden" animate="show" className="max-w-full overflow-x-hidden mx-auto space-y-6 px-3 sm:px-4 lg:px-6">
       <motion.div variants={item}>
         <PageHeader
           title="Настройки"
@@ -112,7 +112,7 @@ export default function SettingsPage() {
               <p className="text-sm text-txt-muted">
                 Профиль клиники, часы работы, напоминания и кресла — индивидуально для «{clinicName}».
               </p>
-              <Button size="sm" onClick={() => navigate('/crm/clinic-settings')}>
+              <Button size="sm" className="min-h-11" onClick={() => navigate('/crm/clinic-settings')}>
                 Открыть
               </Button>
             </CardContent>
@@ -133,7 +133,7 @@ export default function SettingsPage() {
               <p className="text-sm text-txt-muted">
                 Пробный период, смена тарифа и оплата подписки клиники по QR.
               </p>
-              <Button size="sm" onClick={() => navigate('/crm/billing')}>
+              <Button size="sm" className="min-h-11" onClick={() => navigate('/crm/billing')}>
                 Открыть
               </Button>
             </CardContent>
@@ -154,7 +154,7 @@ export default function SettingsPage() {
               <p className="text-sm text-txt-muted">
                 QR на кассе идёт на ваш Kaspi/банк, не на DentVision. Инструкция внутри настроек клиники.
               </p>
-              <Button size="sm" onClick={() => navigate('/crm/settings')}>
+              <Button size="sm" className="min-h-11" onClick={() => navigate('/crm/settings')}>
                 Подключить
               </Button>
             </CardContent>
@@ -178,7 +178,7 @@ export default function SettingsPage() {
               </p>
               <div className="space-y-4">
                 {SERVICE_TOGGLES.map((s) => (
-                  <div key={s.key} className="flex items-center justify-between opacity-80">
+                  <div key={s.key} className="flex items-center justify-between min-h-11 opacity-80">
                     <div>
                       <p className="text-sm font-medium text-txt-primary">{s.name}</p>
                       <p className="text-2xs text-txt-muted">{s.desc}</p>
@@ -207,15 +207,15 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex items-center justify-between py-2">
+              <div className="flex items-center justify-between min-h-11 py-2">
                 <span className="text-sm text-txt-secondary">Имя</span>
                 <span className="text-sm font-medium text-txt-primary">{user?.name || user?.login}</span>
               </div>
-              <div className="flex items-center justify-between py-2">
+              <div className="flex items-center justify-between min-h-11 py-2">
                 <span className="text-sm text-txt-secondary">Роль</span>
                 <span className="text-sm font-medium text-txt-primary capitalize">{user?.role}</span>
               </div>
-              <div className="flex items-center justify-between py-2">
+              <div className="flex items-center justify-between min-h-11 py-2">
                 <span className="text-sm text-txt-secondary">Клиника</span>
                 <span className="text-sm font-medium text-txt-primary">{clinic?.name || '—'}</span>
               </div>
@@ -235,21 +235,21 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between min-h-11">
                 <div>
                   <p className="text-sm font-medium text-txt-primary">Тёмная тема</p>
                   <p className="text-2xs text-txt-muted">Сохраняется на этом устройстве</p>
                 </div>
                 <Switch checked={darkMode} onCheckedChange={onDarkMode} />
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between min-h-11">
                 <div>
                   <p className="text-sm font-medium text-txt-primary">Уведомления</p>
                   <p className="text-2xs text-txt-muted">Push в браузере, когда вкладка в фоне</p>
                 </div>
                 <Switch checked={notifications} onCheckedChange={onNotifications} />
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between min-h-11">
                 <div>
                   <p className="text-sm font-medium text-txt-primary">Автосохранение</p>
                   <p className="text-2xs text-txt-muted">Черновики форм в CRM сохраняются локально</p>
@@ -272,16 +272,16 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <Button variant="secondary" size="sm" onClick={() => navigate('/forgot-password')}>
+              <Button variant="secondary" size="sm" className="min-h-11" onClick={() => navigate('/forgot-password')}>
                 Изменить пароль
               </Button>
-              <Button variant="secondary" size="sm" icon={<ExternalLink size={14} />} onClick={() => navigate('/security')}>
+              <Button variant="secondary" size="sm" className="min-h-11" icon={<ExternalLink size={14} />} onClick={() => navigate('/security')}>
                 Security & Compliance
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-error hover:bg-error/10"
+                className="min-h-11 text-error hover:bg-error/10"
                 onClick={() => { logout(); navigate('/login') }}
               >
                 Выйти из аккаунта

@@ -141,7 +141,7 @@ export default function ShopProduct() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-full overflow-x-hidden mx-auto px-4 py-8 sm:max-w-6xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="aspect-square bg-gray-100 rounded-2xl animate-pulse" />
           <div className="space-y-4">
@@ -160,7 +160,7 @@ export default function ShopProduct() {
 
   if (!product) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-20">
+      <div className="max-w-full overflow-x-hidden mx-auto px-4 py-20 sm:max-w-6xl">
         <EmptyState icon={<Package size={48} />} title="Товар не найден" description="Вернитесь в каталог" />
       </div>
     );
@@ -174,9 +174,9 @@ export default function ShopProduct() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
+    <div className="max-w-full overflow-x-hidden mx-auto px-4 py-6 space-y-8 sm:max-w-6xl">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs text-gray-400">
+      <div className="flex items-center gap-2 text-xs text-gray-400 flex-wrap">
         <button onClick={() => navigate('/shop')} className="hover:text-dv-gold transition-colors">Маркетплейс</button>
         <ChevronRight size={12} />
         {product.category_name && (
@@ -299,14 +299,14 @@ export default function ShopProduct() {
               <ShoppingCart size={16} /> {product.stock > 0 ? 'В корзину' : 'Нет в наличии'}
             </Button>
             <button aria-label="Toggle favorite" onClick={handleToggleFav}
-              className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50">
+              className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 min-h-11">
               <Heart size={18} className={favActive ? 'fill-red-500 text-red-500' : 'text-gray-400'} />
             </button>
           </div>
 
           {/* Short specs preview */}
           {specsMap.length > 0 && (
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-gray-100">
               {specsMap.slice(0, 4).map((s) => (
                 <div key={s.label} className="text-xs">
                   <span className="text-gray-400">{s.label}: </span>
@@ -319,10 +319,10 @@ export default function ShopProduct() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-100 flex gap-0">
+      <div className="border-b border-gray-100 flex gap-0 overflow-x-auto">
         {tabs.map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-3 text-sm font-semibold transition-all border-b-2 ${
+            className={`px-5 py-3 text-sm font-semibold transition-all border-b-2 whitespace-nowrap ${
               activeTab === tab.key
                 ? 'text-dv-gold border-dv-gold'
                 : 'text-gray-400 border-transparent hover:text-gray-600'
@@ -417,11 +417,11 @@ export default function ShopProduct() {
                       ))}
                     </div>
                     <input value={reviewForm.pros} onChange={e => setReviewForm(p => ({ ...p, pros: e.target.value }))}
-                      placeholder="Плюсы" className="!rounded-lg !mb-2" />
+                      placeholder="Плюсы" className="!rounded-lg !mb-2 min-h-11" />
                     <input value={reviewForm.cons} onChange={e => setReviewForm(p => ({ ...p, cons: e.target.value }))}
-                      placeholder="Минусы" className="!rounded-lg !mb-2" />
+                      placeholder="Минусы" className="!rounded-lg !mb-2 min-h-11" />
                     <textarea value={reviewForm.comment} onChange={e => setReviewForm(p => ({ ...p, comment: e.target.value }))}
-                      placeholder="Ваш отзыв" rows={3} className="!rounded-lg !mb-3" />
+                      placeholder="Ваш отзыв" rows={3} className="!rounded-lg !mb-3 min-h-11" />
                     <Button variant="primary" size="sm" onClick={handleSubmitReview} disabled={reviewLoading}>
                       {reviewLoading ? 'Отправка...' : 'Отправить отзыв'}
                     </Button>
@@ -490,7 +490,7 @@ export default function ShopProduct() {
       {relatedProducts.length > 0 && (
         <section>
           <h3 className="text-lg font-bold text-gray-900 mb-4">Похожие товары</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {relatedProducts.slice(0, 8).map((rel: any) => {
               const imgUrl = rel.imageUrl || null;
               return (

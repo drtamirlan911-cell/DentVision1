@@ -151,13 +151,13 @@ export default function Inventory() {
   }
 
   return (
-    <div className="dv-page py-4 md:py-6">
+    <div className="dv-page max-w-full overflow-x-hidden py-4 md:py-6">
       <PageHeader
         title="Склад"
         subtitle={`${clinic?.name} · ${stats.total} позиций`}
         icon={<Package size={20} />}
         actions={
-          <Button icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
+          <Button className="min-h-11" icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
             Добавить товар
           </Button>
         }
@@ -196,16 +196,17 @@ export default function Inventory() {
                   const best = row.matches[0]
                   return (
                     <div key={row.item.id || row.query} className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="text-txt-primary font-medium truncate max-w-[220px]">{row.item.name}</span>
+                      <span className="text-txt-primary font-medium truncate max-w-full sm:max-w-[220px]">{row.item.name}</span>
                       <span className="text-txt-muted">{row.item.quantity ?? 0}/{row.min}</span>
                       {best && (
-                        <span className="text-txt-muted truncate max-w-[200px]">
+                        <span className="text-txt-muted truncate max-w-full sm:max-w-[200px]">
                           → {best.kind === 'exact' ? 'есть' : 'аналог'}: {best.name}
                         </span>
                       )}
                       <Button
                         size="sm"
                         variant="secondary"
+                        className="min-h-11"
                         onClick={() => navigate(`/shop?q=${encodeURIComponent(row.query)}`)}
                       >
                         В маркет
@@ -221,8 +222,8 @@ export default function Inventory() {
 
       {/* Filters */}
       <div className="flex gap-2 mb-5 flex-wrap items-center">
-        <div className="relative flex-1 min-w-[200px] max-w-[300px]">
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." icon={<Search size={16} />} />
+        <div className="relative w-full min-w-0 sm:flex-1 sm:min-w-[180px] sm:max-w-[300px]">
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." icon={<Search size={16} />} className="min-h-11" />
         </div>
         {[
           { key: 'all', label: 'Все' },
@@ -237,7 +238,7 @@ export default function Inventory() {
               else next.set('filter', f.key)
               setSearchParams(next, { replace: true })
             }}
-            className={filter === f.key ? 'border-dv-gold/50 text-dv-gold' : ''}>
+            className={filter === f.key ? 'border-dv-gold/50 text-dv-gold min-h-11' : 'min-h-11'}>
             {f.label}
           </Button>
         ))}
@@ -249,7 +250,7 @@ export default function Inventory() {
             { value: 'quantity', label: 'По количеству' },
             { value: 'cost', label: 'По стоимости' },
           ]}
-          className="w-auto"
+          className="w-full min-h-11 sm:w-auto"
         />
       </div>
 
@@ -257,7 +258,7 @@ export default function Inventory() {
         <EmptyState icon={<Package size={32} />} title="Склад пуст" description="Добавьте первый товар" />
       ) : (
         <motion.div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4"
           variants={stagger}
           initial="hidden"
           animate="show"
@@ -301,13 +302,14 @@ export default function Inventory() {
                     )}
 
                     <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
-                      <Button variant="danger" size="icon-xs" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} aria-label="Уменьшить на 1" />
-                      <Button variant="primary" size="icon-xs" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} aria-label="Увеличить на 1" />
-                      <Button variant="primary" size="icon-xs" onClick={() => quickAdjust(item, 10)}>+10</Button>
+                      <Button variant="danger" size="icon-xs" className="min-h-11 min-w-11" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} aria-label="Уменьшить на 1" />
+                      <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} aria-label="Увеличить на 1" />
+                      <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" onClick={() => quickAdjust(item, 10)}>+10</Button>
                       {isLow && (
                         <Button
                           variant="secondary"
                           size="icon-xs"
+                          className="min-h-11 min-w-11"
                           title={shopMatch ? `Заказать: ${shopMatch.name}` : 'Заказать в Маркетплейсе'}
                           icon={<ShoppingCart size={12} />}
                           onClick={() => navigate(
@@ -339,35 +341,36 @@ export default function Inventory() {
         onClose={() => setModalOpen(false)}
         title={editing ? 'Редактировать товар' : 'Добавить товар'}
         size="md"
+        className="max-w-[95vw] sm:max-w-md md:max-w-lg lg:max-w-xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Название *" value={form.name}
             onChange={e => setForm({ ...form, name: e.target.value })}
-            placeholder="Пломбировочный материал" required icon={<Package size={16} />} />
-          <div className="grid grid-cols-3 gap-3">
+            placeholder="Пломбировочный материал" required icon={<Package size={16} />} className="min-h-11" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input label="Кол-во" type="number" min="0" value={form.quantity}
-              onChange={e => setForm({ ...form, quantity: e.target.value })} />
+              onChange={e => setForm({ ...form, quantity: e.target.value })} className="min-h-11" />
             <Select label="Ед. изм." value={form.unit}
               onChange={e => setForm({ ...form, unit: e.target.value })}
-              options={INVENTORY_UNITS as any} />
+              options={INVENTORY_UNITS as any} className="min-h-11" />
             <Input label="Мин. кол-во" type="number" min="0" value={form.minQuantity}
-              onChange={e => setForm({ ...form, minQuantity: e.target.value })} />
+              onChange={e => setForm({ ...form, minQuantity: e.target.value })} className="min-h-11" />
           </div>
           <Select label="Категория" value={form.category}
             onChange={e => setForm({ ...form, category: e.target.value })}
-            options={[{ value: '', label: '--- Без категории ---' }, ...INVENTORY_CATEGORIES.map(c => ({ value: c, label: c }))]} />
-          <div className="grid grid-cols-2 gap-3">
+            options={[{ value: '', label: '--- Без категории ---' }, ...INVENTORY_CATEGORIES.map(c => ({ value: c, label: c }))]} className="min-h-11" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Цена за ед. (₸)" type="number" min="0" value={form.cost}
-              onChange={e => setForm({ ...form, cost: e.target.value })} />
+              onChange={e => setForm({ ...form, cost: e.target.value })} className="min-h-11" />
             <Input label="Годен до" type="date" value={form.expiryDate}
-              onChange={e => setForm({ ...form, expiryDate: e.target.value })} />
+              onChange={e => setForm({ ...form, expiryDate: e.target.value })} className="min-h-11" />
           </div>
           <Input label="Поставщик" value={form.supplier}
             onChange={e => setForm({ ...form, supplier: e.target.value })}
-            placeholder="Название компании" />
+            placeholder="Название компании" className="min-h-11" />
           <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">{editing ? 'Сохранить' : 'Добавить'}</Button>
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Отмена</Button>
+            <Button type="submit" className="flex-1 min-h-11">{editing ? 'Сохранить' : 'Добавить'}</Button>
+            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} className="min-h-11">Отмена</Button>
           </div>
         </form>
       </Modal>

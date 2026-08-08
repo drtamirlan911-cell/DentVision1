@@ -101,8 +101,8 @@ function LabReferralsTab({ labId }: { labId: string }) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <GlassCard padding="sm">
           <div className="flex items-center gap-2"><Activity size={16} className="text-info" /><span className="text-xs text-txt-muted">Всего</span></div>
           <p className="text-xl font-bold text-txt-primary mt-1">{stats.total}</p>
@@ -130,15 +130,15 @@ function LabReferralsTab({ labId }: { labId: string }) {
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1 max-w-xs min-w-[12rem]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск по пациенту..." className="w-full bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск по пациенту..." className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
           <option value="">Все статусы</option>
           {Object.entries(STATUS_MAP).map(([key, v]) => (<option key={key} value={key}>{v.label}</option>))}
         </select>
-        <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={() => refetch()}>Обновить</Button>
+        <Button variant="ghost" size="sm" className="min-h-11" icon={<RefreshCw size={14} />} onClick={() => refetch()}>Обновить</Button>
       </div>
 
       <Card padding="md">
@@ -167,7 +167,7 @@ function LabReferralsTab({ labId }: { labId: string }) {
                   return (
                     <tr key={r.id} className="border-b border-bdr-subtle/50 hover:bg-surface-1/30 transition-colors">
                       <td className="py-2.5 pr-3">
-                        <button onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} className="font-medium text-txt-primary hover:text-dv-gold transition-colors">{r.patientName || 'Неизвестно'}</button>
+                        <button onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} className="inline-flex items-center min-h-11 font-medium text-txt-primary hover:text-dv-gold transition-colors">{r.patientName || 'Неизвестно'}</button>
                       </td>
                       <td className="py-2.5 pr-3 text-txt-muted">{r.labTestType || r.studyType || '—'}</td>
                       <td className="py-2.5 pr-3 text-txt-muted">{r.clinic?.name || r.clinicName || '—'}</td>
@@ -184,15 +184,15 @@ function LabReferralsTab({ labId }: { labId: string }) {
                       <td className="py-2.5 pr-3">
                         <div className="flex items-center gap-1">
                           {r.status === 'SENT' && (
-                            <Button size="xs" variant="primary" onClick={() => setCostModal(r.id)}>Принять</Button>
+                            <Button size="xs" variant="primary" className="min-h-11" onClick={() => setCostModal(r.id)}>Принять</Button>
                           )}
                           {r.status === 'ACCEPTED' && (
-                            <Button size="xs" variant="primary" onClick={() => statusMutation.mutate({ id: r.id, status: 'IN_PROGRESS' })}>Начать</Button>
+                            <Button size="xs" variant="primary" className="min-h-11" onClick={() => statusMutation.mutate({ id: r.id, status: 'IN_PROGRESS' })}>Начать</Button>
                           )}
                           {r.status === 'IN_PROGRESS' && (
-                            <Button size="xs" variant="primary" onClick={() => { setResultModal(r.id); setReportText(''); setConclusion(''); setResultFiles([]); }}>Результат</Button>
+                            <Button size="xs" variant="primary" className="min-h-11" onClick={() => { setResultModal(r.id); setReportText(''); setConclusion(''); setResultFiles([]); }}>Результат</Button>
                           )}
-                          <Button size="xs" variant="ghost" icon={<Eye size={14} />} aria-label="View" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} />
+                            <Button size="xs" variant="ghost" className="min-h-11" icon={<Eye size={14} />} aria-label="View" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} />
                         </div>
                       </td>
                     </tr>
@@ -211,15 +211,15 @@ function LabReferralsTab({ labId }: { labId: string }) {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Стоимость услуги (₸)</label>
-                <input type="number" value={costValue} onChange={(e) => setCostValue(e.target.value)} placeholder="Напр. 12000" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                <input type="number" value={costValue} onChange={(e) => setCostValue(e.target.value)} placeholder="Напр. 12000" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Комиссия платформы (₸, опционально)</label>
-                <input type="number" value={feeValue} onChange={(e) => setFeeValue(e.target.value)} placeholder="Напр. 1200" className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                <input type="number" value={feeValue} onChange={(e) => setFeeValue(e.target.value)} placeholder="Напр. 1200" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="ghost" size="sm" onClick={() => setCostModal(null)}>Отмена</Button>
-                <Button variant="primary" size="sm" onClick={() => handleAccept(costModal)} disabled={!costValue || parseFloat(costValue) <= 0}>Принять</Button>
+                <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setCostModal(null)}>Отмена</Button>
+                <Button variant="primary" size="sm" className="min-h-11" onClick={() => handleAccept(costModal)} disabled={!costValue || parseFloat(costValue) <= 0}>Принять</Button>
               </div>
             </div>
           </Card>
@@ -235,7 +235,7 @@ function LabReferralsTab({ labId }: { labId: string }) {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs text-txt-muted">Заключение / Описание результата</label>
-                  <Button variant="ghost" size="xs" icon={<Sparkles size={12} />} onClick={() => aiMutation.mutate(resultModal)} loading={aiMutation.isPending}>AI</Button>
+                  <Button variant="ghost" size="xs" className="min-h-11" icon={<Sparkles size={12} />} onClick={() => aiMutation.mutate(resultModal)} loading={aiMutation.isPending}>AI</Button>
                 </div>
                 <Textarea value={reportText} onChange={(e) => setReportText(e.target.value)} rows={6} placeholder="Введите заключение или сгенерируйте AI" />
               </div>
@@ -247,7 +247,7 @@ function LabReferralsTab({ labId }: { labId: string }) {
                 <label className="text-xs text-txt-muted block mb-1">Файлы результатов</label>
                 <div className="border border-dashed border-bdr-subtle rounded-lg p-4 text-center">
                   <input type="file" multiple accept="image/*,.pdf,.dcm" onChange={(e) => setResultFiles(Array.from(e.target.files || []))} className="hidden" id="result-files" />
-                  <label htmlFor="result-files" className="cursor-pointer flex flex-col items-center gap-1 text-txt-muted hover:text-txt-primary">
+                  <label htmlFor="result-files" className="cursor-pointer flex flex-col items-center justify-center gap-1 min-h-11 text-txt-muted hover:text-txt-primary">
                     <Upload size={24} className="opacity-40" />
                     <span className="text-xs">Нажмите для загрузки файлов</span>
                   </label>
@@ -259,8 +259,8 @@ function LabReferralsTab({ labId }: { labId: string }) {
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="ghost" size="sm" onClick={() => setResultModal(null)}>Отмена</Button>
-                <Button variant="primary" size="sm" onClick={() => signMutation.mutate(resultModal)} loading={signMutation.isPending} disabled={!reportText}>Отправить результат</Button>
+                <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setResultModal(null)}>Отмена</Button>
+                <Button variant="primary" size="sm" className="min-h-11" onClick={() => signMutation.mutate(resultModal)} loading={signMutation.isPending} disabled={!reportText}>Отправить результат</Button>
               </div>
             </div>
           </Card>
@@ -304,9 +304,9 @@ function LabServicesTab({ labId }: { labId: string }) {
 
   return (
     <Card padding="md">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <h3 className="text-sm font-semibold text-txt-primary">Прайс-лист анализов</h3>
-        <Button variant="primary" size="sm" icon={<Save size={14} />} onClick={handleSave} loading={saveMutation.isPending}>Сохранить</Button>
+        <Button variant="primary" size="sm" className="min-h-11" icon={<Save size={14} />} onClick={handleSave} loading={saveMutation.isPending}>Сохранить</Button>
       </div>
       {isLoading ? <Skeleton className="h-48" /> : (
         <div className="overflow-x-auto">
@@ -325,7 +325,7 @@ function LabServicesTab({ labId }: { labId: string }) {
                   <td className="py-2.5 pr-3 font-medium text-txt-primary">{s.name}</td>
                   <td className="py-2.5 pr-3 text-txt-muted">{s.category}</td>
                   <td className="py-2.5 pr-3">
-                    <input type="number" value={prices[s.id] ?? ''} onChange={(e) => setPrices((p: any) => ({ ...p, [s.id]: e.target.value }))} className="w-28 bg-surface-1 border border-bdr-subtle rounded-lg px-2 py-1 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                    <input type="number" value={prices[s.id] ?? ''} onChange={(e) => setPrices((p: any) => ({ ...p, [s.id]: e.target.value }))} className="w-28 min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-2 py-1 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
                   </td>
                   <td className="py-2.5 pr-3"><Badge variant="outline" style={{ borderColor: s.active ? '#27AE60' : '#E74C3C', color: s.active ? '#27AE60' : '#E74C3C' }}>{s.active ? 'Активен' : 'Не активен'}</Badge></td>
                 </tr>
@@ -355,7 +355,7 @@ function LabPaymentsTab({ labId }: { labId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <GlassCard padding="sm">
           <div className="flex items-center gap-2"><DollarSign size={16} className="text-success" /><span className="text-xs text-txt-muted">Выручка</span></div>
           <p className="text-xl font-bold text-txt-primary mt-1">{Number(totals.totalRevenue).toLocaleString()} ₸</p>
@@ -441,7 +441,7 @@ export default function LabDashboard() {
   ];
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-txt-primary">Панель лаборатории</h1>
@@ -451,9 +451,9 @@ export default function LabDashboard() {
 
       {!isOwnOrg && (
         <Card padding="md">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Building2 size={18} className="text-dv-gold shrink-0" />
-            <select value={labId} onChange={(e) => setLabId(e.target.value)} className="flex-1 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
+            <select value={labId} onChange={(e) => setLabId(e.target.value)} className="flex-1 min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
               <option value="">Выберите лабораторию</option>
               {labs.map((c: any) => (<option key={c.id} value={c.id}>{c.name} — {c.city || ''}</option>))}
             </select>

@@ -99,6 +99,7 @@ export default function RegistrationModal() {
       open={showRegistrationModal}
       onClose={handleClose}
       size="sm"
+      className="sm:max-w-md md:max-w-lg"
     >
       <AnimatePresence mode="wait">
         {success ? (
@@ -176,7 +177,7 @@ export default function RegistrationModal() {
             <button
               onClick={handleGuestLogin}
               disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full min-h-11 py-2.5 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
               {loading ? t('auth.signing_in') : t('auth.login')}
@@ -185,7 +186,7 @@ export default function RegistrationModal() {
             <div className="text-center">
               <button
                 onClick={() => setShowLoginForm(false)}
-                className="text-xs text-txt-muted hover:text-txt-secondary transition-colors"
+                className="min-h-11 text-xs text-txt-muted hover:text-txt-secondary transition-colors"
               >
                 {t('auth.register_instead')}
               </button>
@@ -261,7 +262,7 @@ export default function RegistrationModal() {
             <button
               onClick={handleConvertAndRegister}
               disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full min-h-11 py-2.5 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
               {loading ? t('auth.registering') : t('auth.register')}
@@ -270,13 +271,13 @@ export default function RegistrationModal() {
             <div className="text-center space-y-2">
               <button
                 onClick={() => setShowLoginForm(true)}
-                className="text-xs text-txt-muted hover:text-txt-secondary transition-colors block mx-auto"
+                className="text-xs text-txt-muted hover:text-txt-secondary transition-colors block mx-auto min-h-11"
               >
                 {t('auth.already_have_account')}
               </button>
               <button
                 onClick={handleClose}
-                className="text-xs text-txt-muted hover:text-txt-secondary transition-colors block mx-auto"
+                className="text-xs text-txt-muted hover:text-txt-secondary transition-colors block mx-auto min-h-11"
               >
                 {t('auth.continue_as_guest')}
               </button>

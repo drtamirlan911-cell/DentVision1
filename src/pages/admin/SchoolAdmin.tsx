@@ -31,7 +31,7 @@ export default function SchoolAdmin() {
   if (user?.role !== 'superadmin') return <Navigate to="/school" replace />
 
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-4">
+    <div className="max-w-full overflow-x-hidden p-4 space-y-4">
       <PageHeader
         title="Кабинет методиста"
         subtitle="Управляйте курсами, клиническими кейсами и библиотекой Академии"
@@ -142,16 +142,16 @@ function CoursesManager() {
     <Card>
       <CardHeader>
         <CardTitle>Курсы ({items.length})</CardTitle>
-        <div className="flex gap-2">
-          <Input placeholder="Поиск..." value={query} onChange={e => setQuery(e.target.value)} icon={<Search size={16} />} className="w-48" />
-          <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
+        <div className="flex flex-wrap gap-2">
+          <Input placeholder="Поиск..." value={query} onChange={e => setQuery(e.target.value)} icon={<Search size={16} />} className="w-full sm:w-48 min-h-11" />
+          <Button onClick={openCreate} icon={<Plus size={16} />} className="min-h-11">Добавить</Button>
         </div>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
           : filtered.length === 0 ? <EmptyState icon={<BookOpen size={16} />} title="Нет курсов" description="Создайте первый курс Академии" />
             : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {filtered.map(c => (
                   <div key={c.id} className="border rounded-lg p-3 flex flex-col">
                     <div className="flex items-start justify-between gap-2">
@@ -160,11 +160,11 @@ function CoursesManager() {
                         <p className="text-xs text-muted-foreground">{c.category}{c.instructor ? ' · ' + c.instructor : ''}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)}><Pencil size={16} /></Button>
-                        <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(c)}><Trash2 size={16} /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)} className="min-h-11"><Pencil size={16} /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(c)} className="min-h-11"><Trash2 size={16} /></Button>
                       </div>
                     </div>
-                    <div className="flex gap-2 mt-2 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap gap-2 mt-2 text-xs text-muted-foreground">
                       <Badge variant="default">{c.difficulty}</Badge>
                       <span>{c.durationHours} ч</span>
                       <span>· {c.lessonCount} ур.</span>
@@ -178,20 +178,20 @@ function CoursesManager() {
 
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Редактировать курс' : 'Новый курс'} size="xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Input label="Название *" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
-          <Input label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="Имплантология" />
-          <Input label="Подзаголовок" value={form.subtitle} onChange={e => setForm({ ...form, subtitle: e.target.value })} className="md:col-span-2" />
+          <Input label="Название *" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="min-h-11" />
+          <Input label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="Имплантология" className="min-h-11" />
+          <Input label="Подзаголовок" value={form.subtitle} onChange={e => setForm({ ...form, subtitle: e.target.value })} className="min-h-11 md:col-span-2" />
           <Textarea label="Описание" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="md:col-span-2" />
-          <Input label="Преподаватель" value={form.instructor} onChange={e => setForm({ ...form, instructor: e.target.value })} />
-          <Input label="Должность преподавателя" value={form.instructorTitle} onChange={e => setForm({ ...form, instructorTitle: e.target.value })} />
+          <Input label="Преподаватель" value={form.instructor} onChange={e => setForm({ ...form, instructor: e.target.value })} className="min-h-11" />
+          <Input label="Должность преподавателя" value={form.instructorTitle} onChange={e => setForm({ ...form, instructorTitle: e.target.value })} className="min-h-11" />
           <Select label="Сложность" value={form.difficulty} onChange={e => setForm({ ...form, difficulty: e.target.value })}
-            options={[{ value: 'beginner', label: 'Начальный' }, { value: 'intermediate', label: 'Средний' }, { value: 'advanced', label: 'Продвинутый' }]} />
-          <Input label="Часов" type="number" value={form.durationHours} onChange={e => setForm({ ...form, durationHours: e.target.value })} />
-          <Input label="Уроков" type="number" value={form.lessonCount} onChange={e => setForm({ ...form, lessonCount: e.target.value })} />
-          <Input label="Цена (₸, 0 = бесплатно)" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
-          <Input label="Рейтинг" type="number" step="0.1" value={form.rating} onChange={e => setForm({ ...form, rating: e.target.value })} />
-          <Input label="Теги (через запятую)" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} className="md:col-span-2" />
-          <Input label="Картинка (URL)" value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} className="md:col-span-2" />
+            options={[{ value: 'beginner', label: 'Начальный' }, { value: 'intermediate', label: 'Средний' }, { value: 'advanced', label: 'Продвинутый' }]} className="min-h-11" />
+          <Input label="Часов" type="number" value={form.durationHours} onChange={e => setForm({ ...form, durationHours: e.target.value })} className="min-h-11" />
+          <Input label="Уроков" type="number" value={form.lessonCount} onChange={e => setForm({ ...form, lessonCount: e.target.value })} className="min-h-11" />
+          <Input label="Цена (₸, 0 = бесплатно)" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} className="min-h-11" />
+          <Input label="Рейтинг" type="number" step="0.1" value={form.rating} onChange={e => setForm({ ...form, rating: e.target.value })} className="min-h-11" />
+          <Input label="Теги (через запятую)" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} className="min-h-11 md:col-span-2" />
+          <Input label="Картинка (URL)" value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} className="min-h-11 md:col-span-2" />
           <label className="flex items-center gap-2 md:col-span-2 cursor-pointer">
             <Switch checked={!!form.certificateEnabled} onCheckedChange={v => setForm({ ...form, certificateEnabled: v })} />
             <span className="text-sm">Выдавать сертификат после прохождения</span>
@@ -201,27 +201,27 @@ function CoursesManager() {
         <div className="mt-4 border-t pt-3">
           <div className="flex items-center justify-between mb-2">
             <p className="font-medium">Модули и уроки</p>
-            <Button variant="outline" size="sm" onClick={addModule} icon={<Plus size={16} />}>Модуль</Button>
+            <Button variant="outline" size="sm" onClick={addModule} icon={<Plus size={16} />} className="min-h-11">Модуль</Button>
           </div>
           <div className="space-y-2">
               {(form.modules || []).map((m: any, mi: number) => (
               <div key={mi} className="border rounded-lg p-3 bg-muted/30">
                 <div className="flex items-center gap-2">
                   <GripVertical size={16} className="text-muted-foreground" />
-                  <Input placeholder="Название модуля" value={m.title} onChange={e => updateModule(mi, { title: e.target.value })} className="flex-1" />
-                  <Button variant="ghost" size="icon" aria-label="Удалить модуль" onClick={() => removeModule(mi)}><Trash2 size={16} /></Button>
+                  <Input placeholder="Название модуля" value={m.title} onChange={e => updateModule(mi, { title: e.target.value })} className="flex-1 min-h-11" />
+                  <Button variant="ghost" size="icon" aria-label="Удалить модуль" onClick={() => removeModule(mi)} className="min-h-11"><Trash2 size={16} /></Button>
                 </div>
                 <div className="ml-6 mt-2 space-y-2">
                   {(m.lessons || []).map((l: any, li: number) => (
                     <div key={li} className="flex items-center gap-2">
-                      <Input placeholder="Название урока" value={l.title} onChange={e => updateLesson(mi, li, { title: e.target.value })} className="flex-1" />
-                      <Input type="number" placeholder="мин" value={l.duration} onChange={e => updateLesson(mi, li, { duration: e.target.value })} className="w-20" />
+                      <Input placeholder="Название урока" value={l.title} onChange={e => updateLesson(mi, li, { title: e.target.value })} className="flex-1 min-h-11" />
+                      <Input type="number" placeholder="мин" value={l.duration} onChange={e => updateLesson(mi, li, { duration: e.target.value })} className="w-20 min-h-11" />
                       <Select value={l.type} onChange={e => updateLesson(mi, li, { type: e.target.value })}
-                        options={[{ value: 'video', label: 'Видео' }, { value: 'text', label: 'Текст' }, { value: 'quiz', label: 'Тест' }]} className="w-28" />
-                      <Button variant="ghost" size="icon" aria-label="Удалить урок" onClick={() => removeLesson(mi, li)}><X size={16} /></Button>
+                        options={[{ value: 'video', label: 'Видео' }, { value: 'text', label: 'Текст' }, { value: 'quiz', label: 'Тест' }]} className="w-28 min-h-11" />
+                      <Button variant="ghost" size="icon" aria-label="Удалить урок" onClick={() => removeLesson(mi, li)} className="min-h-11"><X size={16} /></Button>
                     </div>
                   ))}
-                  <Button variant="ghost" size="sm" onClick={() => addLesson(mi)} icon={<Plus size={16} />}>Урок</Button>
+                  <Button variant="ghost" size="sm" onClick={() => addLesson(mi)} icon={<Plus size={16} />} className="min-h-11">Урок</Button>
                 </div>
               </div>
             ))}
@@ -229,9 +229,9 @@ function CoursesManager() {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
-          <Button onClick={save} loading={saving}>{editing ? 'Сохранить' : 'Создать'}</Button>
+        <div className="flex flex-wrap justify-end gap-2 mt-4">
+          <Button variant="ghost" onClick={() => setOpen(false)} className="min-h-11">Отмена</Button>
+          <Button onClick={save} loading={saving} className="min-h-11">{editing ? 'Сохранить' : 'Создать'}</Button>
         </div>
       </Modal>
 
@@ -276,13 +276,15 @@ function CasesManager() {
     <Card>
       <CardHeader>
         <CardTitle>Клинические кейсы ({items.length})</CardTitle>
-        <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={openCreate} icon={<Plus size={16} />} className="min-h-11">Добавить</Button>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
           : items.length === 0 ? <EmptyState icon={<Lightbulb size={16} />} title="Нет кейсов" description="Добавьте разбор клинического случая" />
             : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {items.map(c => (
                   <div key={c.id} className="border rounded-lg p-3 flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -290,8 +292,8 @@ function CasesManager() {
                       <p className="text-xs text-muted-foreground">{c.category}{c.author ? ' · ' + c.author : ''}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)}><Pencil size={16} /></Button>
-                      <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(c)}><Trash2 size={16} /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)} className="min-h-11"><Pencil size={16} /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(c)} className="min-h-11"><Trash2 size={16} /></Button>
                     </div>
                   </div>
                 ))}
@@ -300,17 +302,17 @@ function CasesManager() {
       </CardContent>
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Редактировать кейс' : 'Новый кейс'} size="lg">
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Название *" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="col-span-2" />
-          <Input label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
+          <Input label="Название *" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="min-h-11 col-span-2" />
+          <Input label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="min-h-11" />
           <Select label="Сложность" value={form.difficulty} onChange={e => setForm({ ...form, difficulty: e.target.value })}
-            options={[{ value: 'beginner', label: 'Начальный' }, { value: 'intermediate', label: 'Средний' }, { value: 'advanced', label: 'Продвинутый' }]} />
-          <Input label="Автор" value={form.author} onChange={e => setForm({ ...form, author: e.target.value })} />
-          <Input label="Картинка (URL)" value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} />
+            options={[{ value: 'beginner', label: 'Начальный' }, { value: 'intermediate', label: 'Средний' }, { value: 'advanced', label: 'Продвинутый' }]} className="min-h-11" />
+          <Input label="Автор" value={form.author} onChange={e => setForm({ ...form, author: e.target.value })} className="min-h-11" />
+          <Input label="Картинка (URL)" value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} className="min-h-11" />
           <Textarea label="Описание" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="col-span-2" />
         </div>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
-          <Button onClick={save} loading={saving}>{editing ? 'Сохранить' : 'Добавить'}</Button>
+        <div className="flex flex-wrap justify-end gap-2 mt-4">
+          <Button variant="ghost" onClick={() => setOpen(false)} className="min-h-11">Отмена</Button>
+          <Button onClick={save} loading={saving} className="min-h-11">{editing ? 'Сохранить' : 'Добавить'}</Button>
         </div>
       </Modal>
       <ConfirmModal open={!!toDelete} onClose={() => setToDelete(null)} onConfirm={confirmDelete}
@@ -354,7 +356,9 @@ function LibraryManager() {
     <Card>
       <CardHeader>
         <CardTitle>Библиотека ({items.length})</CardTitle>
-        <Button onClick={openCreate} icon={<Plus size={16} />}>Добавить</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={openCreate} icon={<Plus size={16} />} className="min-h-11">Добавить</Button>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
@@ -374,8 +378,8 @@ function LibraryManager() {
                         <td className="pr-2"><Badge variant="default">{l.type}</Badge></td>
                         <td className="pr-2">{l.category || '—'}</td>
                         <td className="text-right whitespace-nowrap">
-                          <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(l)}><Pencil size={16} /></Button>
-                          <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(l)}><Trash2 size={16} /></Button>
+                          <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(l)} className="min-h-11"><Pencil size={16} /></Button>
+                          <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(l)} className="min-h-11"><Trash2 size={16} /></Button>
                         </td>
                       </tr>
                     ))}
@@ -386,18 +390,18 @@ function LibraryManager() {
       </CardContent>
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Редактировать материал' : 'Новый материал'} size="lg">
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Название *" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="col-span-2" />
-          <Input label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
+          <Input label="Название *" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="min-h-11 col-span-2" />
+          <Input label="Категория" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="min-h-11" />
           <Select label="Тип" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
-            options={[{ value: 'article', label: 'Статья' }, { value: 'video', label: 'Видео' }, { value: 'pdf', label: 'PDF' }]} />
-          <Input label="Автор" value={form.author} onChange={e => setForm({ ...form, author: e.target.value })} />
-          <Input label="Файл/ссылка (URL)" value={form.fileUrl} onChange={e => setForm({ ...form, fileUrl: e.target.value })} />
-          <Input label="Теги (через запятую)" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} className="col-span-2" />
+            options={[{ value: 'article', label: 'Статья' }, { value: 'video', label: 'Видео' }, { value: 'pdf', label: 'PDF' }]} className="min-h-11" />
+          <Input label="Автор" value={form.author} onChange={e => setForm({ ...form, author: e.target.value })} className="min-h-11" />
+          <Input label="Файл/ссылка (URL)" value={form.fileUrl} onChange={e => setForm({ ...form, fileUrl: e.target.value })} className="min-h-11" />
+          <Input label="Теги (через запятую)" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} className="min-h-11 col-span-2" />
           <Textarea label="Содержимое" value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} className="col-span-2" />
         </div>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
-          <Button onClick={save} loading={saving}>{editing ? 'Сохранить' : 'Добавить'}</Button>
+        <div className="flex flex-wrap justify-end gap-2 mt-4">
+          <Button variant="ghost" onClick={() => setOpen(false)} className="min-h-11">Отмена</Button>
+          <Button onClick={save} loading={saving} className="min-h-11">{editing ? 'Сохранить' : 'Добавить'}</Button>
         </div>
       </Modal>
       <ConfirmModal open={!!toDelete} onClose={() => setToDelete(null)} onConfirm={confirmDelete}
@@ -405,4 +409,3 @@ function LibraryManager() {
     </Card>
   )
 }
-

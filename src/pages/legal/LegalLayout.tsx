@@ -35,7 +35,7 @@ export default function LegalLayout() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Legal Engine"
         subtitle="Юридический движок платформы"
@@ -45,7 +45,7 @@ export default function LegalLayout() {
       <div className="flex gap-1 bg-surface-2 rounded-lg p-1 overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => handleTabChange(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors min-h-11 ${tab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
             {t.icon}{t.label}
           </button>
         ))}

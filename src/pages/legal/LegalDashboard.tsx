@@ -49,13 +49,13 @@ export default function LegalDashboard() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       {stats.isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <StatCard label="Всего документов" value={s.totalDocuments ?? 0} icon={<FileText size={18} />} />
           <StatCard label="Черновики" value={s.draftCount ?? 0} icon={<FileSignature size={18} />} />
           <StatCard label="На проверке" value={s.reviewCount ?? 0} icon={<Clock size={18} />} />
@@ -107,12 +107,12 @@ export default function LegalDashboard() {
         </Card>
 
         <Card padding="none">
-          <div className="px-4 py-3 border-b border-bdr-subtle flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-bdr-subtle flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-txt-primary">Истекающие документы</h3>
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-txt-muted" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
-                className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-44" />
+                className="pl-8 pr-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-full sm:w-44 min-h-11" />
             </div>
           </div>
           {stats.isLoading ? (
@@ -135,7 +135,7 @@ export default function LegalDashboard() {
                       Истекает: {fd(d.expiresAt)}
                     </p>
                   </div>
-                  <Button size="icon-sm" variant="ghost" aria-label="Просмотреть"><Eye size={14} /></Button>
+                  <Button size="icon-sm" variant="ghost" aria-label="Просмотреть" className="min-h-11 min-w-11"><Eye size={14} /></Button>
                 </div>
               ))}
             </div>
@@ -144,13 +144,13 @@ export default function LegalDashboard() {
       </div>
 
       {stats.isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
         </div>
       )}
 
       {!stats.isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="rounded-xl border border-bdr-subtle bg-surface-raised p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-dv-gold/10 text-dv-gold"><FileText size={18} /></div>
