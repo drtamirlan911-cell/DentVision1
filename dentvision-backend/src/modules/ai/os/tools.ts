@@ -1071,6 +1071,11 @@ export const TOOLS: Record<string, ToolSpec> = {
   },
 };
 
+/** Every registered tool name — the permission map is asserted complete against it. */
+export function listToolNames(): string[] {
+  return Object.values(TOOLS).map((t) => t.name);
+}
+
 export function toolSchemasFor(toolNames: Set<string>): Array<{
   type: 'function';
   name: string;

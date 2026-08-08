@@ -651,13 +651,18 @@ aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
   // (createAppointment / createInvoice / createTreatmentPlan with
   // confirmed=true) execute through the same RBAC-checked tool layer.
   const { executeTool: runTool } = await import('./os/tools.js');
-  const { toolsForRole } = await import('./os/registry.js');
-  const allowed = toolsForRole(req.user!.role);
+  const { resolveAiToolAccess } = await import('./os/access.js');
+  const access = await resolveAiToolAccess({
+    userId: req.user!.id,
+    clinicId: req.user!.clinicId,
+    isGuest: req.user!.isGuest,
+  });
+  const allowed = access.allowed;
   if (allowed.has(action)) {
     const result = await runTool(action, params, {
       userId: req.user!.id,
-      clinicId: req.user!.clinicId || null,
-      role: req.user!.role,
+      clinicId: access.clinicId,
+      role: access.role,
     }, allowed);
 
     if (!result.ok) return res.json({ ok: true, data: { type: 'error', message: result.error } });
@@ -846,9 +851,13 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
     }
 
     const { executeTool: runTool } = await import('./os/tools.js');
-    const { toolsForRole } = await import('./os/registry.js');
-    const allowed = toolsForRole(req.user!.role);
-    if (!allowed.has(toolName)) {
+    const { resolveAiToolAccess } = await import('./os/access.js');
+    const access = await resolveAiToolAccess({
+      userId: req.user!.id,
+      clinicId: req.user!.clinicId,
+      isGuest: req.user!.isGuest,
+    });
+    if (!access.allowed.has(toolName)) {
       return res.status(403).json({ ok: false, error: 'Действие недоступно для роли' });
     }
 
@@ -857,10 +866,10 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
       { ...(params || data || {}), confirmed: true },
       {
         userId: req.user!.id,
-        clinicId: req.user!.clinicId || null,
-        role: req.user!.role,
+        clinicId: access.clinicId,
+        role: access.role,
       },
-      allowed,
+      access.allowed,
     );
 
     if (!result.ok) return res.json({ ok: false, error: result.error });

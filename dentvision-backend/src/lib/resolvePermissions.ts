@@ -10,8 +10,17 @@ import { permissionsForRole } from './permissions.js';
  * complete, usable permission set.
  *
  * Note: for SUPERADMIN the role matrix is already a wildcard (all keys).
+ *
+ * `fallbackRole` lets a caller that has already resolved the *scoped* role
+ * (e.g. via resolveClinicAccess) drive the matrix fallback with it instead of
+ * the user's global User.role — a user can be OWNER of one clinic and DOCTOR
+ * in another, and the fallback must not hand them the wider set.
  */
-export async function resolveUserPermissions(userId: string, scopeId?: string | null): Promise<string[]> {
+export async function resolveUserPermissions(
+  userId: string,
+  scopeId?: string | null,
+  fallbackRole?: string | null,
+): Promise<string[]> {
   try {
     const person = await prisma.person.findFirst({
       where: scopeId ? { userId, organizationId: scopeId } : { userId },
@@ -31,6 +40,8 @@ export async function resolveUserPermissions(userId: string, scopeId?: string | 
   } catch {
     // Fall through to the role matrix.
   }
+
+  if (fallbackRole) return permissionsForRole(fallbackRole);
 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   return permissionsForRole(user?.role);
