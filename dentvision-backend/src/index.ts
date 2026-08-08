@@ -1111,12 +1111,14 @@ async function main() {
       // Monthly platform-commission settlements (hourly interval; monthly work is
       // guarded by referral linking, so most runs are cheap no-ops).
       startSettlementCronInterval(60 * 60 * 1000);
-      try {
-        startMessageWorker();
-      } catch (err) {
-        console.warn('[AI_ADMIN] Worker start failed (non-fatal):', err);
-      }
     }
+    // AI admin worker is independent of cron settings.
+    try {
+      startMessageWorker();
+    } catch (err) {
+      console.warn('[AI_ADMIN] Worker start failed (non-fatal):', err);
+    }
+  });
   });
 }
 

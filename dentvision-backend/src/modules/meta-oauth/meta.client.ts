@@ -3,6 +3,8 @@ import { env } from '../../config.js'
 const META_GRAPH_URL = 'https://graph.facebook.com/v20.0'
 const META_OAUTH_URL = 'https://www.facebook.com/v20.0/dialog/oauth'
 
+export { META_GRAPH_URL }
+
 export function buildOAuthUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: env.META_APP_ID || '',
@@ -28,11 +30,9 @@ export async function exchangeCodeForToken(code: string): Promise<{
   refresh_token?: string
   expires_in: number
 }> {
-  const response = await fetch(`${META_GRAPH_URL}/oauth/access_token`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  })
-  const url = `${META_GRAPH_URL}/oauth/access_token?client_id=${env.META_APP_ID}&client_secret=${env.META_APP_SECRET}&redirect_uri=${encodeURIComponent(`${env.FRONTEND_URL || env.CORS_ORIGIN || 'http://localhost:5173'}/integrations/messaging/callback`)}&code=${code}`
+  // Must match the redirect_uri used in buildOAuthUrl exactly.
+  const redirectUri = `${env.PUBLIC_API_URL || 'http://localhost:3001'}/api/meta/callback`
+  const url = `${META_GRAPH_URL}/oauth/access_token?client_id=${env.META_APP_ID}&client_secret=${env.META_APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`
 
   const res = await fetch(url, { method: 'GET' })
   if (!res.ok) {

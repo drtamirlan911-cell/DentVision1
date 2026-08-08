@@ -1,5 +1,6 @@
 import prisma from '../../lib/prisma.js'
 import { uid } from '../../lib/helpers.js'
+import { env } from '../../config.js'
 import {
   exchangeCodeForToken,
   getLongLivedToken,
@@ -9,6 +10,7 @@ import {
   subscribeAppToWABA,
   getPages,
   refreshAccessToken,
+  META_GRAPH_URL,
 } from './meta.client.js'
 import type { Channel } from '../ai-admin/webhook/types.js'
 
@@ -49,15 +51,14 @@ export async function handleMetaCallback(
   let webhookSubscribed = false
 
   if (channel === 'WHATSAPP') {
-    // Получить страницы → WABA
+    // Discover WABA through pages (standard Cloud API path).
     const pages = await getPages(longLivedToken)
     pageId = pages[0]?.id || null
 
     if (businessId) {
-      // Ищем WABA в бизнес-аккаунте
-      const wabas = await getWhatsAppBusinessAccounts(longLivedToken)
-      for (const b of wabas) {
-        const info = await getWABAInfo(b.id, longLivedToken)
+      // For each page, query its connected WABA phone numbers.
+      for (const p of pages) {
+        const info = await getWABAInfo(p.id, longLivedToken)
         if (info?.phoneNumbers?.length) {
           wabaId = info.id
           phoneNumberId = info.phoneNumbers[0].id
@@ -110,7 +111,7 @@ export async function handleMetaCallback(
     expiresAt,
     webhookSubscribed,
     isActive: true,
-    verifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || uid(),
+    verifyToken: env.META_WEBHOOK_VERIFY_TOKEN || uid(),
   }
 
   const config = existing
@@ -142,7 +143,7 @@ export async function disconnectChannel(
   // Удалить webhook подписки если были
   if (config.wabaId && config.accessToken) {
     try {
-      const url = `https://graph.facebook.com/v20.0/${config.wabaId}/subscribed_apps`
+      const url = `${META_GRAPH_URL}/${config.wabaId}/subscribed_apps`
       await fetch(url, {
         method: 'DELETE',
         headers: {
@@ -161,7 +162,7 @@ export async function disconnectChannel(
       accessToken: '',
       refreshToken: null,
       webhookSubscribed: false,
-      permissions: {},
+      permissions: null,
     },
   })
 
