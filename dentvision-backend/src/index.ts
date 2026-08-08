@@ -984,6 +984,50 @@ async function main() {
     console.warn('[DIAGNOSTICS] Approved-registration access backfill failed (non-fatal):', err);
   }
 
+  // Platform-commission settlements: table + referrals.settlementId link.
+  // Mirrors prisma/migrations/20260808_add_settlement (not run via migrate deploy
+  // on production), idempotent so it can re-run on every boot.
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "settlements" (
+        "id" TEXT NOT NULL,
+        "ownerType" TEXT NOT NULL,
+        "ownerId" TEXT NOT NULL,
+        "periodStart" TIMESTAMP(3) NOT NULL,
+        "periodEnd" TIMESTAMP(3) NOT NULL,
+        "referralCount" INTEGER NOT NULL DEFAULT 0,
+        "commissionMinor" BIGINT NOT NULL DEFAULT 0,
+        "status" TEXT NOT NULL DEFAULT 'open',
+        "paymentId" TEXT,
+        "dueDate" TIMESTAMP(3),
+        "paidAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL,
+        CONSTRAINT "settlements_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "settlements_ownerType_ownerId_idx" ON "settlements"("ownerType", "ownerId")`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "settlements_status_idx" ON "settlements"("status")`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "settlements_periodStart_periodEnd_idx" ON "settlements"("periodStart", "periodEnd")`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "referrals" ADD COLUMN IF NOT EXISTS "settlementId" TEXT`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "referrals_settlementId_idx" ON "referrals"("settlementId")`);
+    await prisma.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'referrals_settlementId_fkey'
+        ) THEN
+          ALTER TABLE "referrals" ADD CONSTRAINT "referrals_settlementId_fkey"
+            FOREIGN KEY ("settlementId") REFERENCES "settlements"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    console.log('[MIGRATION] Settlement tables ready');
+  } catch (err) {
+    console.error('[MIGRATION] Settlement tables failed (non-fatal):', err);
+  }
+
   // Initialize Event Bus
   try {
     await eventBus.connect();
