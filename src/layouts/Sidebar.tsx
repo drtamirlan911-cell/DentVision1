@@ -197,7 +197,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (!raw) return;
       const { accessToken, refreshToken } = JSON.parse(raw);
       api.setTokens(accessToken, refreshToken || null);
-      localStorage.removeItem('dv_clinic_backup');
       await useAuthStore.getState().restoreSession();
     } catch { /* ignore */ }
   };
@@ -228,7 +227,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Pick the first CRM page the role may open instead of always landing on schedule.
   const crmEntryPath = visibleCrmSubnav.length > 0 ? visibleCrmSubnav[0].path : firstAllowedCrmPath(iam.pages);
 
-  const handleNavClick = (path: string) => {
+  const handleNavClick = async (path: string) => {
     if (isGuest) {
       const publicPaths = ['/shop', '/school', '/jobs', '/community', '/demo', '/pricing', '/', '/crm'];
       if (publicPaths.some(p => path === p || path.startsWith(p + '/'))) {
@@ -237,6 +236,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         useGuestStore.getState().setRegistrationModal(true, () => navigate(path));
       }
     } else {
+      // Any navigation into CRM / clinic pages restores the original clinic
+      // context when we're currently in a workspace (center/lab/supplier).
+      if (path.startsWith('/crm') || path === '/analytics' || path === '/bi') {
+        await restoreClinicIfNeeded();
+      }
       navigate(path);
     }
     if (isMobile && sidebarOpen) toggleSidebar();
@@ -282,17 +286,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <motion.button
             type="button"
             aria-current={isActive ? 'page' : undefined}
-            onClick={async () => {
+            onClick={() => {
               if (isCrm && !collapsed) {
                 setCrmOpen((v) => !v);
-                if (!location.pathname.startsWith('/crm')) {
-                  await restoreClinicIfNeeded();
-                  handleNavClick(crmEntryPath);
-                }
+                if (!location.pathname.startsWith('/crm')) handleNavClick(crmEntryPath);
               } else if (item.id === 'center-workspace') {
                 handleCenterWorkspaceClick();
               } else {
-                if (isCrm) { await restoreClinicIfNeeded(); }
                 handleNavClick(item.path);
               }
             }}
