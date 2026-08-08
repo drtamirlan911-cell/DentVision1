@@ -183,10 +183,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const serviceItems = isSuperAdmin ? NAV_ITEMS : (isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.id === 'crm') return true;
-    if (item.id === 'profile' || item.id === 'settings' || item.id === 'partner-legal') return true;
+    if (item.id === 'profile' || item.id === 'settings' || item.id === 'partner-legal' || item.id === 'diagnostics') return true;
     if (item.id === 'supplier' || item.id === 'school-workspace' || item.id === 'center-workspace' || item.id === 'lab-workspace') return true;
     if (item.id === 'jobs' || item.id === 'community') return true;
-    if (item.id === 'diagnostics') return iam.canAccessPage('diagnostics') || iam.canAccessPage('diagnostics-referrals');
     if (item.id === 'shop') return iam.pages.length === 0 || iam.canAccessPage('shop');
     if (item.id === 'school') return iam.pages.length === 0 || iam.canAccessPage('school');
     if (item.id === 'analytics') return iam.canAccessPage('analytics');
