@@ -276,6 +276,12 @@ async function settlePaidPayment(payment: {
     settled = (await settleAcademyEventPayment(payment)) || settled;
   }
 
+  if (payment.refType === 'settlement' && payment.refId) {
+    const { markSettlementPaid } = await import('../diagnostics/settlement.service.js');
+    await markSettlementPaid(payment.refId, payment.id);
+    settled = true;
+  }
+
   return settled;
 }
 

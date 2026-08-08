@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
+import i18n from '@/lib/i18n'
 import { cn, formatMoney, formatDate, formatTime, getInitials, timeAgo, clamp, debounce } from '../lib/utils'
 
 describe('cn', () => {
@@ -56,6 +57,11 @@ describe('formatTime', () => {
 })
 
 describe('timeAgo', () => {
+  // timeAgo is i18n-driven; the language detector picks 'en' from happy-dom's
+  // navigator, so pin the locale to ru for these Russian-literal assertions.
+  beforeAll(async () => {
+    await i18n.changeLanguage('ru')
+  })
   it('returns "только что" for recent dates', () => {
     expect(timeAgo(new Date())).toBe('только что')
   })

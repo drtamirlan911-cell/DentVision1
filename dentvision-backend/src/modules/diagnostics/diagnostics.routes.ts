@@ -613,6 +613,95 @@ diagnosticsRouter.get('/platform/commissions', requireSuperadmin, async (_req: A
   }
 });
 
+// ─── Settlements (collect accrued platform commission from centers/labs) ───
+
+// Platform: generate settlements for a period (rolls up paid, unsettled referrals).
+diagnosticsRouter.post('/platform/settlements/generate', requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const { generateSettlements } = await import('./settlement.service.js');
+    const { serializeBigInt } = await import('../../lib/money.js');
+    const { periodStart, periodEnd, dueDays } = req.body || {};
+    const start = periodStart ? new Date(periodStart) : null;
+    const end = periodEnd ? new Date(periodEnd) : null;
+    if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || start >= end) {
+      return res.status(400).json({ ok: false, error: 'Укажите корректный период (periodStart < periodEnd)' } satisfies ApiResponse);
+    }
+    const created = await generateSettlements({
+      periodStart: start,
+      periodEnd: end,
+      dueDays: dueDays != null ? Math.max(0, Number(dueDays) || 0) : undefined,
+    });
+    return res.status(201).json({ ok: true, data: serializeBigInt(created) } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+// Platform: list all settlements (optional ownerType/ownerId/status filter).
+diagnosticsRouter.get('/platform/settlements', requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const { listSettlements } = await import('./settlement.service.js');
+    const { serializeBigInt } = await import('../../lib/money.js');
+    const { ownerType, ownerId, status } = req.query as Record<string, string | undefined>;
+    const rows = await listSettlements({
+      ownerType: ownerType === 'CENTER' || ownerType === 'LAB' ? ownerType : undefined,
+      ownerId: ownerId || undefined,
+      status: status || undefined,
+    });
+    return res.json({ ok: true, data: serializeBigInt(rows) } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+// Center/Lab: list this owner's own settlements (member access).
+diagnosticsRouter.get('/settlements', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { listSettlements } = await import('./settlement.service.js');
+    const { serializeBigInt } = await import('../../lib/money.js');
+    const { ownerType, ownerId } = req.query as Record<string, string | undefined>;
+    if ((ownerType !== 'CENTER' && ownerType !== 'LAB') || !ownerId) {
+      return res.status(400).json({ ok: false, error: 'Укажите ownerType (CENTER|LAB) и ownerId' } satisfies ApiResponse);
+    }
+    const { userOwnsSettlement } = await import('./settlement.service.js');
+    const owns = await userOwnsSettlement(req.user!.id, ownerType, ownerId);
+    if (!owns && req.user!.role !== 'SUPERADMIN') {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к расчётам этого исполнителя' } satisfies ApiResponse);
+    }
+    const rows = await listSettlements({ ownerType, ownerId });
+    return res.json({ ok: true, data: serializeBigInt(rows) } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+// Center/Lab (or platform): create a Kaspi pay-link for a settlement.
+diagnosticsRouter.post('/settlements/:id/pay', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { paySettlement, userOwnsSettlement } = await import('./settlement.service.js');
+    const { serializeBigInt } = await import('../../lib/money.js');
+    const { withPaymentQr } = await import('../payments/kaspi.provider.js');
+    const settlement = await prisma.settlement.findUnique({ where: { id: req.params.id } });
+    if (!settlement) {
+      return res.status(404).json({ ok: false, error: 'Расчёт не найден' } satisfies ApiResponse);
+    }
+    const owns = await userOwnsSettlement(req.user!.id, settlement.ownerType, settlement.ownerId);
+    if (!owns && req.user!.role !== 'SUPERADMIN') {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к оплате этого расчёта' } satisfies ApiResponse);
+    }
+    const result = await paySettlement(req.params.id);
+    const payment = result.payment
+      ? withPaymentQr(serializeBigInt(result.payment) as Record<string, unknown>, (result as any).qr)
+      : null;
+    return res.json({
+      ok: true,
+      data: { settlement: serializeBigInt(result.settlement), payment, alreadyPaid: (result as any).alreadyPaid || false },
+    } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(e.status || 500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
 // ─── Statistics ───
 
 diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res) => {
