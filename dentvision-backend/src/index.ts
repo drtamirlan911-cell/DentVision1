@@ -1158,6 +1158,42 @@ async function main() {
     `);
   });
 
+  // Payroll configuration in the unified model. Mirrors
+  // 20260808_person_compensation; applied here for the same reason as the two
+  // blocks above — migrations are not reaching this database yet.
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "person_compensation" (
+        "id" TEXT NOT NULL,
+        "personId" TEXT NOT NULL,
+        "commissionPercent" INTEGER NOT NULL DEFAULT 30,
+        "baseSalary" INTEGER NOT NULL DEFAULT 0,
+        "payType" TEXT NOT NULL DEFAULT 'commission',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "person_compensation_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await prisma.$executeRawUnsafe(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "person_compensation_personId_key" ON "person_compensation"("personId")`,
+    );
+    await prisma.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF to_regclass('public.persons') IS NOT NULL AND NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE table_schema = 'public' AND constraint_name = 'person_compensation_personId_fkey'
+        ) THEN
+          ALTER TABLE "person_compensation" ADD CONSTRAINT "person_compensation_personId_fkey"
+            FOREIGN KEY ("personId") REFERENCES "persons"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    console.log('[MIGRATION] Person compensation table ready');
+  } catch (err) {
+    console.error('[MIGRATION] Person compensation table failed (non-fatal):', err);
+  }
+
   // Performance indexes: composite btree for list/aggregate hot paths
   // (clinic-scoped lists, monthly revenue, GMV) plus trigram GIN for
   // %term% text search (patients, marketplace catalog). Idempotent.

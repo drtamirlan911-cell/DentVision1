@@ -2975,8 +2975,9 @@ model Person {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  organization Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   personRoles  PersonRole[]
+  compensation PersonCompensation?
 
   @@unique([originalType, originalId])
   @@unique([userId, organizationId])
@@ -2984,6 +2985,28 @@ model Person {
   @@index([organizationId])
   @@index([userId])
   @@map("persons")
+}
+
+/// Payroll configuration for a staff member, in the unified model.
+///
+/// These three fields lived only on ClinicMember, so staff that exist only as a
+/// Person had no payroll configuration at all — /billing/my-payroll answered 404
+/// and the clinic payroll run skipped them. Person is the right anchor: since
+/// the multi-org migration there is exactly one per (user, organization), which
+/// is precisely what a membership is.
+model PersonCompensation {
+  id                String @id @default(uuid())
+  personId          String @unique
+  commissionPercent Int    @default(30)
+  baseSalary        Int    @default(0)
+  payType           String @default("commission") // commission | salary | mixed
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@map("person_compensation")
 }
 
 model Permission {

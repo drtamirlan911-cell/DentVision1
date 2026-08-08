@@ -193,6 +193,18 @@ async function migratePersons() {
       } else {
         await assignRole(person.id, roleKey, 'organization', org?.id ?? undefined);
       }
+
+      // Payroll configuration follows the membership into the unified model.
+      await prisma.personCompensation.upsert({
+        where: { personId: person.id },
+        update: {},
+        create: {
+          personId: person.id,
+          commissionPercent: m.commissionPercent,
+          baseSalary: m.baseSalary,
+          payType: m.payType,
+        },
+      });
   });
   console.log(`  ✓ ${membersMigrated} clinic members migrated to persons`);
 
