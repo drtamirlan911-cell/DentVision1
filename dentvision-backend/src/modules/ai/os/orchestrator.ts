@@ -625,5 +625,17 @@ function defaultSuggestions(role: string): string[] {
   if (normalized === 'DOCTOR' || normalized === 'ASSISTANT') {
     return ['Показать расписание', 'Открыть зубную карту', 'Создать план лечения'];
   }
+  if (normalized === 'LAB') {
+    return ['Показать заказы', 'Новый заказ', 'Статус заказа'];
+  }
+  if (normalized === 'STUDENT') {
+    return ['Мои курсы', 'Показать расписание', 'Открыть Academy'];
+  }
+  if (normalized === 'SUPERADMIN') {
+    return ['Показать клиники', 'Проверить платежи', 'Пульт суперадмина'];
+  }
+  if (normalized === 'SUPPORT') {
+    return ['Найти клинику', 'Проверить статус', 'Пульт суперадмина'];
+  }
   return ['Что важно сегодня?', 'Показать расписание', 'Проверить долги'];
 }

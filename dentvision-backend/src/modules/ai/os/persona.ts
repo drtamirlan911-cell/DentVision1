@@ -51,6 +51,7 @@ export function defaultPersonaForRole(role?: string | null): PersonaId {
   if (r === 'LECTURER' || r === 'STUDENT') return 'education';
   if (r === 'LAB') return 'doctor';
   if (r === 'SUPERADMIN') return 'ceo';
+  if (r === 'SUPPORT') return 'reception';
   return 'ceo';
 }
 

@@ -44,7 +44,7 @@ describe('ContextManager.getCurrentPermissions', () => {
   });
 
   it('returns an empty set for an unrecognized role', async () => {
-    resolveClinicAccess.mockResolvedValueOnce({ role: 'STUDENT' });
+    resolveClinicAccess.mockResolvedValueOnce({ role: 'UNKNOWN_ROLE' });
     const result = await new ContextManager().getCurrentPermissions('u1', 'c1');
     expect(result).toEqual([]);
   });

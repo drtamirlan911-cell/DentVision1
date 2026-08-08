@@ -19,6 +19,7 @@ export type BriefingRole =
   | 'assistant'
   | 'reception'
   | 'buyer'
+  | 'manager'
   | 'staff'
   | 'guest';
 
@@ -38,8 +39,13 @@ function normalizeRole(role?: string | null): BriefingRole {
   if (r === 'doctor' || r === 'врач') return 'doctor';
   if (r === 'assistant' || r === 'ассистент') return 'assistant';
   if (r === 'reception' || r === 'ресепшн') return 'reception';
-  if (r === 'buyer' || r === 'закуп' || r === 'manager' || r === 'менеджер') return 'buyer';
+  if (r === 'buyer' || r === 'закуп') return 'buyer';
+  if (r === 'manager' || r === 'менеджер') return 'manager';
   if (r === 'guest' || r === 'гость') return 'guest';
+  if (r === 'superadmin' || r === 'суперадмин') return 'admin';
+  if (r === 'support' || r === 'поддержка') return 'staff';
+  if (r === 'student' || r === 'студент') return 'staff';
+  if (r === 'lab' || r === 'лаборатория') return 'staff';
   return 'staff';
 }
 
@@ -64,6 +70,9 @@ export function alertCategoriesForRole(role?: string | null): Set<string> | null
   }
   if (r === 'buyer') {
     return new Set(['stock', 'wallet', 'billing', 'inbox']);
+  }
+  if (r === 'manager') {
+    return new Set(['billing', 'appointments', 'inbox', 'load', 'marketplace', 'diagnostics', 'lab']);
   }
   return null; // all
 }
@@ -332,6 +341,27 @@ export async function buildJarvisBriefing(opts: {
     }
     if (!lines.length) lines.push('• На сегодня свободный день — можно закрыть планы лечения или курс');
     suggestions.push('Показать расписание', 'Открыть зубную карту', 'Создать план лечения');
+  } else if (role === 'manager') {
+    lines.push(`• Записей сегодня: **${apptsToday}**`);
+    if (upcomingSoon > 0) lines.push(`• Ближайшие 2 часа: **${upcomingSoon}**`);
+    if (pendingConfirm > 0) lines.push(`• Ждут подтверждения: **${pendingConfirm}**`);
+    if (unpaidInvoices.length > 0) {
+      lines.push(`• Дебиторка: **${unpaidInvoices.length}** счетов · **${fmt(debtTotal)}**`);
+    }
+    if (lowStock > 0) {
+      lines.push(`• Склад клиники: **${lowStock}** ниже минимума — проверьте закупки`);
+    }
+    if (loadSignals?.briefingLines?.length) {
+      lines.push('');
+      lines.push('**Что требует внимания менеджера:**');
+      lines.push(...loadSignals.briefingLines);
+    }
+    suggestions.push(
+      ...(loadSignals?.suggestions || []),
+      'Показать выручку',
+      'Проверить долги',
+      'Показать расписание',
+    );
   } else if (role === 'buyer') {
     lines.push(lowStock > 0
       ? `• Склад клиники: **${lowStock}** ниже минимума${lowStockNames.length ? ` (${lowStockNames.join(', ')})` : ''} — откройте маркет`
@@ -343,13 +373,35 @@ export async function buildJarvisBriefing(opts: {
       lines.push(`• По клинике висят оплаты: **${unpaidInvoices.length}** (для сверки с закупками)`);
     }
     suggestions.push('Что на складе', 'Открыть маркетплейс', 'Показать заказы');
+  } else if (role === 'staff') {
+    // LAB / STUDENT / SUPPORT / unrecognized — role-appropriate generic
+    const r = String(opts.role || '').toUpperCase();
+    if (r === 'LAB') {
+      lines.push(`• Лабораторных заказов активно: **${apptsToday}**`);
+      if (upcomingSoon > 0) lines.push(`• Срочных: **${upcomingSoon}**`);
+      suggestions.push('Открыть лабораторию', 'Показать заказы');
+    } else if (r === 'STUDENT') {
+      lines.push(courses > 0
+        ? `• Academy: **${courses}** курс(ов) в процессе`
+        : '• Academy: начните курс и прокачайте навыки');
+      lines.push(`• Записей в клинике сегодня: **${apptsToday}**`);
+      suggestions.push('Открыть Academy', 'Показать расписание');
+    } else if (r === 'SUPPORT') {
+      lines.push(`• Активных клиник на платформе: проверьте пульт суперадмина`);
+      lines.push(`• Обращений: проверьте тикеты`);
+      suggestions.push('Открыть пульт', 'Проверить клиники');
+    } else {
+      lines.push(`• Записей сегодня: **${apptsToday}**`);
+      if (upcomingSoon > 0) lines.push(`• Ближайшие 2 часа: **${upcomingSoon}**`);
+      if (unpaidInvoices.length > 0) lines.push(`• Неоплаченных счетов: **${unpaidInvoices.length}**`);
+      if (lowStock > 0) lines.push(`• Низкий остаток: **${lowStock}**`);
+      if (loadSignals?.briefingLines?.length) lines.push(...loadSignals.briefingLines);
+      suggestions.push(...(loadSignals?.suggestions || []), 'Показать расписание', 'Что важно сегодня?');
+    }
   } else {
+    // Should not happen — all roles covered above
     lines.push(`• Записей сегодня: **${apptsToday}**`);
-    if (upcomingSoon > 0) lines.push(`• Ближайшие 2 часа: **${upcomingSoon}**`);
-    if (unpaidInvoices.length > 0) lines.push(`• Неоплаченных счетов: **${unpaidInvoices.length}**`);
-    if (lowStock > 0) lines.push(`• Низкий остаток: **${lowStock}**`);
-    if (loadSignals?.briefingLines?.length) lines.push(...loadSignals.briefingLines);
-    suggestions.push(...(loadSignals?.suggestions || []), 'Показать расписание', 'Что важно сегодня?');
+    suggestions.push('Что важно сегодня?');
   }
 
   if (unreadNotifs > 0 && role !== 'admin' && role !== 'reception') {
@@ -365,9 +417,11 @@ export async function buildJarvisBriefing(opts: {
         ? (loadSignals?.briefingLines?.length
           ? 'Администратору: сверху — конкретные пациенты и слоты из CRM. Не жду отдельный запрос.'
           : 'Готов выполнить команду. Что делаем первым?')
+      : role === 'manager'
+        ? 'Менеджеру: сводка по загрузке, долгам и складу. Все данные актуальны.'
       : role === 'doctor'
         ? 'Готов вести приём с вами: карта, план, расписание — одной фразой.'
-        : 'Готов выполнить команду. Что делаем первым?';
+      : 'Готов выполнить команду. Что делаем первым?';
 
   return {
     role,

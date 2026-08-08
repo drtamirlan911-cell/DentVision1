@@ -14,7 +14,10 @@ export class AgentRouter {
     if (role === 'owner' || role === 'director') {
       return this.owner.handle(context, intent, { text });
     }
-    if (role === 'admin' || role === 'superadmin') {
+    if (role === 'admin' || role === 'superadmin' || role === 'support' || role === 'cashier') {
+      return this.admin.handle(context, intent, { text });
+    }
+    if (role === 'manager') {
       return this.admin.handle(context, intent, { text });
     }
 

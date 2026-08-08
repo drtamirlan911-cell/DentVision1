@@ -28,6 +28,7 @@ const ROLE_LABEL_RU: Record<string, string> = {
   STUDENT: 'Студент',
   SUPERADMIN: 'Платформа',
   CASHIER: 'Администратор',
+  SUPPORT: 'Поддержка',
 };
 
 function normalizeRole(raw?: string | null): TwinRole {
@@ -42,7 +43,7 @@ function isClinicalDoctor(role: TwinRole): boolean {
 }
 
 function isClinicOps(role: TwinRole): boolean {
-  return role === 'OWNER' || role === 'ADMIN' || role === 'MANAGER' || role === 'SUPERADMIN';
+  return role === 'OWNER' || role === 'ADMIN' || role === 'MANAGER' || role === 'SUPERADMIN' || role === 'SUPPORT';
 }
 
 /** Product guide twin for anonymous guests — not an empty clinic CRM profile. */
@@ -295,6 +296,9 @@ function looksLikeGenericDentist(spec: string): boolean {
 function defaultSkillsForRole(role: TwinRole, specialty: string): string[] {
   if (role === 'OWNER' || role === 'SUPERADMIN') {
     return ['Управление клиникой', 'Финансы', 'Команда', 'Качество сервиса'];
+  }
+  if (role === 'SUPPORT') {
+    return ['Поддержка клиник', 'Решение проблем', 'Коммуникация', 'Платформа'];
   }
   if (role === 'ADMIN' || role === 'MANAGER') {
     return ['Расписание', 'Регистрация пациентов', 'Касса', 'Коммуникация'];
