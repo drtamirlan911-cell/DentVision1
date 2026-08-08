@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { uid } from '../../lib/helpers.js';
 import { serializeBigInt, tengeToMinor } from '../../lib/money.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
+import { syncPersonFromLecturer } from '../../lib/syncMembership.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { normalizeSchoolFormat, formatLabel } from '../school/schoolFormats.js';
 
@@ -26,16 +27,18 @@ lecturerRouter.post('/register', async (req: AuthRequest, res) => {
     if (existing) {
       return res.json({ ok: true, data: existing } satisfies ApiResponse);
     }
+    const academyId = typeof req.body?.academyId === 'string' ? req.body.academyId : null;
     const lecturer = await prisma.lecturer.create({
       data: {
         id: uid(),
         userId,
         level: 'new',
         bio: typeof req.body?.bio === 'string' ? req.body.bio : null,
-        academyId: typeof req.body?.academyId === 'string' ? req.body.academyId : null,
+        academyId,
       },
     });
     await getOrCreateWallet('LECTURER', lecturer.id).catch(() => null);
+    await syncPersonFromLecturer(lecturer.id, userId, academyId);
     return res.status(201).json({ ok: true, data: lecturer } satisfies ApiResponse);
   } catch (error) {
     console.error('Lecturer register error:', error);

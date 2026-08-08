@@ -7,6 +7,7 @@ import { requirePlatformOps } from '../../middleware/platformOps.js';
 import { publish } from '../../lib/events.js';
 import { paginate, paginatedResponse, uid } from '../../lib/helpers.js';
 import { onboardPartner } from '../legal/legal.service.js';
+import { syncPersonFromSupplierMember, removePersonFromSupplierMember } from '../../lib/syncMembership.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -142,6 +143,9 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
 
     // Supplier agreement + NDA land for signing immediately (fixed 10% commission).
     await ensureSupplierLegalPartner(supplier, req.user!.id);
+
+    const ownerMember = supplier.members[0];
+    if (ownerMember) await syncPersonFromSupplierMember(ownerMember.id, supplier.id, req.user!.id);
 
     // Starter catalog: duplicate active DentVision products so the new supplier
     // immediately has listings in the marketplace (with stock, so they show up).
@@ -373,6 +377,7 @@ suppliersRouter.post('/:id/members', requirePermission('supplier.manage'), requi
       create: { userId: resolvedUserId, supplierId: supplier.id, role: role || 'owner' },
       update: { role: role || 'owner' },
     });
+    await syncPersonFromSupplierMember(member.id, supplier.id, resolvedUserId);
     return res.status(201).json({ ok: true, data: member } satisfies ApiResponse);
   } catch (error) {
     console.error('Add supplier member error:', error);
@@ -383,7 +388,7 @@ suppliersRouter.post('/:id/members', requirePermission('supplier.manage'), requi
 // DELETE /api/suppliers/:id/members/:userId — unlink (platform).
 suppliersRouter.delete('/:id/members/:userId', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
-    await prisma.supplierMember.delete({
+    const deleted = await prisma.supplierMember.delete({
       where: {
         userId_supplierId: {
           userId: req.params.userId as string,
@@ -391,6 +396,7 @@ suppliersRouter.delete('/:id/members/:userId', requirePermission('supplier.manag
         },
       },
     });
+    await removePersonFromSupplierMember(deleted.id);
     return res.json({ ok: true, data: { ok: true } } satisfies ApiResponse);
   } catch {
     return res.status(404).json({ ok: false, error: 'Участник не найден' } satisfies ApiResponse);

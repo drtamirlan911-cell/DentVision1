@@ -100,6 +100,183 @@ export async function removePersonFromClinicMember(clinicId: string, userId: str
 }
 
 /**
+ * Keep Person in sync with a SupplierMember (marketplace seller staff).
+ * originalId is the SupplierMember row's own id (matches the backfill in
+ * prisma/migrate-unified-schema.ts, which upserts by `sm.id`, not a composite key).
+ */
+export async function syncPersonFromSupplierMember(memberId: string, supplierId: string, userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+  });
+  if (!user) return;
+
+  const org = await prisma.organization.findFirst({
+    where: { originalType: 'Supplier', originalId: supplierId },
+  });
+  if (!org) return;
+
+  const fullName = `${user.firstName} ${user.lastName}`.trim();
+
+  let person = await prisma.person.findFirst({
+    where: { originalType: 'SupplierMember', originalId: memberId },
+  });
+  if (!person) {
+    const existingByUser = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
+    if (existingByUser) return;
+    person = await prisma.person.create({
+      data: {
+        id: uid(),
+        fullName,
+        personType: 'SUPPLIER_REP',
+        organizationId: org.id,
+        userId: user.id,
+        phone: user.phone || undefined,
+        email: user.email || undefined,
+        originalType: 'SupplierMember',
+        originalId: memberId,
+      },
+    });
+  } else {
+    await prisma.person.update({
+      where: { id: person.id },
+      data: {
+        fullName,
+        personType: 'SUPPLIER_REP',
+        organizationId: org.id,
+        phone: user.phone || undefined,
+        email: user.email || undefined,
+      },
+    });
+  }
+
+  const dbRole = await prisma.role.findUnique({ where: { key: 'seller' } });
+  if (dbRole) {
+    await prisma.personRole.upsert({
+      where: { personId_roleId: { personId: person.id, roleId: dbRole.id } },
+      update: {},
+      create: { personId: person.id, roleId: dbRole.id },
+    });
+  }
+}
+
+/**
+ * Remove Person record when a SupplierMember is deleted.
+ */
+export async function removePersonFromSupplierMember(memberId: string): Promise<void> {
+  await prisma.person.deleteMany({
+    where: { originalType: 'SupplierMember', originalId: memberId },
+  });
+}
+
+/**
+ * Keep Person in sync with a Lecturer profile.
+ * originalId is the Lecturer row's own id (matches the backfill).
+ */
+export async function syncPersonFromLecturer(lecturerId: string, userId: string, academyId?: string | null): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+  });
+  if (!user) return;
+
+  const org = academyId
+    ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academyId } })
+    : null;
+
+  const fullName = `${user.firstName} ${user.lastName}`.trim() || `Lecturer ${lecturerId}`;
+
+  let person = await prisma.person.findFirst({
+    where: { originalType: 'Lecturer', originalId: lecturerId },
+  });
+  if (!person) {
+    const existingByUser = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
+    if (existingByUser) return;
+    person = await prisma.person.create({
+      data: {
+        id: uid(),
+        fullName,
+        personType: 'LECTURER',
+        organizationId: org?.id,
+        userId: user.id,
+        phone: user.phone || undefined,
+        email: user.email || undefined,
+        originalType: 'Lecturer',
+        originalId: lecturerId,
+      },
+    });
+  } else {
+    await prisma.person.update({
+      where: { id: person.id },
+      data: {
+        fullName,
+        personType: 'LECTURER',
+        organizationId: org?.id,
+        phone: user.phone || undefined,
+        email: user.email || undefined,
+      },
+    });
+  }
+
+  const dbRole = await prisma.role.findUnique({ where: { key: 'lecturer' } });
+  if (dbRole) {
+    await prisma.personRole.upsert({
+      where: { personId_roleId: { personId: person.id, roleId: dbRole.id } },
+      update: {},
+      create: { personId: person.id, roleId: dbRole.id },
+    });
+  }
+}
+
+/**
+ * Give a platform SUPPORT user a platform-scoped Person + PersonRole('support').
+ * Mirrors migrateSuperAdmins() in prisma/migrate-unified-schema.ts (same pattern
+ * for SUPERADMIN), keyed the same way: originalType 'User', originalId = user id.
+ */
+export async function syncPersonFromSupportUser(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, firstName: true, lastName: true, email: true },
+  });
+  if (!user) return;
+
+  const fullName = `${user.firstName} ${user.lastName}`.trim() || 'Support';
+
+  let person = await prisma.person.findFirst({
+    where: { originalType: 'User', originalId: userId },
+  });
+  if (!person) {
+    const existingByUser = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
+    if (existingByUser) return;
+    person = await prisma.person.create({
+      data: {
+        id: uid(),
+        fullName,
+        personType: 'PLATFORM_SUPPORT',
+        userId: user.id,
+        email: user.email || undefined,
+        originalType: 'User',
+        originalId: userId,
+      },
+    });
+  } else {
+    await prisma.person.update({
+      where: { id: person.id },
+      data: { fullName, personType: 'PLATFORM_SUPPORT', email: user.email || undefined },
+    });
+  }
+
+  const dbRole = await prisma.role.findUnique({ where: { key: 'support' } });
+  if (dbRole) {
+    await prisma.personRole.upsert({
+      where: { personId_roleId: { personId: person.id, roleId: dbRole.id } },
+      update: {},
+      create: { personId: person.id, roleId: dbRole.id, scopeType: 'platform' },
+    });
+  }
+}
+
+/**
  * Find a user's membership in an org — checks Person first, then ClinicMember.
  */
 export async function findOrgMembership(userId: string, orgId: string) {

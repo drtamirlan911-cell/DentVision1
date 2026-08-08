@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePlatformOps } from '../../middleware/platformOps.js';
 import { publish } from '../../lib/events.js';
 import { paginate, paginatedResponse } from '../../lib/helpers.js';
+import { syncPersonFromSupplierMember } from '../../lib/syncMembership.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 /**
@@ -133,6 +134,7 @@ opsSuppliersRouter.post('/:id/members', async (req: AuthRequest, res) => {
       create: { userId: resolvedUserId, supplierId: supplier.id, role: role || 'owner' },
       update: { role: role || 'owner' },
     });
+    await syncPersonFromSupplierMember(member.id, supplier.id, resolvedUserId);
     return res.status(201).json({ ok: true, data: member } satisfies ApiResponse);
   } catch (error) {
     console.error('Ops add member error:', error);
