@@ -114,7 +114,9 @@ labRouter.post('/', async (req: AuthRequest, res) => {
 
     let existingMeta: LabOrderMeta = {};
     if (id) {
-      const existing = await prisma.labOrder.findUnique({ where: { id } });
+      // Tenant scope: only an order from the caller's clinic may be edited.
+      const existing = await prisma.labOrder.findFirst({ where: { id, clinicId } });
+      if (!existing) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
       existingMeta = (existing?.files as { meta?: LabOrderMeta } | null)?.meta || {};
     }
 
@@ -147,6 +149,8 @@ labRouter.post('/', async (req: AuthRequest, res) => {
 
 labRouter.patch('/:id/status', async (req: AuthRequest, res) => {
   try {
+    const clinicId = req.user!.clinicId;
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const { status } = req.body as { status?: string };
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
       return res.status(400).json({
@@ -154,6 +158,10 @@ labRouter.patch('/:id/status', async (req: AuthRequest, res) => {
         error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}`,
       } satisfies ApiResponse);
     }
+
+    // Tenant scope: verify ownership before updating.
+    const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId }, select: { id: true } });
+    if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
 
     const order = await prisma.labOrder.update({
       where: { id: req.params.id as string },
@@ -169,7 +177,11 @@ labRouter.patch('/:id/status', async (req: AuthRequest, res) => {
 
 labRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
-    await prisma.labOrder.delete({ where: { id: req.params.id as string } });
+    const clinicId = req.user!.clinicId;
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    // Tenant scope: only delete an order that belongs to the caller's clinic.
+    const result = await prisma.labOrder.deleteMany({ where: { id: req.params.id as string, clinicId } });
+    if (result.count === 0) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
     return res.json({ ok: true, data: { deleted: true } } satisfies ApiResponse);
   } catch (error) {
     console.error('[Lab] delete error:', error);
