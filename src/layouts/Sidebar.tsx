@@ -133,26 +133,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'pricing', label: t('nav.pricing'), icon: <Star size={18} strokeWidth={1.75} />, path: '/pricing', color: '#FBBF24', section: 'platform' },
   ];
 
-  const CRM_SUBNAV = [
-    { id: 'schedule', label: t('nav.schedule'), path: '/crm/schedule' },
-    { id: 'patients', label: t('nav.patients'), path: '/crm/patients' },
-    { id: 'medical-card', label: t('nav.medical_card'), path: '/crm/medical-card' },
-    { id: 'finance', label: t('nav.finance'), path: '/crm/finance' },
-    { id: 'clinic-settings', label: t('nav.clinic_settings'), path: '/crm/clinic-settings', adminOnly: true },
-    { id: 'billing', label: t('nav.billing'), path: '/crm/billing', adminOnly: true },
-    { id: 'integrations', label: t('nav.integrations'), path: '/crm/integrations/messaging', adminOnly: true },
-    { id: 'visits', label: t('nav.visits'), path: '/crm/visits' },
-    { id: 'dental-chart', label: t('nav.dental_chart'), path: '/crm/dental-chart' },
-    { id: 'treatment-plans', label: t('nav.treatment_plans'), path: '/crm/treatment-plans' },
-    { id: 'pricelist', label: t('nav.pricelist'), path: '/crm/pricelist' },
-    { id: 'lab', label: t('nav.lab'), path: '/crm/lab' },
-    { id: 'inventory', label: t('nav.inventory'), path: '/crm/inventory' },
-    { id: 'documents', label: t('nav.documents'), path: '/crm/documents' },
-    { id: 'staff', label: t('nav.staff'), path: '/crm/staff' },
-    { id: 'reminders', label: t('nav.reminders'), path: '/crm/reminders' },
-    { id: 'promotions', label: t('nav.promotions'), path: '/crm/promotions' },
-    { id: 'icd10', label: t('nav.icd10'), path: '/crm/icd10' },
-  ];
+  const CRM_SUBNAV = {
+    sections: [
+      {
+        label: t('nav.section_patients'),
+        items: [
+          { id: 'schedule', label: t('nav.schedule'), path: '/crm/schedule' },
+          { id: 'patients', label: t('nav.patients'), path: '/crm/patients' },
+          { id: 'visits', label: t('nav.visits'), path: '/crm/visits' },
+          { id: 'medical-card', label: t('nav.medical_card'), path: '/crm/medical-card' },
+          { id: 'dental-chart', label: t('nav.dental_chart'), path: '/crm/dental-chart' },
+          { id: 'treatment-plans', label: t('nav.treatment_plans'), path: '/crm/treatment-plans' },
+          { id: 'documents', label: t('nav.documents'), path: '/crm/documents' },
+          { id: 'icd10', label: t('nav.icd10'), path: '/crm/icd10' },
+        ],
+      },
+      {
+        label: t('nav.section_finance'),
+        items: [
+          { id: 'finance', label: t('nav.finance'), path: '/crm/finance' },
+          { id: 'pricelist', label: t('nav.pricelist'), path: '/crm/pricelist' },
+          { id: 'inventory', label: t('nav.inventory'), path: '/crm/inventory' },
+          { id: 'lab', label: t('nav.lab'), path: '/crm/lab' },
+          { id: 'promotions', label: t('nav.promotions'), path: '/crm/promotions' },
+        ],
+      },
+      {
+        label: t('nav.section_management'),
+        items: [
+          { id: 'staff', label: t('nav.staff'), path: '/crm/staff' },
+          { id: 'reminders', label: t('nav.reminders'), path: '/crm/reminders' },
+        ],
+      },
+      {
+        label: t('nav.section_admin'),
+        adminOnly: true,
+        items: [
+          { id: 'clinic-settings', label: t('nav.clinic_settings'), path: '/crm/clinic-settings' },
+          { id: 'billing', label: t('nav.billing'), path: '/crm/billing' },
+          { id: 'integrations', label: t('nav.integrations'), path: '/crm/integrations/messaging' },
+        ],
+      },
+    ],
+  };
 
   React.useEffect(() => {
     if (location.pathname.startsWith('/crm')) setCrmOpen(true);
@@ -216,16 +239,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return iam.canAccessPage(item.id) || iam.pages.length === 0;
   }));
 
-  const visibleCrmSubnav = CRM_SUBNAV.filter((sub) => {
-    if ((sub as { adminOnly?: boolean }).adminOnly) {
-      return showClinicSettings || iam.canAccessPage(sub.id);
-    }
-    if (!iam.pages.length) return false;
-    return iam.canAccessPage(sub.id);
-  });
+  const visibleCrmSections = CRM_SUBNAV.sections.map((section) => {
+    const visibleItems = section.items.filter((sub) => {
+      if (section.adminOnly) {
+        return showClinicSettings || iam.canAccessPage(sub.id);
+      }
+      if (!iam.pages.length) return false;
+      return iam.canAccessPage(sub.id);
+    });
+    return { ...section, items: visibleItems };
+  }).filter((s) => s.items.length > 0);
 
   // Pick the first CRM page the role may open instead of always landing on schedule.
-  const crmEntryPath = visibleCrmSubnav.length > 0 ? visibleCrmSubnav[0].path : firstAllowedCrmPath(iam.pages);
+  const crmEntryPath = (() => {
+    for (const s of visibleCrmSections) {
+      if (s.items.length > 0) return s.items[0].path;
+    }
+    return firstAllowedCrmPath(iam.pages);
+  })();
 
   const handleNavClick = async (path: string) => {
     if (isGuest) {
@@ -347,27 +378,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className={cn(collapsed && 'flex justify-center')}>
               {btn}
               {isCrm && !collapsed && crmOpen && !isGuest && (
-                <div className="ml-4 mt-1 mb-1.5 space-y-0.5 border-l border-white/[0.07] pl-2.5">
-                  {visibleCrmSubnav.map((sub) => {
-                    const subActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
-                    return (
-                      <button
-                        key={sub.id}
-                        type="button"
-                        aria-current={subActive ? 'page' : undefined}
-                        onClick={() => handleNavClick(sub.path)}
-                        className={cn(
-                          'w-full text-left px-2.5 py-1.5 rounded-lg text-[12px] transition-colors',
-                          subActive
-                            ? 'text-dv-gold bg-dv-gold/10 font-medium'
-                            : 'text-txt-muted hover:text-txt-primary hover:bg-white/[0.04]',
-                        )}
-                      >
-                        {sub.label}
-                      </button>
-                    );
-                  })}
-                  {visibleCrmSubnav.length === 0 && (
+                <div className="ml-4 mt-1 mb-1.5 space-y-1 border-l border-white/[0.07] pl-2.5">
+                  {visibleCrmSections.map((section) => (
+                    <div key={section.label} className="mb-1">
+                      <p className="text-[10px] font-semibold text-txt-ghost uppercase tracking-[0.10em] px-2.5 py-1">
+                        {section.label}
+                      </p>
+                      {section.items.map((sub) => {
+                        const subActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            aria-current={subActive ? 'page' : undefined}
+                            onClick={() => handleNavClick(sub.path)}
+                            className={cn(
+                              'w-full text-left px-2.5 py-1.5 rounded-lg text-[12px] transition-colors',
+                              subActive
+                                ? 'text-dv-gold bg-dv-gold/10 font-medium'
+                                : 'text-txt-muted hover:text-txt-primary hover:bg-white/[0.04]',
+                            )}
+                          >
+                            {sub.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                  {visibleCrmSections.length === 0 && (
                     <p className="px-2.5 py-1.5 text-[10px] text-txt-ghost">{t('nav.no_sections')}</p>
                   )}
                 </div>
