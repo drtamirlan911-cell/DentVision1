@@ -18,6 +18,35 @@ import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { Modal } from '@/components/ui/ds/Modal';
 import { Input } from '@/components/ui/ds/Input';
 import SignaturePad from '@/components/ui/SignaturePad';
+import { getAccessToken } from '@/utils/api';
+
+function downloadDocument(docId: string, title: string) {
+  const token = getAccessToken();
+  if (!token) return;
+  const baseUrl = import.meta.env.VITE_API_URL || (
+    window.location.hostname.includes('vercel.app')
+      ? 'https://dentvision-api.onrender.com'
+      : 'http://localhost:3001'
+  );
+  fetch(`${baseUrl}/api/patient-portal/documents/${docId}/content`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
+    })
+    .then((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title || 'document'}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      a.remove();
+    })
+    .catch((err) => console.error('Download failed:', err));
+}
 import { useAuth } from '@/store/auth.store';
 import * as api from '@/utils/api';
 import { cn } from '@/lib/utils';
@@ -399,7 +428,7 @@ function DocumentsTab() {
                     size="sm"
                     variant="ghost"
                     icon={<Eye size={14} />}
-                    onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}/api/patient-portal/documents/${d.id}/content`, '_blank')}
+                    onClick={() => downloadDocument(d.id, d.title)}
                   >
                     {t('patientPortal.documents.view')}
                   </Button>
