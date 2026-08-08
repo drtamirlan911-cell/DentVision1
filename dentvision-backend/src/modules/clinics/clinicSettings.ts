@@ -42,6 +42,10 @@ export interface ClinicSettingsPayload {
   requireChair?: boolean;
   /** KazDent donor: "Перчатки:1, Маска:1, Слюноотсос:1" */
   autoDeductItems?: string;
+  /** Schedule conflict behaviour: 'warn' (default) or 'block'. */
+  scheduleConflictMode?: 'warn' | 'block';
+  /** Doctor commission base: 'net' (default) or 'gross'. */
+  payrollBase?: 'net' | 'gross';
   /** Public online booking link (Instagram / 2GIS) */
   bookingLink?: string;
   /** Allow patients to book online via /book/:clinicId */
