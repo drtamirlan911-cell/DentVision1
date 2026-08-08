@@ -234,6 +234,43 @@ filesRouter.post('/upload', upload.single('file'), requirePermission('patient.wr
   }
 });
 
+// Document content — serves actual file bytes for download/viewing.
+// Works for both text templates (data:text/plain URLs) and uploaded files.
+filesRouter.get('/:id/content', requirePermission('patient.read'), async (req: AuthRequest, res) => {
+  try {
+    if (denyGuest(req, res)) return;
+    const id = req.params.id as string;
+    const doc = await prisma.document.findUnique({ where: { id } });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Документ не найден' });
+    if (!assertSameClinic(req, res, doc.clinicId)) return;
+
+    const url = String(doc.url || '');
+    const title = doc.name || 'document';
+
+    // Text templates stored as data:text/plain URLs
+    if (url.startsWith('data:text/plain')) {
+      const base64Match = url.match(/;base64,(.+)$/);
+      const content = base64Match
+        ? Buffer.from(base64Match[1], 'base64').toString('utf-8')
+        : decodeURIComponent(url.replace(/^data:text\/plain;charset=utf-8,/, ''));
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(title)}.txt"`);
+      return res.send(content);
+    }
+
+    // External URL — redirect
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return res.redirect(url);
+    }
+
+    // Mock-storage / uploaded files — return URL for client to handle
+    return res.json({ ok: true, data: { url, type: 'file', title } });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
+    return res.status(500).json({ ok: false, error: message });
+  }
+});
+
 filesRouter.get('/:id', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     if (denyGuest(req, res)) return;

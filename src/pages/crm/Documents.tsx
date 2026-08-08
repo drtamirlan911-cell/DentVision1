@@ -608,11 +608,31 @@ export default function Documents() {
   };
 
   const downloadDoc = (doc: Document) => {
-    const blob = new Blob([doc.content || ''], { type: 'text/plain;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${doc.title || 'document'}.txt`;
-    link.click();
+    const token = api.getAccessToken();
+    if (!token) return;
+    const baseUrl = import.meta.env.VITE_API_URL || (
+      window.location.hostname.includes('vercel.app')
+        ? 'https://dentvision-api.onrender.com'
+        : 'http://localhost:3001'
+    );
+    fetch(`${baseUrl}/api/files/${doc.id}/content`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const disposition = res.headers.get('content-disposition') || '';
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        const filename = match?.[1] || `${doc.title || 'document'}.txt`;
+        return res.blob().then((blob) => ({ blob, filename }));
+      })
+      .then(({ blob, filename }) => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      })
+      .catch((err) => console.error('Download failed:', err));
   };
 
   const copyDoc = (content: string) => {
