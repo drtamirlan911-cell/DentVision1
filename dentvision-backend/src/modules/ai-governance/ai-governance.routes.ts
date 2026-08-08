@@ -26,7 +26,7 @@ aiGovernanceRouter.post('/review', requirePermission('compliance.manage'), async
 });
 
 // AI Supplier Agent — improvement suggestions + price insights.
-aiGovernanceRouter.get('/supplier/:id/suggest', async (req: AuthRequest, res) => {
+aiGovernanceRouter.get('/supplier/:id/suggest', requirePermission('compliance.manage'), async (req: AuthRequest, res) => {
   try {
     const data = await aiSupplierSuggest(req.params.id as string);
     return res.json({ ok: true, data } satisfies ApiResponse);

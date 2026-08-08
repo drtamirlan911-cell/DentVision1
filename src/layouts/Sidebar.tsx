@@ -15,6 +15,7 @@ import { Tooltip } from '@/components/ui/ds/Tooltip';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { useAuth, useAuthStore } from '@/store/auth.store';
+import { canAccessPage, firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess';
 import { useIam } from '@/iam';
 import { useGuestStore } from '@/store/guest.store';
 import { Logo } from '@/components/brand';
@@ -204,6 +205,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return iam.canAccessPage(sub.id);
   });
 
+  // Pick the first CRM page the role may open instead of always landing on schedule.
+  const crmEntryPath = visibleCrmSubnav.length > 0 ? visibleCrmSubnav[0].path : firstAllowedCrmPath(iam.pages);
+
   const handleNavClick = (path: string) => {
     if (isGuest) {
       const publicPaths = ['/shop', '/school', '/jobs', '/community', '/demo', '/pricing', '/', '/crm'];
@@ -263,7 +267,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => {
               if (isCrm && !collapsed) {
                 setCrmOpen((v) => !v);
-                if (!location.pathname.startsWith('/crm')) handleNavClick(item.path);
+                if (!location.pathname.startsWith('/crm')) handleNavClick(crmEntryPath);
               } else if (item.id === 'center-workspace') {
                 handleCenterWorkspaceClick();
               } else {

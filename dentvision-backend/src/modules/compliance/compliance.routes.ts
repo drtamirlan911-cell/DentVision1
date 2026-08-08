@@ -117,7 +117,16 @@ complianceRouter.post('/consents', async (req: AuthRequest, res) => {
 
 complianceRouter.get('/medical/:patientId', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
-    const logs = await getMedicalFileAccess(String(req.params.patientId));
+    const patientId = String(req.params.patientId);
+    // Verify the patient belongs to the caller's clinic.
+    const clinicId = req.user?.clinicId;
+    if (clinicId) {
+      const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
+      if (!patient || patient.clinicId !== clinicId) {
+        return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+      }
+    }
+    const logs = await getMedicalFileAccess(patientId);
     return res.json({ ok: true, data: logs } satisfies ApiResponse);
   } catch (error) {
     return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
@@ -129,6 +138,14 @@ complianceRouter.post('/medical/log', requirePermission('patient.read'), async (
     const { patientId, fileType, storagePath, action, viewerId } = req.body as {
       patientId: string; fileType: string; storagePath: string; action: 'UPLOAD' | 'VIEW' | 'DOWNLOAD'; viewerId?: string;
     };
+    // Verify the patient belongs to the caller's clinic.
+    const clinicId = req.user?.clinicId;
+    if (clinicId) {
+      const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
+      if (!patient || patient.clinicId !== clinicId) {
+        return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+      }
+    }
     const log = await logMedicalFileAccess(patientId, fileType, storagePath, req.user!.id, action, viewerId || req.user!.id);
     return res.json({ ok: true, data: log } satisfies ApiResponse);
   } catch (error) {

@@ -772,11 +772,19 @@ async function resolveExamLesson(lessonId: string) {
   return { id: lesson.id, courseId: lesson.courseId, virtual: false as const };
 }
 
-schoolRouter.get('/lessons/:lessonId/exam', authenticate, async (req, res) => {
+schoolRouter.get('/lessons/:lessonId/exam', authenticate, async (req: AuthRequest, res) => {
   try {
     const lesson = await resolveExamLesson(req.params.lessonId as string);
     if (!lesson) {
       res.status(404).json({ ok: false, error: 'Урок не найден' });
+      return;
+    }
+    // Only enrolled users may access the exam.
+    const enrollment = await prisma.schoolEnrollment.findFirst({
+      where: { userId: req.user!.id, courseId: lesson.courseId },
+    });
+    if (!enrollment) {
+      res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
       return;
     }
     res.json({
