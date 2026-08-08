@@ -34,10 +34,14 @@ describe('pagesForPermissions', () => {
     expect(pagesForPermissions(['community.read'])).toEqual(['profile']);
   });
 
-  it('maps settings + audit modules to their platform pages', () => {
+  it('maps settings.manage to clinic settings only, not personal settings', () => {
+    // The personal `settings` screen used to sit in this module too, so
+    // reaching it required settings.manage — the same key that gates the
+    // workflow write routes. It is part of the authenticated baseline now.
     expect(pagesForPermissions(['settings.manage', 'audit.read'])).toEqual(
-      expect.arrayContaining(['settings', 'clinic-settings', 'audit']),
+      expect.arrayContaining(['clinic-settings', 'audit']),
     );
+    expect(pagesForPermissions(['settings.manage'])).not.toContain('settings');
   });
 
   it('never shows the admin console to a clinic role', () => {

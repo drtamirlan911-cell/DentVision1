@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { pagesForCaller, MODULE_PAGES } from './permissions.js';
+import { pagesForCaller, MODULE_PAGES, BASE_PAGES } from './permissions.js';
 
 /**
  * Page parity with the frontend's legacy role tables.
@@ -53,6 +53,69 @@ const LEGACY_ORG_PAGES: Record<string, { backendRole: string; pages: string[] }>
     pages: ['schedule', 'patients', 'visits', 'documents', 'school', 'profile'],
   },
 };
+
+/** PLATFORM_ROLES and the non-clinic workspaces, same source. */
+const LEGACY_PLATFORM_PAGES: Record<string, { role: string; permissions: string[]; pages: string[] }> = {
+  'user (supplier / lecturer / buyer)': {
+    role: 'SUPPLIER',
+    permissions: [],
+    pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'],
+  },
+  support: {
+    role: 'SUPPORT',
+    permissions: [],
+    pages: ['admin', 'analytics', 'settings', 'profile'],
+  },
+  superadmin: {
+    role: 'SUPERADMIN',
+    permissions: ['*'],
+    pages: ['admin', 'audit', 'backup', 'analytics', 'settings', 'security', 'quality',
+      'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'platform-finance',
+      'ai-governance', 'support', 'profile', 'bi', 'supplier'],
+  },
+  diagnostic_center: {
+    // A centre member's Person resolves to an org role; ADMIN is representative.
+    role: 'ADMIN',
+    permissions: [],
+    pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results',
+      'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
+  },
+};
+
+describe('server page list covers the platform and workspace roles', () => {
+  for (const [legacyRole, { role, permissions, pages }] of Object.entries(LEGACY_PLATFORM_PAGES)) {
+    it(`grants ${role} everything legacy '${legacyRole}' had`, () => {
+      const served = pagesForCaller(permissions, role);
+      expect(pages.filter((page) => !served.includes(page))).toEqual([]);
+    });
+  }
+
+  it('gives a role with no permissions at all the authenticated baseline', () => {
+    // This is the case that froze the app: an empty list read as "deny all".
+    const served = pagesForCaller([], 'LECTURER');
+    expect(served).toEqual(expect.arrayContaining([...BASE_PAGES]));
+    expect(served.length).toBeGreaterThan(0);
+  });
+
+  it('keeps the platform console out of every non-superadmin role', () => {
+    for (const role of ['OWNER', 'ADMIN', 'MANAGER', 'DOCTOR', 'SUPPORT', 'SUPPLIER']) {
+      const served = pagesForCaller([], role);
+      for (const page of MODULE_PAGES.platform) {
+        expect(served, `${role} must not see ${page}`).not.toContain(page);
+      }
+    }
+    expect(pagesForCaller(['*'], 'SUPERADMIN')).toContain('platform-finance');
+  });
+
+  it('separates personal settings from clinic settings', () => {
+    // `settings` used to sit behind settings.manage, which also gates the
+    // workflow write routes — support could not reach its own settings screen
+    // without being handed those.
+    expect(pagesForCaller([], 'SUPPORT')).toContain('settings');
+    expect(pagesForCaller([], 'SUPPORT')).not.toContain('clinic-settings');
+    expect(pagesForCaller([], 'OWNER')).toContain('clinic-settings');
+  });
+});
 
 describe('server page list covers the frontend legacy config', () => {
   for (const [legacyRole, { backendRole, pages }] of Object.entries(LEGACY_ORG_PAGES)) {
