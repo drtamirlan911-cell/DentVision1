@@ -9,6 +9,8 @@ import { onboardPartner } from '../legal/legal.service.js';
 import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { resolveAuthContext } from '../../lib/authContext.js';
+import { pagesForPermissions, capabilitiesForPermissions } from '../../lib/permissions.js';
+import { resolveClinicAccess } from '../../lib/orgContext.js';
 
 async function ensureOrgAndPerson(clinicId: string, userId: string, role: string) {
   const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { name: true, city: true } });
@@ -211,6 +213,9 @@ authRouter.post('/login', async (req, res) => {
     // so the DB permission graph never contributed and every caller silently
     // got the hardcoded role matrix.
     const effectivePermissions = await resolveUserPermissions(user.id, authContext.organizationId);
+    const scopedRole = clinicId
+      ? (await resolveClinicAccess(user.id, clinicId))?.role || user.role
+      : user.role;
 
     const response: ApiResponse = {
       ok: true,
@@ -225,6 +230,8 @@ authRouter.post('/login', async (req, res) => {
         })),
         activeMembership,
         permissions: effectivePermissions,
+        pages: pagesForPermissions(effectivePermissions),
+        capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole),
         ...tokens,
       },
     };
@@ -345,6 +352,12 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
     }
 
     const effectivePermissions = await resolveUserPermissions(user.id, req.user!.organizationId);
+    // Page visibility and capability flags come from the same effective
+    // permission set, so the client stops deriving them from a legacy role
+    // table that the backend has no say in.
+    const scopedRole = req.user!.clinicId
+      ? (await resolveClinicAccess(user.id, req.user!.clinicId))?.role || user.role
+      : user.role;
 
     const response: ApiResponse = {
       ok: true,
@@ -366,6 +379,9 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
         memberships: user.memberships.map(m => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })),
         activeMembership: user.memberships[0] ? { id: user.memberships[0].id, role: user.memberships[0].role, clinicId: user.memberships[0].clinicId, clinic: user.memberships[0].clinic } : null,
         permissions: effectivePermissions,
+        pages: pagesForPermissions(effectivePermissions),
+        capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole),
+        effectiveRole: scopedRole,
       },
     };
 
