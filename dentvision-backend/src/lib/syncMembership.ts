@@ -2,14 +2,14 @@ import prisma from './prisma.js';
 import { uid } from './helpers.js';
 
 const CM_ROLE_TO_ROLE_KEY: Record<string, string> = {
-  OWNER: 'org_admin',
-  DIRECTOR: 'org_admin',
-  ADMIN: 'org_admin',
+  OWNER: 'owner',
+  DIRECTOR: 'director',
+  ADMIN: 'admin',
   DOCTOR: 'doctor',
-  ASSISTANT: 'nurse',
-  MANAGER: 'org_admin',
+  ASSISTANT: 'assistant',
+  MANAGER: 'manager',
   LAB: 'lab',
-  STUDENT: 'nurse',
+  STUDENT: 'student',
   SUPPLIER: 'seller',
   LECTURER: 'lecturer',
 };
@@ -69,7 +69,7 @@ export async function syncPersonFromClinicMember(clinicId: string, userId: strin
   }
 
   // Assign unified role
-  const roleKey = CM_ROLE_TO_ROLE_KEY[role] || 'org_admin';
+  const roleKey = CM_ROLE_TO_ROLE_KEY[role] || 'owner';
   const dbRole = await prisma.role.findUnique({ where: { key: roleKey } });
   if (dbRole) {
     await prisma.personRole.upsert({

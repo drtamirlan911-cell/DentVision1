@@ -95,6 +95,13 @@ const PERSON_ROLE_TO_LEGACY: Record<string, string> = {
   lecturer: 'DOCTOR',
   seller: 'DOCTOR',
   superadmin: 'SUPERADMIN',
+  owner: 'OWNER',
+  director: 'DIRECTOR',
+  admin: 'ADMIN',
+  manager: 'MANAGER',
+  assistant: 'ASSISTANT',
+  student: 'STUDENT',
+  support: 'SUPPORT',
 };
 
 /** Resolve user's role within a clinic — checks Person/Organization first, then legacy ClinicMember. */

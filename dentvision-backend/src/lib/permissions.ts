@@ -8,7 +8,6 @@
 // finding S2) without introducing the full scoped-membership schema yet, so it
 // is backward compatible with existing routes.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { UserRole } from '@prisma/client';
 
 // Permission keys (domain.action). Extend as more modules adopt requirePermission.
 export const PERMISSIONS = {
@@ -49,7 +48,7 @@ export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 //   CASHIER       → (payments view only, no BI perm)
 //   LAB           → (none)
 //   SUPERADMIN    → bi.clinic + bi.network + bi.platform + bi.finance (all)
-const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
+export const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   DIRECTOR: [
     'patient.read', 'patient.write', 'patient.delete',
     'appointment.read', 'appointment.write', 'appointment.delete',
@@ -89,7 +88,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   SUPPORT: ['patient.read', 'appointment.read', 'inventory.read', 'bi.clinic'],
 };
 
-export function roleHasPermission(role: UserRole | string | undefined | null, key: PermissionKey): boolean {
+export function roleHasPermission(role: string | undefined | null, key: PermissionKey): boolean {
   if (!role) return false;
   if (role === 'SUPERADMIN') return true;
   // Platform-only permissions: restricted to SUPERADMIN
@@ -99,7 +98,7 @@ export function roleHasPermission(role: UserRole | string | undefined | null, ke
   return (ROLE_PERMISSIONS[role] || []).includes(key);
 }
 
-export function permissionsForRole(role: UserRole | string | undefined | null): PermissionKey[] {
+export function permissionsForRole(role: string | undefined | null): PermissionKey[] {
   if (!role) return [];
   if (role === 'SUPERADMIN') {
     return Array.from(new Set(Object.values(PERMISSIONS)));

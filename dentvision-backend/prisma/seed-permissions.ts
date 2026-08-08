@@ -1,186 +1,87 @@
 import { PrismaClient } from '@prisma/client';
+import { PERMISSIONS, ROLE_PERMISSIONS } from '../src/lib/permissions.js';
 
 const prisma = new PrismaClient();
 
-const BASE_PERMISSIONS = [
-  // CRM / Patients
-  { key: 'patients:read', name: 'Read patients', domain: 'crm' },
-  { key: 'patients:write', name: 'Create / edit patients', domain: 'crm' },
-  { key: 'patients:delete', name: 'Delete patients', domain: 'crm' },
-  { key: 'patients:export', name: 'Export patient data', domain: 'crm' },
-  // Appointments
-  { key: 'appointments:read', name: 'View appointments', domain: 'crm' },
-  { key: 'appointments:write', name: 'Create / edit appointments', domain: 'crm' },
-  { key: 'appointments:delete', name: 'Cancel / delete appointments', domain: 'crm' },
-  // Medical records
-  { key: 'medical:read', name: 'View medical records', domain: 'crm' },
-  { key: 'medical:write', name: 'Create / edit medical records', domain: 'crm' },
-  // Finance
-  { key: 'finance:read', name: 'View financial data', domain: 'finance' },
-  { key: 'finance:write', name: 'Create invoices / payments', domain: 'finance' },
-  { key: 'finance:delete', name: 'Delete / void financial entries', domain: 'finance' },
-  // Inventory
-  { key: 'inventory:read', name: 'View inventory', domain: 'crm' },
-  { key: 'inventory:write', name: 'Manage inventory', domain: 'crm' },
-  // AI
-  { key: 'ai:query', name: 'Use AI assistant', domain: 'ai' },
-  { key: 'ai:admin', name: 'Manage AI settings', domain: 'ai' },
-  // Settings
-  { key: 'settings:read', name: 'View organization settings', domain: 'settings' },
-  { key: 'settings:write', name: 'Edit organization settings', domain: 'settings' },
-  // Staff
-  { key: 'staff:read', name: 'View staff', domain: 'settings' },
-  { key: 'staff:write', name: 'Manage staff', domain: 'settings' },
-  // Platform admin
-  { key: 'admin:users', name: 'Manage all users', domain: 'admin' },
-  { key: 'admin:organizations', name: 'Manage all organizations', domain: 'admin' },
-  { key: 'admin:billing', name: 'Manage platform billing', domain: 'admin' },
-  { key: 'admin:compliance', name: 'Manage compliance', domain: 'admin' },
-  // Diagnostics
-  { key: 'diagnostics:read', name: 'View diagnostic referrals', domain: 'crm' },
-  { key: 'diagnostics:write', name: 'Create diagnostic referrals', domain: 'crm' },
-  // Academy
-  { key: 'academy:read', name: 'View courses', domain: 'crm' },
-  { key: 'academy:write', name: 'Manage courses', domain: 'crm' },
-  // Supplier
-  { key: 'shop:read', name: 'View shop', domain: 'crm' },
-  { key: 'shop:write', name: 'Manage products / orders', domain: 'crm' },
-  // Analytics
-  { key: 'analytics:clinic', name: 'View clinic analytics', domain: 'finance' },
-  { key: 'analytics:platform', name: 'View platform analytics', domain: 'admin' },
-  // Compliance
-  { key: 'compliance:view', name: 'View compliance data', domain: 'admin' },
-  { key: 'compliance:manage', name: 'Manage compliance', domain: 'admin' },
-];
+// Unified permission catalog (domain.action) — single source of truth is
+// src/lib/permissions.ts. Domain is derived from the key prefix.
+const ALL_PERMISSIONS = Object.values(PERMISSIONS);
+const permissionDomain = (key: string) => key.split('.')[0];
 
-const BASE_ROLES = [
+// Legacy alias roles referenced by src/lib/syncMembership.ts and existing
+// PersonRole assignments. They reuse permissions from the unified catalog so
+// old rows keep resolving against the new vocabulary.
+const LEGACY_ROLES: { key: string; name: string; description: string; permissionKeys: string[] }[] = [
   {
     key: 'org_admin',
     name: 'Организация — администратор',
     description: 'Full access within one organization',
-    permissionKeys: [
-      'patients:read', 'patients:write', 'patients:delete', 'patients:export',
-      'appointments:read', 'appointments:write', 'appointments:delete',
-      'medical:read', 'medical:write',
-      'finance:read', 'finance:write',
-      'inventory:read', 'inventory:write',
-      'ai:query',
-      'settings:read', 'settings:write',
-      'staff:read', 'staff:write',
-      'diagnostics:read', 'diagnostics:write',
-      'analytics:clinic',
-      'shop:read', 'shop:write',
-      'compliance:view',
-    ],
-  },
-  {
-    key: 'doctor',
-    name: 'Врач',
-    description: 'Clinical access — patients, appointments, medical records',
-    permissionKeys: [
-      'patients:read', 'patients:write',
-      'appointments:read', 'appointments:write',
-      'medical:read', 'medical:write',
-      'ai:query',
-      'diagnostics:read', 'diagnostics:write',
-      'analytics:clinic',
-    ],
+    permissionKeys: ROLE_PERMISSIONS['ADMIN'],
   },
   {
     key: 'nurse',
     name: 'Ассистент / Медсестра',
     description: 'Support clinical access',
-    permissionKeys: [
-      'patients:read', 'patients:write',
-      'appointments:read', 'appointments:write',
-      'inventory:read',
-      'medical:read',
-    ],
+    permissionKeys: ROLE_PERMISSIONS['ASSISTANT'],
   },
   {
-    key: 'cashier',
-    name: 'Кассир / Финансы',
-    description: 'Finance and billing access',
-    permissionKeys: [
-      'patients:read',
-      'appointments:read',
-      'finance:read', 'finance:write',
-      'analytics:clinic',
-    ],
-  },
-  {
-    key: 'lab',
-    name: 'Лаборатория',
-    description: 'Lab order management',
-    permissionKeys: [
-      'patients:read',
-      'appointments:read',
-      'medical:read',
-    ],
+    key: 'seller',
+    name: 'Продавец (поставщик)',
+    description: 'Supplier management access',
+    permissionKeys: ['supplier.manage', 'inventory.read'],
   },
   {
     key: 'lecturer',
     name: 'Лектор',
     description: 'Academy course management',
-    permissionKeys: [
-      'academy:read', 'academy:write',
-      'settings:read',
-    ],
-  },
-  {
-    key: 'seller',
-    name: 'Продавец (поставщик)',
-    description: 'Shop and product management',
-    permissionKeys: [
-      'shop:read', 'shop:write',
-      'inventory:read',
-      'finance:read',
-    ],
-  },
-  {
-    key: 'superadmin',
-    name: 'Суперадминистратор',
-    description: 'Full platform access — all permissions',
-    permissionKeys: [
-      'patients:read', 'patients:write', 'patients:delete', 'patients:export',
-      'appointments:read', 'appointments:write', 'appointments:delete',
-      'medical:read', 'medical:write',
-      'finance:read', 'finance:write', 'finance:delete',
-      'inventory:read', 'inventory:write',
-      'ai:query', 'ai:admin',
-      'settings:read', 'settings:write',
-      'staff:read', 'staff:write',
-      'admin:users', 'admin:organizations', 'admin:billing', 'admin:compliance',
-      'diagnostics:read', 'diagnostics:write',
-      'academy:read', 'academy:write',
-      'shop:read', 'shop:write',
-      'analytics:clinic', 'analytics:platform',
-      'compliance:view', 'compliance:manage',
-    ],
+    permissionKeys: ['academy.manage'],
   },
 ];
+
+// Canonical roles derived from ROLE_PERMISSIONS, keyed by the lowercase backend
+// role name so the DB lookup in GET /api/iam/permissions (role.toLowerCase())
+// and the Person → PersonRole → Role → Permission path in requirePermission
+// resolve consistently.
+const CANONICAL_ROLES = Object.keys(ROLE_PERMISSIONS).map((role) => ({
+  key: role.toLowerCase(),
+  name: role,
+  description: `System role: ${role}`,
+  permissionKeys: ROLE_PERMISSIONS[role],
+}));
+
+const SUPERADMIN_ROLE = {
+  key: 'superadmin',
+  name: 'Суперадминистратор',
+  description: 'Full platform access — all permissions',
+  permissionKeys: ALL_PERMISSIONS,
+};
 
 export async function seedPermissions() {
   console.log('[SEED] Seeding permissions...');
 
-  for (const p of BASE_PERMISSIONS) {
+  for (const key of ALL_PERMISSIONS) {
     await prisma.permission.upsert({
-      where: { key: p.key },
-      update: { name: p.name, domain: p.domain },
-      create: p,
+      where: { key },
+      update: { name: key, domain: permissionDomain(key) },
+      create: { key, name: key, domain: permissionDomain(key) },
     });
   }
-  console.log(`  ✓ ${BASE_PERMISSIONS.length} permissions`);
+  console.log(`  ✓ ${ALL_PERMISSIONS.length} permissions (${permissionDomain(ALL_PERMISSIONS[0])}.* …)`);
 
   console.log('[SEED] Seeding roles...');
-  for (const r of BASE_ROLES) {
+  for (const r of [...CANONICAL_ROLES, SUPERADMIN_ROLE, ...LEGACY_ROLES]) {
     const role = await prisma.role.upsert({
       where: { key: r.key },
-      update: { name: r.name, isSystem: true },
+      update: { name: r.name, description: r.description, isSystem: true },
       create: { key: r.key, name: r.name, description: r.description, isSystem: true },
     });
 
-    // Link permissions
+    // Remove stale links (old vocabulary) so the role converges to the catalog.
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: role.id, permission: { key: { notIn: r.permissionKeys } } },
+    });
+
+    // Link permissions (idempotent).
     const perms = await prisma.permission.findMany({
       where: { key: { in: r.permissionKeys } },
     });

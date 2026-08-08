@@ -78,6 +78,8 @@ const PERSON_ROLE_MAP: Record<string, string> = {
   org_admin: 'ADMIN', doctor: 'DOCTOR', nurse: 'ASSISTANT',
   cashier: 'ADMIN', lab: 'LAB', lecturer: 'DOCTOR',
   seller: 'DOCTOR', superadmin: 'SUPERADMIN',
+  owner: 'OWNER', director: 'DIRECTOR', admin: 'ADMIN', manager: 'MANAGER',
+  assistant: 'ASSISTANT', student: 'STUDENT', support: 'SUPPORT',
 };
 
 /**
