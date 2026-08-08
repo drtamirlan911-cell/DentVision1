@@ -9,6 +9,9 @@ import { refundDentCashSpend } from './spend.service.js';
  * - available earn: debit USER → credit funder
  * - spent earn: clawback note
  * - spend: refund PLATFORM → USER
+ *
+ * When callerId is provided, only rows belonging to that user are reversed.
+ * Callers MUST pass the authenticated user's ID to prevent unauthorized refunds.
  */
 export async function reverseCashback(opts: {
   refType: string;
@@ -16,6 +19,8 @@ export async function reverseCashback(opts: {
   reason?: string;
   /** When set, only reverse earn rows funded by this seller (spend still refunded). */
   sellerId?: string | null;
+  /** Authenticated user requesting the refund — enforces ownership. */
+  callerId?: string | null;
 }) {
   const spendRefund = await refundDentCashSpend({
     refType: opts.refType,
@@ -33,6 +38,14 @@ export async function reverseCashback(opts: {
     },
   });
   if (!earns.length) return { reversed: 0n, spendRefunded: spendRefund.refunded };
+
+  // Authorization: if callerId is provided, verify ownership.
+  if (opts.callerId) {
+    const unauthorized = earns.some((row) => row.userId !== opts.callerId);
+    if (unauthorized) {
+      throw new Error(`Refund denied: caller ${opts.callerId} does not own all ledger rows for ${opts.refType}:${opts.refId}`);
+    }
+  }
 
   let reversed = 0n;
   for (const row of earns) {

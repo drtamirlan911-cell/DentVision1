@@ -186,6 +186,19 @@ app.use('/api/guest/session', guestSessionLimiter);
 app.use('/api/guest/convert', authLimiter);
 app.use('/api/audit/backup', apiLimiter);
 
+// Webhook callbacks — tight limit (genuine callbacks are infrequent).
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res, _next, options) => {
+    applyCorsHeaders(req, res);
+    res.status(options.statusCode).json({ ok: false, error: 'Too many webhook requests', code: 'WEBHOOK_RATE_LIMIT' });
+  },
+});
+app.use('/api/payments/callbacks', webhookLimiter);
+
 // ─── Health ───
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString() });

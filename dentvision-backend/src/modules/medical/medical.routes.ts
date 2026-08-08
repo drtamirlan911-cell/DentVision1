@@ -10,6 +10,7 @@ import { DENTAL_ICD10_SEED, mapIcd10Row, searchDentalCatalog } from './icd10.cat
 const medicalRouter = Router();
 
 medicalRouter.use(authenticate);
+medicalRouter.use(requirePermission('patient.read'));
 medicalRouter.use(loadClinicAccess);
 medicalRouter.use(blockClinicWrites);
 

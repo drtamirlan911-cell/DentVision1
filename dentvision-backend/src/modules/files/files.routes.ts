@@ -187,14 +187,17 @@ filesRouter.post('/upload', upload.single('file'), requirePermission('patient.wr
     const fileSize = req.file.size;
     const mimeType = req.file.mimetype;
 
+    const fileId = uid();
+    const safeName = req.file.originalname.replace(/[/\\]/g, '_');
+    const safeExt = path.extname(safeName).toLowerCase();
     const doc = await prisma.document.create({
       data: {
         id: uid(),
         patientId: patientId || null,
         clinicId: scopedClinic,
         type: fileType,
-        name: req.file.originalname,
-        url: `/mock-storage/${uid()}/${req.file.originalname}`,
+        name: safeName,
+        url: `/mock-storage/${fileId}/${fileId}${safeExt}`,
       },
     });
 
@@ -206,7 +209,7 @@ filesRouter.post('/upload', upload.single('file'), requirePermission('patient.wr
           patientId,
           type: imageType as 'PHOTO' | 'X_RAY' | 'CBCT' | 'DICOM' | 'SCAN',
           url: doc.url,
-          name: req.file.originalname,
+          name: safeName,
           metadata: { size: fileSize, mimeType, originalName: req.file.originalname },
         },
       });

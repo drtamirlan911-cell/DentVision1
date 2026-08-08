@@ -9,6 +9,7 @@ import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.j
 export const labRouter = Router();
 
 labRouter.use(authenticate);
+labRouter.use(requirePermission('patient.read'));
 labRouter.use(loadClinicAccess);
 labRouter.use(blockClinicWrites);
 

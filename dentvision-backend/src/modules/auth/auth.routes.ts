@@ -20,6 +20,7 @@ async function ensureOrgAndPerson(clinicId: string, userId: string, role: string
   await syncPersonFromClinicMember(clinicId, userId, role);
 }
 import { createSession } from '../compliance/session.service.js';
+import { expireAllSessions } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
 import crypto from 'node:crypto';
 import { setCsrfCookie } from '../../middleware/csrf.js';
@@ -1003,7 +1004,7 @@ authRouter.post('/forgot-password', async (req, res) => {
         },
       });
 
-      if (process.env.NODE_ENV !== 'production') {
+      if (process.env.NODE_ENV === 'development' && !process.env.CI) {
         console.log(`[Password Reset] Token for ${normalizedEmail}: ${token}`);
         devToken = token;
       }
@@ -1045,7 +1046,11 @@ authRouter.post('/reset-password', async (req, res) => {
     }
 
     if (entry.expiresAt < new Date()) {
-      await prisma.passwordReset.delete({ where: { id: entry.id } });
+    await prisma.passwordReset.delete({ where: { id: entry.id } });
+
+    // Invalidate all existing sessions — prevents a session hijacker from
+    // retaining access after the legitimate user resets their password.
+    try { await expireAllSessions(entry.user.id); } catch { /* non-fatal */ }
       return res.status(400).json({ ok: false, error: 'Токен истек' });
     }
 

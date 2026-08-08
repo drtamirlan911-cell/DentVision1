@@ -1071,6 +1071,24 @@ async function main() {
   }
   console.log('[MIGRATION] Performance indexes ready');
 
+  // Login attempt table for persistent brute-force protection (survives restart / multi-instance).
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "login_attempts" (
+        "id"          TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "email"       TEXT NOT NULL,
+        "ip"          TEXT NOT NULL,
+        "count"       INTEGER NOT NULL DEFAULT 1,
+        "first_attempt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+        "locked_until"  TIMESTAMPTZ,
+        "updated_at"  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE("email", "ip")
+      )
+    `);
+  } catch (err) {
+    console.warn('[MIGRATION] login_attempts table skipped:', (err as Error).message);
+  }
+
   // Initialize Event Bus
   try {
     await eventBus.connect();
