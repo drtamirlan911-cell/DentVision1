@@ -48,7 +48,7 @@ export function requireMinRole(minRole: UserRole) {
  * matrix for users/personas not yet present in the unified tables.
  * Deny-by-default: unknown roles/permissions are rejected.
  */
-export function requirePermission(...keys: PermissionKey[]) {
+export function requirePermission(...keys: (PermissionKey | string)[]) {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {

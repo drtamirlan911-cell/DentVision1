@@ -1,107 +1,298 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// IAM permission catalog (Phase 1 — server-side authorization).
-//
-// This is the first, additive step of the IAM plan
-// (docs/DENTVISION_V2_INTEGRATION_PLAN.md §4): a granular, server-enforced
-// permission model expressed as `domain.action` keys, mapped from the current
-// clinic roles. It replaces implicit "trust the JWT clinicId" checks (audit
-// finding S2) without introducing the full scoped-membership schema yet, so it
-// is backward compatible with existing routes.
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Unified IAM permission model — single source of truth for all access control.
+ *
+ * Architecture (GitHub/Notion-style RBAC):
+ *   Module × Action  →  PermissionKey (e.g. "patients.read")
+ *   Role  →  Module:Action[]  →  resolved PermissionKey[]
+ *
+ * One matrix governs both backend middleware AND frontend page visibility.
+ * SUPERADMIN is a wildcard — handled in roleHasPermission().
+ */
 
-// Permission keys (domain.action). Extend as more modules adopt requirePermission.
+// ─── Modules ───
+type Module =
+  | 'patients' | 'appointments' | 'medical' | 'billing' | 'inventory'
+  | 'lab' | 'staff' | 'settings' | 'analytics' | 'diagnostics'
+  | 'academy' | 'shop' | 'community' | 'audit' | 'admin' | 'bi';
+
+// ─── Actions ───
+type Action = 'read' | 'write' | 'delete' | 'manage';
+// manage = full admin (settings, billing actions, staff management)
+
+// ─── Role → Module permissions ───
+type RoleMatrixRow = Partial<Record<Module, Action[]>> & { '*'?: ['*'] };
+
+const MATRIX: Record<string, RoleMatrixRow> = {
+  SUPERADMIN: { '*': ['*'] },
+
+  OWNER: {
+    patients:     ['read', 'write', 'delete'],
+    appointments: ['read', 'write', 'delete'],
+    medical:      ['read', 'write', 'delete'],
+    billing:      ['read', 'write', 'delete', 'manage'],
+    inventory:    ['read', 'write', 'delete'],
+    lab:          ['read', 'write', 'delete'],
+    staff:        ['read', 'write', 'delete', 'manage'],
+    settings:     ['manage'],
+    analytics:    ['read'],
+    diagnostics:  ['read', 'write'],
+    academy:      ['manage'],
+    shop:         ['manage'],
+    community:    ['read', 'write'],
+    audit:        ['read'],
+    bi:           ['read'],
+  },
+
+  ADMIN: {
+    patients:     ['read', 'write', 'delete'],
+    appointments: ['read', 'write', 'delete'],
+    medical:      ['read', 'write'],
+    billing:      ['read', 'write', 'manage'],
+    inventory:    ['read', 'write'],
+    lab:          ['read', 'write'],
+    staff:        ['read', 'write'],
+    settings:     ['manage'],
+    analytics:    ['read'],
+    diagnostics:  ['read', 'write'],
+    academy:      ['manage'],
+    shop:         ['manage'],
+    community:    ['read', 'write'],
+    bi:           ['read'],
+  },
+
+  MANAGER: {
+    patients:     ['read'],
+    appointments: ['read'],
+    medical:      ['read'],
+    billing:      ['read'],
+    inventory:    ['read', 'write'],
+    lab:          ['read'],
+    staff:        ['read'],
+    settings:     ['manage'],
+    analytics:    ['read'],
+    diagnostics:  ['read'],
+    shop:         ['read'],
+    academy:      ['read'],
+    bi:           ['read'],
+  },
+
+  DOCTOR: {
+    patients:     ['read', 'write'],
+    appointments: ['read', 'write'],
+    medical:      ['read', 'write'],
+    billing:      ['read'],
+    inventory:    ['read'],
+    lab:          ['read', 'write'],
+    diagnostics:  ['read'],
+    shop:         ['read'],
+    academy:      ['read'],
+    community:    ['read'],
+  },
+
+  ASSISTANT: {
+    patients:     ['read'],
+    appointments: ['read', 'write'],
+    medical:      ['read'],
+    inventory:    ['read'],
+    lab:          ['read'],
+    shop:         ['read'],
+    academy:      ['read'],
+    community:    ['read'],
+  },
+
+  CASHIER: {
+    patients:     ['read'],
+    appointments: ['read'],
+    billing:      ['read', 'write'],
+    inventory:    ['read'],
+    shop:         ['read'],
+  },
+
+  LAB: {
+    patients:     ['read'],
+    appointments: ['read'],
+    lab:          ['read', 'write'],
+    inventory:    ['read'],
+    shop:         ['read'],
+  },
+
+  STUDENT: {
+    patients:     ['read'],
+    appointments: ['read'],
+    medical:      ['read'],
+    shop:         ['read'],
+    academy:      ['read'],
+  },
+
+  SUPPORT: {
+    patients:     ['read'],
+    appointments: ['read'],
+    billing:      ['read'],
+    bi:           ['read'],
+    admin:        ['read'],
+    shop:         ['read'],
+  },
+};
+
+// ─── Generate PermissionKey[] from the matrix ───
+
+export type PermissionKey = `${Module}.${Action}` | '*';
+
+function buildPermissionKeys(row: RoleMatrixRow): PermissionKey[] {
+  if (row['*']) return ['*'];
+  const keys: PermissionKey[] = [];
+  for (const [mod, actions] of Object.entries(row)) {
+    for (const action of actions as Action[]) {
+      keys.push(`${mod}.${action}` as PermissionKey);
+    }
+  }
+  return keys;
+}
+
+export const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {};
+for (const [role, row] of Object.entries(MATRIX)) {
+  if (role === 'SUPERADMIN') continue; // handled by roleHasPermission
+  ROLE_PERMISSIONS[role] = buildPermissionKeys(row);
+}
+
+// DIRECTOR alias (not a UserRole enum value, used by frontend / jarvisBriefing etc.)
+ROLE_PERMISSIONS['DIRECTOR'] = ROLE_PERMISSIONS['OWNER'];
+
+/** Legacy compatibility — string keys for direct lookups (used in requirePermission middleware). */
 export const PERMISSIONS = {
-  PATIENT_READ: 'patient.read',
-  PATIENT_WRITE: 'patient.write',
-  PATIENT_DELETE: 'patient.delete',
-  APPOINTMENT_READ: 'appointment.read',
-  APPOINTMENT_WRITE: 'appointment.write',
-  APPOINTMENT_DELETE: 'appointment.delete',
+  PATIENT_READ: 'patients.read',
+  PATIENT_WRITE: 'patients.write',
+  PATIENT_DELETE: 'patients.delete',
+  APPOINTMENT_READ: 'appointments.read',
+  APPOINTMENT_WRITE: 'appointments.write',
+  APPOINTMENT_DELETE: 'appointments.delete',
   INVENTORY_READ: 'inventory.read',
   INVENTORY_WRITE: 'inventory.write',
   INVENTORY_DELETE: 'inventory.delete',
   ACADEMY_MANAGE: 'academy.manage',
-  SUPPLIER_MANAGE: 'supplier.manage',
-  COMPLIANCE_MANAGE: 'compliance.manage',
-  PLATFORM_ANALYTICS: 'platform.analytics',
-  FINANCE_MANAGE: 'finance.manage',
-  PARTNER_MANAGE: 'partner.manage',
-  WORKFLOW_MANAGE: 'workflow.manage',
-  BI_CLINIC: 'bi.clinic',
-  BI_NETWORK: 'bi.network',
-  BI_PLATFORM: 'bi.platform',
-  BI_FINANCE: 'bi.finance',
+  SUPPLIER_MANAGE: 'shop.manage',
+  COMPLIANCE_MANAGE: 'audit.read',
+  PLATFORM_ANALYTICS: 'admin.read',
+  FINANCE_MANAGE: 'billing.manage',
+  PARTNER_MANAGE: 'shop.manage',
+  WORKFLOW_MANAGE: 'settings.manage',
+  BI_CLINIC: 'bi.read',
+  BI_NETWORK: 'admin.read',
+  BI_PLATFORM: 'admin.read',
+  BI_FINANCE: 'billing.manage',
 } as const;
 
-export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
-
-// Role → granted permissions. SUPERADMIN is a wildcard handled in roleHasPermission().
-// DIRECTOR is not a UserRole enum value but is used by the frontend and other
-// modules; treat it as OWNER-equivalent. SUPPORT is a read-mostly role.
-//
-// BI access matrix:
-//   OWNER         → bi.clinic (full clinic BI)
-//   ADMIN         → bi.clinic (clinic BI, payments/expenses)
-//   MANAGER       → bi.clinic (limited: CAC/ROI/conversion)
-//   DOCTOR        → (personal revenue/KPI only, no BI perm needed — frontend filter)
-//   ASSISTANT     → (none)
-//   CASHIER       → (payments view only, no BI perm)
-//   LAB           → (none)
-//   SUPERADMIN    → bi.clinic + bi.network + bi.platform + bi.finance (all)
-export const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
-  DIRECTOR: [
-    'patient.read', 'patient.write', 'patient.delete',
-    'appointment.read', 'appointment.write', 'appointment.delete',
-    'inventory.read', 'inventory.write', 'inventory.delete',
-    'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
-    'bi.clinic', 'bi.finance',
-  ],
-  OWNER: [
-    'patient.read', 'patient.write', 'patient.delete',
-    'appointment.read', 'appointment.write', 'appointment.delete',
-    'inventory.read', 'inventory.write', 'inventory.delete',
-    'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
-    'bi.clinic', 'bi.finance',
-  ],
-  ADMIN: [
-    'patient.read', 'patient.write', 'patient.delete',
-    'appointment.read', 'appointment.write', 'appointment.delete',
-    'inventory.read', 'inventory.write', 'inventory.delete',
-    'academy.manage', 'supplier.manage', 'finance.manage', 'workflow.manage',
-    'bi.clinic', 'bi.finance',
-  ],
-  MANAGER: [
-    'patient.read', 'patient.write',
-    'appointment.read', 'appointment.write', 'appointment.delete',
-    'inventory.read', 'inventory.write',
-    'bi.clinic',
-  ],
-  DOCTOR: [
-    'patient.read', 'patient.write',
-    'appointment.read', 'appointment.write',
-    'inventory.read',
-  ],
-  ASSISTANT: ['patient.read', 'appointment.read', 'appointment.write', 'inventory.read'],
-  CASHIER: ['patient.read', 'appointment.read', 'inventory.read'],
-  LAB: ['appointment.read', 'inventory.read'],
-  STUDENT: [],
-  SUPPORT: ['patient.read', 'appointment.read', 'inventory.read', 'bi.clinic'],
-};
-
-export function roleHasPermission(role: string | undefined | null, key: PermissionKey): boolean {
+export function roleHasPermission(role: string | undefined | null, key: PermissionKey | string): boolean {
   if (!role) return false;
   if (role === 'SUPERADMIN') return true;
-  // Platform-only permissions: restricted to SUPERADMIN
-  if (key === 'platform.analytics' || key === 'compliance.manage' || key === 'partner.manage' || key === 'bi.platform' || key === 'bi.network') {
-    return role === 'SUPERADMIN';
-  }
-  return (ROLE_PERMISSIONS[role] || []).includes(key);
+  // Map legacy singular keys (patient.read → patients.read) to new plural form.
+  const resolved = (LEGACY_KEY_MAP as Record<string, string>)[key] || key;
+  if (resolved.startsWith('admin.') && role !== 'SUPERADMIN') return false;
+  return (ROLE_PERMISSIONS[role] || []).includes(resolved as PermissionKey);
 }
 
-export function permissionsForRole(role: string | undefined | null): PermissionKey[] {
+/** Legacy key → new key (backward compat for routes still using old names). */
+const LEGACY_KEY_MAP: Record<string, string> = {
+  'patient.read': 'patients.read',
+  'patient.write': 'patients.write',
+  'patient.delete': 'patients.delete',
+  'appointment.read': 'appointments.read',
+  'appointment.write': 'appointments.write',
+  'appointment.delete': 'appointments.delete',
+  'finance.manage': 'billing.manage',
+  'finance.read': 'billing.read',
+  'bi.clinic': 'bi.read',
+  'bi.network': 'admin.read',
+  'bi.platform': 'admin.read',
+  'bi.finance': 'billing.manage',
+  'platform.analytics': 'admin.read',
+  'compliance.manage': 'audit.read',
+  'partner.manage': 'shop.manage',
+  'supplier.manage': 'shop.manage',
+  'workflow.manage': 'settings.manage',
+};
+
+/** Return ALL permissions granted to a role (wildcard for SUPERADMIN). */
+export function permissionsForRole(role: string | null | undefined): PermissionKey[] {
   if (!role) return [];
-  if (role === 'SUPERADMIN') {
-    return Array.from(new Set(Object.values(PERMISSIONS)));
-  }
+  if (role === 'SUPERADMIN') return ['*'];
   return ROLE_PERMISSIONS[role] || [];
+}
+
+// ─── Module → canonical CRM page IDs (used by frontend sidebar/navigation) ───
+
+export const MODULE_PAGES: Record<string, string[]> = {
+  patients:     ['patients', 'medical-card', 'visits', 'dental-chart', 'documents', 'treatment-plans', 'icd10'],
+  appointments: ['schedule', 'reminders'],
+  billing:      ['finance', 'cashier', 'billing', 'pricelist'],
+  inventory:    ['inventory'],
+  lab:          ['lab'],
+  staff:        ['staff'],
+  settings:     ['clinic-settings'],
+  analytics:    ['analytics'],
+  diagnostics:  ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings'],
+  academy:      ['school'],
+  shop:         ['shop', 'promotions'],
+  community:    [],
+  audit:        [],
+  admin:        ['admin'],
+  bi:           ['bi'],
+};
+
+/** Derive visible CRM pages from a role's permission set. */
+export function pagesForRole(role: string): string[] {
+  const perms = role === 'SUPERADMIN'
+    ? buildPermissionKeys(MATRIX['SUPERADMIN'])
+    : (ROLE_PERMISSIONS[role] || []);
+  const pages = new Set<string>();
+  for (const perm of perms) {
+    if (perm === '*') {
+      for (const p of Object.values(MODULE_PAGES)) p.forEach((id) => pages.add(id));
+      return Array.from(pages);
+    }
+    const mod = perm.split('.')[0];
+    const modPages = MODULE_PAGES[mod];
+    if (modPages) modPages.forEach((p) => pages.add(p));
+  }
+  return Array.from(pages);
+}
+
+// ─── Capability flags derived from permissions ───
+
+export interface RoleCapabilities {
+  canSeeSalary: boolean;
+  canAddStaff: boolean;
+  canSeeAudit: boolean;
+  canBackup: boolean;
+  canSeeReports: boolean;
+  canSeeExpenses: boolean;
+  canManageClinicSettings: boolean;
+  canManageFinance: boolean;
+  ownDataOnly: boolean;
+  readOnly: boolean;
+}
+
+export function capabilitiesForRole(role: string): RoleCapabilities {
+  const perms = new Set(ROLE_PERMISSIONS[role] || []);
+  const r = role.toUpperCase();
+  return {
+    canSeeSalary:            perms.has('staff.read'),
+    canAddStaff:             perms.has('staff.write'),
+    canSeeAudit:             perms.has('audit.read'),
+    canBackup:               r === 'SUPERADMIN' || r === 'OWNER' || r === 'DIRECTOR',
+    canSeeReports:           perms.has('analytics.read'),
+    canSeeExpenses:          perms.has('billing.manage'),
+    canManageClinicSettings: perms.has('settings.manage'),
+    canManageFinance:        perms.has('billing.manage'),
+    ownDataOnly:             r === 'DOCTOR' || r === 'ASSISTANT',
+    readOnly:                r === 'ASSISTANT' || r === 'STUDENT',
+  };
+}
+
+// ─── Role-to-module quick check ───
+
+export function roleCanAccessModule(role: string, mod: Module): boolean {
+  if (role === 'SUPERADMIN') return true;
+  const perms = ROLE_PERMISSIONS[role] || [];
+  return perms.some((p) => p.startsWith(`${mod}.`));
 }
