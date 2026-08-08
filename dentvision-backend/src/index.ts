@@ -160,28 +160,70 @@ async function connectDb(attempt = 1): Promise<void> {
   }
 }
 
+// ─── One-time startup schema migrations ─────────────────────────────
+// The DDL blocks below are idempotent (IF NOT EXISTS) but each one costs a
+// round trip on every boot. They run exactly once and are remembered in the
+// `schema_migrations` table; on later boots the gate below skips them. Data
+// backfills/seeds are intentionally NOT gated — they must keep running to
+// catch new rows (new centers, approved registrations, suppliers, ...).
+let schemaMigrationsReady = false;
+async function ensureSchemaMigrationsTable() {
+  if (schemaMigrationsReady) return;
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "schema_migrations" (
+      "key" TEXT PRIMARY KEY,
+      "appliedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      "durationMs" INT
+    )
+  `);
+  schemaMigrationsReady = true;
+}
+async function hasRunMigration(key: string): Promise<boolean> {
+  await ensureSchemaMigrationsTable();
+  const rows = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
+    `SELECT COUNT(*)::int AS n FROM "schema_migrations" WHERE "key" = $1`, key,
+  );
+  return (rows[0]?.n ?? 0) > 0;
+}
+async function markMigrationDone(key: string, durationMs: number) {
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "schema_migrations" ("key", "appliedAt", "durationMs") VALUES ($1, now(), $2)
+     ON CONFLICT ("key") DO NOTHING`, key, durationMs,
+  );
+}
+/** Run a one-time DDL block unless it already applied on a previous boot. */
+async function runOnceMigration(key: string, label: string, fn: () => Promise<void>) {
+  if (await hasRunMigration(key)) {
+    console.log(`[MIGRATION] ${label} — skipped (already applied)`);
+    return;
+  }
+  const t0 = Date.now();
+  try {
+    await fn();
+    await markMigrationDone(key, Date.now() - t0);
+    console.log(`[MIGRATION] ${label} ready (${Date.now() - t0}ms)`);
+  } catch (err) {
+    console.error(`[MIGRATION] ${label} failed (non-fatal):`, err);
+  }
+}
+
 async function main() {
   await connectDb();
+  await ensureSchemaMigrationsTable();
 
   // Run schema migrations
-  try {
+  await runOnceMigration('patients_iin', 'Patient.iin column', async () => {
     await prisma.$executeRawUnsafe(`ALTER TABLE IF EXISTS "patients" ADD COLUMN IF NOT EXISTS "iin" TEXT`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patients_iin_idx" ON "patients"("iin")`);
-    console.log('[MIGRATION] Patient.iin column ready');
-  } catch (err) {
-    console.error('[MIGRATION] Patient.iin failed (non-fatal):', err);
-  }
+  });
 
   // UserRole enum may be missing SUPPORT (init_full_schema was generated before it was added)
-  try {
+  await runOnceMigration('userrole_support', 'UserRole SUPPORT value', async () => {
     await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPPORT'`);
-    console.log('[MIGRATION] UserRole enum: SUPPORT value ready');
-  } catch (err) {
-    console.error('[MIGRATION] UserRole enum SUPPORT failed (non-fatal):', err);
-  }
+  });
 
   // Diagnostic center subscriptions
-  try {
+  await runOnceMigration('center_subscriptions_table', 'Center subscription table', async () => {
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "center_subscriptions" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -194,10 +236,7 @@ async function main() {
         updated_at TIMESTAMPTZ DEFAULT now()
       )
     `);
-    console.log('[MIGRATION] Center subscription table ready');
-  } catch (err) {
-    console.error('[MIGRATION] Center subscription table failed (non-fatal):', err);
-  }
+  });
 
   // Backfill trial subscriptions for existing centers that don't have one yet
   try {
@@ -214,17 +253,18 @@ async function main() {
   }
 
   // Shared product catalog — prevent duplicate listings across suppliers
-  try {
+  await runOnceMigration('products_shared_id', 'Product shared_product_id column', async () => {
     await prisma.$executeRawUnsafe(`ALTER TABLE IF EXISTS "products" ADD COLUMN IF NOT EXISTS "shared_product_id" TEXT`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "products_shared_idx" ON "products"("shared_product_id")`);
-    console.log('[MIGRATION] Product shared_product_id column ready');
-  } catch (err) {
-    console.error('[MIGRATION] Product shared_id failed (non-fatal):', err);
-  }
+  });
 
   // Ensure marketplace tables exist (init_full_schema migration may have failed)
-  try {
-    await prisma.$executeRawUnsafe(`
+  if (await hasRunMigration('marketplace_iam_finance')) {
+    console.log('[MIGRATION] Marketplace + IAM + Finance tables — skipped (already applied)');
+  } else {
+    const t0 = Date.now();
+    try {
+      await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "shop_categories" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name TEXT NOT NULL,
@@ -609,8 +649,10 @@ async function main() {
       )
     `);
     console.log('[MIGRATION] Marketplace + IAM + Finance tables ready');
+    await markMigrationDone('marketplace_iam_finance', Date.now() - t0);
   } catch (err) {
     console.error('[MIGRATION] Marketplace tables failed (non-fatal):', err);
+  }
   }
 
   // Seed marketplace catalog
@@ -819,7 +861,7 @@ async function main() {
   }
 
   // School content tables
-  try {
+  await runOnceMigration('school_content_tables', 'School content tables', async () => {
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "school_clinical_cases" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -847,7 +889,10 @@ async function main() {
     await prisma.$executeRawUnsafe(`ALTER TABLE "school_library_items" ADD COLUMN IF NOT EXISTS content TEXT`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "school_library_items" ADD COLUMN IF NOT EXISTS tags JSONB`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "school_clinical_cases" ADD COLUMN IF NOT EXISTS author TEXT`);
-    // Seed curated static content into DB once (idempotent by title+category) so admin can edit/delete it.
+  });
+
+  try {
+    // Seed curated static content into DB (idempotent by title+category) so admin can edit/delete it.
     for (const c of CLINICAL_CASES) {
       await prisma.$executeRawUnsafe(
         `INSERT INTO "school_clinical_cases" (id, title, description, category, difficulty, content, author)
@@ -980,12 +1025,9 @@ async function main() {
   }
 
   // ─── Diagnostics: applicant org access ───
-  try {
+  await runOnceMigration('registration_requests_userId', 'registration_requests.userId column', async () => {
     await prisma.$executeRawUnsafe(`ALTER TABLE "registration_requests" ADD COLUMN IF NOT EXISTS "userId" TEXT`);
-    console.log('[MIGRATION] registration_requests.userId column ready');
-  } catch (err) {
-    console.error('[MIGRATION] registration_requests.userId failed (non-fatal):', err);
-  }
+  });
 
   // Backfill access for already-approved registrations (match applicant by email) so the
   // request creator gets the center/lab org right away.
@@ -1021,7 +1063,7 @@ async function main() {
   // Platform-commission settlements: table + referrals.settlementId link.
   // Mirrors prisma/migrations/20260808_add_settlement (not run via migrate deploy
   // on production), idempotent so it can re-run on every boot.
-  try {
+  await runOnceMigration('settlements', 'Settlement tables', async () => {
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "settlements" (
         "id" TEXT NOT NULL,
@@ -1057,34 +1099,28 @@ async function main() {
         END IF;
       END $$
     `);
-    console.log('[MIGRATION] Settlement tables ready');
-  } catch (err) {
-    console.error('[MIGRATION] Settlement tables failed (non-fatal):', err);
-  }
+  });
 
   // Document signing columns. A prisma migration for these exists
   // (20260808_add_document_sign_fields) but production reached this point
   // without the columns — every prisma.document.findMany() was failing with
   // "column documents.signToken does not exist" — so they are applied here,
   // the same way every other table in this file is kept current.
-  try {
+  await runOnceMigration('document_sign_fields', 'Document signing columns', async () => {
     await prisma.$executeRawUnsafe(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signToken" TEXT`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signatureData" TEXT`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signedByName" TEXT`);
     await prisma.$executeRawUnsafe(
       `CREATE UNIQUE INDEX IF NOT EXISTS "documents_signToken_key" ON "documents"("signToken")`,
     );
-    console.log('[MIGRATION] Document signing columns ready');
-  } catch (err) {
-    console.error('[MIGRATION] Document signing columns failed (non-fatal):', err);
-  }
+  });
 
   // One Person per (user, organization) instead of one per user. Mirrors
   // 20260808_person_multi_org; see the note above on migrations not landing.
   // The column spelling differs between tables here (persons keeps
   // organization_id while the rest were normalized to camelCase above), so
   // both are resolved at runtime.
-  try {
+  await runOnceMigration('person_multi_org', 'Person multi-organization index', async () => {
     await prisma.$executeRawUnsafe(`
       DO $$
       DECLARE
@@ -1120,56 +1156,54 @@ async function main() {
         EXECUTE format('CREATE INDEX IF NOT EXISTS "persons_userId_idx" ON public.persons (%I)', user_col);
       END $$
     `);
-    console.log('[MIGRATION] Person multi-organization index ready');
-  } catch (err) {
-    console.error('[MIGRATION] Person multi-organization index failed (non-fatal):', err);
-  }
+  });
 
   // Performance indexes: composite btree for list/aggregate hot paths
   // (clinic-scoped lists, monthly revenue, GMV) plus trigram GIN for
   // %term% text search (patients, marketplace catalog). Idempotent.
-  try {
-    await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
-  } catch (err) {
-    console.warn('[MIGRATION] pg_trgm unavailable — search GIN indexes skipped:', (err as Error).message);
-  }
-
-  const perfIndexes = [
-    `CREATE INDEX IF NOT EXISTS "invoices_clinicId_status_createdAt_idx" ON "invoices"("clinicId", "status", "createdAt")`,
-    `CREATE INDEX IF NOT EXISTS "documents_clinicId_createdAt_idx" ON "documents"("clinicId", "createdAt")`,
-    `CREATE INDEX IF NOT EXISTS "lab_orders_clinicId_createdAt_idx" ON "lab_orders"("clinicId", "createdAt")`,
-    `CREATE INDEX IF NOT EXISTS "audit_logs_clinicId_createdAt_idx" ON "audit_logs"("clinicId", "createdAt")`,
-    `CREATE INDEX IF NOT EXISTS "transactions_type_idx" ON "transactions"("type")`,
-  ];
-  for (const sql of perfIndexes) {
+  await runOnceMigration('performance_indexes', 'Performance indexes', async () => {
     try {
-      await prisma.$executeRawUnsafe(sql);
+      await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
     } catch (err) {
-      console.warn('[MIGRATION] Perf index failed (non-fatal):', (err as Error).message);
+      console.warn('[MIGRATION] pg_trgm unavailable — search GIN indexes skipped:', (err as Error).message);
     }
-  }
 
-  const ginIndexes = [
-    `CREATE INDEX IF NOT EXISTS "patients_firstName_trgm_idx" ON "patients" USING gin ("firstName" gin_trgm_ops)`,
-    `CREATE INDEX IF NOT EXISTS "patients_lastName_trgm_idx" ON "patients" USING gin ("lastName" gin_trgm_ops)`,
-    `CREATE INDEX IF NOT EXISTS "patients_phone_trgm_idx" ON "patients" USING gin ("phone" gin_trgm_ops)`,
-    `CREATE INDEX IF NOT EXISTS "patients_email_trgm_idx" ON "patients" USING gin ("email" gin_trgm_ops)`,
-    `CREATE INDEX IF NOT EXISTS "patients_iin_trgm_idx" ON "patients" USING gin ("iin" gin_trgm_ops)`,
-    `CREATE INDEX IF NOT EXISTS "products_name_trgm_idx" ON "products" USING gin ("name" gin_trgm_ops)`,
-    `CREATE INDEX IF NOT EXISTS "products_brand_trgm_idx" ON "products" USING gin ("brand" gin_trgm_ops)`,
-    `CREATE INDEX IF NOT EXISTS "products_description_trgm_idx" ON "products" USING gin ("description" gin_trgm_ops)`,
-  ];
-  for (const sql of ginIndexes) {
-    try {
-      await prisma.$executeRawUnsafe(sql);
-    } catch (err) {
-      console.warn('[MIGRATION] Search GIN index failed (non-fatal):', (err as Error).message);
+    const perfIndexes = [
+      `CREATE INDEX IF NOT EXISTS "invoices_clinicId_status_createdAt_idx" ON "invoices"("clinicId", "status", "createdAt")`,
+      `CREATE INDEX IF NOT EXISTS "documents_clinicId_createdAt_idx" ON "documents"("clinicId", "createdAt")`,
+      `CREATE INDEX IF NOT EXISTS "lab_orders_clinicId_createdAt_idx" ON "lab_orders"("clinicId", "createdAt")`,
+      `CREATE INDEX IF NOT EXISTS "audit_logs_clinicId_createdAt_idx" ON "audit_logs"("clinicId", "createdAt")`,
+      `CREATE INDEX IF NOT EXISTS "transactions_type_idx" ON "transactions"("type")`,
+    ];
+    for (const sql of perfIndexes) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+      } catch (err) {
+        console.warn('[MIGRATION] Perf index failed (non-fatal):', (err as Error).message);
+      }
     }
-  }
-  console.log('[MIGRATION] Performance indexes ready');
+
+    const ginIndexes = [
+      `CREATE INDEX IF NOT EXISTS "patients_firstName_trgm_idx" ON "patients" USING gin ("firstName" gin_trgm_ops)`,
+      `CREATE INDEX IF NOT EXISTS "patients_lastName_trgm_idx" ON "patients" USING gin ("lastName" gin_trgm_ops)`,
+      `CREATE INDEX IF NOT EXISTS "patients_phone_trgm_idx" ON "patients" USING gin ("phone" gin_trgm_ops)`,
+      `CREATE INDEX IF NOT EXISTS "patients_email_trgm_idx" ON "patients" USING gin ("email" gin_trgm_ops)`,
+      `CREATE INDEX IF NOT EXISTS "patients_iin_trgm_idx" ON "patients" USING gin ("iin" gin_trgm_ops)`,
+      `CREATE INDEX IF NOT EXISTS "products_name_trgm_idx" ON "products" USING gin ("name" gin_trgm_ops)`,
+      `CREATE INDEX IF NOT EXISTS "products_brand_trgm_idx" ON "products" USING gin ("brand" gin_trgm_ops)`,
+      `CREATE INDEX IF NOT EXISTS "products_description_trgm_idx" ON "products" USING gin ("description" gin_trgm_ops)`,
+    ];
+    for (const sql of ginIndexes) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+      } catch (err) {
+        console.warn('[MIGRATION] Search GIN index failed (non-fatal):', (err as Error).message);
+      }
+    }
+  });
 
   // Login attempt table for persistent brute-force protection (survives restart / multi-instance).
-  try {
+  await runOnceMigration('login_attempts', 'login_attempts table', async () => {
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "login_attempts" (
         "id"          TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1182,9 +1216,7 @@ async function main() {
         UNIQUE("email", "ip")
       )
     `);
-  } catch (err) {
-    console.warn('[MIGRATION] login_attempts table skipped:', (err as Error).message);
-  }
+  });
 
   // Initialize Event Bus
   try {
