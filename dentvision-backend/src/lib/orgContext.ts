@@ -115,6 +115,32 @@ export async function resolveClinicAccess(userId: string, clinicId: string): Pro
 }
 
 /**
+ * Resolve *some* clinic the user belongs to, when the caller hasn't specified
+ * which one (e.g. defaulting an order/onboarding flow to the user's only/first
+ * clinic). Checks Person (unified, oldest membership first) then falls back to
+ * legacy ClinicMember (oldest joinedAt first, matching prior behavior).
+ */
+export async function resolveAnyClinicMembership(userId: string): Promise<{ clinicId: string; role: string } | null> {
+  const person = await prisma.person.findFirst({
+    where: { userId, organization: { type: 'CLINIC' } },
+    include: { organization: true, personRoles: { include: { role: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (person?.organization?.originalId) {
+    const unifiedRole = person.personRoles?.[0]?.role?.key || 'org_admin';
+    return { clinicId: person.organization.originalId, role: PERSON_ROLE_MAP[unifiedRole] || 'DOCTOR' };
+  }
+
+  const member = await prisma.clinicMember.findFirst({
+    where: { userId },
+    orderBy: { joinedAt: 'asc' },
+  });
+  if (member) return { clinicId: member.clinicId, role: member.role };
+
+  return null;
+}
+
+/**
  * Check role membership (any of the given roles) — wraps resolveClinicAccess.
  */
 export async function assertClinicRole(userId: string, clinicId: string, allowedRoles: string[]) {

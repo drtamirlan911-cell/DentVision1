@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  userFindUnique, organizationFindFirst, personFindFirst, clinicMemberFindUnique,
+  userFindUnique, organizationFindFirst, personFindFirst, clinicMemberFindUnique, clinicMemberFindFirst,
 } = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   organizationFindFirst: vi.fn(),
   personFindFirst: vi.fn(),
   clinicMemberFindUnique: vi.fn(),
+  clinicMemberFindFirst: vi.fn(),
 }));
 
 vi.mock('./prisma.js', () => ({
@@ -14,11 +15,11 @@ vi.mock('./prisma.js', () => ({
     user: { findUnique: userFindUnique },
     organization: { findFirst: organizationFindFirst },
     person: { findFirst: personFindFirst },
-    clinicMember: { findUnique: clinicMemberFindUnique },
+    clinicMember: { findUnique: clinicMemberFindUnique, findFirst: clinicMemberFindFirst },
   },
 }));
 
-import { assertOrgAccess, resolveClinicAccess } from './orgContext.js';
+import { assertOrgAccess, resolveClinicAccess, resolveAnyClinicMembership } from './orgContext.js';
 
 const CLINIC_ID = 'clinic-1';
 const USER_ID = 'user-1';
@@ -28,6 +29,7 @@ beforeEach(() => {
   organizationFindFirst.mockReset();
   personFindFirst.mockReset();
   clinicMemberFindUnique.mockReset();
+  clinicMemberFindFirst.mockReset();
 });
 
 describe('assertOrgAccess', () => {
@@ -114,6 +116,42 @@ describe('resolveClinicAccess', () => {
     personFindFirst.mockResolvedValueOnce(null);
     clinicMemberFindUnique.mockResolvedValueOnce(null);
     const result = await resolveClinicAccess(USER_ID, CLINIC_ID);
+    expect(result).toBeNull();
+  });
+});
+
+describe('resolveAnyClinicMembership', () => {
+  it('resolves via the oldest Person (unified) membership in a CLINIC-type org, mapping the role', async () => {
+    personFindFirst.mockResolvedValueOnce({
+      organization: { originalId: CLINIC_ID },
+      personRoles: [{ role: { key: 'owner' } }],
+    });
+    const result = await resolveAnyClinicMembership(USER_ID);
+    expect(result).toEqual({ clinicId: CLINIC_ID, role: 'OWNER' });
+    expect(personFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: USER_ID, organization: { type: 'CLINIC' } } }),
+    );
+    expect(clinicMemberFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('defaults to org_admin -> ADMIN when the Person has no PersonRole rows', async () => {
+    personFindFirst.mockResolvedValueOnce({ organization: { originalId: CLINIC_ID }, personRoles: [] });
+    const result = await resolveAnyClinicMembership(USER_ID);
+    expect(result).toEqual({ clinicId: CLINIC_ID, role: 'ADMIN' });
+  });
+
+  it('falls back to the oldest legacy ClinicMember when no Person row exists', async () => {
+    personFindFirst.mockResolvedValueOnce(null);
+    clinicMemberFindFirst.mockResolvedValueOnce({ clinicId: CLINIC_ID, role: 'LAB' });
+    const result = await resolveAnyClinicMembership(USER_ID);
+    expect(result).toEqual({ clinicId: CLINIC_ID, role: 'LAB' });
+    expect(clinicMemberFindFirst).toHaveBeenCalledWith({ where: { userId: USER_ID }, orderBy: { joinedAt: 'asc' } });
+  });
+
+  it('returns null when the user has no clinic membership at all', async () => {
+    personFindFirst.mockResolvedValueOnce(null);
+    clinicMemberFindFirst.mockResolvedValueOnce(null);
+    const result = await resolveAnyClinicMembership(USER_ID);
     expect(result).toBeNull();
   });
 });

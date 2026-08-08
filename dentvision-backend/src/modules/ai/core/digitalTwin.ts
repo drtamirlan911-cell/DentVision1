@@ -4,6 +4,7 @@
  * admins are not treated as dentists.
  */
 import prisma from '../../../lib/prisma.js';
+import { resolveClinicAccess, resolveAnyClinicMembership } from '../../../lib/orgContext.js';
 
 type TwinRole =
   | 'OWNER'
@@ -128,19 +129,24 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null,
     ? (user.profileMeta as Record<string, unknown>)
     : {};
 
-  const membership = clinicId
-    ? await prisma.clinicMember.findUnique({
-        where: { userId_clinicId: { userId, clinicId } },
-        include: { clinic: { select: { id: true, name: true, city: true, plan: true } } },
-      })
-    : await prisma.clinicMember.findFirst({
-        where: { userId },
-        include: { clinic: { select: { id: true, name: true, city: true, plan: true } } },
-      });
-
-  const activeClinicId = clinicId || membership?.clinicId || null;
-  const role = normalizeRole(membership?.role || user.role);
+  let activeClinicId: string | null = clinicId || null;
+  let resolvedRole: string | undefined;
+  if (clinicId) {
+    resolvedRole = (await resolveClinicAccess(userId, clinicId))?.role;
+  } else {
+    const access = await resolveAnyClinicMembership(userId);
+    activeClinicId = access?.clinicId || null;
+    resolvedRole = access?.role;
+  }
+  const role = normalizeRole(resolvedRole || user.role);
   const roleLabel = ROLE_LABEL_RU[role] || String(role);
+
+  const clinicDisplay = activeClinicId
+    ? await prisma.clinic.findUnique({
+        where: { id: activeClinicId },
+        select: { id: true, name: true, city: true, plan: true },
+      }).catch(() => null)
+    : null;
 
   const monthStart = new Date();
   monthStart.setDate(1);
@@ -252,7 +258,7 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null,
     role,
     roleLabel,
     profileKind: isClinicalDoctor(role) ? 'doctor' : isClinicOps(role) ? 'ops' : 'staff',
-    clinic: membership?.clinic || null,
+    clinic: clinicDisplay || null,
     skills,
     completedCourses: completedCourses.length,
     inProgressCourses: inProgressCourses.length,
@@ -823,7 +829,7 @@ export async function buildProactiveAlerts(opts: {
 
 // ─── Screen-aware contextual suggestions ───
 
-export type ProactiveSuggestionAction = { type: string; path?: string };
+export type ProactiveSuggestionAction = { type: string; path?: string; params?: Record<string, unknown> };
 
 export interface ProactiveSuggestion {
   type: string;

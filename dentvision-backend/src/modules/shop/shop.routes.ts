@@ -5,6 +5,7 @@ import { requireSuperadmin } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import { resolveSupplierCity } from '../../lib/kzCities.js';
+import { assertOrgAccess, resolveAnyClinicMembership } from '../../lib/orgContext.js';
 
 const shopRouter = Router();
 
@@ -167,16 +168,10 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     let clinicId = req.user?.clinicId || null;
     const requestedClinic = clinic_id || bodyClinicId || null;
     if (!clinicId && requestedClinic) {
-      const member = await prisma.clinicMember.findFirst({
-        where: { userId: req.user!.id, clinicId: String(requestedClinic) },
-      });
-      if (member) clinicId = member.clinicId;
+      if (await assertOrgAccess(req.user!, String(requestedClinic))) clinicId = String(requestedClinic);
     }
     if (!clinicId) {
-      const first = await prisma.clinicMember.findFirst({
-        where: { userId: req.user!.id },
-        orderBy: { joinedAt: 'asc' },
-      });
+      const first = await resolveAnyClinicMembership(req.user!.id);
       clinicId = first?.clinicId || null;
     }
     if (!clinicId) {

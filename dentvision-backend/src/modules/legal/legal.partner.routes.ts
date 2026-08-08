@@ -3,6 +3,7 @@ import { authenticate } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
 import { writeAuditLog } from './legal.audit.js';
 import { onboardPartner, buildDocumentContent } from './legal.service.js';
+import { resolveAnyClinicMembership } from '../../lib/orgContext.js';
 
 const router = Router();
 
@@ -13,10 +14,10 @@ router.post('/onboard', async (req: any, res, next) => {
     const existing = await prisma.legalPartner.findUnique({ where: { userId: req.user.id } });
     if (existing) return res.json({ ok: true, data: existing });
 
-    const member = await prisma.clinicMember.findFirst({ where: { userId: req.user.id } });
-    if (!member) return res.status(400).json({ ok: false, error: 'У вас нет клиники. Создайте клинику в панели управления.' });
+    const membership = await resolveAnyClinicMembership(req.user.id);
+    if (!membership) return res.status(400).json({ ok: false, error: 'У вас нет клиники. Создайте клинику в панели управления.' });
 
-    const clinic = await prisma.clinic.findUnique({ where: { id: member.clinicId } });
+    const clinic = await prisma.clinic.findUnique({ where: { id: membership.clinicId } });
     const defaultName = clinic?.name || `${req.user.firstName} ${req.user.lastName}`;
     const partner = await onboardPartner({
       userId: req.user.id,
