@@ -25,6 +25,7 @@ import {
   assertClinicWritable,
   PlanGateError,
 } from '../billing/planEntitlements.js';
+import { assertOrgAccess } from '../../lib/orgContext.js';
 
 // Prisma-backed idempotency (persists across restarts)
 async function getIdempotencyRecord(key: string): Promise<string | null> {
@@ -294,10 +295,7 @@ async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; re
   }
   // Clinic cashier payments: any active member of that clinic may confirm.
   if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: meta.clinicId } },
-    });
-    if (membership) return true;
+    if (await assertOrgAccess(req.user!, meta.clinicId)) return true;
   }
   return false;
 }
@@ -387,10 +385,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           error: 'clinicId обязателен для оплаты на кассе клиники',
         } satisfies ApiResponse);
       }
-      const membership = await prisma.clinicMember.findUnique({
-        where: { userId_clinicId: { userId: req.user!.id, clinicId } },
-      });
-      if (!membership) {
+      if (!(await assertOrgAccess(req.user!, clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
       }
 

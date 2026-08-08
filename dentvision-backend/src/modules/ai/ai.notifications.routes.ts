@@ -10,8 +10,8 @@
 import { Router, Response, Request } from 'express';
 import { EventEmitter } from 'events';
 import jwt from 'jsonwebtoken';
-import prisma from '../../lib/prisma.js';
 import { isOriginAllowed } from '../../lib/cors.js';
+import { resolveClinicAccess } from '../../lib/orgContext.js';
 
 // ─── Types ───
 
@@ -109,10 +109,8 @@ router.get('/stream', async (req: Request, res: Response) => {
     const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as any;
     const userId = payload.id || payload.sub || payload.userId;
     if (!userId) { res.status(401).json({ ok: false, error: 'Invalid token' }); return; }
-    const member = await prisma.clinicMember.findFirst({
-      where: { userId, clinicId },
-    });
-    if (!member) { res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); return; }
+    const access = await resolveClinicAccess(userId, clinicId);
+    if (!access) { res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); return; }
   } catch {
     res.status(401).json({ ok: false, error: 'Invalid or expired token' });
     return;

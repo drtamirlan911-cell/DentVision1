@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { assertClinicBillingAccess } from './clinicSubscription.service.js';
+import { assertOrgAccess } from '../../lib/orgContext.js';
 
 // Subscriptions (Phase 5). SaaS plans per owner.
 // Writes are restricted — use /api/clinic-billing checkout for clinics.
@@ -18,10 +19,7 @@ const OWNER_TYPES = ['CLINIC', 'SUPPLIER', 'ACADEMY', 'LECTURER', 'PARTNER', 'PL
 async function assertCanReadSubscription(req: AuthRequest, ownerType: string, ownerId: string) {
   if (req.user?.role === 'SUPERADMIN') return;
   if (ownerType === 'CLINIC') {
-    const member = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: ownerId } },
-    });
-    if (!member) {
+    if (!(await assertOrgAccess(req.user!, ownerId))) {
       const err = new Error('Нет доступа к подписке');
       (err as any).status = 403;
       throw err;
