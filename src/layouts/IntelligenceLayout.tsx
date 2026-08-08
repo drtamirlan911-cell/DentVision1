@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { ChevronRight, Menu, Building2, User, Stethoscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/store/auth.store';
+import { useAuth, useAuthStore } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
 import { useGuestStore } from '@/store/guest.store';
 import { useWorkspaceStore } from '@/store/workspace.store';
@@ -260,6 +260,24 @@ export const IntelligenceLayout: React.FC = () => {
       });
     }
   }, [location.pathname, firstRunPhase, completeFirstRun, setOnboardingComplete, setFirstRunPhase, setSidebarVisible]);
+
+  // When navigating directly to a clinic page (URL / bookmark) while the
+  // active context is a workspace (center/lab/supplier), restore the saved
+  // clinic token so CRM subnav shows the full set of items.
+  useEffect(() => {
+    const isClinicPage = location.pathname.startsWith('/crm') || location.pathname === '/analytics' || location.pathname === '/bi';
+    if (!isClinicPage) return;
+    if (!isAuthenticated || isGuest) return;
+    const orgType = user?.organizationType;
+    if (!orgType || orgType === 'CLINIC') return;
+    try {
+      const raw = localStorage.getItem('dv_clinic_backup');
+      if (!raw) return;
+      const { accessToken, refreshToken } = JSON.parse(raw);
+      api.setTokens(accessToken, refreshToken || null);
+      void useAuthStore.getState().restoreSession();
+    } catch { /* ignore */ }
+  }, [location.pathname, isAuthenticated, isGuest, user?.organizationType]);
 
   // Guest session: retry-friendly, never call during render.
   useEffect(() => {
