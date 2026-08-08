@@ -1,15 +1,15 @@
 import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 
-const LANGUAGES = [
-  { code: 'ru', label: 'Рус', full: 'Русский' },
-  { code: 'kz', label: 'Қаз', full: 'Қазақша' },
-  { code: 'en', label: 'Eng', full: 'English' },
-];
-
 export default function LanguageSwitcher({ compact }: { compact?: boolean }) {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const current = i18n.language?.startsWith('kz') ? 'kz' : i18n.language?.startsWith('en') ? 'en' : 'ru';
+
+  const LANGUAGES = [
+    { code: 'ru', label: t('platform.language_ru'), full: t('platform.language_ru_full') },
+    { code: 'kz', label: t('platform.language_kz'), full: t('platform.language_kz_full') },
+    { code: 'en', label: t('platform.language_en'), full: t('platform.language_en_full') },
+  ];
 
   const switchLang = (code: string) => {
     i18n.changeLanguage(code);

@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/ds/Modal';
 import { useGuestStore } from '@/store/guest.store';
 import { useAuth } from '@/store/auth.store';
 import { Mail, Lock, Check, Loader2, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export default function RegistrationModal() {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export default function RegistrationModal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (showRegistrationModal && pendingAction) {
@@ -43,7 +45,7 @@ export default function RegistrationModal() {
   const handleGuestLogin = async () => {
     setError('');
     if (!loginData.login.trim() || !loginData.password) {
-      setError('Введите email и пароль');
+      setError(t('auth.login_error'));
       return;
     }
     setLoading(true);
@@ -52,7 +54,7 @@ export default function RegistrationModal() {
       setSuccess(true);
       setTimeout(afterAuth, 400);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка входа');
+      setError(err instanceof Error ? err.message : t('auth.login_failed'));
     } finally {
       setLoading(false);
     }
@@ -60,33 +62,33 @@ export default function RegistrationModal() {
 
   const handleConvertAndRegister = async () => {
     setError('');
-    if (!registerData.name.trim()) { setError('Введите имя'); return; }
+    if (!registerData.name.trim()) { setError(t('auth.name_required')); return; }
     const email = registerData.login.trim().toLowerCase();
-    if (!email.includes('@') || email.length < 5) { setError('Укажите корректный email'); return; }
-    if (registerData.password.length < 8) { setError('Пароль ≥ 8 символов'); return; }
+    if (!email.includes('@') || email.length < 5) { setError(t('auth.email_invalid')); return; }
+    if (registerData.password.length < 8) { setError(t('auth.password_too_short')); return; }
     if (!/[A-Za-zА-Яа-я]/.test(registerData.password) || !/\d/.test(registerData.password)) {
-      setError('Пароль должен содержать буквы и цифры');
+      setError(t('auth.password_format'));
       return;
     }
-    if (registerData.password !== registerData.confirmPassword) { setError('Пароли не совпадают'); return; }
+    if (registerData.password !== registerData.confirmPassword) { setError(t('auth.passwords_mismatch')); return; }
 
     setLoading(true);
     try {
       const converted = await convertGuest(email, registerData.password, registerData.name);
       if (!converted) {
-        setError('Ошибка конвертации');
+        setError(t('auth.conversion_error'));
         return;
       }
       // Convert already minted tokens; login hydrates user/clinic into auth store
       const ok = await login(email, registerData.password);
       if (!ok) {
-        setError('Аккаунт создан, но вход не удался — попробуйте войти вручную');
+        setError(t('auth.account_created_no_login'));
         return;
       }
       setSuccess(true);
       setTimeout(afterAuth, 400);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка регистрации');
+      setError(err instanceof Error ? err.message : t('auth.register_error'));
     } finally {
       setLoading(false);
     }
@@ -109,8 +111,8 @@ export default function RegistrationModal() {
             <div className="mx-auto w-16 h-16 rounded-full bg-green-500/15 flex items-center justify-center mb-3">
               <Check size={24} className="text-green-400" />
             </div>
-            <p className="text-lg font-semibold text-txt-primary">Готово</p>
-            <p className="text-sm text-txt-secondary mt-1">Вход выполнен, переходим...</p>
+            <p className="text-lg font-semibold text-txt-primary">{t('auth.done')}</p>
+            <p className="text-sm text-txt-secondary mt-1">{t('auth.login_redirect')}</p>
           </motion.div>
         ) : showLoginForm ? (
           <motion.div
@@ -121,13 +123,13 @@ export default function RegistrationModal() {
             className="space-y-5"
           >
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-txt-primary mb-1">Вход в аккаунт</h3>
-              <p className="text-xs text-txt-muted">Вы начали гостевую сессию. Войдите, чтобы сохранить прогресс.</p>
+              <h3 className="text-lg font-semibold text-txt-primary mb-1">{t('auth.sign_in_title')}</h3>
+              <p className="text-xs text-txt-muted">{t('auth.sign_in_guest_hint')}</p>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-txt-secondary mb-1.5">Email</label>
+                <label className="block text-xs font-medium text-txt-secondary mb-1.5">{t('auth.email')}</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-txt-muted" />
                   <input
@@ -142,14 +144,14 @@ export default function RegistrationModal() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-txt-secondary mb-1.5">Пароль</label>
+                <label className="block text-xs font-medium text-txt-secondary mb-1.5">{t('auth.password')}</label>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-txt-muted" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={loginData.password}
                     onChange={(e) => setLoginData(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder="Пароль"
+                    placeholder={t('auth.password')}
                     className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
                     autoComplete="current-password"
                   />
@@ -157,7 +159,7 @@ export default function RegistrationModal() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-2 top-1/2 transform -translate-y-1/2 text-txt-muted hover:text-txt-secondary"
-                    aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    aria-label={showPassword ? t('auth.hide_password') : t('auth.show_password')}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -177,7 +179,7 @@ export default function RegistrationModal() {
               className="w-full py-2.5 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-              {loading ? 'Входим...' : 'Войти'}
+              {loading ? t('auth.signing_in') : t('auth.login')}
             </button>
 
             <div className="text-center">
@@ -185,7 +187,7 @@ export default function RegistrationModal() {
                 onClick={() => setShowLoginForm(false)}
                 className="text-xs text-txt-muted hover:text-txt-secondary transition-colors"
               >
-                Вместо этого зарегистрироваться
+                {t('auth.register_instead')}
               </button>
             </div>
           </motion.div>
@@ -198,8 +200,8 @@ export default function RegistrationModal() {
             className="space-y-4"
           >
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-txt-primary mb-1">Создать аккаунт</h3>
-              <p className="text-xs text-txt-muted">Сохраним гостевую сессию и откроем полный доступ</p>
+              <h3 className="text-lg font-semibold text-txt-primary mb-1">{t('auth.create_account')}</h3>
+              <p className="text-xs text-txt-muted">{t('auth.register_hint')}</p>
             </div>
 
             {error && (
@@ -209,19 +211,19 @@ export default function RegistrationModal() {
             )}
 
             <div>
-              <label className="block text-xs font-medium text-txt-secondary mb-1.5">Имя</label>
+              <label className="block text-xs font-medium text-txt-secondary mb-1.5">{t('auth.name')}</label>
               <input
                 type="text"
                 value={registerData.name}
                 onChange={(e) => setRegisterData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Ваше имя"
+                placeholder={t('auth.your_name')}
                 className="w-full px-3 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
                 autoComplete="name"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-txt-secondary mb-1.5">Email</label>
+              <label className="block text-xs font-medium text-txt-secondary mb-1.5">{t('auth.email')}</label>
               <input
                 type="email"
                 value={registerData.login}
@@ -233,24 +235,24 @@ export default function RegistrationModal() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-txt-secondary mb-1.5">Пароль</label>
+              <label className="block text-xs font-medium text-txt-secondary mb-1.5">{t('auth.password')}</label>
               <input
                 type="password"
                 value={registerData.password}
                 onChange={(e) => setRegisterData(prev => ({ ...prev, password: e.target.value }))}
-                placeholder="Минимум 8 символов, буквы и цифры"
+                placeholder={t('auth.min_8_chars')}
                 className="w-full px-3 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
                 autoComplete="new-password"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-txt-secondary mb-1.5">Подтвердите пароль</label>
+              <label className="block text-xs font-medium text-txt-secondary mb-1.5">{t('auth.confirm_password')}</label>
               <input
                 type="password"
                 value={registerData.confirmPassword}
                 onChange={(e) => setRegisterData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                placeholder="Повторите пароль"
+                placeholder={t('auth.repeat_password')}
                 className="w-full px-3 py-2.5 rounded-xl bg-surface-2 border border-bdr-subtle text-txt-primary text-sm focus:outline-none focus:border-dv-gold/50"
                 autoComplete="new-password"
               />
@@ -262,7 +264,7 @@ export default function RegistrationModal() {
               className="w-full py-2.5 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
-              {loading ? 'Регистрируем...' : 'Зарегистрироваться'}
+              {loading ? t('auth.registering') : t('auth.register')}
             </button>
 
             <div className="text-center space-y-2">
@@ -270,13 +272,13 @@ export default function RegistrationModal() {
                 onClick={() => setShowLoginForm(true)}
                 className="text-xs text-txt-muted hover:text-txt-secondary transition-colors block mx-auto"
               >
-                Уже есть аккаунт? Войти
+                {t('auth.already_have_account')}
               </button>
               <button
                 onClick={handleClose}
                 className="text-xs text-txt-muted hover:text-txt-secondary transition-colors block mx-auto"
               >
-                Продолжить как гость
+                {t('auth.continue_as_guest')}
               </button>
             </div>
           </motion.div>

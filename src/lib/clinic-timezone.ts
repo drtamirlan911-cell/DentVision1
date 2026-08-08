@@ -1,5 +1,10 @@
 /** Client wall-clock helpers — prefer the user's browser timezone. */
 
+import i18n from './i18n';
+const t = (key: string, fallback: string) => {
+  try { const v = i18n.t(key); return v && v !== key ? v : fallback; } catch { return fallback; }
+};
+
 export const DEFAULT_CLINIC_TZ = 'Asia/Almaty'
 
 export function isValidTimeZone(raw?: string | null): boolean {
@@ -50,8 +55,8 @@ export function hourInTimeZone(date = new Date(), timeZone = detectUserTimeZone(
 
 export function timeGreetingInTz(date = new Date(), timeZone = detectUserTimeZone()): string {
   const h = hourInTimeZone(date, timeZone)
-  if (h < 6) return 'Доброй ночи'
-  if (h < 12) return 'Доброе утро'
-  if (h < 18) return 'Добрый день'
-  return 'Добрый вечер'
+  if (h < 6) return t('greeting.night', 'Доброй ночи')
+  if (h < 12) return t('greeting.morning', 'Доброе утро')
+  if (h < 18) return t('greeting.day', 'Добрый день')
+  return t('greeting.evening', 'Добрый вечер')
 }

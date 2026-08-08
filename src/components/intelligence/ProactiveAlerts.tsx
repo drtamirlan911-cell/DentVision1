@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, AlertTriangle, Info, CheckCircle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -49,6 +50,7 @@ const COLORS = {
 };
 
 export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }: ProactiveAlertsProps) {
+  const { t } = useTranslation();
   if (!alerts.length) return null;
 
   const sortedAlerts = [...alerts].sort((a, b) => b.priority - a.priority);
@@ -82,9 +84,9 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
                 onClick={() => onAction(alert.action!.type)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="px-2 py-1 rounded-lg text-xs font-medium bg-white/10 text-txt-secondary hover:bg-white/20 transition-colors"
-              >
-                Действие
+                  className="px-2 py-1 rounded-lg text-xs font-medium bg-white/10 text-txt-secondary hover:bg-white/20 transition-colors"
+                >
+                  {t('crm.action')}
               </motion.button>
             )}
             {onDismiss && (
@@ -108,7 +110,7 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
       <div className="flex items-center justify-between p-3 border-b border-bdr-subtle">
         <div className="flex items-center gap-2">
           <Bell size={16} className="text-dv-gold" />
-          <h4 className="text-sm font-semibold text-txt-primary">Проактивные оповещения</h4>
+          <h4 className="text-sm font-semibold text-txt-primary">{t('ai.proactive_alerts')}</h4>
           <span className="px-2 py-0.5 rounded-full bg-dv-gold/10 text-dv-gold text-xs font-bold">{alerts.length}</span>
         </div>
       </div>
@@ -142,7 +144,7 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
                         whileTap={{ scale: 0.95 }}
                         className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white/10 text-txt-secondary hover:bg-white/20 transition-colors"
                       >
-                        Выполнить
+                        {t('ai.execute')}
                       </motion.button>
                     )}
                     {onDismiss && (
@@ -172,8 +174,8 @@ export function ProactiveAlerts({ alerts, onDismiss, onAction, compact = false }
         {!alerts.length && (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Bell size={28} className="text-txt-ghost" />
-            <p className="text-sm text-txt-muted mt-2">Нет оповещений</p>
-            <p className="text-[10px] text-txt-ghost mt-1">AI уведомит о важных событиях</p>
+            <p className="text-sm text-txt-muted mt-2">{t('ai.proactive_empty')}</p>
+            <p className="text-[10px] text-txt-ghost mt-1">{t('ai.proactive_hint')}</p>
           </div>
         )}
       </div>

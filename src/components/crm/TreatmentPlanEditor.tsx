@@ -27,29 +27,13 @@ import {
 } from '@/lib/treatment-plan'
 import { printTreatmentPlan } from '@/lib/treatment-plan-print'
 import type { Clinic, Patient } from '@/types'
+import { useTranslation } from 'react-i18next'
 
 interface ServiceOption {
   id: string
   name: string
   price: number
   cat: string
-}
-
-const STATUS_OPTIONS = [
-  { value: 'draft', label: 'Черновик' },
-  { value: 'proposed', label: 'Предложен' },
-  { value: 'accepted', label: 'Принят' },
-  { value: 'in_progress', label: 'В работе' },
-  { value: 'completed', label: 'Завершён' },
-]
-
-function parseCustomName(raw?: string | null): { cat: string; name: string } {
-  if (!raw) return { cat: 'Свои услуги', name: 'Услуга' }
-  const sep = raw.indexOf(' · ')
-  if (sep > 0) {
-    return { cat: raw.slice(0, sep) || 'Свои услуги', name: raw.slice(sep + 3) || raw }
-  }
-  return { cat: 'Свои услуги', name: raw }
 }
 
 interface TreatmentPlanEditorProps {
@@ -77,6 +61,26 @@ export function TreatmentPlanEditor({
   plan,
   onSaved,
 }: TreatmentPlanEditorProps) {
+  const { t } = useTranslation()
+
+  const STATUS_OPTIONS = [
+    { value: 'draft', label: t('treatmentPlan.draft') },
+    { value: 'proposed', label: t('treatmentPlan.proposed') },
+    { value: 'accepted', label: t('treatmentPlan.accepted') },
+    { value: 'in_progress', label: t('treatmentPlan.in_progress') },
+    { value: 'completed', label: t('treatmentPlan.completed') },
+  ]
+
+  function parseCustomName(raw?: string | null): { cat: string; name: string } {
+    const fallback = t('treatmentPlan.service_fallback')
+    if (!raw) return { cat: fallback, name: fallback }
+    const sep = raw.indexOf(' · ')
+    if (sep > 0) {
+      return { cat: raw.slice(0, sep) || fallback, name: raw.slice(sep + 3) || raw }
+    }
+    return { cat: fallback, name: raw }
+  }
+
   const { showToast } = useToast()
   const [saving, setSaving] = useState(false)
   const [services, setServices] = useState<ServiceOption[]>([])
@@ -86,7 +90,7 @@ export function TreatmentPlanEditor({
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [draft, setDraft] = useState<TreatmentPlanDraft>({
     patientId: initialPatientId || '',
-    title: 'План лечения',
+    title: t('treatmentPlan.title'),
     diagnosis: '',
     status: 'proposed',
     stages: [createEmptyStage(1)],
@@ -136,7 +140,7 @@ export function TreatmentPlanEditor({
       setDraft({
         id: String(plan.id || ''),
         patientId: String(plan.patientId || ''),
-        title: String(plan.title || 'План лечения'),
+        title: String(plan.title || t('treatmentPlan.title')),
         diagnosis: String(plan.diagnosis || plan.notes || ''),
         status: String(plan.status || 'proposed'),
         stages: stages.length ? stages : [createEmptyStage(1)],
@@ -145,7 +149,7 @@ export function TreatmentPlanEditor({
     } else {
       setDraft({
         patientId: initialPatientId || '',
-        title: 'План лечения',
+        title: t('treatmentPlan.title'),
         diagnosis: '',
         status: 'proposed',
         stages: [createEmptyStage(1)],
@@ -208,7 +212,7 @@ export function TreatmentPlanEditor({
   const addItemToStage = (stageId: string) => {
     const service = services.find((s) => s.id === selectedServiceId)
     if (!service) {
-      showToast('Выберите услугу из прайса', 'warning')
+      showToast(t('treatmentPlan.toast_select_service'), 'warning')
       return
     }
     const item = createLineItem(service, pickerTeeth)
@@ -221,7 +225,7 @@ export function TreatmentPlanEditor({
     setSelectedServiceId('')
     setPickerTeeth([])
     setEditingItem(null)
-    showToast('Услуга добавлена', 'success')
+      showToast(t('treatmentPlan.toast_service_added'), 'success')
   }
 
   const updateItem = (
@@ -270,11 +274,11 @@ export function TreatmentPlanEditor({
 
   const handleSave = async () => {
     if (!draft.patientId) {
-      showToast('Выберите пациента', 'warning')
+      showToast(t('crm.select_patient'), 'warning')
       return
     }
     if (!draft.stages.some((s) => s.items.length > 0)) {
-      showToast('Добавьте хотя бы одну услугу в план', 'warning')
+      showToast(t('treatmentPlan.toast_add_service'), 'warning')
       return
     }
 
@@ -286,18 +290,18 @@ export function TreatmentPlanEditor({
         clinicId,
         patientId: draft.patientId,
         doctorId,
-        title: draft.title || 'План лечения',
+        title: draft.title || t('treatmentPlan.title'),
         diagnosis: draft.diagnosis || null,
         status: draft.status,
         totalBudget: planTotal(stages),
         teeth: collectPlanTeeth(stages),
         stages,
       })
-      showToast(draft.id ? 'План обновлён' : 'План создан', 'success')
+      showToast(draft.id ? t('treatmentPlan.toast_updated') : t('treatmentPlan.toast_created'), 'success')
       onSaved()
       onClose()
     } catch {
-      showToast('Не удалось сохранить план', 'error')
+      showToast(t('treatmentPlan.toast_save_failed'), 'error')
     } finally {
       setSaving(false)
     }
@@ -305,7 +309,7 @@ export function TreatmentPlanEditor({
 
   const handlePrint = async () => {
     if (!patient) {
-      showToast('Выберите пациента', 'warning')
+      showToast(t('crm.select_patient'), 'warning')
       return
     }
     let clinicData = clinic
@@ -317,7 +321,7 @@ export function TreatmentPlanEditor({
     } catch { /* use fallback clinic */ }
 
     printTreatmentPlan({
-      clinicName: clinicData?.name || 'Клиника',
+      clinicName: clinicData?.name || t('treatmentPlan.clinic_fallback'),
       clinicAddress: clinicData?.address,
       clinicPhone: clinicData?.phone,
       clinicCity: clinicData?.city,
@@ -346,45 +350,45 @@ export function TreatmentPlanEditor({
     <Modal
       open={open}
       onClose={onClose}
-      title={draft.id ? 'Редактирование плана лечения' : 'Новый план лечения'}
-      description="Добавьте услуги, выберите зубы и разделите лечение на этапы"
+      title={draft.id ? t('treatmentPlan.edit_title') : t('treatmentPlan.new_title')}
+      description={t('treatmentPlan.description')}
       size="full"
       className="max-w-5xl"
     >
       <div className="space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-txt-muted mb-1 block">Пациент</label>
+            <label className="text-xs text-txt-muted mb-1 block">{t('treatmentPlan.patient_label')}</label>
             <select
               value={draft.patientId}
               onChange={(e) => setDraft((prev) => ({ ...prev, patientId: e.target.value }))}
               disabled={Boolean(draft.id)}
               className="dv-select disabled:opacity-60"
             >
-              <option value="">Выберите пациента…</option>
+              <option value="">{t('crm.select_patient')}</option>
               {patients.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="text-xs text-txt-muted mb-1 block">Название плана</label>
+            <label className="text-xs text-txt-muted mb-1 block">{t('treatmentPlan.plan_name_label')}</label>
             <Input
               value={draft.title}
               onChange={(e) => setDraft((prev) => ({ ...prev, title: e.target.value }))}
-              placeholder="План лечения"
+              placeholder={t('treatmentPlan.title')}
             />
           </div>
           <div>
-            <label className="text-xs text-txt-muted mb-1 block">Диагноз / показания</label>
+            <label className="text-xs text-txt-muted mb-1 block">{t('treatmentPlan.diagnosis_label')}</label>
             <Input
               value={draft.diagnosis}
               onChange={(e) => setDraft((prev) => ({ ...prev, diagnosis: e.target.value }))}
-              placeholder="Например: K02.1 Кариес дентина"
+              placeholder={t('treatmentPlan.diagnosis_placeholder')}
             />
           </div>
           <div>
-            <label className="text-xs text-txt-muted mb-1 block">Статус</label>
+            <label className="text-xs text-txt-muted mb-1 block">{t('treatmentPlan.status_label')}</label>
             <select
               value={draft.status}
               onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
@@ -400,10 +404,10 @@ export function TreatmentPlanEditor({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-txt-primary">
             <Layers size={16} className="text-dv-gold" />
-            Этапы лечения
+            {t('treatmentPlan.stages_title')}
           </div>
           <Button size="sm" variant="secondary" onClick={addStage} icon={<Plus size={14} />}>
-            Добавить этап
+            {t('treatmentPlan.add_stage')}
           </Button>
         </div>
 
@@ -422,7 +426,7 @@ export function TreatmentPlanEditor({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-txt-primary">{stage.title}</span>
-                        <Badge size="xs">{stage.items.length} усл.</Badge>
+                        <Badge size="xs">{stage.items.length} {t('treatmentPlan.services_abbr')}</Badge>
                         <span className="text-sm text-dv-gold font-semibold ml-auto md:ml-0">
                           {stageTotal(stage).toLocaleString('ru-RU')} ₸
                         </span>
@@ -465,7 +469,7 @@ export function TreatmentPlanEditor({
                             icon={<Trash2 size={14} />}
                             onClick={() => removeStage(stage.id)}
                           >
-                            Удалить этап
+                            {t('treatmentPlan.remove_stage')}
                           </Button>
                         )}
                       </div>
@@ -475,10 +479,10 @@ export function TreatmentPlanEditor({
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="text-left text-txt-muted border-b border-white/10">
-                                <th className="p-3 font-medium">Услуга</th>
-                                <th className="p-3 font-medium">Зубы</th>
-                                <th className="p-3 font-medium text-right">Цена</th>
-                                <th className="p-3 font-medium text-right">Сумма</th>
+                                <th className="p-3 font-medium">{t('treatmentPlan.service_header')}</th>
+                                <th className="p-3 font-medium">{t('treatmentPlan.teeth_header')}</th>
+                                <th className="p-3 font-medium text-right">{t('treatmentPlan.price_header')}</th>
+                                <th className="p-3 font-medium text-right">{t('treatmentPlan.sum_header')}</th>
                                 <th className="p-3 w-10" />
                               </tr>
                             </thead>
@@ -524,18 +528,18 @@ export function TreatmentPlanEditor({
                           </table>
                         </div>
                       ) : (
-                        <p className="text-sm text-txt-muted">В этом этапе пока нет услуг</p>
+                        <p className="text-sm text-txt-muted">{t('treatmentPlan.stage_empty')}</p>
                       )}
 
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 rounded-xl border border-dv-gold/20 bg-dv-gold/5 p-4">
                         <div className="space-y-3">
-                          <label className="text-xs text-txt-muted block">Услуга из прайса</label>
+                          <label className="text-xs text-txt-muted block">{t('treatmentPlan.price_service')}</label>
                           <select
                             value={selectedServiceId}
                             onChange={(e) => setSelectedServiceId(e.target.value)}
                             className="dv-select"
                           >
-                            <option value="">— Выберите услугу —</option>
+                            <option value="">{t('treatmentPlan.select_service')}</option>
                             {servicesByCategory.map(([cat, items]) => (
                               <optgroup key={cat} label={cat}>
                                 {items.map((s) => (
@@ -551,7 +555,7 @@ export function TreatmentPlanEditor({
                             onClick={() => addItemToStage(stage.id)}
                             icon={<Plus size={14} />}
                           >
-                            Добавить услугу
+                            {t('treatmentPlan.add_service')}
                           </Button>
                         </div>
                         <ToothMultiPicker
@@ -570,18 +574,18 @@ export function TreatmentPlanEditor({
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-white/10">
           <div>
-            <p className="text-xs text-txt-muted">Итого по плану</p>
+            <p className="text-xs text-txt-muted">{t('treatmentPlan.plan_total')}</p>
             <p className="text-2xl font-bold text-dv-gold">{total.toLocaleString('ru-RU')} ₸</p>
           </div>
           <div className="flex flex-wrap gap-2 justify-end">
             <Button size="sm" variant="secondary" onClick={handlePrint} icon={<Printer size={14} />}>
-              Печать / PDF
+              {t('treatmentPlan.print_pdf')}
             </Button>
             <Button size="sm" variant="secondary" onClick={onClose}>
-              Отмена
+              {t('common.cancel')}
             </Button>
             <Button size="sm" onClick={handleSave} disabled={saving} icon={<Save size={14} />}>
-              {saving ? 'Сохранение…' : 'Сохранить план'}
+              {saving ? t('treatmentPlan.saving_plan') : t('treatmentPlan.save_plan')}
             </Button>
           </div>
         </div>

@@ -7,6 +7,11 @@
  * or API cost.
  */
 
+import i18n from '@/lib/i18n';
+const t = (key: string, fallback: string) => {
+  try { const v = i18n.t(key); return v && v !== key ? v : fallback; } catch { return fallback; }
+};
+
 export interface VoiceRecognitionHandle {
   stop: () => void
 }
@@ -50,7 +55,7 @@ export function voiceOutputSupported(): boolean {
 export function startRecognition(callbacks: RecognitionCallbacks): VoiceRecognitionHandle | null {
   const Ctor = getRecognitionCtor()
   if (!Ctor) {
-    callbacks.onError('Браузер не поддерживает распознавание речи')
+    callbacks.onError(t('voice.not_supported', 'Браузер не поддерживает распознавание речи'))
     return null
   }
 
@@ -82,17 +87,17 @@ export function startRecognition(callbacks: RecognitionCallbacks): VoiceRecognit
     const code = event.error || 'unknown'
     const message =
       code === 'not-allowed' || code === 'service-not-allowed'
-        ? 'Доступ к микрофону запрещён — разрешите его в настройках браузера'
+        ? t('voice.mic_denied', 'Доступ к микрофону запрещён — разрешите его в настройках браузера')
         : code === 'no-speech'
-          ? 'Речь не распознана — попробуйте ещё раз'
-          : 'Ошибка распознавания речи'
+          ? t('voice.not_recognized', 'Речь не распознана — попробуйте ещё раз')
+          : t('voice.recognition_error', 'Ошибка распознавания речи')
     callbacks.onError(message)
   }
 
   try {
     recognition.start()
   } catch {
-    callbacks.onError('Не удалось запустить распознавание')
+    callbacks.onError(t('voice.start_failed', 'Не удалось запустить распознавание'))
     return null
   }
 

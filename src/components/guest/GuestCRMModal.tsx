@@ -8,6 +8,7 @@ import {
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '@/components/ui/ds/Toast';
 import * as api from '@/utils/api';
+import { useTranslation } from 'react-i18next';
 
 type Step = 'menu' | 'auth' | 'join';
 type PendingAction = 'create' | 'join' | 'demo';
@@ -23,6 +24,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
   const navigate = useNavigate();
   const toast = useToast();
   const { login, register, isAuthenticated, switchClinic } = useAuth();
+  const { t } = useTranslation();
 
   const [step, setStep] = useState<Step>('menu');
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
@@ -96,7 +98,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
   const handleAuth = async () => {
     setError('');
     if (!authData.login.trim() || !authData.password) {
-      setError('Введите логин и пароль');
+      setError(t('auth.login_error'));
       return;
     }
     if (pendingAction === 'demo' && !authData.clinicName.trim()) {
@@ -106,13 +108,13 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
     setLoading(true);
     try {
       if (isRegister) {
-        if (!authData.name.trim()) { setError('Введите имя'); setLoading(false); return; }
-        if (!authData.login.includes('@')) { setError('Укажите корректный email'); setLoading(false); return; }
-        if (authData.password.length < 8) { setError('Пароль ≥ 8 символов'); setLoading(false); return; }
+        if (!authData.name.trim()) { setError(t('auth.name_required')); setLoading(false); return; }
+        if (!authData.login.includes('@')) { setError(t('auth.email_invalid')); setLoading(false); return; }
+        if (authData.password.length < 8) { setError(t('auth.password_too_short')); setLoading(false); return; }
         if (!/[A-Za-zА-Яа-я]/.test(authData.password) || !/\d/.test(authData.password)) {
-          setError('Пароль должен содержать буквы и цифры'); setLoading(false); return;
+          setError(t('auth.password_format')); setLoading(false); return;
         }
-        if (authData.password !== authData.confirmPassword) { setError('Пароли не совпадают'); setLoading(false); return; }
+        if (authData.password !== authData.confirmPassword) { setError(t('auth.passwords_mismatch')); setLoading(false); return; }
         await register({ name: authData.name, login: authData.login, password: authData.password });
       } else {
         await login(authData.login, authData.password);
@@ -137,18 +139,18 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
   };
 
   const handleJoin = async () => {
-    if (!joinCode.trim()) { toast.error('Введите код приглашения'); return; }
+    if (!joinCode.trim()) {       toast.error(t('auth.enter_invite_code')); return; }
     setJoinLoading(true);
     try {
       const invite = await api.lookupInvitation(joinCode.trim());
-      if (!invite?.clinicId) throw new Error('Приглашение недействительно');
+      if (!invite?.clinicId) throw new Error(t('auth.invite_invalid'));
       const res = await api.joinClinic({ code: joinCode.trim() });
       await switchClinic(res.clinic?.id || null);
-      toast.success('Вы присоединились к организации');
+      toast.success(t('auth.joined_org'));
       handleClose();
       navigate('/crm/schedule');
     } catch (e: any) {
-      toast.error(e?.message || 'Приглашение не найдено');
+      toast.error(e?.message || t('auth.invite_not_found'));
     } finally {
       setJoinLoading(false);
     }
@@ -166,11 +168,11 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
       };
       const res = await api.createDemoClinic(clinicData);
       await switchClinic(res.clinic?.id || null);
-      toast.success('Демо-клиника готова!');
+      toast.success(t('auth.demo_ready'));
       handleClose();
       navigate('/crm/schedule');
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось создать демо-клинику');
+      toast.error(e?.message || t('auth.demo_create_failed'));
     } finally {
       setDemoLoading(false);
     }
@@ -208,30 +210,30 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                         <Stethoscope size={20} className="text-[#C9A96E]" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-bold text-white m-0">CRM Стоматологии</h2>
-                        <p className="text-xs text-[#7A8899] m-0">Выберите способ начать работу</p>
+                        <h2 className="text-lg font-bold text-white m-0">{t('crm.crm_title')}</h2>
+                        <p className="text-xs text-[#7A8899] m-0">{t('crm.crm_subtitle')}</p>
                       </div>
                     </div>
 
                     <div className="space-y-3 mt-5 mb-2">
                       <CRMOption
                         icon={<Building2 size={20} />}
-                        title="Создать клинику"
-                        desc="Для владельцев бизнеса. Настройте свою клинику за 2 минуты."
+                        title={t('crm.create_clinic')}
+                        desc={t('crm.create_clinic_desc')}
                         color="#C9A96E"
                         onClick={() => handleSelect('create')}
                       />
                       <CRMOption
                         icon={<KeyRound size={20} />}
-                        title="Войти по приглашению"
-                        desc="Введите код от коллеги, чтобы присоединиться к существующей клинике."
+                        title={t('auth.join_by_invite')}
+                        desc={t('crm.join_by_invite_desc')}
                         color="#3498DB"
                         onClick={() => handleSelect('join')}
                       />
                       <CRMOption
                         icon={<FlaskConical size={20} />}
-                        title="Попробовать демо"
-                        desc="Демо-клиника с пациентами, планами лечения и данными для тестирования."
+                        title={t('crm.try_demo')}
+                        desc={t('crm.try_demo_desc')}
                         color="#27AE60"
                         onClick={() => handleSelect('demo')}
                         loading={demoLoading}
@@ -241,7 +243,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                     <div className="flex items-start gap-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.04] mb-4 mt-4">
                       <Sparkles size={14} className="text-[#C9A96E] mt-0.5 shrink-0" />
                       <p className="text-[11px] text-[#7A8899] leading-relaxed m-0">
-                        Вы уже можете пользоваться <span className="text-[#C9A96E]">Магазином</span>, <span className="text-[#C9A96E]">Академией</span> и <span className="text-[#C9A96E]">AI-ассистентом</span> в личном режиме.
+                        {t('crm.guest_crm_hint')}
                       </p>
                     </div>
                   </motion.div>
@@ -250,34 +252,34 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                 {step === 'auth' && (
                   <motion.div key="auth" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                     <button onClick={() => { setStep('menu'); setError(''); }} className="text-xs text-[#7A8899] hover:text-[#C9A96E] transition-colors mb-3 flex items-center gap-1">
-                      ← Назад к выбору
+                      ← {t('crm.back_to_select')}
                     </button>
 
                     <h2 className="text-lg font-bold text-white m-0 mb-1">
                       {pendingAction === 'demo'
-                        ? (isRegister ? 'Регистрация' : 'Вход')
-                        : (isRegister ? 'Регистрация' : 'Вход в аккаунт')}
+                        ? (isRegister ? t('auth.registration') : t('auth.login_tab'))
+                        : (isRegister ? t('auth.registration') : t('auth.sign_in_title'))}
                     </h2>
                     <p className="text-xs text-[#7A8899] m-0 mb-4">
                       {pendingAction === 'demo'
-                        ? 'Войдите или зарегистрируйтесь и укажите данные клиники — мы создадим её с демо-данными, которые можно продолжить заполнять.'
-                        : (isRegister ? 'Создайте аккаунт для доступа к CRM' : 'Войдите, чтобы продолжить')}
+                        ? t('auth.demo_sign_up_hint')
+                        : (isRegister ? t('auth.create_account_for_crm') : t('auth.sign_in_to_continue'))}
                     </p>
 
                     <div className="space-y-3">
                       {isRegister && (
                         <div>
-                          <label className="text-[11px] text-[#7A8899] mb-1 block">Имя</label>
+                          <label className="text-[11px] text-[#7A8899] mb-1 block">{t('auth.name')}</label>
                           <input
                             value={authData.name}
                             onChange={(e) => setAuthData(d => ({ ...d, name: e.target.value }))}
-                            placeholder="Ваше имя"
+                            placeholder={t('auth.your_name')}
                             className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                           />
                         </div>
                       )}
                       <div>
-                        <label className="text-[11px] text-[#7A8899] mb-1 block">Логин</label>
+                        <label className="text-[11px] text-[#7A8899] mb-1 block">{t('auth.username')}</label>
                         <div className="relative">
                           <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4A5568]" />
                           <input
@@ -289,28 +291,28 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                         </div>
                       </div>
                       <div>
-                        <label className="text-[11px] text-[#7A8899] mb-1 block">Пароль</label>
+                        <label className="text-[11px] text-[#7A8899] mb-1 block">{t('auth.password')}</label>
                         <div className="relative">
                           <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4A5568]" />
                           <input
                             type="password"
                             value={authData.password}
                             onChange={(e) => setAuthData(d => ({ ...d, password: e.target.value }))}
-                            placeholder="Пароль"
+                            placeholder={t('auth.password')}
                             className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                           />
                         </div>
                       </div>
                       {isRegister && (
                         <div>
-                          <label className="text-[11px] text-[#7A8899] mb-1 block">Подтвердите пароль</label>
+                          <label className="text-[11px] text-[#7A8899] mb-1 block">{t('auth.confirm_password')}</label>
                           <div className="relative">
                             <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4A5568]" />
                             <input
                               type="password"
                               value={authData.confirmPassword}
                               onChange={(e) => setAuthData(d => ({ ...d, confirmPassword: e.target.value }))}
-                              placeholder="Повторите пароль"
+                              placeholder={t('auth.repeat_password')}
                               className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
@@ -321,41 +323,41 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                         <>
                           <div className="flex items-center gap-2 pt-1">
                             <Building2 size={14} className="text-[#27AE60]" />
-                            <p className="text-[11px] font-semibold text-[#7A8899] m-0">Данные вашей клиники</p>
+                            <p className="text-[11px] font-semibold text-[#7A8899] m-0">{t('auth.clinic_data')}</p>
                           </div>
                           <div>
-                            <label className="text-[11px] text-[#7A8899] mb-1 block">Название клиники</label>
+                            <label className="text-[11px] text-[#7A8899] mb-1 block">{t('auth.clinic_name')}</label>
                             <input
                               value={authData.clinicName}
                               onChange={(e) => setAuthData(d => ({ ...d, clinicName: e.target.value }))}
-                              placeholder="Например: Стоматология «Жемчуг»"
+                              placeholder={t('auth.clinic_name_placeholder')}
                               className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
                           <div>
-                            <label className="text-[11px] text-[#7A8899] mb-1 block">Город</label>
+                            <label className="text-[11px] text-[#7A8899] mb-1 block">{t('auth.city')}</label>
                             <input
                               value={authData.clinicCity}
                               onChange={(e) => setAuthData(d => ({ ...d, clinicCity: e.target.value }))}
-                              placeholder="Например: Алматы"
+                              placeholder={t('auth.city_placeholder')}
                               className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
                           <div>
-                            <label className="text-[11px] text-[#7A8899] mb-1 block">Адрес</label>
+                            <label className="text-[11px] text-[#7A8899] mb-1 block">{t('auth.address')}</label>
                             <input
                               value={authData.clinicAddress}
                               onChange={(e) => setAuthData(d => ({ ...d, clinicAddress: e.target.value }))}
-                              placeholder="Например: ул. Абая 150"
+                              placeholder={t('auth.address_placeholder')}
                               className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
                           <div>
-                            <label className="text-[11px] text-[#7A8899] mb-1 block">Телефон</label>
+                            <label className="text-[11px] text-[#7A8899] mb-1 block">{t('shop.phone')}</label>
                             <input
                               value={authData.clinicPhone}
                               onChange={(e) => setAuthData(d => ({ ...d, clinicPhone: e.target.value }))}
-                              placeholder="Например: +7 727 123 45 67"
+                              placeholder={t('auth.phone_placeholder')}
                               className="w-full px-3 py-2.5 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-[#C9A96E]/50 placeholder-[#4A5568]"
                             />
                           </div>
@@ -374,7 +376,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                         className="w-full py-2.5 rounded-xl bg-[#C9A96E] text-[#080F1A] font-semibold text-sm hover:bg-[#C9A96E]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {loading ? <Loader2 size={16} className="animate-spin" /> : (isRegister ? <UserPlus size={16} /> : <LogIn size={16} />)}
-                        {loading ? 'Подождите...' : (isRegister ? 'Зарегистрироваться' : 'Войти')}
+                        {loading ? t('auth.wait') : (isRegister ? t('auth.register') : t('auth.login'))}
                       </button>
 
                       <div className="text-center">
@@ -382,7 +384,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                           onClick={() => { setIsRegister(!isRegister); setError(''); }}
                           className="text-xs text-[#7A8899] hover:text-[#C9A96E] transition-colors"
                         >
-                          {isRegister ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
+                          {isRegister ? t('auth.already_have_account') : t('auth.register_instead')}
                         </button>
                       </div>
                     </div>
@@ -392,7 +394,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                 {step === 'join' && (
                   <motion.div key="join" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                     <button onClick={() => { setStep('menu'); setJoinCode(''); }} className="text-xs text-[#7A8899] hover:text-[#C9A96E] transition-colors mb-3 flex items-center gap-1">
-                      ← Назад к выбору
+                      ← {t('crm.back_to_select')}
                     </button>
 
                     <div className="flex items-center gap-3 mb-1">
@@ -400,18 +402,18 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                         <KeyRound size={20} className="text-[#3498DB]" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-bold text-white m-0">Вход по приглашению</h2>
+                        <h2 className="text-lg font-bold text-white m-0">{t('auth.join_by_invite')}</h2>
                         <p className="text-xs text-[#7A8899] m-0">Введите код, полученный от администратора</p>
                       </div>
                     </div>
 
                     <div className="mt-5 space-y-3">
                       <div>
-                        <label className="text-[11px] text-[#7A8899] mb-1 block">Код приглашения</label>
+                        <label className="text-[11px] text-[#7A8899] mb-1 block">{t('auth.invite_code')}</label>
                         <input
                           value={joinCode}
                           onChange={(e) => setJoinCode(e.target.value)}
-                          placeholder="ABCD-1234"
+                          placeholder={t('auth.invite_code_placeholder')}
                           className="w-full px-3 py-3 rounded-xl bg-[#080F1A] border border-white/[0.08] text-white text-sm font-mono tracking-wider text-center focus:outline-none focus:border-[#3498DB]/50 placeholder-[#4A5568]"
                           onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
                         />
@@ -423,7 +425,7 @@ export default function GuestCRMModal({ open, onClose, autoStartDemo = false }: 
                         className="w-full py-2.5 rounded-xl bg-[#3498DB] text-white font-semibold text-sm hover:bg-[#3498DB]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {joinLoading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                        {joinLoading ? 'Присоединяем...' : 'Присоединиться'}
+                        {joinLoading ? t('auth.joining') : t('auth.join')}
                       </button>
                     </div>
                   </motion.div>

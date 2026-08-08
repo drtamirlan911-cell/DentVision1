@@ -6,12 +6,14 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/store/auth.store'
 import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Compact clinic switcher for the top bar.
  * One tap → switch JWT clinic; AI chat rebinds via clinic-scoped session.
  */
 export function ClinicSwitcher({ className }: { className?: string }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const toast = useToast()
@@ -33,7 +35,7 @@ export function ClinicSwitcher({ className }: { className?: string }) {
   if (!isAuthenticated || !clinics?.length) return null
 
   const activeId = clinic?.id || activeMembership?.clinicId || null
-  const activeName = clinic?.name || clinics.find((m) => m.clinicId === activeId)?.clinic?.name || 'Клиника'
+  const activeName = clinic?.name || clinics.find((m) => m.clinicId === activeId)?.clinic?.name || t('platform.clinic_fallback')
   const multi = clinics.length > 1
 
   const pick = async (clinicId: string) => {
@@ -41,8 +43,8 @@ export function ClinicSwitcher({ className }: { className?: string }) {
     setBusyId(clinicId)
     try {
       await switchClinic(clinicId)
-      const name = clinics.find((m) => m.clinicId === clinicId)?.clinic?.name || 'клинику'
-      toast.success(`Активна: ${name}`)
+      const name = clinics.find((m) => m.clinicId === clinicId)?.clinic?.name || t('platform.clinic_fallback_acc')
+      toast.success(t('platform.clinic_active', { name }))
       setOpen(false)
       // Refresh CRM caches for the new clinic JWT scope.
       void queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
@@ -54,7 +56,7 @@ export function ClinicSwitcher({ className }: { className?: string }) {
         navigate('/crm/schedule')
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось переключить клинику')
+      toast.error(e?.message || t('platform.clinic_switch_error'))
     } finally {
       setBusyId(null)
     }
@@ -69,7 +71,7 @@ export function ClinicSwitcher({ className }: { className?: string }) {
           'flex items-center gap-1.5 max-w-[7.25rem] xs:max-w-[8.5rem] sm:max-w-[14rem] px-2 py-1 rounded-lg',
           'bg-surface-2 border border-bdr-subtle text-txt-secondary hover:text-txt-primary hover:border-dv-gold/30 transition-colors',
         )}
-        aria-label={multi ? 'Переключить клинику' : 'Мои клиники'}
+        aria-label={multi ? t('platform.clinic_switch') : t('platform.my_clinics')}
         aria-expanded={multi ? open : undefined}
       >
         <Building2 size={13} className="text-dv-gold shrink-0" />
@@ -79,11 +81,11 @@ export function ClinicSwitcher({ className }: { className?: string }) {
 
       {multi && open && (
         <div className="absolute right-0 top-full mt-1.5 z-50 w-[min(220px,calc(100vw-1.5rem))] max-w-[calc(100vw-1rem)] rounded-xl border border-bdr-subtle bg-surface-1 shadow-xl p-1.5">
-          <p className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-txt-muted">Рабочее пространство</p>
+          <p className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-txt-muted">{t('platform.workspace')}</p>
           <div className="max-h-64 overflow-y-auto space-y-0.5">
             {clinics.map((m) => {
               const id = m.clinicId
-              const name = m.clinic?.name || 'Клиника'
+              const name = m.clinic?.name || t('platform.clinic_fallback')
               const city = m.clinic?.city
               const active = id === activeId
               const loading = busyId === id
@@ -128,7 +130,7 @@ export function ClinicSwitcher({ className }: { className?: string }) {
             className="mt-1 w-full flex items-center gap-2 px-2 py-2 rounded-lg text-xs text-txt-secondary hover:text-txt-primary hover:bg-white/[0.04] transition-colors"
           >
             <Plus size={13} />
-            Все клиники
+            {t('platform.all_clinics')}
           </button>
         </div>
       )}

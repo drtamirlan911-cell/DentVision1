@@ -1,6 +1,11 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
+import i18n from '@/lib/i18n';
+
+const t = (key: string, fallback: string) => {
+  try { const v = i18n.t(key); return v && v !== key ? v : fallback; } catch { return fallback; }
+};
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -46,12 +51,12 @@ export function timeAgo(date: string | Date): string {
   const d = new Date(date).getTime()
   const diff = Math.max(0, Date.now() - d)
   const min = Math.floor(diff / 60000)
-  if (min < 1) return 'только что'
-  if (min < 60) return `${min} мин назад`
+  if (min < 1) return t('timeAgo.just_now', 'только что')
+  if (min < 60) return `${min} ${t('timeAgo.min_ago', 'мин назад')}`
   const hours = Math.floor(min / 60)
-  if (hours < 24) return `${hours} ч назад`
+  if (hours < 24) return `${hours} ${t('timeAgo.hour_ago', 'ч назад')}`
   const days = Math.floor(hours / 24)
-  if (days < 7) return `${days} дн назад`
+  if (days < 7) return `${days} ${t('timeAgo.day_ago', 'дн назад')}`
   return formatDate(date)
 }
 

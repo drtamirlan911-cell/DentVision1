@@ -7,6 +7,7 @@ import {
   type FinancePeriodPreset,
   buildPeriod,
 } from '@/lib/financePeriod'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   period: FinancePeriod
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function FinancePeriodBar({ period, onChange, className }: Props) {
+  const { t } = useTranslation()
   const setPreset = (preset: FinancePeriodPreset) => {
     if (preset === 'custom') {
       onChange({ ...period, preset: 'custom' })
@@ -27,7 +29,7 @@ export function FinancePeriodBar({ period, onChange, className }: Props) {
     <div className={cn('flex flex-wrap items-center gap-2', className)}>
       <span className="inline-flex items-center gap-1.5 text-xs text-txt-muted mr-1">
         <Calendar size={13} />
-        Период
+        {t('finance.period')}
       </span>
       {PERIOD_CHIPS.map((chip) => (
         <button

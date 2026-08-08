@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { getToothMorphology, isUpperArch, type RootPattern } from './toothMorphology'
 import {
@@ -236,6 +237,7 @@ export function AnatomicalToothSvg({
   className,
   size = 42,
 }: AnatomicalToothSvgProps) {
+  const { t } = useTranslation()
   const morph = getToothMorphology(toothNumber)
   const upper = isUpperArch(toothNumber)
   const isMissing = status === 'missing'
@@ -254,7 +256,7 @@ export function AnatomicalToothSvg({
       type="button"
       onClick={onClick}
       title={`${toothNumber} · ${morph.label}${status ? ` · ${STATUS_META[status]?.label || status}` : ''}`}
-      aria-label={`Зуб ${toothNumber}`}
+      aria-label={`${t('diagnostics.tooth')} ${toothNumber}`}
       className={cn(
         'relative flex flex-col items-center justify-center rounded-lg p-0.5 transition-transform duration-150',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50',
@@ -365,7 +367,7 @@ export function AnatomicalToothSvg({
         )}
       </svg>
       <span className="text-[8px] text-txt-muted/70 leading-none mt-0.5 tabular-nums">
-        {isImplant ? 'импл.' : isEndoOk ? 'эндо✓' : isEndoFail ? 'эндо✗' : `${morph.roots}к`}
+        {isImplant ? t('diagnostics.implant_abbr') : isEndoOk ? t('diagnostics.endo_ok') : isEndoFail ? t('diagnostics.endo_fail') : `${morph.roots}к`}
       </span>
     </button>
   )

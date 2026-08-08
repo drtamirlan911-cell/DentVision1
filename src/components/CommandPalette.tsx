@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/store/auth.store'
 import { canAccessPage } from '@/lib/roleAccess'
+import { useTranslation } from 'react-i18next'
 
 interface CommandItem {
   id: string
@@ -23,6 +24,7 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -32,28 +34,28 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
 
   const commands: CommandItem[] = useMemo(() => {
     const all: CommandItem[] = [
-      { id: 'schedule', label: 'Расписание', description: 'Открыть календарь записей', icon: <Calendar size={16} />, action: () => { navigate('/crm/schedule'); onClose() }, section: 'CRM', keywords: ['расписание', 'календарь', 'записи', 'appointment'] },
-      { id: 'patients', label: 'Пациенты', description: 'Список пациентов', icon: <Users size={16} />, action: () => { navigate('/crm/patients'); onClose() }, section: 'CRM', keywords: ['пациенты', 'список', 'patient'] },
-      { id: 'cashier', label: 'Касса', description: 'Финансы и счета', icon: <CreditCard size={16} />, action: () => { navigate('/crm/cashier'); onClose() }, section: 'CRM', keywords: ['касса', 'оплата', 'счёт', 'cashier', 'finance'] },
-      { id: 'inventory', label: 'Склад', description: 'Учёт материалов', icon: <Package size={16} />, action: () => { navigate('/crm/inventory'); onClose() }, section: 'CRM', keywords: ['склад', 'материалы', 'inventory', 'stock'] },
-      { id: 'lab', label: 'Лаборатория', description: 'Лабораторные заказы', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/lab'); onClose() }, section: 'CRM', keywords: ['лаборатория', 'lab', 'заказ'] },
-      { id: 'documents', label: 'Документы', description: 'Файлы и подписи', icon: <FileText size={16} />, action: () => { navigate('/crm/documents'); onClose() }, section: 'CRM', keywords: ['документы', 'файлы', 'documents'] },
-      { id: 'promotions', label: 'Акции', description: 'Скидки и спецпредложения', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/promotions'); onClose() }, section: 'CRM', keywords: ['акции', 'скидки', 'promotions'] },
-      { id: 'icd10', label: 'МКБ-10', description: 'Справочник диагнозов', icon: <FileText size={16} />, action: () => { navigate('/crm/icd10'); onClose() }, section: 'CRM', keywords: ['мкб', 'icd10', 'диагноз'] },
-      { id: 'staff', label: 'Сотрудники', description: 'Команда клиники', icon: <Users size={16} />, action: () => { navigate('/crm/staff'); onClose() }, section: 'CRM', keywords: ['сотрудники', 'staff', 'врачи'] },
-      { id: 'reminders', label: 'Напоминания', description: 'SMS и WhatsApp', icon: <Calendar size={16} />, action: () => { navigate('/crm/reminders'); onClose() }, section: 'CRM', keywords: ['напоминания', 'reminders'] },
-      { id: 'shop', label: 'Маркетплейс', description: 'Товары и закупки', icon: <ShoppingCart size={16} />, action: () => { navigate('/shop'); onClose() }, section: 'Сервисы', keywords: ['магазин', 'товары', 'shop', 'marketplace'] },
-      { id: 'school', label: 'Академия', description: 'Курсы и обучение', icon: <GraduationCap size={16} />, action: () => { navigate('/school'); onClose() }, section: 'Сервисы', keywords: ['школа', 'курсы', 'school', 'academy'] },
-      { id: 'analytics', label: 'Аналитика', description: 'Отчёты и метрики', icon: <BarChart3 size={16} />, action: () => { navigate('/analytics'); onClose() }, section: 'Сервисы', keywords: ['аналитика', 'отчёты', 'analytics'] },
-      { id: 'settings', label: 'Настройки', description: 'Параметры системы', icon: <Settings size={16} />, action: () => { navigate('/settings'); onClose() }, section: 'Платформа', keywords: ['настройки', 'settings'] },
-      { id: 'ai-chat', label: 'AI Ассистент', description: 'Начать диалог с AI', icon: <Bot size={16} />, action: () => { navigate('/'); onClose() }, section: 'Платформа', keywords: ['ai', 'ассистент', 'помощь', 'умный'] },
+      { id: 'schedule', label: t('platform.command_schedule'), description: 'Открыть календарь записей', icon: <Calendar size={16} />, action: () => { navigate('/crm/schedule'); onClose() }, section: t('platform.command_crm'), keywords: ['расписание', 'календарь', 'записи', 'appointment'] },
+      { id: 'patients', label: t('platform.command_patients'), description: 'Список пациентов', icon: <Users size={16} />, action: () => { navigate('/crm/patients'); onClose() }, section: t('platform.command_crm'), keywords: ['пациенты', 'список', 'patient'] },
+      { id: 'cashier', label: t('platform.command_cashier'), description: 'Финансы и счета', icon: <CreditCard size={16} />, action: () => { navigate('/crm/cashier'); onClose() }, section: t('platform.command_crm'), keywords: ['касса', 'оплата', 'счёт', 'cashier', 'finance'] },
+      { id: 'inventory', label: t('platform.command_inventory'), description: 'Учёт материалов', icon: <Package size={16} />, action: () => { navigate('/crm/inventory'); onClose() }, section: t('platform.command_crm'), keywords: ['склад', 'материалы', 'inventory', 'stock'] },
+      { id: 'lab', label: t('platform.command_lab'), description: 'Лабораторные заказы', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/lab'); onClose() }, section: t('platform.command_crm'), keywords: ['лаборатория', 'lab', 'заказ'] },
+      { id: 'documents', label: t('platform.command_documents'), description: 'Файлы и подписи', icon: <FileText size={16} />, action: () => { navigate('/crm/documents'); onClose() }, section: t('platform.command_crm'), keywords: ['документы', 'файлы', 'documents'] },
+      { id: 'promotions', label: t('platform.command_promotions'), description: 'Скидки и спецпредложения', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/promotions'); onClose() }, section: t('platform.command_crm'), keywords: ['акции', 'скидки', 'promotions'] },
+      { id: 'icd10', label: t('platform.command_icd10'), description: 'Справочник диагнозов', icon: <FileText size={16} />, action: () => { navigate('/crm/icd10'); onClose() }, section: t('platform.command_crm'), keywords: ['мкб', 'icd10', 'диагноз'] },
+      { id: 'staff', label: t('platform.command_staff'), description: 'Команда клиники', icon: <Users size={16} />, action: () => { navigate('/crm/staff'); onClose() }, section: t('platform.command_crm'), keywords: ['сотрудники', 'staff', 'врачи'] },
+      { id: 'reminders', label: t('platform.command_reminders'), description: 'SMS и WhatsApp', icon: <Calendar size={16} />, action: () => { navigate('/crm/reminders'); onClose() }, section: t('platform.command_crm'), keywords: ['напоминания', 'reminders'] },
+      { id: 'shop', label: t('platform.command_marketplace'), description: 'Товары и закупки', icon: <ShoppingCart size={16} />, action: () => { navigate('/shop'); onClose() }, section: t('platform.command_services'), keywords: ['магазин', 'товары', 'shop', 'marketplace'] },
+      { id: 'school', label: t('platform.command_academy'), description: 'Курсы и обучение', icon: <GraduationCap size={16} />, action: () => { navigate('/school'); onClose() }, section: t('platform.command_services'), keywords: ['школа', 'курсы', 'school', 'academy'] },
+      { id: 'analytics', label: t('platform.command_analytics'), description: 'Отчёты и метрики', icon: <BarChart3 size={16} />, action: () => { navigate('/analytics'); onClose() }, section: t('platform.command_services'), keywords: ['аналитика', 'отчёты', 'analytics'] },
+      { id: 'settings', label: t('platform.command_settings'), description: 'Параметры системы', icon: <Settings size={16} />, action: () => { navigate('/settings'); onClose() }, section: t('platform.command_platform'), keywords: ['настройки', 'settings'] },
+      { id: 'ai-chat', label: t('platform.command_ai'), description: 'Начать диалог с AI', icon: <Bot size={16} />, action: () => { navigate('/'); onClose() }, section: t('platform.command_platform'), keywords: ['ai', 'ассистент', 'помощь', 'умный'] },
     ]
     // Always allow settings + AI home; filter the rest by role pages.
     return all.filter((cmd) => {
       if (cmd.id === 'settings' || cmd.id === 'ai-chat') return true
       return canAccessPage(allowedPages, cmd.id)
     })
-  }, [navigate, onClose, allowedPages])
+  }, [navigate, onClose, allowedPages, t])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands
@@ -150,7 +152,7 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Команда или запрос..."
+                  placeholder={t('platform.command_palette')}
                   className="flex-1 bg-transparent text-sm text-txt-primary placeholder:text-txt-muted outline-none"
                 />
                 <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono text-txt-muted bg-surface-3 rounded border border-bdr-subtle">
@@ -161,8 +163,8 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
               <div className="max-h-[50vh] overflow-y-auto py-2">
                 {filtered.length === 0 && (
                   <div className="px-4 py-6 text-center">
-                    <p className="text-sm text-txt-muted">Ничего не найдено</p>
-                    <p className="text-xs text-txt-ghost mt-1">Нажмите Enter для отправки AI-запроса</p>
+                    <p className="text-sm text-txt-muted">{t('platform.command_empty')}</p>
+                    <p className="text-xs text-txt-ghost mt-1">{t('platform.command_hint')}</p>
                   </div>
                 )}
 
@@ -198,9 +200,9 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
               </div>
 
               <div className="flex items-center gap-4 px-4 py-2.5 border-t border-bdr-subtle text-[10px] text-txt-ghost">
-                <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">↑↓</kbd> навигация</span>
-                <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">↵</kbd> выбрать</span>
-                <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">ESC</kbd> закрыть</span>
+                <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">↑↓</kbd> {t('platform.command_nav')}</span>
+                <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">↵</kbd> {t('platform.command_select')}</span>
+                <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">ESC</kbd> {t('platform.command_close')}</span>
               </div>
             </motion.div>
           </div>

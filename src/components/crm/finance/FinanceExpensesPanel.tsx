@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { downloadCsv } from '@/lib/financePeriod'
 import { fd } from '@/utils/constants'
 import type { Expense } from '@/types'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   expenses: Expense[]
@@ -24,6 +25,7 @@ export function FinanceExpensesPanel({
   onAdd,
   onDelete,
 }: Props) {
+  const { t } = useTranslation()
   const filtered = useMemo(
     () =>
       expenses.filter((e) => {
@@ -36,7 +38,7 @@ export function FinanceExpensesPanel({
   const byCategory = useMemo(() => {
     const map = new Map<string, number>()
     for (const e of filtered) {
-      const cat = e.category || 'Прочее'
+      const cat = e.category || t('finance.expenses_category_other')
       map.set(cat, (map.get(cat) || 0) + (Number(e.amount) || 0))
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1])
@@ -47,7 +49,7 @@ export function FinanceExpensesPanel({
   const exportCsv = () => {
     downloadCsv(
       `expenses-${periodFrom}_${periodTo}.csv`,
-      ['Дата', 'Категория', 'Сумма', 'Комментарий'],
+      [t('finance.expenses_csv_date'), t('finance.expenses_csv_category'), t('finance.expenses_csv_amount'), t('finance.expenses_csv_comment')],
       filtered.map((e) => [e.date, e.category, e.amount, e.notes || '']),
     )
   }
@@ -56,16 +58,16 @@ export function FinanceExpensesPanel({
     <div>
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div>
-          <p className="text-sm font-bold text-txt-primary">Расходы клиники</p>
-          <p className="text-xs text-txt-muted mt-0.5">Аренда, материалы, маркетинг, авансы ФОТ</p>
+          <p className="text-sm font-bold text-txt-primary">{t('finance.expenses_title')}</p>
+          <p className="text-xs text-txt-muted mt-0.5">{t('finance.expenses_desc')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="error" size="sm">Итого −{money(total)}</Badge>
+          <Badge variant="error" size="sm">{t('finance.expenses_total', { amount: money(total) })}</Badge>
           <Button variant="outline" size="sm" icon={<Download size={14} />} onClick={exportCsv} disabled={!filtered.length}>
             CSV
           </Button>
           <Button size="sm" icon={<Plus size={14} />} onClick={onAdd}>
-            Расход
+            {t('finance.expenses_add')}
           </Button>
         </div>
       </div>
@@ -87,8 +89,8 @@ export function FinanceExpensesPanel({
       {filtered.length === 0 ? (
         <EmptyState
           icon={<Receipt size={32} />}
-          title="Нет расходов за период"
-          description="Добавьте расход — он попадёт в P&L"
+          title={t('finance.expenses_empty')}
+          description={t('finance.expenses_empty_hint')}
         />
       ) : (
         <div className="space-y-2">
@@ -109,9 +111,9 @@ export function FinanceExpensesPanel({
                 <button
                   type="button"
                   className="p-1.5 rounded-lg text-txt-muted hover:text-error hover:bg-error/10 transition-colors"
-                  title="Удалить"
+                  title={t('finance.expenses_delete')}
                   onClick={() => {
-                    if (window.confirm('Удалить расход?')) onDelete(exp.id)
+                    if (window.confirm(t('finance.expenses_delete_confirm'))) onDelete(exp.id)
                   }}
                 >
                   <Trash2 size={14} />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Gift } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -7,6 +8,7 @@ import { useAuth } from '@/store/auth.store'
 
 /** Compact header chip: opens Profile wallet / cashback. Icon-first on narrow screens. */
 export function DentCashHeaderChip() {
+  const { t } = useTranslation()
   const { user, isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const [balance, setBalance] = useState<number | null>(null)
@@ -32,20 +34,20 @@ export function DentCashHeaderChip() {
 
   const label =
     balance == null
-      ? 'Кэшбэк'
+      ? t('wallet.header_chip_label')
       : `${Math.round(balance).toLocaleString('ru-RU')} ₸`
 
   return (
     <motion.button
       whileTap={{ scale: 0.98 }}
       onClick={() => navigate('/profile')}
-      title={`Кэшбэк DentCash · ${label}`}
+      title={t('wallet.header_title', { label })}
       className="flex items-center gap-1 max-w-[7.5rem] px-1.5 sm:px-2.5 py-1 rounded-full bg-emerald-400/10 border border-emerald-400/25 text-emerald-300 hover:bg-emerald-400/15 transition-colors shrink-0"
     >
       <Gift size={12} className="shrink-0" />
       <span className="text-[10px] font-semibold truncate tabular-nums">
         {balance == null ? (
-          <span className="hidden sm:inline">Кэшбэк</span>
+              <span className="hidden sm:inline">{t('wallet.header_chip_label')}</span>
         ) : (
           <>
             <span className="sm:hidden">{Math.round(balance)}</span>

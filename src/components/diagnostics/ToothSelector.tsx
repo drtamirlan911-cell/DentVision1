@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 // FDI tooth numbering: 18-11 (upper right → upper left), 21-28 (lower left → lower right), 48-41 (lower right → lower left), 31-38 (lower left → lower right)
@@ -10,10 +11,6 @@ const TOOTH_LABELS: Record<number, string> = {
   21: '2.1', 22: '2.2', 23: '2.3', 24: '2.4', 25: '2.5', 26: '2.6', 27: '2.7', 28: '2.8',
   31: '3.1', 32: '3.2', 33: '3.3', 34: '3.4', 35: '3.5', 36: '3.6', 37: '3.7', 38: '3.8',
   41: '4.1', 42: '4.2', 43: '4.3', 44: '4.4', 45: '4.5', 46: '4.6', 47: '4.7', 48: '4.8',
-};
-
-const QUADRANT_NAMES: Record<string, string> = {
-  'ur': 'Верхний правый', 'ul': 'Верхний левый', 'll': 'Нижний левый', 'lr': 'Нижний правый',
 };
 
 interface Props {
@@ -42,6 +39,7 @@ function Tooth({ num, selected, onClick }: { num: number; selected: boolean; onC
 }
 
 export default function ToothSelector({ selected, onChange }: Props) {
+  const { t } = useTranslation();
   const toggleTooth = (num: number) => {
     if (selected.includes(num)) {
       onChange(selected.filter(t => t !== num));
@@ -65,12 +63,12 @@ export default function ToothSelector({ selected, onChange }: Props) {
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1">
         {[
-          { label: 'Все', value: 'all' as const },
-          { label: 'Верх', value: 'upper' as const },
-          { label: 'Низ', value: 'lower' as const },
-          { label: 'Лево', value: 'left' as const },
-          { label: 'Право', value: 'right' as const },
-          { label: 'Сбросить', value: 'none' as const },
+          { label: t('diagnostics.select_all'), value: 'all' as const },
+          { label: t('diagnostics.top'), value: 'upper' as const },
+          { label: t('diagnostics.bottom'), value: 'lower' as const },
+          { label: t('diagnostics.left'), value: 'left' as const },
+          { label: t('diagnostics.right'), value: 'right' as const },
+          { label: t('diagnostics.deselect_all'), value: 'none' as const },
         ].map(a => (
           <button key={a.value} type="button" onClick={() => selectRegion(a.value)}
             className="px-2.5 py-1 rounded-lg text-xs font-medium bg-surface-1 border border-bdr-subtle text-txt-muted hover:text-txt-primary transition-colors">
@@ -80,7 +78,7 @@ export default function ToothSelector({ selected, onChange }: Props) {
       </div>
 
       <div className="bg-surface-2/30 rounded-xl p-3 border border-bdr-subtle">
-        <div className="text-[10px] text-txt-ghost text-center mb-2">Верхняя челюсть</div>
+        <div className="text-[10px] text-txt-ghost text-center mb-2">{t('diagnostics.upper_jaw')}</div>
         <div className="flex justify-center gap-0.5">
           {UPPER_ARCH.map(num => (
             <Tooth key={num} num={num} selected={selected.includes(num)} onClick={() => toggleTooth(num)} />
@@ -89,7 +87,7 @@ export default function ToothSelector({ selected, onChange }: Props) {
 
         <div className="border-t border-bdr-subtle/50 my-3" />
 
-        <div className="text-[10px] text-txt-ghost text-center mb-2">Нижняя челюсть</div>
+        <div className="text-[10px] text-txt-ghost text-center mb-2">{t('diagnostics.lower_jaw')}</div>
         <div className="flex justify-center gap-0.5">
           {LOWER_ARCH.map(num => (
             <Tooth key={num} num={num} selected={selected.includes(num)} onClick={() => toggleTooth(num)} />
@@ -99,7 +97,7 @@ export default function ToothSelector({ selected, onChange }: Props) {
 
       {selected.length > 0 && (
         <p className="text-xs text-txt-muted">
-          Выбрано зубов: <span className="text-txt-primary font-medium">{selected.length}</span>
+          {t('diagnostics.selected_teeth')}: <span className="text-txt-primary font-medium">{selected.length}</span>
           {' · '}
           {selected.sort((a, b) => a - b).join(', ')}
         </p>

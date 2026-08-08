@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Zap, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,6 +13,7 @@ interface ActionConfirmProps {
 }
 
 export function ActionConfirm({ action, message, onConfirm }: ActionConfirmProps) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -30,23 +32,23 @@ export function ActionConfirm({ action, message, onConfirm }: ActionConfirmProps
             <Zap size={18} className="text-dv-gold" />
           </div>
           <div className="flex-1">
-            <h4 className="text-sm font-semibold text-txt-primary">Подтверждение действия</h4>
+            <h4 className="text-sm font-semibold text-txt-primary">{t('ai.confirm_title')}</h4>
             <p className="text-xs text-txt-muted">{message}</p>
           </div>
           <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 text-dv-gold text-[10px] font-bold">
-            {(action.confidence * 100).toFixed(0)}% уверенности
+            {(action.confidence * 100).toFixed(0)}% {t('ai.confirm_confidence')}
           </div>
         </div>
 
         <div className="p-4">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle size={14} className="text-amber-400" />
-            <span className="text-xs font-medium text-txt-secondary">Действие: {action.label}</span>
+            <span className="text-xs font-medium text-txt-secondary">{t('ai.confirm_action_label')} {action.label}</span>
           </div>
           
           {action.params && Object.keys(action.params).length > 0 && (
             <div className="mb-4 p-3 rounded-lg bg-surface-2/50 border border-bdr-subtle">
-              <p className="text-xs font-medium text-txt-muted mb-2">Параметры:</p>
+              <p className="text-xs font-medium text-txt-muted mb-2">{t('ai.confirm_params')}</p>
               <div className="grid gap-1 text-sm">
                 {Object.entries(action.params).map(([key, value]) => (
                   <div key={key} className="flex justify-between">
@@ -66,7 +68,7 @@ export function ActionConfirm({ action, message, onConfirm }: ActionConfirmProps
               size="sm"
             >
               <X size={14} className="mr-1.5" />
-              Отмена
+              {t('common.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -75,7 +77,7 @@ export function ActionConfirm({ action, message, onConfirm }: ActionConfirmProps
               size="sm"
             >
               <Check size={14} className="mr-1.5" />
-              Подтвердить
+              {t('common.confirm')}
             </Button>
           </div>
         </div>

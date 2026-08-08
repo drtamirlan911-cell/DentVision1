@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Stethoscope, ShoppingCart, GraduationCap, Users, Bot, LogIn } from 'lucide-react';
@@ -15,19 +16,20 @@ interface BottomNavItem {
   requiresAuth?: boolean;
 }
 
-const ITEMS: BottomNavItem[] = [
-  { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} />, path: '/crm/schedule', color: '#C9A96E', requiresAuth: true },
-  { id: 'shop', label: 'Маркет', icon: <ShoppingCart size={18} />, path: '/shop', color: '#8E44AD', requiresAuth: false },
-  { id: 'ai', label: 'AI', icon: <Bot size={18} />, path: '/', color: '#D4AF37', requiresAuth: false },
-  { id: 'school', label: 'Academy', icon: <GraduationCap size={18} />, path: '/school', color: '#16A085', requiresAuth: false },
-  { id: 'community', label: 'Сеть', icon: <Users size={18} />, path: '/community', color: '#00BCD4', requiresAuth: false },
-];
-
 export function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
   const { isGuest, setRegistrationModal } = useGuestStore();
+  const { t } = useTranslation();
+
+  const ITEMS: BottomNavItem[] = [
+    { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} />, path: '/crm/schedule', color: '#C9A96E', requiresAuth: true },
+    { id: 'shop', label: t('nav.market'), icon: <ShoppingCart size={18} />, path: '/shop', color: '#8E44AD', requiresAuth: false },
+    { id: 'ai', label: 'AI', icon: <Bot size={18} />, path: '/', color: '#D4AF37', requiresAuth: false },
+    { id: 'school', label: 'Academy', icon: <GraduationCap size={18} />, path: '/school', color: '#16A085', requiresAuth: false },
+    { id: 'community', label: t('nav.network'), icon: <Users size={18} />, path: '/community', color: '#00BCD4', requiresAuth: false },
+  ];
 
   const handleNavClick = useCallback((item: BottomNavItem) => {
     // CRM for guests → same one-tap demo path as desktop sidebar / demo chip
@@ -46,7 +48,7 @@ export function BottomNav() {
 
   return (
     <nav
-      aria-label="Навигация по разделам"
+      aria-label={t('nav.nav_sections')}
       className="fixed bottom-0 left-0 right-0 z-50 bg-surface-1/95 backdrop-blur-xl border-t border-bdr-subtle"
       style={{
         paddingBottom: 'var(--dv-safe-bottom)',
@@ -80,7 +82,7 @@ export function BottomNav() {
                 {isDisabled ? <LogIn size={18} className="text-txt-muted" /> : item.icon}
               </span>
               <span className={cn('text-[10px] font-medium transition-colors', isActive ? '' : 'text-txt-muted', isDisabled && 'text-txt-muted')} style={isActive ? { color: item.color } : undefined}>
-                {isDisabled ? 'Вход' : item.label}
+                {isDisabled ? t('nav.login') : item.label}
               </span>
             </motion.button>
           );

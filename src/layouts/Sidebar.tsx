@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,43 +30,6 @@ interface NavItem {
   section?: 'services' | 'platform';
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} strokeWidth={1.75} />, path: '/crm/schedule', color: '#C9A96E', section: 'services' },
-  { id: 'diagnostics', label: 'Diagnostics', icon: <Activity size={18} strokeWidth={1.75} />, path: '/diagnostics', color: '#27AE60', section: 'services' },
-  { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop', color: '#A78BFA', section: 'services' },
-  { id: 'school', label: 'Academy OS', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school', color: '#2DD4BF', section: 'services' },
-  { id: 'analytics', label: 'Аналитика', icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/analytics', color: '#FBBF24', section: 'services' },
-  { id: 'bi', label: 'Business Intelligence', icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/bi', color: '#10B981', section: 'services' },
-  { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={18} strokeWidth={1.75} />, path: '/jobs', color: '#FB923C', section: 'services' },
-  { id: 'community', label: 'Сообщество', icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
-  { id: 'supplier', label: 'Кабинет продавца', icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },
-  { id: 'school-workspace', label: 'Кабинет лектора', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school-workspace', color: '#2DD4BF', section: 'platform' },
-  { id: 'center-workspace', label: 'Кабинет центра', icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/center-workspace', color: '#27AE60', section: 'platform' },
-  { id: 'profile', label: 'Профиль', icon: <User size={18} strokeWidth={1.75} />, path: '/profile', color: '#60A5FA', section: 'platform' },
-  { id: 'partner-legal', label: 'Мои документы', icon: <FileText size={18} strokeWidth={1.75} />, path: '/partner-legal', color: '#C9A96E', section: 'platform' },
-  { id: 'settings', label: 'Настройки', icon: <Settings size={18} strokeWidth={1.75} />, path: '/settings', color: '#94A3B8', section: 'platform' },
-];
-
-const ADMIN_ITEMS: NavItem[] = [
-  { id: 'admin', label: 'Платформа', icon: <Shield size={18} strokeWidth={1.75} />, path: '/admin', color: '#F87171', section: 'platform' },
-  { id: 'shop-admin', label: 'Shop Admin', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop/admin', color: '#A78BFA', section: 'platform' },
-  { id: 'school-admin', label: 'School Admin', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school/admin', color: '#2DD4BF', section: 'platform' },
-  { id: 'audit', label: 'Аудит', icon: <FileText size={18} strokeWidth={1.75} />, path: '/audit', color: '#FBBF24', section: 'platform' },
-  { id: 'security', label: 'Security & Compliance', icon: <ShieldCheck size={18} strokeWidth={1.75} />, path: '/security', color: '#38BDF8', section: 'platform' },
-  { id: 'backup', label: 'Бэкапы', icon: <Database size={18} strokeWidth={1.75} />, path: '/backup', color: '#38BDF8', section: 'platform' },
-  { id: 'legal', label: 'Legal', icon: <Scale size={18} strokeWidth={1.75} />, path: '/legal', color: '#C9A96E', section: 'platform' },
-  { id: 'quality', label: 'Quality Center', icon: <Activity size={18} strokeWidth={1.75} />, path: '/admin?tab=quality', color: '#10B981', section: 'platform', badge: 'NEW' },
-];
-
-const GUEST_NAV_ITEMS: NavItem[] = [
-  { id: 'demo', label: 'Демо клиника', icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/crm/schedule?demo=1', color: '#C9A96E', section: 'services' },
-  { id: 'shop', label: 'Маркетплейс', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop', color: '#A78BFA', section: 'services' },
-  { id: 'school', label: 'Academy OS', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school', color: '#2DD4BF', section: 'services' },
-  { id: 'jobs', label: 'Вакансии', icon: <Briefcase size={18} strokeWidth={1.75} />, path: '/jobs', color: '#FB923C', section: 'services' },
-  { id: 'community', label: 'Сообщество', icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
-  { id: 'pricing', label: 'Тарифы', icon: <Star size={18} strokeWidth={1.75} />, path: '/pricing', color: '#FBBF24', section: 'platform' },
-];
-
 interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
@@ -79,27 +43,6 @@ interface SidebarProps {
   isGuest?: boolean;
   onToggleCollapsed?: () => void;
 }
-
-const CRM_SUBNAV = [
-  { id: 'schedule', label: 'Расписание', path: '/crm/schedule' },
-  { id: 'patients', label: 'Пациенты', path: '/crm/patients' },
-  { id: 'medical-card', label: 'Медкарта', path: '/crm/medical-card' },
-  { id: 'finance', label: 'Финансы', path: '/crm/finance' },
-  { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', adminOnly: true },
-  { id: 'billing', label: 'Тариф и оплата', path: '/crm/billing', adminOnly: true },
-  { id: 'integrations', label: 'Интеграции', path: '/crm/integrations/messaging', adminOnly: true },
-  { id: 'visits', label: 'Визиты', path: '/crm/visits' },
-  { id: 'dental-chart', label: 'Зубная карта', path: '/crm/dental-chart' },
-  { id: 'treatment-plans', label: 'Планы лечения', path: '/crm/treatment-plans' },
-  { id: 'pricelist', label: 'Прайс', path: '/crm/pricelist' },
-  { id: 'lab', label: 'Лаборатория', path: '/crm/lab' },
-  { id: 'inventory', label: 'Склад', path: '/crm/inventory' },
-  { id: 'documents', label: 'Документы', path: '/crm/documents' },
-  { id: 'staff', label: 'Сотрудники', path: '/crm/staff' },
-  { id: 'reminders', label: 'Напоминания', path: '/crm/reminders' },
-  { id: 'promotions', label: 'Акции', path: '/crm/promotions' },
-  { id: 'icd10', label: 'МКБ-10', path: '/crm/icd10' },
-];
 
 function NavIconChip({
   color,
@@ -148,6 +91,65 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const sidebarWidth = !sidebarVisible && !isMobile ? 0 : (collapsed ? 76 : 248);
   const { user: authUser, role: authRole, roleInfo: authRoleInfo, activeMembership } = useAuth();
   const clinicId = authUser?.clinicId || '';
+  const { t } = useTranslation();
+
+  const NAV_ITEMS: NavItem[] = [
+    { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} strokeWidth={1.75} />, path: '/crm/schedule', color: '#C9A96E', section: 'services' },
+    { id: 'diagnostics', label: 'Diagnostics', icon: <Activity size={18} strokeWidth={1.75} />, path: '/diagnostics', color: '#27AE60', section: 'services' },
+    { id: 'shop', label: t('nav.shop'), icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop', color: '#A78BFA', section: 'services' },
+    { id: 'school', label: 'Academy OS', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school', color: '#2DD4BF', section: 'services' },
+    { id: 'analytics', label: t('nav.analytics'), icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/analytics', color: '#FBBF24', section: 'services' },
+    { id: 'bi', label: 'Business Intelligence', icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/bi', color: '#10B981', section: 'services' },
+    { id: 'jobs', label: t('nav.jobs'), icon: <Briefcase size={18} strokeWidth={1.75} />, path: '/jobs', color: '#FB923C', section: 'services' },
+    { id: 'community', label: t('nav.community'), icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
+    { id: 'supplier', label: t('nav.supplier_cabinet'), icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },
+    { id: 'school-workspace', label: t('nav.school_workspace'), icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school-workspace', color: '#2DD4BF', section: 'platform' },
+    { id: 'center-workspace', label: t('nav.center_workspace'), icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/center-workspace', color: '#27AE60', section: 'platform' },
+    { id: 'profile', label: t('nav.profile'), icon: <User size={18} strokeWidth={1.75} />, path: '/profile', color: '#60A5FA', section: 'platform' },
+    { id: 'partner-legal', label: t('nav.partner_legal'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/partner-legal', color: '#C9A96E', section: 'platform' },
+    { id: 'settings', label: t('nav.settings'), icon: <Settings size={18} strokeWidth={1.75} />, path: '/settings', color: '#94A3B8', section: 'platform' },
+  ];
+
+  const ADMIN_ITEMS: NavItem[] = [
+    { id: 'admin', label: t('nav.admin'), icon: <Shield size={18} strokeWidth={1.75} />, path: '/admin', color: '#F87171', section: 'platform' },
+    { id: 'shop-admin', label: 'Shop Admin', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop/admin', color: '#A78BFA', section: 'platform' },
+    { id: 'school-admin', label: 'School Admin', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school/admin', color: '#2DD4BF', section: 'platform' },
+    { id: 'audit', label: t('nav.audit'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/audit', color: '#FBBF24', section: 'platform' },
+    { id: 'security', label: 'Security & Compliance', icon: <ShieldCheck size={18} strokeWidth={1.75} />, path: '/security', color: '#38BDF8', section: 'platform' },
+    { id: 'backup', label: t('nav.backup'), icon: <Database size={18} strokeWidth={1.75} />, path: '/backup', color: '#38BDF8', section: 'platform' },
+    { id: 'legal', label: 'Legal', icon: <Scale size={18} strokeWidth={1.75} />, path: '/legal', color: '#C9A96E', section: 'platform' },
+    { id: 'quality', label: 'Quality Center', icon: <Activity size={18} strokeWidth={1.75} />, path: '/admin?tab=quality', color: '#10B981', section: 'platform', badge: 'NEW' },
+  ];
+
+  const GUEST_NAV_ITEMS: NavItem[] = [
+    { id: 'demo', label: t('nav.demo'), icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/crm/schedule?demo=1', color: '#C9A96E', section: 'services' },
+    { id: 'shop', label: t('nav.shop'), icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop', color: '#A78BFA', section: 'services' },
+    { id: 'school', label: 'Academy OS', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school', color: '#2DD4BF', section: 'services' },
+    { id: 'jobs', label: t('nav.jobs'), icon: <Briefcase size={18} strokeWidth={1.75} />, path: '/jobs', color: '#FB923C', section: 'services' },
+    { id: 'community', label: t('nav.community'), icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
+    { id: 'pricing', label: t('nav.pricing'), icon: <Star size={18} strokeWidth={1.75} />, path: '/pricing', color: '#FBBF24', section: 'platform' },
+  ];
+
+  const CRM_SUBNAV = [
+    { id: 'schedule', label: t('nav.schedule'), path: '/crm/schedule' },
+    { id: 'patients', label: t('nav.patients'), path: '/crm/patients' },
+    { id: 'medical-card', label: t('nav.medical_card'), path: '/crm/medical-card' },
+    { id: 'finance', label: t('nav.finance'), path: '/crm/finance' },
+    { id: 'clinic-settings', label: t('nav.clinic_settings'), path: '/crm/clinic-settings', adminOnly: true },
+    { id: 'billing', label: t('nav.billing'), path: '/crm/billing', adminOnly: true },
+    { id: 'integrations', label: t('nav.integrations'), path: '/crm/integrations/messaging', adminOnly: true },
+    { id: 'visits', label: t('nav.visits'), path: '/crm/visits' },
+    { id: 'dental-chart', label: t('nav.dental_chart'), path: '/crm/dental-chart' },
+    { id: 'treatment-plans', label: t('nav.treatment_plans'), path: '/crm/treatment-plans' },
+    { id: 'pricelist', label: t('nav.pricelist'), path: '/crm/pricelist' },
+    { id: 'lab', label: t('nav.lab'), path: '/crm/lab' },
+    { id: 'inventory', label: t('nav.inventory'), path: '/crm/inventory' },
+    { id: 'documents', label: t('nav.documents'), path: '/crm/documents' },
+    { id: 'staff', label: t('nav.staff'), path: '/crm/staff' },
+    { id: 'reminders', label: t('nav.reminders'), path: '/crm/reminders' },
+    { id: 'promotions', label: t('nav.promotions'), path: '/crm/promotions' },
+    { id: 'icd10', label: t('nav.icd10'), path: '/crm/icd10' },
+  ];
 
   React.useEffect(() => {
     if (location.pathname.startsWith('/crm')) setCrmOpen(true);
@@ -344,7 +346,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     );
                   })}
                   {visibleCrmSubnav.length === 0 && (
-                    <p className="px-2.5 py-1.5 text-[10px] text-txt-ghost">Нет доступных разделов</p>
+                    <p className="px-2.5 py-1.5 text-[10px] text-txt-ghost">{t('nav.no_sections')}</p>
                   )}
                 </div>
               )}
@@ -418,7 +420,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'absolute right-1 top-1 h-6 w-6'
                 : 'h-7 w-7 shrink-0',
             )}
-            aria-label={collapsed ? 'Развернуть сайдбар' : 'Свернуть сайдбар'}
+            aria-label={collapsed ? t('nav.expand_sidebar') : t('nav.collapse_sidebar')}
           >
             {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
@@ -429,13 +431,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="relative px-3.5 py-3 border-b border-white/[0.05] flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <Avatar
-              name={isGuest ? 'Гость' : (user?.name || user?.login || '?')}
+              name={isGuest ? t('nav.guest') : (user?.name || user?.login || '?')}
               size="sm"
               src={isGuest ? undefined : ((user as any)?.photoUrl || (user as any)?.avatar || undefined)}
             />
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-txt-primary truncate">{isGuest ? 'Гость' : (user?.name || user?.login)}</p>
-              <p className="text-[10px] text-txt-muted truncate">{isGuest ? 'Анонимный доступ' : ((roleInfo as any)?.label || 'Сотрудник')}</p>
+              <p className="text-xs font-medium text-txt-primary truncate">{isGuest ? t('nav.guest') : (user?.name || user?.login)}</p>
+              <p className="text-[10px] text-txt-muted truncate">{isGuest ? t('nav.anonymous_access') : ((roleInfo as any)?.label || t('nav.employee'))}</p>
             </div>
           </div>
         </div>
@@ -479,7 +481,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <p className={cn('text-[13px] font-semibold truncate', intelligenceActive ? 'text-dv-gold' : 'text-txt-primary')}>
                   Intelligence
                 </p>
-                <p className="text-[10px] text-txt-muted truncate">Цифровой ассистент</p>
+                <p className="text-[10px] text-txt-muted truncate">{t('nav.digital_assistant')}</p>
               </div>
             )}
           </motion.button>
@@ -489,16 +491,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!collapsed && isGuest && (
         <div className="px-3 pt-3 pb-1 flex-shrink-0">
           <div className="rounded-xl border border-dv-gold/20 bg-gradient-to-br from-dv-gold/10 via-dv-gold/5 to-transparent p-3 space-y-2">
-            <p className="text-xs font-semibold text-txt-primary">Знакомство с DentVision</p>
+            <p className="text-xs font-semibold text-txt-primary">{t('platform.guest_onboarding_title')}</p>
             <p className="text-[11px] text-txt-muted leading-relaxed">
-              CRM, маркетплейс и Academy в одной SuperApp. Откройте демо или спросите ИИ.
+              {t('platform.guest_onboarding_desc')}
             </p>
             <button
               type="button"
               onClick={() => handleNavClick('/crm/schedule?demo=1')}
               className="w-full rounded-lg bg-dv-gold px-3 py-1.5 text-xs font-semibold text-surface-0 hover:bg-dv-gold/90 transition-colors"
             >
-              Открыть демо
+              {t('platform.guest_onboarding_btn')}
             </button>
           </div>
         </div>
@@ -507,7 +509,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!collapsed && (
         <div className="px-3.5 pt-4 pb-1 flex-shrink-0">
           <p className="text-[10px] font-semibold text-txt-ghost uppercase tracking-[0.14em]">
-            {isGuest ? 'Открыть' : 'Сервисы'}
+            {isGuest ? t('common.open') : t('nav.services')}
           </p>
         </div>
       )}
@@ -517,7 +519,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <motion.nav
-        aria-label="Главная навигация"
+        aria-label={t('nav.main_nav')}
         initial="hidden"
         animate={sidebarVisible ? 'visible' : 'hidden'}
         variants={{
@@ -533,8 +535,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ? renderNavSection(GUEST_NAV_ITEMS)
           : <>
             {renderNavSection(serviceItems.filter(i => i.section !== 'platform'))}
-            {renderNavSection(serviceItems.filter(i => i.section === 'platform'), 'Платформа')}
-            {(isAdmin || isSuperAdmin) && renderNavSection(ADMIN_ITEMS, 'Администрирование')}
+            {renderNavSection(serviceItems.filter(i => i.section === 'platform'), t('nav.platform'))}
+            {(isAdmin || isSuperAdmin) && renderNavSection(ADMIN_ITEMS, t('nav.administration'))}
           </>
         }
       </motion.nav>
@@ -543,7 +545,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className={cn('relative pb-3 pt-2 flex-shrink-0 space-y-1.5', collapsed ? 'px-2' : 'px-2.5')}>
         <div className="mx-auto mb-1.5 h-px w-full max-w-[9rem] rounded-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         {!isGuest && user ? (
-          <Tooltip content={collapsed ? 'Выйти' : undefined} side="right">
+          <Tooltip content={collapsed ? t('auth.logout') : undefined} side="right">
             <motion.button
               type="button"
               onClick={() => { logout(); navigate('/login'); }}
@@ -555,11 +557,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             >
               <LogOut size={16} strokeWidth={1.75} className="shrink-0" />
-              {!collapsed && <span className="text-sm font-medium">Выйти</span>}
+              {!collapsed && <span className="text-sm font-medium">{t('auth.logout')}</span>}
             </motion.button>
           </Tooltip>
         ) : (
-          <Tooltip content={collapsed ? 'Войти' : undefined} side="right">
+          <Tooltip content={collapsed ? t('auth.login') : undefined} side="right">
             <motion.button
               type="button"
               onClick={() => navigate('/login')}
@@ -571,7 +573,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             >
               <LogIn size={16} strokeWidth={1.75} className="shrink-0" />
-              {!collapsed && <span className="text-sm font-medium">Войти</span>}
+              {!collapsed && <span className="text-sm font-medium">{t('auth.login')}</span>}
             </motion.button>
           </Tooltip>
         )}

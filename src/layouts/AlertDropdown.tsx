@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useNotificationStore } from '@/store/notification.store';
 import { useAuth } from '@/store/auth.store';
 import { useGuestStore } from '@/store/guest.store';
+import { useTranslation } from 'react-i18next';
 
 const priorityIcon: Record<string, React.ReactNode> = {
   high: <AlertCircle size={14} className="text-red-400 shrink-0" />,
@@ -73,6 +74,7 @@ function resolveAlertPath(alert: BellAlert): string | undefined {
 }
 
 export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, setIsOpen }) => {
+  const { t } = useTranslation()
   const dropdownRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -159,7 +161,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
           'relative flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
           isOpen ? 'text-amber-400 bg-amber-400/10' : 'text-amber-400 hover:bg-amber-400/10',
         )}
-        aria-label="Оповещения"
+              aria-label={t('platform.notifications')}
         aria-expanded={isOpen}
       >
         <Bell size={16} className={badgeCount > 0 ? 'alert-pulse' : undefined} />
@@ -193,10 +195,10 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
               )}
               role="dialog"
               aria-modal="true"
-              aria-label="Оповещения"
+        aria-label={t('platform.notifications')}
             >
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-bdr-subtle">
-                <span className="text-xs font-semibold text-txt-primary">Оповещения</span>
+                <span className="text-xs font-semibold text-txt-primary">{t('platform.notifications')}</span>
                 <div className="flex items-center gap-1">
                   {unreadNotifs > 0 && (
                     <button
@@ -204,14 +206,14 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
                       onClick={() => void markAll()}
                       className="px-2 py-1 rounded text-[10px] text-txt-muted hover:text-txt-primary transition-colors"
                     >
-                      Прочитать всё
+                      {t('platform.notification_read_all')}
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={() => setIsOpen(false)}
                     className="p-1 rounded text-txt-muted hover:text-txt-primary transition-colors"
-                    aria-label="Закрыть"
+                    aria-label={t('common.close')}
                   >
                     <X size={14} />
                   </button>
@@ -221,7 +223,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
                 {merged.length === 0 ? (
                   <div className="px-4 py-8 text-center">
                     <Bell size={22} className="mx-auto text-txt-ghost mb-2" />
-                    <p className="text-xs text-txt-muted m-0">Пока нет оповещений</p>
+                    <p className="text-xs text-txt-muted m-0">{t('platform.notification_empty_short')}</p>
                   </div>
                 ) : (
                   merged.map((alert, i) => {
@@ -248,8 +250,8 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
                         <div className="min-w-0 flex-1">
                           <p className="text-xs text-txt-primary leading-snug break-words">{text}</p>
                           <span className="text-2xs text-txt-ghost uppercase mt-0.5 block">
-                            {alert.source === 'notification' ? 'уведомление' : alert.type}
-                            {path ? ' · открыть' : ''}
+                            {alert.source === 'notification' ? t('platform.notification_source') : alert.type}
+                            {path ? t('platform.notification_open') : ''}
                           </span>
                         </div>
                       </button>

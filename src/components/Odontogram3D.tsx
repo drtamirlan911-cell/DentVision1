@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import React, { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { T, UPPER, LOWER } from '../utils/constants'
 import { Card } from './ui/ds/Card'
@@ -61,6 +62,7 @@ interface Odontogram3DProps {
 }
 
 export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }: Odontogram3DProps) {
+  const { t } = useTranslation()
   const toothSize = typeof window !== 'undefined' && window.innerWidth < 480 ? 24 : window.innerWidth < 768 ? 30 : 40
 
   const renderArch = (teeth: readonly number[], label: string, upper: boolean) => {
@@ -114,7 +116,7 @@ export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }:
         </div>
         <div className="flex justify-between text-[8px] sm:text-[9px] text-txt-muted/50 px-1 sm:px-2">
           <span>{upper ? 'Q1 (UR)' : 'Q4 (LR)'}</span>
-          <span className="text-dv-gold/70">средняя линия</span>
+          <span className="text-dv-gold/70">{t('diagnostics.midline')}</span>
           <span>{upper ? 'Q2 (UL)' : 'Q3 (LL)'}</span>
         </div>
       </div>
@@ -126,22 +128,22 @@ export function Odontogram3D({ patientTeeth = {}, onToothClick, selectedTooth }:
   return (
     <Card className="p-2 sm:p-3 md:p-5 overflow-hidden max-w-full">
       <div className="mb-2 sm:mb-3 flex flex-wrap items-center gap-1 sm:gap-2 text-[9px] sm:text-[10px] text-txt-muted">
-        <span className="rounded-md border border-bdr-subtle px-1.5 sm:px-2 py-0.5">Клик → статус</span>
-        <span className="rounded-md border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 px-1.5 sm:px-2 py-0.5">имплант</span>
-        <span className="rounded-md border border-emerald-400/30 bg-emerald-400/10 text-emerald-300 px-1.5 sm:px-2 py-0.5">эндо</span>
+        <span className="rounded-md border border-bdr-subtle px-1.5 sm:px-2 py-0.5">{t('diagnostics.click_status')}</span>
+        <span className="rounded-md border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 px-1.5 sm:px-2 py-0.5">{t('diagnostics.implant')}</span>
+        <span className="rounded-md border border-emerald-400/30 bg-emerald-400/10 text-emerald-300 px-1.5 sm:px-2 py-0.5">{t('diagnostics.endo')}</span>
       </div>
 
-      {renderArch(UPPER, 'Верхняя челюсть', true)}
+      {renderArch(UPPER, t('diagnostics.upper_jaw'), true)}
       <div className="h-px my-2 sm:my-3 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      {renderArch(LOWER, 'Нижняя челюсть', false)}
+      {renderArch(LOWER, t('diagnostics.lower_jaw'), false)}
 
       {selectedMorph && selectedTooth && (
         <p className="mt-2 sm:mt-3 text-center text-[10px] sm:text-[11px] text-txt-secondary">
-          Зуб <span className="text-dv-gold font-semibold">{selectedTooth}</span>
+          {t('diagnostics.tooth')} <span className="text-dv-gold font-semibold">{selectedTooth}</span>
           {' · '}
           {selectedMorph.label}
           {' · '}
-          {selectedMorph.roots === 1 ? 'однокорневой' : selectedMorph.roots === 2 ? 'двукорневой' : 'трёхкорневой'}
+          {selectedMorph.roots === 1 ? t('diagnostics.single_root') : selectedMorph.roots === 2 ? t('diagnostics.double_root') : t('diagnostics.triple_root')}
         </p>
       )}
     </Card>
@@ -161,6 +163,7 @@ interface ToothEditorProps {
  * - pick a surface paint, then tap M/O/D/B/L to apply instantly
  */
 export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }: ToothEditorProps & { surfaces?: ToothSurfaces }) {
+  const { t } = useTranslation()
   const initial = normalizeTooth(tooth || { surfaces })
   const [status, setStatus] = useState<ToothStatusKey>(initial.status || 'healthy')
   const [editedSurfaces, setEditedSurfaces] = useState<ToothSurfaces>(initial.surfaces || {})
@@ -199,15 +202,15 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
     <Card className="p-3 sm:p-4 mt-2 sm:mt-3 space-y-3 sm:space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-dv-gold">Зуб {toothNumber}</span>
+          <span className="text-sm font-bold text-dv-gold">{t('diagnostics.tooth')} {toothNumber}</span>
           <Badge variant="info">{STATUS_META[status]?.label || status}</Badge>
         </div>
-        <p className="text-[10px] sm:text-[11px] text-txt-muted m-0">Статус → покраска поверхностей</p>
+        <p className="text-[10px] sm:text-[11px] text-txt-muted m-0">{t('diagnostics.status_surface')}</p>
       </div>
 
       {/* Whole-tooth statuses */}
       <div>
-        <p className="text-[9px] sm:text-[10px] uppercase tracking-wide text-txt-muted font-semibold mb-1.5 sm:mb-2">Статус зуба</p>
+        <p className="text-[9px] sm:text-[10px] uppercase tracking-wide text-txt-muted font-semibold mb-1.5 sm:mb-2">{t('diagnostics.tooth_status')}</p>
         <div className="flex flex-wrap gap-1 sm:gap-1.5">
           {WHOLE_TOOTH_STATUSES.map((key) => {
             const meta = STATUS_META[key]
@@ -235,7 +238,7 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
       {status !== 'missing' && status !== 'implant' && (
         <div>
           <p className="text-[9px] sm:text-[10px] uppercase tracking-wide text-txt-muted font-semibold mb-1.5 sm:mb-2">
-            Поверхности — краска, затем M / O / D / B / L
+            {t('diagnostics.surfaces_hint')}
           </p>
           <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2 sm:mb-3">
             {SURFACE_STATUSES.map((key) => {
@@ -275,11 +278,11 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
                 >
                   <span className="text-xs sm:text-sm font-bold text-white">{surface}</span>
                   <span className="text-[7px] sm:text-[9px] text-txt-muted leading-none">
-                    {surface === 'M' && 'мед.'}
-                    {surface === 'O' && 'оккл.'}
-                    {surface === 'D' && 'дист.'}
-                    {surface === 'B' && 'букк.'}
-                    {surface === 'L' && 'лингв.'}
+                    {surface === 'M' && t('diagnostics.surface_med')}
+                    {surface === 'O' && t('diagnostics.surface_occl')}
+                    {surface === 'D' && t('diagnostics.surface_dist')}
+                    {surface === 'B' && t('diagnostics.surface_bucc')}
+                    {surface === 'L' && t('diagnostics.surface_ling')}
                   </span>
                   <span className="text-[8px] sm:text-[10px] font-semibold leading-none" style={{ color: color || T.slate }}>
                     {current && current !== 'healthy' ? statusLabel(current) : '—'}
@@ -293,10 +296,10 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
 
       <div className="flex gap-2 justify-end">
         <Button variant="ghost" size="sm" onClick={onCancel} icon={<X size={14} />}>
-          Отмена
+          {t('common.cancel')}
         </Button>
         <Button size="sm" onClick={handleSave} icon={<Check size={14} />}>
-          Сохранить
+          {t('common.save')}
         </Button>
       </div>
     </Card>
@@ -312,6 +315,7 @@ interface AutoTreatmentPlanProps {
 }
 
 export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onAddToPlan }: AutoTreatmentPlanProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const recommendations = useMemo(() => buildPlanFromOdontogram(teeth), [teeth])
   const summary = useMemo(() => summarizeOdontogram(teeth, patientName), [teeth, patientName])
@@ -330,7 +334,7 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onA
     if (!patientId) return
     // Prefer local plan first — AI may 402 on free/starter; still open chat as optional refine.
     void savePlan().then(() => {
-      const prompt = aiPlanPrompt(patientId, patientName || 'пациент', teeth)
+      const prompt = aiPlanPrompt(patientId, patientName || t('crm.patient_fallback'), teeth)
       navigate('/', { state: { aiQuery: prompt } })
     })
   }
@@ -339,7 +343,7 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onA
     return (
       <Card className="p-4 mt-3 space-y-3">
         <div className="text-center text-sm text-emerald-400">
-          ✓ Нет активных проблем по одонтограмме — можно назначить профилактику.
+          {t('diagnostics.no_active_issues')}
         </div>
       </Card>
     )
@@ -351,11 +355,11 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onA
     <Card className="p-4 mt-3 space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-dv-gold">План из одонтограммы</span>
+          <span className="text-sm font-bold text-dv-gold">{t('diagnostics.plan_from_odontogram')}</span>
           <Badge variant="warning">{recommendations.length}</Badge>
         </div>
         <span className="text-[11px] text-txt-muted">
-          ориентир ~{new Intl.NumberFormat('ru-KZ', { style: 'currency', currency: 'KZT', maximumFractionDigits: 0 }).format(total)}
+          {t('diagnostics.estimate')} ~{new Intl.NumberFormat('ru-KZ', { style: 'currency', currency: 'KZT', maximumFractionDigits: 0 }).format(total)}
         </span>
       </div>
 
@@ -371,7 +375,7 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onA
           >
             <div className="min-w-0">
               <p className="text-xs text-white font-semibold m-0">
-                Зуб {rec.tooth}: {rec.procedure}
+                {t('diagnostics.plan_recommendation', { tooth: rec.tooth, procedure: rec.procedure })}
               </p>
               <p className="text-[10px] text-txt-muted m-0 mt-0.5">
                 {rec.reason} · ~
@@ -382,7 +386,7 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onA
               variant={rec.urgency === 'high' ? 'error' : rec.urgency === 'medium' ? 'warning' : 'default'}
               size="sm"
             >
-              {rec.urgency === 'high' ? 'Срочно' : rec.urgency === 'medium' ? 'Реком.' : 'Планово'}
+              {rec.urgency === 'high' ? t('diagnostics.urgency_urgent') : rec.urgency === 'medium' ? t('diagnostics.urgency_recommended') : t('diagnostics.urgency_planned')}
             </Badge>
           </div>
         ))}
@@ -390,16 +394,16 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onA
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Button size="sm" onClick={() => void savePlan()} disabled={busy}>
-          {busy ? 'Сохранение…' : 'В план лечения'}
+          {busy ? t('diagnostics.saving') : t('diagnostics.add_to_treatment_plan')}
         </Button>
         {patientId && clinicId && (
           <Button size="sm" variant="secondary" icon={<Sparkles size={14} />} onClick={openAiPlan} disabled={busy}>
-            Сохранить и уточнить в ИИ
+            {t('diagnostics.save_and_ai')}
           </Button>
         )}
       </div>
       <p className="text-[10px] text-txt-muted m-0">
-        При сохранении зуба позиции уже попадают в черновик плана. ИИ — опционально (нужен тариф с AI).
+        {t('diagnostics.ai_optional_hint')}
       </p>
     </Card>
   )

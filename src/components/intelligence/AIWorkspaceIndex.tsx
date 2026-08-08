@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX } from 'lucide-react'
 import { isVoiceRepliesEnabled, setVoiceRepliesEnabled, speak, stopSpeaking, voiceOutputSupported } from '@/utils/voice'
@@ -66,6 +67,7 @@ interface AIWorkspaceIndexProps {
 }
 
 export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate()
   const location = useLocation()
   const { user, clinic, isAuthenticated } = useAuth()
@@ -299,7 +301,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     try {
       // Guests / anonymous: product guide only — never clinic Jarvis briefing.
       if (isGuest || !user?.id) {
-        const reply = buildGuestGreeting()
+        const reply = buildGuestGreeting(t)
         if (!stillCurrent()) return
         setMessages([{
           id: 'greeting',
@@ -340,7 +342,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
 
       let chatRes = briefRes
       if (!chatRes?.reply) {
-        chatRes = await aiChat('Сводка при входе', [], { userId: user?.id }).catch(() => null)
+        chatRes = await aiChat(t('ai.login_briefing'), [], { userId: user?.id }).catch(() => null)
       }
       if (!stillCurrent()) return
 
@@ -362,7 +364,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       }
 
       if (!reply) {
-        reply = buildGreeting(user, clinic, proactiveData?.alerts || [])
+        reply = buildGreeting(t, user, clinic, proactiveData?.alerts || [])
         if (proactiveData?.alerts?.length) {
           const alertLines = proactiveData.alerts.slice(0, 3).map((a: any) => `• ${a.text || a.message}`).filter(Boolean).join('\n')
           if (alertLines) reply = `${reply}\n\nСейчас важно:\n${alertLines}`
@@ -398,7 +400,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       historyRef.current = [{ role: 'assistant', content: reply }]
     } catch {
       if (!stillCurrent()) return
-      let fallback = isGuest ? buildGuestGreeting() : ''
+      let fallback = isGuest ? buildGuestGreeting(t) : ''
       let catchSuggestions = getSmartSuggestions({ user, guest: isGuest, pathname: location.pathname }).slice(0, 4)
       if (!fallback && !isGuest) {
         const live = await buildLiveClinicGreeting({ user, clinic }).catch(() => null)
@@ -406,10 +408,10 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           fallback = live.reply
           catchSuggestions = live.suggestions.slice(0, 3)
         } else {
-          fallback = buildGreeting(user, clinic, [])
+          fallback = buildGreeting(t, user, clinic, [])
         }
       }
-      if (!fallback) fallback = buildGuestGreeting()
+      if (!fallback)           fallback = buildGuestGreeting(t)
       setMessages([{ id: 'greeting', role: 'assistant', content: fallback, timestamp: new Date() }])
       historyRef.current = [{ role: 'assistant', content: fallback }]
       setSuggestionsFromStrings(catchSuggestions)
@@ -652,12 +654,12 @@ const handleSend = useCallback(async (text: string) => {
             }
           } catch (e: any) {
             setAIStatus('error')
-            setErrorMessage(e?.message || 'Неизвестная ошибка')
+            setErrorMessage(e?.message || t('ai.error_unknown'))
             setTimeout(() => setAIStatus('idle'), 3000)
             addMessage({
               id: `action-err-${Date.now()}`,
               role: 'assistant',
-              content: `Ошибка: ${e?.message || 'неизвестная ошибка'}`,
+              content: `${t('common.error')}: ${e?.message || t('ai.error_unknown')}`,
               timestamp: new Date(),
             })
           }
@@ -677,10 +679,10 @@ const handleSend = useCallback(async (text: string) => {
         e?.code === 'PLAN_AI_QUOTA'
       upsertAssistant({
         content: isPlan
-          ? (msg || 'AI недоступен на текущем тарифе. Обновите план в «Тариф и оплата» — или спросите про вакансии/маркет без AI.')
+          ? (msg || t('ai.plan_error'))
           : (msg && msg !== 'Failed to fetch'
             ? msg
-            : 'Извините, произошла ошибка. Попробуйте ещё раз.'),
+            : t('ai.generic_error')),
       })
       setAIStatus('idle')
     } finally {
@@ -702,7 +704,7 @@ const handleSend = useCallback(async (text: string) => {
       addMessage({
         id: `cancel-${Date.now()}`,
         role: 'assistant',
-        content: 'Действие отменено. Чем ещё помочь?',
+        content: t('ai.action_cancelled'),
         timestamp: new Date(),
       })
       return
@@ -736,7 +738,7 @@ const result = await executeAction(
       }
     } catch (e: any) {
       setAIStatus('error')
-      setErrorMessage(e?.message || 'Ошибка выполнения')
+      setErrorMessage(e?.message || t('ai.error_execution'))
       setTimeout(() => setAIStatus('idle'), 3000)
     }
   }, [pendingConfirm, executeAction, navigate, onNavigate, setAIStatus, setProgress, setErrorMessage, setCurrentAction, addMessage])
@@ -756,17 +758,17 @@ const result = await executeAction(
             <Bot size={18} className="text-dv-gold" />
           </div>
           <div className="min-w-0">
-            <h1 className="font-serif text-[14px] sm:text-[15px] font-semibold text-txt-primary tracking-tight truncate">DentVision Intelligence</h1>
+            <h1 className="font-serif text-[14px] sm:text-[15px] font-semibold text-txt-primary tracking-tight truncate">{t('ai.intelligence_subtitle')}</h1>
             <p className="dv-ai-header-meta text-[11px] text-txt-muted truncate">
               {status === 'idle' ? (
                 activePersonaLabel
-                  ? <>Сейчас: <span className="text-dv-gold/90">{activePersonaLabel}</span></>
-                  : 'AI Operating System · стоматология'
+                  ? <>{t('ai.persona_prefix')} <span className="text-dv-gold/90">{activePersonaLabel}</span></>
+                  : t('ai.ai_os_subtitle')
               ) :
-               status === 'thinking' ? 'AI анализирует...' :
-               status === 'executing' ? 'Выполняю...' :
-               status === 'confirmation' ? 'Ожидаю подтверждение' :
-               status === 'result' ? 'Готово' : 'Ошибка'}
+               status === 'thinking' ? t('ai.analyzing') :
+               status === 'executing' ? t('ai.executing') :
+               status === 'confirmation' ? t('ai.awaiting_confirmation') :
+               status === 'result' ? t('ai.ready') : t('ai.error_status')}
             </p>
           </div>
         </div>
@@ -775,7 +777,7 @@ const result = await executeAction(
           {activePersonaLabel && !isGuest && (
             <span
               className="hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-semibold text-dv-gold bg-dv-gold/10 border border-dv-gold/20"
-              title="Активная операционная персона Jarvis (§16)"
+              title={t('ai.ai_os_tooltip')}
             >
               {activePersonaLabel}
             </span>
@@ -787,7 +789,7 @@ const result = await executeAction(
                   ? 'hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-semibold text-amber-300 bg-amber-400/10 border border-amber-400/20'
                   : 'hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-semibold text-txt-muted bg-white/[0.04] border border-white/[0.06]'
               }
-              title="Осталось бесплатных AI-запросов в гостевом режиме"
+              title={t('ai.free_queries_left')}
             >
               AI {aiRequestsLeft}
             </span>
@@ -809,8 +811,8 @@ const result = await executeAction(
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={toggleVoiceReplies}
-              title={voiceReplies ? 'Выключить голосовые ответы' : 'Включить голосовые ответы'}
-              aria-label={voiceReplies ? 'Выключить голосовые ответы' : 'Включить голосовые ответы'}
+              title={voiceReplies ? t('ai.voice_on') : t('ai.voice_off')}
+              aria-label={voiceReplies ? t('ai.voice_on') : t('ai.voice_off')}
               aria-pressed={voiceReplies}
               className={
                 voiceReplies
@@ -860,12 +862,12 @@ const result = await executeAction(
                 <Bot size={30} className="text-dv-gold" />
               </motion.div>
               <h2 className="relative font-serif text-xl sm:text-2xl md:text-[1.75rem] font-semibold tracking-tight text-txt-primary mb-2">
-                DentVision Intelligence
+                {t('ai.intelligence_subtitle')}
               </h2>
               <p className="relative text-sm text-txt-muted max-w-sm leading-relaxed px-2">
                 {isGuest
-                  ? 'Jarvis покажет платформу: демо-клинику, маркетплейс, Academy и сеть. Спросите «что умеешь» или выберите действие ниже.'
-                  : 'AI-операционка клиники. Спросите о расписании, выручке или долгах — или выберите действие ниже.'}
+                  ? t('ai.guest_empty')
+                  : t('ai.auth_empty')}
               </p>
             </motion.div>
           )}
@@ -993,8 +995,8 @@ const result = await executeAction(
             progress={progress}
             suggestions={suggestions.map(s => s.label)}
             placeholder={isGuest
-              ? 'Спросите о DentVision, демо, Academy или маркетплейсе…'
-              : 'Спросите: что важно сегодня, покажи выручку, проверь долги…'}            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
+              ? t('ai.guest_placeholder')
+              : t('ai.auth_placeholder')}            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
           />
         </div>
       </div>
@@ -1008,7 +1010,7 @@ const result = await executeAction(
               confidence: pendingConfirm.confidence,
               params: pendingConfirm.params,
             }}
-            message="AI подготовил действие. Подтвердите выполнение безопасностью DNA."
+            message={t('ai.confirm_action')}
             onConfirm={handleActionConfirm}
           />
         )}
@@ -1025,7 +1027,7 @@ const result = await executeAction(
             style={{ paddingTop: 'var(--dv-safe-top)', paddingBottom: 'var(--dv-safe-bottom)' }}
           >
             <div className="flex h-12 items-center justify-between px-4 border-b border-bdr-subtle">
-              <h3 className="text-sm font-semibold text-txt-primary">Контекст</h3>
+              <h3 className="text-sm font-semibold text-txt-primary">{t('ai.context_panel')}</h3>
               <motion.button
                 aria-label="Close context panel"
                 whileTap={{ scale: 0.9 }}
@@ -1067,7 +1069,7 @@ const result = await executeAction(
           addMessage({
             id: `intake-result-${Date.now()}`,
             role: 'user',
-            content: `Завершён приём пациента. Данные: ${JSON.stringify(data, null, 2)}`,
+            content: `${t('ai.intake_result')} ${JSON.stringify(data, null, 2)}`,
             timestamp: new Date(),
           })
         }}
@@ -1089,7 +1091,7 @@ const result = await executeAction(
           addMessage({
             id: `followup-${Date.now()}`,
             role: 'user',
-            content: `Действие после приёма: ${action}. Данные: ${JSON.stringify(data)}`,
+            content: `${t('ai.follow_up_result')} ${action}. Данные: ${JSON.stringify(data)}`,
             timestamp: new Date(),
           })
         }}
@@ -1132,13 +1134,13 @@ function restoreThread(userId: string | undefined, clinicId: string | null | und
   }
 }
 
-function buildGuestGreeting() {
+function buildGuestGreeting(t: (key: string) => string) {
   const greeting = timeGreetingInTz(new Date(), detectUserTimeZone())
   return [
-    `${greeting}. Я DentVision Intelligence — гид по платформе.`,
+    `${greeting}. Я DentVision Intelligence — ${t('ai.platform_guide')}.`,
     '',
     'Сейчас вы в гостевом режиме: могу провести по CRM, маркету и Academy.',
-    'Данные клиники (расписание, касса, карты) появятся после входа.',
+    `${t('ai.clinic_data')} (расписание, касса, карты) появятся после входа.`,
     '',
     '• **CRM** — расписание, пациенты, касса',
     '• **Маркет** — закупки у поставщиков',
@@ -1148,24 +1150,24 @@ function buildGuestGreeting() {
   ].join('\n')
 }
 
-function buildGreeting(u: any, c: any, alerts: any[]) {
+function buildGreeting(t: (key: string) => string, u: any, c: any, alerts: any[]) {
   const greeting = timeGreetingInTz(new Date(), detectUserTimeZone())
-  const name = u?.name?.split(' ')[0] || u?.firstName || u?.login || 'коллега'
+  const name = u?.name?.split(' ')[0] || u?.firstName || u?.login || t('ai.colleague')
   const role = (u?.role || '').toLowerCase()
   const clinicName = c?.name || ''
 
   const roleLine =
     role === 'owner' || role === 'руководитель' || role === 'director'
-      ? 'На радаре: выручка, долги, загрузка и склад. Могу собрать сводку дня.'
+      ? t('ai.on_radar')
       : role === 'admin' || role === 'администратор' || role === 'reception'
-        ? 'На радаре: подтверждения записей, ближайшие приёмы и касса.'
+        ? t('ai.on_radar')
         : role === 'buyer'
-          ? 'На радаре: остатки склада и закупки.'
+          ? t('ai.on_radar')
           : role === 'doctor' || role === 'assistant'
-            ? 'На радаре: расписание, подготовка к приёму, карты пациентов.'
-            : 'На радаре: ваше расписание, карта и планы лечения.'
+            ? t('ai.on_radar')
+            : t('ai.on_radar')
   const lines = [
-    `${greeting}, ${name}. Системы на связи.`,
+    `${greeting}, ${name}. ${t('ai.systems_online')}`,
     clinicName ? `Клиника: **${clinicName}**.` : '',
     roleLine,
     alerts?.length ? '' : 'С чего начнём?',

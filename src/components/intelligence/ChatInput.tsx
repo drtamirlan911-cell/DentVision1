@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Send, Mic, Paperclip } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +13,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({ value, onChange, onSend, disabled, onAttach, onVoice }: ChatInputProps) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export function ChatInput({ value, onChange, onSend, disabled, onAttach, onVoice
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Спросите о чём угодно или попросите выполнить действие…"
+          placeholder={t('ai.chat_placeholder')}
           rows={1}
           disabled={disabled}
           className={cn(
@@ -66,8 +68,8 @@ export function ChatInput({ value, onChange, onSend, disabled, onAttach, onVoice
             type="button"
             onClick={onVoice}
             disabled={disabled}
-            title="Голосовой ввод"
-            aria-label="Голосовой ввод"
+            title={t('ai.voice_input')}
+            aria-label={t('ai.voice_input')}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors disabled:opacity-50"
           >
             <Mic size={18} />

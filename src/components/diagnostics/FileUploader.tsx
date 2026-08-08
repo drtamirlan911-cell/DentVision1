@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Upload, X, FileIcon, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast';
 import { fileToDataUrl } from '@/lib/image-upload';
@@ -24,6 +25,7 @@ const ALLOWED = '.jpg,.jpeg,.png,.gif,.webp,.pdf,.dcm,.dicom,.stl,.obj,.zip';
 const MAX_SIZE = 10 * 1024 * 1024;
 
 export default function FileUploader({ referralId, onUpload, files, onDelete, disabled }: Props) {
+  const { t } = useTranslation()
   const toast = useToast();
   const ref = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
@@ -31,7 +33,7 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
   const handleFiles = useCallback(async (fileList: FileList | null) => {
     if (!fileList?.length || !onUpload) return;
     for (const file of Array.from(fileList)) {
-      if (file.size > MAX_SIZE) { toast.warn(`Файл ${file.name} больше 10 МБ`); continue; }
+      if (file.size > MAX_SIZE) { toast.warn(t('diagnostics.file_too_large', { name: file.name })); continue; }
       const id = Math.random().toString(36).slice(2);
       const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
       setUploading(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, preview, progress: true }]);
@@ -40,7 +42,7 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
         await onUpload(file, dataUrl);
         setUploading(prev => prev.filter(f => f.id !== id));
       } catch (e: any) {
-        toast.error(e.message || 'Ошибка загрузки');
+        toast.error(e.message || t('diagnostics.upload_error'));
         setUploading(prev => prev.filter(f => f.id !== id));
       }
     }
@@ -61,8 +63,8 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
         className={`border-2 border-dashed border-bdr-subtle rounded-xl p-4 text-center cursor-pointer transition-colors hover:border-dv-gold/40 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <Upload size={20} className="mx-auto text-txt-muted mb-1" />
-        <p className="text-xs text-txt-muted">Нажмите для загрузки файлов</p>
-        <p className="text-[10px] text-txt-ghost mt-0.5">JPG, PNG, PDF, DICOM, STL до 10 МБ</p>
+        <p className="text-xs text-txt-muted">{t('diagnostics.file_upload')}</p>
+        <p className="text-[10px] text-txt-ghost mt-0.5">{t('diagnostics.file_upload_hint')}</p>
         <input ref={ref} type="file" multiple accept={ALLOWED} onChange={e => { handleFiles(e.target.files); e.target.value = ''; }}
           className="hidden" disabled={disabled} />
       </div>

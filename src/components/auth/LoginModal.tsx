@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, X, UserPlus, LogIn, Loader2 } from 'lucide-react';
 import { useAuth } from '@/store/auth.store';
+import { useTranslation } from 'react-i18next';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const { t } = useTranslation();
 
   const handleClose = () => {
     setIsRegister(false);
@@ -37,7 +39,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
   const handleLogin = async () => {
     setError('');
     if (!loginInput.trim() || !password) {
-      setError('Введите логин и пароль');
+      setError(t('auth.login_error'));
       return;
     }
 
@@ -50,7 +52,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
         navigate(returnUrl || '/');
       }, 500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка входа');
+      setError(err instanceof Error ? err.message : t('auth.login_failed'));
     } finally {
       setLoading(false);
     }
@@ -59,23 +61,23 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
   const handleRegister = async () => {
     setError('');
     if (!name.trim()) {
-      setError('Введите имя');
+      setError(t('auth.name_required'));
       return;
     }
     if (!loginInput.trim() || !loginInput.includes('@')) {
-      setError('Укажите корректный email');
+      setError(t('auth.email_invalid'));
       return;
     }
     if (password.length < 8) {
-      setError('Пароль ≥ 8 символов');
+      setError(t('auth.password_too_short'));
       return;
     }
     if (!/[A-Za-zА-Яа-я]/.test(password) || !/\d/.test(password)) {
-      setError('Пароль должен содержать буквы и цифры');
+      setError(t('auth.password_format'));
       return;
     }
     if (password !== confirmPassword) {
-      setError('Пароли не совпадают');
+      setError(t('auth.passwords_mismatch'));
       return;
     }
 
@@ -88,7 +90,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
         navigate(returnUrl || '/');
       }, 500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка регистрации');
+      setError(err instanceof Error ? err.message : t('auth.register_error'));
     } finally {
       setLoading(false);
     }
@@ -114,7 +116,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-txt-primary">
-                {isRegister ? 'Регистрация' : 'Вход'}
+                {isRegister ? t('auth.registration') : t('auth.login_tab')}
               </h2>
               <button
                 aria-label="Close"
@@ -136,9 +138,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <p className="text-lg font-semibold text-txt-primary">Успешно</p>
+                <p className="text-lg font-semibold text-txt-primary">{t('auth.success')}</p>
                 <p className="text-sm text-txt-secondary mt-1">
-                  {isRegister ? 'Аккаунт создан' : 'Вы вошли'}
+                  {isRegister ? t('auth.account_created') : t('auth.logged_in')}
                 </p>
               </motion.div>
             ) : (
@@ -153,7 +155,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                       : 'bg-surface-2 text-txt-secondary border border-white/5 hover:bg-white/5'}
                   `}
                   >
-                    Войти
+                    {t('auth.login')}
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
@@ -164,14 +166,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                       : 'bg-surface-2 text-txt-secondary border border-white/5 hover:bg-white/5'}
                   `}
                   >
-                    Зарегистрироваться
+                    {t('auth.register')}
                   </motion.button>
                 </div>
 
                 <div className="space-y-4">
                   {isRegister && (
                     <div>
-                      <label className="block text-sm font-medium text-txt-secondary mb-2">Имя</label>
+                      <label className="block text-sm font-medium text-txt-secondary mb-2">{t('auth.name')}</label>
                       <div className="relative">
                         <UserPlus size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-txt-muted" />
                         <input
@@ -179,14 +181,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface-2 border border-white/5 text-txt-primary focus:outline-none focus:border-dv-gold/50"
-                          placeholder="Ваше имя"
+                          placeholder={t('auth.your_name')}
                         />
                       </div>
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-txt-secondary mb-2">Логин</label>
+                    <label className="block text-sm font-medium text-txt-secondary mb-2">{t('auth.username')}</label>
                     <div className="relative">
                       <Mail size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-txt-muted" />
                       <input
@@ -194,13 +196,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                         value={loginInput}
                         onChange={(e) => setLoginInput(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface-2 border border-white/5 text-txt-primary focus:outline-none focus:border-dv-gold/50"
-                        placeholder="Логин"
+                        placeholder={t('auth.username')}
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-txt-secondary mb-2">Пароль</label>
+                    <label className="block text-sm font-medium text-txt-secondary mb-2">{t('auth.password')}</label>
                     <div className="relative">
                       <Lock size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-txt-muted" />
                       <input
@@ -208,14 +210,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface-2 border border-white/5 text-txt-primary focus:outline-none focus:border-dv-gold/50"
-                        placeholder="Пароль"
+                        placeholder={t('auth.password')}
                       />
                     </div>
                   </div>
 
                   {isRegister && (
                     <div>
-                      <label className="block text-sm font-medium text-txt-secondary mb-2">Подтвердите пароль</label>
+                      <label className="block text-sm font-medium text-txt-secondary mb-2">{t('auth.confirm_password')}</label>
                       <div className="relative">
                         <Lock size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-txt-muted" />
                         <input
@@ -223,7 +225,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface-2 border border-white/5 text-txt-primary focus:outline-none focus:border-dv-gold/50"
-                          placeholder="Подтвердите пароль"
+                          placeholder={t('auth.confirm_password')}
                         />
                       </div>
                     </div>
@@ -242,7 +244,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                     className="w-full py-3 px-4 rounded-xl bg-dv-gold text-surface-0 font-semibold hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {loading ? <Loader2 size={18} className="animate-spin" /> : (isRegister ? <UserPlus size={18} /> : <LogIn size={18} />)}
-                    {loading ? 'Подождите...' : (isRegister ? 'Зарегистрироваться' : 'Войти')}
+                    {loading ? t('auth.wait') : (isRegister ? t('auth.register') : t('auth.login'))}
                   </motion.button>
 
                   <div className="relative my-4">
@@ -250,7 +252,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                       <div className="w-full border-t border-white/5" />
                     </div>
                     <div className="relative flex justify-center text-xs">
-                      <span className="px-2 bg-surface-1 text-txt-muted">или</span>
+                      <span className="px-2 bg-surface-1 text-txt-muted">{t('common.or')}</span>
                     </div>
                   </div>
 
@@ -260,7 +262,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                     onClick={handleClose}
                     className="w-full py-3 px-4 rounded-xl border border-white/10 bg-surface-2 text-txt-primary hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
                   >
-                    <span>Продолжить как гость</span>
+                    <span>{t('auth.continue_as_guest')}</span>
                   </motion.button>
                 </div>
               </>

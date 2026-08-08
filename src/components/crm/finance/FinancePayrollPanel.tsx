@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { Button } from '@/components/ui/ds/Button'
 import { Badge } from '@/components/ui/ds/Badge'
 import { downloadCsv, payTypeLabel } from '@/lib/financePeriod'
+import { useTranslation } from 'react-i18next'
 
 export interface PayrollRow {
   userId?: string
@@ -29,13 +30,14 @@ interface Props {
 }
 
 export function FinancePayrollPanel({ rows, money, loading, periodLabel }: Props) {
+  const { t } = useTranslation()
   const [openId, setOpenId] = useState<string | null>(null)
   const total = rows.reduce((s, r) => s + (Number(r.earned) || 0), 0)
 
   const exportCsv = () => {
     downloadCsv(
       `payroll-${periodLabel}.csv`,
-      ['Сотрудник', 'Роль', 'Тип', '%', 'Оклад части', 'Комиссия', 'Приёмы', 'Валово', 'Материалы', 'К выплате'],
+      [t('finance.payroll_csv_employee'), t('finance.payroll_csv_role'), t('finance.payroll_csv_type'), '%', t('finance.payroll_csv_salary_part'), t('finance.payroll_csv_commission'), t('finance.payroll_csv_visits'), t('finance.payroll_csv_gross'), t('finance.payroll_csv_materials'), t('finance.payroll_csv_to_pay')],
       rows.map((r) => [
         r.name,
         r.role || '',
@@ -63,13 +65,13 @@ export function FinancePayrollPanel({ rows, money, loading, periodLabel }: Props
     <div>
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div>
-          <p className="text-sm font-bold text-txt-primary">Зарплата и начисления</p>
+          <p className="text-sm font-bold text-txt-primary">{t('finance.payroll_title')}</p>
           <p className="text-xs text-txt-muted mt-0.5">
-            Оклад (пропорция периода) + % от (услуги − материалы) по закрытым приёмам · {periodLabel}
+            {t('finance.payroll_desc')} · {periodLabel}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="gold" size="sm">Итого {money(total)}</Badge>
+          <Badge variant="gold" size="sm">{t('finance.payroll_total', { amount: money(total) })}</Badge>
           <Button variant="outline" size="sm" icon={<Download size={14} />} onClick={exportCsv} disabled={!rows.length}>
             CSV
           </Button>
@@ -79,7 +81,7 @@ export function FinancePayrollPanel({ rows, money, loading, periodLabel }: Props
       {rows.length === 0 ? (
         <EmptyState
           icon={<Wallet size={32} />}
-          title="Нет начислений"
+          title={t('finance.payroll_empty')}
           description="Укажите оклад / % сотрудникам и закройте приёмы с услугами"
         />
       ) : (
@@ -97,7 +99,7 @@ export function FinancePayrollPanel({ rows, money, loading, periodLabel }: Props
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-txt-primary truncate">{emp.name}</p>
                     <p className="text-xs text-txt-muted mt-0.5">
-                      {emp.role || 'Сотрудник'} · {payTypeLabel(emp.payType)}
+                      {emp.role || t('finance.payroll_employee')} · {payTypeLabel(emp.payType)}
                       {emp.payType !== 'salary' ? ` · ${emp.percent ?? 30}%` : ''}
                       {emp.visits != null ? ` · ${emp.visits} приём.` : ''}
                     </p>
@@ -105,7 +107,7 @@ export function FinancePayrollPanel({ rows, money, loading, periodLabel }: Props
                   <div className="flex items-center gap-3 shrink-0 ml-3">
                     <div className="text-right">
                       <p className="text-sm font-bold text-dv-gold">{money(emp.earned)}</p>
-                      <p className="text-2xs text-txt-muted">к выплате</p>
+                      <p className="text-2xs text-txt-muted">{t('finance.payroll_to_pay')}</p>
                     </div>
                     {open ? <ChevronUp size={16} className="text-txt-muted" /> : <ChevronDown size={16} className="text-txt-muted" />}
                   </div>

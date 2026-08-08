@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Mic, MicOff, Send, ArrowUp, Loader2, CheckCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -25,10 +26,12 @@ export function AIInputArea({
   disabled = false,
   status = 'idle',
   progress = 0,
-  placeholder = 'Чем помочь?',
+  placeholder,
   voiceAutoSend = true,
   voiceResumeToken = 0,
 }: AIInputAreaProps) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder || t('ai.help_question');
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
   const [listening, setListening] = useState(false)
@@ -135,7 +138,7 @@ export function AIInputArea({
                     className="w-5 h-5 rounded-full border-2 border-dv-gold/20 border-t-dv-gold"
                   />
                 </div>
-                <span className="text-sm text-txt-secondary font-medium">AI анализирует запрос</span>
+                <span className="text-sm text-txt-secondary font-medium">{t('ai.analyzing')}</span>
                 <motion.div
                   className="flex gap-1 ml-auto"
                   initial="hidden"
@@ -162,7 +165,7 @@ export function AIInputArea({
                   transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
                   className="w-5 h-5 rounded-full border-2 border-dv-gold/20 border-t-dv-gold border-r-transparent"
                 />
-                <span className="text-sm text-txt-secondary font-medium">Выполняю</span>
+                <span className="text-sm text-txt-secondary font-medium">{t('ai.executing')}</span>
                 <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden max-w-[200px]">
                   <motion.div
                     initial={{ width: 0 }}
@@ -183,7 +186,7 @@ export function AIInputArea({
                 >
                   <CheckCircle size={18} className="text-green-400" />
                 </motion.div>
-                <span className="text-sm text-green-400 font-medium">Готово</span>
+                <span className="text-sm text-green-400 font-medium">{t('ai.ready')}</span>
               </>
             )}
             {status === 'error' && (
@@ -195,7 +198,7 @@ export function AIInputArea({
                 >
                   <X size={18} className="text-red-400" />
                 </motion.div>
-                <span className="text-sm text-red-400 font-medium">Ошибка</span>
+                <span className="text-sm text-red-400 font-medium">{t('ai.error_status')}</span>
               </>
             )}
           </motion.div>
@@ -222,7 +225,7 @@ export function AIInputArea({
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
                 disabled={disabled}
-                placeholder={placeholder}
+                placeholder={resolvedPlaceholder}
                 className={cn(
                   'w-full bg-transparent px-5 py-3.5 pr-14 text-[13px] text-txt-primary',
                   'placeholder:text-txt-muted/50 resize-none outline-none',
@@ -239,7 +242,7 @@ export function AIInputArea({
                   whileTap={{ scale: 0.92 }}
                   onClick={() => (listening ? stopListening() : startListening())}
                   disabled={disabled || !voiceSupported}
-                  title={voiceSupported ? (listening ? 'Остановить запись' : 'Голосовой ввод') : 'Голосовой ввод не поддерживается браузером'}
+                  title={voiceSupported ? (listening ? t('ai.stop_recording') : t('ai.voice_input')) : t('ai.voice_not_supported')}
                   aria-label={listening ? 'Остановить голосовой ввод' : 'Начать голосовой ввод'}
                   className={cn(
                     'relative flex h-8 w-8 items-center justify-center rounded-xl transition-all',
@@ -280,11 +283,11 @@ export function AIInputArea({
               {voiceError ? (
                 <span className="text-red-400/80">{voiceError}</span>
               ) : listening ? (
-                <span className="text-dv-gold/80">Говорите — фраза отправится автоматически</span>
+                <span className="text-dv-gold/80">{t('ai.listening_hint')}</span>
               ) : (
                 <span className="text-txt-ghost/40">
-                  DentVision Intelligence · Enter для отправки
-                  {voiceSupported ? ' · микрофон для голоса' : ''}
+                  {t('ai.footer_hint')}
+                  {voiceSupported ? t('ai.mic_hint') : ''}
                 </span>
               )}
             </p>

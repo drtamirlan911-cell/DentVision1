@@ -1,7 +1,8 @@
 import React from 'react';
 import { isChunkLoadError } from '@/utils/lazyWithRetry';
+import { withTranslation, WithTranslation } from 'react-i18next';
 
-interface ErrorBoundaryProps {
+interface ErrorBoundaryProps extends WithTranslation {
   children: React.ReactNode;
 }
 
@@ -11,7 +12,7 @@ interface ErrorBoundaryState {
   chunkError: boolean;
 }
 
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundaryInner extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null, chunkError: false };
@@ -52,12 +53,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         }}>
           <div style={{ textAlign: 'center', maxWidth: 440 }}>
             <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-              {chunk ? 'Не удалось загрузить страницу' : 'Что-то пошло не так'}
+              {chunk ? this.props.t('error.boundary_title') : this.props.t('error.generic_title')}
             </h2>
             <p style={{ fontSize: 13, color: '#7A8899', marginBottom: 20, lineHeight: 1.5 }}>
               {chunk
-                ? 'Часто это старый кэш после деплоя или закрытый Vercel Preview. Обновите страницу или откройте production / авторизуйтесь в Vercel SSO.'
-                : 'Произошла непредвиденная ошибка. Попробуйте обновить страницу.'}
+                ? this.props.t('error.boundary_body')
+                : this.props.t('error.generic_body')}
             </p>
             <button
               onClick={() => {
@@ -79,7 +80,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                 cursor: 'pointer',
               }}
             >
-              Обновить страницу
+              {this.props.t('error.reload')}
             </button>
           </div>
         </div>
@@ -89,3 +90,5 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return this.props.children;
   }
 }
+
+export const ErrorBoundary = withTranslation()(ErrorBoundaryInner);

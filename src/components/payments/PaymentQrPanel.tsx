@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ExternalLink, QrCode, CreditCard, Copy, Check } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/ds/Card'
@@ -31,18 +32,21 @@ export function PaymentQrPanel({
   busy = false,
   onConfirm,
   onCancel,
-  confirmLabel = 'Проверить оплату',
-  hint = 'После оплаты нажмите «Проверить оплату». В демо оплата подтверждается сразу.',
+  confirmLabel,
+  hint,
   className,
 }: PaymentQrPanelProps) {
+  const { t } = useTranslation()
+  const resolvedHint = hint ?? t('payment.qr_show_hint')
+  const resolvedConfirmLabel = confirmLabel ?? t('payment.check_payment')
   const rootRef = useRef<HTMLDivElement>(null)
-  const [copied, setCopied] = React.useState(false)
+  const [copied, setCopied] = useState(false)
   const qrUrl = extractPaymentQrUrl(payment)
   const amountLabel = formatPayAmount(amount ?? payment?.amountTenge ?? null, currency)
     || (payment?.amount != null
       ? formatPayAmount(Number(payment.amount) / 100, currency)
       : null)
-  const heading = title || payment?.meta?.title || payment?.title || 'Оплата по QR'
+  const heading = title || payment?.meta?.title || payment?.title || t('payment.qr_payment')
 
   useEffect(() => {
     rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -78,10 +82,10 @@ export function PaymentQrPanel({
             <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-2 text-[#C9A96E]">
                 <QrCode size={18} />
-                <p className="text-sm md:text-base font-semibold m-0">Счёт создан</p>
-                <Badge variant="outline">Ожидает оплаты</Badge>
+                <p className="text-sm md:text-base font-semibold m-0">{t('payment.invoice_created')}</p>
+                <Badge variant="outline">{t('payment.awaiting_payment')}</Badge>
                 {payment?.externalId?.startsWith('kaspi_') && (
-                  <Badge variant="filled" className="bg-yellow-600/20 text-yellow-600 text-2xs">ТЕСТ</Badge>
+                  <Badge variant="filled" className="bg-yellow-600/20 text-yellow-600 text-2xs">{t('payment.test_badge')}</Badge>
                 )}
               </div>
               <p className="text-sm text-txt-primary m-0 font-medium truncate">{heading}</p>
@@ -92,9 +96,9 @@ export function PaymentQrPanel({
           </div>
 
           <ol className="m-0 pl-4 space-y-1 text-xs text-txt-muted list-decimal">
-            <li>Отсканируйте QR в Kaspi или другом банковском приложении</li>
-            <li>Или нажмите «Открыть оплату» на телефоне / компьютере</li>
-            <li>Вернитесь сюда и нажмите «Проверить оплату»</li>
+            <li>{t('payment.qr_step1')}</li>
+            <li>{t('payment.qr_step2')}</li>
+            <li>{t('payment.qr_step3')}</li>
           </ol>
 
           {qrUrl ? (
@@ -107,7 +111,7 @@ export function PaymentQrPanel({
               >
                 <img
                   src={paymentQrImageSrc(qrUrl, 200)}
-                  alt="QR-код для оплаты"
+                  alt={t('payment.qr_code_alt')}
                   width={200}
                   height={200}
                   className="block w-[180px] h-[180px] md:w-[200px] md:h-[200px]"
@@ -115,11 +119,11 @@ export function PaymentQrPanel({
               </motion.div>
               <div className="flex-1 space-y-3 w-full min-w-0">
                 <p className="text-xs text-txt-muted m-0">
-                  Наведите камеру на QR — ссылка оплаты откроется автоматически.
+                  {t('payment.qr_scan_hint')}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" icon={<ExternalLink size={14} />} onClick={openPay}>
-                    Открыть оплату
+                    {t('payment.open_payment')}
                   </Button>
                   <Button
                     size="sm"
@@ -127,7 +131,7 @@ export function PaymentQrPanel({
                     icon={copied ? <Check size={14} /> : <Copy size={14} />}
                     onClick={copyLink}
                   >
-                    {copied ? 'Скопировано' : 'Скопировать ссылку'}
+                    {copied ? t('payment.copied') : t('payment.copy_link')}
                   </Button>
                 </div>
                 <a
@@ -142,23 +146,22 @@ export function PaymentQrPanel({
             </div>
           ) : (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200/90">
-              Ссылка QR временно недоступна. Нажмите «Проверить оплату» — в демо это подтвердит счёт,
-              либо обновите страницу и создайте счёт снова.
+              {t('payment.qr_unavailable')}
               {payment?.id ? (
-                <span className="block mt-1 text-txt-muted">ID счёта: {String(payment.id)}</span>
+                <span className="block mt-1 text-txt-muted">{t('payment.invoice_id')}: {String(payment.id)}</span>
               ) : null}
             </div>
           )}
 
-          <p className="text-[11px] text-txt-muted m-0">{hint}</p>
+          <p className="text-[11px] text-txt-muted m-0">{resolvedHint}</p>
 
           <div className="flex flex-wrap gap-2">
             <Button size="sm" icon={<CreditCard size={14} />} loading={busy} onClick={onConfirm}>
-              {confirmLabel}
+              {resolvedConfirmLabel}
             </Button>
             {onCancel && (
               <Button size="sm" variant="secondary" onClick={onCancel} disabled={busy}>
-                Отмена
+                {t('common.cancel')}
               </Button>
             )}
           </div>

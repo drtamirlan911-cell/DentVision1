@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, ArrowDownLeft, ArrowUpRight, Clock, Gift, ShoppingBag } from 'lucide-react'
 import * as api from '@/utils/api'
@@ -12,6 +13,7 @@ function fmt(n: number) {
 }
 
 export function DentWalletCard({ className }: { className?: string }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [wallet, setWallet] = useState<any>(null)
@@ -25,7 +27,7 @@ export function DentWalletCard({ className }: { className?: string }) {
       setWallet(data)
     } catch (e: any) {
       setWallet(null)
-      setError(e?.message || 'Не удалось загрузить кошелёк')
+      setError(e?.message || t('wallet.load_error'))
     } finally {
       setLoading(false)
     }
@@ -42,10 +44,10 @@ export function DentWalletCard({ className }: { className?: string }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-sm font-semibold text-txt-primary">
               <Gift size={16} className="text-dv-gold shrink-0" />
-              <span className="truncate">Кэшбэк DentCash</span>
+              <span className="truncate">{t('wallet.title')}</span>
             </div>
             <p className="text-[11px] text-txt-muted mt-1 leading-snug">
-              1 DentCash = 1 ₸ · копится с покупок в магазине и подписки
+              {t('wallet.desc')}
             </p>
           </div>
           <Badge variant="gold" size="xs" className="shrink-0 self-start">Dent Wallet</Badge>
@@ -57,42 +59,42 @@ export function DentWalletCard({ className }: { className?: string }) {
           </div>
         ) : error || !wallet ? (
           <div className="space-y-2">
-            <p className="text-sm text-txt-muted">{error || 'Не удалось загрузить кошелёк'}</p>
-            <Button size="sm" variant="secondary" onClick={() => void load()}>Повторить</Button>
+            <p className="text-sm text-txt-muted">{error || t('wallet.load_error')}</p>
+            <Button size="sm" variant="secondary" onClick={() => void load()}>{t('common.retry')}</Button>
           </div>
         ) : (
           <>
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold">Доступно к списанию</p>
+              <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold">{t('wallet.available')}</p>
               <p className="text-2xl sm:text-3xl font-bold text-dv-gold mt-1 break-all">{fmt(wallet.balanceTenge)}</p>
               {Number(wallet.balanceTenge || 0) === 0 && (
                 <p className="text-[11px] text-txt-muted mt-1.5 leading-relaxed">
-                  Пока 0 ₸ — сделайте заказ в маркетплейсе: кэшбэк 1–7% начислится после доставки.
+                  {t('wallet.empty_hint')}
                 </p>
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div className="rounded-xl bg-white/[0.03] border border-bdr-subtle p-2.5">
-                <p className="text-[10px] text-txt-muted flex items-center gap-1"><Clock size={10} /> Ожидает</p>
+                <p className="text-[10px] text-txt-muted flex items-center gap-1"><Clock size={10} /> {t('wallet.pending')}</p>
                 <p className="text-sm font-semibold text-txt-primary mt-1">{fmt(wallet.pendingTenge)}</p>
               </div>
               <div className="rounded-xl bg-white/[0.03] border border-bdr-subtle p-2.5">
-                <p className="text-[10px] text-txt-muted flex items-center gap-1"><ArrowDownLeft size={10} /> За месяц</p>
+                <p className="text-[10px] text-txt-muted flex items-center gap-1"><ArrowDownLeft size={10} /> {t('wallet.monthly')}</p>
                 <p className="text-sm font-semibold text-emerald-300 mt-1">+{fmt(wallet.earnedThisMonthTenge)}</p>
               </div>
               <div className="rounded-xl bg-white/[0.03] border border-bdr-subtle p-2.5">
-                <p className="text-[10px] text-txt-muted flex items-center gap-1"><ArrowUpRight size={10} /> Потрачено</p>
+                <p className="text-[10px] text-txt-muted flex items-center gap-1"><ArrowUpRight size={10} /> {t('wallet.spent')}</p>
                 <p className="text-sm font-semibold text-amber-200 mt-1">−{fmt(wallet.spentThisMonthTenge)}</p>
               </div>
             </div>
             {(wallet.recent || []).length > 0 ? (
               <div className="space-y-1.5 pt-1 border-t border-bdr-subtle">
-                <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold">Последние операции</p>
+                <p className="text-[10px] uppercase tracking-wider text-txt-muted font-semibold">{t('wallet.recent')}</p>
                 {(wallet.recent as any[]).slice(0, 5).map((tx) => (
                   <div key={tx.id} className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-txt-secondary truncate">
-                      {tx.type === 'earn' ? 'Кэшбэк' : tx.type === 'spend' ? 'Списание' : tx.type}
-                      {tx.status === 'pending' ? ' · ожидает' : ''}
+                      {tx.type === 'earn' ? t('wallet.cashback') : tx.type === 'spend' ? t('wallet.write_off') : tx.type}
+                      {tx.status === 'pending' ? t('wallet.pending_status') : ''}
                     </span>
                     <span className={cn(
                       'font-semibold shrink-0',
@@ -106,7 +108,7 @@ export function DentWalletCard({ className }: { className?: string }) {
             ) : (
               <div className="rounded-xl border border-dashed border-dv-gold/25 bg-dv-gold/5 px-3 py-2.5">
                 <p className="text-[11px] text-txt-secondary leading-relaxed">
-                  История пуста. Купите в магазине или оплатите подписку — кэшбэк появится здесь.
+                  {t('wallet.history_empty')}
                 </p>
               </div>
             )}
@@ -118,7 +120,7 @@ export function DentWalletCard({ className }: { className?: string }) {
                 icon={<ShoppingBag size={14} />}
                 onClick={() => navigate('/shop')}
               >
-                В магазин
+                {t('wallet.go_shop')}
               </Button>
               <Button
                 size="sm"
@@ -127,7 +129,7 @@ export function DentWalletCard({ className }: { className?: string }) {
                 icon={<Wallet size={14} />}
                 onClick={() => navigate('/shop/checkout')}
               >
-                Списать в заказе
+                {t('wallet.spend_in_order')}
               </Button>
             </div>
           </>

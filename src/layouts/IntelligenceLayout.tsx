@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { ChevronRight, Menu, Building2, User, Stethoscope } from 'lucide-react';
@@ -23,41 +24,6 @@ import { useCompactShell } from '@/hooks/useCompactShell';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '@/utils/api';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
-
-const BREADCRUMB_LABELS: Record<string, string> = {
-  crm: 'CRM',
-  schedule: 'Расписание',
-  patients: 'Пациенты',
-  'medical-card': 'Медкарта',
-  finance: 'Финансы',
-  cashier: 'Касса',
-  inventory: 'Склад',
-  documents: 'Документы',
-  'dental-chart': 'Зубная карта',
-  'treatment-plans': 'Планы лечения',
-  lab: 'Лаборатория',
-  pricelist: 'Прайс',
-  staff: 'Сотрудники',
-  reminders: 'Напоминания',
-  promotions: 'Акции',
-  icd10: 'МКБ-10',
-  visits: 'Визиты',
-  supplier: 'Кабинет продавца',
-  shop: 'Маркетплейс',
-  school: 'Academy OS',
-  'school-workspace': 'Кабинет лектора',
-  'center-workspace': 'Кабинет центра',
-  analytics: 'Аналитика',
-  jobs: 'Вакансии',
-  community: 'Сообщество',
-  profile: 'Профиль',
-  'clinic-settings': 'Настройки клиники',
-  billing: 'Тариф и оплата',
-  settings: 'Настройки',
-  admin: 'Администрирование',
-  audit: 'Аудит',
-  backup: 'Бэкапы',
-};
 
 const FIRST_RUN_COLLAPSE_MS = 15_000;
 const UUID_SEG_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -100,6 +66,42 @@ export const IntelligenceLayout: React.FC = () => {
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstRunBooted = useRef(false);
   const openTs = useRef(Date.now());
+  const { t } = useTranslation();
+
+  const BREADCRUMB_LABELS: Record<string, string> = {
+    crm: 'CRM',
+    schedule: t('nav.schedule'),
+    patients: t('nav.patients'),
+    'medical-card': t('nav.medical_card'),
+    finance: t('nav.finance'),
+    cashier: t('nav.cashier'),
+    inventory: t('nav.inventory'),
+    documents: t('nav.documents'),
+    'dental-chart': t('nav.dental_chart'),
+    'treatment-plans': t('nav.treatment_plans'),
+    lab: t('nav.lab'),
+    pricelist: t('nav.pricelist'),
+    staff: t('nav.staff'),
+    reminders: t('nav.reminders'),
+    promotions: t('nav.promotions'),
+    icd10: t('nav.icd10'),
+    visits: t('nav.visits'),
+    supplier: t('nav.supplier_cabinet'),
+    shop: t('nav.shop'),
+    school: 'Academy OS',
+    'school-workspace': t('nav.school_workspace'),
+    'center-workspace': t('nav.center_workspace'),
+    analytics: t('nav.analytics'),
+    jobs: t('nav.jobs'),
+    community: t('nav.community'),
+    profile: t('nav.profile'),
+    'clinic-settings': t('nav.clinic_settings'),
+    billing: t('nav.billing'),
+    settings: t('nav.settings'),
+    admin: t('nav.administration'),
+    audit: t('nav.audit'),
+    backup: t('nav.backup'),
+  };
 
   const clinicId = user?.clinicId || clinic?.id || null;
   const { data: billingSnap } = useQuery({
@@ -125,7 +127,7 @@ export const IntelligenceLayout: React.FC = () => {
       const isLast = i === segments.length - 1;
       let label = BREADCRUMB_LABELS[seg] || seg;
       if (UUID_SEG_RE.test(seg)) {
-        label = (isLast && crumbTailLabel) || 'Товар';
+        label = (isLast && crumbTailLabel) || t('nav.breadcrumb_product');
       } else if (isLast && crumbTailLabel && !BREADCRUMB_LABELS[seg]) {
         label = crumbTailLabel;
       }
@@ -298,8 +300,8 @@ export const IntelligenceLayout: React.FC = () => {
               <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center">
                 <Stethoscope size={24} className="text-dv-gold" />
               </div>
-              <h2 className="text-lg font-semibold text-txt-primary">CRM Стоматологии</h2>
-              <p className="text-sm text-txt-secondary max-w-xs">Выберите способ начать работу с CRM</p>
+              <h2 className="text-lg font-semibold text-txt-primary">{t('crm.crm_title')}</h2>
+              <p className="text-sm text-txt-secondary max-w-xs">{t('crm.crm_subtitle')}</p>
             </div>
             <GuestCRMModal
               open={guestCRMOpen}
@@ -315,14 +317,14 @@ export const IntelligenceLayout: React.FC = () => {
             <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center">
               <User size={24} className="text-dv-gold" />
             </div>
-            <h2 className="text-lg font-semibold text-txt-primary">Требуется авторизация</h2>
-            <p className="text-sm text-txt-secondary max-w-xs">Войдите или зарегистрируйтесь для доступа</p>
+            <h2 className="text-lg font-semibold text-txt-primary">{t('auth.requires_auth')}</h2>
+            <p className="text-sm text-txt-secondary max-w-xs">{t('auth.requires_auth_hint')}</p>
             <button
               type="button"
               className="text-sm text-dv-gold hover:underline"
               onClick={() => setRegistrationModal(true, () => navigate(location.pathname))}
             >
-              Открыть вход
+              {t('auth.open_login')}
             </button>
           </div>
           <RegistrationModal />
@@ -362,8 +364,8 @@ export const IntelligenceLayout: React.FC = () => {
           sidebarVisible={sidebarVisible}
           isMobile={isMobile}
           sidebarOpen={sidebarOpen}
-          user={isGuest ? { id: 'guest', name: 'Гость', login: 'guest', role: 'guest', platformRole: 'guest' } as any : user}
-          roleInfo={isGuest ? { label: 'Гость', icon: '👤', pages: ['shop', 'school', 'jobs', 'community', 'demo'] } as any : roleInfo}
+          user={isGuest ? { id: 'guest', name: t('nav.guest'), login: 'guest', role: 'guest', platformRole: 'guest' } as any : user}
+          roleInfo={isGuest ? { label: t('nav.guest'), icon: '👤', pages: ['shop', 'school', 'jobs', 'community', 'demo'] } as any : roleInfo}
           logout={isGuest ? () => {} : logout}
           toggleSidebar={toggleSidebar}
           isGuest={isGuest}
@@ -380,7 +382,7 @@ export const IntelligenceLayout: React.FC = () => {
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors',
                 !isMobile && 'hidden',
               )}
-              aria-label="Меню"
+              aria-label={t('nav.menu')}
             >
               <Menu size={18} />
             </button>
@@ -408,7 +410,7 @@ export const IntelligenceLayout: React.FC = () => {
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-dv-gold/10 border border-dv-gold/20 text-dv-gold hover:bg-dv-gold/15 transition-colors"
               >
                 <User size={12} />
-                <span className="text-[10px] font-semibold">Гость</span>
+                <span className="text-[10px] font-semibold">{t('nav.guest')}</span>
               </motion.button>
             )}
             {!isGuest && <ClinicSwitcher />}
@@ -421,7 +423,7 @@ export const IntelligenceLayout: React.FC = () => {
                 isMobile ? 'hidden' : 'flex',
               )}
             >
-              <span>Поиск...</span>
+              <span>{t('common.search')}...</span>
               <kbd className="px-1 py-0.5 text-[10px] font-mono bg-surface-3 rounded border border-bdr-subtle">⌘K</kbd>
             </button>
             <AlertDropdown
@@ -435,7 +437,7 @@ export const IntelligenceLayout: React.FC = () => {
                 'hidden lg:flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
                 contextSheetOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-txt-muted hover:text-txt-primary hover:bg-white/5'
               )}
-              aria-label="Контекстная панель"
+              aria-label={t('nav.context_panel')}
             >
               <Building2 size={16} />
             </button>
@@ -468,21 +470,21 @@ export const IntelligenceLayout: React.FC = () => {
             <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0">
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 flex flex-wrap items-center gap-2 sm:gap-3">
                 <p className="text-xs sm:text-sm text-txt-primary m-0 flex-1">
-                  Гостевая сессия не поднялась (API мог быть холодный). Можно повторить или войти.
+                  {t('auth.guest_session_error')}
                 </p>
                 <button
                   type="button"
                   onClick={() => { void retryGuest(); }}
                   className="px-3 py-1.5 rounded-lg bg-dv-gold/15 text-dv-gold text-xs font-semibold hover:bg-dv-gold/25"
                 >
-                  Повторить
+                  {t('common.retry')}
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
                   className="px-3 py-1.5 rounded-lg border border-bdr-subtle text-txt-secondary text-xs hover:text-txt-primary"
                 >
-                  Войти
+                  {t('auth.login')}
                 </button>
               </div>
             </div>

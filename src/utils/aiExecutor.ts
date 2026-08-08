@@ -4,6 +4,11 @@ import { aiAction } from '@/utils/api';
 import { useAuth } from '@/store/auth.store';
 import type { Message } from '@/store/ai.store';
 import { AI_NAV_ACTIONS } from '@/lib/aiPlatformMap';
+import i18n from '@/lib/i18n';
+
+const t = (key: string, fallback: string) => {
+  try { const v = i18n.t(key); return v && v !== key ? v : fallback; } catch { return fallback; }
+};
 
 export interface AIAction {
   id: string;
@@ -146,14 +151,14 @@ export function useAIExecutor() {
           return result;
 
         case 'error':
-          callbacks.onError?.(result.message || 'Ошибка выполнения');
+          callbacks.onError?.(result.message || t('ai.error_execution', 'Ошибка выполнения'));
           return result;
 
         default:
           return result;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Неизвестная ошибка';
+      const message = error instanceof Error ? error.message : t('ai.error_unknown', 'Неизвестная ошибка');
       callbacks.onError?.(message);
       return { type: 'error', message };
     }

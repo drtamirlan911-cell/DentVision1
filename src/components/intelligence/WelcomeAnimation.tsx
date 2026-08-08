@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
 import { useAuth } from '@/store/auth.store'
@@ -14,16 +15,6 @@ interface WelcomeAnimationProps {
   user: any
   clinic: any
 }
-
-const CARD_DEFS = [
-  { id: 'school', name: 'Academy', description: 'Обучение и вебинары', event: '2 новых курса', icon: <GraduationCapIcon />, color: '#16A085', angle: -90, radius: 200 },
-  { id: 'crm', name: 'CRM', description: 'Пациенты и расписание', event: '18 пациентов сегодня', icon: <StethoscopeIcon />, color: '#C9A96E', angle: 160, radius: 200 },
-  { id: 'shop', name: 'Shop', description: 'Маркетплейс товаров', event: '15 новых товаров', icon: <ShoppingCartIcon />, color: '#8E44AD', angle: 20, radius: 200 },
-  { id: 'jobs', name: 'Jobs', description: 'Поиск сотрудников', event: '3 вакансии', icon: <BriefcaseIcon />, color: '#E67E22', angle: -140, radius: 200 },
-  { id: 'analytics', name: 'Analytics', description: 'Отчёты и метрики', event: 'Отчет готов', icon: <BarChart3Icon />, color: '#F39C12', angle: -40, radius: 200 },
-  { id: 'community', name: 'Community', description: 'Сообщество', event: '12 в сети', icon: <UsersIcon />, color: '#00BCD4', angle: -90, radius: 310 },
-  { id: 'profile', name: 'Profile', description: 'Ваш профиль', event: '', icon: <UserIcon />, color: '#5DADE2', angle: -90, radius: 390 },
-]
 
 // SVG Icons
 function StethoscopeIcon({ size = 24 }: { size?: number }) {
@@ -102,6 +93,7 @@ function UserIcon({ size = 24 }: { size?: number }) {
 }
 
 export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationProps) {
+  const { t } = useTranslation();
   const { user: authUser } = useAuth()
   const currentUser = user || authUser
   const [phase, setPhase] = useState(0)
@@ -118,6 +110,16 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const cardDefs = [
+    { id: 'school', name: 'Academy', description: t('ai.welcome_school'), event: '2 новых курса', icon: <GraduationCapIcon />, color: '#16A085', angle: -90, radius: 200 },
+    { id: 'crm', name: 'CRM', description: t('ai.welcome_schedule'), event: '18 пациентов сегодня', icon: <StethoscopeIcon />, color: '#C9A96E', angle: 160, radius: 200 },
+    { id: 'shop', name: 'Shop', description: t('ai.welcome_shop'), event: '15 новых товаров', icon: <ShoppingCartIcon />, color: '#8E44AD', angle: 20, radius: 200 },
+    { id: 'jobs', name: 'Jobs', description: t('ai.welcome_jobs'), event: '3 вакансии', icon: <BriefcaseIcon />, color: '#E67E22', angle: -140, radius: 200 },
+    { id: 'analytics', name: 'Analytics', description: t('ai.welcome_analytics'), event: 'Отчет готов', icon: <BarChart3Icon />, color: '#F39C12', angle: -40, radius: 200 },
+    { id: 'community', name: 'Community', description: t('ai.welcome_community'), event: '12 в сети', icon: <UsersIcon />, color: '#00BCD4', angle: -90, radius: 310 },
+    { id: 'profile', name: 'Profile', description: t('ai.welcome_profile'), event: '', icon: <UserIcon />, color: '#5DADE2', angle: -90, radius: 390 },
+  ]
 
   const clearAllTimers = () => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
@@ -158,14 +160,14 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
 
     const timeWord = timeGreetingInTz(new Date(), detectUserTimeZone())
     const name = currentUser?.name?.split(' ')[0] || currentUser?.login || ''
-    const roleLabel = currentUser?.spec || 'доктор'
+  const roleLabel = currentUser?.spec || t('ai.welcome_role_default')
 
-    const dataLines = stats.length ? stats : ['18 пациентов', '2 лабораторные работы готовы', '1 пациент ожидает подтверждения']
+    const dataLines = stats.length ? stats : [t('ai.welcome_patients_fallback'), '2 лабораторные работы готовы', '1 пациент ожидает подтверждения']
 
     const lines: string[] = [
       `${timeWord}, ${roleLabel} ${name}.`,
       ...dataLines,
-      'Чем помочь?',
+      t('ai.help_question'),
     ]
 
     setGreetingLines(lines)
@@ -232,7 +234,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
 
   const timeWord = timeGreetingInTz(new Date(), detectUserTimeZone())
   const name = currentUser?.name?.split(' ')[0] || currentUser?.login || ''
-  const roleLabel = currentUser?.spec || 'доктор'
+  const roleLabel = currentUser?.spec || t('ai.welcome_role_default')
 
   return (
     <motion.div
@@ -251,7 +253,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
             onClick={skip}
             className="fixed top-5 right-5 z-50 px-4 py-2 rounded-full text-xs text-white/30 hover:text-white/70 border border-white/[0.06] hover:border-white/20 transition-all bg-black/20 backdrop-blur-sm"
           >
-            Пропустить →
+            {t('ai.skip')}
           </motion.button>
         )}
       </AnimatePresence>
@@ -307,7 +309,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
         </motion.div>
         {phase >= 1 && (
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.2 }} className="mt-2 text-[10px] text-white/20 tracking-widest uppercase">
-            DentVision Intelligence
+            {t('ai.welcome_label')}
           </motion.p>
         )}
       </motion.div>
@@ -384,7 +386,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-15 flex items-center justify-center"
           >
-            {CARD_DEFS.map((card) => {
+            {cardDefs.map((card) => {
               const rad = (card.angle * Math.PI) / 180
               const x = Math.cos(rad) * card.radius
               const y = Math.sin(rad) * card.radius
@@ -403,7 +405,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
                       type: 'spring',
                       stiffness: 200,
                       damping: 20,
-                      delay: CARD_DEFS.indexOf(card) * 0.1,
+                      delay: cardDefs.indexOf(card) * 0.1,
                     },
                   }}
                   exit={{ opacity: 0, scale: 0.4 }}
@@ -452,7 +454,7 @@ export function WelcomeAnimation({ onComplete, user, clinic }: WelcomeAnimationP
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-20 pointer-events-none"
           >
-            {CARD_DEFS.map((card, i) => {
+            {cardDefs.map((card, i) => {
               const rad = (card.angle * Math.PI) / 180
               const startX = Math.cos(rad) * card.radius
               const startY = Math.sin(rad) * card.radius

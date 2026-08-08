@@ -2,6 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { TrendingUp, TrendingDown, Wallet, PiggyBank, AlertTriangle } from 'lucide-react'
 import { StatCard } from '@/components/ui/ds/StatCard'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   money: (n: number) => string
@@ -17,6 +18,7 @@ const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { stag
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export function FinancePnLStrip({ money, revenue, expenses, payroll, profit, debts, loading }: Props) {
+  const { t } = useTranslation()
   return (
     <motion.div
       className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5"
@@ -26,28 +28,28 @@ export function FinancePnLStrip({ money, revenue, expenses, payroll, profit, deb
     >
       <motion.div variants={fadeUp}>
         <StatCard
-          label="Выручка"
+          label={t('finance.revenue')}
           value={loading ? '…' : money(revenue)}
           icon={<TrendingUp size={18} />}
         />
       </motion.div>
       <motion.div variants={fadeUp}>
         <StatCard
-          label="Расходы"
+          label={t('finance.expenses')}
           value={loading ? '…' : money(expenses)}
           icon={<TrendingDown size={18} />}
         />
       </motion.div>
       <motion.div variants={fadeUp}>
         <StatCard
-          label="ФОТ"
+          label={t('finance.payroll')}
           value={loading ? '…' : money(payroll)}
           icon={<Wallet size={18} />}
         />
       </motion.div>
       <motion.div variants={fadeUp}>
         <StatCard
-          label="Прибыль"
+          label={t('finance.profit')}
           value={loading ? '…' : money(profit)}
           icon={<PiggyBank size={18} />}
           className={profit < 0 ? 'ring-1 ring-error/30' : profit > 0 ? 'ring-1 ring-success/20' : undefined}
@@ -55,7 +57,7 @@ export function FinancePnLStrip({ money, revenue, expenses, payroll, profit, deb
       </motion.div>
       <motion.div variants={fadeUp} className="col-span-2 lg:col-span-1">
         <StatCard
-          label="Долги"
+          label={t('finance.debts')}
           value={loading ? '…' : money(debts)}
           icon={<AlertTriangle size={18} />}
           className={debts > 0 ? 'ring-1 ring-warning/30' : undefined}
