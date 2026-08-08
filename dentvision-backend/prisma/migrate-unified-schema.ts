@@ -2,6 +2,28 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Canonical role key per legacy source, aligned with seed-permissions.ts and
+// the unified vocabulary (domain.action) introduced in Step 4.
+const CLINIC_ROLE_TO_KEY: Record<string, string> = {
+  OWNER: 'owner', DIRECTOR: 'director', ADMIN: 'admin', MANAGER: 'manager',
+  DOCTOR: 'doctor', ASSISTANT: 'assistant', CASHIER: 'cashier', LAB: 'lab',
+  STUDENT: 'student', SUPPORT: 'support',
+};
+
+/** Ensure a Person has the given Role (by key), scoped to org or platform. */
+async function assignRole(personId: string, roleKey: string, scopeType?: string, scopeId?: string) {
+  const role = await prisma.role.findUnique({ where: { key: roleKey } });
+  if (!role) {
+    console.warn(`  ⚠ role '${roleKey}' not found — skipping`);
+    return;
+  }
+  await prisma.personRole.upsert({
+    where: { personId_roleId: { personId, roleId: role.id } },
+    update: {},
+    create: { personId, roleId: role.id, scopeType, scopeId },
+  });
+}
+
 async function migrateOrganizations() {
   console.log('[MIGRATE] Migrating clinics → organizations...');
   const clinics = await prisma.clinic.findMany();
@@ -116,8 +138,8 @@ async function migratePersons() {
     const org = await prisma.organization.findFirst({
       where: { originalType: 'Clinic', originalId: m.clinicId },
     });
-    await prisma.person.upsert({
-      where: { originalType_originalId: { originalType: 'ClinicMember', originalId: m.id } },
+    const person = await prisma.person.upsert({
+      where: { originalType_originalId: { originalType: 'ClinicMember', originalId: `${m.clinicId}:${m.userId}` } },
       update: { organizationId: org?.id ?? undefined },
       create: {
         fullName: `${m.user.firstName} ${m.user.lastName}`,
@@ -127,9 +149,11 @@ async function migratePersons() {
         specialization: m.user.spec || undefined,
         phone: m.user.phone || undefined,
         originalType: 'ClinicMember',
-        originalId: m.id,
+        originalId: `${m.clinicId}:${m.userId}`,
       },
     });
+    const roleKey = CLINIC_ROLE_TO_KEY[m.role] || 'owner';
+    await assignRole(person.id, roleKey, 'organization', org?.id ?? undefined);
     personCount++;
   }
   console.log(`  ✓ ${personCount} clinic members migrated to persons`);
@@ -141,7 +165,7 @@ async function migratePersons() {
     const org = l.academy
       ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: l.academyId } })
       : null;
-    await prisma.person.upsert({
+    const person = await prisma.person.upsert({
       where: { originalType_originalId: { originalType: 'Lecturer', originalId: l.id } },
       update: { organizationId: org?.id ?? undefined },
       create: {
@@ -154,6 +178,7 @@ async function migratePersons() {
         originalId: l.id,
       },
     });
+    await assignRole(person.id, 'lecturer', 'organization', org?.id ?? undefined);
     lecturerCount++;
   }
   console.log(`  ✓ ${lecturerCount} lecturers migrated`);
@@ -163,7 +188,7 @@ async function migratePersons() {
   let smCount = 0;
   for (const sm of supplierMembers) {
     const org = await prisma.organization.findFirst({ where: { originalType: 'Supplier', originalId: sm.supplierId } });
-    await prisma.person.upsert({
+    const person = await prisma.person.upsert({
       where: { originalType_originalId: { originalType: 'SupplierMember', originalId: sm.id } },
       update: { organizationId: org?.id ?? undefined },
       create: {
@@ -176,6 +201,7 @@ async function migratePersons() {
         originalId: sm.id,
       },
     });
+    await assignRole(person.id, 'seller', 'organization', org?.id ?? undefined);
     smCount++;
   }
   console.log(`  ✓ ${smCount} supplier members migrated`);
@@ -185,7 +211,7 @@ async function migratePersons() {
   let dcCount = 0;
   for (const dm of dcMembers) {
     const org = await prisma.organization.findFirst({ where: { originalType: 'DiagnosticCenter', originalId: dm.centerId } });
-    await prisma.person.upsert({
+    const person = await prisma.person.upsert({
       where: { originalType_originalId: { originalType: 'DiagnosticCenterMember', originalId: dm.id } },
       update: { organizationId: org?.id ?? undefined },
       create: {
@@ -197,6 +223,7 @@ async function migratePersons() {
         originalId: dm.id,
       },
     });
+    await assignRole(person.id, 'doctor', 'organization', org?.id ?? undefined);
     dcCount++;
   }
   console.log(`  ✓ ${dcCount} diagnostic center members migrated`);
@@ -206,7 +233,7 @@ async function migratePersons() {
   let labCount = 0;
   for (const lm of labMembers) {
     const org = await prisma.organization.findFirst({ where: { originalType: 'Laboratory', originalId: lm.labId } });
-    await prisma.person.upsert({
+    const person = await prisma.person.upsert({
       where: { originalType_originalId: { originalType: 'LaboratoryMember', originalId: lm.id } },
       update: { organizationId: org?.id ?? undefined },
       create: {
@@ -218,9 +245,34 @@ async function migratePersons() {
         originalId: lm.id,
       },
     });
+    await assignRole(person.id, 'lab', 'organization', org?.id ?? undefined);
     labCount++;
   }
   console.log(`  ✓ ${labCount} laboratory members migrated`);
+}
+
+/** Give every User with role=SUPERADMIN a platform-scoped Person + PersonRole. */
+async function migrateSuperAdmins() {
+  console.log('[MIGRATE] Backfilling SUPERADMIN platform roles...');
+  const admins = await prisma.user.findMany({ where: { role: 'SUPERADMIN' } });
+  let count = 0;
+  for (const u of admins) {
+    const person = await prisma.person.upsert({
+      where: { originalType_originalId: { originalType: 'User', originalId: u.id } },
+      update: {},
+      create: {
+        fullName: `${u.firstName} ${u.lastName}`.trim() || 'Super Admin',
+        personType: 'PLATFORM_ADMIN',
+        userId: u.id,
+        email: u.email || undefined,
+        originalType: 'User',
+        originalId: u.id,
+      },
+    });
+    await assignRole(person.id, 'superadmin', 'platform');
+    count++;
+  }
+  console.log(`  ✓ ${count} superadmins backfilled`);
 }
 
 async function main() {
@@ -228,6 +280,7 @@ async function main() {
 
   await migrateOrganizations();
   await migratePersons();
+  await migrateSuperAdmins();
 
   console.log('\n=== Migration complete ===');
 }

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { generateTokens } from '../../lib/jwt.js';
-import { permissionsForRole } from '../../lib/permissions.js';
+import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
@@ -14,33 +14,21 @@ export const iamRouter = Router();
 iamRouter.use(authenticate);
 
 // Effective permissions of the current user in the active context (token role),
-// now sourced from the DB Role/Permission tables when available, with fallback
-// to the hardcoded map.
+// sourced from the DB Person → PersonRole → Role → Permission graph with a
+// hardcoded fallback. Same helper as /me and /login, so the frontend always
+// receives one consistent permission set.
 iamRouter.get('/permissions', async (req: AuthRequest, res) => {
   const role = req.user?.role;
-
-  // Try to load from DB Role → Permission first
   try {
-    const dbRole = await prisma.role.findUnique({
-      where: { key: role?.toLowerCase() || '' },
-      include: { permissions: { include: { permission: true } } },
-    });
-    if (dbRole && dbRole.permissions.length > 0) {
-      return res.json({
-        ok: true,
-        data: {
-          role,
-          permissions: dbRole.permissions.map((rp) => rp.permission.key),
-          db: true,
-        },
-      } satisfies ApiResponse);
-    }
-  } catch { /* fall through to hardcoded */ }
-
-  return res.json({
-    ok: true,
-    data: { role, permissions: permissionsForRole(role), db: false },
-  } satisfies ApiResponse);
+    const scopeId = (req.user as any)?.organizationId || (req.user as any)?.clinicId;
+    const permissions = await resolveUserPermissions(req.user!.id, scopeId);
+    return res.json({
+      ok: true,
+      data: { role, permissions, db: true },
+    } satisfies ApiResponse);
+  } catch {
+    return res.status(500).json({ ok: false, error: 'Не удалось получить права' } satisfies ApiResponse);
+  }
 });
 
 // GET /api/iam/types — list available organization and person types (from DB config)

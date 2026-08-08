@@ -1,4 +1,5 @@
 import type { Response, NextFunction } from 'express';
+import prisma from '../lib/prisma.js';
 import type { AuthRequest } from '../types/index.js';
 import type { UserRole } from '@prisma/client';
 import { roleHasPermission, type PermissionKey } from '../lib/permissions.js';
@@ -41,19 +42,52 @@ export function requireMinRole(minRole: UserRole) {
 }
 
 /**
- * Requires the authenticated user's role to grant ALL of the given permissions.
+ * Requires the authenticated user's permissions to grant ALL of the given keys.
+ * Source of truth: the DB Person → PersonRole → Role → Permission graph (backfilled
+ * by migrate-unified-schema.ts), with a hardcoded fallback to the shared role
+ * matrix for users/personas not yet present in the unified tables.
  * Deny-by-default: unknown roles/permissions are rejected.
  */
 export function requirePermission(...keys: PermissionKey[]) {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
+      }
+
+      // SUPERADMIN bypass
+      if (req.user.role === 'SUPERADMIN') return next();
+
+      // DB-based check via Person → PersonRole → Role → Permission.
+      const scopeId = req.user.organizationId || req.user.clinicId;
+      if (scopeId) {
+        const person = await prisma.person.findFirst({
+          where: { userId: req.user.id, organizationId: scopeId },
+          include: {
+            personRoles: {
+              include: { role: { include: { permissions: { include: { permission: true } } } } },
+            },
+          },
+        });
+        if (person) {
+          const userPerms = new Set<string>();
+          for (const pr of person.personRoles) {
+            for (const rp of pr.role.permissions) userPerms.add(rp.permission.key);
+          }
+          if (keys.every((k) => userPerms.has(k))) return next();
+        }
+      }
+
+      // Fallback to the hardcoded role matrix.
+      const allowed = keys.every((k) => roleHasPermission(req.user!.role, k));
+      if (!allowed) {
+        return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
+      }
+      next();
+    } catch (error) {
+      console.error('[requirePermission] error:', error);
+      return res.status(500).json({ ok: false, error: 'Ошибка проверки прав' });
     }
-    const allowed = keys.every((k) => roleHasPermission(req.user!.role, k));
-    if (!allowed) {
-      return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
-    }
-    next();
   };
 }
 
