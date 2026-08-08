@@ -10,6 +10,7 @@ import {
 } from './session.service.js';
 import {
   getConsents,
+  getRequiredConsents,
   upsertConsent,
   getMedicalFileAccess,
   logMedicalFileAccess,
@@ -18,6 +19,11 @@ import {
   getSecurityDashboard,
   runComplianceCheck,
 } from './compliance.service.js';
+import {
+  requiredVersionFor,
+  audienceForRole,
+  type ConsentAudience,
+} from './consent.catalog.js';
 import { auditFromReq } from './audit.service.js';
 
 export const complianceRouter = Router();
@@ -69,14 +75,36 @@ complianceRouter.get('/consents', async (req: AuthRequest, res) => {
   }
 });
 
+// Click-wrap: what this party must still accept (missing / stale by version).
+complianceRouter.get('/consents/required', async (req: AuthRequest, res) => {
+  try {
+    const explicit = req.query.audience as ConsentAudience | undefined;
+    const audience: ConsentAudience = explicit || audienceForRole({
+      role: req.user!.role,
+      organizationType: (req.user as any)?.organizationType,
+      personType: (req.user as any)?.personType,
+    });
+    const status = await getRequiredConsents(req.user!.id, audience);
+    return res.json({ ok: true, data: { audience, ...status } } satisfies ApiResponse);
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Ошибка загрузки требуемых согласий' } satisfies ApiResponse);
+  }
+});
+
 complianceRouter.post('/consents', async (req: AuthRequest, res) => {
   try {
-    const { type, accepted } = req.body as { type: string; accepted: boolean };
+    const { type, accepted, version } = req.body as { type: string; accepted: boolean; version?: string };
     if (!type || typeof accepted !== 'boolean') {
       return res.status(400).json({ ok: false, error: 'type и accepted обязательны' } satisfies ApiResponse);
     }
-    const consent = await upsertConsent(req.user!.id, type, accepted, req.ip);
-    await auditFromReq(req, { action: `CONSENT_${accepted ? 'ACCEPTED' : 'REVOKED'}`, entity: 'consent', entityId: type });
+    // Record against the current catalog version (so acceptance clears "stale").
+    const resolvedVersion = version || requiredVersionFor(type) || '1.0';
+    const consent = await upsertConsent(req.user!.id, type, accepted, req.ip, resolvedVersion);
+    await auditFromReq(req, {
+      action: `CONSENT_${accepted ? 'ACCEPTED' : 'REVOKED'}`,
+      entity: 'consent',
+      entityId: `${type}@${resolvedVersion}`,
+    });
     return res.json({ ok: true, data: consent } satisfies ApiResponse);
   } catch (error) {
     return res.status(500).json({ ok: false, error: 'Ошибка сохранения согласия' } satisfies ApiResponse);
