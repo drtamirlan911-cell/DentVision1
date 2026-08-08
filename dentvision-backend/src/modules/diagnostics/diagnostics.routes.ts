@@ -553,6 +553,66 @@ diagnosticsRouter.post('/commission-rules', requireSuperadmin, async (req: AuthR
   }
 });
 
+// ─── Platform commission settlement visibility (per diagnostic center) ───
+
+diagnosticsRouter.get('/platform/commissions', requireSuperadmin, async (_req: AuthRequest, res) => {
+  try {
+    const P = prisma as any;
+    // Accrued: all non-cancelled referrals with a center. Collected: only paid ones.
+    const [accrued, collected, centers] = await Promise.all([
+      P.referral.groupBy({
+        by: ['centerId'],
+        where: { centerId: { not: null }, status: { not: 'CANCELLED' } },
+        _sum: { cost: true, platformFee: true },
+        _count: { _all: true },
+      }),
+      P.referral.groupBy({
+        by: ['centerId'],
+        where: { centerId: { not: null }, status: { not: 'CANCELLED' }, paid: true },
+        _sum: { cost: true, platformFee: true },
+        _count: { _all: true },
+      }),
+      P.diagnosticCenter.findMany({ select: { id: true, name: true } }),
+    ]);
+
+    const nameById = new Map<string, string>(centers.map((c: any) => [c.id, c.name]));
+    const paidByCenter = new Map<string, any>(collected.map((r: any) => [r.centerId, r]));
+
+    const rows = accrued.map((r: any) => {
+      const paid = paidByCenter.get(r.centerId);
+      const commissionAccrued = Number(r._sum.platformFee || 0);
+      // Commission on orders the patient has already paid the center for — the center
+      // has the cash and owes this to the platform (settlement layer will mark it paid).
+      const commissionDue = Number(paid?._sum.platformFee || 0);
+      return {
+        centerId: r.centerId,
+        centerName: nameById.get(r.centerId) || '—',
+        orders: r._count._all,
+        paidOrders: paid?._count._all || 0,
+        revenueAccrued: Number(r._sum.cost || 0),
+        revenueCollected: Number(paid?._sum.cost || 0),
+        commissionAccrued,
+        commissionDue,
+        commissionUpcoming: Math.max(0, commissionAccrued - commissionDue),
+      };
+    }).sort((a: any, b: any) => b.commissionAccrued - a.commissionAccrued);
+
+    const totals = rows.reduce(
+      (acc: any, r: any) => ({
+        revenueCollected: acc.revenueCollected + r.revenueCollected,
+        commissionAccrued: acc.commissionAccrued + r.commissionAccrued,
+        commissionDue: acc.commissionDue + r.commissionDue,
+        commissionUpcoming: acc.commissionUpcoming + r.commissionUpcoming,
+      }),
+      { revenueCollected: 0, commissionAccrued: 0, commissionDue: 0, commissionUpcoming: 0 },
+    );
+
+    return res.json({ ok: true, data: { rows, totals } } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
 // ─── Statistics ───
 
 diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res) => {
