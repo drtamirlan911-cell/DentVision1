@@ -66,6 +66,15 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'persons', label: 'Персоны', icon: <Users size={16} /> },
 ];
 
+// Logical grouping of the tabs so the platform admin isn't a 14-tab flat bar.
+const TAB_GROUPS: { id: string; label: string; tabs: Tab[] }[] = [
+  { id: 'overview', label: 'Обзор', tabs: ['dashboard'] },
+  { id: 'clients', label: 'Клиенты', tabs: ['clinics', 'users', 'support', 'organizations', 'persons'] },
+  { id: 'ecosystem', label: 'Экосистема', tabs: ['marketplace', 'academy', 'diagnostics'] },
+  { id: 'finance', label: 'Финансы и BI', tabs: ['platform-finance', 'bi'] },
+  { id: 'control', label: 'Контроль', tabs: ['ai-governance', 'ops', 'quality'] },
+];
+
 const TabLoader = () => (
   <div className="space-y-4">
     {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
@@ -485,14 +494,41 @@ export default function SuperAdmin() {
         actions={<Button icon={<RefreshCw size={16} />} variant="ghost" onClick={() => qc.invalidateQueries()}>Обновить</Button>}
       />
 
-      <div className="flex gap-1 bg-surface-2 rounded-lg p-1 overflow-x-auto">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => { handleTabChange(t.id); setSearch(''); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}>
-            {t.icon}{t.label}
-          </button>
-        ))}
-      </div>
+      {(() => {
+        const activeGroup = TAB_GROUPS.find((g) => g.tabs.includes(tab)) || TAB_GROUPS[0];
+        const groupTabs = TABS.filter((t) => activeGroup.tabs.includes(t.id));
+        return (
+          <div className="space-y-2">
+            <div className="flex gap-1 bg-surface-2 rounded-lg p-1 overflow-x-auto">
+              {TAB_GROUPS.map((g) => {
+                const active = g.id === activeGroup.id;
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => { handleTabChange(g.tabs.includes(tab) ? tab : g.tabs[0]); setSearch(''); }}
+                    className={`px-3.5 py-1.5 rounded-md text-sm font-semibold whitespace-nowrap transition-colors ${active ? 'bg-surface-1 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary'}`}
+                  >
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
+            {groupTabs.length > 1 && (
+              <div className="flex gap-1 overflow-x-auto px-0.5">
+                {groupTabs.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { handleTabChange(t.id); setSearch(''); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors ${tab === t.id ? 'bg-dv-gold/10 text-dv-gold font-medium' : 'text-txt-muted hover:text-txt-secondary'}`}
+                  >
+                    {t.icon}{t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {renderTab()}
 
