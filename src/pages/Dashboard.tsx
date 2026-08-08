@@ -120,10 +120,13 @@ function QuickStats({ data }: { data: ReturnType<typeof useDataQuery> }) {
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0]
     const todayAppts = (data.appointments || []).filter((a) => a.date === today)
-    const totalRevenue = (data.receipts || []).reduce((s, r) => s + (Number(r.amount) || 0), 0)
+    // Today's revenue only — not the all-time sum, so the tile reflects the current day.
+    const todayRevenue = (data.receipts || [])
+      .filter((r) => String((r as { date?: string }).date || '').slice(0, 10) === today)
+      .reduce((s, r) => s + (Number(r.amount) || 0), 0)
     const activePatients = (data.patients || []).length
     const todayCount = todayAppts.length
-    return { todayCount, totalRevenue, activePatients }
+    return { todayCount, todayRevenue, activePatients }
   }, [data])
 
   return (
@@ -139,12 +142,12 @@ function QuickStats({ data }: { data: ReturnType<typeof useDataQuery> }) {
         icon={<Users size={18} />}
       />
       <StatCard
-        label="Доход"
-        value={formatMoney(stats.totalRevenue)}
+        label="Доход сегодня"
+        value={formatMoney(stats.todayRevenue)}
         icon={<DollarSign size={18} />}
       />
       <StatCard
-        label="Загрузка кресел"
+        label="Загрузка (оц.)"
         value={`${Math.min(100, Math.round((stats.todayCount / 8) * 100))}%`}
         icon={<Activity size={18} />}
       />
@@ -199,6 +202,7 @@ function ServiceGrid() {
 }
 
 function UpcomingAppointments({ data }: { data: ReturnType<typeof useDataQuery> }) {
+  const navigate = useNavigate()
   const today = new Date().toISOString().split('T')[0]
   const appointments = (data.appointments || [])
     .filter((a) => a.date >= today)
@@ -217,7 +221,7 @@ function UpcomingAppointments({ data }: { data: ReturnType<typeof useDataQuery> 
           Ближайшие записи
         </CardTitle>
         <button
-          onClick={() => {}}
+          onClick={() => navigate('/crm/schedule')}
           className="text-xs text-dv-gold hover:text-dv-gold-light transition-colors"
         >
           Все записи

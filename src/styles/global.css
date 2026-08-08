@@ -70,33 +70,35 @@
   }
 
   html.light {
+    /* Premium clinical: warm porcelain / platinum surfaces, graphite text,
+       champagne-gold accent, soft neutral borders. */
     --dv-gold: #B8924A;
     --dv-gold-light: #C9A96E;
     --dv-gold-dim: #8B6F3E;
-    --dv-ink: #080F1A;
-    --dv-surface-0: #F0F4F8;
+    --dv-ink: #14181F;
+    --dv-surface-0: #F5F4F0;
     --dv-surface-1: #FFFFFF;
-    --dv-surface-2: #E8EEF5;
-    --dv-surface-3: #DCE5F0;
-    --dv-surface-4: #CDD8E8;
-    --dv-surface-raised: rgba(15, 23, 42, 0.03);
-    --dv-surface-raised-hover: rgba(15, 23, 42, 0.06);
-    --dv-overlay: rgba(15, 23, 42, 0.45);
-    --dv-text-primary: #0B1220;
-    --dv-text-secondary: #475569;
-    --dv-text-muted: #4A5B70;
-    --dv-text-ghost: #94A3B8;
-    --dv-border: rgba(184, 146, 74, 0.28);
-    --dv-border-subtle: rgba(15, 23, 42, 0.08);
+    --dv-surface-2: #EDEAE3;
+    --dv-surface-3: #E4E0D7;
+    --dv-surface-4: #D8D3C8;
+    --dv-surface-raised: rgba(40, 34, 22, 0.035);
+    --dv-surface-raised-hover: rgba(40, 34, 22, 0.06);
+    --dv-overlay: rgba(28, 24, 16, 0.42);
+    --dv-text-primary: #1A1D23;
+    --dv-text-secondary: #4D525B;
+    --dv-text-muted: #7C818A;
+    --dv-text-ghost: #AEA99E;
+    --dv-border: rgba(35, 31, 22, 0.10);
+    --dv-border-subtle: rgba(35, 31, 22, 0.07);
     --dv-border-focus: rgba(184, 146, 74, 0.55);
-    --dv-glass: rgba(15, 23, 42, 0.04);
-    --dv-glass-strong: rgba(15, 23, 42, 0.07);
-    --dv-sidebar-bg: #E8EEF5;
-    --dv-sidebar-bg-end: #CDD8E8;
-    --dv-sidebar-brand-bg: rgba(201,169,110,0.18);
-    --dv-sidebar-brand-border: rgba(201,169,110,0.25);
-    --dv-sidebar-glow-gold: rgba(201,169,110,0.20);
-    --dv-sidebar-glow-blue: rgba(56,189,248,0.15);
+    --dv-glass: rgba(40, 34, 22, 0.035);
+    --dv-glass-strong: rgba(40, 34, 22, 0.06);
+    --dv-sidebar-bg: #EEEBE4;
+    --dv-sidebar-bg-end: #E2DDD3;
+    --dv-sidebar-brand-bg: rgba(184,146,74,0.16);
+    --dv-sidebar-brand-border: rgba(184,146,74,0.24);
+    --dv-sidebar-glow-gold: rgba(184,146,74,0.18);
+    --dv-sidebar-glow-blue: rgba(56,160,180,0.12);
     /* Brand / logo tokens on light surfaces: navy -> teal, dark ink */
     --logo-from: #1C3E6B;
     --logo-to: #2AA4B4;

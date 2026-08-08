@@ -224,12 +224,13 @@ diagnosticsRouter.get('/referrals/:id', requireReferralAccess, async (req: AuthR
 diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => {
   try {
     const clinicId = req.body.clinicId;
-    if (clinicId) {
-      const member = await prisma.clinicMember.findFirst({
-        where: { userId: req.user!.id, clinicId },
-      });
-      if (!member) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: 'Выберите клинику' });
     }
+    const member = await prisma.clinicMember.findFirst({
+      where: { userId: req.user!.id, clinicId },
+    });
+    if (!member) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
     const userId = req.user!.id;
     const data = await svc.createReferral({ ...req.body, doctorId: userId }, userId);
     return res.json({ ok: true, data } satisfies ApiResponse);
@@ -552,6 +553,66 @@ diagnosticsRouter.post('/commission-rules', requireSuperadmin, async (req: AuthR
   }
 });
 
+// ─── Platform commission settlement visibility (per diagnostic center) ───
+
+diagnosticsRouter.get('/platform/commissions', requireSuperadmin, async (_req: AuthRequest, res) => {
+  try {
+    const P = prisma as any;
+    // Accrued: all non-cancelled referrals with a center. Collected: only paid ones.
+    const [accrued, collected, centers] = await Promise.all([
+      P.referral.groupBy({
+        by: ['centerId'],
+        where: { centerId: { not: null }, status: { not: 'CANCELLED' } },
+        _sum: { cost: true, platformFee: true },
+        _count: { _all: true },
+      }),
+      P.referral.groupBy({
+        by: ['centerId'],
+        where: { centerId: { not: null }, status: { not: 'CANCELLED' }, paid: true },
+        _sum: { cost: true, platformFee: true },
+        _count: { _all: true },
+      }),
+      P.diagnosticCenter.findMany({ select: { id: true, name: true } }),
+    ]);
+
+    const nameById = new Map<string, string>(centers.map((c: any) => [c.id, c.name]));
+    const paidByCenter = new Map<string, any>(collected.map((r: any) => [r.centerId, r]));
+
+    const rows = accrued.map((r: any) => {
+      const paid = paidByCenter.get(r.centerId);
+      const commissionAccrued = Number(r._sum.platformFee || 0);
+      // Commission on orders the patient has already paid the center for — the center
+      // has the cash and owes this to the platform (settlement layer will mark it paid).
+      const commissionDue = Number(paid?._sum.platformFee || 0);
+      return {
+        centerId: r.centerId,
+        centerName: nameById.get(r.centerId) || '—',
+        orders: r._count._all,
+        paidOrders: paid?._count._all || 0,
+        revenueAccrued: Number(r._sum.cost || 0),
+        revenueCollected: Number(paid?._sum.cost || 0),
+        commissionAccrued,
+        commissionDue,
+        commissionUpcoming: Math.max(0, commissionAccrued - commissionDue),
+      };
+    }).sort((a: any, b: any) => b.commissionAccrued - a.commissionAccrued);
+
+    const totals = rows.reduce(
+      (acc: any, r: any) => ({
+        revenueCollected: acc.revenueCollected + r.revenueCollected,
+        commissionAccrued: acc.commissionAccrued + r.commissionAccrued,
+        commissionDue: acc.commissionDue + r.commissionDue,
+        commissionUpcoming: acc.commissionUpcoming + r.commissionUpcoming,
+      }),
+      { revenueCollected: 0, commissionAccrued: 0, commissionDue: 0, commissionUpcoming: 0 },
+    );
+
+    return res.json({ ok: true, data: { rows, totals } } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
 // ─── Statistics ───
 
 diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res) => {
@@ -638,11 +699,28 @@ diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res
 diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
-    const referral = await (prisma as any).referral.findUnique({ where: { id }, select: { id: true, status: true, cost: true, platformFee: true, centerId: true, paid: true, clinicId: true } });
+    const referral = await (prisma as any).referral.findUnique({ where: { id }, select: { id: true, status: true, cost: true, platformFee: true, centerId: true, labId: true, paid: true, clinicId: true } });
     if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' } as any);
+
+    // Access: clinic member, or staff of the executing center/lab, or superadmin.
+    const role = String((req.user as any)?.role || '').toLowerCase();
+    const isSuper = role === 'superadmin';
+    const isClinicMember = referral.clinicId
+      ? Boolean(await prisma.clinicMember.findFirst({ where: { userId: req.user!.id, clinicId: referral.clinicId }, select: { userId: true } }))
+      : false;
+    const hasCenter = referral.centerId ? hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', referral.centerId) : false;
+    const hasLab = referral.labId ? hasOrgAccess(req.user, 'LABORATORY', referral.labId) : false;
+    if (!isSuper && !isClinicMember && !hasCenter && !hasLab) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' } as any);
+    }
+
     if (referral.paid) return res.status(409).json({ ok: false, error: 'Уже оплачено' } as any);
 
-    await (prisma as any).referral.update({ where: { id }, data: { paid: true, paidAt: new Date() } });
+    // Commission recomputed server-side from the rules for the stored record.
+    const { resolveCommissionBps } = await import('../finance/finance.service.js');
+    const bps = referral.centerId ? await resolveCommissionBps('diagnostics', referral.centerId) : 0;
+    const fee = referral.cost ? Math.round((Number(referral.cost) * bps) / 10000) : 0;
+    await (prisma as any).referral.update({ where: { id }, data: { paid: true, paidAt: new Date(), platformFee: fee } });
 
     // Record diagnostic sale through Commission Engine
     if (referral.cost && referral.centerId) {
@@ -673,7 +751,7 @@ diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, 
     if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
       return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
     }
-    const { referralId, cost, platformFee } = req.body || {};
+    const { referralId, cost } = req.body || {};
     if (!referralId) {
       return res.status(400).json({ ok: false, error: 'referralId обязателен' } satisfies ApiResponse);
     }
@@ -690,8 +768,11 @@ diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, 
     if (referral.centerId !== centerId) return res.status(403).json({ ok: false, error: 'Направление не относится к этому центру' } as any);
     if (referral.paid) return res.status(409).json({ ok: false, error: 'Уже оплачено' } as any);
 
-    // Platform commission: explicit fee or default 10% of the collected amount
-    const feeNum = platformFee !== undefined && Number(platformFee) >= 0 ? Number(platformFee) : Math.round(costNum * 0.1);
+    // Platform commission is computed server-side from the commission rules —
+    // never trusted from the request body (a center could otherwise zero it out).
+    const { resolveCommissionBps } = await import('../finance/finance.service.js');
+    const bps = await resolveCommissionBps('diagnostics', centerId);
+    const feeNum = Math.round((costNum * bps) / 10000);
 
     await (prisma as any).referral.update({
       where: { id: referralId },

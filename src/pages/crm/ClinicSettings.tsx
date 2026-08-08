@@ -425,6 +425,15 @@ export default function ClinicSettingsPage() {
                 onCheckedChange={(v: boolean) => setSettings({ ...settings, requireChair: v })}
               />
             </div>
+            <Select
+              label="При конфликте записи"
+              value={settings.scheduleConflictMode || 'warn'}
+              onChange={(e) => setSettings({ ...settings, scheduleConflictMode: e.target.value as 'warn' | 'block' })}
+              options={[
+                { value: 'warn', label: 'Предупреждать, но разрешать' },
+                { value: 'block', label: 'Жёстко блокировать' },
+              ]}
+            />
           </CardContent>
         </Card>
       </motion.div>
@@ -467,6 +476,15 @@ export default function ClinicSettingsPage() {
                 type="number"
                 value={settings.taxPercent ?? 0}
                 onChange={(e) => setSettings({ ...settings, taxPercent: Number(e.target.value) })}
+              />
+              <Select
+                label="База процента врача"
+                value={settings.payrollBase || 'net'}
+                onChange={(e) => setSettings({ ...settings, payrollBase: e.target.value as 'net' | 'gross' })}
+                options={[
+                  { value: 'net', label: 'От чистой (выручка − материалы)' },
+                  { value: 'gross', label: 'От валовой выручки' },
+                ]}
               />
             </div>
             <div className="flex items-center justify-between">

@@ -91,6 +91,10 @@ export interface ClinicSettings {
   notifyNoShow?: boolean
   requireChair?: boolean
   autoDeductItems?: string
+  /** Schedule conflict behaviour: warn-and-allow (default) or hard block. */
+  scheduleConflictMode?: 'warn' | 'block'
+  /** Doctor commission base: from net (revenue − materials, default) or gross. */
+  payrollBase?: 'net' | 'gross'
   bookingLink?: string
   onlineBookingEnabled?: boolean
   /** Per-clinic Kaspi for CRM cashier (not platform). */

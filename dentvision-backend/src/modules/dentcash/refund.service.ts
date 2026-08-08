@@ -36,6 +36,14 @@ export async function reverseCashback(opts: {
 
   let reversed = 0n;
   for (const row of earns) {
+    // Atomically claim this earn row (its known status -> reversed). A concurrent
+    // reversal of the same row claims count===0 and is skipped — no double clawback.
+    const claimed = await prisma.dentCashLedger.updateMany({
+      where: { id: row.id, status: row.status },
+      data: { status: 'reversed' },
+    });
+    if (claimed.count === 0) continue;
+
     const funderType = (row.sellerType || 'PLATFORM') as any;
     const funderId = row.sellerId || 'system';
     const funder = await getOrCreateWallet(funderType, funderId);
@@ -54,6 +62,7 @@ export async function reverseCashback(opts: {
           refType: opts.refType,
           refId: opts.refId,
           meta: { reason: opts.reason || 'refund' },
+          guardFromBalance: true,
         });
       }
       if (row.amountMinor > claw) {
@@ -83,10 +92,7 @@ export async function reverseCashback(opts: {
       });
     }
 
-    await prisma.dentCashLedger.update({
-      where: { id: row.id },
-      data: { status: 'reversed' },
-    });
+    // (row already marked reversed by the atomic claim above)
     await prisma.dentCashLedger.create({
       data: {
         userId: row.userId,

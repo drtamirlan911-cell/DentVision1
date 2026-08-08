@@ -88,6 +88,8 @@ export function buildDoctorPayroll(input: {
   percent: number;
   baseSalary?: number;
   payType?: string | null;
+  /** Commission base chosen by the clinic: from net (revenue − materials) or gross. Default net. */
+  commissionBase?: 'net' | 'gross';
   from?: Date;
   to?: Date;
   appointments: Array<{
@@ -111,7 +113,8 @@ export function buildDoctorPayroll(input: {
       if (revenue.gross <= 0 && revenue.matCost <= 0) continue;
 
       const net = Math.max(0, revenue.gross - revenue.matCost);
-      const earned = Math.round(net * (percent / 100));
+      const commBase = input.commissionBase === 'gross' ? revenue.gross : net;
+      const earned = Math.round(commBase * (percent / 100));
       gross += revenue.gross;
       matCost += revenue.matCost;
 
@@ -132,7 +135,8 @@ export function buildDoctorPayroll(input: {
   }
 
   const net = Math.max(0, gross - matCost);
-  const commissionPart = payType === 'salary' ? 0 : Math.round(net * (percent / 100));
+  const commBaseTotal = input.commissionBase === 'gross' ? gross : net;
+  const commissionPart = payType === 'salary' ? 0 : Math.round(commBaseTotal * (percent / 100));
   const from = input.from || new Date();
   const to = input.to || new Date();
   const salaryPart =

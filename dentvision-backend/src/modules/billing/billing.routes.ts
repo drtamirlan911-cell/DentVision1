@@ -265,6 +265,9 @@ billingRouter.get('/my-payroll', async (req: AuthRequest, res) => {
       orderBy: [{ date: 'desc' }, { time: 'desc' }],
     });
 
+    const clinicRow = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
+    const commissionBase = (clinicRow?.settings as any)?.payrollBase === 'gross' ? 'gross' : 'net';
+
     const payroll = buildDoctorPayroll({
       userId,
       name: `${member.user.firstName} ${member.user.lastName}`.trim(),
@@ -272,6 +275,7 @@ billingRouter.get('/my-payroll', async (req: AuthRequest, res) => {
       percent: member.commissionPercent ?? 30,
       baseSalary: (member as any).baseSalary ?? 0,
       payType: (member as any).payType ?? 'commission',
+      commissionBase,
       from,
       to,
       appointments: completedAppts,
@@ -379,6 +383,9 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
       _count: true,
     });
 
+    const clinicRow = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
+    const commissionBase = (clinicRow?.settings as any)?.payrollBase === 'gross' ? 'gross' : 'net';
+
     const payroll = members
       .map((m) => buildDoctorPayroll({
         userId: m.userId,
@@ -387,6 +394,7 @@ billingRouter.get('/reports', async (req: AuthRequest, res) => {
         percent: m.commissionPercent ?? 30,
         baseSalary: (m as any).baseSalary ?? 0,
         payType: (m as any).payType ?? 'commission',
+        commissionBase,
         from,
         to,
         appointments: completedAppts.filter((a) => a.doctorId === m.userId),

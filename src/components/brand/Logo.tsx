@@ -62,9 +62,9 @@ function Wordmark({ gradId, withTagline }: { gradId: string; withTagline: boolea
           <stop offset="1" stopColor="var(--logo-accent)" />
         </linearGradient>
       </defs>
-      <path d={LOGO_WORDMARK.lettering} fill={`url(#${gradId})`} />
+      <path d={LOGO_WORDMARK.lettering} fill={`url(#${gradId})`} fillRule="evenodd" />
       {withTagline && LOGO_WORDMARK.tagline ? (
-        <path d={LOGO_WORDMARK.tagline} fill="var(--logo-muted)" />
+        <path d={LOGO_WORDMARK.tagline} fill="var(--logo-muted)" fillRule="evenodd" />
       ) : null}
     </svg>
   );

@@ -80,11 +80,22 @@ export async function balancedTransfer(opts: {
   meta?: Prisma.InputJsonValue;
   currency?: string;
   tx?: Prisma.TransactionClient;
+  /** When true, refuse to drive the source wallet negative (returns null). */
+  guardFromBalance?: boolean;
 }) {
   if (opts.amountMinor <= 0n) return null;
   const currency = opts.currency || 'KZT';
 
   const run = async (tx: Prisma.TransactionClient) => {
+    if (opts.guardFromBalance) {
+      // Atomically debit only if the source can cover it; abort otherwise.
+      const debited = await tx.wallet.updateMany({
+        where: { id: opts.fromWalletId, balance: { gte: opts.amountMinor } },
+        data: { balance: { decrement: opts.amountMinor } },
+      });
+      if (debited.count === 0) return null;
+    }
+
     const transaction = await tx.transaction.create({
       data: {
         type: opts.type,
@@ -103,10 +114,13 @@ export async function balancedTransfer(opts: {
       },
     });
 
-    await tx.wallet.update({
-      where: { id: opts.fromWalletId },
-      data: { balance: { decrement: opts.amountMinor } },
-    });
+    // When guarded, the source was already debited atomically above.
+    if (!opts.guardFromBalance) {
+      await tx.wallet.update({
+        where: { id: opts.fromWalletId },
+        data: { balance: { decrement: opts.amountMinor } },
+      });
+    }
     await tx.wallet.update({
       where: { id: opts.toWalletId },
       data: { balance: { increment: opts.amountMinor } },

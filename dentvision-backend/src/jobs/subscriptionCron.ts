@@ -6,6 +6,7 @@ import prisma from '../lib/prisma.js';
 import { uid } from '../lib/helpers.js';
 import { tengeToMinor } from '../lib/money.js';
 import { notifyClinicOwners, CLINIC_SAAS_PLANS } from '../modules/billing/clinicSubscription.service.js';
+import { providers } from '../modules/payments/kaspi.provider.js';
 
 const WINDOWS = [14, 7, 1] as const;
 
@@ -46,35 +47,65 @@ async function markSent(clinicId: string, key: string, meta?: Record<string, unk
   });
 }
 
-async function initiateRenewal(clinicId: string, sub: { id: string; planId?: string; periodEnd?: Date }): Promise<void> {
-  const plan = CLINIC_SAAS_PLANS.find(p => p.id === (sub as any).planId);
+async function initiateRenewal(clinicId: string, sub: { id: string; plan?: string; periodEnd?: Date }): Promise<void> {
+  // NOTE: the subscription row exposes the SaaS plan as `plan` (not `planId`).
+  const plan = CLINIC_SAAS_PLANS.find(p => p.id === sub.plan);
   if (!plan || plan.priceTenge === 0) return;
 
-  const existingInvoice = await prisma.invoice.findFirst({
+  const periodKey = sub.periodEnd ? new Date(sub.periodEnd).toISOString().slice(0, 10) : 'na';
+  const renewalKey = `renewal_${sub.id}_${periodKey}`;
+
+  // Idempotency: skip if a renewal payment for this exact period already exists.
+  const existingPayment = await prisma.payment.findFirst({
     where: {
-      clinicId,
+      refType: 'subscription',
+      refId: clinicId,
       status: { in: ['pending', 'paid'] },
-      notes: { contains: `renewal_${sub.id}` },
+      meta: { path: ['renewalKey'], equals: renewalKey },
     },
-  });
-  if (existingInvoice) return;
+    select: { id: true },
+  }).catch(() => null);
+  if (existingPayment) return;
 
   const amountMinor = tengeToMinor(plan.priceTenge);
-  await prisma.invoice.create({
-    data: {
-      id: uid(),
-      clinicId,
-      amount: Number(amountMinor),
-      status: 'pending',
-      items: [{ name: plan.name, price: plan.priceTenge, qty: 1 }],
-      notes: `renewal_${sub.id}`,
-    },
-  });
+
+  // Create a real Kaspi payment so the owner can pay in one tap. The authenticated
+  // Kaspi callback (/api/payments/callbacks/kaspi) then activates & extends the
+  // subscription automatically via activateClinicSubscriptionFromPayment.
+  try {
+    const created = await providers.kaspi_qr.createPayment({ amountMinor, refId: clinicId });
+    await prisma.payment.create({
+      data: {
+        provider: 'kaspi_qr',
+        externalId: created.externalId,
+        amount: amountMinor,
+        status: 'pending',
+        refType: 'subscription',
+        refId: clinicId,
+        domain: 'saas',
+        meta: { qr: created.qr, saasPlan: plan.id, months: 1, clinicId, renewalKey, auto: true },
+      },
+    });
+  } catch (e) {
+    console.error('[subscriptionCron] renewal createPayment failed', clinicId, e);
+    // Fallback: keep a plain invoice record so the renewal is still tracked.
+    await prisma.invoice.create({
+      data: {
+        id: uid(),
+        clinicId,
+        amount: Number(amountMinor),
+        status: 'pending',
+        items: [{ name: plan.name, price: plan.priceTenge, qty: 1 }],
+        notes: renewalKey,
+      },
+    }).catch(() => null);
+  }
 
   await notifyClinicOwners(
     clinicId,
-    `Счёт на продление подписки ${plan.name}`,
-    `Выставлен счёт на ${plan.priceTenge.toLocaleString('ru')} ₸. Оплатите до окончания периода, чтобы не прерывать работу.`,
+    `Продление подписки ${plan.name}`,
+    `Готов счёт на ${plan.priceTenge.toLocaleString('ru')} ₸. Оплатите в разделе «Тариф и оплата» — подписка продлится автоматически после оплаты.`,
+    '/crm/billing',
   );
 }
 

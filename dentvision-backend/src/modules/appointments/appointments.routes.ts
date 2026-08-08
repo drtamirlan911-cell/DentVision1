@@ -173,6 +173,7 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
       bodyPatientId || bodyDoctorId || bodyDate || time !== undefined || duration !== undefined || chairId !== undefined,
     );
 
+    let scheduleWarnings: ReturnType<typeof serializeAppointment>[] = [];
     if (!force && slotChanged) {
       const candidates = await prisma.appointment.findMany({
         where: {
@@ -192,11 +193,22 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
         excludeId: id,
       });
       if (conflicts.length > 0) {
-        return res.status(409).json({
-          ok: false,
-          error: 'Конфликт записи: врач, пациент или кресло уже заняты в это время',
-          data: { conflicts: conflicts.map(serializeAppointment) },
-        });
+        // Default is a soft warning ("предупреждать, но пускать"); a clinic can opt into
+        // a hard block via settings.scheduleConflictMode = 'block'.
+        const clinicSettings = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
+        const mode = String(
+          ((clinicSettings?.settings && typeof clinicSettings.settings === 'object'
+            ? (clinicSettings.settings as Record<string, unknown>).scheduleConflictMode
+            : '') || 'warn'),
+        );
+        if (mode === 'block') {
+          return res.status(409).json({
+            ok: false,
+            error: 'Конфликт записи: врач, пациент или кресло уже заняты в это время',
+            data: { conflicts: conflicts.map(serializeAppointment) },
+          });
+        }
+        scheduleWarnings = conflicts.map(serializeAppointment);
       }
     }
 
@@ -247,6 +259,7 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
     return res.status(existing ? 200 : 201).json({
       ok: true,
       data: serializeAppointment(appointment),
+      ...(scheduleWarnings.length > 0 ? { warnings: { conflicts: scheduleWarnings } } : {}),
     } satisfies ApiResponse);
   } catch (error) {
     console.error('Upsert appointment error:', error);
@@ -314,7 +327,13 @@ appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthReq
     const meta = metaFromClosedVisit(prevMeta, body);
     const deducted: string[] = [];
 
-    if (!prevMeta.inventoryDeducted) {
+    // Atomically transition to completed; only the FIRST close deducts inventory,
+    // so concurrent /close calls can't double-deduct.
+    const firstClose = await prisma.appointment.updateMany({
+      where: { id: existing.id, clinicId, status: { not: 'completed' } },
+      data: { status: 'completed' },
+    });
+    if (firstClose.count === 1 && !prevMeta.inventoryDeducted) {
       const clinic = await prisma.clinic.findUnique({
         where: { id: clinicId },
         select: { settings: true },
@@ -330,14 +349,15 @@ appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthReq
       for (const itemName of autoItems) {
         const item = await prisma.inventoryItem.findFirst({
           where: { clinicId, name: { equals: itemName, mode: 'insensitive' } },
+          select: { id: true, name: true },
         });
-        if (item && item.quantity > 0) {
-          await prisma.inventoryItem.update({
-            where: { id: item.id },
-            data: { quantity: { decrement: 1 } },
-          });
-          deducted.push(item.name);
-        }
+        if (!item) continue;
+        // Atomic guarded decrement — never drives quantity below zero.
+        const dec = await prisma.inventoryItem.updateMany({
+          where: { id: item.id, quantity: { gte: 1 } },
+          data: { quantity: { decrement: 1 } },
+        });
+        if (dec.count === 1) deducted.push(item.name);
       }
       if (deducted.length > 0) meta.inventoryDeducted = true;
     }

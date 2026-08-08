@@ -41,7 +41,7 @@
           root.classList.toggle('light', !dark);
           root.style.colorScheme = dark ? 'dark' : 'light';
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', dark ? '#080F1A' : '#F0F4F8');
+          if (meta) meta.setAttribute('content', dark ? '#080F1A' : '#F5F4F0');
           var compact = window.innerWidth < 768 || window.innerHeight < 520;
           root.dataset.shell = compact ? 'compact' : 'wide';
         } catch (e) { /* keep defaults */ }
