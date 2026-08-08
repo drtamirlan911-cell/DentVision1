@@ -565,6 +565,11 @@ model Document {
   signed    Boolean   @default(false)
   signedAt  DateTime?
   deletedAt DateTime?
+  /// One-time public link token for remote patient signing (send-signature).
+  signToken     String? @unique
+  /// Signature image payload (base64 PNG from SignaturePad) — durable proof of consent.
+  signatureData String?
+  signedByName  String?
 
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
   clinic  Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)

@@ -13,6 +13,7 @@ import {
   isWorkingDay,
   splitPatientName,
 } from './bookingSlots.js';
+import { getDocumentForSigning, signDocument } from '../files/documentSign.service.js';
 
 const publicBookingLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -20,6 +21,16 @@ const publicBookingLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, error: 'Слишком много заявок. Подождите минуту.' },
+});
+
+// Sign-token endpoints are the only auth these routes have — rate-limit
+// against token guessing/brute-forcing.
+const documentSignLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Слишком много попыток. Подождите минуту.' },
 });
 
 export const publicRouter = Router();
@@ -343,19 +354,29 @@ const PRIVACY_POLICY = 'Политика конфиденциальности De
 
 const TERMS_OF_SERVICE = 'Пользовательское соглашение DentVision\n\n1. Предмет. Сервис предоставляет инструменты для управления стоматологической клиникой.\n2. Регистрация. Пользователь обязуется предоставлять достоверные данные.\n3. Обязанности. Клиника несёт ответственность за сохранность учётных данных.\n4. Оплата. Тарифы указаны на сайте. Списание происходит ежемесячно.\n5. Отказ от ответственности. Сервис предоставляется «как есть».\n6. Разрешение споров. Споры рассматриваются в суде г. Алматы по законодательству РК.\n7. Изменения. Администрация вправе изменять соглашение с уведомлением за 14 дней.';
 
-publicRouter.get('/document/:id', async (req, res) => {
+// Gated by the one-time sign token (created via POST /files/documents/:id/send-signature),
+// NOT the document's primary key — a raw :id lookup here would let anyone who
+// knows/guesses a document UUID read another patient's consent form (PHI).
+publicRouter.get('/document/:token', documentSignLimiter, async (req, res) => {
   try {
-    const doc = await prisma.document.findUnique({
-      where: { id: req.params.id },
-      select: { id: true, name: true, type: true, url: true, signed: true, signedAt: true, clinicId: true, patientId: true, clinic: { select: { name: true, address: true, phone: true } } },
-    });
-    if (!doc) return res.status(404).json({ ok: false, error: 'Document not found' });
-    const r = doc as any;
-    // Derive content from url (could be data URI or external link)
-    const content = r.url?.startsWith('data:') ? atob(r.url.split(',')[1] || '') : r.url;
-    res.json({ ok: true, data: { id: r.id, title: r.name, doc_type: r.type, content, status: r.signed ? 'signed' : 'pending', patient_name: r.patientName, signed_by_name: r.signedByName, clinic_name: r.clinic?.name, clinic_address: r.clinic?.address, clinic_phone: r.clinic?.phone, documentId: r.id } });
+    const data = await getDocumentForSigning(req.params.token as string);
+    if (!data) return res.status(404).json({ ok: false, error: 'Document not found' });
+    res.json({ ok: true, data });
   } catch (e) {
     res.status(500).json({ ok: false, error: 'Failed to load document' });
+  }
+});
+
+publicRouter.post('/document/:token/sign', documentSignLimiter, async (req, res) => {
+  try {
+    const token = req.params.token as string;
+    const existing = await getDocumentForSigning(token);
+    if (!existing) return res.status(404).json({ ok: false, error: 'Document not found' });
+    const { signatureData, signedByName } = req.body || {};
+    const updated = await signDocument({ documentId: existing.documentId, token, signatureData, signedByName });
+    res.json({ ok: true, data: updated });
+  } catch (e: any) {
+    res.status(e?.status || 500).json({ ok: false, error: e instanceof Error ? e.message : 'Failed to sign document' });
   }
 });
 
