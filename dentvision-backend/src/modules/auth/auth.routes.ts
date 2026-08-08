@@ -394,7 +394,7 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
 
 authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { clinicId } = req.body as { clinicId: string };
+    let { clinicId } = req.body as { clinicId: string };
 
     if (!clinicId) {
       return res.status(400).json({ ok: false, error: 'clinicId обязателен' });
@@ -403,6 +403,21 @@ authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) =>
     let membership = await prisma.clinicMember.findUnique({
       where: { userId_clinicId: { userId: req.user!.id, clinicId } },
     });
+
+    // Older frontend/context records sometimes send the unified Organization
+    // id instead of the legacy Clinic id. Normalize it before membership lookup.
+    if (!membership) {
+      const org = await prisma.organization.findFirst({
+        where: { id: clinicId, type: 'CLINIC' },
+        select: { originalId: true },
+      });
+      if (org?.originalId) {
+        clinicId = org.originalId;
+        membership = await prisma.clinicMember.findUnique({
+          where: { userId_clinicId: { userId: req.user!.id, clinicId } },
+        });
+      }
+    }
 
     // Fallback: check if user has a Person linked to this clinic's org
     if (!membership) {

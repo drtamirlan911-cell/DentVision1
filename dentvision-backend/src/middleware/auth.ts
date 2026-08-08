@@ -27,7 +27,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         firstName: true,
         lastName: true,
         role: true,
-        memberships: { select: { id: true, clinicId: true } },
+        memberships: { select: { id: true, clinicId: true, role: true } },
       },
     });
 
@@ -61,6 +61,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     let effectivePersonType: string | undefined;
     let effectiveClinicId: string | undefined;
     let effectiveSupplierId: string | undefined;
+    let effectiveRole = user.role;
 
     if (!isGuest) {
       // 1) Try unified Organization context from JWT
@@ -91,6 +92,9 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           effectiveClinicId = payload.clinicId;
           effectiveOrgId = payload.clinicId;
           effectiveOrgType = 'CLINIC';
+          // A user may have a different role in each clinic. The scoped
+          // membership role must win over the global User.role.
+          effectiveRole = activeMember.role;
         }
       }
 
@@ -105,7 +109,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role,
+      role: effectiveRole,
       clinicId: effectiveClinicId,
       supplierId: isGuest ? undefined : (payload.supplierId || effectiveSupplierId),
       supplierRole: isGuest ? undefined : payload.supplierRole,

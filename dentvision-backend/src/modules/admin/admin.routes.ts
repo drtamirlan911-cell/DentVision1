@@ -522,7 +522,13 @@ adminRouter.get('/support', authenticate, requireSuperadmin, async (req: AuthReq
     const { take, skip, page, limit } = paginationParams(req.query);
     const where = { role: 'SUPPORT' as const };
     const [users, total] = await Promise.all([
-      prisma.user.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
+      prisma.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+        select: { id: true, email: true, firstName: true, lastName: true, role: true, createdAt: true },
+      }),
       prisma.user.count({ where }),
     ]);
     res.json({
