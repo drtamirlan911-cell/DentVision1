@@ -405,7 +405,7 @@ export const IntelligenceLayout: React.FC = () => {
               <Menu size={18} />
             </button>
             <div className="min-w-0 overflow-hidden flex-1">
-              <div className="flex items-center gap-1.5 text-sm text-txt-muted overflow-hidden">
+              <div className="flex items-center gap-1.5 text-sm text-txt-muted overflow-hidden whitespace-nowrap">
                 {getBreadcrumbs().map((crumb, idx, crumbs) => (
                   <span key={crumb.path} className="flex items-center gap-1.5 min-w-0 max-w-full">
                     {idx > 0 && <ChevronRight size={12} className="text-txt-ghost shrink-0" />}
