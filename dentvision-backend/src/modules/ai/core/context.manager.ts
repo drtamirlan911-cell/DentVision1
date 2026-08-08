@@ -76,11 +76,15 @@ export class ContextManager {
   }
 
   async getCurrentPermissions(userId: string, clinicId: string): Promise<string[]> {
-    const member = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId, clinicId } },
-    });
-    const role = member?.role ?? 'DOCTOR';
-    
+    // DB-first (Person → PersonRole), legacy ClinicMember fallback — same
+    // resolver loadContext() already uses, so a unified (Person-only, no
+    // ClinicMember row) user gets their real role here instead of always
+    // being treated as DOCTOR.
+    const access = await resolveClinicAccess(userId, clinicId);
+    const role = access?.role ?? 'DOCTOR';
+
+    if (role === 'SUPERADMIN') return ['*'];
+
     const permissions: Record<string, string[]> = {
       OWNER: ['*'],
       ADMIN: ['patients:*', 'appointments:*', 'billing:*', 'inventory:*', 'reports:*'],
@@ -89,7 +93,7 @@ export class ContextManager {
       LAB: ['lab-orders:*'],
       MANAGER: ['patients:*', 'appointments:*', 'inventory:*', 'reports:*'],
     };
-    
+
     return permissions[role] ?? [];
   }
 }
