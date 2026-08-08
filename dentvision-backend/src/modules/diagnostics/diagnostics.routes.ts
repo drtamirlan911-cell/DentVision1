@@ -406,6 +406,28 @@ function hasOrgAccess(user: any, type: string, orgId: string): boolean {
     (user?.organizationType === type && user?.organizationId === orgId);
 }
 
+/** DB-verified: is the user a member / Person of the given center (by diagnosticCenter id)? */
+async function canAccessCenter(user: any, centerId: string): Promise<boolean> {
+  if (user?.role === 'SUPERADMIN') return true;
+  // 1) Legacy member
+  const m = await (prisma as any).diagnosticCenterMember.findFirst({
+    where: { centerId, userId: user.id },
+  });
+  if (m) return true;
+  // 2) Unified Person → Organization
+  const org = await prisma.organization.findFirst({
+    where: { originalType: 'DiagnosticCenter', originalId: centerId },
+    select: { id: true },
+  });
+  if (org) {
+    const p = await prisma.person.findFirst({
+      where: { userId: user.id, organizationId: org.id },
+    });
+    if (p) return true;
+  }
+  return false;
+}
+
 diagnosticsRouter.get('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     const centerId = req.params.id;
@@ -974,7 +996,11 @@ diagnosticsRouter.get('/centers/:id/study-price', async (req: AuthRequest, res) 
 
 diagnosticsRouter.get('/centers/:id/subscription', async (req: AuthRequest, res) => {
   try {
-    const data = await svc.getCenterSubscription(req.params.id as string);
+    const centerId = req.params.id as string;
+    if (!(await canAccessCenter(req.user, centerId))) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const data = await svc.getCenterSubscription(centerId);
     return res.json({ ok: true, data: data || { status: 'trial', amountMonthly: 20000 } } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -984,6 +1010,9 @@ diagnosticsRouter.get('/centers/:id/subscription', async (req: AuthRequest, res)
 diagnosticsRouter.post('/centers/:id/subscription/activate', async (req: AuthRequest, res) => {
   try {
     const centerId = req.params.id as string;
+    if (!(await canAccessCenter(req.user, centerId))) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
     const months = Math.max(1, parseInt(req.body?.months || '1'));
     await svc.ensureCenterSubscription(centerId);
     // Extend subscription by months * 30 days from today
@@ -998,11 +1027,12 @@ diagnosticsRouter.post('/centers/:id/subscription/activate', async (req: AuthReq
   }
 });
 
-// ─── Center Dashboard ───
-
 diagnosticsRouter.get('/centers/:id/dashboard', async (req: AuthRequest, res) => {
   try {
     const centerId = req.params.id as string;
+    if (!(await canAccessCenter(req.user, centerId))) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(now.getTime() - now.getDay() * 86400000);

@@ -41,7 +41,16 @@ financeRouter.get('/wallets/:ownerType/:ownerId', async (req: AuthRequest, res) 
     if (!OWNER_TYPES.includes(ownerType)) {
       return res.status(400).json({ ok: false, error: 'Некорректный тип владельца' } satisfies ApiResponse);
     }
-    const wallet = await getOrCreateWallet(ownerType as WalletOwnerType, req.params.ownerId as string);
+    const ownerId = req.params.ownerId as string;
+    // Only the wallet owner or a superadmin may read the balance.
+    const isSuper = req.user?.role === 'SUPERADMIN';
+    const owns = ownerType === 'CLINIC' && req.user?.clinicId === ownerId
+      || req.user?.supplierId === ownerId
+      || req.user?.organizationId === ownerId;
+    if (!isSuper && !owns) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const wallet = await getOrCreateWallet(ownerType as WalletOwnerType, ownerId);
     return res.json({ ok: true, data: serializeBigInt(wallet) } satisfies ApiResponse);
   } catch (error) {
     console.error('Get wallet error:', error);
@@ -53,7 +62,21 @@ financeRouter.get('/wallets/:ownerType/:ownerId', async (req: AuthRequest, res) 
 financeRouter.get('/transactions', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const isSuper = req.user?.role === 'SUPERADMIN';
+    // Non-superadmins only see transactions tied to their own wallet(s).
+    const ownerFilter: any = {};
+    if (!isSuper) {
+      const ids: string[] = [];
+      if (req.user?.clinicId) ids.push(req.user.clinicId);
+      if (req.user?.supplierId) ids.push(req.user.supplierId);
+      if (req.user?.organizationId) ids.push(req.user.organizationId);
+      if (ids.length === 0) {
+        return res.json({ ok: true, data: [] } satisfies ApiResponse);
+      }
+      ownerFilter.wallet = { ownerId: { in: ids } };
+    }
     const transactions = await prisma.transaction.findMany({
+      where: ownerFilter,
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: { ledgerEntries: true },

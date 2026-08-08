@@ -53,15 +53,24 @@ const clinicPublicSelect = {
   createdAt: true,
 } as const;
 
-clinicsRouter.get('/', authenticate, async (req, res) => {
+clinicsRouter.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const search = (req.query.search as string) || '';
 
-    const where = search
+    const where: any = search
       ? { name: { contains: search, mode: 'insensitive' as const } }
       : {};
+
+    // Non-superadmins see only clinics they belong to.
+    if (req.user?.role !== 'SUPERADMIN') {
+      const memberClinicIds = (await prisma.clinicMember.findMany({
+        where: { userId: req.user!.id },
+        select: { clinicId: true },
+      })).map(m => m.clinicId);
+      where.id = { in: memberClinicIds.length ? memberClinicIds : ['none'] };
+    }
 
     const { skip, take } = paginate(page, limit);
 
@@ -100,6 +109,22 @@ clinicsRouter.get('/', authenticate, async (req, res) => {
 clinicsRouter.get('/:id', authenticate, async (req, res) => {
   try {
     const id = String(req.params.id);
+    const isSuperadmin = (req as any).user?.role === 'SUPERADMIN';
+
+    // Non-superadmins must belong to the clinic they're viewing.
+    if (!isSuperadmin) {
+      const member = await prisma.clinicMember.findUnique({
+        where: { userId_clinicId: { userId: (req as any).user!.id, clinicId: id } },
+      });
+      if (!member) {
+        const person = await prisma.person.findFirst({
+          where: { userId: (req as any).user!.id, organization: { originalType: 'Clinic', originalId: id } },
+        });
+        if (!person) {
+          return res.status(403).json({ ok: false, error: 'Forbidden' });
+        }
+      }
+    }
 
     const clinic = await prisma.clinic.findUnique({
       where: { id },
