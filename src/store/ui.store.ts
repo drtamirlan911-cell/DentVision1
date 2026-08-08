@@ -48,6 +48,16 @@ const readPinned = () => {
   }
 };
 
+const readCollapsed = () => {
+  try {
+    const v = localStorage.getItem('dv_sidebar_collapsed');
+    // No stored preference → default expanded (false).
+    return v === '1';
+  } catch {
+    return false;
+  }
+};
+
 const readWelcomed = () => {
   try {
     return !!sessionStorage.getItem('dv_welcomed');
@@ -58,6 +68,7 @@ const readWelcomed = () => {
 
 const welcomed = typeof window !== 'undefined' ? readWelcomed() : false;
 const pinned = typeof window !== 'undefined' ? readPinned() : false;
+const storedCollapsed = typeof window !== 'undefined' ? readCollapsed() : false;
 const initialPrefs: UiPrefs = typeof window !== 'undefined'
   ? readUiPrefs()
   : { darkMode: true, notifications: true, autoSave: true };
@@ -79,7 +90,7 @@ function persistPrefs(partial: Partial<UiPrefs>, get: () => UIState) {
 
 export const useUIStore = create<UIState>((set, get) => ({
   sidebarOpen: true,
-  sidebarCollapsed: welcomed && !pinned,
+  sidebarCollapsed: storedCollapsed,
   sidebarPinned: pinned,
   sidebarVisible: welcomed,
   sidebarHovering: false,
@@ -109,7 +120,10 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ autoSave: enabled });
   },
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+  setSidebarCollapsed: (collapsed) => {
+    try { localStorage.setItem('dv_sidebar_collapsed', collapsed ? '1' : '0'); } catch { /* ignore */ }
+    set({ sidebarCollapsed: collapsed });
+  },
   setSidebarPinned: (pinned) => {
     try {
       localStorage.setItem('dv_sidebar_pinned', pinned ? '1' : '0');
@@ -120,8 +134,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   setSidebarHovering: (hovering) => set({ sidebarHovering: hovering }),
   toggleSidebarCollapsed: () => {
     const next = !get().sidebarCollapsed;
+    try { localStorage.setItem('dv_sidebar_collapsed', next ? '1' : '0'); } catch { /* ignore */ }
     set({ sidebarCollapsed: next });
-    if (!next) get().setSidebarPinned(true);
+    if (next) {
+      // User explicitly chose collapsed — clear pin so auto-expand doesn't undo it.
+      try { localStorage.setItem('dv_sidebar_pinned', '0'); } catch { /* ignore */ }
+      set({ sidebarPinned: false });
+    } else {
+      get().setSidebarPinned(true);
+    }
   },
   setFirstRunPhase: (phase) => set({ firstRunPhase: phase }),
   setContextSheetOpen: (open) => set({ contextSheetOpen: open }),

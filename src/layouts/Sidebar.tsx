@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/ds/Badge';
 import { Tooltip } from '@/components/ui/ds/Tooltip';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
-import { useAuth } from '@/store/auth.store';
+import { useAuth, useAuthStore } from '@/store/auth.store';
 import { useIam } from '@/iam';
 import { useGuestStore } from '@/store/guest.store';
 import { Logo } from '@/components/brand';
@@ -229,7 +229,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         const tok = await api.switchContext(ctx.scopeType, ctx.scopeId);
         if (tok?.accessToken) {
           api.setTokens(tok.accessToken, tok.refreshToken || null);
-          window.location.href = '/center-workspace';
+          // Rehydrate store under the new context without a full page reload.
+          // restoreSession already calls hydrateAuthFromMe internally so
+          // user / pages / permissions / effectiveRole are all refreshed.
+          await useAuthStore.getState().restoreSession();
+          navigate('/center-workspace');
           return;
         }
       }
