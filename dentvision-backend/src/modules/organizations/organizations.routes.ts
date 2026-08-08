@@ -2,12 +2,18 @@ import { Router } from 'express';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requireSuperadmin } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 
 export const organizationsRouter = Router();
 
+// Platform-wide entity CRUD spans every clinic/supplier/academy/center/lab —
+// only reachable today from SuperAdmin.tsx's OrganizationsPage. Restrict to
+// superadmin so no other authenticated user can read/edit/delete another
+// tenant's organization record.
 organizationsRouter.use(authenticate);
+organizationsRouter.use(requireSuperadmin);
 
 // GET /api/organizations?type=CLINIC&search=...&page=1&limit=20
 organizationsRouter.get('/', async (req: AuthRequest, res) => {
