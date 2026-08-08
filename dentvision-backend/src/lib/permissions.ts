@@ -14,7 +14,7 @@ type Module =
   | 'patients' | 'appointments' | 'medical' | 'billing' | 'inventory'
   | 'lab' | 'staff' | 'settings' | 'analytics' | 'diagnostics'
   | 'academy' | 'shop' | 'community' | 'audit' | 'admin' | 'bi'
-  | 'profile' | 'backup' | 'security';
+  | 'profile' | 'backup' | 'security' | 'dashboard';
 
 // ─── Actions ───
 type Action = 'read' | 'write' | 'delete' | 'manage';
@@ -43,6 +43,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     audit:        ['read'],
     bi:           ['read'],
     backup:       ['read'],
+    dashboard:    ['read'],
   },
 
   ADMIN: {
@@ -76,6 +77,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     shop:         ['read'],
     academy:      ['read'],
     bi:           ['read'],
+    dashboard:    ['read'],
   },
 
   DOCTOR: {
@@ -100,6 +102,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     shop:         ['read'],
     academy:      ['read'],
     community:    ['read'],
+    diagnostics:  ['read'],
   },
 
   CASHIER: {
@@ -116,6 +119,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     lab:          ['read', 'write'],
     inventory:    ['read'],
     shop:         ['read'],
+    diagnostics:  ['read'],
   },
 
   STUDENT: {
@@ -259,7 +263,9 @@ export const MODULE_PAGES: Record<string, string[]> = {
   staff:        ['staff'],
   settings:     ['clinic-settings', 'settings'],
   analytics:    ['analytics'],
-  diagnostics:  ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings'],
+  // `diagnostics-labs` and `diagnostics-laboratories` are the same page under
+  // two ids — both appear in the frontend route table, so both must resolve.
+  diagnostics:  ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-laboratories', 'diagnostics-labs', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings'],
   academy:      ['school'],
   shop:         ['shop', 'promotions'],
   community:    [],
