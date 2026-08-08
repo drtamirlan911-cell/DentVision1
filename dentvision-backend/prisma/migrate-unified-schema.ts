@@ -7,8 +7,13 @@ const prisma = new PrismaClient();
 const CLINIC_ROLE_TO_KEY: Record<string, string> = {
   OWNER: 'owner', DIRECTOR: 'director', ADMIN: 'admin', MANAGER: 'manager',
   DOCTOR: 'doctor', ASSISTANT: 'assistant', CASHIER: 'cashier', LAB: 'lab',
-  STUDENT: 'student', SUPPORT: 'support',
+  STUDENT: 'student', SUPPORT: 'support', SUPERADMIN: 'superadmin',
 };
+
+/** Resolve a ClinicMember.role (UserRole enum value) to its unified Role key, or null if unrecognized. */
+export function resolveClinicRoleKey(role: string): string | null {
+  return CLINIC_ROLE_TO_KEY[role] ?? null;
+}
 
 /** Ensure a Person has the given Role (by key), scoped to org or platform. */
 async function assignRole(personId: string, roleKey: string, scopeType?: string, scopeId?: string) {
@@ -152,8 +157,12 @@ async function migratePersons() {
         originalId: `${m.clinicId}:${m.userId}`,
       },
     });
-    const roleKey = CLINIC_ROLE_TO_KEY[m.role] || 'owner';
-    await assignRole(person.id, roleKey, 'organization', org?.id ?? undefined);
+    const roleKey = resolveClinicRoleKey(m.role);
+    if (!roleKey) {
+      console.warn(`  ⚠ unrecognized ClinicMember role '${m.role}' for user ${m.userId} in clinic ${m.clinicId} — skipping role assignment`);
+    } else {
+      await assignRole(person.id, roleKey, 'organization', org?.id ?? undefined);
+    }
     personCount++;
   }
   console.log(`  ✓ ${personCount} clinic members migrated to persons`);
@@ -285,9 +294,13 @@ async function main() {
   console.log('\n=== Migration complete ===');
 }
 
-main()
-  .catch((e) => {
-    console.error('[MIGRATE] Failed:', e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+// Only run when executed directly (`tsx prisma/migrate-unified-schema.ts`), not
+// when imported (e.g. by tests that need resolveClinicRoleKey).
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main()
+    .catch((e) => {
+      console.error('[MIGRATE] Failed:', e);
+      process.exit(1);
+    })
+    .finally(() => prisma.$disconnect());
+}

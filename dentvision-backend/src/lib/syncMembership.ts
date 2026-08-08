@@ -12,6 +12,9 @@ const CM_ROLE_TO_ROLE_KEY: Record<string, string> = {
   STUDENT: 'student',
   SUPPLIER: 'seller',
   LECTURER: 'lecturer',
+  CASHIER: 'cashier',
+  SUPERADMIN: 'superadmin',
+  SUPPORT: 'support',
 };
 
 /**
@@ -68,8 +71,15 @@ export async function syncPersonFromClinicMember(clinicId: string, userId: strin
     });
   }
 
-  // Assign unified role
-  const roleKey = CM_ROLE_TO_ROLE_KEY[role] || 'owner';
+  // Assign unified role. Unrecognized roles are never granted a fallback
+  // role (that used to silently grant 'owner') — the Person is still
+  // created/updated above, so callers fall back to the legacy ClinicMember
+  // role via resolveClinicAccess() until this map is fixed.
+  const roleKey = CM_ROLE_TO_ROLE_KEY[role];
+  if (!roleKey) {
+    console.error(`[syncPersonFromClinicMember] Unrecognized ClinicMember role '${role}' for user ${userId} in clinic ${clinicId} — skipping PersonRole assignment`);
+    return;
+  }
   const dbRole = await prisma.role.findUnique({ where: { key: roleKey } });
   if (dbRole) {
     await prisma.personRole.upsert({
