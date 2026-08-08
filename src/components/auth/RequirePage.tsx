@@ -2,7 +2,8 @@ import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/store/auth.store'
 import { useGuestStore } from '@/store/guest.store'
-import { canAccessPage, firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess'
+import { useIam } from '@/iam'
+import { firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess'
 
 /**
  * Blocks deep-links to CRM/platform pages outside the active role's pages list.
@@ -17,8 +18,9 @@ export function RequirePage({
   children: React.ReactNode
 }) {
   const location = useLocation()
-  const { roleInfo, isAuthenticated } = useAuth()
+  const { isAuthenticated } = useAuth()
   const { isGuest } = useGuestStore()
+  const iam = useIam()
 
   if (isGuest) {
     return <>{children}</>
@@ -29,9 +31,9 @@ export function RequirePage({
   }
 
   const pageId = page || pageIdFromPath(location.pathname)
-  const allowed = roleInfo?.pages || []
+  const allowed = iam.pages
 
-  if (canAccessPage(allowed, pageId)) {
+  if (iam.canAccessPage(pageId)) {
     return <>{children}</>
   }
 

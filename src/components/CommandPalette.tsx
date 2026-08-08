@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Search, ArrowRight, Calendar, Users, ShoppingCart, GraduationCap, BarChart3, Bot, FileText, Settings, Stethoscope, Package, CreditCard, ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/store/auth.store'
-import { canAccessPage } from '@/lib/roleAccess'
+import { useIam } from '@/iam'
 import { useTranslation } from 'react-i18next'
 
 interface CommandItem {
@@ -29,8 +28,7 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
-  const { roleInfo } = useAuth()
-  const allowedPages = useMemo(() => roleInfo?.pages || [], [roleInfo])
+  const iam = useIam()
 
   const commands: CommandItem[] = useMemo(() => {
     const all: CommandItem[] = [
@@ -53,9 +51,9 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
     // Always allow settings + AI home; filter the rest by role pages.
     return all.filter((cmd) => {
       if (cmd.id === 'settings' || cmd.id === 'ai-chat') return true
-      return canAccessPage(allowedPages, cmd.id)
+      return iam.canAccessPage(cmd.id)
     })
-  }, [navigate, onClose, allowedPages, t])
+  }, [navigate, onClose, t, iam])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands
