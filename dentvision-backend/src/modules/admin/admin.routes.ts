@@ -15,7 +15,8 @@ import { hashPassword } from '../../lib/password.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { onboardPartner } from '../legal/legal.service.js';
-import type { ClinicPlan, Prisma } from '@prisma/client';
+import { syncPersonFromClinicMember, syncPersonFromSupportUser } from '../../lib/syncMembership.js';
+import { UserRole, type ClinicPlan, type Prisma } from '@prisma/client';
 
 export const adminRouter = Router();
 
@@ -236,6 +237,25 @@ adminRouter.post('/clinics', authenticate, requireSuperadmin, async (req: AuthRe
       data: { id: uid(), userId: director.id, clinicId: clinic.id, role: 'OWNER' },
     });
 
+    // Unified model: Organization + Person/PersonRole for the director, so this
+    // clinic works with the IAM path immediately instead of waiting on the next
+    // deploy's backfill (prisma/migrate-unified-schema.ts).
+    await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Clinic', originalId: clinic.id } },
+      update: { name: clinic.name, address: clinic.address, phone: clinic.phone },
+      create: {
+        id: uid(),
+        name: clinic.name,
+        type: 'CLINIC',
+        address: clinic.address || null,
+        phone: clinic.phone || null,
+        contacts: city ? { city } : undefined,
+        originalType: 'Clinic',
+        originalId: clinic.id,
+      },
+    });
+    await syncPersonFromClinicMember(clinic.id, director.id, 'OWNER');
+
     // Auto-create LegalPartner + generate clinic agreement
     try {
       await onboardPartner({
@@ -434,6 +454,11 @@ adminRouter.post('/users', authenticate, requireSuperadmin, async (req: AuthRequ
       return res.status(400).json({ ok: false, error: 'Логин и имя обязательны' } satisfies ApiResponse);
     }
 
+    const roleUpper = (role || 'DOCTOR').toUpperCase();
+    if (!Object.values(UserRole).includes(roleUpper as UserRole)) {
+      return res.status(400).json({ ok: false, error: `Недопустимая роль: ${roleUpper}` } satisfies ApiResponse);
+    }
+
     const [firstName, ...rest] = name.trim().split(' ');
     const tempPassword = password || randomTempPassword();
     const resolvedEmail = email?.trim() || (login.includes('@') ? login.trim() : `${login.trim()}-${uid().slice(0, 4)}@dentvision.local`);
@@ -445,14 +470,17 @@ adminRouter.post('/users', authenticate, requireSuperadmin, async (req: AuthRequ
         password: await hashPassword(tempPassword),
         firstName: firstName || name.trim(),
         lastName: rest.join(' ') || '',
-        role: (role || 'DOCTOR').toUpperCase() as never,
+        role: roleUpper as UserRole,
       },
     });
 
     if (clinicId) {
       await prisma.clinicMember.create({
-        data: { id: uid(), userId: user.id, clinicId, role: (role || 'DOCTOR').toUpperCase() as never },
-      }).catch((e) => console.warn('[admin/users create] membership skipped:', e?.message));
+        data: { id: uid(), userId: user.id, clinicId, role: roleUpper as UserRole },
+      }).then(
+        () => syncPersonFromClinicMember(clinicId, user.id, roleUpper),
+        (e) => console.warn('[admin/users create] membership skipped:', e?.message),
+      );
     }
 
     res.status(201).json({ ok: true, data: { ...serializeUser(user), tempPassword } } satisfies ApiResponse);
@@ -531,6 +559,7 @@ adminRouter.post('/support', authenticate, requireSuperadmin, async (req: AuthRe
         role: 'SUPPORT',
       },
     });
+    await syncPersonFromSupportUser(user.id);
 
     res.status(201).json({ ok: true, data: { ...serializeUser(user), tempPassword } } satisfies ApiResponse);
   } catch (error) {

@@ -284,12 +284,37 @@ async function migrateSuperAdmins() {
   console.log(`  ✓ ${count} superadmins backfilled`);
 }
 
+/** Give every User with role=SUPPORT a platform-scoped Person + PersonRole. */
+async function migrateSupport() {
+  console.log('[MIGRATE] Backfilling SUPPORT platform roles...');
+  const supportUsers = await prisma.user.findMany({ where: { role: 'SUPPORT' } });
+  let count = 0;
+  for (const u of supportUsers) {
+    const person = await prisma.person.upsert({
+      where: { originalType_originalId: { originalType: 'User', originalId: u.id } },
+      update: {},
+      create: {
+        fullName: `${u.firstName} ${u.lastName}`.trim() || 'Support',
+        personType: 'PLATFORM_SUPPORT',
+        userId: u.id,
+        email: u.email || undefined,
+        originalType: 'User',
+        originalId: u.id,
+      },
+    });
+    await assignRole(person.id, 'support', 'platform');
+    count++;
+  }
+  console.log(`  ✓ ${count} support users backfilled`);
+}
+
 async function main() {
   console.log('=== Migrate to Unified Schema (Organization + Person) ===\n');
 
   await migrateOrganizations();
   await migratePersons();
   await migrateSuperAdmins();
+  await migrateSupport();
 
   console.log('\n=== Migration complete ===');
 }

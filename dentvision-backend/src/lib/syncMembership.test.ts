@@ -24,7 +24,12 @@ vi.mock('./prisma.js', () => ({
   },
 }));
 
-import { syncPersonFromClinicMember } from './syncMembership.js';
+import {
+  syncPersonFromClinicMember,
+  syncPersonFromSupplierMember,
+  syncPersonFromLecturer,
+  syncPersonFromSupportUser,
+} from './syncMembership.js';
 
 const CLINIC_ID = 'clinic-1';
 const USER_ID = 'user-1';
@@ -77,5 +82,87 @@ describe('syncPersonFromClinicMember — role resolution', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     await syncPersonFromClinicMember(CLINIC_ID, USER_ID, 'SOME_UNKNOWN_ROLE');
     expect(personUpdate).toHaveBeenCalledOnce();
+  });
+});
+
+describe('syncPersonFromSupplierMember', () => {
+  beforeEach(() => {
+    userFindUnique.mockReset().mockResolvedValue({ id: USER_ID, firstName: 'A', lastName: 'B', phone: null, email: 'a@b.com' });
+    organizationFindFirst.mockReset().mockResolvedValue({ id: 'org-1' });
+    personFindFirst.mockReset().mockResolvedValue({ id: 'person-1' });
+    personFindUnique.mockReset();
+    personCreate.mockReset();
+    personUpdate.mockReset().mockResolvedValue({ id: 'person-1' });
+    roleFindUnique.mockReset().mockResolvedValue({ id: 'role-1' });
+    personRoleUpsert.mockReset();
+  });
+
+  it('assigns the fixed "seller" role, keyed by the SupplierMember row id', async () => {
+    await syncPersonFromSupplierMember('member-1', 'supplier-1', USER_ID);
+    expect(organizationFindFirst).toHaveBeenCalledWith({ where: { originalType: 'Supplier', originalId: 'supplier-1' } });
+    expect(personFindFirst).toHaveBeenCalledWith({ where: { originalType: 'SupplierMember', originalId: 'member-1' } });
+    expect(roleFindUnique).toHaveBeenCalledWith({ where: { key: 'seller' } });
+    expect(personRoleUpsert).toHaveBeenCalledOnce();
+  });
+
+  it('no-ops when the Supplier has no matching Organization yet', async () => {
+    organizationFindFirst.mockResolvedValueOnce(null);
+    await syncPersonFromSupplierMember('member-1', 'supplier-1', USER_ID);
+    expect(personCreate).not.toHaveBeenCalled();
+    expect(personUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('syncPersonFromLecturer', () => {
+  beforeEach(() => {
+    userFindUnique.mockReset().mockResolvedValue({ id: USER_ID, firstName: 'A', lastName: 'B', phone: null, email: 'a@b.com' });
+    organizationFindFirst.mockReset().mockResolvedValue({ id: 'org-1' });
+    personFindFirst.mockReset().mockResolvedValue({ id: 'person-1' });
+    personFindUnique.mockReset();
+    personCreate.mockReset();
+    personUpdate.mockReset().mockResolvedValue({ id: 'person-1' });
+    roleFindUnique.mockReset().mockResolvedValue({ id: 'role-1' });
+    personRoleUpsert.mockReset();
+  });
+
+  it('assigns the fixed "lecturer" role, keyed by the Lecturer row id', async () => {
+    await syncPersonFromLecturer('lecturer-1', USER_ID, 'academy-1');
+    expect(organizationFindFirst).toHaveBeenCalledWith({ where: { originalType: 'Academy', originalId: 'academy-1' } });
+    expect(personFindFirst).toHaveBeenCalledWith({ where: { originalType: 'Lecturer', originalId: 'lecturer-1' } });
+    expect(roleFindUnique).toHaveBeenCalledWith({ where: { key: 'lecturer' } });
+    expect(personRoleUpsert).toHaveBeenCalledOnce();
+  });
+
+  it('tolerates a lecturer with no academy (no Organization lookup, still syncs)', async () => {
+    await syncPersonFromLecturer('lecturer-1', USER_ID, null);
+    expect(organizationFindFirst).not.toHaveBeenCalled();
+    expect(personRoleUpsert).toHaveBeenCalledOnce();
+  });
+});
+
+describe('syncPersonFromSupportUser', () => {
+  beforeEach(() => {
+    userFindUnique.mockReset().mockResolvedValue({ id: USER_ID, firstName: 'S', lastName: 'Upport', email: 's@dentvision.local' });
+    personFindFirst.mockReset().mockResolvedValue({ id: 'person-1' });
+    personFindUnique.mockReset();
+    personCreate.mockReset();
+    personUpdate.mockReset().mockResolvedValue({ id: 'person-1' });
+    roleFindUnique.mockReset().mockResolvedValue({ id: 'role-1' });
+    personRoleUpsert.mockReset();
+  });
+
+  it('assigns a platform-scoped "support" PersonRole', async () => {
+    await syncPersonFromSupportUser(USER_ID);
+    expect(personFindFirst).toHaveBeenCalledWith({ where: { originalType: 'User', originalId: USER_ID } });
+    expect(roleFindUnique).toHaveBeenCalledWith({ where: { key: 'support' } });
+    expect(personRoleUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ scopeType: 'platform' }) }),
+    );
+  });
+
+  it('no-ops when the user does not exist', async () => {
+    userFindUnique.mockResolvedValueOnce(null);
+    await syncPersonFromSupportUser('missing-user');
+    expect(personFindFirst).not.toHaveBeenCalled();
   });
 });

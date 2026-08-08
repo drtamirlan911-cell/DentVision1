@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { publish } from '../../lib/events.js';
 import { paginate, paginatedResponse, uid } from '../../lib/helpers.js';
+import { syncPersonFromLecturer } from '../../lib/syncMembership.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,6 +174,7 @@ lecturersRouter.post('/', requirePermission('academy.manage'), async (req: AuthR
     const lecturer = await prisma.lecturer.create({
       data: { userId, bio: bio || null, academyId: academyId || null },
     });
+    await syncPersonFromLecturer(lecturer.id, userId, academyId || null);
     return res.status(201).json({ ok: true, data: lecturer } satisfies ApiResponse);
   } catch (error) {
     console.error('Create lecturer error:', error);
