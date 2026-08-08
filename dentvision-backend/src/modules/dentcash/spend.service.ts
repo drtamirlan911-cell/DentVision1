@@ -104,32 +104,42 @@ export async function refundDentCashSpend(opts: {
     const userWallet = await getOrCreateUserDentWallet(row.userId);
     const platform = await getOrCreateWallet('PLATFORM', 'system');
 
-    await balancedTransfer({
-      type: 'dentcash_spend_refund',
-      amountMinor: row.amountMinor,
-      fromWalletId: platform.id,
-      toWalletId: userWallet.id,
-      refType: opts.refType,
-      refId: opts.refId,
-      meta: { reason: opts.reason || 'order_cancelled' },
-    });
+    // Atomic claim + refund in one transaction. The status guard (spent -> reversed)
+    // means a concurrent refund of the same ledger row claims count===0 and is skipped,
+    // preventing a double refund.
+    const did = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.dentCashLedger.updateMany({
+        where: { id: row.id, status: 'spent' },
+        data: { status: 'reversed' },
+      });
+      if (claimed.count === 0) return false;
 
-    await prisma.dentCashLedger.update({
-      where: { id: row.id },
-      data: { status: 'reversed' },
-    });
-    await prisma.dentCashLedger.create({
-      data: {
-        userId: row.userId,
-        type: 'spend_refund',
-        status: 'available',
+      await balancedTransfer({
+        type: 'dentcash_spend_refund',
         amountMinor: row.amountMinor,
+        fromWalletId: platform.id,
+        toWalletId: userWallet.id,
         refType: opts.refType,
         refId: opts.refId,
         meta: { reason: opts.reason || 'order_cancelled' },
-      },
+        tx,
+      });
+
+      await tx.dentCashLedger.create({
+        data: {
+          userId: row.userId,
+          type: 'spend_refund',
+          status: 'available',
+          amountMinor: row.amountMinor,
+          refType: opts.refType,
+          refId: opts.refId,
+          meta: { reason: opts.reason || 'order_cancelled' },
+        },
+      });
+      return true;
     });
-    refunded += row.amountMinor;
+
+    if (did) refunded += row.amountMinor;
   }
   return { refunded };
 }
