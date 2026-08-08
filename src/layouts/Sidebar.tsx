@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Stethoscope, ChevronLeft, ChevronRight, LogOut, Brain,
   ShoppingCart, GraduationCap, Briefcase, BarChart3, Users, User,
-  Shield, ShieldCheck, FileText, Database, Settings, FlaskConical, Star, LogIn, Store, Activity, Scale,
+  Shield, ShieldCheck, FileText, Database, Settings, FlaskConical, Star, LogIn, Store, Activity, Scale, TestTube,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/ds/Avatar';
@@ -105,8 +105,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'supplier', label: t('nav.supplier_cabinet'), icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },
     { id: 'school-workspace', label: t('nav.school_workspace'), icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school-workspace', color: '#2DD4BF', section: 'platform' },
     { id: 'center-workspace', label: t('nav.center_workspace'), icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/center-workspace', color: '#27AE60', section: 'platform' },
+    { id: 'lab-workspace', label: t('nav.lab_workspace'), icon: <TestTube size={18} strokeWidth={1.75} />, path: '/diagnostics/lab-dashboard', color: '#8B5CF6', section: 'platform' },
     { id: 'profile', label: t('nav.profile'), icon: <User size={18} strokeWidth={1.75} />, path: '/profile', color: '#60A5FA', section: 'platform' },
     { id: 'partner-legal', label: t('nav.partner_legal'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/partner-legal', color: '#C9A96E', section: 'platform' },
+    { id: 'audit', label: t('nav.audit'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/audit', color: '#FBBF24', section: 'platform' },
+    { id: 'backup', label: t('nav.backup'), icon: <Database size={18} strokeWidth={1.75} />, path: '/backup', color: '#38BDF8', section: 'platform' },
     { id: 'settings', label: t('nav.settings'), icon: <Settings size={18} strokeWidth={1.75} />, path: '/settings', color: '#94A3B8', section: 'platform' },
   ];
 
@@ -114,9 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'admin', label: t('nav.admin'), icon: <Shield size={18} strokeWidth={1.75} />, path: '/admin', color: '#F87171', section: 'platform' },
     { id: 'shop-admin', label: 'Shop Admin', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop/admin', color: '#A78BFA', section: 'platform' },
     { id: 'school-admin', label: 'School Admin', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school/admin', color: '#2DD4BF', section: 'platform' },
-    { id: 'audit', label: t('nav.audit'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/audit', color: '#FBBF24', section: 'platform' },
     { id: 'security', label: 'Security & Compliance', icon: <ShieldCheck size={18} strokeWidth={1.75} />, path: '/security', color: '#38BDF8', section: 'platform' },
-    { id: 'backup', label: t('nav.backup'), icon: <Database size={18} strokeWidth={1.75} />, path: '/backup', color: '#38BDF8', section: 'platform' },
     { id: 'legal', label: 'Legal', icon: <Scale size={18} strokeWidth={1.75} />, path: '/legal', color: '#C9A96E', section: 'platform' },
     { id: 'quality', label: 'Quality Center', icon: <Activity size={18} strokeWidth={1.75} />, path: '/admin?tab=quality', color: '#10B981', section: 'platform', badge: 'NEW' },
   ];
@@ -191,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const serviceItems = isSuperAdmin ? NAV_ITEMS : (isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.id === 'crm') return true;
     if (item.id === 'profile' || item.id === 'settings' || item.id === 'partner-legal') return true;
-    if (item.id === 'supplier' || item.id === 'school-workspace' || item.id === 'center-workspace') return true;
+    if (item.id === 'supplier' || item.id === 'school-workspace' || item.id === 'center-workspace' || item.id === 'lab-workspace') return true;
     if (item.id === 'jobs' || item.id === 'community') return true;
     if (item.id === 'diagnostics') return canAccessPage(allowedPages, 'diagnostics') || canAccessPage(allowedPages, 'diagnostics-referrals');
     if (item.id === 'shop') return allowedPages.length === 0 || canAccessPage(allowedPages, 'shop');
