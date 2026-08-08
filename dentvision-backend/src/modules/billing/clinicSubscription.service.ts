@@ -6,6 +6,7 @@ import type { ClinicPlan, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { tengeToMinor } from '../../lib/money.js';
+import { resolveClinicAccess } from '../../lib/orgContext.js';
 
 export const TRIAL_DAYS = 30;
 
@@ -86,50 +87,21 @@ export function daysUntil(date: Date | null | undefined, now = new Date()): numb
   return Math.ceil((date.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
 }
 
-const PERSON_ROLE_TO_LEGACY: Record<string, string> = {
-  org_admin: 'ADMIN',
-  doctor: 'DOCTOR',
-  nurse: 'ASSISTANT',
-  cashier: 'ADMIN',
-  lab: 'LAB',
-  lecturer: 'DOCTOR',
-  seller: 'DOCTOR',
-  superadmin: 'SUPERADMIN',
-  owner: 'OWNER',
-  director: 'DIRECTOR',
-  admin: 'ADMIN',
-  manager: 'MANAGER',
-  assistant: 'ASSISTANT',
-  student: 'STUDENT',
-  support: 'SUPPORT',
-};
-
-/** Resolve user's role within a clinic — checks Person/Organization first, then legacy ClinicMember. */
+/**
+ * Resolve user's role within a clinic — delegates to the shared unified
+ * resolver (`orgContext.resolveClinicAccess`: Person/PersonRole first, legacy
+ * ClinicMember fallback, SUPERADMIN pass-through), so this module no longer
+ * carries its own copy of the unified-role→legacy-role map. Kept non-fatal on
+ * DB errors, matching the previous behavior, so a transient failure here
+ * falls through to the caller's own SUPERADMIN/403 fallback instead of
+ * throwing a 500 out of a billing-access check.
+ */
 async function resolveClinicRole(userId: string, clinicId: string) {
   try {
-    const org = await prisma.organization.findFirst({
-      where: { originalType: 'Clinic', originalId: clinicId },
-    });
-    if (org) {
-      const person = await prisma.person.findFirst({
-        where: { userId, organizationId: org.id },
-        include: { personRoles: { include: { role: true } } },
-      });
-      if (person) {
-        const unifiedRole = person.personRoles?.[0]?.role?.key || 'org_admin';
-        return { source: 'person' as const, role: PERSON_ROLE_TO_LEGACY[unifiedRole] || 'DOCTOR' };
-      }
-    }
+    const access = await resolveClinicAccess(userId, clinicId);
+    if (access) return { source: 'unified' as const, role: access.role };
   } catch (e: any) {
-    console.warn('[clinic-billing] org/person lookup failed (non-fatal):', e?.message);
-  }
-  try {
-    const member = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId, clinicId } },
-    });
-    if (member) return { source: 'member' as const, role: member.role };
-  } catch (e: any) {
-    console.warn('[clinic-billing] clinicMember lookup failed (non-fatal):', e?.message);
+    console.warn('[clinic-billing] resolveClinicAccess failed (non-fatal):', e?.message);
   }
   return null;
 }
