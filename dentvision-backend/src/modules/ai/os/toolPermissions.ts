@@ -64,28 +64,6 @@ export const UNGATED_TOOLS: readonly string[] = [
   'draftPromoCopy', // pure LLM text drafting, reads nothing
 ];
 
-/**
- * Action ladder used when matching a required permission against a granted set.
- *
- * The role matrix does not imply lower actions from higher ones — OWNER holds
- * `shop.manage` but not `shop.read` — so an exact-key check would deny owners
- * their own data. Widening is one-directional and stays inside this module:
- * `rbac.requirePermission` keeps its exact-match semantics.
- */
-const ACTION_SATISFIED_BY: Record<string, string[]> = {
-  read: ['read', 'write', 'delete', 'manage'],
-  write: ['write', 'delete', 'manage'],
-  delete: ['delete', 'manage'],
-  manage: ['manage'],
-};
-
-/** Does a resolved permission set satisfy the key a tool requires? */
-export function permissionsSatisfy(granted: Set<string>, required: string): boolean {
-  if (granted.has('*')) return true;
-  if (granted.has(required)) return true;
-
-  const [mod, action] = required.split('.');
-  if (!mod || !action) return false;
-
-  return (ACTION_SATISFIED_BY[action] || [action]).some((a) => granted.has(`${mod}.${a}`));
-}
+// The action ladder lives in lib/permissions.ts — the AI intent router needs
+// the same semantics, and one copy is the point of this whole phase.
+export { permissionsSatisfy } from '../../../lib/permissions.js';

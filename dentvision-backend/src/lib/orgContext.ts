@@ -142,6 +142,20 @@ export async function resolveAnyClinicMembership(userId: string): Promise<{ clin
 }
 
 /**
+ * The Organization mirroring a clinic. Permission lookups are scoped by
+ * organization id, and a clinic id matches no Person — passing one straight
+ * through silently falls back to the role matrix every time.
+ */
+export async function resolveOrganizationIdForClinic(clinicId: string): Promise<string | null> {
+  if (!clinicId) return null;
+  const org = await prisma.organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId },
+    select: { id: true },
+  });
+  return org?.id ?? null;
+}
+
+/**
  * Check role membership (any of the given roles) — wraps resolveClinicAccess.
  */
 export async function assertClinicRole(userId: string, clinicId: string, allowedRoles: string[]) {
