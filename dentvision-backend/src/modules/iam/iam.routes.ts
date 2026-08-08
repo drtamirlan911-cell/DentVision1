@@ -274,7 +274,7 @@ iamRouter.get('/roles', async (_req: AuthRequest, res) => {
 // POST /api/iam/persons/:personId/roles — assign a role to a person
 iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
   try {
-    const { personId } = req.params;
+    const personId = String(req.params.personId);
     const { roleId, scopeType, scopeId } = req.body as { roleId: string; scopeType?: string; scopeId?: string };
 
     const person = await prisma.person.findUnique({ where: { id: personId } });
@@ -303,7 +303,8 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
 // DELETE /api/iam/persons/:personId/roles/:roleId — remove a role assignment
 iamRouter.delete('/persons/:personId/roles/:roleId', async (req: AuthRequest, res) => {
   try {
-    const { personId, roleId } = req.params;
+    const personId = String(req.params.personId);
+    const roleId = String(req.params.roleId);
 
     await prisma.personRole.deleteMany({
       where: { personId, roleId },

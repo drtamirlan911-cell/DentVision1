@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -45,7 +46,7 @@ organizationsRouter.get('/', async (req: AuthRequest, res) => {
 // GET /api/organizations/:id
 organizationsRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
-    const org = await prisma.organization.findUnique({ where: { id: req.params.id } });
+    const org = await prisma.organization.findUnique({ where: { id: String(req.params.id) } });
     if (!org) {
       return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
     }
@@ -61,7 +62,7 @@ organizationsRouter.post('/', async (req: AuthRequest, res) => {
   try {
     const { name, type, taxId, address, phone, email, logo, contacts, settings } = req.body as {
       name: string; type: string; taxId?: string; address?: string; phone?: string;
-      email?: string; logo?: string; contacts?: Record<string, unknown>; settings?: Record<string, unknown>;
+      email?: string; logo?: string; contacts?: Prisma.InputJsonValue; settings?: Prisma.InputJsonValue;
     };
 
     if (!name || !type) {
@@ -84,16 +85,16 @@ organizationsRouter.patch('/:id', async (req: AuthRequest, res) => {
   try {
     const { name, type, taxId, address, phone, email, logo, contacts, settings } = req.body as {
       name?: string; type?: string; taxId?: string; address?: string; phone?: string;
-      email?: string; logo?: string; contacts?: Record<string, unknown>; settings?: Record<string, unknown>;
+      email?: string; logo?: string; contacts?: Prisma.InputJsonValue; settings?: Prisma.InputJsonValue;
     };
 
-    const existing = await prisma.organization.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.organization.findUnique({ where: { id: String(req.params.id) } });
     if (!existing) {
       return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
     }
 
     const org = await prisma.organization.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       data: { name, type, taxId, address, phone, email, logo, contacts, settings },
     });
 
@@ -107,12 +108,12 @@ organizationsRouter.patch('/:id', async (req: AuthRequest, res) => {
 // DELETE /api/organizations/:id
 organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
-    const existing = await prisma.organization.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.organization.findUnique({ where: { id: String(req.params.id) } });
     if (!existing) {
       return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
     }
 
-    await prisma.organization.delete({ where: { id: req.params.id } });
+    await prisma.organization.delete({ where: { id: String(req.params.id) } });
 
     return res.json({ ok: true, data: null } satisfies ApiResponse);
   } catch (error) {

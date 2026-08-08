@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -49,7 +50,7 @@ personsRouter.get('/', async (req: AuthRequest, res) => {
 personsRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
     const person = await prisma.person.findUnique({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       include: { organization: { select: { id: true, name: true, type: true } } },
     });
     if (!person) {
@@ -68,7 +69,7 @@ personsRouter.post('/', async (req: AuthRequest, res) => {
     const { fullName, personType, organizationId, userId, phone, email, specialization, bio, contacts } = req.body as {
       fullName: string; personType: string; organizationId?: string; userId?: string;
       phone?: string; email?: string; specialization?: string; bio?: string;
-      contacts?: Record<string, unknown>;
+      contacts?: Prisma.InputJsonValue;
     };
 
     if (!fullName || !personType) {
@@ -99,16 +100,16 @@ personsRouter.patch('/:id', async (req: AuthRequest, res) => {
     const { fullName, personType, organizationId, phone, email, specialization, bio, contacts } = req.body as {
       fullName?: string; personType?: string; organizationId?: string;
       phone?: string; email?: string; specialization?: string; bio?: string;
-      contacts?: Record<string, unknown>;
+      contacts?: Prisma.InputJsonValue;
     };
 
-    const existing = await prisma.person.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.person.findUnique({ where: { id: String(req.params.id) } });
     if (!existing) {
       return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
     }
 
     const person = await prisma.person.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       data: { fullName, personType, organizationId, phone, email, specialization, bio, contacts },
     });
 
@@ -122,12 +123,12 @@ personsRouter.patch('/:id', async (req: AuthRequest, res) => {
 // DELETE /api/persons/:id
 personsRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
-    const existing = await prisma.person.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.person.findUnique({ where: { id: String(req.params.id) } });
     if (!existing) {
       return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
     }
 
-    await prisma.person.delete({ where: { id: req.params.id } });
+    await prisma.person.delete({ where: { id: String(req.params.id) } });
 
     return res.json({ ok: true, data: null } satisfies ApiResponse);
   } catch (error) {

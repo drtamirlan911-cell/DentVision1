@@ -18,6 +18,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # Backend deps + generated Prisma client are needed because the root
+      # vitest suite also runs dentvision-backend/**/*.test.ts.
+      - run: npm ci
+        working-directory: dentvision-backend
+      - run: npx prisma generate
+        working-directory: dentvision-backend
       - run: npm run build --if-present
       - run: npx tsc --noEmit
       - run: npm test
