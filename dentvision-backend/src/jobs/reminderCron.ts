@@ -67,6 +67,16 @@ export async function runReminderCron(opts: {
     : [];
   const doctorMap = new Map(doctors.map((d) => [d.id, `${d.firstName} ${d.lastName}`.trim()]));
 
+  // Batch-fetch already-sent reminder logs once instead of per-appointment.
+  const reminderKeys = appointments.map((a) => `appt_${a.id}`);
+  const existingLogs = reminderKeys.length
+    ? await prisma.reminderLog.findMany({
+        where: { reminderKey: { in: reminderKeys } },
+        select: { reminderKey: true },
+      }).catch((err: any) => (String(err?.code) === 'P2021' ? [] : Promise.reject(err)))
+    : [];
+  const alreadySent = new Set(existingLogs.map((l) => l.reminderKey));
+
   for (const appt of appointments) {
     if (!isReminderEligibleDbStatus(appt.status) && !['pending', 'confirmed'].includes(appt.status)) {
       result.skipped += 1;
@@ -84,11 +94,7 @@ export async function runReminderCron(opts: {
     }
 
     const reminderKey = `appt_${appt.id}`;
-    const already = await prisma.reminderLog.findFirst({
-      where: { clinicId: appt.clinicId, reminderKey },
-      select: { id: true },
-    }).catch((err: any) => (String(err?.code) === 'P2021' ? null : Promise.reject(err)));
-    if (already) {
+    if (alreadySent.has(reminderKey)) {
       result.skipped += 1;
       continue;
     }

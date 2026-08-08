@@ -15,12 +15,18 @@ import { hashPassword } from '../../lib/password.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { onboardPartner } from '../legal/legal.service.js';
-import type { ClinicPlan } from '@prisma/client';
+import type { ClinicPlan, Prisma } from '@prisma/client';
 
 export const adminRouter = Router();
 
 function randomTempPassword(): string {
   return uid().replace(/-/g, '').slice(0, 10);
+}
+
+function paginationParams(query: Record<string, unknown>, defaultLimit = 500) {
+  const limit = Math.min(Math.max(parseInt(String(query.limit ?? defaultLimit), 10) || defaultLimit, 1), 2000);
+  const page = Math.max(parseInt(String(query.page ?? '1'), 10) || 1, 1);
+  return { take: limit, skip: (page - 1) * limit, page, limit };
 }
 
 function serializeUser(u: {
@@ -143,12 +149,18 @@ adminRouter.get('/stats', authenticate, requireSuperadmin, async (_req: AuthRequ
   }
 });
 
-adminRouter.get('/clinics', authenticate, requireSuperadmin, async (_req: AuthRequest, res) => {
+adminRouter.get('/clinics', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
-    const clinics = await prisma.clinic.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { members: true, patients: true } } },
-    });
+    const { take, skip, page, limit } = paginationParams(req.query);
+    const [clinics, total] = await Promise.all([
+      prisma.clinic.findMany({
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+        include: { _count: { select: { members: true, patients: true } } },
+      }),
+      prisma.clinic.count(),
+    ]);
     const subs = await prisma.subscription.findMany({
       where: { ownerType: 'CLINIC', ownerId: { in: clinics.map((c) => c.id) } },
     });
@@ -174,7 +186,8 @@ adminRouter.get('/clinics', authenticate, requireSuperadmin, async (_req: AuthRe
           createdAt: c.createdAt,
         };
       }),
-    } satisfies ApiResponse);
+      pagination: { page, limit, total },
+    } satisfies ApiResponse & { pagination: { page: number; limit: number; total: number } });
   } catch (error) {
     console.error('[admin/clinics]', error);
     res.status(500).json({ ok: false, error: 'Failed to load clinics' });
@@ -370,16 +383,27 @@ adminRouter.patch('/clinics/:id/extend', authenticate, requireSuperadmin, async 
 adminRouter.get('/users', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { clinicId } = req.query as { clinicId?: string };
-    const users = await prisma.user.findMany({
-      where: {
-        role: { not: 'SUPERADMIN' },
-        ...(clinicId && { memberships: { some: { clinicId } } }),
-      },
-      include: { memberships: { select: { clinicId: true }, take: 1 } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const { take, skip, page, limit } = paginationParams(req.query);
+    const where: Prisma.UserWhereInput = {
+      role: { not: 'SUPERADMIN' },
+      ...(clinicId && { memberships: { some: { clinicId } } }),
+    };
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        include: { memberships: { select: { clinicId: true }, take: 1 } },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      prisma.user.count({ where }),
+    ]);
 
-    res.json({ ok: true, data: users.map(serializeUser) } satisfies ApiResponse);
+    res.json({
+      ok: true,
+      data: users.map(serializeUser),
+      pagination: { page, limit, total },
+    } satisfies ApiResponse & { pagination: { page: number; limit: number; total: number } });
   } catch (error) {
     console.error('[admin/users]', error);
     res.status(500).json({ ok: false, error: 'Failed to load users' });
@@ -465,10 +489,19 @@ adminRouter.delete('/users/:id', authenticate, requireSuperadmin, async (req: Au
   }
 });
 
-adminRouter.get('/support', authenticate, requireSuperadmin, async (_req: AuthRequest, res) => {
+adminRouter.get('/support', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
   try {
-    const users = await prisma.user.findMany({ where: { role: 'SUPPORT' }, orderBy: { createdAt: 'desc' } });
-    res.json({ ok: true, data: users.map(serializeUser) } satisfies ApiResponse);
+    const { take, skip, page, limit } = paginationParams(req.query);
+    const where = { role: 'SUPPORT' as const };
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
+      prisma.user.count({ where }),
+    ]);
+    res.json({
+      ok: true,
+      data: users.map(serializeUser),
+      pagination: { page, limit, total },
+    } satisfies ApiResponse & { pagination: { page: number; limit: number; total: number } });
   } catch (error) {
     console.error('[admin/support]', error);
     res.status(500).json({ ok: false, error: 'Failed to load support users' });

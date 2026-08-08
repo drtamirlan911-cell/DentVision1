@@ -224,7 +224,7 @@ export async function activateClinicSubscriptionFromPayment(opts: {
     periodEnd,
   });
 
-  // Notify owners/admins
+  // Notify owners/admins (batched in-app create)
   const members = await prisma.clinicMember.findMany({
     where: { clinicId: opts.clinicId, role: { in: ['OWNER', 'ADMIN'] } },
     select: { userId: true },
@@ -235,16 +235,16 @@ export async function activateClinicSubscriptionFromPayment(opts: {
       ? 'Тариф Starter активирован бесплатно.'
       : `Тариф ${opts.saasPlan} оплачен. Действует до ${periodEnd?.toISOString().slice(0, 10)}.`;
 
-  for (const m of members) {
-    await prisma.notification.create({
-      data: {
+  if (members.length > 0) {
+    await prisma.notification.createMany({
+      data: members.map((m) => ({
         id: uid(),
         userId: m.userId,
         type: 'subscription',
         title,
         message,
         link: '/crm/billing',
-      },
+      })),
     });
   }
 
@@ -301,21 +301,22 @@ export async function notifyClinicOwners(
   message: string,
   link = '/crm/billing',
 ) {
-  const { dispatchNotification } = await import('../notifications/dispatch.service.js');
+  const { dispatchNotifications } = await import('../notifications/dispatch.service.js');
   const members = await prisma.clinicMember.findMany({
     where: { clinicId, role: { in: ['OWNER', 'ADMIN'] } },
     select: { userId: true },
   });
-  for (const m of members) {
-    // In-app is guaranteed; WhatsApp/SMS fire only when the clinic has them configured.
-    await dispatchNotification({
-      userId: m.userId,
-      clinicId,
-      type: 'subscription',
-      title,
-      message,
-      link,
-    });
+  if (members.length > 0) {
+    await dispatchNotifications(
+      members.map((m) => ({
+        userId: m.userId,
+        clinicId,
+        type: 'subscription',
+        title,
+        message,
+        link,
+      })),
+    );
   }
   return members.length;
 }

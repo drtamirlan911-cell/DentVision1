@@ -52,6 +52,8 @@ filesRouter.get('/', requirePermission('patient.read'), async (req: AuthRequest,
       if (!assertSameClinic(req, res, patient.clinicId)) return;
     }
 
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '200'), 10) || 200, 1), 1000);
+
     const documents = await prisma.document.findMany({
       where: {
         ...(patientId
@@ -62,6 +64,7 @@ filesRouter.get('/', requirePermission('patient.read'), async (req: AuthRequest,
         patient: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: limit,
     });
 
     return res.json({ ok: true, data: documents } satisfies ApiResponse);

@@ -4,6 +4,8 @@ import { z } from 'zod';
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
+  /** Set to 'true' to force Redis even for localhost/sidecar URLs (used by BullMQ + EventBus). Off by default → in-memory fallbacks. */
+  REDIS_ENABLED: z.string().default('false'),
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('24h'),

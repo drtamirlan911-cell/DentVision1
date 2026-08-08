@@ -7,8 +7,10 @@ export function getRedis(): Redis | null {
   if (_redis) return _redis
 
   const url = env.REDIS_URL || ''
-  // Only connect if there's a real Redis URL (not localhost default)
-  if (!url || url.includes('localhost') || url.includes('127.0.0.1')) {
+  const forced = env.REDIS_ENABLED === 'true'
+  // Connect only when there's a real Redis URL. localhost/127.0.0.1 counts as
+  // "no Redis" unless REDIS_ENABLED=true (e.g. a sidecar on the same instance).
+  if (!url || (!forced && (url.includes('localhost') || url.includes('127.0.0.1')))) {
     return null
   }
 

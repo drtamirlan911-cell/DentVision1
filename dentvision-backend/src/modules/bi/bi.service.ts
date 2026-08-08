@@ -109,9 +109,44 @@ const PLAN_PRICE: Record<string, number> = {
   enterprise: 149900,
 };
 
+// ─── TTL cache ───
+// Deduplicates expensive aggregations both within a single dashboard request
+// (getMRR was recomputed ~7x per request) and across concurrent requests.
+
+const TTL_MS = 30_000;
+
+const cache = new Map<string, { value: unknown; expiresAt: number }>();
+const inflight = new Map<string, Promise<unknown>>();
+
+async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.value as T;
+
+  const running = inflight.get(key);
+  if (running) return running as Promise<T>;
+
+  const promise = fn()
+    .then((value) => {
+      cache.set(key, { value, expiresAt: Date.now() + TTL_MS });
+      inflight.delete(key);
+      return value;
+    })
+    .catch((err) => {
+      inflight.delete(key);
+      throw err;
+    });
+
+  inflight.set(key, promise);
+  return promise;
+}
+
 // ─── MRR / ARR ───
 
 export async function getMRR(): Promise<MRRMetrics> {
+  return cached('bi:mrr', computeMRR);
+}
+
+async function computeMRR(): Promise<MRRMetrics> {
   const now = new Date();
   const prevMonth = new Date(now);
   prevMonth.setMonth(prevMonth.getMonth() - 1);
@@ -161,6 +196,10 @@ export async function getMRR(): Promise<MRRMetrics> {
 // ─── Churn ───
 
 export async function getChurn(months = 1): Promise<ChurnMetrics> {
+  return cached(`bi:churn:${months}`, () => computeChurn(months));
+}
+
+async function computeChurn(months: number): Promise<ChurnMetrics> {
   const now = new Date();
   const periodStart = new Date(now);
   periodStart.setMonth(periodStart.getMonth() - months);
@@ -221,6 +260,10 @@ export async function getLTV(): Promise<LTVMetrics> {
 // ─── CAC ───
 
 export async function getCAC(): Promise<CACMetrics> {
+  return cached('bi:cac', computeCAC);
+}
+
+async function computeCAC(): Promise<CACMetrics> {
   const now = new Date();
   const threeMonthsAgo = new Date(now);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -443,27 +486,42 @@ export async function getPartnerROI(): Promise<PartnerROI[]> {
     },
   });
 
-  const results: PartnerROI[] = [];
+  if (partners.length === 0) return [];
 
-  for (const partner of partners) {
-    // Get transactions linked to this partner's refType/refId
-    const transactions = await prisma.transaction.findMany({
+  const [transactions, campaigns] = await Promise.all([
+    prisma.transaction.findMany({
       where: {
-        refType: partner.refType,
-        refId: partner.refId,
         type: 'sale',
         status: 'completed',
+        OR: partners.map((p) => ({ refType: p.refType, refId: p.refId })),
       },
-    });
+    }),
+    prisma.marketingCampaign.findMany({
+      where: { partnerId: { in: partners.map((p) => p.id) } },
+      select: { partnerId: true, budget: true },
+    }),
+  ]);
 
-    const sales = transactions.length;
-    const turnover = transactions.reduce((s, t) => s + Number(t.amount), 0);
+  const txByKey = new Map<string, typeof transactions>();
+  for (const t of transactions) {
+    const key = `${t.refType}:${t.refId}`;
+    const arr = txByKey.get(key) ?? [];
+    arr.push(t);
+    txByKey.set(key, arr);
+  }
 
-    // Get marketing spend
-    const campaigns = await prisma.marketingCampaign.findMany({
-      where: { partnerId: partner.id },
-    });
-    const adSpend = campaigns.reduce((s, c) => s + Number(c.budget), 0);
+  const adSpendByPartner = new Map<string, number>();
+  for (const c of campaigns) {
+    adSpendByPartner.set(c.partnerId, (adSpendByPartner.get(c.partnerId) || 0) + Number(c.budget));
+  }
+
+  return partners.map((partner) => {
+    const partnerTx = txByKey.get(`${partner.refType}:${partner.refId}`) || [];
+
+    const sales = partnerTx.length;
+    const turnover = partnerTx.reduce((s, t) => s + Number(t.amount), 0);
+
+    const adSpend = adSpendByPartner.get(partner.id) || 0;
 
     // Use KPI data if available
     const kpi = partner.kpis[0];
@@ -477,7 +535,7 @@ export async function getPartnerROI(): Promise<PartnerROI[]> {
     const profit = turnover - adSpend;
     const roi = adSpend > 0 ? ((profit - adSpend) / adSpend) * 100 : 0;
 
-    results.push({
+    return {
       partnerId: partner.id,
       partnerName: `${partner.refType} ${partner.refId}`.slice(0, 50),
       partnerType: partner.type,
@@ -490,10 +548,8 @@ export async function getPartnerROI(): Promise<PartnerROI[]> {
       repeatPurchases,
       avgCheck: Math.round(avgCheck),
       roi: Math.round(roi * 10) / 10,
-    });
-  }
-
-  return results;
+    };
+  });
 }
 
 // ─── Full BI Dashboard ───

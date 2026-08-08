@@ -10,6 +10,7 @@ import {
   EventStats,
 } from './EventTypes.js';
 import { eventStore } from './EventStore.js';
+import { env } from '../../config.js';
 
 const STREAM_KEY = 'dentvision:events';
 const CONSUMER_GROUP = 'ai-orchestrator';
@@ -27,9 +28,12 @@ export class EventBus implements IEventBus {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   async connect(): Promise<void> {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = env.REDIS_URL || '';
+    const forced = env.REDIS_ENABLED === 'true';
+    const wantsRedis =
+      Boolean(redisUrl) && (forced || !(redisUrl.includes('localhost') || redisUrl.includes('127.0.0.1')));
 
-    if (redisUrl) {
+    if (wantsRedis) {
       try {
         this.redis = new Redis(redisUrl, {
           maxRetriesPerRequest: 3,

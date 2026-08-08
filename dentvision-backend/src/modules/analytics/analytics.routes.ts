@@ -79,35 +79,26 @@ analyticsRouter.get('/revenue', async (req: AuthRequest, res) => {
     const now = new Date();
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        clinicId,
-        status: 'paid',
-        createdAt: { gte: twelveMonthsAgo },
-      },
-      select: { amount: true, createdAt: true },
-    });
+    // SQL-level month bucketing instead of shipping every paid invoice to JS.
+    const rows = await prisma.$queryRaw<Array<{ month: string; total: bigint }>>`
+      SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS month,
+             COALESCE(SUM("amount"), 0)::bigint AS total
+      FROM "invoices"
+      WHERE "clinicId" = ${clinicId}
+        AND "status" = 'paid'
+        AND "createdAt" >= ${twelveMonthsAgo}
+      GROUP BY 1
+      ORDER BY 1
+    `;
 
-    const monthlyMap = new Map<string, number>();
+    const rowByMonth = new Map(rows.map((r) => [r.month, Number(r.total)]));
 
+    const revenue: Array<{ month: string; total: number }> = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthlyMap.set(key, 0);
+      revenue.push({ month: key, total: Math.round((rowByMonth.get(key) || 0) * 100) / 100 });
     }
-
-    for (const invoice of invoices) {
-      const d = invoice.createdAt;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (monthlyMap.has(key)) {
-        monthlyMap.set(key, (monthlyMap.get(key) || 0) + invoice.amount);
-      }
-    }
-
-    const revenue = Array.from(monthlyMap.entries()).map(([month, total]) => ({
-      month,
-      total: Math.round(total * 100) / 100,
-    }));
 
     res.json({ ok: true, data: revenue });
   } catch (error) {
@@ -181,34 +172,25 @@ analyticsRouter.get('/patients-growth', async (req: AuthRequest, res) => {
     const now = new Date();
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
-    const patients = await prisma.patient.findMany({
-      where: {
-        clinicId,
-        createdAt: { gte: twelveMonthsAgo },
-      },
-      select: { createdAt: true },
-    });
+    // SQL-level month bucketing instead of shipping every patient row to JS.
+    const rows = await prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
+      SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS month,
+             COUNT(*)::bigint AS count
+      FROM "patients"
+      WHERE "clinicId" = ${clinicId}
+        AND "createdAt" >= ${twelveMonthsAgo}
+      GROUP BY 1
+      ORDER BY 1
+    `;
 
-    const monthlyMap = new Map<string, number>();
+    const rowByMonth = new Map(rows.map((r) => [r.month, Number(r.count)]));
 
+    const growth: Array<{ month: string; newPatients: number }> = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthlyMap.set(key, 0);
+      growth.push({ month: key, newPatients: rowByMonth.get(key) || 0 });
     }
-
-    for (const patient of patients) {
-      const d = patient.createdAt;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (monthlyMap.has(key)) {
-        monthlyMap.set(key, (monthlyMap.get(key) || 0) + 1);
-      }
-    }
-
-    const growth = Array.from(monthlyMap.entries()).map(([month, count]) => ({
-      month,
-      newPatients: count,
-    }));
 
     res.json({ ok: true, data: growth });
   } catch (error) {

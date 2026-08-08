@@ -170,16 +170,28 @@ export async function buildSupplierInsights(supplierId: string): Promise<Supplie
     }
   }
 
-  // Price vs category average
+  // Price vs category average (single groupBy instead of per-product query)
+  const categories = Array.from(
+    new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c))),
+  );
+  const catAggs = categories.length
+    ? await prisma.product.groupBy({
+        by: ['category'],
+        where: { category: { in: categories } },
+        _sum: { price: true },
+        _count: { _all: true },
+      })
+    : [];
+  const aggByCategory = new Map(catAggs.map((a) => [a.category, a]));
+
   for (const p of products) {
     if (!p.category) continue;
-    const agg = await prisma.product.aggregate({
-      where: { category: p.category, id: { not: p.id } },
-      _avg: { price: true },
-      _count: true,
-    });
-    if (!agg._count || !agg._avg.price) continue;
-    const avg = agg._avg.price;
+    const agg = aggByCategory.get(p.category);
+    if (!agg || !agg._count._all || agg._count._all <= 1) continue;
+    // Average excluding this product's own price
+    const sum = Number(agg._sum.price ?? 0);
+    const avg = (sum - p.price) / (agg._count._all - 1);
+    if (!avg || avg <= 0) continue;
     const deltaPct = Math.round(((p.price - avg) / avg) * 100);
     if (deltaPct > 20) {
       insights.push({

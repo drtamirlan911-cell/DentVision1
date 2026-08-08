@@ -82,7 +82,13 @@ labRouter.get('/', requirePermission('appointment.read'), async (req: AuthReques
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
 
-    const orders = await prisma.labOrder.findMany({ where: { clinicId }, orderBy: { createdAt: 'desc' } });
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '200'), 10) || 200, 1), 1000);
+
+    const orders = await prisma.labOrder.findMany({
+      where: { clinicId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
     return res.json({ ok: true, data: orders.map(serializeLabOrder) } satisfies ApiResponse);
   } catch (error: any) {
     console.error('[Lab] list error:', error);
