@@ -1,4 +1,4 @@
-﻿import { useState, lazy, Suspense, useEffect } from 'react';
+﻿import { useState, lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -205,37 +205,100 @@ export default function SuperAdmin() {
       case 'quality': return <Suspense fallback={<TabLoader />}><QualityCenterTab /></Suspense>;
       case 'organizations': return <OrganizationsPage />;
       case 'persons': return <PersonsPage />;
-      case 'dashboard': return (
-        <div className="space-y-6">
-          {s && (
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
-              <StatCard label="Клиник" value={s.totalClinics} icon={<Building2 size={18} />} />
-              <StatCard label="Активных" value={s.activeClinics} icon={<CheckCircle size={18} />} />
-              <StatCard label="Заблокировано" value={s.blockedClinics} icon={<Ban size={18} />} />
-              <StatCard label="Истекают" value={s.expiringSoon} icon={<AlertTriangle size={18} />} />
-              <StatCard label="Пользователей" value={s.totalUsers} icon={<Users size={18} />} />
-              <StatCard label="MRR" value={tg(s.mrr)} icon={<Banknote size={18} />} />
+      case 'dashboard': {
+        // Attention feed: expiring / expired / blocked clinics, soonest first.
+        type AttnRow = { c: any; daysLeft: number | null; blocked: boolean; expiring: boolean; expired: boolean };
+        const attention: AttnRow[] = clinicList
+          .map((c: any): AttnRow => {
+            const end = c.subscription?.endDate ? new Date(c.subscription.endDate) : null;
+            const daysLeft = end ? Math.floor((end.getTime() - Date.now()) / 86400000) : null;
+            return {
+              c,
+              daysLeft,
+              blocked: !c.active,
+              expiring: daysLeft != null && daysLeft >= 0 && daysLeft <= 7,
+              expired: daysLeft != null && daysLeft < 0,
+            };
+          })
+          .filter((x: AttnRow) => x.blocked || x.expiring || x.expired)
+          .sort((a: AttnRow, b: AttnRow) => (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999))
+          .slice(0, 8);
+
+        const Stat = ({ label, value, icon, tab }: { label: string; value: string | number; icon: ReactNode; tab: Tab }) => (
+          <button type="button" onClick={() => handleTabChange(tab)} className="text-left transition-transform hover:-translate-y-0.5 focus:outline-none">
+            <StatCard label={label} value={value} icon={icon} />
+          </button>
+        );
+
+        return (
+          <div className="space-y-6">
+            {s && (
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
+                <Stat label="Клиник" value={s.totalClinics} icon={<Building2 size={18} />} tab="clinics" />
+                <Stat label="Активных" value={s.activeClinics} icon={<CheckCircle size={18} />} tab="clinics" />
+                <Stat label="Заблокировано" value={s.blockedClinics} icon={<Ban size={18} />} tab="clinics" />
+                <Stat label="Истекают" value={s.expiringSoon} icon={<AlertTriangle size={18} />} tab="clinics" />
+                <Stat label="Пользователей" value={s.totalUsers} icon={<Users size={18} />} tab="users" />
+                <Stat label="MRR" value={tg(s.mrr)} icon={<Banknote size={18} />} tab="platform-finance" />
+              </div>
+            )}
+
+            <Card padding="none">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-bdr-subtle">
+                <h3 className="text-sm font-semibold text-txt-primary flex items-center gap-2">
+                  <AlertTriangle size={15} className="text-warning" /> Требуют внимания
+                </h3>
+                <button onClick={() => handleTabChange('clinics')} className="text-xs text-dv-gold hover:text-dv-gold-light">Все клиники</button>
+              </div>
+              {attention.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-txt-muted">Всё в порядке — нет истекающих или заблокированных клиник.</div>
+              ) : (
+                <div className="divide-y divide-bdr-subtle/60">
+                  {attention.map(({ c, daysLeft, blocked, expired }) => (
+                    <div key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-txt-primary truncate">{c.name}</div>
+                        <div className="text-xs text-txt-muted">{c.city || '—'} · {PLANS[c.plan]?.name || c.plan}</div>
+                      </div>
+                      <Badge size="sm" variant={blocked ? 'error' : expired ? 'error' : 'warning'} dot>
+                        {blocked ? 'Заблокирована' : expired ? 'Истекла' : `Истекает через ${daysLeft} дн.`}
+                      </Badge>
+                      <div className="flex gap-1">
+                        {blocked ? (
+                          <Button size="xs" variant="ghost" onClick={() => toggleClinic.mutate(c.id)}>Активировать</Button>
+                        ) : (
+                          <>
+                            <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 1 })}>+1 мес</Button>
+                            <Button size="xs" variant="ghost" onClick={() => extendSub.mutate({ id: c.id, months: 3 })}>+3 мес</Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <GlassCard padding="md">
+                <h3 className="text-sm font-semibold text-txt-primary mb-2">Активность сегодня</h3>
+                <p className="text-2xl font-bold text-dv-gold">{s?.todayAppointments || 0}</p>
+                <p className="text-xs text-txt-muted mt-1">приёмов</p>
+              </GlassCard>
+              <GlassCard padding="md">
+                <h3 className="text-sm font-semibold text-txt-primary mb-2">Новых клиник</h3>
+                <p className="text-2xl font-bold text-success">{s?.newClinicsThisMonth || 0}</p>
+                <p className="text-xs text-txt-muted mt-1">в этом месяце</p>
+              </GlassCard>
+              <GlassCard padding="md">
+                <h3 className="text-sm font-semibold text-txt-primary mb-2">Поддержка</h3>
+                <p className="text-2xl font-bold text-txt-primary">{s?.supportActive || 0}</p>
+                <p className="text-xs text-txt-muted mt-1">активных ассистентов</p>
+              </GlassCard>
             </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <GlassCard padding="md">
-              <h3 className="text-sm font-semibold text-txt-primary mb-2">Активность сегодня</h3>
-              <p className="text-2xl font-bold text-dv-gold">{s?.todayAppointments || 0}</p>
-              <p className="text-xs text-txt-muted mt-1">приёмов</p>
-            </GlassCard>
-            <GlassCard padding="md">
-              <h3 className="text-sm font-semibold text-txt-primary mb-2">Новых клиник</h3>
-              <p className="text-2xl font-bold text-success">{s?.newClinicsThisMonth || 0}</p>
-              <p className="text-xs text-txt-muted mt-1">в этом месяце</p>
-            </GlassCard>
-            <GlassCard padding="md">
-              <h3 className="text-sm font-semibold text-txt-primary mb-2">Платформа</h3>
-              <p className="text-xs text-txt-muted mt-1">DentVision Enterprise v3.0</p>
-              <p className="text-xs text-txt-muted">Поддержка: {s?.supportActive || 0} ассистентов</p>
-            </GlassCard>
           </div>
-        </div>
-      );
+        );
+      }
       case 'clinics': return (
         <>
           <div className="flex justify-end mb-2">
