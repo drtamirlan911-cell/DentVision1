@@ -187,6 +187,18 @@ crmRouter.post('/treatment-plans', requirePermission('patient.write'), async (re
       doctorId: doctorId ?? null,
     } as unknown as Prisma.InputJsonValue;
 
+    if (id) {
+      // Verify the existing plan belongs to a patient in the caller's clinic.
+      const existingPlan = await prisma.treatmentPlan.findUnique({
+        where: { id },
+        include: { patient: { select: { clinicId: true } } },
+      });
+      if (!existingPlan) {
+        return res.status(404).json({ ok: false, error: 'План лечения не найден' } satisfies ApiResponse);
+      }
+      if (!assertSameClinic(req, res, existingPlan.patient?.clinicId ?? '')) return;
+    }
+
     const plan = id
       ? await prisma.treatmentPlan.update({
           where: { id },

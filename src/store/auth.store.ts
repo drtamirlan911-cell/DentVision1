@@ -181,6 +181,7 @@ interface AuthState {
   }
   loading: boolean
   error: string | null
+  _restoring: boolean
 
   login: (loginStr: string, password: string) => Promise<boolean>
   logout: () => void
@@ -316,6 +317,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   capabilities: { canSeeSalary: false, canAddStaff: false, canSeeAudit: false, canBackup: false, canSeeReports: false, canSeeExpenses: false, canManageClinicSettings: false, canManageFinance: false, ownDataOnly: false, readOnly: false },
   loading: false,
   error: null,
+  _restoring: false,
 
   // ─── Derived helpers (do NOT use getters on the state object —
   // Zustand Object.assign freezes getters into stale snapshots on set()).
@@ -330,11 +332,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // ─── Session restoration ───
   restoreSession: async () => {
     const stored = api.loadTokens()
-    if (!stored?.accessToken) {
+    if (!stored?.accessToken && !stored?.refreshToken) {
       set({ loading: false })
       return
     }
-    set({ loading: true })
+    // Prevent concurrent restores (e.g. sidebar + layout both reacting
+    // to a context switch at the same time).
+    if (get()._restoring) return
+    set({ loading: true, _restoring: true })
     try {
       const me = await hydrateAuthFromMe()
       let accessToken = stored.accessToken
@@ -358,10 +363,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         effectiveRole: me.effectiveRole || null,
         capabilities: me.capabilities,
         loading: false,
+        _restoring: false,
       })
     } catch {
       api.clearTokens()
-      set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, permissions: [], effectiveRole: null, loading: false })
+      set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, permissions: [], effectiveRole: null, loading: false, _restoring: false })
     }
   },
 

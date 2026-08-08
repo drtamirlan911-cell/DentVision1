@@ -127,6 +127,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   setSidebarPinned: (pinned) => {
     try {
       localStorage.setItem('dv_sidebar_pinned', pinned ? '1' : '0');
+      if (pinned) localStorage.setItem('dv_sidebar_collapsed', '0');
     } catch { /* ignore */ }
     set({ sidebarPinned: pinned, sidebarCollapsed: pinned ? false : get().sidebarCollapsed });
   },

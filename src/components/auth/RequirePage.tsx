@@ -18,7 +18,7 @@ export function RequirePage({
   children: React.ReactNode
 }) {
   const location = useLocation()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, loading } = useAuth()
   const { isGuest } = useGuestStore()
   const iam = useIam()
 
@@ -28,6 +28,16 @@ export function RequirePage({
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  // Wait for auth hydration before evaluating pages — during context
+  // switches restoreSession() runs asynchronously and pages may be empty.
+  if (loading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#C9A96E]/30 border-t-[#C9A96E]" />
+      </div>
+    )
   }
 
   const pageId = page || pageIdFromPath(location.pathname)

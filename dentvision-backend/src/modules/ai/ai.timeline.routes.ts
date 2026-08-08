@@ -20,7 +20,9 @@ const router = Router();
  */
 router.get('/', authenticate, requirePermission('bi.clinic'), async (req: AuthRequest, res: Response) => {
   try {
-    const clinicId = req.user?.clinicId || (req.query.clinicId as string);
+    const clinicId = req.user?.role === 'SUPERADMIN'
+      ? (req.user?.clinicId || (req.query.clinicId as string))
+      : req.user?.clinicId;
     if (!clinicId) {
       res.status(400).json({ ok: false, error: 'clinicId required' });
       return;
@@ -87,7 +89,9 @@ router.get('/', authenticate, requirePermission('bi.clinic'), async (req: AuthRe
  */
 router.get('/stats', authenticate, requirePermission('bi.clinic'), async (req: AuthRequest, res: Response) => {
   try {
-    const clinicId = req.user?.clinicId || (req.query.clinicId as string);
+    const clinicId = req.user?.role === 'SUPERADMIN'
+      ? (req.user?.clinicId || (req.query.clinicId as string))
+      : req.user?.clinicId;
     if (!clinicId) {
       res.status(400).json({ ok: false, error: 'clinicId required' });
       return;

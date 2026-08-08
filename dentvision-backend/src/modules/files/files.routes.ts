@@ -144,7 +144,7 @@ filesRouter.post('/documents/:id/send-signature', requirePermission('patient.wri
 
 // In-clinic, staff-witnessed signing (authenticated). The remote patient-link
 // path is public — see POST /api/public/document/:token/sign.
-filesRouter.post('/documents/:id/sign', async (req: AuthRequest, res) => {
+filesRouter.post('/documents/:id/sign', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const { signatureData, signedByName, token } = req.body || {};
     const updated = await signDocument({
