@@ -45,7 +45,12 @@ services:
         sync: false
       # Optional Redis (BullMQ ai-admin worker + EventBus streams).
       # Unset (default) → in-memory fallbacks; worker/queue skipped.
-      # - key: REDIS_URL
-      #   value: "redis://default:<password>@<host>:6379"
+      # Set to an Upstash (or any TLS `rediss://`) connection string in the
+      # Render dashboard — sync:false means Render prompts for the value
+      # instead of it living in this file.
+      - key: REDIS_URL
+        sync: false
+      # Only needed if REDIS_URL points at localhost/127.0.0.1 (e.g. a sidecar
+      # on the same instance) — a remote Upstash URL doesn't need this.
       # - key: REDIS_ENABLED
       #   value: "true"
