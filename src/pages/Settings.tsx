@@ -36,7 +36,7 @@ export default function SettingsPage() {
   const [tab, setTab] = useState('clinic')
   const navigate = useNavigate()
   const toast = useToast()
-  const { user, clinic, activeMembership, logout } = useAuth()
+  const { user, clinic, roleInfo, activeMembership, logout } = useAuth()
   const iam = useIam()
   const darkMode = useUIStore((s) => s.darkMode)
   const notifications = useUIStore((s) => s.notifications)
@@ -213,7 +213,7 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-1">
                 <SettingRow label="Имя">{user?.name || user?.login}</SettingRow>
-                <SettingRow label="Роль">{user?.role}</SettingRow>
+                <SettingRow label="Роль">{roleInfo?.label || activeMembership?.role || user?.role}</SettingRow>
                 <SettingRow label="Клиника">{clinic?.name || '—'}</SettingRow>
                 <div className="pt-2">
                   <Button size="sm" variant="ghost" className="min-h-11" icon={<ChevronRight size={14} />} onClick={() => navigate('/profile')}>

@@ -18,6 +18,7 @@ import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
 import GuestCRMModal from '@/components/guest/GuestCRMModal';
 import { ClinicSwitcher } from '@/components/ClinicSwitcher';
+import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner';
 import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
 import { useCompactShell } from '@/hooks/useCompactShell';
@@ -432,6 +433,7 @@ export const IntelligenceLayout: React.FC = () => {
               </motion.button>
             )}
             {!isGuest && <ClinicSwitcher />}
+            {!isGuest && <WorkspaceSwitcher />}
             <DentCashHeaderChip />
             <LanguageSwitcher compact />
             <button
