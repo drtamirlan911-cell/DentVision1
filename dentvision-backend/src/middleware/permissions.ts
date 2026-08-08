@@ -1,6 +1,6 @@
 import type { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
-import { roleHasPermission } from '../lib/permissions.js';
+import { roleHasPermission, type PermissionKey } from '../lib/permissions.js';
 import type { AuthRequest } from '../types/index.js';
 
 /**
@@ -53,7 +53,7 @@ export function requirePermission(...keys: string[]) {
 
       // Fallback to hardcoded permission map
       for (const key of keys) {
-        if (roleHasPermission(user.role, key)) return next();
+        if (roleHasPermission(user.role, key as PermissionKey)) return next();
       }
 
       return res.status(403).json({ ok: false, error: 'Недостаточно прав', code: 'INSUFFICIENT_PERMISSIONS' });
