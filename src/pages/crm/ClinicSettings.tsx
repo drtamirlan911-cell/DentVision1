@@ -116,6 +116,7 @@ export default function ClinicSettingsPage() {
   const [apiKeyDraft, setApiKeyDraft] = useState('')
   const [webhookSecretDraft, setWebhookSecretDraft] = useState('')
   const [showPayHelp, setShowPayHelp] = useState(true)
+  const [activeTab, setActiveTab] = useState('profile')
 
   const bookingUrl = useMemo(() => {
     if (!clinicId || typeof window === 'undefined') return ''
@@ -314,6 +315,39 @@ export default function ClinicSettingsPage() {
         </Button>
       </motion.div>
 
+      {/* ── Tabs ── */}
+      {(() => {
+        const TABS = [
+          { id: 'profile', label: 'Профиль', icon: <Building2 size={14} /> },
+          { id: 'schedule', label: 'Расписание', icon: <Clock size={14} /> },
+          { id: 'alerts', label: 'Оповещения', icon: <Bell size={14} /> },
+          { id: 'kaspi', label: 'Kaspi', icon: <QrCode size={14} /> },
+          { id: 'pricelist', label: 'Прайс', icon: <DollarSign size={14} /> },
+          { id: 'staff', label: 'Персонал', icon: <Users size={14} /> },
+          { id: 'chairs', label: 'Кабинеты', icon: <Armchair size={14} /> },
+        ];
+        return (
+          <motion.div variants={fadeUp} className="flex gap-1 p-1 rounded-xl bg-surface-1 border border-bdr-subtle w-fit overflow-x-auto max-w-full no-scrollbar">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveTab(t.id)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                  activeTab === t.id
+                    ? 'bg-dv-gold/15 text-dv-gold'
+                    : 'text-txt-muted hover:text-txt-primary hover:bg-white/[0.04]'
+                }`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+          </motion.div>
+        );
+      })()}
+
+      {activeTab === 'profile' && (
       <motion.div variants={fadeUp}>
         <Card>
           <CardHeader>
@@ -353,7 +387,9 @@ export default function ClinicSettingsPage() {
           </CardContent>
         </Card>
       </motion.div>
+      )}
 
+      {activeTab === 'schedule' && (
       <motion.div variants={fadeUp}>
         <Card>
           <CardHeader>
@@ -439,7 +475,9 @@ export default function ClinicSettingsPage() {
           </CardContent>
         </Card>
       </motion.div>
+      )}
 
+      {activeTab === 'alerts' && (
       <motion.div variants={fadeUp}>
         <Card>
           <CardHeader>
@@ -536,7 +574,9 @@ export default function ClinicSettingsPage() {
           </CardContent>
         </Card>
       </motion.div>
+      )}
 
+      {activeTab === 'kaspi' && (
       <motion.div variants={fadeUp}>
         <Card className="border-[#C9A96E]/25">
           <CardHeader>
@@ -699,7 +739,9 @@ export default function ClinicSettingsPage() {
           </CardContent>
         </Card>
       </motion.div>
+      )}
 
+      {activeTab === 'pricelist' && (
       <motion.div variants={fadeUp}>
         <Card>
           <CardHeader>
@@ -741,7 +783,9 @@ export default function ClinicSettingsPage() {
           </CardContent>
         </Card>
       </motion.div>
+      )}
 
+      {activeTab === 'staff' && (
       <motion.div variants={fadeUp}>
         <Card>
           <CardHeader>
@@ -812,7 +856,9 @@ export default function ClinicSettingsPage() {
           </CardContent>
         </Card>
       </motion.div>
+      )}
 
+      {activeTab === 'chairs' && (
       <motion.div variants={fadeUp}>
         <Card>
           <CardHeader>
@@ -852,6 +898,7 @@ export default function ClinicSettingsPage() {
           </CardContent>
         </Card>
       </motion.div>
+      )}
     </motion.div>
   )
 }
