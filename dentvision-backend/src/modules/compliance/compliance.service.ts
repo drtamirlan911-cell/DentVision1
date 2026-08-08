@@ -1,4 +1,9 @@
 import prisma from '../../lib/prisma.js';
+import {
+  REQUIRED_CONSENTS,
+  computeConsentStatus,
+  type ConsentAudience,
+} from './consent.catalog.js';
 
 // ─── CONSENTS ───
 
@@ -7,6 +12,18 @@ export async function getConsents(userId: string) {
     where: { userId },
     orderBy: { createdAt: 'desc' },
   });
+}
+
+/**
+ * Click-wrap status for a user: which required agreements are accepted / stale /
+ * missing for their audience, and whether all mandatory ones are satisfied.
+ */
+export async function getRequiredConsents(userId: string, audience: ConsentAudience = 'all') {
+  const existing = await prisma.consent.findMany({
+    where: { userId },
+    select: { type: true, version: true, accepted: true },
+  });
+  return computeConsentStatus(REQUIRED_CONSENTS, existing, audience);
 }
 
 export async function upsertConsent(
