@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
@@ -53,7 +54,7 @@ chairsRouter.get('/chairs', async (req: AuthRequest, res) => {
   }
 });
 
-chairsRouter.post('/chairs', async (req: AuthRequest, res) => {
+chairsRouter.post('/chairs', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -78,7 +79,7 @@ chairsRouter.post('/chairs', async (req: AuthRequest, res) => {
   }
 });
 
-chairsRouter.delete('/chairs/:id', async (req: AuthRequest, res) => {
+chairsRouter.delete('/chairs/:id', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;

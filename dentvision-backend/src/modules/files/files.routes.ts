@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'node:path';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest } from '../../types/index.js';
 import type { ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
@@ -32,7 +33,7 @@ const upload = multer({
   },
 });
 
-filesRouter.get('/', async (req: AuthRequest, res) => {
+filesRouter.get('/', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     if (denyGuest(req, res)) return;
     const clinicId = requireClinicScope(req, res);
@@ -74,7 +75,7 @@ filesRouter.get('/', async (req: AuthRequest, res) => {
 // dedicated "content" column on Document. The text is losslessly encoded
 // as a data: URI in the existing `url` field rather than adding a schema
 // column, avoiding another risky migration against production.
-filesRouter.post('/documents', async (req: AuthRequest, res) => {
+filesRouter.post('/documents', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     if (denyGuest(req, res)) return;
     const scoped = requireClinicScope(req, res);
@@ -120,7 +121,7 @@ filesRouter.post('/documents', async (req: AuthRequest, res) => {
   }
 });
 
-filesRouter.post('/documents/:id/send-signature', async (req: AuthRequest, res) => {
+filesRouter.post('/documents/:id/send-signature', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
     const doc = await prisma.document.findUnique({ where: { id } });
@@ -180,7 +181,7 @@ filesRouter.post('/documents/:id/sign', async (req: AuthRequest, res) => {
   }
 });
 
-filesRouter.post('/upload', upload.single('file'), async (req: AuthRequest, res) => {
+filesRouter.post('/upload', upload.single('file'), requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     if (denyGuest(req, res)) return;
     if (!req.file) {
@@ -250,7 +251,7 @@ filesRouter.post('/upload', upload.single('file'), async (req: AuthRequest, res)
   }
 });
 
-filesRouter.get('/:id', async (req: AuthRequest, res) => {
+filesRouter.get('/:id', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     if (denyGuest(req, res)) return;
     const id = req.params.id as string;
@@ -280,7 +281,7 @@ filesRouter.get('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-filesRouter.delete('/:id', async (req: AuthRequest, res) => {
+filesRouter.delete('/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     if (denyGuest(req, res)) return;
     const id = req.params.id as string;

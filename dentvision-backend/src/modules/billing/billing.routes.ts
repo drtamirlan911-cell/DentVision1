@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import { buildDoctorPayroll } from '../crm/payroll.js';
@@ -12,7 +13,7 @@ billingRouter.use(authenticate);
 billingRouter.use(loadClinicAccess);
 billingRouter.use(blockClinicWrites);
 
-billingRouter.get('/invoices', async (req: AuthRequest, res) => {
+billingRouter.get('/invoices', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const user = req.user;
     const { status, page, limit } = req.query;
@@ -50,7 +51,7 @@ billingRouter.get('/invoices', async (req: AuthRequest, res) => {
   }
 });
 
-billingRouter.post('/invoices', async (req: AuthRequest, res) => {
+billingRouter.post('/invoices', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const user = req.user;
     const { patientId, amount, total, items, notes } = req.body;
@@ -89,7 +90,7 @@ billingRouter.post('/invoices', async (req: AuthRequest, res) => {
   }
 });
 
-billingRouter.patch('/invoices/:id', async (req: AuthRequest, res) => {
+billingRouter.patch('/invoices/:id', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
@@ -111,7 +112,7 @@ billingRouter.patch('/invoices/:id', async (req: AuthRequest, res) => {
   }
 });
 
-billingRouter.get('/invoices/:id', async (req: AuthRequest, res) => {
+billingRouter.get('/invoices/:id', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
@@ -132,7 +133,7 @@ billingRouter.get('/invoices/:id', async (req: AuthRequest, res) => {
   }
 });
 
-billingRouter.post('/invoices/:id/pay', async (req: AuthRequest, res) => {
+billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
@@ -164,7 +165,7 @@ billingRouter.post('/invoices/:id/pay', async (req: AuthRequest, res) => {
   }
 });
 
-billingRouter.delete('/invoices/:id', async (req: AuthRequest, res) => {
+billingRouter.delete('/invoices/:id', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
@@ -182,7 +183,7 @@ billingRouter.delete('/invoices/:id', async (req: AuthRequest, res) => {
   }
 });
 
-billingRouter.get('/summary', async (req: AuthRequest, res) => {
+billingRouter.get('/summary', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const user = req.user;
     const clinicId = user?.clinicId;
@@ -295,7 +296,7 @@ billingRouter.get('/my-payroll', async (req: AuthRequest, res) => {
   }
 });
 
-billingRouter.get('/reports', async (req: AuthRequest, res) => {
+billingRouter.get('/reports', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {

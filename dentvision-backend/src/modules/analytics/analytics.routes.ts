@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { guardAnalytics } from '../../middleware/planGate.js';
 
 const analyticsRouter = Router();
 
 analyticsRouter.use(authenticate);
+analyticsRouter.use(requirePermission('bi.clinic'));
 analyticsRouter.use(guardAnalytics);
 
 analyticsRouter.get('/dashboard', async (req: AuthRequest, res) => {

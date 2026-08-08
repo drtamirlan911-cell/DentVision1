@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { assertClinicBillingAccess } from './clinicSubscription.service.js';
 
@@ -58,7 +59,7 @@ subscriptionsRouter.get('/:ownerType/:ownerId', async (req: AuthRequest, res) =>
   }
 });
 
-subscriptionsRouter.post('/', async (req: AuthRequest, res) => {
+subscriptionsRouter.post('/', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     // Only platform ops / superadmin may manually upsert. Clinics must use checkout.
     if (req.user?.role !== 'SUPERADMIN') {

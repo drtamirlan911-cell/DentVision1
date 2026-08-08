@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { env } from '../../config.js';
 import { tengeToMinor, serializeBigInt } from '../../lib/money.js';
 import { providers, withPaymentQr } from '../payments/kaspi.provider.js';
@@ -44,6 +45,7 @@ clinicBillingRouter.post('/cron', async (req, res) => {
 });
 
 clinicBillingRouter.use(authenticate);
+clinicBillingRouter.use(requirePermission('finance.manage'));
 
 function clinicIdFrom(req: AuthRequest): string {
   return String(req.user?.clinicId || req.query.clinicId || req.body?.clinicId || '');

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
@@ -76,7 +77,7 @@ function buildMeta(
   };
 }
 
-labRouter.get('/', async (req: AuthRequest, res) => {
+labRouter.get('/', requirePermission('appointment.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
@@ -98,7 +99,7 @@ labRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
-labRouter.post('/', async (req: AuthRequest, res) => {
+labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
@@ -147,7 +148,7 @@ labRouter.post('/', async (req: AuthRequest, res) => {
   }
 });
 
-labRouter.patch('/:id/status', async (req: AuthRequest, res) => {
+labRouter.patch('/:id/status', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
@@ -175,7 +176,7 @@ labRouter.patch('/:id/status', async (req: AuthRequest, res) => {
   }
 });
 
-labRouter.delete('/:id', async (req: AuthRequest, res) => {
+labRouter.delete('/:id', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);

@@ -927,7 +927,7 @@ shopRouter.get('/products/:productId/reviews', async (req, res) => {
 
 // ─── SEED PRESETS (SuperAdmin) ───
 
-shopRouter.post('/product-presets/seed', async (_req, res) => {
+shopRouter.post('/product-presets/seed', authenticate, requireSuperadmin, async (_req, res) => {
   try {
     const { seedProductPresets } = await import('./product-presets.seed.js');
     const result = await seedProductPresets();

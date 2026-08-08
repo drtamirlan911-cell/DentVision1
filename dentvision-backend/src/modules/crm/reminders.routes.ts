@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { uid } from '../../lib/helpers.js';
 import { env } from '../../config.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -17,7 +18,7 @@ function requireClinic(req: AuthRequest, res: any): string | null {
   return clinicId;
 }
 
-remindersRouter.get('/reminders/sent', authenticate, async (req: AuthRequest, res) => {
+remindersRouter.get('/reminders/sent', authenticate, requirePermission('appointment.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -35,7 +36,7 @@ remindersRouter.get('/reminders/sent', authenticate, async (req: AuthRequest, re
   }
 });
 
-remindersRouter.post('/reminders/sent', authenticate, async (req: AuthRequest, res) => {
+remindersRouter.post('/reminders/sent', authenticate, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -62,7 +63,7 @@ remindersRouter.post('/reminders/sent', authenticate, async (req: AuthRequest, r
 });
 
 /** Manual / Render cron: run reminder sender for caller's clinic. */
-remindersRouter.post('/reminders/run', authenticate, async (req: AuthRequest, res) => {
+remindersRouter.post('/reminders/run', authenticate, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;

@@ -5,6 +5,7 @@
 import { Router, Response } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest } from '../../types/index.js';
 const router = Router();
 
@@ -17,7 +18,7 @@ const router = Router();
  *   - eventType (optional filter)
  *   - agent (optional filter)
  */
-router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
+router.get('/', authenticate, requirePermission('bi.clinic'), async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = req.user?.clinicId || (req.query.clinicId as string);
     if (!clinicId) {
@@ -84,7 +85,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
  * GET /api/ai/timeline/stats
  * Returns aggregated stats for the timeline.
  */
-router.get('/stats', authenticate, async (req: AuthRequest, res: Response) => {
+router.get('/stats', authenticate, requirePermission('bi.clinic'), async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = req.user?.clinicId || (req.query.clinicId as string);
     if (!clinicId) {

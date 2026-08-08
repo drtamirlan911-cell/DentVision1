@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
@@ -24,7 +25,7 @@ function requireClinic(req: AuthRequest, res: any): string | null {
 
 // ─── Waiting list ───
 
-crmOpsRouter.get('/waiting-list', async (req: AuthRequest, res) => {
+crmOpsRouter.get('/waiting-list', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -67,7 +68,7 @@ crmOpsRouter.get('/waiting-list', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.post('/waiting-list', async (req: AuthRequest, res) => {
+crmOpsRouter.post('/waiting-list', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -102,7 +103,7 @@ crmOpsRouter.post('/waiting-list', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.delete('/waiting-list/:id', async (req: AuthRequest, res) => {
+crmOpsRouter.delete('/waiting-list/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -119,7 +120,7 @@ crmOpsRouter.delete('/waiting-list/:id', async (req: AuthRequest, res) => {
 
 // ─── Expenses ───
 
-crmOpsRouter.get('/expenses', async (req: AuthRequest, res) => {
+crmOpsRouter.get('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -153,7 +154,7 @@ crmOpsRouter.get('/expenses', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.post('/expenses', async (req: AuthRequest, res) => {
+crmOpsRouter.post('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -182,7 +183,7 @@ crmOpsRouter.post('/expenses', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.delete('/expenses/:id', async (req: AuthRequest, res) => {
+crmOpsRouter.delete('/expenses/:id', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -198,7 +199,7 @@ crmOpsRouter.delete('/expenses/:id', async (req: AuthRequest, res) => {
 
 // ─── Promotions ───
 
-crmOpsRouter.get('/promotions', async (req: AuthRequest, res) => {
+crmOpsRouter.get('/promotions', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -228,7 +229,7 @@ crmOpsRouter.get('/promotions', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.post('/promotions', async (req: AuthRequest, res) => {
+crmOpsRouter.post('/promotions', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -262,7 +263,7 @@ crmOpsRouter.post('/promotions', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.delete('/promotions/:id', async (req: AuthRequest, res) => {
+crmOpsRouter.delete('/promotions/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -278,7 +279,7 @@ crmOpsRouter.delete('/promotions/:id', async (req: AuthRequest, res) => {
 
 // ─── Price list ───
 
-crmOpsRouter.get('/price-list', async (req: AuthRequest, res) => {
+crmOpsRouter.get('/price-list', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -292,7 +293,7 @@ crmOpsRouter.get('/price-list', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.post('/price-list', async (req: AuthRequest, res) => {
+crmOpsRouter.post('/price-list', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -363,7 +364,7 @@ function mapBookingRow(r: {
   };
 }
 
-crmOpsRouter.get('/bookings', async (req: AuthRequest, res) => {
+crmOpsRouter.get('/bookings', requirePermission('appointment.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -385,7 +386,7 @@ crmOpsRouter.get('/bookings', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.post('/bookings', async (req: AuthRequest, res) => {
+crmOpsRouter.post('/bookings', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -424,7 +425,7 @@ crmOpsRouter.post('/bookings', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.post('/bookings/:id/confirm', async (req: AuthRequest, res) => {
+crmOpsRouter.post('/bookings/:id/confirm', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -501,7 +502,7 @@ crmOpsRouter.post('/bookings/:id/confirm', async (req: AuthRequest, res) => {
   }
 });
 
-crmOpsRouter.delete('/bookings/:id', async (req: AuthRequest, res) => {
+crmOpsRouter.delete('/bookings/:id', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;

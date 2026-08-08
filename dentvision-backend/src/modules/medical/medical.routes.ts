@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
@@ -68,7 +69,7 @@ async function ensureIcd10Seeded() {
   return DENTAL_ICD10_SEED.length;
 }
 
-medicalRouter.post('/visits', async (req: AuthRequest, res) => {
+medicalRouter.post('/visits', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const { patientId, doctorId, diagnosis, complaints, anamnesis, treatment, notes } = req.body;
 
@@ -98,7 +99,7 @@ medicalRouter.post('/visits', async (req: AuthRequest, res) => {
   }
 });
 
-medicalRouter.patch('/visits/:id', async (req: AuthRequest, res) => {
+medicalRouter.patch('/visits/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     if (!(await requireVisitAccess(req, res, id))) return;
@@ -124,7 +125,7 @@ medicalRouter.patch('/visits/:id', async (req: AuthRequest, res) => {
   }
 });
 
-medicalRouter.get('/visits/:patientId', async (req: AuthRequest, res) => {
+medicalRouter.get('/visits/:patientId', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
     if (!(await requirePatientAccess(req, res, patientId))) return;
@@ -141,7 +142,7 @@ medicalRouter.get('/visits/:patientId', async (req: AuthRequest, res) => {
 });
 
 // Get all visits for a clinic (for global dashboard load)
-medicalRouter.get('/visits', async (req: AuthRequest, res) => {
+medicalRouter.get('/visits', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) {
@@ -163,7 +164,7 @@ medicalRouter.get('/visits', async (req: AuthRequest, res) => {
 });
 
 // Alias for frontend compatibility: /api/medical/patients/:patientId/visits
-medicalRouter.get('/patients/:patientId/visits', async (req: AuthRequest, res) => {
+medicalRouter.get('/patients/:patientId/visits', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
     if (!(await requirePatientAccess(req, res, patientId))) return;
@@ -179,7 +180,7 @@ medicalRouter.get('/patients/:patientId/visits', async (req: AuthRequest, res) =
   }
 });
 
-medicalRouter.post('/treatment-plan', async (req: AuthRequest, res) => {
+medicalRouter.post('/treatment-plan', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const { patientId, title, items, price } = req.body;
 
@@ -206,7 +207,7 @@ medicalRouter.post('/treatment-plan', async (req: AuthRequest, res) => {
   }
 });
 
-medicalRouter.patch('/treatment-plan/:id', async (req: AuthRequest, res) => {
+medicalRouter.patch('/treatment-plan/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     if (!(await requireTreatmentPlanAccess(req, res, id))) return;
@@ -229,7 +230,7 @@ medicalRouter.patch('/treatment-plan/:id', async (req: AuthRequest, res) => {
   }
 });
 
-medicalRouter.get('/treatment-plan/:patientId', async (req: AuthRequest, res) => {
+medicalRouter.get('/treatment-plan/:patientId', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
     if (!(await requirePatientAccess(req, res, patientId))) return;
@@ -245,7 +246,7 @@ medicalRouter.get('/treatment-plan/:patientId', async (req: AuthRequest, res) =>
   }
 });
 
-medicalRouter.post('/teeth', async (req: AuthRequest, res) => {
+medicalRouter.post('/teeth', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const { patientId, number, condition, diagnosis, notes } = req.body;
 
@@ -281,7 +282,7 @@ medicalRouter.post('/teeth', async (req: AuthRequest, res) => {
   }
 });
 
-medicalRouter.get('/teeth/:patientId', async (req: AuthRequest, res) => {
+medicalRouter.get('/teeth/:patientId', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
     if (!(await requirePatientAccess(req, res, patientId))) return;
@@ -297,7 +298,7 @@ medicalRouter.get('/teeth/:patientId', async (req: AuthRequest, res) => {
   }
 });
 
-medicalRouter.post('/images', async (req: AuthRequest, res) => {
+medicalRouter.post('/images', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const { patientId, type, url, metadata } = req.body;
 
@@ -330,7 +331,7 @@ medicalRouter.post('/images', async (req: AuthRequest, res) => {
   }
 });
 
-medicalRouter.get('/images/:patientId', async (req: AuthRequest, res) => {
+medicalRouter.get('/images/:patientId', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const { patientId } = req.params as { patientId: string };
     if (!(await requirePatientAccess(req, res, patientId))) return;
@@ -346,7 +347,7 @@ medicalRouter.get('/images/:patientId', async (req: AuthRequest, res) => {
   }
 });
 
-medicalRouter.delete('/images/:id', async (req: AuthRequest, res) => {
+medicalRouter.delete('/images/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
     const image = await prisma.patientImage.findUnique({
