@@ -21,6 +21,11 @@ const statusConfig = {
     icon: 'check',
     color: 'text-green-400',
   },
+  confirmation: {
+    label: 'Подтвердите действие',
+    icon: 'loader',
+    color: 'text-dv-gold',
+  },
   error: {
     label: 'Ошибка',
     icon: 'error',

@@ -444,32 +444,26 @@ const handleSend = useCallback(async (text: string) => {
 
     const upsertAssistant = (patch: Record<string, unknown>) => {
       useAIStore.setState((state) => {
-        const exists = state.ai.messages.some((m) => m.id === assistantId)
+        const exists = state.messages.some((m) => m.id === assistantId)
         if (!exists) {
           assistantCreated = true
           return {
-            ai: {
-              ...state.ai,
-              messages: [
-                ...state.ai.messages,
-                {
-                  id: assistantId,
-                  role: 'assistant' as const,
-                  content: '',
-                  timestamp: new Date(),
-                  ...patch,
-                },
-              ],
-            },
+            messages: [
+              ...state.messages,
+              {
+                id: assistantId,
+                role: 'assistant' as const,
+                content: '',
+                timestamp: new Date(),
+                ...patch,
+              } as Message,
+            ],
           }
         }
         return {
-          ai: {
-            ...state.ai,
-            messages: state.ai.messages.map((m) =>
-              m.id === assistantId ? { ...m, ...patch } : m
-            ),
-          },
+          messages: state.messages.map((m) =>
+            m.id === assistantId ? ({ ...m, ...patch } as Message) : m
+          ),
         }
       })
     }
@@ -517,13 +511,7 @@ const handleSend = useCallback(async (text: string) => {
       }
 
       if (res.conversationContext?.entities) {
-        setCurrentIntent({
-          id: `int-${Date.now()}`,
-          type: res.skill || 'general',
-          skill: res.skill || 'general',
-          entities: res.conversationContext.entities as Record<string, unknown>,
-          confidence: 1,
-        })
+        setCurrentIntent(res.skill || 'general')
         const entityKeys = Object.keys(res.conversationContext.entities as Record<string, unknown>)
         if (entityKeys.includes('patientId') || entityKeys.includes('patientName')) {
           setContextFocus('patient', (res.conversationContext.entities as any).patientId || null, res.conversationContext.entities as Record<string, unknown>)
@@ -555,10 +543,7 @@ const handleSend = useCallback(async (text: string) => {
       } else if (assistantCreated) {
         // Drop placeholder if the model returned nothing usable
         useAIStore.setState((state) => ({
-          ai: {
-            ...state.ai,
-            messages: state.ai.messages.filter((m) => m.id !== assistantId),
-          },
+          messages: state.messages.filter((m) => m.id !== assistantId),
         }))
       }
 
@@ -637,7 +622,7 @@ const handleSend = useCallback(async (text: string) => {
           return
         }
 
-        setCurrentAction(aiAction)
+        setCurrentAction(aiAction.type)
 
         const needsConfirm = aiAction.requiresConfirmation || (action.confidence ?? 1) <= 0.85
         if (!needsConfirm && (action.confidence ?? 0) > 0.85) {
@@ -904,14 +889,11 @@ const result = await executeAction(
                     intent: m.skill,
                   }).then((res) => {
                     useAIStore.setState((state) => ({
-                      ai: {
-                        ...state.ai,
-                        messages: state.ai.messages.map((row) =>
-                          row.id === m.id
-                            ? { ...row, feedback: rating, messageId: res?.messageId || row.messageId }
-                            : row,
-                        ),
-                      },
+                      messages: state.messages.map((row) =>
+                        row.id === m.id
+                          ? { ...row, feedback: rating, messageId: res?.messageId || row.messageId }
+                          : row,
+                      ),
                     }))
                   }).catch(() => undefined)
                 }}

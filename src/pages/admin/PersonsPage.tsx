@@ -35,7 +35,7 @@ const PERSON_TYPE_OPTIONS = [
 ];
 
 export default function PersonsPage() {
-  const { toast } = useToast();
+  const { showToast: toast } = useToast();
   const queryClient = useQueryClient();
   const [typeFilter, setTypeFilter] = useState('');
   const [orgFilter, setOrgFilter] = useState('');
@@ -114,10 +114,10 @@ export default function PersonsPage() {
         <CardContent>
           <div className="flex flex-wrap gap-3 mb-4">
             <div className="w-44">
-              <Select value={typeFilter} onChange={(v) => { setTypeFilter(v); setPage(1); }} options={PERSON_TYPE_OPTIONS} />
+              <Select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} options={PERSON_TYPE_OPTIONS} />
             </div>
             <div className="w-56">
-              <Select value={orgFilter} onChange={(v) => { setOrgFilter(v); setPage(1); }} options={orgOptions} />
+              <Select value={orgFilter} onChange={(e) => { setOrgFilter(e.target.value); setPage(1); }} options={orgOptions} />
             </div>
             <div className="w-64">
               <Input placeholder="Поиск по имени..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
@@ -181,8 +181,8 @@ export default function PersonsPage() {
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? 'Редактировать персону' : 'Создать персону'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Имя *" value={form.fullName} onChange={(e) => setForm(f => ({ ...f, fullName: e.target.value }))} required />
-          <Select label="Тип *" value={form.personType} onChange={(v) => setForm(f => ({ ...f, personType: v }))} options={PERSON_TYPE_OPTIONS.filter(o => o.value)} />
-          <Select label="Организация" value={form.organizationId} onChange={(v) => setForm(f => ({ ...f, organizationId: v }))} options={orgOptions.filter(o => o.value)} />
+          <Select label="Тип *" value={form.personType} onChange={(e) => setForm(f => ({ ...f, personType: e.target.value }))} options={PERSON_TYPE_OPTIONS.filter(o => o.value)} />
+          <Select label="Организация" value={form.organizationId} onChange={(e) => setForm(f => ({ ...f, organizationId: e.target.value }))} options={orgOptions.filter(o => o.value)} />
           <Input label="Специализация" value={form.specialization} onChange={(e) => setForm(f => ({ ...f, specialization: e.target.value }))} />
           <Input label="Телефон" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} />
           <Input label="Email" type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} />

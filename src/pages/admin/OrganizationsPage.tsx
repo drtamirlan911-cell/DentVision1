@@ -33,7 +33,7 @@ const ORG_TYPE_OPTIONS = [
 ];
 
 export default function OrganizationsPage() {
-  const { toast } = useToast();
+  const { showToast: toast } = useToast();
   const queryClient = useQueryClient();
   const [typeFilter, setTypeFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -112,7 +112,7 @@ export default function OrganizationsPage() {
             <div className="w-48">
               <Select
                 value={typeFilter}
-                onChange={(v) => { setTypeFilter(v); setPage(1); }}
+                onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
                 options={ORG_TYPE_OPTIONS}
               />
             </div>
@@ -184,7 +184,7 @@ export default function OrganizationsPage() {
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? 'Редактировать организацию' : 'Создать организацию'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Название *" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} required />
-          <Select label="Тип *" value={form.type} onChange={(v) => setForm(f => ({ ...f, type: v }))} options={ORG_TYPE_OPTIONS.filter(o => o.value)} />
+          <Select label="Тип *" value={form.type} onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))} options={ORG_TYPE_OPTIONS.filter(o => o.value)} />
           <Input label="БИН/ИНН" value={form.taxId} onChange={(e) => setForm(f => ({ ...f, taxId: e.target.value }))} />
           <Input label="Адрес" value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} />
           <Input label="Телефон" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} />

@@ -210,7 +210,7 @@ export default function PatientPortal() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-0 p-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm text-center">
-          <Card padding="xl">
+          <Card padding="lg">
             <h1 className="text-2xl font-bold text-txt-primary mb-2">Кабинет пациента</h1>
             <p className="text-sm text-txt-muted mb-6">Войдите или создайте аккаунт для доступа к истории лечения, приёмам и оплатам</p>
             <div className="space-y-3">
@@ -228,7 +228,7 @@ export default function PatientPortal() {
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-xl font-bold text-txt-primary">Кабинет пациента</h1>
-        <p className="text-sm text-txt-muted mt-0.5">{user.firstName} {user.lastName}</p>
+        <p className="text-sm text-txt-muted mt-0.5">{user.name}</p>
       </div>
 
       <Tabs
