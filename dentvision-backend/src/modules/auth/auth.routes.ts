@@ -8,6 +8,7 @@ import { uid } from '../../lib/helpers.js';
 import { onboardPartner } from '../legal/legal.service.js';
 import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
+import { resolveAuthContext } from '../../lib/authContext.js';
 
 async function ensureOrgAndPerson(clinicId: string, userId: string, role: string) {
   const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { name: true, city: true } });
@@ -177,7 +178,8 @@ authRouter.post('/login', async (req, res) => {
 
     await resetAttempts(email, ip);
 
-    const clinicId = user.memberships[0]?.clinicId;
+    const authContext = await resolveAuthContext(user.id, { clinicId: user.memberships[0]?.clinicId });
+    const clinicId = authContext.clinicId;
     const activeMembership = user.memberships[0]
       ? {
           id: user.memberships[0].id,
@@ -197,7 +199,7 @@ authRouter.post('/login', async (req, res) => {
       sub: user.id,
       email: user.email,
       role: user.role,
-      clinicId,
+      ...authContext,
       sessionId: session?.id,
     });
 
@@ -205,7 +207,10 @@ authRouter.post('/login', async (req, res) => {
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
 
-    const effectivePermissions = await resolveUserPermissions(user.id, clinicId);
+    // Scope is an Organization id — passing a clinic id here matched no Person,
+    // so the DB permission graph never contributed and every caller silently
+    // got the hardcoded role matrix.
+    const effectivePermissions = await resolveUserPermissions(user.id, authContext.organizationId);
 
     const response: ApiResponse = {
       ok: true,
@@ -282,11 +287,20 @@ authRouter.post('/refresh', async (req, res) => {
       },
     }).catch(() => null);
 
+    // Re-resolve rather than copying the old claims forward: the scope the
+    // token carried is re-verified against current memberships, and a context
+    // established by switch-context survives the rotation instead of being
+    // dropped back to a bare legacy clinicId.
+    const authContext = await resolveAuthContext(user.id, {
+      organizationId: payload.organizationId,
+      clinicId: payload.clinicId,
+    });
+
     const tokens = generateTokens({
       sub: user.id,
       email: user.email,
       role: user.role,
-      clinicId: payload.clinicId,
+      ...authContext,
       sessionId: session?.id,
     });
 
@@ -330,7 +344,7 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
       return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
     }
 
-    const effectivePermissions = await resolveUserPermissions(user.id, user.memberships[0]?.clinicId);
+    const effectivePermissions = await resolveUserPermissions(user.id, req.user!.organizationId);
 
     const response: ApiResponse = {
       ok: true,
@@ -401,7 +415,10 @@ authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) =>
       sub: req.user!.id,
       email: req.user!.email,
       role: membership.role || req.user!.role,
-      clinicId,
+      ...(await resolveAuthContext(req.user!.id, { clinicId })),
+      // Re-issued tokens kept no sessionId, which made `authenticate` skip the
+      // revocation check for them entirely — logging out could not kill them.
+      sessionId: req.user!.sessionId,
     });
 
     const clinic = await prisma.clinic.findUnique({
@@ -491,7 +508,8 @@ authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
       sub: req.user!.id,
       email: req.user!.email,
       role: req.user!.role,
-      clinicId,
+      ...(await resolveAuthContext(req.user!.id, { clinicId })),
+      sessionId: req.user!.sessionId,
     });
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
@@ -763,7 +781,8 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
       sub: userId,
       email: req.user!.email,
       role: req.user!.role,
-      clinicId,
+      ...(await resolveAuthContext(userId, { clinicId })),
+      sessionId: req.user!.sessionId,
     });
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);

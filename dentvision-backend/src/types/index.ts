@@ -16,6 +16,8 @@ export interface AuthUser {
   organizationId?: string;
   organizationType?: string;
   personType?: string;
+  /** Session this request authenticated with — carried into re-issued tokens. */
+  sessionId?: string;
   isGuest?: boolean;
 }
 

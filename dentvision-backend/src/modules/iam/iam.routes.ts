@@ -165,7 +165,9 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'scopeType и scopeId обязательны' } satisfies ApiResponse);
     }
 
-    const base = { sub: user.id, email: user.email, role: user.role };
+    // sessionId must survive a context switch: without it `authenticate` skips
+    // the revocation check, so a switched token outlived logout.
+    const base = { sub: user.id, email: user.email, role: user.role, sessionId: user.sessionId };
 
     // 1) Try unified Organization first (any type)
     const org = await prisma.organization.findUnique({ where: { id: scopeId } });
@@ -197,8 +199,10 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           organizationType: org.type,
           personType: person.personType,
           ...supplierContext,
-          // Legacy compat: if CLINIC, also set clinicId
-          ...(org.type === 'CLINIC' ? { clinicId: scopeId } : {}),
+          // Legacy compat: a clinic's own id is Organization.originalId — the
+          // organization id itself matches no Clinic row, so emitting it here
+          // handed every clinic-scoped query an id that resolves to nothing.
+          ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}),
         });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }

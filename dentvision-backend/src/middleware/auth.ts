@@ -67,14 +67,17 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       if (payload.organizationId) {
         const person = await prisma.person.findFirst({
           where: { userId: user.id, organizationId: payload.organizationId },
-          include: { organization: { select: { type: true } } },
+          include: { organization: { select: { type: true, originalId: true } } },
         });
         if (person && person.organization) {
           effectiveOrgId = payload.organizationId;
           effectiveOrgType = person.organization.type;
           effectivePersonType = person.personType;
           if (person.organization.type === 'CLINIC') {
-            effectiveClinicId = payload.organizationId;
+            // Organization.id is a fresh id — the clinic's own id lives in
+            // originalId. Using the organization id here handed every
+            // clinic-scoped query an id that matches no Clinic row.
+            effectiveClinicId = person.organization.originalId || undefined;
           }
         }
       }
@@ -110,6 +113,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       organizationId: effectiveOrgId,
       organizationType: effectiveOrgType,
       personType: effectivePersonType,
+      sessionId: payload.sessionId,
       isGuest,
     } satisfies AuthUser;
 
