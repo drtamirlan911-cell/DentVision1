@@ -1314,5 +1314,170 @@
     "stage": "Stage",
     "procedures": "Procedures",
     "recommendations": "Recommendations"
+  },
+  "patientPortal": {
+    "title": "Patient Portal",
+    "subtitle": "Sign in or create an account to access your treatment history, appointments, and payments",
+    "welcome": "Welcome, {{name}}",
+    "login": "Sign in as patient",
+    "register": "Register",
+    "link_hint": "After registration, ask your clinic to link your account to your patient card",
+    "tabs": {
+      "appointments": "Appointments",
+      "treatments": "Treatment",
+      "visits": "Visits",
+      "payments": "Payments",
+      "documents": "Documents",
+      "diagnostics": "Diagnostics"
+    },
+    "loading": "Loading...",
+    "error": "Failed to load data",
+    "retry": "Retry",
+    "empty": {
+      "appointments": "No upcoming appointments",
+      "appointments_desc": "Book an appointment online or through the clinic",
+      "treatments": "No treatment records",
+      "treatments_desc": "Information about completed treatment will appear here",
+      "visits": "No visit history",
+      "visits_desc": "Your medical record will appear here after your first visit",
+      "payments": "No invoices",
+      "payments_desc": "Issued invoices will be displayed here",
+      "documents": "No documents",
+      "documents_desc": "Clinic documents will be available here",
+      "diagnostics": "No referrals",
+      "diagnostics_desc": "Diagnostic referrals will appear here"
+    },
+    "book_online": "Book online",
+    "appointments": {
+      "title": "Appointment",
+      "doctor": "Doctor",
+      "clinic": "Clinic",
+      "date": "Date",
+      "time": "Time",
+      "status": "Status"
+    },
+    "treatments": {
+      "procedure": "Procedure",
+      "tooth": "Tooth",
+      "cost": "Cost",
+      "date": "Date"
+    },
+    "visits": {
+      "diagnosis": "Diagnosis",
+      "treatment_plan": "Treatment plan",
+      "procedures": "Procedures",
+      "prescription": "Prescription",
+      "doctor": "Doctor",
+      "clinic": "Clinic",
+      "date": "Date"
+    },
+    "payments": {
+      "summary": {
+        "total": "Total",
+        "paid": "Paid",
+        "unpaid": "Due"
+      },
+      "clinic": "Clinic",
+      "date": "Date",
+      "amount": "Amount",
+      "status": "Status",
+      "pay": "Pay"
+    },
+    "documents": {
+      "title": "Document",
+      "type": "Type",
+      "clinic": "Clinic",
+      "date": "Date",
+      "signed": "Signed",
+      "pending": "Pending signature",
+      "sign": "Sign",
+      "view": "View",
+      "signing": "Signing document",
+      "signing_desc": "Please sign in the field below",
+      "sign_success": "Document signed successfully",
+      "sign_error": "Failed to sign document",
+      "sign_required": "Document is awaiting your signature",
+      "full_name": "Your full name",
+      "full_name_placeholder": "Ivanov Ivan Ivanovich",
+      "signature_label": "Signature",
+      "signature_hint": "Sign below using your mouse or finger on the screen",
+      "consent": "By clicking 'Apply Signature', you confirm agreement with the document content.",
+      "clear": "Clear",
+      "apply_signature": "Apply Signature",
+      "document_content_missing": "Document content is missing",
+      "signed_page_title": "Document signed",
+      "signed_by": "Signed by: {{name}}"
+    },
+    "diagnostics": {
+      "study": "Study",
+      "status": "Status",
+      "category": "Category",
+      "center": "Center",
+      "lab": "Laboratory",
+      "report": "Report",
+      "cost": "Cost",
+      "no_report": "No report available"
+    },
+    "publicBooking": {
+      "title": "Online booking",
+      "subtitle": "Book an appointment in just a couple of minutes",
+      "clinic_not_found": "Clinic not found",
+      "unavailable": "Booking unavailable",
+      "powered_by": "Powered by DentVision",
+      "steps": {
+        "service": "Service",
+        "doctor": "Doctor",
+        "datetime": "Date",
+        "contact": "Contact"
+      },
+      "service": {
+        "title": "Select a service",
+        "category_default": "Services",
+        "price_on_request": "Price on request"
+      },
+      "doctor": {
+        "title": "Select a doctor",
+        "any": "Any doctor",
+        "any_desc": "We will assign an available specialist"
+      },
+      "datetime": {
+        "title": "Date and time",
+        "day": "Day",
+        "time": "Time",
+        "not_working": "The clinic is closed on this day",
+        "no_slots": "No available slots — choose another day"
+      },
+      "contact": {
+        "title": "Your contacts",
+        "service": "Service",
+        "when": "When",
+        "any_doctor": "any doctor",
+        "name": "Full name",
+        "name_placeholder": "Ivanov Ivan Ivanovich",
+        "phone": "Phone",
+        "phone_placeholder": "+7 777 000 00 00",
+        "email": "Email",
+        "email_placeholder": "email@example.com",
+        "comment": "Comment",
+        "comment_placeholder": "Describe complaints or wishes..."
+      },
+      "errors": {
+        "service_required": "Select a service",
+        "datetime_required": "Select date and time",
+        "name_required": "Enter your name",
+        "phone_invalid": "Enter a valid phone number",
+        "email_invalid": "Enter a valid email",
+        "rate_limit": "Too many requests. Please wait a minute.",
+        "submit_failed": "Failed to submit. Please try again later."
+      },
+      "success": {
+        "title": "Request sent!",
+        "confirm_message": "An administrator will contact you shortly to confirm your appointment.",
+        "book_again": "Book again"
+      },
+      "submit": "Book appointment",
+      "next": "Next",
+      "back": "Back"
+    }
   }
 }

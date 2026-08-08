@@ -1,21 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import {
-  Loader2,
-  Stethoscope,
-  MapPin,
-  Phone,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Calendar,
-  User,
-  Clock,
-  Sparkles,
-  AlertTriangle,
+  Loader2, Stethoscope, MapPin, Phone, CheckCircle2, ChevronLeft,
+  ChevronRight, Calendar, User, Clock, Sparkles, AlertTriangle,
 } from 'lucide-react';
-import { Button, Input } from '@/components/ui/ds';
+import { Button, Input, Textarea } from '@/components/ui/ds';
+import { EmptyState } from '@/components/ui/ds/EmptyState';
+import { Badge } from '@/components/ui/ds/Badge';
 import { cn } from '@/lib/utils';
 import { ALL_SERVICES } from '@/utils/constants';
 import { getPublicClinic, getPublicSlots, submitBooking, type PublicClinicPayload } from '@/utils/api';
@@ -23,22 +16,20 @@ import { rateLimit, validatePhone, validateEmail, sanitizeInput } from '@/utils/
 
 type Step = 'service' | 'doctor' | 'datetime' | 'contact' | 'success';
 
-const STEPS: Array<{ id: Step; label: string; icon: React.ReactNode }> = [
-  { id: 'service', label: 'Услуга', icon: <Sparkles size={14} /> },
-  { id: 'doctor', label: 'Врач', icon: <User size={14} /> },
-  { id: 'datetime', label: 'Дата', icon: <Calendar size={14} /> },
-  { id: 'contact', label: 'Контакты', icon: <Phone size={14} /> },
-];
-
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 16 },
   visible: { opacity: 1, y: 0 },
 };
 
-function formatPrice(price: number, currency = 'KZT'): string {
-  if (!price) return 'По запросу';
-  const suffix = currency === 'KZT' ? ' ₸' : ` ${currency}`;
-  return `${Math.round(price).toLocaleString('ru-RU')}${suffix}`;
+function useBookingLocale() {
+  const { i18n } = useTranslation();
+  return useMemo(() => {
+    const lang = i18n.language?.startsWith('kz') ? 'kk' : i18n.language?.startsWith('en') ? 'en' : 'ru';
+    return {
+      locale: lang === 'kk' ? 'kk-KZ' : lang === 'en' ? 'en-US' : 'ru-RU',
+      lang,
+    };
+  }, [i18n.language]);
 }
 
 function nextDays(count = 14): string[] {
@@ -52,13 +43,18 @@ function nextDays(count = 14): string[] {
   return out;
 }
 
-function formatDayLabel(iso: string): { dow: string; day: string; month: string } {
+function formatDayLabel(iso: string, locale: string): { dow: string; day: string; month: string } {
   const d = new Date(`${iso}T12:00:00`);
   return {
-    dow: d.toLocaleDateString('ru-RU', { weekday: 'short' }),
-    day: d.toLocaleDateString('ru-RU', { day: 'numeric' }),
-    month: d.toLocaleDateString('ru-RU', { month: 'short' }),
+    dow: d.toLocaleDateString(locale, { weekday: 'short' }),
+    day: d.toLocaleDateString(locale, { day: 'numeric' }),
+    month: d.toLocaleDateString(locale, { month: 'short' }),
   };
+}
+
+function formatPrice(price: number | undefined, currency = 'KZT', locale = 'ru-RU'): string {
+  if (!price) return '';
+  return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(price);
 }
 
 function initials(name: string): string {
@@ -66,6 +62,9 @@ function initials(name: string): string {
 }
 
 export default function PublicBooking() {
+  const { t } = useTranslation();
+  const { i18n } = useTranslation();
+  const { locale } = useBookingLocale();
   const { clinicId } = useParams();
   const [payload, setPayload] = useState<PublicClinicPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,6 +88,13 @@ export default function PublicBooking() {
 
   const dates = useMemo(() => nextDays(14), []);
 
+  const STEPS: Array<{ id: Step; label: string; icon: React.ReactNode }> = useMemo(() => [
+    { id: 'service', label: t('patientPortal.publicBooking.steps.service'), icon: <Sparkles size={14} /> },
+    { id: 'doctor', label: t('patientPortal.publicBooking.steps.doctor'), icon: <User size={14} /> },
+    { id: 'datetime', label: t('patientPortal.publicBooking.steps.datetime'), icon: <Calendar size={14} /> },
+    { id: 'contact', label: t('patientPortal.publicBooking.steps.contact'), icon: <Phone size={14} /> },
+  ], [t]);
+
   useEffect(() => {
     if (!clinicId) return;
     (async () => {
@@ -97,12 +103,12 @@ export default function PublicBooking() {
         setPayload(data);
         setDate((prev) => prev || nextDays(14)[0]);
       } catch (e: any) {
-        setError(e?.message || 'Клиника не найдена');
+        setError(e?.message || t('patientPortal.publicBooking.clinic_not_found'));
       } finally {
         setLoading(false);
       }
     })();
-  }, [clinicId]);
+  }, [clinicId, t]);
 
   useEffect(() => {
     if (!clinicId || !date || step !== 'datetime') return;
@@ -134,12 +140,12 @@ export default function PublicBooking() {
   const servicesByCategory = useMemo(() => {
     const map = new Map<string, typeof services>();
     for (const s of services) {
-      const cat = s.category || 'Услуги';
+      const cat = s.category || t('patientPortal.publicBooking.service.category_default');
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(s);
     }
     return Array.from(map.entries());
-  }, [services]);
+  }, [services, t]);
 
   const selectedDoctor = payload?.doctors.find((d) => d.id === doctorId);
   const stepIndex = STEPS.findIndex((s) => s.id === step);
@@ -147,11 +153,11 @@ export default function PublicBooking() {
   const goNext = () => {
     setFormError('');
     if (step === 'service' && !serviceName) {
-      setFormError('Выберите услугу');
+      setFormError(t('patientPortal.publicBooking.errors.service_required'));
       return;
     }
     if (step === 'datetime' && (!date || !time)) {
-      setFormError('Выберите дату и время');
+      setFormError(t('patientPortal.publicBooking.errors.datetime_required'));
       return;
     }
     const order: Step[] = ['service', 'doctor', 'datetime', 'contact'];
@@ -169,19 +175,19 @@ export default function PublicBooking() {
   const handleSubmit = async () => {
     setFormError('');
     if (!rateLimit('booking', { maxAttempts: 5, windowMs: 60000 })) {
-      setFormError('Слишком много заявок. Подождите минуту.');
+      setFormError(t('patientPortal.publicBooking.errors.rate_limit'));
       return;
     }
     if (!patientName.trim()) {
-      setFormError('Введите ваше имя');
+      setFormError(t('patientPortal.publicBooking.errors.name_required'));
       return;
     }
     if (!validatePhone(phone)) {
-      setFormError('Введите корректный номер телефона');
+      setFormError(t('patientPortal.publicBooking.errors.phone_invalid'));
       return;
     }
     if (email && !validateEmail(email)) {
-      setFormError('Введите корректный email');
+      setFormError(t('patientPortal.publicBooking.errors.email_invalid'));
       return;
     }
     if (!clinicId || !date || !time) return;
@@ -201,7 +207,7 @@ export default function PublicBooking() {
       });
       setStep('success');
     } catch (e: any) {
-      setFormError(e?.message || 'Ошибка при отправке. Попробуйте позже.');
+      setFormError(e?.message || t('patientPortal.publicBooking.errors.submit_failed'));
     } finally {
       setSubmitting(false);
     }
@@ -231,16 +237,17 @@ export default function PublicBooking() {
   if (error) {
     return (
       <div className="min-h-screen bg-surface-0 flex items-center justify-center p-6">
-        <div className="max-w-md text-center space-y-4">
-          <AlertTriangle size={48} className="mx-auto text-amber-400" />
-          <h1 className="font-serif text-2xl text-txt-primary">Запись недоступна</h1>
-          <p className="text-sm text-txt-muted">{error}</p>
-        </div>
+        <EmptyState
+          icon={<AlertTriangle size={40} className="text-amber-400" />}
+          title={t('patientPortal.publicBooking.unavailable')}
+          description={error}
+        />
       </div>
     );
   }
 
   const clinic = payload?.clinic;
+  const currency = payload?.settings?.currency || 'KZT';
 
   if (step === 'success') {
     return (
@@ -261,20 +268,14 @@ export default function PublicBooking() {
           >
             <CheckCircle2 size={72} className="text-emerald-400 drop-shadow-[0_4px_20px_rgba(52,211,153,0.4)]" />
           </motion.div>
-          <h1 className="font-serif text-2xl text-txt-primary mb-2">Заявка отправлена!</h1>
-          <p className="text-sm text-txt-muted mb-1">
-            {clinic?.name}
-          </p>
+          <h1 className="font-serif text-2xl text-txt-primary mb-2">{t('patientPortal.publicBooking.success.title')}</h1>
+          <p className="text-sm text-txt-muted mb-1">{clinic?.name}</p>
           <p className="text-sm text-txt-secondary mb-6">
-            {serviceName} · {date.split('-').reverse().join('.')} в {time}
+            {serviceName} · {date.split('-').reverse().join('.')} {t('patientPortal.publicBooking.contact.when')} {time}
             {selectedDoctor ? ` · ${selectedDoctor.name}` : ''}
           </p>
-          <p className="text-xs text-txt-muted mb-6">
-            Администратор свяжется с вами для подтверждения записи в ближайшее время.
-          </p>
-          <Button onClick={resetBooking} className="w-full">
-            Записаться ещё раз
-          </Button>
+          <p className="text-xs text-txt-muted mb-6">{t('patientPortal.publicBooking.success.confirm_message')}</p>
+          <Button onClick={resetBooking} className="w-full">{t('patientPortal.publicBooking.success.book_again')}</Button>
         </motion.div>
       </div>
     );
@@ -311,9 +312,9 @@ export default function PublicBooking() {
             </div>
           </div>
           <h1 className="font-serif text-2xl sm:text-3xl font-bold text-txt-primary tracking-tight">
-            {clinic?.name || 'Онлайн-запись'}
+            {clinic?.name || t('patientPortal.publicBooking.title')}
           </h1>
-          <p className="text-xs text-txt-muted mt-1">Запишитесь на приём за пару минут</p>
+          <p className="text-xs text-txt-muted mt-1">{t('patientPortal.publicBooking.subtitle')}</p>
           {(clinic?.address || clinic?.phone) && (
             <div className="flex flex-wrap items-center justify-center gap-3 mt-3 text-xs text-txt-muted">
               {clinic.address && (
@@ -333,14 +334,14 @@ export default function PublicBooking() {
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center justify-center gap-1 sm:gap-2 mb-6">
+        <div className="flex items-center justify-center gap-1 sm:gap-2 mb-6 overflow-x-auto pb-2">
           {STEPS.map((s, i) => (
             <React.Fragment key={s.id}>
               <button
                 type="button"
                 onClick={() => i < stepIndex && setStep(s.id)}
                 className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-2xs font-semibold transition-all',
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-2xs font-semibold transition-all shrink-0',
                   step === s.id
                     ? 'bg-dv-gold/20 text-dv-gold border border-dv-gold/40'
                     : i < stepIndex
@@ -357,7 +358,7 @@ export default function PublicBooking() {
                 <span className="hidden sm:inline">{s.label}</span>
               </button>
               {i < STEPS.length - 1 && (
-                <div className={cn('w-4 sm:w-8 h-px', i < stepIndex ? 'bg-dv-gold/50' : 'bg-white/10')} />
+                <div className={cn('w-4 sm:w-8 h-px shrink-0', i < stepIndex ? 'bg-dv-gold/50' : 'bg-white/10')} />
               )}
             </React.Fragment>
           ))}
@@ -375,7 +376,7 @@ export default function PublicBooking() {
           <AnimatePresence mode="wait">
             {step === 'service' && (
               <motion.div key="service" variants={fadeUp} initial="hidden" animate="visible" exit="hidden" className="space-y-4">
-                <h2 className="font-serif text-lg text-txt-primary">Выберите услугу</h2>
+                <h2 className="font-serif text-lg text-txt-primary">{t('patientPortal.publicBooking.service.title')}</h2>
                 <div className="space-y-5 max-h-[50vh] overflow-y-auto pr-1">
                   {servicesByCategory.map(([cat, items]) => (
                     <div key={cat}>
@@ -396,7 +397,7 @@ export default function PublicBooking() {
                             <div className="flex items-center justify-between gap-3">
                               <span className="text-sm font-medium text-txt-primary">{s.name}</span>
                               <span className="text-xs font-semibold text-dv-gold whitespace-nowrap">
-                                {formatPrice(s.price, payload?.settings?.currency)}
+                                {s.price ? formatPrice(s.price, currency, locale) : t('patientPortal.publicBooking.service.price_on_request')}
                               </span>
                             </div>
                           </button>
@@ -410,7 +411,7 @@ export default function PublicBooking() {
 
             {step === 'doctor' && (
               <motion.div key="doctor" variants={fadeUp} initial="hidden" animate="visible" exit="hidden" className="space-y-4">
-                <h2 className="font-serif text-lg text-txt-primary">Выберите врача</h2>
+                <h2 className="font-serif text-lg text-txt-primary">{t('patientPortal.publicBooking.doctor.title')}</h2>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -425,8 +426,8 @@ export default function PublicBooking() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-dv-gold/20 text-dv-gold font-bold text-sm mb-2">
                       ?
                     </div>
-                    <p className="text-sm font-semibold text-txt-primary">Любой врач</p>
-                    <p className="text-2xs text-txt-muted mt-0.5">Подберём свободного специалиста</p>
+                    <p className="text-sm font-semibold text-txt-primary">{t('patientPortal.publicBooking.doctor.any')}</p>
+                    <p className="text-2xs text-txt-muted mt-0.5">{t('patientPortal.publicBooking.doctor.any_desc')}</p>
                   </button>
                   {(payload?.doctors || []).map((doc) => (
                     <button
@@ -461,12 +462,12 @@ export default function PublicBooking() {
 
             {step === 'datetime' && (
               <motion.div key="datetime" variants={fadeUp} initial="hidden" animate="visible" exit="hidden" className="space-y-5">
-                <h2 className="font-serif text-lg text-txt-primary">Дата и время</h2>
+                <h2 className="font-serif text-lg text-txt-primary">{t('patientPortal.publicBooking.datetime.title')}</h2>
                 <div>
-                  <p className="text-2xs font-semibold text-txt-muted mb-2 uppercase tracking-wide">День</p>
+                  <p className="text-2xs font-semibold text-txt-muted mb-2 uppercase tracking-wide">{t('patientPortal.publicBooking.datetime.day')}</p>
                   <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                     {dates.map((d) => {
-                      const lbl = formatDayLabel(d);
+                      const lbl = formatDayLabel(d, locale);
                       const active = date === d;
                       return (
                         <button
@@ -490,16 +491,16 @@ export default function PublicBooking() {
                 </div>
                 <div>
                   <p className="text-2xs font-semibold text-txt-muted mb-2 uppercase tracking-wide flex items-center gap-1">
-                    <Clock size={12} /> Время
+                    <Clock size={12} /> {t('patientPortal.publicBooking.datetime.time')}
                   </p>
                   {slotsLoading ? (
                     <div className="flex justify-center py-8">
                       <Loader2 size={24} className="animate-spin text-dv-gold" />
                     </div>
                   ) : !workingDay ? (
-                    <p className="text-sm text-txt-muted text-center py-6">В этот день клиника не работает</p>
+                    <p className="text-sm text-txt-muted text-center py-6">{t('patientPortal.publicBooking.datetime.not_working')}</p>
                   ) : slots.length === 0 ? (
-                    <p className="text-sm text-txt-muted text-center py-6">Нет свободных слотов — выберите другой день</p>
+                    <p className="text-sm text-txt-muted text-center py-6">{t('patientPortal.publicBooking.datetime.no_slots')}</p>
                   ) : (
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto">
                       {slots.map((slot) => (
@@ -525,46 +526,43 @@ export default function PublicBooking() {
 
             {step === 'contact' && (
               <motion.div key="contact" variants={fadeUp} initial="hidden" animate="visible" exit="hidden" className="space-y-4">
-                <h2 className="font-serif text-lg text-txt-primary">Ваши контакты</h2>
+                <h2 className="font-serif text-lg text-txt-primary">{t('patientPortal.publicBooking.contact.title')}</h2>
                 <div className="rounded-xl border border-dv-gold/20 bg-dv-gold/5 p-3 text-xs text-txt-secondary space-y-1">
-                  <p><span className="text-txt-muted">Услуга:</span> {serviceName || '—'}</p>
+                  <p><span className="text-txt-muted">{t('patientPortal.publicBooking.contact.service')}:</span> {serviceName || '—'}</p>
                   <p>
-                    <span className="text-txt-muted">Когда:</span> {date.split('-').reverse().join('.')} в {time}
-                    {selectedDoctor ? ` · ${selectedDoctor.name}` : ' · любой врач'}
+                    <span className="text-txt-muted">{t('patientPortal.publicBooking.contact.when')}:</span> {date.split('-').reverse().join('.')} {t('patientPortal.publicBooking.contact.when')} {time}
+                    {selectedDoctor ? ` · ${selectedDoctor.name}` : ` · ${t('patientPortal.publicBooking.contact.any_doctor')}`}
                   </p>
                 </div>
                 <Input
-                  label="ФИО *"
+                  label={`${t('patientPortal.publicBooking.contact.name')} *`}
                   value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
-                  placeholder="Иванов Иван Иванович"
+                  placeholder={t('patientPortal.publicBooking.contact.name_placeholder')}
                 />
                 <div className="grid sm:grid-cols-2 gap-3">
                   <Input
-                    label="Телефон *"
+                    label={`${t('patientPortal.publicBooking.contact.phone')} *`}
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+7 777 000 00 00"
+                    placeholder={t('patientPortal.publicBooking.contact.phone_placeholder')}
                   />
                   <Input
-                    label="Email"
+                    label={t('patientPortal.publicBooking.contact.email')}
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@example.com"
+                    placeholder={t('patientPortal.publicBooking.contact.email_placeholder')}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-txt-muted mb-1.5">Комментарий</label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                    placeholder="Опишите жалобы или пожелания..."
-                    className="w-full bg-white/[0.04] border border-bdr-subtle rounded-lg px-3.5 py-2.5 text-sm text-txt-primary outline-none focus:border-dv-gold transition-colors resize-y"
-                  />
-                </div>
+                <Textarea
+                  label={t('patientPortal.publicBooking.contact.comment')}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder={t('patientPortal.publicBooking.contact.comment_placeholder')}
+                  rows={3}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -573,23 +571,23 @@ export default function PublicBooking() {
           <div className="flex gap-3 mt-6 pt-5 border-t border-white/5">
             {stepIndex > 0 && (
               <Button type="button" variant="secondary" onClick={goBack} icon={<ChevronLeft size={16} />}>
-                Назад
+                {t('patientPortal.publicBooking.back')}
               </Button>
             )}
             {step !== 'contact' ? (
               <Button type="button" className="flex-1" onClick={goNext} icon={<ChevronRight size={16} />}>
-                Далее
+                {t('patientPortal.publicBooking.next')}
               </Button>
             ) : (
               <Button type="button" className="flex-1" loading={submitting} onClick={handleSubmit}>
-                Записаться на приём
+                {t('patientPortal.publicBooking.submit')}
               </Button>
             )}
           </div>
         </div>
 
         <p className="text-center text-[11px] text-txt-muted mt-6">
-          Powered by <span className="text-dv-gold font-semibold">DentVision</span>
+          {t('patientPortal.publicBooking.powered_by')}
         </p>
       </div>
     </div>

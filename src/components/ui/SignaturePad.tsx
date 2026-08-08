@@ -5,9 +5,19 @@ interface SignaturePadProps {
   onSave?: (data: string) => void;
   width?: number;
   height?: number;
+  label?: string;
+  clearLabel?: string;
+  applyLabel?: string;
 }
 
-export default function SignaturePad({ onSave, width = 400, height = 200 }: SignaturePadProps) {
+export default function SignaturePad({
+  onSave,
+  width = 400,
+  height = 200,
+  label = 'Подпись',
+  clearLabel = 'Очистить',
+  applyLabel = 'Применить подпись',
+}: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [drawing, setDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
@@ -78,7 +88,7 @@ export default function SignaturePad({ onSave, width = 400, height = 200 }: Sign
 
   return (
     <div>
-      <p style={{ fontSize: 12, color: T.slateL, marginBottom: 6 }}>Подпись</p>
+      <p style={{ fontSize: 12, color: T.slateL, marginBottom: 6 }}>{label}</p>
       <canvas
         ref={canvasRef}
         style={{ width, height, borderRadius: 8, border: `1px solid ${T.border}`, cursor: 'crosshair', touchAction: 'none' }}
@@ -94,12 +104,12 @@ export default function SignaturePad({ onSave, width = 400, height = 200 }: Sign
         <button type="button" onClick={clear} style={{
           padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: `1px solid ${T.border}`,
           borderRadius: 6, color: T.slateL, fontSize: 12, cursor: 'pointer',
-        }}>Очистить</button>
+        }}>{clearLabel}</button>
         <button type="button" onClick={save} disabled={!hasSignature} style={{
           padding: '8px 16px', background: hasSignature ? `linear-gradient(135deg,${T.gold},${T.goldDim})` : 'rgba(255,255,255,0.05)',
           border: 'none', borderRadius: 6, color: hasSignature ? T.bg : T.slate, fontSize: 12,
           fontWeight: 600, cursor: hasSignature ? 'pointer' : 'not-allowed',
-        }}>Применить подпись</button>
+        }}>{applyLabel}</button>
       </div>
     </div>
   );

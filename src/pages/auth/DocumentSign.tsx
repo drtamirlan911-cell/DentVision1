@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Loader2, Stethoscope, MapPin, FileText, CheckCircle2, X } from 'lucide-react';
 import SignaturePad from '../../components/ui/SignaturePad';
+import { Button } from '@/components/ui/ds/Button';
+import { Input } from '@/components/ui/ds/Input';
+import { Badge } from '@/components/ui/ds/Badge';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
@@ -25,6 +29,7 @@ interface ToastState {
 }
 
 export default function DocumentSign() {
+  const { t } = useTranslation();
   const { token } = useParams();
   const [doc, setDoc] = useState<DocumentData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,17 +48,17 @@ export default function DocumentSign() {
         if (data.status === 'signed') setSigned(true);
         if (data.patient_name) setName(data.patient_name);
       } catch {
-        setToast({ msg: 'Документ не найден или уже подписан', type: 'error' });
+        setToast({ msg: t('patientPortal.documents.sign_error'), type: 'error' });
       } finally {
         setLoading(false);
       }
     };
     if (token) loadDoc();
-  }, [token]);
+  }, [token, t]);
 
   const handleSign = async (signatureData: string) => {
     if (!name.trim()) {
-      setToast({ msg: 'Введите ваше имя', type: 'warning' });
+      setToast({ msg: t('patientPortal.documents.full_name'), type: 'warning' });
       return;
     }
     setSigning(true);
@@ -66,9 +71,9 @@ export default function DocumentSign() {
       });
       if (!res.ok) throw new Error('Sign failed');
       setSigned(true);
-      setToast({ msg: 'Документ успешно подписан!', type: 'success' });
+      setToast({ msg: t('patientPortal.documents.sign_success'), type: 'success' });
     } catch {
-      setToast({ msg: 'Ошибка при подписании. Попробуйте ещё раз.', type: 'error' });
+      setToast({ msg: t('patientPortal.documents.sign_error'), type: 'error' });
     } finally {
       setSigning(false);
     }
@@ -86,9 +91,9 @@ export default function DocumentSign() {
         <div className="mb-5 flex justify-center text-[#27AE60]">
           <CheckCircle2 size={64} />
         </div>
-        <h1 className="font-['Georgia',serif] text-[26px] text-white mb-3">Документ подписан</h1>
+        <h1 className="font-['Georgia',serif] text-[26px] text-white mb-3">{t('patientPortal.documents.signed_page_title')}</h1>
         <p className="text-sm text-[#B0BEC5] mb-2">{doc?.title}</p>
-        <p className="text-xs text-[#7A8899]">Подпись: {doc?.signed_by_name || name}</p>
+        <p className="text-xs text-[#7A8899]">{t('patientPortal.documents.signed_by', { name: doc?.signed_by_name || name })}</p>
         <p className="text-xs text-[#7A8899] mt-1">
           {doc?.clinic_name && `${doc.clinic_name}`}
           {doc?.clinic_phone && ` · ${doc.clinic_phone}`}
@@ -125,38 +130,48 @@ export default function DocumentSign() {
             <FileText size={20} className="text-[#C9A96E]" />
             <h2 className="font-['Georgia',serif] text-lg text-white m-0">{doc?.title}</h2>
           </div>
-          <p className="text-[11px] text-[#7A8899] mb-1">Тип: {doc?.doc_type}</p>
+          <p className="text-[11px] text-[#7A8899] mb-1">{t('patientPortal.documents.type')}: {doc?.doc_type}</p>
           <div className="bg-white/[0.03] rounded-[10px] p-4 border border-[rgba(201,169,110,0.15)] text-[13px] text-[#B0BEC5] leading-[1.7] whitespace-pre-wrap font-['Georgia',serif] max-h-[400px] overflow-auto">
-            {doc?.content || 'Содержимое документа отсутствует.'}
+            {doc?.content || t('patientPortal.documents.document_content_missing')}
           </div>
         </div>
 
         <div className="bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-2xl px-6 py-7">
           <h2 className="font-['Georgia',serif] text-lg text-white m-0 mb-4">
-            Электронная подпись
+            {t('patientPortal.documents.signing')}
           </h2>
 
           <div className="mb-3.5">
-            <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">Ваше ФИО *</label>
-            <input type="text" value={name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-              placeholder="Иванов Иван Иванович"
-              className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors" />
+            <Input
+              label={`${t('patientPortal.documents.full_name')} *`}
+              value={name}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+              placeholder={t('patientPortal.documents.full_name_placeholder')}
+              className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors"
+            />
           </div>
 
           <p className="text-xs text-[#B0BEC5] mb-2">
-            Подпишите ниже, используя мышь или палец на экране:
+            {t('patientPortal.documents.signature_hint')}
           </p>
 
           <div className="flex justify-center">
-            <SignaturePad onSave={handleSign} width={Math.min(500, 400)} height={180} />
+            <SignaturePad
+              onSave={handleSign}
+              width={Math.min(500, 400)}
+              height={180}
+              label={t('patientPortal.documents.signature_label')}
+              clearLabel={t('patientPortal.documents.clear')}
+              applyLabel={t('patientPortal.documents.apply_signature')}
+            />
           </div>
 
           {signing && (
-            <p className="text-xs text-[#C9A96E] text-center mt-3">Отправка подписи...</p>
+            <p className="text-xs text-[#C9A96E] text-center mt-3">{t('common.loading')}</p>
           )}
 
           <p className="text-[10px] text-[#7A8899] mt-4 text-center">
-            Нажимая «Применить подпись», вы подтверждаете согласие с содержимым документа.
+            {t('patientPortal.documents.consent')}
           </p>
         </div>
 

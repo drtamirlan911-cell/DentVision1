@@ -1,39 +1,140 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  Calendar, FileText, Receipt, Activity,
-  LogIn, UserPlus, ClipboardList, FileImage,
+  Calendar, FileText, Receipt, Activity, LogIn, UserPlus,
+  ClipboardList, FileImage, AlertCircle, RefreshCw, FileSignature,
+  Eye, Stethoscope, Clock, Building2, User, CheckCircle2,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Tabs } from '@/components/ui/ds/Misc';
-import { Card } from '@/components/ui/ds/Card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
+import { EmptyState } from '@/components/ui/ds/EmptyState';
+import { Modal } from '@/components/ui/ds/Modal';
+import { Input } from '@/components/ui/ds/Input';
+import SignaturePad from '@/components/ui/SignaturePad';
 import { useAuth } from '@/store/auth.store';
 import * as api from '@/utils/api';
+import { cn } from '@/lib/utils';
+
+type PortalTab = 'appointments' | 'treatments' | 'visits' | 'payments' | 'documents' | 'diagnostics';
+
+function usePortalLocale() {
+  const { i18n } = useTranslation();
+  return useMemo(() => {
+    const lang = i18n.language?.startsWith('kz') ? 'kk' : i18n.language?.startsWith('en') ? 'en' : 'ru';
+    return {
+      locale: lang === 'kk' ? 'kk-KZ' : lang === 'en' ? 'en-US' : 'ru-RU',
+      lang,
+    };
+  }, [i18n.language]);
+}
+
+function useFormatters() {
+  const { locale } = usePortalLocale();
+  return useMemo(() => ({
+    date: (value: string | Date | undefined | null) => {
+      if (!value) return '—';
+      try {
+        const d = typeof value === 'string' ? new Date(value) : value;
+        if (Number.isNaN(d.getTime())) return '—';
+        return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+      } catch {
+        return '—';
+      }
+    },
+    dateShort: (value: string | Date | undefined | null) => {
+      if (!value) return '—';
+      try {
+        const d = typeof value === 'string' ? new Date(value) : value;
+        if (Number.isNaN(d.getTime())) return '—';
+        return new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+      } catch {
+        return '—';
+      }
+    },
+    time: (value: string | undefined | null) => {
+      if (!value) return '';
+      return value;
+    },
+    money: (amount: number | string | undefined | null, currency = 'KZT') => {
+      const value = typeof amount === 'string' ? Number(amount) : (amount ?? 0);
+      if (Number.isNaN(value)) return '—';
+      return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+    },
+  }), [locale]);
+}
+
+function StatusBadge({ status }: { status?: string | null }) {
+  if (!status) return <Badge variant="outline">—</Badge>;
+  const s = status.toLowerCase();
+  let variant: React.ComponentProps<typeof Badge>['variant'] = 'outline';
+  if (['completed', 'подписан', 'signed', 'paid', 'оплачен', 'confirmed'].some((x) => s.includes(x))) variant = 'success';
+  else if (['pending', 'ожидает', 'scheduled', 'запланирован'].some((x) => s.includes(x))) variant = 'warning';
+  else if (['cancelled', 'отменён', 'no-show'].some((x) => s.includes(x))) variant = 'error';
+  return <Badge variant={variant} size="sm">{status}</Badge>;
+}
+
+function TabLoader() {
+  return (
+    <div className="space-y-3">
+      <Skeleton variant="card" height={80} />
+      <Skeleton variant="card" height={80} />
+      <Skeleton variant="card" height={80} />
+    </div>
+  );
+}
+
+function TabError({ onRetry }: { onRetry?: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <EmptyState
+      icon={<AlertCircle size={28} className="text-error" />}
+      title={t('patientPortal.error')}
+      description={t('common.error')}
+      action={onRetry ? <Button size="sm" variant="secondary" icon={<RefreshCw size={14} />} onClick={onRetry}>{t('patientPortal.retry')}</Button> : undefined}
+    />
+  );
+}
 
 function AppointmentsTab() {
-  const { data, isLoading } = useQuery({
+  const { t } = useTranslation();
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['pp-appointments'],
     queryFn: () => api.apiRequest('/api/patient-portal/appointments'),
   });
+  const fmt = useFormatters();
   const items = data?.data || [];
-  if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет приёмов</div>;
+  if (isLoading) return <TabLoader />;
+  if (isError) return <TabError onRetry={refetch} />;
+  if (!items.length) {
+    return (
+      <EmptyState
+        icon={<Calendar size={28} className="text-dv-gold" />}
+        title={t('patientPortal.empty.appointments')}
+        description={t('patientPortal.empty.appointments_desc')}
+      />
+    );
+  }
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {items.map((a: any) => (
-        <Card key={a.id} padding="md" className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-txt-primary">{a.procedureType || 'Приём'}</p>
-            <p className="text-xs text-txt-muted">{a.doctor?.firstName} {a.doctor?.lastName} — {a.clinic?.name}</p>
+        <Card key={a.id} padding="md" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-txt-primary truncate">{a.procedureType || t('patientPortal.appointments.title')}</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-txt-muted mt-1">
+              <span className="inline-flex items-center gap-1"><User size={12} /> {a.doctor?.firstName} {a.doctor?.lastName}</span>
+              <span className="inline-flex items-center gap-1"><Building2 size={12} /> {a.clinic?.name}</span>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-txt-primary">{a.date?.slice(0, 10)} {a.time}</p>
-            <Badge variant="outline" size="sm">{a.status}</Badge>
+          <div className="text-left sm:text-right shrink-0">
+            <p className="text-sm font-medium text-txt-primary">{fmt.dateShort(a.date)} {a.time && `· ${a.time}`}</p>
+            <div className="mt-1"><StatusBadge status={a.status} /></div>
           </div>
         </Card>
       ))}
@@ -42,24 +143,39 @@ function AppointmentsTab() {
 }
 
 function TreatmentsTab() {
-  const { data, isLoading } = useQuery({
+  const { t } = useTranslation();
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['pp-treatments'],
     queryFn: () => api.apiRequest('/api/patient-portal/treatments'),
   });
+  const fmt = useFormatters();
   const items = data?.data || [];
-  if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет записей о лечении</div>;
+  if (isLoading) return <TabLoader />;
+  if (isError) return <TabError onRetry={refetch} />;
+  if (!items.length) {
+    return (
+      <EmptyState
+        icon={<Activity size={28} className="text-dv-gold" />}
+        title={t('patientPortal.empty.treatments')}
+        description={t('patientPortal.empty.treatments_desc')}
+      />
+    );
+  }
   return (
-    <div className="space-y-2">
-      {items.map((t: any) => (
-        <Card key={t.id} padding="md" className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-txt-primary">{t.procedureType}</p>
-            <p className="text-xs text-txt-muted">Зуб {t.toothNumber} — {t.clinic?.name}</p>
+    <div className="space-y-3">
+      {items.map((item: any) => (
+        <Card key={item.id} padding="md" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-txt-primary truncate">{item.procedureType || '—'}</p>
+            <p className="text-xs text-txt-muted mt-1">
+              {item.toothNumber ? `${t('patientPortal.treatments.tooth')} ${item.toothNumber}` : ''}
+              {item.toothNumber && item.clinic?.name ? ' · ' : ''}
+              {item.clinic?.name}
+            </p>
           </div>
-          <div className="text-right">
-            <p className="text-sm font-medium text-txt-primary">{Number(t.cost || 0).toLocaleString()} ₸</p>
-            <p className="text-xs text-txt-muted">{t.createdAt?.slice(0, 10)}</p>
+          <div className="text-left sm:text-right shrink-0">
+            <p className="text-sm font-semibold text-txt-primary">{fmt.money(item.cost)}</p>
+            <p className="text-xs text-txt-muted mt-0.5">{fmt.dateShort(item.createdAt)}</p>
           </div>
         </Card>
       ))}
@@ -68,25 +184,52 @@ function TreatmentsTab() {
 }
 
 function VisitsTab() {
-  const { data, isLoading } = useQuery({
+  const { t } = useTranslation();
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['pp-visits'],
     queryFn: () => api.apiRequest('/api/patient-portal/visits'),
   });
+  const fmt = useFormatters();
   const items = data?.data || [];
-  if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет истории посещений</div>;
+  if (isLoading) return <TabLoader />;
+  if (isError) return <TabError onRetry={refetch} />;
+  if (!items.length) {
+    return (
+      <EmptyState
+        icon={<ClipboardList size={28} className="text-dv-gold" />}
+        title={t('patientPortal.empty.visits')}
+        description={t('patientPortal.empty.visits_desc')}
+      />
+    );
+  }
   return (
     <div className="space-y-3">
       {items.map((v: any) => (
         <Card key={v.id} padding="md">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-txt-primary">{v.diagnosis || 'Визит'}</p>
-            <p className="text-xs text-txt-muted">{v.date?.slice(0, 10)}</p>
-          </div>
-          {v.treatmentPlan && <p className="text-xs text-txt-muted mb-1">План: {v.treatmentPlan}</p>}
-          {v.procedures && <p className="text-xs text-txt-muted mb-1">Процедуры: {v.procedures}</p>}
-          {v.prescription && <p className="text-xs text-txt-muted">Назначения: {v.prescription}</p>}
-          <p className="text-xs text-txt-ghost mt-1">{v.doctor?.firstName} {v.doctor?.lastName} — {v.clinic?.name}</p>
+          <CardHeader>
+            <CardTitle>{v.diagnosis || t('patientPortal.visits.diagnosis')}</CardTitle>
+            <p className="text-xs text-txt-muted">{fmt.dateShort(v.date)}</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {v.treatmentPlan && (
+              <p className="text-xs text-txt-muted">
+                <span className="text-txt-ghost">{t('patientPortal.visits.treatment_plan')}:</span> {v.treatmentPlan}
+              </p>
+            )}
+            {v.procedures && (
+              <p className="text-xs text-txt-muted">
+                <span className="text-txt-ghost">{t('patientPortal.visits.procedures')}:</span> {v.procedures}
+              </p>
+            )}
+            {v.prescription && (
+              <p className="text-xs text-txt-muted">
+                <span className="text-txt-ghost">{t('patientPortal.visits.prescription')}:</span> {v.prescription}
+              </p>
+            )}
+            <p className="text-xs text-txt-ghost pt-1 border-t border-white/5">
+              {v.doctor?.firstName} {v.doctor?.lastName} — {v.clinic?.name}
+            </p>
+          </CardContent>
         </Card>
       ))}
     </div>
@@ -94,42 +237,50 @@ function VisitsTab() {
 }
 
 function PaymentsTab() {
-  const { data, isLoading } = useQuery({
+  const { t } = useTranslation();
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['pp-invoices'],
     queryFn: () => api.apiRequest('/api/patient-portal/invoices'),
   });
+  const fmt = useFormatters();
   const result = data?.data || {};
   const invoices = result.invoices || [];
   const summary = result.summary || {};
-  if (isLoading) return <Skeleton className="h-48" />;
-
+  if (isLoading) return <TabLoader />;
+  if (isError) return <TabError onRetry={refetch} />;
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <GlassCard padding="sm">
-          <p className="text-xs text-txt-muted">Всего</p>
-          <p className="text-lg font-bold text-txt-primary">{Number(summary.total || 0).toLocaleString()} ₸</p>
+          <p className="text-xs text-txt-muted">{t('patientPortal.payments.summary.total')}</p>
+          <p className="text-lg font-bold text-txt-primary">{fmt.money(summary.total)}</p>
         </GlassCard>
         <GlassCard padding="sm">
-          <p className="text-xs text-txt-muted">Оплачено</p>
-          <p className="text-lg font-bold text-success">{Number(summary.paid || 0).toLocaleString()} ₸</p>
+          <p className="text-xs text-txt-muted">{t('patientPortal.payments.summary.paid')}</p>
+          <p className="text-lg font-bold text-success">{fmt.money(summary.paid)}</p>
         </GlassCard>
         <GlassCard padding="sm">
-          <p className="text-xs text-txt-muted">К оплате</p>
-          <p className="text-lg font-bold text-warning">{Number(summary.unpaid || 0).toLocaleString()} ₸</p>
+          <p className="text-xs text-txt-muted">{t('patientPortal.payments.summary.unpaid')}</p>
+          <p className="text-lg font-bold text-warning">{fmt.money(summary.unpaid)}</p>
         </GlassCard>
       </div>
-      {!invoices.length ? <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет счетов</div> : (
-        <div className="space-y-2">
+      {!invoices.length ? (
+        <EmptyState
+          icon={<Receipt size={28} className="text-dv-gold" />}
+          title={t('patientPortal.empty.payments')}
+          description={t('patientPortal.empty.payments_desc')}
+        />
+      ) : (
+        <div className="space-y-3">
           {invoices.map((inv: any) => (
-            <Card key={inv.id} padding="md" className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-txt-primary">{inv.clinic?.name}</p>
-                <p className="text-xs text-txt-muted">{inv.createdAt?.slice(0, 10)}</p>
+            <Card key={inv.id} padding="md" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-txt-primary truncate">{inv.clinic?.name}</p>
+                <p className="text-xs text-txt-muted mt-0.5">{fmt.dateShort(inv.createdAt)}</p>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-medium text-txt-primary">{Number(inv.amount || 0).toLocaleString()} ₸</p>
-                <Badge variant="outline" size="sm">{inv.status}</Badge>
+              <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                <p className="text-sm font-semibold text-txt-primary">{fmt.money(inv.amount)}</p>
+                <StatusBadge status={inv.status} />
               </div>
             </Card>
           ))}
@@ -139,62 +290,175 @@ function PaymentsTab() {
   );
 }
 
+function SignDocumentModal({ document, onClose }: { document: any; onClose: () => void }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(document?.signedByName || document?.patientName || '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSign = async (signatureData: string) => {
+    if (!name.trim()) {
+      setError(t('patientPortal.documents.full_name'));
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await api.signDocument(document.id, { signatureData, signedByName: name.trim() });
+      queryClient.invalidateQueries({ queryKey: ['pp-documents'] });
+      onClose();
+    } catch (e: any) {
+      setError(e?.message || t('patientPortal.documents.sign_error'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title={t('patientPortal.documents.signing')} size="md">
+      <div className="space-y-4">
+        {error && (
+          <div className="flex items-start gap-2 bg-error/10 border border-error/25 rounded-xl px-3 py-2.5 text-xs text-error">
+            <AlertCircle size={14} className="shrink-0 mt-0.5" />
+            {error}
+          </div>
+        )}
+        <div className="rounded-xl border border-dv-gold/20 bg-dv-gold/5 p-3 text-xs text-txt-secondary space-y-1">
+          <p><span className="text-txt-muted">{t('patientPortal.documents.title')}:</span> {document.title}</p>
+          <p><span className="text-txt-muted">{t('patientPortal.documents.type')}:</span> {document.docType}</p>
+        </div>
+        <Input
+          label={t('patientPortal.documents.full_name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('patientPortal.documents.full_name_placeholder')}
+          required
+        />
+        <p className="text-xs text-txt-muted">{t('patientPortal.documents.signature_hint')}</p>
+        <div className="flex justify-center">
+          <SignaturePad
+            onSave={handleSign}
+            width={Math.min(500, 340)}
+            height={160}
+            label={t('patientPortal.documents.signature_label')}
+            clearLabel={t('patientPortal.documents.clear')}
+            applyLabel={t('patientPortal.documents.apply_signature')}
+          />
+        </div>
+        {submitting && <p className="text-xs text-dv-gold text-center">{t('common.loading')}</p>}
+        <p className="text-[10px] text-txt-ghost text-center">{t('patientPortal.documents.consent')}</p>
+      </div>
+    </Modal>
+  );
+}
+
 function DocumentsTab() {
-  const { data, isLoading } = useQuery({
+  const { t } = useTranslation();
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['pp-documents'],
     queryFn: () => api.apiRequest('/api/patient-portal/documents'),
   });
+  const fmt = useFormatters();
+  const [signDoc, setSignDoc] = useState<any>(null);
   const items = data?.data || [];
-  if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет документов</div>;
+  if (isLoading) return <TabLoader />;
+  if (isError) return <TabError onRetry={refetch} />;
+  if (!items.length) {
+    return (
+      <EmptyState
+        icon={<FileImage size={28} className="text-dv-gold" />}
+        title={t('patientPortal.empty.documents')}
+        description={t('patientPortal.empty.documents_desc')}
+      />
+    );
+  }
   return (
-    <div className="space-y-2">
-      {items.map((d: any) => (
-        <Card key={d.id} padding="md" className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FileImage size={18} className="text-txt-muted" />
-            <div>
-              <p className="text-sm text-txt-primary">{d.title}</p>
-              <p className="text-xs text-txt-muted">{d.docType} — {d.clinic?.name}</p>
-            </div>
-          </div>
-          <div className="text-right">
-            {d.signedAt ? <Badge variant="filled" className="bg-success/20 text-success">Подписан</Badge> : <Badge variant="outline">Ожидает</Badge>}
-            <p className="text-xs text-txt-muted mt-0.5">{d.createdAt?.slice(0, 10)}</p>
-          </div>
-        </Card>
-      ))}
-    </div>
+    <>
+      <div className="space-y-3">
+        {items.map((d: any) => {
+          const isSigned = !!d.signedAt;
+          return (
+            <Card key={d.id} padding="md" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="shrink-0 mt-0.5">
+                  <FileImage size={20} className="text-txt-muted" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-txt-primary truncate">{d.title}</p>
+                  <p className="text-xs text-txt-muted mt-0.5">{d.docType} · {d.clinic?.name}</p>
+                  <p className="text-xs text-txt-ghost mt-0.5">{fmt.dateShort(d.createdAt)}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                <Badge variant={isSigned ? 'success' : 'warning'} size="sm">
+                  {isSigned ? t('patientPortal.documents.signed') : t('patientPortal.documents.pending')}
+                </Badge>
+                {isSigned ? (
+                  <Button size="sm" variant="ghost" icon={<Eye size={14} />} disabled>
+                    {t('patientPortal.documents.view')}
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="primary" icon={<FileSignature size={14} />} onClick={() => setSignDoc(d)}>
+                    {t('patientPortal.documents.sign')}
+                  </Button>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+      {signDoc && <SignDocumentModal document={signDoc} onClose={() => setSignDoc(null)} />}
+    </>
   );
 }
 
 function DiagnosticsTab() {
-  const { data, isLoading } = useQuery({
+  const { t } = useTranslation();
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['pp-diagnostics'],
     queryFn: () => api.apiRequest('/api/patient-portal/diagnostics'),
   });
+  const fmt = useFormatters();
   const items = data?.data || [];
-  if (isLoading) return <Skeleton className="h-48" />;
-  if (!items.length) return <div className="flex items-center justify-center h-32 text-txt-muted text-sm">Нет направлений</div>;
+  if (isLoading) return <TabLoader />;
+  if (isError) return <TabError onRetry={refetch} />;
+  if (!items.length) {
+    return (
+      <EmptyState
+        icon={<Stethoscope size={28} className="text-dv-gold" />}
+        title={t('patientPortal.empty.diagnostics')}
+        description={t('patientPortal.empty.diagnostics_desc')}
+      />
+    );
+  }
   return (
     <div className="space-y-3">
       {items.map((r: any) => (
         <Card key={r.id} padding="md">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-txt-primary">{r.studyType}</p>
-            <Badge variant="outline" size="sm">{r.status}</Badge>
-          </div>
-          <p className="text-xs text-txt-muted mb-1">Категория: {r.category}</p>
-          <p className="text-xs text-txt-muted mb-1">
-            {r.center?.name && `Центр: ${r.center.name}`}
-            {r.lab?.name && `Лаборатория: ${r.lab.name}`}
-          </p>
-          {r.result?.reportText && (
-            <div className="mt-2 p-3 bg-surface-1 rounded-lg text-xs text-txt-primary max-h-24 overflow-y-auto">
-              {r.result.reportText.slice(0, 300)}
-            </div>
-          )}
-          {r.cost ? <p className="text-xs text-txt-muted mt-1">Стоимость: {Number(r.cost).toLocaleString()} ₸</p> : null}
+          <CardHeader>
+            <CardTitle>{r.studyType || t('patientPortal.diagnostics.study')}</CardTitle>
+            <StatusBadge status={r.status} />
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-txt-muted">
+              <span className="text-txt-ghost">{t('patientPortal.diagnostics.category')}:</span> {r.category || '—'}
+            </p>
+            {(r.center?.name || r.lab?.name) && (
+              <p className="text-xs text-txt-muted">
+                {r.center?.name && <><span className="text-txt-ghost">{t('patientPortal.diagnostics.center')}:</span> {r.center.name}</>}
+                {r.lab?.name && <><span className="text-txt-ghost">{t('patientPortal.diagnostics.lab')}:</span> {r.lab.name}</>}
+              </p>
+            )}
+            {r.result?.reportText ? (
+              <div className="mt-2 p-3 bg-surface-1 rounded-lg text-xs text-txt-primary max-h-32 overflow-y-auto whitespace-pre-wrap">
+                {r.result.reportText}
+              </div>
+            ) : (
+              <p className="text-xs text-txt-ghost italic">{t('patientPortal.diagnostics.no_report')}</p>
+            )}
+            {r.cost ? <p className="text-xs text-txt-muted mt-1">{t('patientPortal.diagnostics.cost')}: {fmt.money(r.cost)}</p> : null}
+          </CardContent>
         </Card>
       ))}
     </div>
@@ -202,21 +466,31 @@ function DiagnosticsTab() {
 }
 
 export default function PatientPortal() {
+  const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('appointments');
+  const [activeTab, setActiveTab] = useState<PortalTab>('appointments');
+
+  const tabs = useMemo(() => [
+    { id: 'appointments' as PortalTab, label: t('patientPortal.tabs.appointments'), icon: <Calendar size={14} /> },
+    { id: 'treatments' as PortalTab, label: t('patientPortal.tabs.treatments'), icon: <Activity size={14} /> },
+    { id: 'visits' as PortalTab, label: t('patientPortal.tabs.visits'), icon: <ClipboardList size={14} /> },
+    { id: 'payments' as PortalTab, label: t('patientPortal.tabs.payments'), icon: <Receipt size={14} /> },
+    { id: 'documents' as PortalTab, label: t('patientPortal.tabs.documents'), icon: <FileImage size={14} /> },
+    { id: 'diagnostics' as PortalTab, label: t('patientPortal.tabs.diagnostics'), icon: <FileText size={14} /> },
+  ], [t]);
 
   if (!isAuthenticated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-0 p-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm text-center">
           <Card padding="lg">
-            <h1 className="text-2xl font-bold text-txt-primary mb-2">Кабинет пациента</h1>
-            <p className="text-sm text-txt-muted mb-6">Войдите или создайте аккаунт для доступа к истории лечения, приёмам и оплатам</p>
+            <h1 className="text-2xl font-bold text-txt-primary mb-2">{t('patientPortal.title')}</h1>
+            <p className="text-sm text-txt-muted mb-6">{t('patientPortal.subtitle')}</p>
             <div className="space-y-3">
-              <Button variant="primary" className="w-full" onClick={() => navigate('/login?portal=patient')} icon={<LogIn size={16} />}>Войти как пациент</Button>
-              <Button variant="outline" className="w-full" onClick={() => navigate('/login?portal=patient&register=1')} icon={<UserPlus size={16} />}>Зарегистрироваться</Button>
-              <p className="text-xs text-txt-ghost pt-2">После регистрации попросите вашу клинику привязать аккаунт к вашей карте пациента</p>
+              <Button variant="primary" className="w-full" onClick={() => navigate('/login?portal=patient')} icon={<LogIn size={16} />}>{t('patientPortal.login')}</Button>
+              <Button variant="outline" className="w-full" onClick={() => navigate('/login?portal=patient&register=1')} icon={<UserPlus size={16} />}>{t('patientPortal.register')}</Button>
+              <p className="text-xs text-txt-ghost pt-2">{t('patientPortal.link_hint')}</p>
             </div>
           </Card>
         </motion.div>
@@ -225,31 +499,27 @@ export default function PatientPortal() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-txt-primary">Кабинет пациента</h1>
-        <p className="text-sm text-txt-muted mt-0.5">{user.name}</p>
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-txt-primary">{t('patientPortal.title')}</h1>
+          <p className="text-sm text-txt-muted mt-0.5">{t('patientPortal.welcome', { name: user.name || user.login })}</p>
+        </div>
+        <Button asChild variant="outline" size="sm" icon={<Calendar size={14} />} disabled={!user.clinicId}>
+          <Link to={user.clinicId ? `/book/${user.clinicId}` : '#'}>{t('patientPortal.book_online')}</Link>
+        </Button>
       </div>
 
-      <Tabs
-        tabs={[
-          { id: 'appointments', label: 'Приёмы', icon: <Calendar size={14} /> },
-          { id: 'treatments', label: 'Лечение', icon: <Activity size={14} /> },
-          { id: 'visits', label: 'Визиты', icon: <ClipboardList size={14} /> },
-          { id: 'payments', label: 'Оплаты', icon: <Receipt size={14} /> },
-          { id: 'docs', label: 'Документы', icon: <FileImage size={14} /> },
-          { id: 'diagnostics', label: 'Диагностика', icon: <FileText size={14} /> },
-        ]}
-        active={activeTab}
-        onChange={setActiveTab}
-      />
+      <Tabs tabs={tabs} active={activeTab} onChange={(id) => setActiveTab(id as PortalTab)} />
 
-      {activeTab === 'appointments' && <AppointmentsTab />}
-      {activeTab === 'treatments' && <TreatmentsTab />}
-      {activeTab === 'visits' && <VisitsTab />}
-      {activeTab === 'payments' && <PaymentsTab />}
-      {activeTab === 'docs' && <DocumentsTab />}
-      {activeTab === 'diagnostics' && <DiagnosticsTab />}
+      <div className="min-h-[200px]">
+        {activeTab === 'appointments' && <AppointmentsTab />}
+        {activeTab === 'treatments' && <TreatmentsTab />}
+        {activeTab === 'visits' && <VisitsTab />}
+        {activeTab === 'payments' && <PaymentsTab />}
+        {activeTab === 'documents' && <DocumentsTab />}
+        {activeTab === 'diagnostics' && <DiagnosticsTab />}
+      </div>
     </motion.div>
   );
 }
