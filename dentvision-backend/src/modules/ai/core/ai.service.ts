@@ -8,6 +8,88 @@ import { memoryEngine } from '../memory/memory.engine.js';
 import { contextManager } from './context.manager.js';
 import { prisma } from '../../../lib/prisma.js';
 import { timeGreetingInTz } from '../lib/timezone.js';
+import { permissionsSatisfy } from '../../../lib/permissions.js';
+
+/**
+ * Permission required by each intent the deterministic router can execute.
+ *
+ * Replaces a module-name gate that only ever compared the *module* half of a
+ * permission: `patients:read` satisfied any intent touching patients, so an
+ * assistant holding read-only access passed CREATE_APPOINTMENT. Actions are now
+ * enforced, against the same keys the REST routes use.
+ *
+ * Where the REST side gates nothing, the previous behaviour is preserved rather
+ * than new policy invented — REFER_DIAGNOSTICS stays on patients.read because
+ * `diagnostics.*` is enforced nowhere in the platform.
+ *
+ * Navigation intents (OPEN_*) are listed for completeness but are not reached
+ * today: processMessage() answers them before the permission check.
+ */
+export const PERMISSION_BY_INTENT: Record<string, string> = {
+  // Patients
+  SEARCH_PATIENT: 'patients.read',
+  NEW_PATIENT: 'patients.write',
+  INCOMING_CALL: 'patients.read',
+  RECALL_PATIENT: 'patients.read',
+  SEARCH_DOCUMENT: 'patients.read',
+  OPEN_PATIENTS: 'patients.read',
+  OPEN_DOCUMENTS: 'patients.read',
+  REFER_DIAGNOSTICS: 'patients.read',
+
+  // Medical records — PHI
+  OPEN_MEDICAL_CARD: 'medical.read',
+  OPEN_MEDICAL_CARD_NAV: 'medical.read',
+  GET_MEDICAL_CARD: 'medical.read',
+  SHOW_CBCT: 'medical.read',
+  VIEW_CBCT: 'medical.read',
+  OPEN_IMAGING: 'medical.read',
+  PATIENT_BRIEFING: 'medical.read',
+  AFTER_APPOINTMENT: 'medical.read',
+  SUGGEST_INSTRUMENTS: 'medical.read',
+  CREATE_TREATMENT_PLAN: 'medical.write',
+
+  // Schedule
+  VIEW_SCHEDULE: 'appointments.read',
+  OPEN_SCHEDULE: 'appointments.read',
+  OPEN_CRM: 'appointments.read',
+  MORNING_BRIEFING: 'appointments.read',
+  CREATE_APPOINTMENT: 'appointments.write',
+  SCHEDULE_NEXT_VISIT: 'appointments.write',
+
+  // Money
+  CHECK_DEBTS: 'billing.read',
+  GET_DEBTORS: 'billing.read',
+  OPEN_FINANCE: 'billing.read',
+  GENERATE_INVOICE: 'billing.write',
+  CREATE_ESTIMATE: 'billing.write',
+
+  // Reporting
+  GET_ANALYTICS: 'analytics.read',
+  GENERATE_REPORT: 'analytics.read',
+  OPEN_ANALYTICS: 'analytics.read',
+  OCCUPANCY_RATE: 'analytics.read',
+  TOP_PATIENTS: 'analytics.read',
+  DOCTOR_PERFORMANCE: 'analytics.read',
+  CLINIC_METRICS: 'analytics.read',
+
+  // Operations
+  LOW_STOCK: 'inventory.read',
+  STOCK_ANALYSIS: 'inventory.read',
+  OPEN_INVENTORY: 'inventory.read',
+  OPEN_LABORATORY: 'lab.read',
+
+  // Catalogs
+  ORDER_PRODUCT: 'shop.read',
+  RECOMMEND_PRODUCT: 'shop.read',
+  OPEN_SHOP: 'shop.read',
+  FIND_COURSE: 'academy.read',
+  OPEN_SCHOOL: 'academy.read',
+};
+
+/** Permission an intent requires, or null when it is not permitted at all. */
+export function permissionForIntent(intent: string): string | null {
+  return PERMISSION_BY_INTENT[intent] ?? null;
+}
 
 export class AIService {
   constructor() {
@@ -211,39 +293,14 @@ export class AIService {
 
   private hasPermission(permissions: string[], intent: string): boolean {
     if (!intent || intent === 'UNKNOWN' || intent === Intent.UNKNOWN) return true;
-    if (permissions.includes('*')) return true;
-    const modulesByIntent: Record<string, string[]> = {
-      CREATE_APPOINTMENT: ['appointments'],
-      VIEW_SCHEDULE: ['appointments'],
-      SEARCH_PATIENT: ['patients'],
-      OPEN_MEDICAL_CARD: ['patients', 'medical'],
-      GET_MEDICAL_CARD: ['patients', 'medical'],
-      CREATE_TREATMENT_PLAN: ['treatment-plans', 'medical'],
-      CHECK_DEBTS: ['billing', 'reports'],
-      GET_DEBTORS: ['billing', 'reports'],
-      GET_ANALYTICS: ['reports', 'billing'],
-      GENERATE_REPORT: ['reports'],
-      GENERATE_INVOICE: ['billing'],
-      MORNING_BRIEFING: ['reports', 'appointments', 'billing'],
-      SHOW_CBCT: ['medical'],
-      VIEW_CBCT: ['medical'],
-      LOW_STOCK: ['inventory'],
-      PATIENT_BRIEFING: ['patients', 'medical'],
-      AFTER_APPOINTMENT: ['appointments', 'medical'],
-      CREATE_ESTIMATE: ['billing'],
-      REFER_DIAGNOSTICS: ['patients'],
-      SCHEDULE_NEXT_VISIT: ['appointments'],
-      SUGGEST_INSTRUMENTS: ['medical'],
-      STOCK_ANALYSIS: ['inventory'],
-      OCCUPANCY_RATE: ['reports', 'appointments'],
-      TOP_PATIENTS: ['reports'],
-      DOCTOR_PERFORMANCE: ['reports'],
-      CLINIC_METRICS: ['reports', 'appointments', 'billing', 'inventory'],
-    };
-    const modules = modulesByIntent[intent] || [intent.split('_')[0].toLowerCase()];
-    return permissions.some(
-      (p) => p === '*' || modules.some((m) => p === m || p.startsWith(`${m}:`))
-    );
+
+    const required = permissionForIntent(intent);
+    // Deny by default. The old gate guessed a module name from the intent's
+    // first word for anything unmapped — a coincidence-driven answer that
+    // happened to deny most things, but for no stated reason.
+    if (!required) return false;
+
+    return permissionsSatisfy(new Set(permissions), required);
   }
 
   private permissionDenied(intent: string): AIResponse {

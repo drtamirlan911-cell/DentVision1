@@ -1,16 +1,26 @@
--- AlterTable: documents add signToken/signatureData/signedByName (handle both
--- @@map lowercase and PascalCase table names, matching this repo's convention).
+-- Document signing: signToken / signatureData / signedByName.
+--
+-- The unique index used to sit outside the table-name guard and named
+-- "documents" unconditionally, so it raised 42P01 wherever the table is called
+-- something else. Everything is resolved and executed inside one guard now.
 DO $$
+DECLARE
+  doc_table text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'documents') THEN
-    ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signToken" TEXT;
-    ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signatureData" TEXT;
-    ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signedByName" TEXT;
-  ELSIF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'Document') THEN
-    ALTER TABLE "Document" ADD COLUMN IF NOT EXISTS "signToken" TEXT;
-    ALTER TABLE "Document" ADD COLUMN IF NOT EXISTS "signatureData" TEXT;
-    ALTER TABLE "Document" ADD COLUMN IF NOT EXISTS "signedByName" TEXT;
-  END IF;
-END $$;
+  SELECT table_name INTO doc_table FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_name IN ('documents', 'Document') LIMIT 1;
 
-CREATE UNIQUE INDEX IF NOT EXISTS "documents_signToken_key" ON "documents"("signToken");
+  IF doc_table IS NULL THEN
+    RAISE NOTICE 'documents table absent — nothing to do';
+    RETURN;
+  END IF;
+
+  EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS "signToken" TEXT', doc_table);
+  EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS "signatureData" TEXT', doc_table);
+  EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS "signedByName" TEXT', doc_table);
+
+  EXECUTE format(
+    'CREATE UNIQUE INDEX IF NOT EXISTS "documents_signToken_key" ON public.%I ("signToken")',
+    doc_table
+  );
+END $$;

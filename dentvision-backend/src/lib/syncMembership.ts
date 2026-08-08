@@ -36,15 +36,13 @@ export async function syncPersonFromClinicMember(clinicId: string, userId: strin
   const fullName = `${user.firstName} ${user.lastName}`.trim();
   const personType = role === 'DOCTOR' ? 'DOCTOR' : 'STAFF';
 
-  // Person.userId is globally unique. Reuse the existing Person when it's the
-  // same ClinicMember, otherwise skip — never steal a Person that belongs to
-  // another org (e.g. diagnostics center) or a duplicate userId row would be created.
+  // One Person per (user, organization): a user in two clinics gets a Person in
+  // each. Keyed on the ClinicMember it mirrors, so nothing belonging to another
+  // organization is ever touched.
   let person = await prisma.person.findFirst({
     where: { originalType: 'ClinicMember', originalId: `${clinicId}:${userId}` },
   });
   if (!person) {
-    const existingByUser = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
-    if (existingByUser) return;
     person = await prisma.person.create({
       data: {
         id: uid(),
@@ -122,8 +120,6 @@ export async function syncPersonFromSupplierMember(memberId: string, supplierId:
     where: { originalType: 'SupplierMember', originalId: memberId },
   });
   if (!person) {
-    const existingByUser = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
-    if (existingByUser) return;
     person = await prisma.person.create({
       data: {
         id: uid(),
@@ -190,8 +186,6 @@ export async function syncPersonFromLecturer(lecturerId: string, userId: string,
     where: { originalType: 'Lecturer', originalId: lecturerId },
   });
   if (!person) {
-    const existingByUser = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
-    if (existingByUser) return;
     person = await prisma.person.create({
       data: {
         id: uid(),
@@ -246,8 +240,6 @@ export async function syncPersonFromSupportUser(userId: string): Promise<void> {
     where: { originalType: 'User', originalId: userId },
   });
   if (!person) {
-    const existingByUser = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
-    if (existingByUser) return;
     person = await prisma.person.create({
       data: {
         id: uid(),

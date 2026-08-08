@@ -182,6 +182,32 @@ export const PERMISSIONS = {
   BI_FINANCE: 'billing.manage',
 } as const;
 
+/**
+ * Action ladder used when matching a required permission against a granted set.
+ *
+ * The matrix does not imply lower actions from higher ones — OWNER holds
+ * `shop.manage` but not `shop.read` — so an exact-key check denies owners their
+ * own data. `requirePermission` keeps exact matching; callers that gate a whole
+ * capability (the AI tool surface, the AI intent router) use this instead.
+ */
+const ACTION_SATISFIED_BY: Record<string, string[]> = {
+  read: ['read', 'write', 'delete', 'manage'],
+  write: ['write', 'delete', 'manage'],
+  delete: ['delete', 'manage'],
+  manage: ['manage'],
+};
+
+/** Does a resolved permission set satisfy a required key? */
+export function permissionsSatisfy(granted: Set<string>, required: string): boolean {
+  if (granted.has('*')) return true;
+  if (granted.has(required)) return true;
+
+  const [mod, action] = required.split('.');
+  if (!mod || !action) return false;
+
+  return (ACTION_SATISFIED_BY[action] || [action]).some((a) => granted.has(`${mod}.${a}`));
+}
+
 export function roleHasPermission(role: string | undefined | null, key: PermissionKey | string): boolean {
   if (!role) return false;
   if (role === 'SUPERADMIN') return true;

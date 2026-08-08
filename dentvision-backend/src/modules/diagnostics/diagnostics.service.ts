@@ -197,6 +197,19 @@ export async function createRegistrationRequest(data: {
  * membership row + Person + unified role, so the org appears in
  * /api/iam/me/contexts and switch-context works for any org type.
  */
+/**
+ * DiagnosticCenterMember/LaboratoryMember role → unified Role key.
+ *
+ * `radiologist` and `operator` have no seeded counterpart (see
+ * prisma/seed-permissions.ts) and are deliberately absent: assigning them a
+ * role they do not have is what the old hardcoded 'org_admin' did.
+ */
+export const DIAGNOSTICS_ROLE_TO_ROLE_KEY: Record<string, string> = {
+  owner: 'owner',
+  admin: 'admin',
+  manager: 'manager',
+};
+
 export async function grantDiagnosticsAccess(
   type: 'DiagnosticCenter' | 'Laboratory',
   entityId: string,
@@ -237,14 +250,12 @@ export async function grantDiagnosticsAccess(
 
     const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email || 'Участник';
     const originalType = type === 'DiagnosticCenter' ? 'DiagnosticCenterMember' : 'LaboratoryMember';
-    // Person.userId is globally unique — reuse an existing Person for this user
-    // instead of creating a second one (unique(userId) would otherwise fail).
-    let person = await prisma.person.findUnique({ where: { userId: user.id } }).catch(() => null);
-    if (!person) {
-      person = await prisma.person.findFirst({
-        where: { originalType, originalId: `${entityId}:${userId}` },
-      });
-    }
+    // Keyed on this membership alone. It used to reuse whatever Person the user
+    // already had and move it here, which quietly severed their clinic (or
+    // other organization) membership in the unified model.
+    let person = await prisma.person.findFirst({
+      where: { originalType, originalId: `${entityId}:${userId}` },
+    });
     if (person) {
       person = await prisma.person.update({
         where: { id: person.id },
@@ -259,7 +270,20 @@ export async function grantDiagnosticsAccess(
       });
     }
 
-    const dbRole = await prisma.role.findUnique({ where: { key: 'org_admin' } });
+    const roleKey = DIAGNOSTICS_ROLE_TO_ROLE_KEY[String(role).toLowerCase()];
+    if (!roleKey) {
+      // Fail closed rather than granting a fallback: this used to assign
+      // 'org_admin' to every member regardless of their actual role, so a
+      // radiologist or operator held full organization-admin rights in the
+      // unified model. Without a PersonRole they fall back to the legacy
+      // member-role checks, which is the accurate, narrower answer.
+      console.warn(
+        `[Diagnostics] No unified role for ${type} member role '${role}' (user ${userId}) — PersonRole not assigned`,
+      );
+      return true;
+    }
+
+    const dbRole = await prisma.role.findUnique({ where: { key: roleKey } });
     if (dbRole) {
       await prisma.personRole.upsert({
         where: { personId_roleId: { personId: person.id, roleId: dbRole.id } },

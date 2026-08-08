@@ -81,10 +81,17 @@ personsRouter.post('/', async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'fullName и personType обязательны' } satisfies ApiResponse);
     }
 
+    // A user may hold a Person in several organizations — only a duplicate
+    // within the same organization is a conflict.
     if (userId) {
-      const existing = await prisma.person.findUnique({ where: { userId } });
+      const existing = await prisma.person.findFirst({
+        where: { userId, organizationId: organizationId ?? null },
+      });
       if (existing) {
-        return res.status(409).json({ ok: false, error: 'Этот пользователь уже привязан к персоне' } satisfies ApiResponse);
+        return res.status(409).json({
+          ok: false,
+          error: 'Этот пользователь уже привязан к персоне в этой организации',
+        } satisfies ApiResponse);
       }
     }
 

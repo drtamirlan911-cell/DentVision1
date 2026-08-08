@@ -2956,7 +2956,11 @@ model Person {
   fullName       String
   personType     String // DOCTOR | LECTURER | SELLER | SUPPLIER_REP | STAFF | OPERATOR | RADIOLOGIST
   organizationId String? @map("organization_id")
-  userId         String? @unique // optional link to platform User account
+  // Optional link to a platform User. Unique *per organization*, not globally:
+  // one user legitimately belongs to several organizations (a doctor working in
+  // two clinics, a clinic owner who also runs a laboratory), and a global
+  // unique made the unified model unable to represent that at all.
+  userId         String?
   phone          String?
   email          String?
   specialization String?
@@ -2975,8 +2979,10 @@ model Person {
   personRoles  PersonRole[]
 
   @@unique([originalType, originalId])
+  @@unique([userId, organizationId])
   @@index([personType])
   @@index([organizationId])
+  @@index([userId])
   @@map("persons")
 }
 

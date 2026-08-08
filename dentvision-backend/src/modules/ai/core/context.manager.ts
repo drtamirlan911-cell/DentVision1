@@ -1,6 +1,7 @@
 import { prisma } from '../../../lib/prisma.js';
 import { AIContext } from '../types/ai.types.js';
-import { resolveClinicAccess } from '../../../lib/orgContext.js';
+import { resolveClinicAccess, resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
+import { resolveUserPermissions } from '../../../lib/resolvePermissions.js';
 
 export class ContextManager {
   async loadContext(userId: string, clinicId: string): Promise<AIContext> {
@@ -75,6 +76,16 @@ export class ContextManager {
     });
   }
 
+  /**
+   * Effective permissions for the AI intent router.
+   *
+   * This used to be a hardcoded map in its own vocabulary (`patients:read`,
+   * `treatment-plans:*`, `lab-orders:*`) — a fifth permission dictionary that
+   * neither rbac.ts nor the Person → PersonRole graph had any say in, and whose
+   * module names existed nowhere else. It now returns the same dot-notation
+   * keys the REST routes are gated on, resolved from the database for the
+   * clinic-scoped role.
+   */
   async getCurrentPermissions(userId: string, clinicId: string): Promise<string[]> {
     // DB-first (Person → PersonRole), legacy ClinicMember fallback — same
     // resolver loadContext() already uses, so a unified (Person-only, no
@@ -85,19 +96,8 @@ export class ContextManager {
 
     if (role === 'SUPERADMIN') return ['*'];
 
-    const permissions: Record<string, string[]> = {
-      OWNER: ['*'],
-      ADMIN: ['patients:*', 'appointments:*', 'billing:*', 'inventory:*', 'reports:*'],
-      DOCTOR: ['patients:read', 'appointments:*', 'medical:*', 'treatment-plans:*'],
-      ASSISTANT: ['patients:read', 'appointments:read', 'medical:read'],
-      CASHIER: ['patients:read', 'appointments:read', 'billing:*'],
-      LAB: ['lab-orders:*'],
-      MANAGER: ['patients:*', 'appointments:*', 'inventory:*', 'reports:*'],
-      STUDENT: ['patients:read', 'medical:read', 'treatment-plans:read'],
-      SUPPORT: ['patients:read', 'appointments:read', 'billing:read'],
-    };
-
-    return permissions[role] ?? [];
+    const organizationId = await resolveOrganizationIdForClinic(clinicId);
+    return resolveUserPermissions(userId, organizationId, role);
   }
 }
 

@@ -85,6 +85,52 @@ describe('syncPersonFromClinicMember — role resolution', () => {
   });
 });
 
+describe('syncPersonFromClinicMember — multi-organization membership', () => {
+  beforeEach(() => {
+    userFindUnique.mockReset().mockResolvedValue({ id: USER_ID, firstName: 'A', lastName: 'B', phone: null, spec: null });
+    organizationFindFirst.mockReset().mockResolvedValue({ id: 'org-2' });
+    personFindFirst.mockReset().mockResolvedValue(null);
+    personFindUnique.mockReset();
+    personCreate.mockReset().mockResolvedValue({ id: 'person-2' });
+    personUpdate.mockReset();
+    roleFindUnique.mockReset().mockResolvedValue({ id: 'role-1' });
+    personRoleUpsert.mockReset();
+  });
+
+  it('creates a second Person when the user already belongs to another clinic', async () => {
+    // The user has a Person in clinic 1; joining clinic 2 used to bail out
+    // silently because Person.userId was globally unique, leaving the second
+    // membership represented only in the legacy ClinicMember table.
+    await syncPersonFromClinicMember('clinic-2', USER_ID, 'DOCTOR');
+
+    expect(personCreate).toHaveBeenCalledOnce();
+    expect(personCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: USER_ID,
+          organizationId: 'org-2',
+          originalId: `clinic-2:${USER_ID}`,
+        }),
+      }),
+    );
+  });
+
+  it('gives the second membership its own role rather than inheriting the first', async () => {
+    await syncPersonFromClinicMember('clinic-2', USER_ID, 'ASSISTANT');
+
+    expect(roleFindUnique).toHaveBeenCalledWith({ where: { key: 'assistant' } });
+    expect(personRoleUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ personId: 'person-2' }) }),
+    );
+  });
+
+  it('never consults the user-wide Person lookup that used to gate this', async () => {
+    await syncPersonFromClinicMember('clinic-2', USER_ID, 'DOCTOR');
+
+    expect(personFindUnique).not.toHaveBeenCalled();
+  });
+});
+
 describe('syncPersonFromSupplierMember', () => {
   beforeEach(() => {
     userFindUnique.mockReset().mockResolvedValue({ id: USER_ID, firstName: 'A', lastName: 'B', phone: null, email: 'a@b.com' });
