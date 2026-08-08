@@ -5,6 +5,7 @@ import { eventBus } from './modules/events/index.js';
 import { getEventOrchestrator } from './modules/ai/os/index.js';
 import { startReminderCronInterval } from './jobs/reminderCron.js';
 import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
+import { startSettlementCronInterval } from './jobs/settlementCron.js';
 import { startMessageWorker } from './modules/ai-admin/index.js';
 import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.js';
 import { onboardPartner } from './modules/legal/legal.service.js';
@@ -1002,6 +1003,9 @@ async function main() {
     if (env.REMINDER_CRON_MS > 0) {
       startReminderCronInterval(env.REMINDER_CRON_MS);
       startSubscriptionCronInterval(env.REMINDER_CRON_MS);
+      // Monthly platform-commission settlements (hourly interval; monthly work is
+      // guarded by referral linking, so most runs are cheap no-ops).
+      startSettlementCronInterval(60 * 60 * 1000);
       try {
         startMessageWorker();
       } catch (err) {
