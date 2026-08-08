@@ -11,6 +11,7 @@ import {
   type ClinicSettingsPayload,
 } from './clinicSettings.js';
 import { guardUserCreate } from '../../middleware/planGate.js';
+import { upsertStaffCompensation } from '../../lib/staffCompensation.js';
 import { syncPersonFromClinicMember, removePersonFromClinicMember } from '../../lib/syncMembership.js';
 
 export const clinicsRouter = Router();
@@ -548,7 +549,15 @@ clinicsRouter.post('/:id/staff', authenticate, guardUserCreate, async (req: Auth
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, spec: true, avatar: true } },
       },
-    }); await syncPersonFromClinicMember(clinicId, user.id, role);
+    });
+    await syncPersonFromClinicMember(clinicId, user.id, role);
+    // Dual-write: ClinicMember stays the source of truth until the legacy
+    // columns are retired, so the two cannot drift in the meantime.
+    await upsertStaffCompensation(user.id, clinicId, {
+      commissionPercent,
+      baseSalary,
+      payType,
+    });
 
     return res.status(201).json({ ok: true, data: member });
   } catch (error) {
@@ -621,7 +630,14 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest,
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, spec: true, avatar: true } },
       },
-    }); await syncPersonFromClinicMember(clinicId, userId, role || member.role);
+    });
+    await syncPersonFromClinicMember(clinicId, userId, role || member.role);
+    if (Object.keys(memberData).length) {
+      const { role: _role, ...compensationData } = memberData as Record<string, unknown>;
+      if (Object.keys(compensationData).length) {
+        await upsertStaffCompensation(userId, clinicId, compensationData);
+      }
+    }
 
     return res.json({ ok: true, data: updated });
   } catch (error) {

@@ -6,6 +6,9 @@ import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import { buildDoctorPayroll } from '../crm/payroll.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
+import { resolveClinicAccess } from '../../lib/orgContext.js';
+import { listClinicStaff } from '../../lib/clinicStaff.js';
+import { resolveStaffCompensation } from '../../lib/staffCompensation.js';
 
 const billingRouter = Router();
 
@@ -245,11 +248,14 @@ billingRouter.get('/my-payroll', async (req: AuthRequest, res) => {
       ? new Date(String(req.query.to))
       : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    const member = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId, clinicId } },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
-    });
-    if (!member) {
+    // Membership through the shared resolver: staff that exist only as a Person
+    // used to get 404 here purely because they had no ClinicMember row.
+    const [access, user, compensation] = await Promise.all([
+      resolveClinicAccess(userId, clinicId),
+      prisma.user.findUnique({ where: { id: userId }, select: { firstName: true, lastName: true } }),
+      resolveStaffCompensation(userId, clinicId),
+    ]);
+    if (!access) {
       return res.status(404).json({ ok: false, error: 'Участник клиники не найден' } satisfies ApiResponse);
     }
 
@@ -271,11 +277,11 @@ billingRouter.get('/my-payroll', async (req: AuthRequest, res) => {
 
     const payroll = buildDoctorPayroll({
       userId,
-      name: `${member.user.firstName} ${member.user.lastName}`.trim(),
-      role: member.role,
-      percent: member.commissionPercent ?? 30,
-      baseSalary: (member as any).baseSalary ?? 0,
-      payType: (member as any).payType ?? 'commission',
+      name: `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim(),
+      role: access.role,
+      percent: compensation.commissionPercent,
+      baseSalary: compensation.baseSalary,
+      payType: compensation.payType,
       commissionBase,
       from,
       to,
@@ -368,10 +374,9 @@ billingRouter.get('/reports', requirePermission('finance.manage'), async (req: A
         patient: { select: { firstName: true, lastName: true } },
       },
     });
-    const members = await prisma.clinicMember.findMany({
-      where: { clinicId },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
-    });
+    // Union of legacy members and unified Persons: staff that exist only in the
+    // unified model were absent from the payroll run entirely.
+    const members = await listClinicStaff(clinicId);
     const expenseAgg = await prisma.expense.aggregate({
       where: { clinicId, date: { gte: from, lte: to } },
       _sum: { amount: true },
@@ -387,14 +392,18 @@ billingRouter.get('/reports', requirePermission('finance.manage'), async (req: A
     const clinicRow = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
     const commissionBase = (clinicRow?.settings as any)?.payrollBase === 'gross' ? 'gross' : 'net';
 
+    const compensations = await Promise.all(
+      members.map((m) => resolveStaffCompensation(m.userId, clinicId)),
+    );
+
     const payroll = members
-      .map((m) => buildDoctorPayroll({
+      .map((m, i) => buildDoctorPayroll({
         userId: m.userId,
-        name: `${m.user.firstName} ${m.user.lastName}`.trim(),
+        name: m.name,
         role: m.role,
-        percent: m.commissionPercent ?? 30,
-        baseSalary: (m as any).baseSalary ?? 0,
-        payType: (m as any).payType ?? 'commission',
+        percent: compensations[i].commissionPercent,
+        baseSalary: compensations[i].baseSalary,
+        payType: compensations[i].payType,
         commissionBase,
         from,
         to,
