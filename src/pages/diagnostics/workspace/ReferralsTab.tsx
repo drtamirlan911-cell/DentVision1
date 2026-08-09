@@ -68,7 +68,6 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
       }
     },
     onSuccess: (_, referralId) => {
-      statusMutation.mutate({ id: referralId, status: 'COMPLETED' });
       setResultModal(null); setReportText(''); setConclusion(''); setResultFiles([]);
       toast.success('Результат отправлен');
     },

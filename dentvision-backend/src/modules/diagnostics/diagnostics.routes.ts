@@ -361,7 +361,7 @@ diagnosticsRouter.post('/results/ai-generate', requireReferralAccess(true), asyn
   }
 });
 
-diagnosticsRouter.post('/results/:id/sign', requireReferralAccess(), async (req: AuthRequest, res) => {
+diagnosticsRouter.post('/results/:id/sign', requireReferralAccess(true), async (req: AuthRequest, res) => {
   try {
     const { reportText, conclusion } = req.body;
     if (!reportText) return res.status(400).json({ ok: false, error: 'reportText required' } satisfies ApiResponse);

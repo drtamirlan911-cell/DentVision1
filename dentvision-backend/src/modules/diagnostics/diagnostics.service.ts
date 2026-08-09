@@ -461,6 +461,8 @@ export async function createReferral(data: {
       ...data,
       patientBirth: data.patientBirth ? new Date(data.patientBirth) : undefined,
       anatomicalSites: data.anatomicalSites || undefined,
+      // A referral sent to a center/lab should be SENT, not DRAFT
+      status: (data.centerId || data.labId) ? 'SENT' : 'DRAFT',
     },
   });
 
@@ -824,7 +826,7 @@ export async function saveAndSignResult(data: {
 
   await prisma.referral.update({
     where: { id: data.referralId },
-    data: { status: 'REVIEWED', reviewedAt: new Date(), reviewerId: data.doctorId },
+    data: { status: 'COMPLETED', completedAt: new Date() },
   });
 
   if (referral.patientId) {
