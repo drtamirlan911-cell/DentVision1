@@ -1476,7 +1476,10 @@
       "success": {
         "title": "Request sent!",
         "confirm_message": "An administrator will contact you shortly to confirm your appointment.",
-        "book_again": "Book again"
+        "book_again": "Book again",
+        "portal_title": "Patient portal",
+        "portal_body": "See your visits, invoices, images and diagnostic results — and book without calling.",
+        "portal_cta": "Open the patient portal"
       },
       "submit": "Book appointment",
       "next": "Next",
