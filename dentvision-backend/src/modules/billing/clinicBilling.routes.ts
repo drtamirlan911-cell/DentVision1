@@ -48,7 +48,8 @@ clinicBillingRouter.use(authenticate);
 clinicBillingRouter.use(requirePermission('finance.manage'));
 
 function clinicIdFrom(req: AuthRequest): string {
-  return String(req.user?.clinicId || req.query.clinicId || req.body?.clinicId || '');
+  // Only trust the JWT-resolved clinicId — never from query/body.
+  return String(req.user?.clinicId || '');
 }
 
 clinicBillingRouter.get('/me', async (req: AuthRequest, res) => {

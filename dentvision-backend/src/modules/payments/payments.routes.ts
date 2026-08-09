@@ -334,20 +334,26 @@ function verifyClinicCallbackAuth(input: {
 // Create a payment (returns provider QR/deeplink). Requires auth.
 paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
-    // Idempotency check
-    const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
-    if (idempotencyKey) {
-      const existing = await getIdempotencyRecord(idempotencyKey);
-      if (existing) {
-        const payment = await prisma.payment.findUnique({ where: { id: existing } });
-        if (payment) {
-          return res.status(200).json({
-            ok: true,
-            data: serializeBigInt(payment),
-          } satisfies ApiResponse);
-        }
-        await deleteIdempotencyRecord(idempotencyKey);
+    // Idempotency: use client key or generate server-side from content hash
+    let idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+    if (!idempotencyKey) {
+      // Generate deterministic key from user + body to prevent double-submit
+      const crypto = await import('node:crypto');
+      const hash = crypto.createHash('sha256')
+        .update(`${req.user!.id}:${JSON.stringify(req.body)}`)
+        .digest('hex');
+      idempotencyKey = `server-${hash.slice(0, 32)}`;
+    }
+    const existing = await getIdempotencyRecord(idempotencyKey);
+    if (existing) {
+      const payment = await prisma.payment.findUnique({ where: { id: existing } });
+      if (payment) {
+        return res.status(200).json({
+          ok: true,
+          data: serializeBigInt(payment),
+        } satisfies ApiResponse);
       }
+      await deleteIdempotencyRecord(idempotencyKey);
     }
 
     const {

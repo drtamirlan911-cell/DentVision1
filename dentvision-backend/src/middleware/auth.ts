@@ -48,7 +48,9 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           return res.status(401).json({ ok: false, error: 'Сессия истекла или отозвана' });
         }
       } catch {
-        console.warn('[auth] user_sessions table unavailable — skipping session check');
+        // Fail closed: if we can't verify the session, reject the request.
+        // This protects against revoked sessions being accepted during DB issues.
+        return res.status(401).json({ ok: false, error: 'Unable to verify session' });
       }
     }
 

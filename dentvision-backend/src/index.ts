@@ -199,11 +199,13 @@ async function runOnceMigration(key: string, label: string, fn: () => Promise<vo
   }
   const t0 = Date.now();
   try {
-    await fn();
+    // Wrap in a transaction so partial failures roll back cleanly.
+    await prisma.$transaction(async () => { await fn(); });
     await markMigrationDone(key, Date.now() - t0);
     console.log(`[MIGRATION] ${label} ready (${Date.now() - t0}ms)`);
   } catch (err) {
-    console.error(`[MIGRATION] ${label} failed (non-fatal):`, err);
+    console.error(`[MIGRATION] ${label} failed (will retry next boot):`, err);
+    // Do NOT mark as done — the transaction rolled back, so next boot retries.
   }
 }
 

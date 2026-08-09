@@ -170,6 +170,7 @@ export function startReminderCronInterval(ms = 15 * 60 * 1000): void {
       if (r.sent || r.errors) {
         console.log(`[ReminderCron] scanned=${r.scanned} sent=${r.sent} skipped=${r.skipped} errors=${r.errors}`);
       }
+      await cleanupAbandonedOrders();
     } catch (err) {
       console.error('[ReminderCron] tick failed', err);
     }
@@ -178,4 +179,37 @@ export function startReminderCronInterval(ms = 15 * 60 * 1000): void {
   setTimeout(tick, 20_000);
   timer = setInterval(tick, ms);
   console.log(`[ReminderCron] interval started (${ms / 60000} min)`);
+}
+
+/**
+ * Cancel orders stuck in pending > 30 min and restore stock.
+ * Prevents inventory hoarding from abandoned checkouts.
+ */
+export async function cleanupAbandonedOrders(): Promise<void> {
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+  try {
+    const stale = await prisma.order.findMany({
+      where: { status: 'pending', createdAt: { lt: cutoff } },
+      select: { id: true, items: true },
+    });
+    if (!stale.length) return;
+
+    for (const o of stale) {
+      await prisma.$transaction(async (tx) => {
+        // Restore stock for each item
+        for (const item of (o.items as any[]) || []) {
+          if (item.product_id && item.quantity) {
+            await tx.product.updateMany({
+              where: { id: item.product_id },
+              data: { stock: { increment: item.quantity } },
+            });
+          }
+        }
+        await tx.order.update({ where: { id: o.id }, data: { status: 'cancelled' } });
+      });
+    }
+    console.log(`[OrderCleanup] cancelled ${stale.length} abandoned orders`);
+  } catch (err) {
+    console.warn('[OrderCleanup] failed (non-fatal):', err);
+  }
 }
