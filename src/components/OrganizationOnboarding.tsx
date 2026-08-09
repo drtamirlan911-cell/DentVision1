@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
 import { useToast } from '@/components/ui/ds/Toast'
+import { DIAGNOSTICS_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits'
 import * as api from '@/utils/api'
 
 interface OnboardingProps {
@@ -233,6 +234,8 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
           </span>
         </button>
       </div>
+
+      <PartnerBenefits benefits={DIAGNOSTICS_BENEFITS} className="mt-8" />
     </motion.div>
   )
 }

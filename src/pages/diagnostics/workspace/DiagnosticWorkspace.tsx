@@ -29,19 +29,29 @@ import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
  * `config.ts` for what actually differs. Both entry routes still exist and both
  * sidebar items still work; only the implementation is shared.
  */
-export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
-  const config = WORKSPACES[kind]
+export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const { user } = useAuth()
-  const isOwnOrg = user?.organizationType === config.organizationType
   // The frontend role vocabulary is lower-case (`src/types.ts`), unlike the
   // backend enum.
   const isSuperadmin = user?.role === 'superadmin'
-  const ownOrgId = user?.organizationId || ''
-  const [orgId, setOrgId] = useState<string>(isOwnOrg ? ownOrgId : '')
+
+  // The sidebar has one entry for both, so the route no longer says which of
+  // the two this is — membership does. `/center-workspace` and
+  // `/diagnostics/lab-dashboard` still pin it explicitly, so deep links and
+  // the superadmin's own navigation keep working.
+  const claimedKind: OrgKind | undefined =
+    user?.organizationType === 'LABORATORY' ? 'LAB'
+      : user?.organizationType === 'DIAGNOSTIC_CENTER' ? 'CENTER'
+        : undefined
+
+  // Left empty on purpose: `organizationId` may be a clinic when the user is
+  // working elsewhere. The effect below fills it once the workspace knows which
+  // organisation this actually is.
+  const [orgId, setOrgId] = useState<string>('')
   const [activeTab, setActiveTab] = useState('referrals')
   const [phaseFilter, setPhaseFilter] = useState<PhaseId | null>(null)
 
-  // Which organisations of this kind does the *caller* belong to?
+  // Which organisations does the *caller* belong to?
   //
   // This used to ask `config.listOrganizations()` — the public catalogue of
   // every centre on the platform — and treat an empty answer as "you are not a
@@ -53,11 +63,30 @@ export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
   const { data: contextsData, isLoading: contextsLoading } = useQuery({
     queryKey: ['iam', 'me', 'contexts'],
     queryFn: () => api.getMyContexts(),
-    enabled: !isOwnOrg,
+    enabled: !claimedKind,
   })
+
+  const diagnosticContexts = useMemo(
+    () => (contextsData?.contexts || []).filter(
+      (c: any) => c.scopeType === 'DIAGNOSTIC_CENTER' || c.scopeType === 'LABORATORY',
+    ),
+    [contextsData],
+  )
+
+  // Precedence: what the route pinned, else the active context, else the first
+  // membership, else a centre — the shape the onboarding screen defaults to.
+  const kind: OrgKind =
+    pinnedKind
+    ?? claimedKind
+    ?? (diagnosticContexts[0]?.scopeType === 'LABORATORY' ? 'LAB' : 'CENTER')
+
+  const config = WORKSPACES[kind]
+  const isOwnOrg = user?.organizationType === config.organizationType
+  const ownOrgId = user?.organizationId || ''
+
   const myOrgs = useMemo(
-    () => (contextsData?.contexts || []).filter((c: any) => c.scopeType === config.organizationType),
-    [contextsData, config.organizationType],
+    () => diagnosticContexts.filter((c: any) => c.scopeType === config.organizationType),
+    [diagnosticContexts, config.organizationType],
   )
 
   // The platform team legitimately inspects any organisation, so they keep the

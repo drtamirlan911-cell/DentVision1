@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Stethoscope, ChevronLeft, ChevronRight, LogOut, Brain,
   ShoppingCart, GraduationCap, Briefcase, BarChart3, Users, User,
-  Shield, ShieldCheck, FileText, Database, Settings, FlaskConical, Star, LogIn, Store, Activity, Scale, TestTube,
+  Shield, ShieldCheck, FileText, Database, Settings, FlaskConical, Star, LogIn, Store, Activity, Scale,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/ds/Avatar';
@@ -20,6 +20,16 @@ import { useIam } from '@/iam';
 import { useGuestStore } from '@/store/guest.store';
 import { Logo } from '@/components/brand';
 import type { User as UserType, RoleInfo } from '@/types';
+
+/**
+ * The single route behind the diagnostics workspace entry.
+ *
+ * `/center-workspace` and `/diagnostics/lab-dashboard` both still resolve —
+ * deep links and the superadmin's own navigation rely on them — but the sidebar
+ * points at one, and the workspace resolves centre vs laboratory from
+ * membership rather than from which link was pressed.
+ */
+const DIAGNOSTICS_WORKSPACE_PATH = '/center-workspace';
 
 interface NavItem {
   id: string;
@@ -106,8 +116,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'community', label: t('nav.community'), icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
     { id: 'supplier', label: t('nav.supplier_cabinet'), icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },
     { id: 'school-workspace', label: t('nav.school_workspace'), icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school-workspace', color: '#2DD4BF', section: 'platform' },
-    { id: 'center-workspace', label: t('nav.center_workspace'), icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/center-workspace', color: '#27AE60', section: 'platform' },
-    { id: 'lab-workspace', label: t('nav.lab_workspace'), icon: <TestTube size={18} strokeWidth={1.75} />, path: '/diagnostics/lab-dashboard', color: '#8B5CF6', section: 'platform' },
+    // One entry, not two: since the centre and laboratory dashboards were
+    // merged (#183) both led to the same screen with a different `kind`, and
+    // both were shown to every user — a clinic doctor saw two workspaces they
+    // are not a partner of. Which one opens is decided by membership.
+    { id: 'diagnostics-workspace', label: t('nav.diagnostics_workspace'), icon: <FlaskConical size={18} strokeWidth={1.75} />, path: '/center-workspace', color: '#27AE60', section: 'platform' },
     { id: 'profile', label: t('nav.profile'), icon: <User size={18} strokeWidth={1.75} />, path: '/profile', color: '#60A5FA', section: 'platform' },
     { id: 'partner-legal', label: t('nav.partner_legal'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/partner-legal', color: '#C9A96E', section: 'platform' },
     { id: 'audit', label: t('nav.audit'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/audit', color: '#FBBF24', section: 'platform' },
@@ -227,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const serviceItems = isSuperAdmin ? NAV_ITEMS : (isGuest ? GUEST_NAV_ITEMS : NAV_ITEMS.filter(item => {
     if (item.id === 'crm') return true;
     if (item.id === 'profile' || item.id === 'settings' || item.id === 'partner-legal' || item.id === 'diagnostics') return true;
-    if (item.id === 'supplier' || item.id === 'school-workspace' || item.id === 'center-workspace' || item.id === 'lab-workspace') return true;
+    if (item.id === 'supplier' || item.id === 'school-workspace' || item.id === 'diagnostics-workspace') return true;
     if (item.id === 'jobs' || item.id === 'community') return true;
     if (item.id === 'shop') return iam.pages.length === 0 || iam.canAccessPage('shop');
     if (item.id === 'school') return iam.pages.length === 0 || iam.canAccessPage('school');
@@ -277,9 +290,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (isMobile && sidebarOpen) toggleSidebar();
   };
 
-  const handleCenterWorkspaceClick = async () => {
+  /**
+   * Open whichever diagnostics workspace this user actually belongs to.
+   *
+   * A laboratory member used to get a plain navigate — only the centre entry
+   * carried the context switch — so they landed on the workspace without ever
+   * switching into their own organisation. Both types now take the same path,
+   * and a user who belongs to neither lands on the screen that offers the two
+   * ways in.
+   */
+  const handleDiagnosticsWorkspaceClick = async () => {
     const inOrg = authUser?.organizationType === 'DIAGNOSTIC_CENTER' || authUser?.organizationType === 'LABORATORY';
-    if (inOrg) { handleNavClick('/center-workspace'); return; }
+    if (inOrg) { handleNavClick(DIAGNOSTICS_WORKSPACE_PATH); return; }
     try {
       const res = await api.getMyContexts();
       const ctx = (res.contexts || []).find((c: any) => c.scopeType === 'DIAGNOSTIC_CENTER' || c.scopeType === 'LABORATORY');
@@ -289,12 +311,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           saveClinicContext();
           api.setTokens(tok.accessToken, tok.refreshToken || null);
           await useAuthStore.getState().restoreSession();
-          navigate('/center-workspace');
+          navigate(DIAGNOSTICS_WORKSPACE_PATH);
           return;
         }
       }
     } catch { /* fall through to the page */ }
-    handleNavClick('/center-workspace');
+    handleNavClick(DIAGNOSTICS_WORKSPACE_PATH);
   };
 
   const renderNavSection = (items: NavItem[], sectionLabel?: string) => (
@@ -321,8 +343,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               if (isCrm && !collapsed) {
                 setCrmOpen((v) => !v);
                 if (!location.pathname.startsWith('/crm')) handleNavClick(crmEntryPath);
-              } else if (item.id === 'center-workspace') {
-                handleCenterWorkspaceClick();
+              } else if (item.id === 'diagnostics-workspace') {
+                handleDiagnosticsWorkspaceClick();
               } else {
                 handleNavClick(item.path);
               }

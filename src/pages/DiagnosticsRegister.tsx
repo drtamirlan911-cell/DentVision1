@@ -3,6 +3,7 @@ import { Building2, FlaskConical, CheckCircle, ArrowLeft } from 'lucide-react';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Button } from '@/components/ui/ds/Button';
 import { useNavigate } from 'react-router-dom';
+import { DIAGNOSTICS_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 import * as api from '@/utils/api';
 
 export default function DiagnosticsRegister() {
@@ -43,7 +44,7 @@ export default function DiagnosticsRegister() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-0 flex items-center justify-center p-4 max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-surface-0 flex flex-col items-center justify-center gap-6 p-4 max-w-full overflow-x-hidden">
       <GlassCard padding="lg" className="w-full max-w-md">
         <button onClick={() => step === 'form' ? setStep('type') : navigate('/')} className="flex items-center gap-1 text-xs text-txt-muted hover:text-txt-primary mb-4 transition-colors min-h-11">
           <ArrowLeft size={14} /> Назад
@@ -107,6 +108,7 @@ export default function DiagnosticsRegister() {
           </div>
         )}
       </GlassCard>
+      <PartnerBenefits benefits={DIAGNOSTICS_BENEFITS} className="w-full max-w-md" />
     </div>
   );
 }

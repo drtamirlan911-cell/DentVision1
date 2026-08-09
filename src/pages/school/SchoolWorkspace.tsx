@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/ds/Modal';
 import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload';
+import { LECTURER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 
 interface LecturerCtx { scopeId: string; level?: string; academy?: { id: string; name: string } | null }
 
@@ -242,6 +243,7 @@ export default function SchoolWorkspace() {
             </div>
           }
         />
+        <PartnerBenefits benefits={LECTURER_BENEFITS} className="mt-6" />
       </div>
     );
   }

@@ -15,6 +15,7 @@ import { Modal } from '@/components/ui/ds/Modal'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { PROFILE_PHOTO_ACCEPT, readImageAsDataUrl } from '@/lib/image-upload'
+import { SUPPLIER_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 
 type TabId = 'overview' | 'sales' | 'stock' | 'returns' | 'ads' | 'analytics' | 'catalog' | 'profile'
 
@@ -391,6 +392,7 @@ export default function SupplierWorkspace() {
             </div>
           </CardContent>
         </Card>
+        <PartnerBenefits benefits={SUPPLIER_BENEFITS} />
       </div>
     )
   }
