@@ -685,7 +685,7 @@ export default function Schedule() {
         onClick={(e) => { e.stopPropagation(); openEdit(appt) }}
         whileHover={{ scale: 1.01 }}
         className="rounded-lg cursor-grab active:cursor-grabbing mb-1 transition-all"
-        style={{ background: `${sc.dot}12`, borderLeft: `3px solid ${sc.dot}`, minHeight: compact ? 32 : heightPx, padding: compact ? '6px 8px' : '8px 10px' }}
+        style={{ background: `${sc.dot}12`, borderLeft: `3px solid ${sc.dot}`, height: compact ? 32 : Math.max(heightPx, 40), padding: compact ? '6px 8px' : '8px 10px' }}
       >
         <div className="flex justify-between items-start gap-1">
           <span className="text-xs font-semibold text-txt-primary truncate">{patient?.name || 'Пациент'}</span>
