@@ -1,5 +1,5 @@
 DO $$ BEGIN
-  CREATE TYPE "AIEventStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
+  CREATE TYPE "AIEventStatus" AS ENUM ('pending', 'processing', 'completed', 'failed');
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;

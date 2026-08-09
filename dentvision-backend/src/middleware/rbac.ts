@@ -79,6 +79,14 @@ export function requirePermission(...keys: (PermissionKey | string)[]) {
           // falling through to the matrix fallback.
           const resolved = keys.map((k) => (LEGACY_KEY_MAP as Record<string, string>)[k] || k);
           if (resolved.every((k) => userPerms.has(k))) return next();
+          // A Person record with roles makes the DB permission graph authoritative.
+          // Falling through to the matrix here would re-grant permissions that were
+          // deliberately removed from a DB role (additive-only flaw, audit R-1).
+          // Persons created without any role (radiologist/operator) still fall
+          // through to the narrower legacy check below.
+          if (person.personRoles.length > 0) {
+            return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
+          }
         }
       }
 

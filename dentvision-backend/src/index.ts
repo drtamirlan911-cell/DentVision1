@@ -1,4 +1,3 @@
-import app from './app.js';
 import { env } from './config.js';
 import prisma from './lib/prisma.js';
 import { eventBus } from './modules/events/index.js';
@@ -11,6 +10,14 @@ import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.j
 import { onboardPartner } from './modules/legal/legal.service.js';
 import { grantDiagnosticsAccess } from './modules/diagnostics/diagnostics.service.js';
 import { uid } from './lib/helpers.js';
+import { initSentry } from './lib/sentry.js';
+
+// Sentry must be initialized before the Express app (app.ts) is loaded so that
+// errors raised during route/module evaluation are attributed to the SDK.
+// app.ts is therefore imported dynamically, after initSentry() has run.
+initSentry();
+
+const app = (await import('./app.js')).default;
 
 const orchestrator = getEventOrchestrator({ logLevel: 'info' });
 
@@ -266,6 +273,8 @@ async function main() {
   } else {
     const t0 = Date.now();
     try {
+      await prisma.$transaction(async (tx) => {
+      const prisma = tx;
       await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "shop_categories" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -650,7 +659,8 @@ async function main() {
         created_at TIMESTAMPTZ DEFAULT now()
       )
     `);
-    console.log('[MIGRATION] Marketplace + IAM + Finance tables ready');
+      console.log('[MIGRATION] Marketplace + IAM + Finance tables ready');
+    });
     await markMigrationDone('marketplace_iam_finance', Date.now() - t0);
   } catch (err) {
     console.error('[MIGRATION] Marketplace tables failed (non-fatal):', err);

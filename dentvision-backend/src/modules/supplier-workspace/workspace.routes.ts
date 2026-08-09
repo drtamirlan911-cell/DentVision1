@@ -7,6 +7,7 @@ import { serializeBigInt, tengeToMinor } from '../../lib/money.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { buildSupplierDashboard, buildSupplierInsights, getSupplierOrders } from './supplierDashboard.js';
+import { canTransitionOrder } from '../../lib/orderStatus.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supplier Workspace (self-service cabinet). All routes operate strictly on the
@@ -113,10 +114,33 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
       return res.status(404).json({ ok: false, error: 'Заказ не найден' } satisfies ApiResponse);
     }
 
-    const order = await prisma.order.update({
-      where: { id: owned.id },
-      data: { status },
-    });
+    // Enforce the order status state machine — no arbitrary jumps (audit F-2).
+    if (!canTransitionOrder(owned.status, status)) {
+      return res.status(409).json({
+        ok: false,
+        error: `Недопустимый переход статуса: ${owned.status} → ${status}`,
+      } satisfies ApiResponse);
+    }
+
+    let order;
+    if (status === 'cancelled') {
+      // Restore stock atomically with the status flip so a cancelled order does
+      // not keep its reserved inventory (audit F-1).
+      order = await prisma.$transaction(async (tx) => {
+        const items = Array.isArray(owned.items) ? (owned.items as any[]) : [];
+        for (const item of items) {
+          if (item.product_id && item.quantity) {
+            await tx.product.updateMany({
+              where: { id: item.product_id },
+              data: { stock: { increment: item.quantity } },
+            });
+          }
+        }
+        return tx.order.update({ where: { id: owned.id }, data: { status } });
+      });
+    } else {
+      order = await prisma.order.update({ where: { id: owned.id }, data: { status } });
+    }
 
     if (status === 'delivered' || status === 'completed') {
       const { releaseOrderCashback } = await import('../dentcash/cashback.engine.js');

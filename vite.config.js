@@ -1,9 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { execSync } from 'node:child_process'
+
+function gitSha() {
+  try {
+    return execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim()
+  } catch {
+    return 'unknown'
+  }
+}
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __SENTRY_RELEASE__: JSON.stringify(gitSha()),
+  },
   resolve: {
     dedupe: ['react', 'react-dom', 'react-router-dom', 'react-router'],
     alias: {

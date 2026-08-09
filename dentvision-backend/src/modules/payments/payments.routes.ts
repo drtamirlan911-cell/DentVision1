@@ -26,17 +26,35 @@ import {
   PlanGateError,
 } from '../billing/planEntitlements.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
+import { canTransitionOrder } from '../../lib/orderStatus.js';
 
-// Prisma-backed idempotency (persists across restarts)
-async function getIdempotencyRecord(key: string): Promise<string | null> {
-  const record = await prisma.idempotencyRecord.findFirst({
-    where: { key, expiresAt: { gt: new Date() } },
-    select: { paymentId: true },
-  });
-  return record?.paymentId ?? null;
+// ── Prisma-backed idempotency (persists across restarts) ─────────────────
+// A key is reserved first (the unique constraint serializes concurrent
+// identical requests) and only linked to its payment once the row exists
+// (audit F-3).
+type IdempotencyReserve =
+  | { status: 'reserved' }
+  | { status: 'exists'; paymentId: string }
+  | { status: 'in_flight' };
+
+async function reserveIdempotencyKey(key: string): Promise<IdempotencyReserve> {
+  try {
+    await prisma.idempotencyRecord.create({
+      data: { key, expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+    return { status: 'reserved' };
+  } catch (err: any) {
+    if (err?.code !== 'P2002') throw err;
+    const record = await prisma.idempotencyRecord.findUnique({
+      where: { key },
+      select: { paymentId: true },
+    });
+    if (record?.paymentId) return { status: 'exists', paymentId: record.paymentId };
+    return { status: 'in_flight' };
+  }
 }
 
-async function setIdempotencyRecord(key: string, paymentId: string): Promise<void> {
+async function completeIdempotencyKey(key: string, paymentId: string): Promise<void> {
   await prisma.idempotencyRecord.upsert({
     where: { key },
     create: { key, paymentId, expiresAt: new Date(Date.now() + 3_600_000) },
@@ -44,8 +62,8 @@ async function setIdempotencyRecord(key: string, paymentId: string): Promise<voi
   });
 }
 
-async function deleteIdempotencyRecord(key: string): Promise<void> {
-  await prisma.idempotencyRecord.delete({ where: { key } }).catch(() => {});
+async function deleteIdempotencyKey(key: string): Promise<void> {
+  await prisma.idempotencyRecord.deleteMany({ where: { key } }).catch(() => {});
 }
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
@@ -60,7 +78,9 @@ async function settleOrderPayment(payment: {
   if (!payment.refId) return false;
   const order = await prisma.order.findUnique({ where: { id: payment.refId } });
   if (!order) return false;
-  if (order.status === 'paid' || order.status === 'packing' || order.status === 'shipped' || order.status === 'delivered') {
+  // Idempotent no-op for already-paid / non-payable states. In particular a
+  // cancelled order must never be resurrected by a late callback (audit F-2).
+  if (order.status === 'paid' || !canTransitionOrder(order.status, 'paid')) {
     return true;
   }
 
@@ -333,9 +353,12 @@ function verifyClinicCallbackAuth(input: {
 
 // Create a payment (returns provider QR/deeplink). Requires auth.
 paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
+  let idempotencyKey: string | undefined;
+  let keyCompleted = false;
   try {
-    // Idempotency: use client key or generate server-side from content hash
-    let idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+    // Idempotency: use client key or generate server-side from content hash so
+    // a missing header still dedupes identical submits (audit F-3).
+    idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     if (!idempotencyKey) {
       // Generate deterministic key from user + body to prevent double-submit
       const crypto = await import('node:crypto');
@@ -344,16 +367,24 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         .digest('hex');
       idempotencyKey = `server-${hash.slice(0, 32)}`;
     }
-    const existing = await getIdempotencyRecord(idempotencyKey);
-    if (existing) {
-      const payment = await prisma.payment.findUnique({ where: { id: existing } });
+    const reserved = await reserveIdempotencyKey(idempotencyKey);
+    if (reserved.status === 'in_flight') {
+      // Another identical request is being processed right now.
+      return res.status(409).json({
+        ok: false,
+        error: 'Запрос уже обрабатывается, повторите позже',
+      } satisfies ApiResponse);
+    }
+    if (reserved.status === 'exists') {
+      const payment = await prisma.payment.findUnique({ where: { id: reserved.paymentId } });
       if (payment) {
         return res.status(200).json({
           ok: true,
           data: serializeBigInt(payment),
         } satisfies ApiResponse);
       }
-      await deleteIdempotencyRecord(idempotencyKey);
+      // Stale record pointing at a deleted payment — free the key and continue.
+      await deleteIdempotencyKey(idempotencyKey);
     }
 
     const {
@@ -424,9 +455,8 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         },
       });
 
-      if (idempotencyKey) {
-        await setIdempotencyRecord(idempotencyKey, payment.id);
-      }
+      await completeIdempotencyKey(idempotencyKey, payment.id);
+      keyCompleted = true;
 
       return res.status(201).json({
         ok: true,
@@ -461,15 +491,19 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       },
     });
 
-if (idempotencyKey) {
-        await setIdempotencyRecord(idempotencyKey, payment.id);
-      }
+    await completeIdempotencyKey(idempotencyKey, payment.id);
+    keyCompleted = true;
 
     return res.status(201).json({
       ok: true,
       data: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
     } satisfies ApiResponse);
   } catch (error: any) {
+    // Free a reserved-but-unfinished key so a retry can succeed instead of
+    // hitting a permanent 409 (audit F-3).
+    if (idempotencyKey && !keyCompleted) {
+      await deleteIdempotencyKey(idempotencyKey);
+    }
     if (error instanceof ClinicPaymentsError) {
       return res.status(error.status).json({
         ok: false,
@@ -715,14 +749,32 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
             ? 'expired'
             : 'pending';
 
-    const updated = await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: newStatus },
-    });
-
+    let updated: { id: string; status: string };
     let settled = false;
     if (newStatus === 'paid') {
-      settled = await settlePaidPayment(payment);
+      // The status flip and the settlement run under one transaction so a
+      // failed settlement rolls the flip back — a payment never ends up
+      // 'paid' while its subscription/sale was not activated.
+      // ponytail: settlePaidPayment writes via the module-level prisma (its own
+      // implicit tx), so settlement rows already committed before an error are
+      // NOT rolled back — a retry can re-run a partially-failed settle. Full
+      // atomicity needs the tx threaded into settlePaidPayment's callees
+      // (recordSale, activateClinicSubscriptionFromPayment, markSettlementPaid).
+      const result = await prisma.$transaction(async (tx) => {
+        const upd = await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: 'paid' },
+        });
+        const s = await settlePaidPayment(payment);
+        return { upd, settled: s };
+      });
+      updated = result.upd;
+      settled = result.settled;
+    } else {
+      updated = await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: newStatus },
+      });
     }
 
     return res.json({ ok: true, data: { id: updated.id, status: updated.status, settled } } satisfies ApiResponse);

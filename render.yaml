@@ -63,6 +63,9 @@ services:
       # (type: Web), listing both app origins under Authorized JavaScript
       # origins.
       - key: GOOGLE_CLIENT_ID
+      # Error monitoring (Sentry). sync:false — set the DSN in the Render
+      # dashboard; without it the backend starts without Sentry enabled.
+      - key: SENTRY_DSN
         sync: false
       # Optional Redis (BullMQ ai-admin worker + EventBus streams).
       # Unset (default) → in-memory fallbacks; worker/queue skipped.
