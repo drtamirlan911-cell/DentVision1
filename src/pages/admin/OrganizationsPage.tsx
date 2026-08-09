@@ -90,7 +90,7 @@ export default function OrganizationsPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.type) return;
+    if (!form.name || !form.type) { toast.showToast('Заполните название и тип', 'warning'); return; }
     createMut.mutate(form);
   }
 

@@ -133,6 +133,7 @@ export default function Schedule() {
   const [paySaving, setPaySaving] = useState(false)
   const [payDefaultClose, setPayDefaultClose] = useState(false)
   const [waitForm, setWaitForm] = useState(EMPTY_WAIT)
+  const [waitSaving, setWaitSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [editWaitId, setEditWaitId] = useState<string | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
@@ -631,14 +632,25 @@ export default function Schedule() {
   }
 
   const handleSaveWait = async (): Promise<void> => {
+    if (waitSaving) return
     if (!waitForm.patientName.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
-    const doctor = doctors.find(d => d.id === waitForm.doctorId)
-    await upsertWaitingListItem({ id: editWaitId || gid(), clinicId: clinic?.id, patientId: waitForm.patientId || undefined, patientName: waitForm.patientName, patientPhone: waitForm.patientPhone, doctorId: waitForm.doctorId || undefined, doctorName: doctor?.name || '', preferredDate: waitForm.preferredDate || undefined, preferredTime: waitForm.preferredTime || undefined, preferredService: waitForm.preferredService || '', notes: waitForm.notes || '', status: 'waiting' })
-    showToast(editWaitId ? 'Запись обновлена' : 'Пациент добавлен в лист ожидания', 'success')
-    setWaitModalOpen(false); setEditWaitId(null); setWaitForm(EMPTY_WAIT)
+    setWaitSaving(true)
+    try {
+      const doctor = doctors.find(d => d.id === waitForm.doctorId)
+      await upsertWaitingListItem({ id: editWaitId || gid(), clinicId: clinic?.id, patientId: waitForm.patientId || undefined, patientName: waitForm.patientName, patientPhone: waitForm.patientPhone, doctorId: waitForm.doctorId || undefined, doctorName: doctor?.name || '', preferredDate: waitForm.preferredDate || undefined, preferredTime: waitForm.preferredTime || undefined, preferredService: waitForm.preferredService || '', notes: waitForm.notes || '', status: 'waiting' })
+      showToast(editWaitId ? 'Запись обновлена' : 'Пациент добавлен в лист ожидания', 'success')
+      setWaitModalOpen(false); setEditWaitId(null); setWaitForm(EMPTY_WAIT)
+    } catch {
+      showToast('Ошибка сохранения', 'error')
+    } finally {
+      setWaitSaving(false)
+    }
   }
 
-  const handleDeleteWait = async (id: string): Promise<void> => { await deleteWaitingListItem(id); showToast('Удалено', 'success') }
+  const handleDeleteWait = async (id: string): Promise<void> => {
+    try { await deleteWaitingListItem(id); showToast('Удалено', 'success') }
+    catch { showToast('Ошибка удаления', 'error') }
+  }
 
   const handleConfirmBooking = async (b: Booking): Promise<void> => {
     try {
@@ -1490,7 +1502,7 @@ export default function Schedule() {
           <Input label="Желаемая услуга" value={waitForm.preferredService} onChange={e => setWaitForm({ ...waitForm, preferredService: e.target.value })} placeholder="Консультация, отбеливание..." />
           <Input label="Заметки" value={waitForm.notes} onChange={e => setWaitForm({ ...waitForm, notes: e.target.value })} placeholder="Дополнительная информация" />
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button onClick={handleSaveWait} className="flex-1">{editWaitId ? 'Обновить' : 'Добавить'}</Button>
+            <Button onClick={handleSaveWait} className="flex-1" loading={waitSaving} disabled={waitSaving}>{editWaitId ? 'Обновить' : 'Добавить'}</Button>
             <Button variant="ghost" onClick={() => { setWaitModalOpen(false); setEditWaitId(null) }}>Отмена</Button>
           </div>
         </div>

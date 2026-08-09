@@ -274,9 +274,15 @@ export default function Patients() {
 
   const handleDelete = async () => {
     if (!editPatient) return
-    await deletePatient(editPatient.id)
-    showToast('Пациент удалён', 'success')
-    setModalOpen(false)
+    try {
+      await deletePatient(editPatient.id)
+      showToast('Пациент удалён', 'success')
+      setModalOpen(false)
+      if (selected?.id === editPatient.id) setSelected(null)
+    } catch {
+      showToast('Ошибка удаления', 'error')
+    }
+  }
     if (selected?.id === editPatient.id) setSelected(null)
   }
 
@@ -682,12 +688,12 @@ export default function Patients() {
                 </motion.div>
               )}
 
-        
-        {formModal}
-        {confirmDeleteModal}
-      </div>
-    )
-  }
+
+      {formModal}
+      {confirmDeleteModal}
+    </div>
+  )
+}
 
   // ── Detail View ──────────────────────────────────────────────
   const catKey = selected.category || 'regular'
@@ -1238,10 +1244,10 @@ export default function Patients() {
             </AnimatePresence>
           </div>
         </Card>
+        {/*formModal*/}
+        {/*confirmDeleteModal*/}
       </div>
-
-      {formModal}
-      {confirmDeleteModal}
-    </div>
-  )
+    )
+  }
+}
 }
