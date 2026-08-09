@@ -320,6 +320,21 @@ async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; re
   return false;
 }
 
+/**
+ * Ownership check for a payment *ref* (order/shop_order) at creation time.
+ * A payment may only be created against an order the caller owns — closes the
+ * IDOR where any authenticated user could pay another user's order.
+ */
+async function assertPaymentRefOwner(userId: string, refId: string, refType: string): Promise<boolean> {
+  if (refType !== 'order' && refType !== 'shop_order') return true;
+  try {
+    const order = await prisma.order.findUnique({ where: { id: refId }, select: { userId: true } });
+    return Boolean(order?.userId === userId);
+  } catch {
+    return false;
+  }
+}
+
 function verifyClinicCallbackAuth(input: {
   secret: string;
   headers: Record<string, string | string[] | undefined>;
@@ -442,6 +457,18 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     }
 
     const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
+
+    // P1 IDOR fix: a payment references an external object (order/invoice) by
+    // refId. Never create a payment against an object the caller does not own.
+    // `sellerId`/`refId` arrive from req.body, so we re-derive ownership from
+    // the database record, not from the request.
+    if (refId && (refType === 'order' || refType === 'shop_order')) {
+      const owned = await assertPaymentRefOwner(req.user!.id, refId, refType);
+      if (!owned) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к этому объекту оплаты' } satisfies ApiResponse);
+      }
+    }
+
     const clinicId = String(metaObj.clinicId || req.body?.clinicId || '');
     const isClinicCashier =
       domain === 'crm' ||
