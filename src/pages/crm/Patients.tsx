@@ -283,8 +283,6 @@ export default function Patients() {
       showToast('Ошибка удаления', 'error')
     }
   }
-    if (selected?.id === editPatient.id) setSelected(null)
-  }
 
   const handleToothClick = useCallback((toothNum: number) => {
     setSelectedTooth(t => t === toothNum ? null : toothNum)
@@ -1244,10 +1242,9 @@ export default function Patients() {
             </AnimatePresence>
           </div>
         </Card>
-        {/*formModal*/}
-        {/*confirmDeleteModal*/}
+        {formModal}
+        {confirmDeleteModal}
       </div>
+    </div>
     )
   }
-}
-}
