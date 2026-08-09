@@ -1,7 +1,7 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
+import { useOutletContext, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun } from 'lucide-react';
+import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun, Microscope } from 'lucide-react';
 import { gid, today } from '../../utils/constants';
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery';
@@ -13,10 +13,12 @@ import { PageHeader } from '../../components/ui/ds/StatCard';
 import { Tabs } from '../../components/ui/ds/Misc';
 import type { Patient, MedicalCard as MedicalCardType, Visit, Clinic, User as UserType, RoleInfo } from '../../types';
 import { usePatientStore } from '@/store/patient.store';
+import * as api from '@/utils/api';
 
 const CARD_SECTIONS = [
   { id: 'personal', label: 'Личные данные', icon: <User size={16} /> },
   { id: 'medical', label: 'Медицинская карта', icon: <Stethoscope size={16} /> },
+  { id: 'diagnostics', label: 'Диагностика', icon: <Microscope size={16} /> },
   { id: 'allergies', label: 'Аллергии и лекарства', icon: <AlertTriangle size={16} /> },
   { id: 'history', label: 'История болезней', icon: <FileText size={16} /> },
   { id: 'emergency', label: 'Экстренный контакт', icon: <Phone size={16} /> },
@@ -46,6 +48,7 @@ interface MedicalCardForm {
 
 export default function MedicalCard() {
   const { clinic, user } = useOutletContext<OutletContext>();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const { patients, medicalCards, upsertMedicalCard, visits } = useDataQuery(clinic?.id);
   const toast = useToast();
@@ -266,6 +269,19 @@ export default function MedicalCard() {
                   </div>
                 )}
 
+                {activeSection === 'diagnostics' && selectedPatientId && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><Microscope size={16} className="text-dv-gold" /> Диагностические направления</h3>
+                      <Button size="sm" variant="outline" icon={<Plus size={14} />}
+                        onClick={() => navigate(`/diagnostics/referrals/new?patientId=${selectedPatientId}&patientName=${encodeURIComponent(patients.find(p => p.id === selectedPatientId)?.name || '')}&patientPhone=${patients.find(p => p.id === selectedPatientId)?.phone || ''}`)}>
+                        Новое
+                      </Button>
+                    </div>
+                    <DiagnosticsList patientId={selectedPatientId} />
+                  </div>
+                )}
+
                 {activeSection === 'allergies' && (
                   <div className="space-y-4">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><AlertTriangle size={16} className="text-error" /> Аллергии и лекарства</h3>
@@ -384,6 +400,50 @@ export default function MedicalCard() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function DiagnosticsList({ patientId }: { patientId: string }) {
+  const [referrals, setReferrals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getDiagnosticReferrals({ patientId, limit: '50' });
+        if (!cancelled) setReferrals(res?.items || res?.data || []);
+      } catch {
+        if (!cancelled) setReferrals([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [patientId]);
+
+  if (loading) return <p className="text-xs text-txt-muted">Загрузка...</p>;
+  if (referrals.length === 0) return <p className="text-xs text-txt-muted">Нет направлений</p>;
+
+  return (
+    <div className="space-y-2">
+      {referrals.map((r: any) => (
+        <button key={r.id} onClick={() => navigate(`/diagnostics/referrals/${r.id}`)}
+          className="w-full text-left flex items-start gap-3 p-3 rounded-xl border border-bdr-subtle bg-white/[0.02] hover:bg-surface-1 transition-colors">
+          <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: r.status === 'COMPLETED' ? '#27AE60' : r.status === 'ACCEPTED' ? '#FBBF24' : '#94A3B8' }} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-txt-primary">{r.studyType || '—'}</p>
+              <Badge variant="outline" size="xs">{r.status}</Badge>
+            </div>
+            <p className="text-xs text-txt-muted mt-0.5">{r.center?.name || r.lab?.name || '—'}</p>
+            <p className="text-xs text-txt-muted">{r.cost ? `${Number(r.cost).toLocaleString()} ₸` : ''} {r.paid ? '· Оплачено' : ''}</p>
+          </div>
+          <p className="text-xs text-txt-ghost shrink-0">{new Date(r.createdAt).toLocaleDateString()}</p>
+        </button>
+      ))}
     </div>
   );
 }

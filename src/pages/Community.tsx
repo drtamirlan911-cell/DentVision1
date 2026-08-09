@@ -336,7 +336,7 @@ export default function CommunityPage() {
                 <Card key={post.id} className="overflow-hidden">
                   <CardContent className="p-3 sm:p-4 space-y-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <Avatar name={post.authorName || 'User'} size="sm" />
+                      <Avatar name={post.authorName || 'User'} size="sm" src={post.authorPhotoUrl} />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-txt-primary truncate">{post.authorName}</p>
                         <p className="text-[11px] text-txt-muted truncate">
@@ -420,7 +420,7 @@ export default function CommunityPage() {
               ) : (
                 comments.map((c) => (
                   <div key={c.id} className="flex gap-2.5">
-                    <Avatar name={c.authorName || '?'} size="sm" />
+                    <Avatar name={c.authorName || '?'} size="sm" src={c.authorPhotoUrl} />
                     <div className="min-w-0 flex-1 rounded-xl bg-white/[0.04] border border-bdr-subtle px-3 py-2">
                       <p className="text-xs font-semibold text-txt-primary">{c.authorName}</p>
                       <p className="text-sm text-txt-secondary whitespace-pre-wrap break-words mt-0.5">{c.content}</p>

@@ -92,6 +92,7 @@ function mapPost(p: any, userId?: string) {
     authorId: p.authorId,
     authorName: p.authorName,
     authorRole: p.authorRole,
+    authorPhotoUrl: p.authorPhotoUrl || p.author?.photoUrl || p.author?.avatar || null,
     content: p.content,
     tags: p.tags,
     kind: p.kind,
@@ -115,6 +116,7 @@ communityRouter.get('/posts', optionalAuth, async (req: AuthRequest, res) => {
     let posts = await prisma.communityPost.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
+        author: { select: { photoUrl: true, avatar: true } },
         ...(userId
           ? {
               likes: { where: { userId }, select: { id: true } },
@@ -241,9 +243,13 @@ communityRouter.get('/posts/:id/comments', optionalAuth, async (req: AuthRequest
     const comments = await prisma.communityComment.findMany({
       where: { postId },
       orderBy: { createdAt: 'asc' },
+      include: { author: { select: { photoUrl: true, avatar: true } } },
       take: 200,
     });
-    return res.json({ ok: true, data: comments } satisfies ApiResponse);
+    return res.json({ ok: true, data: comments.map((c: any) => ({
+      ...c,
+      authorPhotoUrl: c.author?.photoUrl || c.author?.avatar || null,
+    })) } satisfies ApiResponse);
   } catch (error) {
     console.error('[Community] comments', error);
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить комментарии' } satisfies ApiResponse);
