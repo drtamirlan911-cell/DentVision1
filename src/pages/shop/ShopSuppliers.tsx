@@ -39,7 +39,7 @@ export default function ShopSuppliers() {
               <Card hover>
                 <CardContent>
                   <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                    <h3 className="text-sm font-bold text-white m-0">{s.name}</h3>
+                    <h3 className="text-sm font-bold text-txt-primary m-0">{s.name}</h3>
                     {s.rating > 0 && <span className="flex items-center gap-0.5 text-xs text-[#C9A96E]"><Star size={12} className="fill-[#C9A96E]" /> {s.rating}</span>}
                   </div>
                   <div className="space-y-1.5 text-xs text-[var(--slate-light)]">

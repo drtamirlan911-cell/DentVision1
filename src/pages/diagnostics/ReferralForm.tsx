@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '@/components/ui/ds/Button';
 import { Input, Select, Textarea } from '@/components/ui/ds/Input';
 import { Card } from '@/components/ui/ds/Card';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import * as api from '@/utils/api';
 import { queryKeys } from '@/queries/keys';
 import FileUploader from '@/components/diagnostics/FileUploader';
@@ -202,13 +203,16 @@ export default function ReferralForm() {
   return (
     <motion.form onSubmit={handleSubmit} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
       className="p-6 space-y-6 max-w-4xl max-w-full overflow-x-hidden">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="icon-sm" aria-label="Назад" className="min-h-11" onClick={() => navigate('/diagnostics')}><ArrowLeft size={18} /></Button>
-        <div>
-          <h1 className="text-xl font-bold text-txt-primary">Новое направление</h1>
-          <p className="text-sm text-txt-muted mt-0.5">Заполните информацию для направления на диагностику</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Новое направление"
+        subtitle="Заполните информацию для направления на диагностику"
+        icon={<Send size={22} />}
+        actions={
+          <Button variant="ghost" size="sm" className="min-h-11" icon={<ArrowLeft size={16} />} onClick={() => navigate('/diagnostics')}>
+            Назад
+          </Button>
+        }
+      />
 
       <Card padding="md">
         <label className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3 block">Тип диагностики</label>

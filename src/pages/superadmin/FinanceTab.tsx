@@ -379,7 +379,7 @@ export default function FinanceTab() {
                             </Badge>
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`text-sm font-semibold ${tx.type === 'CREDIT' ? 'text-[#22C55E]' : tx.type === 'DEBIT' ? 'text-[#EF4444]' : 'text-txt-primary'}`}>
+                            <span className={`text-sm font-semibold ${tx.type === 'CREDIT' ? 'text-[#22C55E]' : tx.type === 'DEBIT' ? 'text-error' : 'text-txt-primary'}`}>
                               {tx.type === 'CREDIT' ? '+' : '-'}{fmtKzt(tx.amount)}
                             </span>
                           </td>
@@ -467,7 +467,7 @@ export default function FinanceTab() {
                           </td>
                           <td className="px-4 py-3 text-sm font-semibold text-dv-gold">{fmtKzt(w.balance || 0)}</td>
                           <td className="px-4 py-3 text-sm text-[#22C55E]">{fmtKzt(w.totalCredit || 0)}</td>
-                          <td className="px-4 py-3 text-sm text-[#EF4444]">{fmtKzt(w.totalDebit || 0)}</td>
+                          <td className="px-4 py-3 text-sm text-error">{fmtKzt(w.totalDebit || 0)}</td>
                           <td className="px-4 py-3 text-xs text-txt-muted">{fd(w.updatedAt)}</td>
                         </tr>
                       );
@@ -606,7 +606,7 @@ export default function FinanceTab() {
             <>
               <GlassCard padding="md">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className={`p-2 rounded-lg ${ledgerData.healthy || ledgerData.balanced ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-[#EF4444]'}`}>
+                  <div className={`p-2 rounded-lg ${ledgerData.healthy || ledgerData.balanced ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-error'}`}>
                     <Shield size={20} />
                   </div>
                   <div>
@@ -621,7 +621,7 @@ export default function FinanceTab() {
                   </div>
                   <div className="p-3 rounded-lg bg-surface-2 border border-bdr-subtle">
                     <p className="text-xs text-txt-muted mb-1">Дебет итого</p>
-                    <p className="text-lg font-bold text-[#EF4444]">{ledgerData.totalDebit != null ? fmtKzt(ledgerData.totalDebit) : '—'}</p>
+                    <p className="text-lg font-bold text-error">{ledgerData.totalDebit != null ? fmtKzt(ledgerData.totalDebit) : '—'}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-surface-2 border border-bdr-subtle">
                     <p className="text-xs text-txt-muted mb-1">Кредит итого</p>
@@ -629,7 +629,7 @@ export default function FinanceTab() {
                   </div>
                   <div className="p-3 rounded-lg bg-surface-2 border border-bdr-subtle">
                     <p className="text-xs text-txt-muted mb-1">Разница</p>
-                    <p className={`text-lg font-bold ${(ledgerData.difference ?? 0) === 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                    <p className={`text-lg font-bold ${(ledgerData.difference ?? 0) === 0 ? 'text-[#22C55E]' : 'text-error'}`}>
                       {ledgerData.difference != null ? fmtKzt(ledgerData.difference) : '—'}
                     </p>
                   </div>
@@ -654,7 +654,7 @@ export default function FinanceTab() {
                         {ledgerData.accounts.map((a: any, idx: number) => (
                           <tr key={idx} className="border-b border-bdr-subtle/50 hover:bg-white/[0.02] transition-colors">
                             <td className="px-4 py-3 text-sm text-txt-primary">{a.name || a.account || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-[#EF4444]">{fmtKzt(a.debit || 0)}</td>
+                            <td className="px-4 py-3 text-sm text-error">{fmtKzt(a.debit || 0)}</td>
                             <td className="px-4 py-3 text-sm text-[#22C55E]">{fmtKzt(a.credit || 0)}</td>
                             <td className="px-4 py-3">
                               <Badge variant={(a.balance ?? 0) >= 0 ? 'success' : 'error'} size="sm">{fmtKzt(a.balance || 0)}</Badge>
@@ -669,11 +669,11 @@ export default function FinanceTab() {
 
               {Array.isArray(ledgerData.anomalies) && ledgerData.anomalies.length > 0 && (
                 <Card padding="md">
-                  <h3 className="text-sm font-semibold text-[#EF4444] mb-3 flex items-center gap-2"><AlertTriangle size={14} /> Аномалии</h3>
+                  <h3 className="text-sm font-semibold text-error mb-3 flex items-center gap-2"><AlertTriangle size={14} /> Аномалии</h3>
                   <div className="space-y-2">
                     {ledgerData.anomalies.map((a: any, idx: number) => (
-                      <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-[#EF4444]/5 border border-[#EF4444]/20">
-                        <AlertTriangle size={14} className="text-[#EF4444] shrink-0" />
+                      <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-error/5 border border-error/20">
+                        <AlertTriangle size={14} className="text-error shrink-0" />
                         <span className="text-sm text-txt-secondary">{a.message || a.description || JSON.stringify(a)}</span>
                       </div>
                     ))}

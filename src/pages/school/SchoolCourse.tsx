@@ -288,7 +288,7 @@ export default function SchoolCourse() {
               </span>
               <Badge variant="gold" size="xs">{course.category}</Badge>
             </div>
-            <h2 className="text-base font-bold text-white m-0 mb-1.5">{course.title}</h2>
+            <h2 className="text-base font-bold text-txt-primary m-0 mb-1.5">{course.title}</h2>
             <p className="text-xs text-[var(--slate)] m-0 mb-2.5">{course.subtitle}</p>
             <div className="flex gap-3 text-[11px] text-[var(--slate)] mb-3 flex-wrap">
               <span className="flex items-center gap-1"><Clock size={12} /> {course.duration_hours}ч</span>
@@ -455,7 +455,7 @@ export default function SchoolCourse() {
                     </div>
                   ) : examResult ? (
                     <div className="max-w-xl mx-auto space-y-3 py-6">
-                      <h3 className="text-lg font-bold text-white">
+                      <h3 className="text-lg font-bold text-txt-primary">
                         {examResult.passed ? 'Экзамен сдан' : 'Экзамен не сдан'}
                       </h3>
                       <p className="text-sm text-txt-secondary">
@@ -479,7 +479,7 @@ export default function SchoolCourse() {
                   ) : exam ? (
                     <div className="max-w-xl mx-auto space-y-4 py-2">
                       <div>
-                        <h3 className="text-base font-bold text-white">{exam.title || activeLesson.title}</h3>
+                        <h3 className="text-base font-bold text-txt-primary">{exam.title || activeLesson.title}</h3>
                         <p className="text-xs text-txt-muted mt-1">
                           {exam.questionCount || exam.questions?.length || 0} вопросов · проходной балл {exam.passingScore || exam.passScore || 70}%
                         </p>
@@ -549,7 +549,7 @@ export default function SchoolCourse() {
             </div>
 
             <div className="mb-5">
-              <h2 className="text-xl font-bold text-white m-0 mb-1.5">{activeLesson.title}</h2>
+              <h2 className="text-xl font-bold text-txt-primary m-0 mb-1.5">{activeLesson.title}</h2>
               <div className="flex gap-3 text-xs text-[var(--slate)] flex-wrap">
                 <span className="flex items-center gap-1">
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#2980B9]/15 text-[#2980B9]">
@@ -613,7 +613,7 @@ export default function SchoolCourse() {
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2">
                   <Sparkles size={16} className="text-[#C9A96E]" />
-                  <h3 className="text-sm font-bold text-white m-0">AI Tutor</h3>
+                  <h3 className="text-sm font-bold text-txt-primary m-0">AI Tutor</h3>
                 </div>
                 <Button size="sm" variant="secondary" onClick={() => setTutorOpen((v) => !v)}>
                   {tutorOpen ? 'Свернуть' : 'Открыть'}

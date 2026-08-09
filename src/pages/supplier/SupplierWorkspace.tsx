@@ -460,7 +460,7 @@ export default function SupplierWorkspace() {
           {tab === 'overview' && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-txt-primary flex items-center gap-2">
                   <Sparkles size={16} className="text-[#C9A96E]" /> AI-рекомендации
                 </h3>
                 {canWrite && (

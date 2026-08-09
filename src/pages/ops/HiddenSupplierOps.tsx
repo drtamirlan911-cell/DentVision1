@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
 import { Card, CardContent } from '@/components/ui/ds/Card'
 import { Badge } from '@/components/ui/ds/Badge'
+import { PageHeader } from '@/components/ui/ds/StatCard'
 import { useToast } from '@/components/ui/ds/Toast'
 import * as api from '@/utils/api'
 
@@ -161,7 +162,7 @@ export default function PlatformOpsCommandCenter() {
           <CardContent className="p-6 space-y-4">
             <div className="flex items-center gap-2 text-txt-primary">
               <Lock size={18} className="text-dv-gold" />
-              <h1 className="text-sm font-semibold">Platform Ops</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Platform Ops</h1>
             </div>
             <Input type="password" autoComplete="off" spellCheck={false} label="Access key"
               value={gateKey} onChange={(e) => setGateKey(e.target.value)}
@@ -184,29 +185,27 @@ export default function PlatformOpsCommandCenter() {
 
   return (
     <div className="mx-auto w-full max-w-full overflow-x-hidden p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <ShieldCheck size={18} className="text-dv-gold" />
-          <div>
-            <h1 className="text-sm font-semibold text-txt-primary">Platform Ops Command Center</h1>
-            <p className="text-xs text-txt-muted">Скрытый контур · подписки · school · поставщики · автоочереди</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="secondary" className="min-h-11" icon={<RefreshCw size={14} />} onClick={refresh} disabled={loading}>Refresh</Button>
-          <Button size="sm" variant="danger" className="min-h-11" onClick={lock}>Lock</Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Platform Ops Command Center"
+        subtitle="Скрытый контур · подписки · school · поставщики · автоочереди"
+        icon={<ShieldCheck size={22} />}
+        actions={
+          <>
+            <Button size="sm" variant="secondary" className="min-h-11" icon={<RefreshCw size={14} />} onClick={refresh} disabled={loading}>Refresh</Button>
+            <Button size="sm" variant="danger" className="min-h-11" onClick={lock}>Lock</Button>
+          </>
+        }
+      />
 
-      <div className="flex flex-wrap gap-1 border-b border-white/[0.06]">
+      <div className="flex flex-wrap gap-1 border-b border-bdr-subtle">
         {TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.id ? 'border-[#C9A96E] text-[#C9A96E]' : 'border-transparent text-[#7A8899] hover:text-white'
+              tab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'
             }`}>
             {t.icon}{t.label}
             {!!t.badge && t.badge > 0 && (
-              <span className="ml-1 rounded-full bg-red-500/20 text-red-300 px-1.5 text-[10px]">{t.badge}</span>
+              <span className="ml-1 rounded-full bg-error/20 text-error px-1.5 text-[10px]">{t.badge}</span>
             )}
           </button>
         ))}

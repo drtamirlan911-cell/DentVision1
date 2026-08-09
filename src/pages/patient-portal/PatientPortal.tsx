@@ -17,6 +17,7 @@ import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { Modal } from '@/components/ui/ds/Modal';
 import { Input } from '@/components/ui/ds/Input';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import SignaturePad from '@/components/ui/SignaturePad';
 import { getAccessToken } from '@/utils/api';
 
@@ -534,15 +535,16 @@ export default function PatientPortal() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-txt-primary">{t('patientPortal.title')}</h1>
-          <p className="text-sm text-txt-muted mt-0.5">{t('patientPortal.welcome', { name: user.name || user.login })}</p>
-        </div>
-        <Button asChild variant="outline" size="sm" icon={<Calendar size={14} />} disabled={!user.clinicId}>
-          <Link to={user.clinicId ? `/book/${user.clinicId}` : '#'}>{t('patientPortal.book_online')}</Link>
-        </Button>
-      </div>
+      <PageHeader
+        title={t('patientPortal.title')}
+        subtitle={t('patientPortal.welcome', { name: user.name || user.login })}
+        icon={<User size={22} />}
+        actions={
+          <Button asChild variant="outline" size="sm" className="min-h-11" icon={<Calendar size={14} />} disabled={!user.clinicId}>
+            <Link to={user.clinicId ? `/book/${user.clinicId}` : '#'}>{t('patientPortal.book_online')}</Link>
+          </Button>
+        }
+      />
 
       <Tabs tabs={tabs} active={activeTab} onChange={(id) => setActiveTab(id as PortalTab)} />
 

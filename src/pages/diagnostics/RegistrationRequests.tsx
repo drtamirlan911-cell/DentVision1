@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import * as api from '@/utils/api';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -44,12 +45,11 @@ export default function RegistrationRequests() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-txt-primary">Заявки на регистрацию</h1>
-          <p className="text-sm text-txt-muted mt-0.5">Центры и лаборатории, ожидающие подтверждения</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Заявки на регистрацию"
+        subtitle="Центры и лаборатории, ожидающие подтверждения"
+        icon={<Shield size={22} />}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         {['', 'PENDING', 'APPROVED', 'REJECTED'].map(s => (

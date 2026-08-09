@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Clock, CheckCircle, AlertTriangle, Activity, ArrowRight, Plus, Database } from 'lucide-react';
-import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { PageHeader, StatCard, type StatTone } from '@/components/ui/ds/StatCard';
 import { useAuth } from '@/store/auth.store';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
@@ -25,55 +25,49 @@ export default function DiagnosticsDashboard() {
     queryFn: () => api.getDiagnosticsDashboard(clinicId),
   });
 
-  const stats = [
-    { label: 'Направлений сегодня', value: data?.todayCount ?? 0, icon: <FileText size={18} />, color: '#C9A96E' },
-    { label: 'В ожидании', value: data?.pending ?? 0, icon: <Clock size={18} />, color: '#F39C12' },
-    { label: 'Готово', value: data?.completed ?? 0, icon: <CheckCircle size={18} />, color: '#27AE60' },
-    { label: 'Просрочено', value: data?.overdue ?? 0, icon: <AlertTriangle size={18} />, color: '#E74C3C' },
-    { label: 'Всего', value: data?.total ?? 0, icon: <Activity size={18} />, color: '#3498DB' },
+  // Tones, not five arbitrary hexes (#C9A96E was the brand gold used as a
+  // status colour). Only the two that genuinely carry a status get one; the
+  // rest are plain counts and colour would decode to nothing.
+  const stats: Array<{ label: string; value: number; icon: ReactNode; tone?: StatTone }> = [
+    { label: 'Направлений сегодня', value: data?.todayCount ?? 0, icon: <FileText size={18} /> },
+    { label: 'В ожидании', value: data?.pending ?? 0, icon: <Clock size={18} /> },
+    { label: 'Готово', value: data?.completed ?? 0, icon: <CheckCircle size={18} />, tone: 'success' },
+    { label: 'Просрочено', value: data?.overdue ?? 0, icon: <AlertTriangle size={18} />, tone: 'error' },
+    { label: 'Всего', value: data?.total ?? 0, icon: <Activity size={18} /> },
   ];
 
   const recent = data?.recent || [];
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-txt-primary">Diagnostics Dashboard</h1>
-          <p className="text-sm text-txt-muted mt-0.5">Единый центр диагностики — 3D и лабораторные исследования</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="primary" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')} className="min-h-11">
-            Новое направление
-          </Button>
-          {isSuperAdmin && (
-            <Button variant="ghost" icon={<Database size={14} />} className="min-h-11" onClick={async () => {
-              setSeeding(true);
-              try { await api.seedDiagnosticsTestData(); queryClient.invalidateQueries(); } catch { /* seed failed, ignore */ }
-              setSeeding(false);
-            }} disabled={seeding}>
-              {seeding ? 'Создание...' : 'Seed тестовые'}
+      <PageHeader
+        title="Диагностика"
+        subtitle="Единый центр диагностики — 3D и лабораторные исследования"
+        icon={<Activity size={22} />}
+        actions={
+          <>
+            <Button variant="primary" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')} className="min-h-11">
+              Новое направление
             </Button>
-          )}
-        </div>
-      </div>
+            {isSuperAdmin && (
+              <Button variant="ghost" icon={<Database size={14} />} className="min-h-11" onClick={async () => {
+                setSeeding(true);
+                try { await api.seedDiagnosticsTestData(); queryClient.invalidateQueries(); } catch { /* seed failed, ignore */ }
+                setSeeding(false);
+              }} disabled={seeding}>
+                {seeding ? 'Создание...' : 'Seed тестовые'}
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        {stats.map((s, i) => (
-          <GlassCard key={i} padding="md" hover>
-            {isLoading ? (
-              <Skeleton className="h-16" />
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ background: s.color + '18', color: s.color }}>{s.icon}</div>
-                <div>
-                  <p className="text-2xl font-bold text-txt-primary">{s.value}</p>
-                  <p className="text-xs text-txt-muted">{s.label}</p>
-                </div>
-              </div>
-            )}
-          </GlassCard>
-        ))}
+        {isLoading
+          ? stats.map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)
+          : stats.map((s) => (
+              <StatCard key={s.label} label={s.label} value={s.value} icon={s.icon} tone={s.tone} />
+            ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

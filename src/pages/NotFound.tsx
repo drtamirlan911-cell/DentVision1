@@ -10,7 +10,8 @@ export default function NotFound() {
       className="flex w-full max-w-full overflow-x-hidden min-h-[60vh] flex-col items-center justify-center gap-6 p-8"
     >
       <FileQuestion size={64} className="text-dv-gold/40" />
-      <h1 className="text-4xl font-bold text-txt-primary">404</h1>
+      {/* The one figure this screen is about — it should read like one. */}
+      <h1 className="text-6xl sm:text-7xl font-semibold leading-none tracking-tight text-txt-primary">404</h1>
       <p className="text-lg text-txt-secondary text-center max-w-md">
         Страница не найдена
       </p>
