@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { Building2, DollarSign, FileText, FlaskConical, TrendingUp, Wallet } from 'lucide-react'
+import { Building2, DollarSign, FileText, FlaskConical, TrendingUp, Users, Wallet } from 'lucide-react'
 
 import { Card } from '@/components/ui/ds/Card'
 import { HeroStat, PageHeader } from '@/components/ui/ds/StatCard'
 import { Badge } from '@/components/ui/ds/Badge'
-import { Button } from '@/components/ui/ds/Button'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { countAwaitingAction, countByPhase, type PhaseId } from '@/lib/referralStatus'
 import { queryKeys } from '@/queries/keys'
@@ -21,6 +19,7 @@ import { ServicesTab } from './ServicesTab'
 import { PaymentsTab } from './PaymentsTab'
 import { CashierTab } from './CashierTab'
 import { FinanceTab } from './FinanceTab'
+import { TeamTab } from './TeamTab'
 import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
 
 /**
@@ -33,23 +32,54 @@ import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
 export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
   const config = WORKSPACES[kind]
   const { user } = useAuth()
-  const navigate = useNavigate()
   const isOwnOrg = user?.organizationType === config.organizationType
+  // The frontend role vocabulary is lower-case (`src/types.ts`), unlike the
+  // backend enum.
+  const isSuperadmin = user?.role === 'superadmin'
   const ownOrgId = user?.organizationId || ''
   const [orgId, setOrgId] = useState<string>(isOwnOrg ? ownOrgId : '')
   const [activeTab, setActiveTab] = useState('referrals')
   const [phaseFilter, setPhaseFilter] = useState<PhaseId | null>(null)
 
-  const { data: orgsData } = useQuery({
-    queryKey: ['diagnostics', 'orgs', kind],
-    queryFn: () => config.listOrganizations(),
+  // Which organisations of this kind does the *caller* belong to?
+  //
+  // This used to ask `config.listOrganizations()` — the public catalogue of
+  // every centre on the platform — and treat an empty answer as "you are not a
+  // partner". So with a single centre registered anywhere, the onboarding never
+  // appeared and every user was instead handed a dropdown of organisations they
+  // have no access to; the server answers 403 for all of them.
+  // `/me/contexts` is the membership question, already deduplicated, and it
+  // covers staff who exist only in the unified model.
+  const { data: contextsData, isLoading: contextsLoading } = useQuery({
+    queryKey: ['iam', 'me', 'contexts'],
+    queryFn: () => api.getMyContexts(),
     enabled: !isOwnOrg,
   })
-  const organizations = orgsData?.data || orgsData || []
+  const myOrgs = useMemo(
+    () => (contextsData?.contexts || []).filter((c: any) => c.scopeType === config.organizationType),
+    [contextsData, config.organizationType],
+  )
 
+  // The platform team legitimately inspects any organisation, so they keep the
+  // catalogue picker. Nobody else is offered work the server will refuse.
+  const { data: catalogueData } = useQuery({
+    queryKey: ['diagnostics', 'orgs', kind],
+    queryFn: () => config.listOrganizations(),
+    enabled: !isOwnOrg && isSuperadmin,
+  })
+  const catalogue = catalogueData?.data || catalogueData || []
+
+  const pickable = isSuperadmin
+    ? catalogue.map((org: any) => ({ id: org.id, name: org.name, city: org.city }))
+    : myOrgs.map((ctx: any) => ({ id: ctx.scopeId, name: ctx.name, city: undefined }))
+
+  // One membership is not a choice — open it.
   useEffect(() => {
-    if (isOwnOrg && ownOrgId) setOrgId(ownOrgId)
-  }, [isOwnOrg, ownOrgId])
+    if (isOwnOrg && ownOrgId) { setOrgId(ownOrgId); return }
+    if (!orgId && !isSuperadmin && myOrgs.length === 1) setOrgId(myOrgs[0].scopeId)
+  }, [isOwnOrg, ownOrgId, orgId, isSuperadmin, myOrgs])
+
+  const needsOnboarding = !isOwnOrg && !isSuperadmin && !contextsLoading && myOrgs.length === 0
 
   // The header summary reads the same list the referrals tab does, so the hero
   // figure and the table can never disagree.
@@ -73,6 +103,7 @@ export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
     { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
     { id: 'services', label: config.servicesLabel, icon: <FlaskConical size={14} /> },
     { id: 'payments', label: 'Оплаты', icon: <DollarSign size={14} /> },
+    { id: 'team', label: 'Сотрудники', icon: <Users size={14} /> },
   ]
 
   return (
@@ -88,11 +119,11 @@ export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
         actions={<Badge variant="outline">{kind === 'CENTER' ? 'Центр' : 'Лаборатория'}</Badge>}
       />
 
-      {!isOwnOrg && organizations.length === 0 && (
+      {needsOnboarding && (
         <OrganizationOnboarding kind={kind} onComplete={() => window.location.reload()} />
       )}
 
-      {!isOwnOrg && organizations.length > 0 && (
+      {!isOwnOrg && pickable.length > 1 && (
         <Card padding="md">
           <div className="flex flex-wrap items-center gap-3">
             <Building2 size={18} className="shrink-0 text-dv-gold" />
@@ -102,29 +133,10 @@ export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
               className="min-h-11 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold"
             >
               <option value="">{config.pickerLabel}</option>
-              {organizations.map((org: any) => (
+              {pickable.map((org: { id: string; name: string; city?: string }) => (
                 <option key={org.id} value={org.id}>{org.name}{org.city ? ` — ${org.city}` : ''}</option>
               ))}
             </select>
-          </div>
-        </Card>
-      )}
-
-      {!isOwnOrg && organizations.length === 0 && (
-        <Card padding="lg">
-          <div className="text-center space-y-4 py-6">
-            <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/10 flex items-center justify-center">
-              <Building2 size={28} className="text-dv-gold" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-txt-primary">Стать {kind === 'CENTER' ? 'диагностическим центром' : 'лабораторией'}</h3>
-              <p className="text-sm text-txt-muted mt-2 max-w-md mx-auto">
-                Зарегистрируйте {kind === 'CENTER' ? 'свой диагностический центр' : 'свою лабораторию'} на платформе DentVision и получайте направления от клиник.
-              </p>
-            </div>
-            <Button variant="primary" className="min-h-11" onClick={() => navigate(config.registerPath)}>
-              Зарегистрироваться как партнёр
-            </Button>
           </div>
         </Card>
       )}
@@ -162,6 +174,7 @@ export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
           {activeTab === 'finance' && <FinanceTab config={config} orgId={orgId} />}
           {activeTab === 'services' && <ServicesTab config={config} orgId={orgId} />}
           {activeTab === 'payments' && <PaymentsTab config={config} orgId={orgId} />}
+          {activeTab === 'team' && <TeamTab config={config} orgId={orgId} />}
         </>
       )}
     </motion.div>

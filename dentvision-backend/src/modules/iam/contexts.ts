@@ -85,6 +85,8 @@ const ROLE_LABELS: Record<string, string> = {
   doctor: 'Врач',
   assistant: 'Ассистент',
   manager: 'Менеджер',
+  radiologist: 'Рентгенолог',
+  operator: 'Оператор',
   cashier: 'Кассир',
   seller: 'Продавец',
   supplier: 'Поставщик',

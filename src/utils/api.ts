@@ -2405,6 +2405,21 @@ export async function joinOrganizationByInvite(code: string): Promise<any> {
   return apiRequest('/api/iam/join-by-invite', { method: 'POST', body: JSON.stringify({ code }) });
 }
 
+/** Read-only: what organization and role does this code offer? */
+export async function lookupOrganizationInvite(code: string): Promise<any> {
+  return apiRequest(`/api/iam/invitations/lookup?code=${encodeURIComponent(code)}`);
+}
+
+export async function getOrganizationInvitations(organizationId: string): Promise<any> {
+  return apiRequest(`/api/iam/invitations?organizationId=${encodeURIComponent(organizationId)}`);
+}
+
+export async function createOrganizationInvitation(data: {
+  organizationId: string; role?: string; email?: string; expiresInDays?: number;
+}): Promise<any> {
+  return apiRequest('/api/iam/invitations', { method: 'POST', body: JSON.stringify(data) });
+}
+
 export async function updateDiagnosticLaboratory(id: string, data: any): Promise<any> {
   return apiRequest(`/api/diagnostics/laboratories/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
