@@ -130,7 +130,7 @@ export default function ClinicSettingsPage() {
   })
 
   const chairsQ = useQuery({
-    queryKey: queryKeys.chairs,
+    queryKey: [...queryKeys.chairs, clinicId],
     queryFn: () => api.getChairs(clinicId),
     enabled: !!clinicId && allowed,
   })

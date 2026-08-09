@@ -97,7 +97,7 @@ export default function Schedule() {
 
   const queryClient = useQueryClient()
   const chairsQ = useQuery({
-    queryKey: queryKeys.chairs,
+    queryKey: [...queryKeys.chairs, clinicId],
     queryFn: () => api.getChairs(clinicId),
     enabled: !!clinicId,
   })
@@ -428,8 +428,8 @@ export default function Schedule() {
         services: closeServices,
         paymentStatus: closeAppt.paymentStatus || 'unpaid',
       })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.inventory })
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.inventory, clinicId] })
       showToast(
         res?.deducted?.length
           ? `Приём закрыт. Склад: ${res.deducted.join(', ')}`
@@ -523,11 +523,11 @@ export default function Schedule() {
           services,
           paymentStatus: status === 'paid' ? 'paid' : payAppt.paymentStatus || 'unpaid',
         })
-        await queryClient.invalidateQueries({ queryKey: queryKeys.inventory })
+        await queryClient.invalidateQueries({ queryKey: [...queryKeys.inventory, clinicId] })
       }
 
-      await queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.receipts })
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.receipts, clinicId] })
       showToast(
         status === 'debt' ? 'Долг оформлен' : status === 'partial' ? 'Частичная оплата принята' : 'Оплата принята',
         'success',
@@ -638,9 +638,9 @@ export default function Schedule() {
   const handleConfirmBooking = async (b: Booking): Promise<void> => {
     try {
       await api.confirmBooking(b.id)
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings })
-      queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
-      queryClient.invalidateQueries({ queryKey: queryKeys.patients })
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.bookings, clinicId] })
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.patients, clinicId] })
       showToast('Заявка подтверждена — запись создана', 'success')
     } catch (e: any) {
       showToast(e?.message || 'Не удалось подтвердить', 'error')
@@ -650,7 +650,7 @@ export default function Schedule() {
   const handleRejectBooking = async (id: string): Promise<void> => {
     try {
       await api.deleteBooking(id)
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings })
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.bookings, clinicId] })
       showToast('Заявка отклонена', 'success')
     } catch {
       showToast('Ошибка', 'error')

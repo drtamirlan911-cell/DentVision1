@@ -100,7 +100,7 @@ export default function Cashier() {
     if (!window.confirm('Удалить эту операцию из кассы?')) return
     try {
       await api.deleteReceipt(id)
-      await queryClient.invalidateQueries({ queryKey: queryKeys.receipts })
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.receipts, clinicId] })
       showToast('Операция удалена', 'success')
     } catch (err: any) {
       showToast(err?.message || 'Не удалось удалить', 'error')
@@ -346,7 +346,7 @@ export default function Cashier() {
     showToast('Расход добавлен', 'success')
     setExpModalOpen(false)
     setExpenseForm({ category: 'Прочее', amount: '', notes: '', date: today() })
-    await queryClient.invalidateQueries({ queryKey: queryKeys.expenses })
+    await queryClient.invalidateQueries({ queryKey: [...queryKeys.expenses, clinicId] })
     // Refresh P&L
     try {
       const data = await api.getFinanceReport({ from: period.from, to: period.to })
@@ -357,7 +357,7 @@ export default function Cashier() {
   const handleDeleteExpense = async (id: string) => {
     try {
       await api.deleteExpense(id)
-      await queryClient.invalidateQueries({ queryKey: queryKeys.expenses })
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.expenses, clinicId] })
       showToast('Расход удалён', 'success')
       const data = await api.getFinanceReport({ from: period.from, to: period.to })
       setFinanceReport(data)

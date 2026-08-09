@@ -285,7 +285,7 @@ export default function Lab() {
                   if (!window.confirm('Удалить заказ лаборатории?')) return
                   try {
                     await api.deleteLabOrder(order.id)
-                    await queryClient.invalidateQueries({ queryKey: queryKeys.labOrders })
+                     await queryClient.invalidateQueries({ queryKey: [...queryKeys.labOrders, clinic?.id] })
                     showToast('Заказ удалён', 'success')
                   } catch {
                     showToast('Не удалось удалить', 'error')
