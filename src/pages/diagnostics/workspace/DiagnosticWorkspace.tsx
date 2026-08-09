@@ -21,6 +21,7 @@ import { ServicesTab } from './ServicesTab'
 import { PaymentsTab } from './PaymentsTab'
 import { CashierTab } from './CashierTab'
 import { FinanceTab } from './FinanceTab'
+import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
 
 /**
  * One workspace for diagnostic centres and laboratories.
@@ -87,7 +88,11 @@ export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
         actions={<Badge variant="outline">{kind === 'CENTER' ? 'Центр' : 'Лаборатория'}</Badge>}
       />
 
-      {!isOwnOrg && (
+      {!isOwnOrg && organizations.length === 0 && (
+        <OrganizationOnboarding kind={kind} onComplete={() => window.location.reload()} />
+      )}
+
+      {!isOwnOrg && organizations.length > 0 && (
         <Card padding="md">
           <div className="flex flex-wrap items-center gap-3">
             <Building2 size={18} className="shrink-0 text-dv-gold" />

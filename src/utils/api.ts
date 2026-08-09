@@ -2401,6 +2401,10 @@ export async function createDiagnosticLaboratory(data: any): Promise<any> {
   return apiRequest('/api/diagnostics/laboratories', { method: 'POST', body: JSON.stringify(data) });
 }
 
+export async function joinOrganizationByInvite(code: string): Promise<any> {
+  return apiRequest('/api/iam/join-by-invite', { method: 'POST', body: JSON.stringify({ code }) });
+}
+
 export async function updateDiagnosticLaboratory(id: string, data: any): Promise<any> {
   return apiRequest(`/api/diagnostics/laboratories/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
