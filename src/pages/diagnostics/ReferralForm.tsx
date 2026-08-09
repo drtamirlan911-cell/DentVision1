@@ -79,6 +79,7 @@ export default function ReferralForm() {
   const update = (key: string, value: any) => setForm(f => ({ ...f, [key]: value }));
 
   const selectedClinicId = clinic?.id || activeMembership?.clinicId || '';
+  const clinicCity = clinic?.city || '';
   const [files, setFiles] = useState<{ id: string; fileName: string; fileType: string; fileUrl: string; fileSize?: number }[]>([]);
   const [referralId, setReferralId] = useState<string | null>(null);
   const [teeth, setTeeth] = useState<number[]>([]);
@@ -105,8 +106,8 @@ export default function ReferralForm() {
   }, [files]);
 
   const { data: centersData } = useQuery({
-    queryKey: queryKeys.diagnostics.centers(),
-    queryFn: () => api.getDiagnosticCenters(),
+    queryKey: queryKeys.diagnostics.centers(clinicCity),
+    queryFn: () => api.getDiagnosticCenters(undefined, clinicCity || undefined),
     staleTime: 60_000,
   });
   const centers = useMemo(() => (centersData?.data || []).map((c: any) => ({ value: c.id, label: c.name })), [centersData]);
