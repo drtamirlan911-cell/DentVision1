@@ -189,6 +189,7 @@ model User {
   legalDocumentVersionsCreated  LegalDocumentVersion[]   @relation("DocVersionCreator")
   legalAuditLogs                LegalAuditLog[]
   legalInvoicesCreated          LegalInvoice[]
+  notificationPreferences        NotificationPreference[]
 
   @@map("users")
 }
