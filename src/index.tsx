@@ -28,6 +28,7 @@ const AuditLog = lazyWithRetry(() => import('./pages/AuditLog'));
 const Backup = lazyWithRetry(() => import('./pages/Backup'));
 const Analytics = lazyWithRetry(() => import('./pages/Analytics'));
 const SettingsPage = lazyWithRetry(() => import('./pages/Settings'));
+const NotificationPreferences = lazyWithRetry(() => import('./pages/NotificationPreferences'));
 const Profile = lazyWithRetry(() => import('./pages/Profile'));
 const Jobs = lazyWithRetry(() => import('./pages/Jobs'));
 const Community = lazyWithRetry(() => import('./pages/Community'));
@@ -145,6 +146,7 @@ if (container) {
                   <Route path="ai" element={<Navigate to="/" replace />} />
                   <Route path="analytics" element={guarded('analytics', <Analytics />)} />
                   <Route path="settings" element={guarded('settings', <SettingsPage />)} />
+                  <Route path="notifications" element={guarded('settings', <NotificationPreferences />)} />
                   <Route path="admin" element={guarded('admin', <SuperAdmin />)} />
                   <Route path="bi" element={guarded('bi', <BIWorkspace />)} />
                   <Route path="security" element={guarded('security', <SecurityCompliance />)} />

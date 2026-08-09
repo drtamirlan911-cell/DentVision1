@@ -13,6 +13,7 @@ import {
   isReminderEligibleDbStatus,
 } from '../modules/crm/reminderEligibility.js';
 import { fromDbStatus } from '../modules/crm/appointmentMeta.js';
+import { createNotificationForClinic, NOTIFICATION_TYPES } from '../services/notification.service.js';
 
 export interface ReminderCronResult {
   scanned: number;
@@ -141,6 +142,14 @@ export async function runReminderCron(opts: {
       },
     }).catch((err: any) => {
       if (String(err?.code) !== 'P2021') throw err;
+    });
+
+    // Also create an in-app notification for clinic staff
+    await createNotificationForClinic(appt.clinicId, {
+      type: NOTIFICATION_TYPES.APPOINTMENT_REMINDER,
+      title: `Напоминание о записи`,
+      message: `${patientName} — ${dateStr} в ${appt.time || '09:00'}`,
+      link: `/crm/schedule?date=${dateStr}`,
     });
 
     result.sent += 1;
