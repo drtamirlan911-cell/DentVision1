@@ -163,6 +163,10 @@ biRouter.get('/clinic', requirePermission('bi.clinic'), async (req: AuthRequest,
 biRouter.get('/clinic/:clinicId', requirePermission('bi.clinic'), async (req: AuthRequest, res) => {
   try {
     const clinicId = String(req.params.clinicId);
+    // Tenant isolation: user may only access their own clinic's BI
+    if (clinicId !== req.user?.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
     const data = await getClinicBI(clinicId);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (error) {

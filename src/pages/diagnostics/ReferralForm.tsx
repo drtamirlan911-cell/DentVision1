@@ -358,7 +358,7 @@ export default function ReferralForm() {
           {selectedClinicId ? 'Направление от клиники — без ограничений' : 'Личный режим — до 5 направлений в день'}
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" className="min-h-11" onClick={() => navigate('/diagnostics')}>Отмена</Button>
+          <Button type="button" variant="ghost" className="min-h-11" onClick={() => navigate('/diagnostics')}>Отмена</Button>
           <Button type="submit" variant="primary" className="min-h-11" loading={createMutation.isPending} icon={<Send size={16} />}>
             Отправить направление
           </Button>

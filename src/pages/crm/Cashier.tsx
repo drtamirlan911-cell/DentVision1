@@ -276,6 +276,7 @@ export default function Cashier() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (payBusy) return
     if (!form.patientId) {
       showToast('Выберите пациента', 'warning')
       return
