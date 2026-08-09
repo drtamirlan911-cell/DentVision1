@@ -343,11 +343,14 @@ function verifyClinicCallbackAuth(input: {
     .update(`${externalId}:${status}`)
     .digest('hex');
   const a = Buffer.from(provided);
-  const bSecret = Buffer.from(input.secret);
   const bHmac = Buffer.from(expectedHmac);
-  const matchSecret = a.length === bSecret.length && timingSafeEqual(a, bSecret);
-  const matchHmac = a.length === bHmac.length && timingSafeEqual(a, bHmac);
-  if (!matchSecret && !matchHmac) return { ok: false, error: 'Неверная подпись callback' };
+  // Accept only the HMAC over (externalId:status). Comparing the caller's
+  // supplied value against the raw clinic secret (the old `matchSecret`
+  // branch) let anyone who knew the secret bypass the signature — a secret
+  // must never authenticate a callback on its own.
+  if (a.length !== bHmac.length || !timingSafeEqual(a, bHmac)) {
+    return { ok: false, error: 'Неверная подпись callback' };
+  }
   return { ok: true };
 }
 
@@ -404,6 +407,38 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     const minor = amountMinor !== undefined ? BigInt(amountMinor) : tengeToMinor(Number(amount));
     if (minor <= 0n) {
       return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
+    }
+
+    // P1-1 fix: never trust the client-submitted amount. For order/shop refTypes
+    // we recompute the expected total server-side and reconcile with what the
+    // caller sent; a mismatch means tampering and is rejected as 409. CRM-cashier
+    // payments without a refId have no server-side source of truth, so those are
+    // reconciled later in the callback (settleOrderPayment already derives the
+    // supplier splits from `order.items`, not from this amount).
+    if ((refType === 'order' || refType === 'shop_order') && refId) {
+      const ref = await prisma.$transaction(async (tx) => {
+        if (refType === 'order') {
+          return tx.order.findUnique({ where: { id: refId }, select: { items: true, status: true } });
+        }
+        return null;
+      });
+      if (!ref) {
+        return res.status(404).json({ ok: false, error: 'Ссылка на заказ не найдена' } satisfies ApiResponse);
+      }
+      const items = Array.isArray(ref.items) ? (ref.items as any[]) : [];
+      let expected = 0;
+      for (const line of items) {
+        const price = Number(line.price || 0);
+        const qty = Number(line.quantity || line.qty || 1);
+        expected += price * qty;
+      }
+      const expectedMinor = tengeToMinor(expected);
+      if (expectedMinor !== minor) {
+        return res.status(409).json({
+          ok: false,
+          error: `Сумма не совпадает с заказом: ожидалось ${expectedMinor}, получено ${minor}`,
+        } satisfies ApiResponse);
+      }
     }
 
     const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
