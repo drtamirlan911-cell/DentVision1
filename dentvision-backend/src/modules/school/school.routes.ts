@@ -484,7 +484,7 @@ schoolRouter.get('/enrollments', authenticate, async (req: AuthRequest, res) => 
 schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
-    const { progress, completed } = req.body;
+    const { progress, completed, completedLessons } = req.body;
     const enrollment = await prisma.schoolEnrollment.findUnique({ where: { id } });
     if (!enrollment) {
       res.status(404).json({ ok: false, error: 'Enrollment not found' });
@@ -504,6 +504,7 @@ schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, re
       data: {
         ...(progress !== undefined && { progress: Math.round(progress) }),
         ...(completed !== undefined && { completed }),
+        ...(completedLessons !== undefined && { completedLessons }),
         ...(completed === true && !enrollment.certificateUrl
           ? { certificateUrl: `academy-cert://${id}` }
           : {}),

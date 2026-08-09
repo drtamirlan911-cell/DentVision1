@@ -1211,15 +1211,16 @@ model Lesson {
 }
 
 model SchoolEnrollment {
-  id             String  @id @default(uuid())
-  userId         String
-  courseId       String
-  progress       Int     @default(0)
-  completed      Boolean @default(false)
-  certificateUrl String?
+   id               String  @id @default(uuid())
+   userId           String
+   courseId         String
+   progress         Int     @default(0)
+   completed        Boolean @default(false)
+   certificateUrl   String?
+   completedLessons Json?   // array of lesson IDs that user completed
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
