@@ -286,7 +286,13 @@ diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => {
 
 diagnosticsRouter.patch('/referrals/:id', requireReferralAccess(true), async (req: AuthRequest, res) => {
   try {
-    const data = await svc.updateReferral(req.params.id, req.body, req.user!.id);
+    // Whitelist: center staff can only update these fields
+    const allowed = ['studyType', 'studyCategory', 'priority', 'commentForLab', 'anatomicalSites'];
+    const picked: Record<string, any> = {};
+    for (const k of allowed) {
+      if (k in req.body) picked[k] = req.body[k];
+    }
+    const data = await svc.updateReferral(req.params.id, picked, req.user!.id);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
