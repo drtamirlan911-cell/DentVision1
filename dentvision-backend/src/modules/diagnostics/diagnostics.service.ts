@@ -3,7 +3,12 @@ import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
 import { publish } from '../../lib/events.js';
-import { createNotificationForCenter, NOTIFICATION_TYPES } from '../../services/notification.service.js';
+import {
+  createNotification,
+  createNotificationForCenter,
+  NOTIFICATION_TYPES,
+} from '../../services/notification.service.js';
+import { dispatchNotifications } from '../notifications/dispatch.service.js';
 import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 
 // ─── Center Subscription ───
