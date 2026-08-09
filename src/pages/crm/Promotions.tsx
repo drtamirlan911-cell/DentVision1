@@ -41,6 +41,7 @@ export default function Promotions() {
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<PromotionForm>(EMPTY_FORM)
   const [editing, setEditing] = useState<Promotion | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [filter, setFilter] = useState<string>('all')
 
   const filtered = useMemo(() => {
@@ -53,7 +54,9 @@ export default function Promotions() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (submitting) return
     if (!form.title.trim()) { showToast('Введите название акции', 'warning'); return }
+    setSubmitting(true)
     try {
       await upsertPromotion({
         ...form,
@@ -67,7 +70,9 @@ export default function Promotions() {
       setForm(EMPTY_FORM)
       setEditing(null)
     } catch (err: any) {
-      showToast(err?.message || 'Не удалось сохранить акцию', 'error')
+      showToast(err?.message || 'Не удалось сохранить', 'error')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -233,7 +238,7 @@ export default function Promotions() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button type="submit" className="flex-1 min-h-11">{editing ? 'Сохранить' : 'Создать'}</Button>
+             <Button type="submit" className="flex-1 min-h-11" disabled={submitting}>{submitting ? 'Сохранение…' : (editing ? 'Сохранить' : 'Создать')}</Button>
             <Button type="button" variant="ghost" className="min-h-11" onClick={() => setModalOpen(false)}>Отмена</Button>
           </div>
         </form>

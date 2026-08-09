@@ -52,6 +52,7 @@ export default function Inventory() {
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<InventoryForm>(EMPTY_FORM)
   const [editing, setEditing] = useState<InventoryItem | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [filter, setFilter] = useState(() => searchParams.get('filter') || 'all')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('name')
@@ -109,7 +110,9 @@ export default function Inventory() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (submitting) return
     if (!form.name.trim()) { showToast('Введите название', 'warning'); return }
+    setSubmitting(true)
     try {
       await upsertInventoryItem({
         ...form,
@@ -125,6 +128,8 @@ export default function Inventory() {
       setEditing(null)
     } catch (err: any) {
       showToast(err?.message || 'Не удалось сохранить', 'error')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -369,7 +374,7 @@ export default function Inventory() {
             onChange={e => setForm({ ...form, supplier: e.target.value })}
             placeholder="Название компании" className="min-h-11" />
           <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1 min-h-11">{editing ? 'Сохранить' : 'Добавить'}</Button>
+            <Button type="submit" className="flex-1 min-h-11" disabled={submitting}>{submitting ? 'Сохранение…' : (editing ? 'Сохранить' : 'Добавить')}</Button>
             <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} className="min-h-11">Отмена</Button>
           </div>
         </form>
