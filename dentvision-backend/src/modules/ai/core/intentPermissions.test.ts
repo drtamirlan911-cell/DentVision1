@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { permissionsSatisfy, permissionsForRole } from '../../../lib/permissions.js';
+import { ROLE_PERMISSIONS, permissionsSatisfy, permissionsForRole } from '../../../lib/permissions.js';
 import { Intent } from '../types/intent.types.js';
 import { PERMISSION_BY_INTENT, permissionForIntent } from './ai.service.js';
 
@@ -40,15 +40,41 @@ describe('intent gating enforces the action, not just the module', () => {
     expect(roleMayRun('MANAGER', Intent.CREATE_APPOINTMENT)).toBe(false);
   });
 
-  it('stops a cashier from raising a treatment plan while keeping invoices', () => {
-    expect(roleMayRun('CASHIER', Intent.GENERATE_INVOICE)).toBe(true);
-    expect(roleMayRun('CASHIER', Intent.CREATE_TREATMENT_PLAN)).toBe(false);
+  it('stops an assistant from raising a treatment plan while keeping the card readable', () => {
+    // This case used to be argued with CASHIER (invoice yes, treatment plan
+    // no). A cashier is an administrator in this product now, so that role is
+    // no longer narrow. ASSISTANT still makes the same point about the gate:
+    // it holds medical.read and not medical.write.
+    expect(roleMayRun('ASSISTANT', Intent.OPEN_MEDICAL_CARD)).toBe(true);
+    expect(roleMayRun('ASSISTANT', Intent.CREATE_TREATMENT_PLAN)).toBe(false);
   });
 
   it('keeps PHI behind medical.read rather than patients.read', () => {
-    expect(roleMayRun('CASHIER', Intent.SEARCH_PATIENT)).toBe(true);
-    expect(roleMayRun('CASHIER', Intent.OPEN_MEDICAL_CARD)).toBe(false);
+    // LAB and SUPPORT are the narrow roles now: both can look a patient up,
+    // neither may open the card.
+    expect(roleMayRun('LAB', Intent.SEARCH_PATIENT)).toBe(true);
+    expect(roleMayRun('LAB', Intent.OPEN_MEDICAL_CARD)).toBe(false);
+    expect(roleMayRun('SUPPORT', Intent.SEARCH_PATIENT)).toBe(true);
+    expect(roleMayRun('SUPPORT', Intent.OPEN_MEDICAL_CARD)).toBe(false);
     expect(roleMayRun('DOCTOR', Intent.OPEN_MEDICAL_CARD)).toBe(true);
+  });
+
+  it('records that the till is no longer separable from the medical record', () => {
+    // Folding the cashier into the administrator removed the only role that
+    // could take money without full medical-record access. That is a change to
+    // separation of duties, not an implementation detail, so it is asserted
+    // rather than left implicit: if a narrow money role is ever reintroduced,
+    // this fails and the question gets asked deliberately.
+    const withMoney = Object.keys(ROLE_PERMISSIONS).filter((role) =>
+      permissionsForRole(role).includes('billing.write'),
+    );
+    expect(withMoney.length).toBeGreaterThan(0);
+    for (const role of withMoney) {
+      expect(
+        permissionsForRole(role),
+        `${role} can take payment — check whether it should also write the medical record`,
+      ).toContain('medical.write');
+    }
   });
 
   it('leaves a doctor’s own clinical work intact', () => {

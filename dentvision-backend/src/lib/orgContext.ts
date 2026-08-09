@@ -75,10 +75,22 @@ export async function getUserPersons(userId: string) {
   });
 }
 
-const PERSON_ROLE_MAP: Record<string, string> = {
+/**
+ * Unified role key → the legacy role a clinic-scoped caller reasons about.
+ *
+ * `cashier: 'ADMIN'` is correct, not an escalation: the product has no separate
+ * cashier (see the CASHIER alias in lib/permissions.ts).
+ *
+ * `seller` and `lecturer` used to map to `DOCTOR` — a marketplace or academy
+ * membership resolving to a clinical role that carries medical-record access.
+ * They are absent now, so a Person holding only those roles in a clinic
+ * organisation falls through to the legacy ClinicMember check rather than being
+ * handed a role nobody granted them.
+ */
+export const PERSON_ROLE_MAP: Record<string, string> = {
   org_admin: 'ADMIN', doctor: 'DOCTOR', nurse: 'ASSISTANT',
-  cashier: 'ADMIN', lab: 'LAB', lecturer: 'DOCTOR',
-  seller: 'DOCTOR', superadmin: 'SUPERADMIN',
+  cashier: 'ADMIN', lab: 'LAB',
+  superadmin: 'SUPERADMIN',
   owner: 'OWNER', director: 'DIRECTOR', admin: 'ADMIN', manager: 'MANAGER',
   assistant: 'ASSISTANT', student: 'STUDENT', support: 'SUPPORT',
 };
@@ -102,8 +114,18 @@ export async function resolveClinicAccess(userId: string, clinicId: string): Pro
       include: { personRoles: { include: { role: true } } },
     });
     if (person) {
-      const unifiedRole = person.personRoles?.[0]?.role?.key || 'org_admin';
-      return { role: PERSON_ROLE_MAP[unifiedRole] || 'DOCTOR' };
+      // Fail closed on both counts. `|| 'org_admin'` handed organisation-admin
+      // rights to any Person with no PersonRole, which defeated the deliberate
+      // fail-closed design in grantDiagnosticsAccess — that code creates a
+      // Person *without* a role for `radiologist`/`operator` precisely so they
+      // fall back to the narrower legacy check, and this early return took the
+      // fallback away. `|| 'DOCTOR'` did the same for an unknown key, handing
+      // out a clinical role with medical-record access.
+      const unifiedRole = person.personRoles?.[0]?.role?.key;
+      const mapped = unifiedRole ? PERSON_ROLE_MAP[unifiedRole] : undefined;
+      if (mapped) return { role: mapped };
+      // Fall through to the legacy membership below — it is the narrower,
+      // accurate answer, not a wider guess.
     }
   }
 
@@ -128,8 +150,12 @@ export async function resolveAnyClinicMembership(userId: string): Promise<{ clin
     orderBy: { createdAt: 'asc' },
   });
   if (person?.organization?.originalId) {
-    const unifiedRole = person.personRoles?.[0]?.role?.key || 'org_admin';
-    return { clinicId: person.organization.originalId, role: PERSON_ROLE_MAP[unifiedRole] || 'DOCTOR' };
+    // Same fail-closed rule as resolveClinicAccess: no role, or a key this map
+    // does not cover, means fall through to the legacy membership rather than
+    // defaulting to organisation-admin or to a clinical role.
+    const unifiedRole = person.personRoles?.[0]?.role?.key;
+    const mapped = unifiedRole ? PERSON_ROLE_MAP[unifiedRole] : undefined;
+    if (mapped) return { clinicId: person.organization.originalId, role: mapped };
   }
 
   const member = await prisma.clinicMember.findFirst({

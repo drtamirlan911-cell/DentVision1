@@ -38,12 +38,19 @@ describe('permissionsForRole', () => {
     expect(p).not.toContain('billing.read');
   });
 
-  it('CASHIER has billing write', () => {
+  it('CASHIER is an alias of ADMIN, not a narrower role', () => {
+    // This case used to assert a till-only set (`billing.write` without
+    // `patients.write`). That set is gone: the product has no separate cashier
+    // — the staff UI offers four roles and `normalizeStaffRole` folds a
+    // requested cashier into ADMIN — so the matrix row was a fiction that only
+    // the superadmin console could mint, and it disagreed with the unified path
+    // where `cashier` maps to ADMIN. Same permissions either way now.
     const p = permissionsForRole('CASHIER');
-    expect(p).toContain('patients.read');
+    expect([...p].sort()).toEqual([...permissionsForRole('ADMIN')].sort());
     expect(p).toContain('billing.write');
-    expect(p).not.toContain('billing.manage');
-    expect(p).not.toContain('patients.write');
+    // Still resolvable: dropping the key outright would leave any existing
+    // CASHIER account with an empty set, which is a lock-out, not a denial.
+    expect(p.length).toBeGreaterThan(0);
   });
 
   it('SUPPORT is read-mostly', () => {

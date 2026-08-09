@@ -105,14 +105,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     diagnostics:  ['read'],
   },
 
-  CASHIER: {
-    patients:     ['read'],
-    appointments: ['read'],
-    billing:      ['read', 'write'],
-    inventory:    ['read'],
-    shop:         ['read'],
-  },
-
   LAB: {
     patients:     ['read'],
     appointments: ['read'],
@@ -164,6 +156,24 @@ for (const [role, row] of Object.entries(MATRIX)) {
 
 // DIRECTOR alias (not a UserRole enum value, used by frontend / jarvisBriefing etc.)
 ROLE_PERMISSIONS['DIRECTOR'] = ROLE_PERMISSIONS['OWNER'];
+
+/**
+ * CASHIER alias.
+ *
+ * The product has no separate cashier: `normalizeStaffRole` in
+ * clinics.routes.ts maps a requested `cashier` to ADMIN, the staff UI offers
+ * only Врач / Ассистент / Администратор / Руководитель, and the role
+ * description says the administrator runs the till. So a cashier IS an admin.
+ *
+ * The enum value still exists and the superadmin console can still write it,
+ * which made this a live inconsistency: the same person resolved to a narrow
+ * five-module set through the legacy matrix and to full ADMIN through the
+ * unified Person path (`PERSON_ROLE_MAP.cashier`). Aliasing settles it on the
+ * answer the product actually intends, and — unlike deleting the row — leaves
+ * any existing CASHIER account working instead of locking it out with an empty
+ * permission set.
+ */
+ROLE_PERMISSIONS['CASHIER'] = ROLE_PERMISSIONS['ADMIN'];
 
 /** Legacy compatibility — string keys for direct lookups (used in requirePermission middleware). */
 export const PERMISSIONS = {

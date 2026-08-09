@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { userFindUnique, resolveClinicAccess, resolveUserPermissions } = vi.hoisted(() => ({
+const {
+  userFindUnique,
+  resolveClinicAccess,
+  resolveOrganizationIdForClinic,
+  resolveUserPermissions,
+} = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   resolveClinicAccess: vi.fn(),
+  resolveOrganizationIdForClinic: vi.fn(),
   resolveUserPermissions: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({
   default: { user: { findUnique: userFindUnique } },
 }));
-vi.mock('../../../lib/orgContext.js', () => ({ resolveClinicAccess }));
+vi.mock('../../../lib/orgContext.js', () => ({ resolveClinicAccess, resolveOrganizationIdForClinic }));
 vi.mock('../../../lib/resolvePermissions.js', () => ({ resolveUserPermissions }));
 
 import { resolveAiToolAccess } from './access.js';
@@ -24,15 +30,22 @@ const PERMS = {
     'lab.read', 'analytics.read', 'shop.manage'],
   DOCTOR: ['patients.read', 'patients.write', 'medical.read', 'medical.write', 'appointments.read',
     'appointments.write', 'billing.read', 'inventory.read', 'lab.read', 'shop.read'],
-  CASHIER: ['patients.read', 'appointments.read', 'billing.read', 'billing.write', 'inventory.read', 'shop.read'],
+  // A till-only permission set. No shipped role has this shape any more — a
+  // cashier is an administrator in this product — but the gate must still hold
+  // for it, and this is the narrowest set that exercises the money/PHI split.
+  TILL_ONLY: ['patients.read', 'appointments.read', 'billing.read', 'billing.write', 'inventory.read', 'shop.read'],
   MANAGER: ['patients.read', 'appointments.read', 'medical.read', 'billing.read', 'inventory.read',
     'inventory.write', 'lab.read', 'staff.read', 'settings.manage', 'analytics.read', 'shop.read'],
 };
 
+const ORG_ID = 'org-1';
+
 beforeEach(() => {
   userFindUnique.mockReset();
   resolveClinicAccess.mockReset();
+  resolveOrganizationIdForClinic.mockReset();
   resolveUserPermissions.mockReset();
+  resolveOrganizationIdForClinic.mockResolvedValue(ORG_ID);
 });
 
 function arrange(globalRole: string, clinicRole: string | null, perms: string[]) {
@@ -82,8 +95,24 @@ describe('resolveAiToolAccess — identity', () => {
     expect(access.role).toBe('ASSISTANT');
   });
 
-  it('drives the permission fallback with the scoped role', async () => {
+  it('scopes the permission lookup by organization id, not by clinic id', async () => {
+    // `resolveUserPermissions` matches a Person by `organizationId`. A clinic id
+    // is a different value, so passing one straight through made the Person
+    // lookup miss every time and every AI tool decision silently fell back to
+    // the hardcoded role matrix — the DB permission graph never contributed.
     arrange('OWNER', 'DOCTOR', PERMS.DOCTOR);
+
+    await resolveAiToolAccess({ userId: USER_ID, clinicId: CLINIC_ID });
+
+    expect(resolveOrganizationIdForClinic).toHaveBeenCalledWith(CLINIC_ID);
+    expect(resolveUserPermissions).toHaveBeenCalledWith(USER_ID, ORG_ID, 'DOCTOR');
+  });
+
+  it('falls back to the clinic id when the clinic has no mirrored organization', async () => {
+    // Not every clinic has been mirrored yet. Passing the clinic id on is no
+    // worse than before — the matrix answers — and it keeps the caller working.
+    arrange('OWNER', 'DOCTOR', PERMS.DOCTOR);
+    resolveOrganizationIdForClinic.mockResolvedValue(null);
 
     await resolveAiToolAccess({ userId: USER_ID, clinicId: CLINIC_ID });
 
@@ -121,15 +150,15 @@ describe('resolveAiToolAccess — permission gate', () => {
     }
   });
 
-  it('denies a cashier the medical card and appointment writes the REST routes also deny', async () => {
-    arrange('CASHIER', 'CASHIER', PERMS.CASHIER);
+  it('denies a till-only permission set the medical card and appointment writes the REST routes also deny', async () => {
+    arrange('ADMIN', 'ADMIN', PERMS.TILL_ONLY);
 
     const access = await resolveAiToolAccess({ userId: USER_ID, clinicId: CLINIC_ID });
 
     expect(access.allowed.has('getPatientCard')).toBe(false); // medical.read
     expect(access.allowed.has('getVisits')).toBe(false);
     expect(access.allowed.has('createAppointment')).toBe(false); // appointments.write
-    // …while the tools a cashier legitimately needs stay available.
+    // …while the tools a till operator legitimately needs stay available.
     expect(access.allowed.has('searchPatients')).toBe(true);
     expect(access.allowed.has('getSchedule')).toBe(true);
     expect(access.allowed.has('createInvoice')).toBe(true);
@@ -147,7 +176,7 @@ describe('resolveAiToolAccess — permission gate', () => {
   });
 
   it('never gates catalog and navigation tools', async () => {
-    arrange('CASHIER', 'CASHIER', PERMS.CASHIER);
+    arrange('ADMIN', 'ADMIN', PERMS.TILL_ONLY);
 
     const access = await resolveAiToolAccess({ userId: USER_ID, clinicId: CLINIC_ID });
 

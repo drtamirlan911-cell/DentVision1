@@ -454,10 +454,15 @@ adminRouter.post('/users', authenticate, requireSuperadmin, async (req: AuthRequ
       return res.status(400).json({ ok: false, error: 'Логин и имя обязательны' } satisfies ApiResponse);
     }
 
-    const roleUpper = (role || 'DOCTOR').toUpperCase();
-    if (!Object.values(UserRole).includes(roleUpper as UserRole)) {
-      return res.status(400).json({ ok: false, error: `Недопустимая роль: ${roleUpper}` } satisfies ApiResponse);
+    const requestedRole = (role || 'DOCTOR').toUpperCase();
+    if (!Object.values(UserRole).includes(requestedRole as UserRole)) {
+      return res.status(400).json({ ok: false, error: `Недопустимая роль: ${requestedRole}` } satisfies ApiResponse);
     }
+    // The product has no separate cashier — `normalizeStaffRole` in
+    // clinics.routes.ts already folds it into ADMIN, and this console was the
+    // one remaining way to mint a CASHIER row that nothing else could produce.
+    // Normalising rather than rejecting keeps any existing caller working.
+    const roleUpper = requestedRole === 'CASHIER' ? 'ADMIN' : requestedRole;
 
     const [firstName, ...rest] = name.trim().split(' ');
     const tempPassword = password || randomTempPassword();

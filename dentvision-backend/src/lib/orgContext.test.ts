@@ -84,12 +84,35 @@ describe('resolveClinicAccess', () => {
     expect(result).toEqual({ role: 'OWNER' });
   });
 
-  it('defaults an unmapped/missing PersonRole key to org_admin -> ADMIN', async () => {
+  it('falls through to the legacy role when the Person carries no PersonRole', async () => {
+    // This used to default to org_admin -> ADMIN, and the old test asserted
+    // that as intended behaviour. It is not: grantDiagnosticsAccess creates a
+    // Person *without* a role for `radiologist`/`operator` precisely so they
+    // fall back to the narrower legacy check, and the default took that away.
     userFindUnique.mockResolvedValueOnce({ role: 'DOCTOR' });
     organizationFindFirst.mockResolvedValueOnce({ id: 'org-1' });
     personFindFirst.mockResolvedValueOnce({ personRoles: [] });
+    clinicMemberFindUnique.mockResolvedValueOnce({ role: 'ASSISTANT' });
     const result = await resolveClinicAccess(USER_ID, CLINIC_ID);
-    expect(result).toEqual({ role: 'ADMIN' });
+    expect(result).toEqual({ role: 'ASSISTANT' });
+  });
+
+  it('denies rather than guessing when a Person has no role and no legacy membership', async () => {
+    userFindUnique.mockResolvedValueOnce({ role: 'DOCTOR' });
+    organizationFindFirst.mockResolvedValueOnce({ id: 'org-1' });
+    personFindFirst.mockResolvedValueOnce({ personRoles: [] });
+    clinicMemberFindUnique.mockResolvedValueOnce(null);
+    expect(await resolveClinicAccess(USER_ID, CLINIC_ID)).toBeNull();
+  });
+
+  it('does not hand a clinical role to a marketplace or academy membership', async () => {
+    // `seller` and `lecturer` used to map to DOCTOR, which carries
+    // medical-record access neither of them was granted.
+    userFindUnique.mockResolvedValueOnce({ role: 'DOCTOR' });
+    organizationFindFirst.mockResolvedValueOnce({ id: 'org-1' });
+    personFindFirst.mockResolvedValueOnce({ personRoles: [{ role: { key: 'seller' } }] });
+    clinicMemberFindUnique.mockResolvedValueOnce(null);
+    expect(await resolveClinicAccess(USER_ID, CLINIC_ID)).toBeNull();
   });
 
   it('falls back to the legacy ClinicMember role when there is no Person row', async () => {
@@ -134,10 +157,12 @@ describe('resolveAnyClinicMembership', () => {
     expect(clinicMemberFindFirst).not.toHaveBeenCalled();
   });
 
-  it('defaults to org_admin -> ADMIN when the Person has no PersonRole rows', async () => {
+  it('falls through to the legacy membership when the Person has no PersonRole', async () => {
+    // Was: default to org_admin -> ADMIN. Same fail-open as resolveClinicAccess.
     personFindFirst.mockResolvedValueOnce({ organization: { originalId: CLINIC_ID }, personRoles: [] });
+    clinicMemberFindFirst.mockResolvedValueOnce({ clinicId: CLINIC_ID, role: 'DOCTOR' });
     const result = await resolveAnyClinicMembership(USER_ID);
-    expect(result).toEqual({ clinicId: CLINIC_ID, role: 'ADMIN' });
+    expect(result).toEqual({ clinicId: CLINIC_ID, role: 'DOCTOR' });
   });
 
   it('falls back to the oldest legacy ClinicMember when no Person row exists', async () => {
