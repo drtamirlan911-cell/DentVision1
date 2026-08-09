@@ -244,9 +244,32 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     let order: any;
     let finalTotal = payableBeforeCash;
 
-    // Phase 1: Create order inside transaction
+    // Stock check: ensure all products have sufficient stock
+    for (const raw of items) {
+      const pid = String(raw.product_id || raw.productId || raw.id || '');
+      const qty = Math.max(1, Number(raw.quantity || raw.qty || 1));
+      const p = byId.get(pid);
+      if (p && (p.stock ?? 0) < qty) {
+        res.status(409).json({ ok: false, error: `Недостаточно товара «{p.name}» на складе (осталось ${p.stock ?? 0}, запрошено ${qty})` });
+        return;
+      }
+    }
+
+    // Phase 1: Create order + decrement stock inside transaction
     order = await prisma.$transaction(async (tx) => {
       void total;
+      // Decrement stock atomically with guard to prevent oversell
+      for (const raw of items) {
+        const pid = String(raw.product_id || raw.productId || raw.id || '');
+        const qty = Math.max(1, Number(raw.quantity || raw.qty || 1));
+        const result = await tx.product.updateMany({
+          where: { id: pid, stock: { gte: qty } },
+          data: { stock: { decrement: qty } },
+        });
+        if (result.count === 0) {
+          throw new Error(`STOCK_UNAVAILABLE:${pid}`);
+        }
+      }
       const o = await tx.order.create({
         data: {
           id: orderId,
@@ -397,8 +420,12 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         requiresPayment: !!payment,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create shop order error:', error);
+    const msg = String(error?.message || '');
+    if (msg.startsWith('STOCK_UNAVAILABLE:')) {
+      return res.status(409).json({ ok: false, error: 'Недостаточно товара на складе' });
+    }
     res.status(500).json({ ok: false, error: 'Failed to create order' });
   }
 });
