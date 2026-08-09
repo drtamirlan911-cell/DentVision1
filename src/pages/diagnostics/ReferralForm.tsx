@@ -105,9 +105,10 @@ export default function ReferralForm() {
     }
   }, [files]);
 
+  // Filter centers by clinic city when the clinic has one; otherwise show all.
   const { data: centersData } = useQuery({
-    queryKey: queryKeys.diagnostics.centers(),
-    queryFn: () => api.getDiagnosticCenters(),
+    queryKey: queryKeys.diagnostics.centers(clinicCity || undefined),
+    queryFn: () => api.getDiagnosticCenters(undefined, clinicCity || undefined),
     staleTime: 60_000,
   });
   const centers = useMemo(() => (centersData?.data || []).map((c: any) => ({ value: c.id, label: c.city ? `${c.name} (${c.city})` : c.name })), [centersData]);
