@@ -53,7 +53,7 @@ const ALLOWED_LITERAL_HEADINGS: Array<{ file: string; line: number; why: string 
 ]
 
 /** Walked by hand rather than globbed: no glob package is a direct dependency. */
-function pageFiles(dir = resolve(ROOT, 'src/pages')): string[] {
+function pageFiles(dir = resolve(ROOT, "src/pages")): string[] {
   const found: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name)
@@ -153,6 +153,68 @@ describe('design tokens in page markup', () => {
       const line = source.split('\n')[allowed.line - 1] ?? ''
       expect(LITERAL_COLOUR.test(line), `${allowed.file}:${allowed.line} no longer has a literal-coloured heading`).toBe(true)
       expect(allowed.why.length).toBeGreaterThan(20)
+    }
+  })
+})
+
+describe('theme colours honour an opacity modifier', () => {
+  /**
+   * These tokens are CSS variables holding a hex. Tailwind 3 cannot inject an
+   * alpha into a bare `var()` — it drops the utility and says nothing — so
+   * `border-bdr-subtle/50` compiled to no rule at all in 42 places and
+   * `bg-surface-1/50` in 12 more. `tailwind.config.js` resolves them through
+   * `color-mix` instead; this asserts that resolver keeps both halves working,
+   * because either half can break silently.
+   */
+  // The config is plain JS with no types of its own; the shape asserted below
+  // is the whole point of the test, so a cast here is the honest spelling.
+  const load = async () =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ((await import('../../tailwind.config.js' as any)) as any).default as {
+      theme: { extend: { colors: Record<string, unknown> } }
+    }
+
+  type Resolver = (arg: { opacityValue?: string | number }) => string
+
+  async function varBackedTokens(): Promise<Array<[string, Resolver]>> {
+    const config = await load()
+    const found: Array<[string, Resolver]> = []
+    const walk = (node: unknown, prefix: string) => {
+      if (typeof node === 'function') {
+        found.push([prefix, node as Resolver])
+        return
+      }
+      if (!node || typeof node !== 'object') return
+      for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+        walk(value, key === 'DEFAULT' ? prefix : prefix ? `${prefix}-${key}` : key)
+      }
+    }
+    walk(config.theme.extend.colors, '')
+    return found
+  }
+
+  it('routes the surface, text and border families through the resolver', async () => {
+    const tokens = await varBackedTokens()
+    const names = tokens.map(([name]) => name)
+    expect(names).toContain('surface-0')
+    expect(names).toContain('txt-primary')
+    expect(names).toContain('bdr-subtle')
+    expect(tokens.length).toBeGreaterThan(10)
+  })
+
+  it('produces a real colour for a written modifier', async () => {
+    for (const [name, resolve_] of await varBackedTokens()) {
+      const value = resolve_({ opacityValue: 0.5 })
+      expect(value, name).toMatch(/^color-mix\(in srgb, var\(--dv-[\w-]+\) 50%, transparent\)$/)
+    }
+  })
+
+  it('leaves the plain utility as a bare var', async () => {
+    for (const [name, resolve_] of await varBackedTokens()) {
+      // Tailwind hands its own `var(--tw-bg-opacity)` to the plain utility, and
+      // Number() of that is NaN — which once emitted a literal `NaN%`.
+      expect(resolve_({ opacityValue: undefined }), name).toMatch(/^var\(--dv-[\w-]+\)$/)
+      expect(resolve_({ opacityValue: 'var(--tw-bg-opacity)' }), name).toMatch(/^var\(--dv-[\w-]+\)$/)
     }
   })
 })

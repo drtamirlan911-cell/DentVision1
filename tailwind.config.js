@@ -1,3 +1,25 @@
+/**
+ * A theme colour that still honours an opacity modifier.
+ *
+ * These tokens are CSS variables holding a hex, and Tailwind 3 cannot inject an
+ * alpha into a bare `var()` — it drops the utility entirely and says nothing.
+ * `border-bdr-subtle/50` therefore compiled to no rule at all in 42 places,
+ * `bg-surface-1/50` in 12 more: 101 classes across the app that looked right in
+ * source and rendered as something else. Nothing catches that — not tsc, not
+ * eslint, not the build.
+ *
+ * `color-mix` keeps the variables exactly as they are, so everything that reads
+ * `var(--dv-*)` directly (inline styles, hand-written CSS) is untouched.
+ */
+const themed = (variable) => ({ opacityValue }) => {
+  // For the plain utility Tailwind passes its own `var(--tw-bg-opacity)` here,
+  // not `undefined` — feeding that to Number() yields NaN and emits `NaN%`.
+  // Anything that is not a literal number means "no modifier was written".
+  const alpha = Number(opacityValue)
+  if (!Number.isFinite(alpha)) return `var(${variable})`
+  return `color-mix(in srgb, var(${variable}) ${alpha * 100}%, transparent)`
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -25,14 +47,14 @@ export default {
         },
         // Surface hierarchy (CSS vars — switch with html.dark / html.light)
         surface: {
-          0: 'var(--dv-surface-0)',
-          1: 'var(--dv-surface-1)',
-          2: 'var(--dv-surface-2)',
-          3: 'var(--dv-surface-3)',
-          4: 'var(--dv-surface-4)',
-          raised: 'var(--dv-surface-raised)',
-          'raised-hover': 'var(--dv-surface-raised-hover)',
-          overlay: 'var(--dv-overlay)',
+          0: themed('--dv-surface-0'),
+          1: themed('--dv-surface-1'),
+          2: themed('--dv-surface-2'),
+          3: themed('--dv-surface-3'),
+          4: themed('--dv-surface-4'),
+          raised: themed('--dv-surface-raised'),
+          'raised-hover': themed('--dv-surface-raised-hover'),
+          overlay: themed('--dv-overlay'),
         },
         // Semantic
         success: '#27AE60',
@@ -48,16 +70,16 @@ export default {
         },
         // Neutral text
         txt: {
-          primary: 'var(--dv-text-primary)',
-          secondary: 'var(--dv-text-secondary)',
-          muted: 'var(--dv-text-muted)',
-          ghost: 'var(--dv-text-ghost)',
+          primary: themed('--dv-text-primary'),
+          secondary: themed('--dv-text-secondary'),
+          muted: themed('--dv-text-muted'),
+          ghost: themed('--dv-text-ghost'),
         },
         // Border
         bdr: {
-          DEFAULT: 'var(--dv-border)',
-          subtle: 'var(--dv-border-subtle)',
-          focus: 'var(--dv-border-focus)',
+          DEFAULT: themed('--dv-border'),
+          subtle: themed('--dv-border-subtle'),
+          focus: themed('--dv-border-focus'),
         },
       },
       fontFamily: {

@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { generateTokens } from '../../lib/jwt.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
+import { buildWorkspaceContexts } from './contexts.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // IAM module (Phase 2). Exposes the server-side permission model to clients so
@@ -88,65 +89,25 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       }),
     ]);
 
-    // 2) New unified contexts via Person → Organization
+    // 2) New unified contexts via Person → Organization.
+    // `originalId` is required, not cosmetic: it is where the mirrored entity's
+    // real id lives, and `Organization.id` is a separate uuid.
     const persons = await prisma.person.findMany({
       where: { userId },
       include: {
-        organization: { select: { id: true, name: true, type: true, logo: true } },
+        organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } },
         personRoles: { include: { role: true } },
       },
     });
 
-    const organizationContexts = persons
-      .filter((p) => p.organization)
-      .map((p) => ({
-        id: p.id,
-        scopeType: p.organization!.type,
-        scopeId: p.organization!.id,
-        personType: p.personType,
-        roleKey: p.personRoles.map((pr) => pr.role.key).join(',') || p.personType.toLowerCase(),
-        organization: {
-          id: p.organization!.id,
-          name: p.organization!.name,
-          type: p.organization!.type,
-          logo: p.organization!.logo,
-        },
-      }));
-
-    const contexts = [
-      // Legacy contexts (backward compat)
-      ...memberships.map((m) => ({
-        id: m.id,
-        scopeType: 'CLINIC' as const,
-        scopeId: m.clinicId,
-        roleKey: `clinic.${m.role.toLowerCase()}`,
-        role: m.role,
-        joinedAt: m.joinedAt,
-        clinic: m.clinic,
-      })),
-      ...supplierMemberships.map((m) => ({
-        id: m.id,
-        scopeType: 'SUPPLIER' as const,
-        scopeId: m.supplierId,
-        roleKey: `supplier.${m.role}`,
-        role: m.role,
-        joinedAt: m.createdAt,
-        supplier: m.supplier,
-      })),
-      ...(lecturer
-        ? [{
-            id: lecturer.id,
-            scopeType: 'LECTURER' as const,
-            scopeId: lecturer.id,
-            roleKey: 'lecturer',
-            role: lecturer.level,
-            level: lecturer.level,
-            academy: lecturer.academy,
-          }]
-        : []),
-      // New unified organization contexts
-      ...organizationContexts,
-    ];
+    // One row per real workspace — see contexts.ts for why the two halves used
+    // to arrive as two or three copies of the same clinic.
+    const contexts = buildWorkspaceContexts({
+      memberships,
+      supplierMemberships,
+      lecturer,
+      persons,
+    });
 
     return res.json({ ok: true, data: { contexts } } satisfies ApiResponse);
   } catch (error) {
@@ -169,11 +130,18 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     // the revocation check, so a switched token outlived logout.
     const base = { sub: user.id, email: user.email, role: user.role, sessionId: user.sessionId };
 
-    // 1) Try unified Organization first (any type)
-    const org = await prisma.organization.findUnique({ where: { id: scopeId } });
+    // 1) Try unified Organization first (any type).
+    // `scopeId` may be either the Organization uuid or the mirrored entity's
+    // own id: /me/contexts now keys workspaces by the entity (a clinic id is
+    // what every clinic-scoped query needs), and callers pass that back. Only
+    // CLINIC and SUPPLIER had legacy branches below, so a diagnostic centre or
+    // laboratory reached by entity id would have fallen through to a 404.
+    const org =
+      (await prisma.organization.findUnique({ where: { id: scopeId } })) ||
+      (await prisma.organization.findFirst({ where: { originalId: scopeId } }));
     if (org) {
       let person = await prisma.person.findFirst({
-        where: { userId: user.id, organizationId: scopeId },
+        where: { userId: user.id, organizationId: org.id },
       });
       // Fallback: org.id may have been realigned to the entity id while the
       // Person link was stored against the old id — resolve by originalId.
@@ -182,20 +150,23 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           where: { userId: user.id, originalId: `${org.originalId}:${user.id}` },
         });
         if (person) {
-          await prisma.person.update({ where: { id: person.id }, data: { organizationId: scopeId } }).catch(() => {});
+          await prisma.person.update({ where: { id: person.id }, data: { organizationId: org.id } }).catch(() => {});
         }
       }
       if (person) {
+        // The mirrored entity's own id — never the organisation uuid, and never
+        // the caller's `scopeId`, which may now be either of the two.
+        const entityId = org.originalId || org.id;
         let supplierContext = {};
         if (org.type === 'SUPPLIER_COMPANY') {
           const member = await prisma.supplierMember.findUnique({
-            where: { userId_supplierId: { userId: user.id, supplierId: scopeId } },
+            where: { userId_supplierId: { userId: user.id, supplierId: entityId } },
           });
-          if (member) supplierContext = { supplierId: scopeId, supplierRole: member.role };
+          if (member) supplierContext = { supplierId: entityId, supplierRole: member.role };
         }
         const tokens = generateTokens({
           ...base,
-          organizationId: scopeId,
+          organizationId: org.id,
           organizationType: org.type,
           personType: person.personType,
           ...supplierContext,

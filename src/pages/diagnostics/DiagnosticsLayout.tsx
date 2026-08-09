@@ -71,10 +71,10 @@ export default function DiagnosticsLayout() {
   const labCtx = orgContexts.find((c: any) => c.scopeType === 'LABORATORY');
   const clinicCtx = orgContexts.find((c: any) => c.scopeType === 'CLINIC');
 
-  const cabinetButtons: Array<{ key: string; label: string; scopeType: string; scopeId: string }> = [];
-  if (centerCtx && !inCenter) cabinetButtons.push({ key: 'center', label: `Войти в центр${centerCtx.organization?.name ? `: ${centerCtx.organization.name}` : ''}`, scopeType: 'DIAGNOSTIC_CENTER', scopeId: centerCtx.scopeId });
-  if (labCtx && !inLab) cabinetButtons.push({ key: 'lab', label: `Войти в лабораторию${labCtx.organization?.name ? `: ${labCtx.organization.name}` : ''}`, scopeType: 'LABORATORY', scopeId: labCtx.scopeId });
-  if ((inCenter || inLab) && clinicCtx) cabinetButtons.push({ key: 'exit', label: 'Выйти из кабинета', scopeType: 'CLINIC', scopeId: clinicCtx.scopeId });
+  const cabinetButtons: Array<{ key: string; label: string; scopeType: string; scopeId: string; organizationId?: string }> = [];
+  if (centerCtx && !inCenter) cabinetButtons.push({ key: 'center', label: `Войти в центр${centerCtx.name ? `: ${centerCtx.name}` : ''}`, scopeType: 'DIAGNOSTIC_CENTER', scopeId: centerCtx.scopeId, organizationId: centerCtx.organizationId });
+  if (labCtx && !inLab) cabinetButtons.push({ key: 'lab', label: `Войти в лабораторию${labCtx.name ? `: ${labCtx.name}` : ''}`, scopeType: 'LABORATORY', scopeId: labCtx.scopeId, organizationId: labCtx.organizationId });
+  if ((inCenter || inLab) && clinicCtx) cabinetButtons.push({ key: 'exit', label: 'Выйти из кабинета', scopeType: 'CLINIC', scopeId: clinicCtx.scopeId, organizationId: clinicCtx.organizationId });
 
   const isActive = (path: string) => {
     if (path === '/diagnostics') return location.pathname === '/diagnostics';
@@ -129,7 +129,7 @@ export default function DiagnosticsLayout() {
             {cabinetButtons.map((b) => (
               <button
                 key={b.key}
-                onClick={() => switchTo(b.scopeType, b.scopeId)}
+                onClick={() => switchTo(b.scopeType, b.organizationId || b.scopeId)}
                 disabled={switching}
                 className="flex items-center gap-2.5 w-full px-2.5 py-2 min-h-11 rounded-lg text-sm text-txt-muted hover:text-txt-primary hover:bg-surface-1/50 transition-all disabled:opacity-50"
               >
