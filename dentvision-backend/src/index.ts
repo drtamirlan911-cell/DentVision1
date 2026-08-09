@@ -914,6 +914,58 @@ async function main() {
     console.error('[MIGRATION] School content tables failed (non-fatal):', err);
   }
 
+  // ── Demo diagnostic centers (idempotent) — so referrals can be created from day one ──
+  try {
+    const centerCount = await prisma.diagnosticCenter.count();
+    if (centerCount === 0) {
+      const demoCenters = [
+        { name: 'TomoDent CBCT', city: 'Алматы', address: 'пр. Аль-Фараби 77', phone: '+77002000111', description: 'КЛКТ/КТ челюстей, височно-нижнечелюстных суставов' },
+        { name: 'AlphaScan 3D', city: 'Алматы', address: 'ул. Толе би 211', phone: '+77002000222', description: 'ОПТГ, ТРГ, цефалометрия' },
+        { name: 'LabExpress', city: 'Астана', address: 'пр. Мангилик Ел 55', phone: '+77002000333', description: 'Гистология, ПЦР, микробиология' },
+        { name: 'MedLab', city: 'Астана', address: 'ул. Кунаева 32', phone: '+77002000444', description: 'Биохимия, аллергопанели' },
+      ];
+      for (const c of demoCenters) {
+        await prisma.diagnosticCenter.create({
+          data: { id: uid(), active: true, ...c },
+        });
+      }
+      // Add a sample CBCT study to the first center
+      const firstCenter = await prisma.diagnosticCenter.findFirst({ orderBy: { createdAt: 'asc' } });
+      if (firstCenter) {
+        await prisma.diagnosticStudy.createMany({
+          data: [
+            { id: uid(), centerId: firstCenter.id, name: 'CBCT обе челюсти', category: 'CBCT', price: 15000, active: true },
+            { id: uid(), centerId: firstCenter.id, name: 'CBCT одна челюсть', category: 'CBCT', price: 8000, active: true },
+            { id: uid(), centerId: firstCenter.id, name: 'ОПТГ (панорамный)', category: 'OPG', price: 5000, active: true },
+            { id: uid(), centerId: firstCenter.id, name: 'ТРГ (боковая)', category: 'TRG', price: 3000, active: true },
+          ],
+        });
+      }
+      console.log(`[SEED] Created ${demoCenters.length} demo diagnostic centers`);
+    }
+  } catch (err) {
+    console.warn('[SEED] Diagnostic centers seed failed (non-fatal):', err);
+  }
+
+  // ── Demo laboratories (idempotent) ──
+  try {
+    const labCount = await prisma.laboratory.count();
+    if (labCount === 0) {
+      const demoLabs = [
+        { name: 'DentaLab', city: 'Алматы', address: 'ул. Розыбакиева 247', phone: '+77003000111', description: 'Завиши, коронки, протезы' },
+        { name: 'CeramicPro', city: 'Астана', address: 'пр. Кабанбай батыра 40', phone: '+77003000222', description: 'Керамика, CAD/CAM' },
+      ];
+      for (const l of demoLabs) {
+        await prisma.laboratory.create({
+          data: { id: uid(), active: true, ...l },
+        });
+      }
+      console.log(`[SEED] Created ${demoLabs.length} demo laboratories`);
+    }
+  } catch (err) {
+    console.warn('[SEED] Laboratories seed failed (non-fatal):', err);
+  }
+
   // ─── Legal templates (idempotent seed) — supplier/clinic agreements + NDA ───
   try {
     await prisma.$executeRawUnsafe(`
