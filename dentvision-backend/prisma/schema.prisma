@@ -124,10 +124,18 @@ enum PaymentStatus {
 // --- USER SYSTEM ---
 
 model User {
-  id          String   @id @default(uuid())
-  email       String   @unique
-  password    String
-  firstName   String
+  id    String @id @default(uuid())
+  email String @unique
+  /// Absent for accounts that only ever signed in with Google. `comparePassword`
+  /// has exactly one caller, which refuses a password login when this is null —
+  /// the account is not passwordless by accident, it simply has no password yet.
+  /// Password reset is the supported way to add one.
+  password  String?
+  /// Google's stable subject id. The link is recorded as a fact rather than
+  /// inferred from "has no password", so an account cannot be quietly
+  /// re-pointed at a different Google identity.
+  googleId  String? @unique
+  firstName String
   lastName    String
   avatar      String?
   phone       String?

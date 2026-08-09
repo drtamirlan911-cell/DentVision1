@@ -185,6 +185,7 @@ interface AuthState {
   _restorePromise: Promise<void> | null
 
   login: (loginStr: string, password: string) => Promise<boolean>
+  loginWithGoogle: (idToken: string) => Promise<boolean>
   logout: () => void
   register: (formData: RegisterFormData) => Promise<boolean>
   forgotPassword: (loginStr: string) => Promise<unknown>
@@ -304,6 +305,74 @@ function pickActiveMembership(
   return memberships[0] || null
 }
 
+/**
+ * Put a successful sign-in into the store.
+ *
+ * Shared by password and Google sign-in: both endpoints return the same
+ * payload, and a second copy of this that drifted by one field would give one
+ * of the two a different permission picture.
+ */
+async function applySignIn(set: (partial: Partial<AuthState>) => void, result: any): Promise<void> {
+  const { accessToken, refreshToken } = result.tokens || result
+  api.setTokens(accessToken, refreshToken)
+
+  // The sign-in response already carries memberships (see auth.routes.ts).
+  // Only fall back to a second /me round trip for older/partial responses —
+  // this keeps sign-in resilient to a transient /me failure.
+  let user = normalizeUser(result.user)
+  let memberships = mapMemberships(result.memberships || [])
+  let activeMembership = pickActiveMembership(
+    mapActiveMembership(result.activeMembership),
+    memberships,
+  )
+  let permissions: string[] = Array.isArray(result.permissions) ? result.permissions : []
+  let pages: string[] = Array.isArray(result.pages) ? result.pages : []
+  let effectiveRole: string | null = result.effectiveRole || null
+  let capabilities = result.capabilities || {
+    canSeeSalary: false,
+    canAddStaff: false,
+    canSeeAudit: false,
+    canBackup: false,
+    canSeeReports: false,
+    canSeeExpenses: false,
+    canManageClinicSettings: false,
+    canManageFinance: false,
+    ownDataOnly: false,
+    readOnly: false,
+  }
+
+  // Only the absence of the `memberships` key means the response used an
+  // older/partial contract — an explicit empty array is a valid "no clinics
+  // yet" state and must not trigger an extra round trip.
+  if (!user || result.memberships === undefined) {
+    const me = await hydrateAuthFromMe()
+    user = me.user
+    memberships = me.memberships
+    activeMembership = pickActiveMembership(me.activeMembership, memberships)
+    permissions = me.permissions
+    pages = me.pages
+    effectiveRole = me.effectiveRole
+    capabilities = me.capabilities
+  }
+
+  set({
+    user,
+    token: accessToken,
+    refreshToken,
+    clinic: buildClinicFromMembership(activeMembership),
+    clinics: memberships,
+    activeMembership,
+    activeClinic: buildClinicFromMembership(activeMembership),
+    permissions,
+    pages,
+    effectiveRole,
+    capabilities,
+    loading: false,
+    error: null,
+  })
+  useGuestStore.getState().clearGuest()
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
@@ -389,68 +458,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (loginStr, password) => {
     set({ loading: true, error: null })
     try {
-      const result = await api.login(loginStr, password)
-      const { accessToken, refreshToken } = result.tokens || result
-      api.setTokens(accessToken, refreshToken)
-
-      // The login response already carries memberships (see auth.routes.ts).
-      // Only fall back to a second /me round trip for older/partial
-      // responses — this keeps login resilient to a transient /me failure.
-      let user = normalizeUser(result.user)
-      let memberships = mapMemberships(result.memberships || [])
-      let activeMembership = pickActiveMembership(
-        mapActiveMembership(result.activeMembership),
-        memberships,
-      )
-      let permissions: string[] = Array.isArray(result.permissions) ? result.permissions : []
-      let pages: string[] = Array.isArray(result.pages) ? result.pages : []
-      let effectiveRole: string | null = result.effectiveRole || null
-      let capabilities = result.capabilities || {
-        canSeeSalary: false,
-        canAddStaff: false,
-        canSeeAudit: false,
-        canBackup: false,
-        canSeeReports: false,
-        canSeeExpenses: false,
-        canManageClinicSettings: false,
-        canManageFinance: false,
-        ownDataOnly: false,
-        readOnly: false,
-      }
-
-      // Only the absence of the `memberships` key means the response used
-      // an older/partial contract — an explicit empty array is a valid
-      // "no clinics yet" state and must not trigger an extra round trip.
-      if (!user || result.memberships === undefined) {
-        const me = await hydrateAuthFromMe()
-        user = me.user
-        memberships = me.memberships
-        activeMembership = pickActiveMembership(me.activeMembership, memberships)
-        permissions = me.permissions
-        pages = me.pages
-        effectiveRole = me.effectiveRole
-        capabilities = me.capabilities
-      }
-
-      set({
-        user,
-        token: accessToken,
-        refreshToken,
-        clinic: buildClinicFromMembership(activeMembership),
-        clinics: memberships,
-        activeMembership,
-        activeClinic: buildClinicFromMembership(activeMembership),
-        permissions,
-        pages,
-        effectiveRole,
-        capabilities,
-        loading: false,
-        error: null,
-      })
-      useGuestStore.getState().clearGuest()
+      await applySignIn(set, await api.login(loginStr, password))
       return true
     } catch (err) {
       set({ loading: false, error: (err as Error).message || 'Login failed' })
+      return false
+    }
+  },
+
+  /**
+   * Sign in with a Google ID token.
+   *
+   * `POST /auth/google` answers with the same payload `/auth/login` does — the
+   * backend builds both from one function for exactly this reason — so the
+   * store applies it through the same path. Anything else would leave a Google
+   * user in a subtly different state than a password user.
+   */
+  loginWithGoogle: async (idToken) => {
+    set({ loading: true, error: null })
+    try {
+      await applySignIn(set, await api.googleSignIn(idToken))
+      return true
+    } catch (err) {
+      set({ loading: false, error: (err as Error).message || 'Google sign-in failed' })
       return false
     }
   },
@@ -622,6 +652,7 @@ export function useAuth() {
   const loading = useAuthStore((s) => s.loading)
   const error = useAuthStore((s) => s.error)
   const login = useAuthStore((s) => s.login)
+  const loginWithGoogle = useAuthStore((s) => s.loginWithGoogle)
   const logout = useAuthStore((s) => s.logout)
   const register = useAuthStore((s) => s.register)
   const forgotPassword = useAuthStore((s) => s.forgotPassword)
@@ -646,6 +677,7 @@ return {
     loading,
     error,
     login,
+    loginWithGoogle,
     logout,
     register,
     forgotPassword,

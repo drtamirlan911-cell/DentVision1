@@ -10,6 +10,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Tabs } from '@/components/ui/ds/Misc';
 import { ConsentGate } from './ConsentGate';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
@@ -503,7 +504,7 @@ function DiagnosticsTab() {
 
 export default function PatientPortal() {
   const { t } = useTranslation();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -561,6 +562,11 @@ export default function PatientPortal() {
                   patient who arrives from a booking is still linked afterwards. */}
               <Button variant="primary" className="w-full" onClick={() => navigate(`/login?portal=patient&returnUrl=${encodeURIComponent(portalReturnUrl)}`)} icon={<LogIn size={16} />}>{t('patientPortal.login')}</Button>
               <Button variant="outline" className="w-full" onClick={() => navigate(`/login?portal=patient&register=1&returnUrl=${encodeURIComponent(portalReturnUrl)}`)} icon={<UserPlus size={16} />}>{t('patientPortal.register')}</Button>
+
+              {/* The shortest path for a patient arriving from a booking: one
+                  click instead of inventing a password for one more service. */}
+              <GoogleSignInButton onCredential={(idToken) => void loginWithGoogle(idToken)} />
+
               <p className="text-xs text-txt-ghost pt-2">{t('patientPortal.link_hint')}</p>
             </div>
           </Card>

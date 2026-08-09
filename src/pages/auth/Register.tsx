@@ -1,5 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { useAuth } from '@/store/auth.store';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { Loader2, UserPlus, AlertTriangle, Stethoscope, Bot, GraduationCap, ShoppingBag } from 'lucide-react';
 
 interface RegisterProps {
@@ -20,7 +21,7 @@ interface RegisterForm {
 }
 
 export default function Register({ onBack }: RegisterProps) {
-  const { register, loading, error } = useAuth();
+  const { register, loginWithGoogle, loading, error } = useAuth();
   const [form, setForm] = useState<RegisterForm>({
     name: '', firstName: '', lastName: '', login: '', email: '', phone: '', spec: '', city: '', password: '', confirmPassword: '',
   });
@@ -117,6 +118,14 @@ export default function Register({ onBack }: RegisterProps) {
               {loading ? <><Loader2 size={16} className="animate-spin" /> Создаём аккаунт…</> : 'Создать аккаунт'}
             </button>
           </div>
+
+          <GoogleSignInButton
+            text="signup_with"
+            className="mt-5"
+            // A failure surfaces through the store's `error`, which this screen
+            // already renders above the form.
+            onCredential={(idToken) => void loginWithGoogle(idToken)}
+          />
 
           <div className="mt-5 grid grid-cols-4 gap-2">
             {[

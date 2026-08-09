@@ -2437,6 +2437,15 @@ export async function joinOrganizationByInvite(code: string): Promise<any> {
  * reliably than an email (the public booking form does not even require one),
  * so it is what finds an existing card instead of creating a duplicate.
  */
+/**
+ * Exchange a Google ID token for a DentVision session.
+ *
+ * Returns the same payload `login` does, so callers treat the two identically.
+ */
+export async function googleSignIn(idToken: string): Promise<any> {
+  return apiRequest('/api/auth/google', { method: 'POST', body: JSON.stringify({ idToken }) });
+}
+
 export async function linkPatientToClinic(data: { clinicId: string; phone?: string }): Promise<any> {
   return apiRequest('/api/patient-portal/link', { method: 'POST', body: JSON.stringify(data) });
 }
