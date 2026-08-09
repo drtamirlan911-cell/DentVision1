@@ -17,7 +17,6 @@ import { AlertDropdown } from './AlertDropdown';
 import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
 import GuestCRMModal from '@/components/guest/GuestCRMModal';
-import { ClinicSwitcher } from '@/components/ClinicSwitcher';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner';
 import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
@@ -393,18 +392,34 @@ export const IntelligenceLayout: React.FC = () => {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="dv-safe-header sticky top-0 z-30 flex items-center justify-between gap-2 min-h-[calc(var(--dv-topbar-height)+var(--dv-safe-top))] px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-white/[0.04] flex-shrink-0 min-w-0 overflow-visible">
-          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 overflow-hidden">
+        <header className="dv-safe-header sticky top-0 z-30 flex items-center justify-between gap-2 min-h-[calc(var(--dv-topbar-height)+var(--dv-safe-top))] px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-bdr-subtle flex-shrink-0 min-w-0 overflow-visible">
+          {/* Left is "where am I": menu, workspace, trail. Right is what you
+              can do and what the system is telling you. The workspace switcher
+              used to sit on the right among the actions, which is what let a
+              second copy of it hide in the crowd. */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1 overflow-hidden">
             <button
               onClick={toggleSidebar}
               className={cn(
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors',
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-surface-2 transition-colors',
                 !isMobile && 'hidden',
               )}
               aria-label={t('nav.menu')}
             >
               <Menu size={18} />
             </button>
+            {!isGuest && <WorkspaceSwitcher className="shrink-0" />}
+            {isGuest && (
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => useGuestStore.getState().setRegistrationModal(true)}
+                className="flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-full bg-dv-gold/10 border border-dv-gold/20 text-dv-gold hover:bg-dv-gold/15 transition-colors"
+              >
+                <User size={12} />
+                <span className="text-[10px] font-semibold">{t('nav.guest')}</span>
+              </motion.button>
+            )}
+            <div className="hidden sm:block h-4 w-px bg-bdr-subtle shrink-0" />
             <div className="min-w-0 overflow-hidden flex-1">
               <div className="flex items-center gap-1.5 text-sm text-txt-muted overflow-hidden whitespace-nowrap">
                 {getBreadcrumbs().map((crumb, idx, crumbs) => (
@@ -422,20 +437,7 @@ export const IntelligenceLayout: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 max-w-[48%] sm:max-w-none">
-            {isGuest && (
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={() => useGuestStore.getState().setRegistrationModal(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-dv-gold/10 border border-dv-gold/20 text-dv-gold hover:bg-dv-gold/15 transition-colors"
-              >
-                <User size={12} />
-                <span className="text-[10px] font-semibold">{t('nav.guest')}</span>
-              </motion.button>
-            )}
-            {!isGuest && <ClinicSwitcher />}
-            {!isGuest && <WorkspaceSwitcher />}
-            <DentCashHeaderChip />
-            <LanguageSwitcher compact />
+            {/* Actions */}
             <button
               onClick={() => setCmdOpen(true)}
               className={cn(
@@ -455,14 +457,20 @@ export const IntelligenceLayout: React.FC = () => {
               onClick={() => setContextSheetOpen(!contextSheetOpen)}
               className={cn(
                 'hidden lg:flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
-                contextSheetOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-txt-muted hover:text-txt-primary hover:bg-white/5'
+                contextSheetOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-txt-muted hover:text-txt-primary hover:bg-surface-2'
               )}
               aria-label={t('nav.context_panel')}
             >
               <Building2 size={16} />
             </button>
+            <LanguageSwitcher compact />
+
+            <div className="hidden sm:block h-4 w-px bg-bdr-subtle shrink-0" />
+
+            {/* Status — things you read, not things you press */}
+            <DentCashHeaderChip />
             <div className="hidden lg:flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-success" />
               <span className="text-[10px] font-medium text-dv-gold">AI</span>
             </div>
           </div>

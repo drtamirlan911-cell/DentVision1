@@ -49,7 +49,11 @@ export const REFERRAL_STATUS: Record<ReferralStatus, StatusInfo> = {
 
 /** Tailwind classes per tone. Middle stages are steps of the gold ramp. */
 export const TONE_CLASSES: Record<StatusTone, { text: string; bg: string; dot: string }> = {
-  muted:    { text: 'text-txt-muted',   bg: 'bg-txt-muted/10',   dot: 'bg-txt-muted' },
+  // A solid surface step rather than a 10% tint of the muted grey: at that
+  // strength a neutral is indistinguishable from the card behind it, so the
+  // chip read as no chip. (It also used to compile to nothing at all — see the
+  // `themed()` note in tailwind.config.js.)
+  muted:    { text: 'text-txt-muted',   bg: 'bg-surface-2',      dot: 'bg-txt-muted' },
   info:     { text: 'text-info',        bg: 'bg-info/10',        dot: 'bg-info' },
   // gold-light → gold is a monotonic light→dark step in BOTH themes; gold-dim
   // (#8B6F3E in either) is darker than gold in light mode, which read the

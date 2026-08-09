@@ -284,7 +284,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       const res = await api.getMyContexts();
       const ctx = (res.contexts || []).find((c: any) => c.scopeType === 'DIAGNOSTIC_CENTER' || c.scopeType === 'LABORATORY');
       if (ctx?.scopeId) {
-        const tok = await api.switchContext(ctx.scopeType, ctx.scopeId);
+        const tok = await api.switchContext(ctx.scopeType, ctx.organizationId || ctx.scopeId);
         if (tok?.accessToken) {
           saveClinicContext();
           api.setTokens(tok.accessToken, tok.refreshToken || null);
