@@ -11,6 +11,8 @@ import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { resolveAuthContext } from '../../lib/authContext.js';
 import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permissions.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
+import { sendEmail } from '../../services/email.js';
+import { buildPasswordResetEmail } from './passwordResetEmail.js';
 
 async function ensureOrgAndPerson(clinicId: string, userId: string, role: string) {
   const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { name: true, city: true } });
@@ -1054,6 +1056,22 @@ authRouter.post('/forgot-password', async (req, res) => {
           expiresAt: new Date(Date.now() + 60 * 60 * 1000),
         },
       });
+
+      // The letter this endpoint has always claimed to send. Best-effort by
+      // design: with no mail account configured `sendEmail` reports `sent:
+      // false` and nothing changes, and a transport failure must not turn into
+      // a 500 that tells an attacker the address exists.
+      try {
+        const letter = buildPasswordResetEmail({ token, firstName: user.firstName });
+        const { sent, transport } = await sendEmail({ to: normalizedEmail, ...letter });
+        if (!sent) {
+          console.warn('[Password Reset] No email transport configured — letter not sent');
+        } else {
+          console.log(`[Password Reset] Letter sent via ${transport}`);
+        }
+      } catch (mailError) {
+        console.error('[Password Reset] Failed to send letter:', (mailError as Error).message);
+      }
 
       if (process.env.NODE_ENV === 'development' && !process.env.CI) {
         console.log(`[Password Reset] Token for ${normalizedEmail}: ${token}`);

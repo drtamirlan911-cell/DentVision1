@@ -43,6 +43,20 @@ services:
         sync: false
       - key: KASPI_CALLBACK_SECRET
         sync: false
+      # Transactional email (password reset, patient portal links).
+      # SMTP_PASSWORD must be a Google App Password for this account — Google
+      # refuses account passwords for SMTP, and App Passwords require 2-Step
+      # Verification to be enabled first. Set it in the Render dashboard.
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: 465
+      - key: SMTP_USER
+        value: "dentvision.kz@gmail.com"
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: EMAIL_FROM
+        value: "DentVision <dentvision.kz@gmail.com>"
       # Optional Redis (BullMQ ai-admin worker + EventBus streams).
       # Unset (default) → in-memory fallbacks; worker/queue skipped.
       # Set to an Upstash (or any TLS `rediss://`) connection string in the

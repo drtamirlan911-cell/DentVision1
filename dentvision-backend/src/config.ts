@@ -34,6 +34,26 @@ const envSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_FROM_NUMBER: z.string().optional(),
   TWILIO_WHATSAPP_FROM: z.string().optional(),
+  /**
+   * Transactional email.
+   *
+   * Primary transport is SMTP — the product sends from the Google account
+   * dentvision.kz@gmail.com. `SMTP_PASSWORD` must be a Google **App Password**
+   * (16 characters, spaces optional): Google refuses account passwords for SMTP,
+   * and App Passwords only exist once 2-Step Verification is on.
+   *
+   * The two HTTP providers stay as alternatives for when the product outgrows a
+   * Gmail sending limit; neither needs a package. With nothing configured every
+   * send is skipped and callers behave exactly as they did before.
+   */
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.coerce.number().default(465),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  SENDGRID_API_KEY: z.string().optional(),
+  /** Envelope sender. Defaults to the SMTP account when one is configured. */
+  EMAIL_FROM: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   /** Shared secret for hidden platform-ops surface (supplier verify, etc.). Min 24 chars in production. */
   PLATFORM_OPS_SECRET: z.string().optional(),
