@@ -4,6 +4,7 @@ import { generateTokens, verifyRefreshToken } from '../../lib/jwt.js';
 import { hashPassword, comparePassword, assertPasswordPolicy } from '../../lib/password.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import type { UserRole } from '@prisma/client';
 import { uid } from '../../lib/helpers.js';
 import { onboardPartner } from '../legal/legal.service.js';
 import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
@@ -13,6 +14,12 @@ import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permission
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { sendEmail } from '../../services/email.js';
 import { buildPasswordResetEmail } from './passwordResetEmail.js';
+import {
+  GoogleAuthError,
+  googleSignInEnabled,
+  namesFromProfile,
+  verifyGoogleIdToken,
+} from './googleAuth.js';
 
 async function ensureOrgAndPerson(clinicId: string, userId: string, role: string) {
   const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { name: true, city: true } });
@@ -51,6 +58,90 @@ function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
 function clearAuthCookies(res: any) {
   res.clearCookie('accessToken', { path: '/', secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' });
   res.clearCookie('refreshToken', { path: '/', secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' });
+}
+
+
+/** What a successful sign-in returns, whatever proved the identity. */
+interface SignInUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  password?: string | null;
+  memberships: Array<{
+    id: string;
+    role: string;
+    clinicId: string;
+    joinedAt: Date;
+    clinic: unknown;
+  }>;
+}
+
+/**
+ * The body of a successful sign-in: session, tokens, cookies and the whole
+ * permission picture the frontend boots from.
+ *
+ * Shared rather than duplicated because Google sign-in has to land the caller
+ * in *exactly* the same state as a password login — `permissions`, `pages`,
+ * `capabilities` and `effectiveRole` all feed the frontend's access model, and
+ * a second copy of this that drifted by one field would put a Google user in a
+ * subtly different app.
+ */
+async function buildSignInPayload(user: SignInUser, req: any, res: any) {
+  const authContext = await resolveAuthContext(user.id, { clinicId: user.memberships[0]?.clinicId });
+  const clinicId = authContext.clinicId;
+  const activeMembership = user.memberships[0]
+    ? {
+        id: user.memberships[0].id,
+        role: user.memberships[0].role,
+        clinicId: user.memberships[0].clinicId,
+        joinedAt: user.memberships[0].joinedAt,
+        clinic: user.memberships[0].clinic,
+      }
+    : null;
+
+  const session = await createSession(user.id, req.ip, req.headers['user-agent']).catch((e: any) => {
+    console.warn('[auth] createSession failed:', e?.message);
+    return null;
+  });
+
+  const tokens = generateTokens({
+    sub: user.id,
+    email: user.email,
+    role: user.role,
+    ...authContext,
+    sessionId: session?.id,
+  });
+
+  const { password: _password, memberships, ...userWithoutPassword } = user;
+
+  setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
+  // Scope is an Organization id — passing a clinic id here matched no Person,
+  // so the DB permission graph never contributed and every caller silently
+  // got the hardcoded role matrix.
+  const effectivePermissions = await resolveUserPermissions(user.id, authContext.organizationId);
+  const scopedRole = clinicId
+    ? (await resolveClinicAccess(user.id, clinicId))?.role || user.role
+    : user.role;
+
+  return {
+    user: { ...userWithoutPassword, clinicId, name: `${user.firstName} ${user.lastName}`.trim() },
+    memberships: memberships.map((m) => ({
+      id: m.id,
+      role: m.role,
+      clinicId: m.clinicId,
+      joinedAt: m.joinedAt,
+      clinic: m.clinic,
+    })),
+    activeMembership,
+    permissions: effectivePermissions,
+    pages: pagesForCaller(effectivePermissions, scopedRole),
+    capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole),
+    effectiveRole: scopedRole,
+    ...tokens,
+  };
 }
 
 export const authRouter = Router();
@@ -173,6 +264,17 @@ authRouter.post('/login', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'Неверный email или пароль' });
     }
 
+    if (!user.password) {
+      // A Google-only account. Saying so is better than "wrong password": the
+      // person is typing a password that has never existed, and password reset
+      // is the supported way to add one.
+      await recordFailedAttempt(email, ip);
+      return res.status(401).json({
+        ok: false,
+        error: 'Этот аккаунт создан через Google. Войдите через Google или задайте пароль через «Забыли пароль?»',
+      });
+    }
+
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
       await recordFailedAttempt(email, ip);
@@ -182,66 +284,103 @@ authRouter.post('/login', async (req, res) => {
 
     await resetAttempts(email, ip);
 
-    const authContext = await resolveAuthContext(user.id, { clinicId: user.memberships[0]?.clinicId });
-    const clinicId = authContext.clinicId;
-    const activeMembership = user.memberships[0]
-      ? {
-          id: user.memberships[0].id,
-          role: user.memberships[0].role,
-          clinicId: user.memberships[0].clinicId,
-          joinedAt: user.memberships[0].joinedAt,
-          clinic: user.memberships[0].clinic,
-        }
-      : null;
-
-    const session = await createSession(user.id, req.ip, req.headers['user-agent']).catch((e) => {
-      console.warn('[auth/login] createSession failed:', e?.message);
-      return null;
-    });
-
-    const tokens = generateTokens({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      ...authContext,
-      sessionId: session?.id,
-    });
-
-    const { password: _, memberships, ...userWithoutPassword } = user;
-
-    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
-
-    // Scope is an Organization id — passing a clinic id here matched no Person,
-    // so the DB permission graph never contributed and every caller silently
-    // got the hardcoded role matrix.
-    const effectivePermissions = await resolveUserPermissions(user.id, authContext.organizationId);
-    const scopedRole = clinicId
-      ? (await resolveClinicAccess(user.id, clinicId))?.role || user.role
-      : user.role;
-
-    const response: ApiResponse = {
-      ok: true,
-      data: {
-        user: { ...userWithoutPassword, clinicId, name: `${user.firstName} ${user.lastName}`.trim() },
-        memberships: memberships.map((m) => ({
-          id: m.id,
-          role: m.role,
-          clinicId: m.clinicId,
-          joinedAt: m.joinedAt,
-          clinic: m.clinic,
-        })),
-        activeMembership,
-        permissions: effectivePermissions,
-        pages: pagesForCaller(effectivePermissions, scopedRole),
-        capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole),
-        effectiveRole: scopedRole,
-        ...tokens,
-      },
-    };
-
+    const response: ApiResponse = { ok: true, data: await buildSignInPayload(user, req, res) };
     res.json(response);
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Ошибка при входе' });
+  }
+});
+
+/**
+ * Google sign-in.
+ *
+ * The browser proves the identity with an ID token; we verify it and then issue
+ * exactly the session a password login would have issued. Creating an account
+ * when none exists mirrors `/register` — same role, same absence of a clinic —
+ * because the alternative makes a patient arriving from a booking fill in a
+ * form anyway, which is the whole thing this is meant to avoid.
+ */
+authRouter.post('/google', async (req, res) => {
+  try {
+    if (!googleSignInEnabled()) {
+      return res.status(503).json({ ok: false, error: 'Вход через Google не настроен' });
+    }
+
+    const idToken = String((req.body || {}).idToken || (req.body || {}).credential || '');
+    const profile = await verifyGoogleIdToken(idToken);
+
+    // Google asserts the address is verified, or it does not. Accepting an
+    // unverified one would let anyone who can mint a Google identity with
+    // someone else's address take over that account by email.
+    if (!profile.emailVerified) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Google не подтвердил этот адрес электронной почты',
+      });
+    }
+
+    // Guest accounts live in their own namespace; registration already refuses
+    // it, and a Google identity must not be able to land inside it either.
+    if (profile.email.endsWith('@guest.local')) {
+      return res.status(400).json({ ok: false, error: 'Некорректный email' });
+    }
+
+    const membershipSelect = {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      password: true,
+      memberships: {
+        select: {
+          id: true,
+          role: true,
+          clinicId: true,
+          joinedAt: true,
+          clinic: { select: { id: true, name: true, city: true, plan: true, logo: true } },
+        },
+      },
+    } as const;
+
+    let user = await prisma.user.findUnique({ where: { email: profile.email }, select: membershipSelect });
+
+    if (user) {
+      // Link on first Google sign-in. Safe because Google verified the address,
+      // and the role is deliberately left alone — an existing OWNER signing in
+      // with Google is still an OWNER.
+      await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } })
+        .catch((e) => console.warn('[auth/google] could not record googleId:', e?.message));
+    } else {
+      const { firstName, lastName } = namesFromProfile(profile);
+      // Same shape as open registration: no password, no clinic, STUDENT — the
+      // role that grants nothing clinical until a clinic is joined or created.
+      await prisma.user.create({
+        data: {
+          id: uid(),
+          email: profile.email,
+          firstName,
+          lastName,
+          avatar: profile.picture || null,
+          googleId: profile.googleId,
+          role: 'STUDENT',
+        },
+      });
+      user = await prisma.user.findUnique({ where: { email: profile.email }, select: membershipSelect });
+    }
+
+    if (!user) {
+      return res.status(500).json({ ok: false, error: 'Не удалось создать аккаунт' });
+    }
+
+    return res.json({ ok: true, data: await buildSignInPayload(user, req, res) });
+  } catch (error) {
+    const status = (error as GoogleAuthError)?.status;
+    if (status) {
+      return res.status(status).json({ ok: false, error: (error as Error).message });
+    }
+    console.error('[auth/google]', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка входа через Google' });
   }
 });
 
@@ -1066,15 +1205,16 @@ authRouter.post('/forgot-password', async (req, res) => {
         const { sent, transport } = await sendEmail({ to: normalizedEmail, ...letter });
         if (!sent) {
           console.warn('[Password Reset] No email transport configured — letter not sent');
-        } else {
-          console.log(`[Password Reset] Letter sent via ${transport}`);
         }
+        // Nothing to log on success: the fact a reset was requested is already
+        // in the audit trail, and the address does not belong in stdout.
+        void transport;
       } catch (mailError) {
         console.error('[Password Reset] Failed to send letter:', (mailError as Error).message);
       }
 
       if (process.env.NODE_ENV === 'development' && !process.env.CI) {
-        console.log(`[Password Reset] Token for ${normalizedEmail}: ${token}`);
+        console.warn(`[Password Reset] Token for ${normalizedEmail}: ${token}`);
         devToken = token;
       }
     }

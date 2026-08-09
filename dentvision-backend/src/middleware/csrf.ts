@@ -22,6 +22,11 @@ const SKIP_PATHS = [
   '/api/auth/refresh',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  // Sign-in endpoints are unauthenticated by definition: there is no session to
+  // ride, and the browser has no token to send yet. `/auth/google` additionally
+  // requires an ID token Google issued for our client id, which an attacker
+  // would have to own outright.
+  '/api/auth/google',
   '/api/public/',
   '/api/guest/',
   '/api/health',

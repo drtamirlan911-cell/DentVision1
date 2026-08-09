@@ -57,6 +57,13 @@ services:
         sync: false
       - key: EMAIL_FROM
         value: "DentVision <dentvision.kz@gmail.com>"
+      # Google sign-in. Public value — the same string goes to Vercel as
+      # VITE_GOOGLE_CLIENT_ID. No client secret: the ID-token flow does not use
+      # one. Create it in Google Cloud Console → Credentials → OAuth client ID
+      # (type: Web), listing both app origins under Authorized JavaScript
+      # origins.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       # Optional Redis (BullMQ ai-admin worker + EventBus streams).
       # Unset (default) → in-memory fallbacks; worker/queue skipped.
       # Set to an Upstash (or any TLS `rediss://`) connection string in the

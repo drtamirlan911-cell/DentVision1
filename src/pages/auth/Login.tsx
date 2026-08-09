@@ -2,6 +2,7 @@
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
 import { useAuth } from '@/store/auth.store'
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 
 import { Button, Input } from '@/components/ui/ds'
 import { cn } from '@/lib/utils'
@@ -45,7 +46,7 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const { user, login, loading, error, clinic, activeMembership } = useAuth()
+  const { user, login, loginWithGoogle, loading, error, clinic, activeMembership } = useAuth()
   const [loginStr, setLoginStr] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -260,6 +261,15 @@ export default function Login() {
               {loading ? 'Вход…' : 'Войти в систему'}
             </Button>
           </motion.form>
+
+          <motion.div variants={itemVariants} transition={easing}>
+            <GoogleSignInButton
+              text="signin_with"
+              // A failure sets the store's `error`, which `displayError` above
+              // already renders — no second error channel needed.
+              onCredential={(idToken) => void loginWithGoogle(idToken)}
+            />
+          </motion.div>
 
           <motion.div
             variants={itemVariants}

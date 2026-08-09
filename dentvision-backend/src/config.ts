@@ -50,6 +50,18 @@ const envSchema = z.object({
   SMTP_PORT: z.coerce.number().default(465),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
+  /**
+   * Google sign-in. Public value (it ships to the browser as
+   * VITE_GOOGLE_CLIENT_ID too) — env-gated so the feature is simply off until
+   * an OAuth client exists. No client secret: the ID-token flow does not use one.
+   */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  /**
+   * Development-only override for Google's JWKS endpoint, so the sign-in route
+   * can be exercised end to end against a local key. Ignored in production —
+   * see googleAuth.ts.
+   */
+  GOOGLE_CERTS_URL: z.string().url().optional(),
   RESEND_API_KEY: z.string().optional(),
   SENDGRID_API_KEY: z.string().optional(),
   /** Envelope sender. Defaults to the SMTP account when one is configured. */
