@@ -115,6 +115,7 @@ export default function Patients() {
   const [payment, setPayment] = useState(EMPTY_PAYMENT)
   const [pendingPay, setPendingPay] = useState<any>(null)
   const [payBusy, setPayBusy] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [patientSummary, setPatientSummary] = useState<{
     balance?: number
     paidTotal?: number
@@ -254,7 +255,9 @@ export default function Patients() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (submitting) return
     if (!form.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
+    setSubmitting(true)
     try {
       await upsertPatient({ ...form, id: editPatient?.id, clinicId: clinic?.id } as Partial<Patient>)
       showToast(editPatient ? 'Данные обновлены' : 'Пациент добавлен', 'success')
@@ -264,6 +267,8 @@ export default function Patients() {
       }
     } catch {
       showToast('Ошибка сохранения', 'error')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -450,8 +455,8 @@ export default function Patients() {
           placeholder="Аллергия на лидокаин, гипертония..."
         />
         <div className="flex gap-2 pt-2">
-          <Button type="submit" className="flex-1">
-            {editPatient ? 'Сохранить' : 'Добавить'}
+          <Button type="submit" className="flex-1" disabled={submitting}>
+            {submitting ? 'Сохранение…' : (editPatient ? 'Сохранить' : 'Добавить')}
           </Button>
           {editPatient && (
             <Button

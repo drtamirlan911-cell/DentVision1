@@ -141,6 +141,7 @@ export default function Lab() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editOrder, setEditOrder] = useState<LabOrder | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [submitting, setSubmitting] = useState(false)
 
   const byStatus = (statuses: string[]) => labOrders.filter(o => statuses.includes(o.status))
   const active = byStatus(ACTIVE_STATUSES)
@@ -183,10 +184,12 @@ export default function Lab() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (submitting) return
     if ((!form.patientId && !form.patientName) || !form.dueDate) {
       showToast('Укажите пациента и срок готовности', 'warning')
       return
     }
+    setSubmitting(true)
     try {
       const newOrder = { ...form, id: editOrder?.id || gid(), clinicId: clinic?.id, status: form.status as LabOrderStatus }
       await upsertLabOrder(newOrder as LabOrder)
@@ -197,6 +200,8 @@ export default function Lab() {
       setModalOpen(false)
     } catch {
       showToast('Ошибка сохранения', 'error')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -432,7 +437,7 @@ export default function Lab() {
             onChange={e => setForm({ ...form, notes: e.target.value })}
             placeholder="Особые пожелания, уточнения..." />
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button type="submit" className="flex-1 min-h-11">Сохранить</Button>
+            <Button type="submit" className="flex-1 min-h-11" disabled={submitting}>{submitting ? 'Сохранение…' : 'Сохранить'}</Button>
             <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} className="min-h-11">Отмена</Button>
           </div>
         </form>

@@ -133,6 +133,7 @@ export default function Schedule() {
   const [paySaving, setPaySaving] = useState(false)
   const [payDefaultClose, setPayDefaultClose] = useState(false)
   const [waitForm, setWaitForm] = useState(EMPTY_WAIT)
+  const [submitting, setSubmitting] = useState(false)
   const [editWaitId, setEditWaitId] = useState<string | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
   const [newPatient, setNewPatient] = useState(EMPTY_PATIENT)
@@ -332,6 +333,7 @@ export default function Schedule() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
+    if (submitting) return
     let patientId = form.patientId
     if (showNewPatient && !patientId) { const created = await handleCreatePatient(); if (!created) return; patientId = created.id }
     if (!patientId || !form.time) { showToast('Выберите пациента и время', 'warning'); return }
@@ -353,6 +355,7 @@ export default function Schedule() {
       chairName: chair?.name || '',
       paymentStatus: editAppt?.paymentStatus || 'unpaid',
     }
+    setSubmitting(true)
     try {
       await upsertAppointment(payload as any)
       showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
@@ -372,6 +375,8 @@ export default function Schedule() {
         return
       }
       showToast(msg || 'Ошибка сохранения', 'error')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -1339,7 +1344,7 @@ export default function Schedule() {
           )}
 
           <div className="flex gap-2 pt-2 flex-wrap">
-            <Button type="submit" className="flex-1">{editAppt ? 'Сохранить' : 'Сохранить'}</Button>
+            <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? 'Сохранение…' : (editAppt ? 'Сохранить' : 'Создать запись')}</Button>
             {editAppt && !['done', 'completed', 'cancelled'].includes(editAppt.status) && (
               <Button type="button" variant="secondary" icon={<ClipboardCheck size={14} />} onClick={() => openCloseVisit(editAppt)}>
                 Закрыть приём
