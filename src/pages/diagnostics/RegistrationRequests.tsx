@@ -55,7 +55,7 @@ export default function RegistrationRequests() {
         {['', 'PENDING', 'APPROVED', 'REJECTED'].map(s => (
           <button key={s} onClick={() => setStatusFilter(s)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-11 ${
-              statusFilter === s ? 'bg-dv-gold text-black' : 'bg-surface-1 text-txt-muted hover:text-txt-primary'
+              statusFilter === s ? 'bg-dv-gold text-dv-gold-on' : 'bg-surface-1 text-txt-muted hover:text-txt-primary'
             }`}>
             {s ? STATUS_CONFIG[s]?.label : 'Все'}
           </button>

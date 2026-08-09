@@ -214,7 +214,7 @@ export default function SchoolWorkspace() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="h-9 w-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" /></div>;
+    return <div className="flex justify-center py-20"><div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" /></div>;
   }
 
   if (contexts.length === 0) {
@@ -274,7 +274,7 @@ export default function SchoolWorkspace() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 min-h-11 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.id ? 'border-[#C9A96E] text-[#C9A96E]' : 'border-transparent text-[#7A8899] hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-4 py-2.5 min-h-11 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'}`}
           >
             {t.icon}{t.label}
           </button>
@@ -292,8 +292,8 @@ export default function SchoolWorkspace() {
                   onClick={() => setListFilter(f.id as typeof listFilter)}
                   className={`px-2.5 py-1 rounded-md text-xs border transition-colors min-h-11 ${
                     listFilter === f.id
-                      ? 'border-[#C9A96E]/50 bg-[#C9A96E]/10 text-[#C9A96E]'
-                      : 'border-white/10 text-[#7A8899] hover:text-white'
+                      ? 'border-dv-gold/50 bg-dv-gold/10 text-dv-gold'
+                      : 'border-bdr-subtle text-txt-muted hover:text-white'
                   }`}
                 >
                   {f.label}
@@ -304,7 +304,7 @@ export default function SchoolWorkspace() {
               Создать продукт
             </Button>
           </div>
-          <p className="text-sm text-[#7A8899] mb-3">Показано: {filteredProducts.length} из {courses.length}</p>
+          <p className="text-sm text-txt-muted mb-3">Показано: {filteredProducts.length} из {courses.length}</p>
           {filteredProducts.length === 0 ? (
             <EmptyState
               icon={<BookOpen size={32} />}
@@ -322,32 +322,32 @@ export default function SchoolWorkspace() {
                       <CardContent>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex gap-3 min-w-0">
-                            <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+                            <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-surface-1 flex items-center justify-center">
                               {c.imageUrl ? (
                                 <img src={c.imageUrl} alt={c.title} className="h-full w-full object-cover" />
                               ) : fmt === 'webinar' ? (
-                                <Radio size={18} className="text-[#C9A96E]" />
+                                <Radio size={18} className="text-dv-gold" />
                               ) : fmt === 'textbook' ? (
-                                <BookMarked size={18} className="text-[#C9A96E]" />
+                                <BookMarked size={18} className="text-dv-gold" />
                               ) : (
-                                <ImageIcon size={18} className="text-[#7A8899]" />
+                                <ImageIcon size={18} className="text-txt-muted" />
                               )}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <Badge variant="gold" size="xs">{FORMAT_LABEL[fmt] || fmt}</Badge>
-                                {c.category && <span className="text-[10px] text-[#7A8899]">{c.category}</span>}
+                                {c.category && <span className="text-[10px] text-txt-muted">{c.category}</span>}
                               </div>
-                              <p className="text-sm font-bold text-white truncate mt-1">{c.title}</p>
-                              <p className="text-xs text-[#7A8899] mt-0.5">
+                              <p className="text-sm font-bold text-txt-primary truncate mt-1">{c.title}</p>
+                              <p className="text-xs text-txt-muted mt-0.5">
                                 {c._count?.enrollments ?? 0} покупок
                                 {fmt === 'course' ? ` · ${c._count?.lessons ?? 0} уроков` : ''}
                                 {c.startsAt ? ` · ${String(c.startsAt).slice(0, 16).replace('T', ' ')}` : ''}
                               </p>
-                              <p className="text-sm text-[#C9A96E] font-semibold mt-1.5">{c.price ? Number(c.price).toLocaleString('ru-RU') + ' ₸' : 'Бесплатно'}</p>
+                              <p className="text-sm text-dv-gold font-semibold mt-1.5">{c.price ? Number(c.price).toLocaleString('ru-RU') + ' ₸' : 'Бесплатно'}</p>
                             </div>
                           </div>
-                          <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors shrink-0 min-h-11 min-w-11 inline-flex items-center justify-center" aria-label="Удалить">
+                          <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors shrink-0 min-h-11 min-w-11 inline-flex items-center justify-center" aria-label="Удалить">
                             <Trash2 size={15} />
                           </button>
                         </div>
@@ -373,7 +373,7 @@ export default function SchoolWorkspace() {
             <Button variant="outline" className="min-h-11" icon={<Wallet size={15} />} disabled={Number(analytics.balanceMinor) <= 0} onClick={handlePayout}>
               Запросить выплату ({fmtMoney(analytics.balanceMinor)})
             </Button>
-            <p className="text-xs text-[#7A8899] mt-2">Выплаты подтверждаются платформой.</p>
+            <p className="text-xs text-txt-muted mt-2">Выплаты подтверждаются платформой.</p>
           </div>
         </div>
       )}
@@ -381,8 +381,8 @@ export default function SchoolWorkspace() {
       {tab === 'profile' && me && (
         <div className="max-w-full md:max-w-[560px] space-y-3">
           <div>
-            <label className="text-xs text-[#B0BEC5] mb-1.5 block">Уровень (устанавливается платформой)</label>
-            <div className="text-sm text-white">{LEVEL_LABEL[me.level] || me.level}</div>
+            <label className="text-xs text-txt-secondary mb-1.5 block">Уровень (устанавливается платформой)</label>
+            <div className="text-sm text-txt-primary">{LEVEL_LABEL[me.level] || me.level}</div>
           </div>
           <Input label="О себе / биография" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Кратко о вашем опыте" />
           <Button variant="primary" className="min-h-11" onClick={saveBio}>Сохранить профиль</Button>
@@ -452,7 +452,7 @@ export default function SchoolWorkspace() {
           />
           <Input label="Описание" className="min-h-11" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Краткое описание" />
           <div>
-            <p className="text-xs text-[#7A8899] mb-1.5">Обложка</p>
+            <p className="text-xs text-txt-muted mb-1.5">Обложка</p>
             <input
               ref={photoInputRef}
               type="file"
@@ -464,19 +464,19 @@ export default function SchoolWorkspace() {
               }}
             />
             {form.imageUrl ? (
-              <div className="relative h-36 rounded-lg overflow-hidden border border-white/10 mb-2">
+              <div className="relative h-36 rounded-lg overflow-hidden border border-bdr-subtle mb-2">
                 <img src={form.imageUrl} alt="Превью" className="h-full w-full object-cover" />
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, imageUrl: '' }))}
-                  className="absolute top-2 right-2 rounded-md bg-black/50 px-2 py-1 text-[11px] text-white border-none cursor-pointer"
+                  className="absolute top-2 right-2 rounded-md bg-black/50 px-2 py-1 text-[11px] text-txt-primary border-none cursor-pointer"
                 >
                   Убрать
                 </button>
               </div>
             ) : (
-              <div className="h-28 rounded-lg border border-dashed border-white/15 bg-white/[0.03] flex items-center justify-center mb-2">
-                <ImageIcon size={22} className="text-[#7A8899]" />
+              <div className="h-28 rounded-lg border border-dashed border-white/15 bg-surface-1 flex items-center justify-center mb-2">
+                <ImageIcon size={22} className="text-txt-muted" />
               </div>
             )}
             <Button
@@ -504,10 +504,10 @@ export default function SchoolWorkspace() {
 
 function StatCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="p-4 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px]">
-      <div className="flex items-center gap-2 text-[#C9A96E] mb-2">{icon}</div>
-      <p className="text-lg font-bold text-white">{value}</p>
-      <p className="text-xs text-[#7A8899] mt-0.5">{label}</p>
+    <div className="p-4 bg-surface-1 border border-bdr-subtle rounded-[14px]">
+      <div className="flex items-center gap-2 text-dv-gold mb-2">{icon}</div>
+      <p className="text-lg font-bold text-txt-primary">{value}</p>
+      <p className="text-xs text-txt-muted mt-0.5">{label}</p>
     </div>
   );
 }

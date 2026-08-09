@@ -241,7 +241,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                     whileTap={{ scale: 0.98 }}
                     onClick={isRegister ? handleRegister : handleLogin}
                     disabled={loading}
-                    className="w-full min-h-11 py-3 px-4 rounded-xl bg-dv-gold text-surface-0 font-semibold hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full min-h-11 py-3 px-4 rounded-xl bg-dv-gold text-dv-gold-on font-semibold hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {loading ? <Loader2 size={18} className="animate-spin" /> : (isRegister ? <UserPlus size={18} /> : <LogIn size={18} />)}
                     {loading ? t('auth.wait') : (isRegister ? t('auth.register') : t('auth.login'))}

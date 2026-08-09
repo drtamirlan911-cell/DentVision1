@@ -128,14 +128,14 @@ export default function OrganizationsPage() {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-8 text-slate-400">Загрузка...</div>
+            <div className="text-center py-8 text-txt-muted">Загрузка...</div>
           ) : orgs.length === 0 ? (
             <EmptyState icon={<Building2 size={48} />} title="Нет организаций" description="Создайте первую организацию" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/5 text-slate-400">
+                  <tr className="border-b border-white/5 text-txt-muted">
                     <th className="text-left py-3 px-2">Название</th>
                     <th className="text-left py-3 px-2">Тип</th>
                     <th className="text-left py-3 px-2">Телефон</th>
@@ -153,9 +153,9 @@ export default function OrganizationsPage() {
                           {ORG_TYPE_LABEL[org.type] || org.type}
                         </Badge>
                       </td>
-                      <td className="py-3 px-2 text-slate-400">{org.phone || '—'}</td>
-                      <td className="py-3 px-2 text-slate-400">{org.email || '—'}</td>
-                      <td className="py-3 px-2 text-slate-400">{fd(org.createdAt)}</td>
+                      <td className="py-3 px-2 text-txt-muted">{org.phone || '—'}</td>
+                      <td className="py-3 px-2 text-txt-muted">{org.email || '—'}</td>
+                      <td className="py-3 px-2 text-txt-muted">{fd(org.createdAt)}</td>
                       <td className="py-3 px-2 text-right">
                         <div className="flex gap-1 justify-end">
                           <Button size="icon-sm" variant="ghost" onClick={() => openEdit(org)} title="Редактировать" className="min-h-11">
@@ -176,7 +176,7 @@ export default function OrganizationsPage() {
           {pagination.pages > 1 && (
             <div className="flex justify-center gap-2 mt-4">
               <Button variant="ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="min-h-11">Назад</Button>
-              <span className="text-sm text-slate-400 self-center">{pagination.page} / {pagination.pages}</span>
+              <span className="text-sm text-txt-muted self-center">{pagination.page} / {pagination.pages}</span>
               <Button variant="ghost" disabled={page >= pagination.pages} onClick={() => setPage(p => p + 1)} className="min-h-11">Вперёд</Button>
             </div>
           )}

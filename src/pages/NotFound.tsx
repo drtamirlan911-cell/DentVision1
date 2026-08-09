@@ -17,7 +17,7 @@ export default function NotFound() {
       </p>
       <Link
         to="/"
-        className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-dv-gold px-5 py-2.5 text-sm font-medium text-surface-0 hover:bg-dv-gold/90 transition-colors"
+        className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-dv-gold px-5 py-2.5 text-sm font-medium text-dv-gold-on hover:bg-dv-gold/90 transition-colors"
       >
         <Home size={16} />
         На главную

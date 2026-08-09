@@ -122,7 +122,7 @@ export default function ShopOrders() {
 
   if (loading) return (
     <div className="flex justify-center py-16">
-      <div className="h-9 w-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" />
+      <div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
     </div>
   );
 
@@ -148,7 +148,7 @@ export default function ShopOrders() {
           icon={<Package size={36} />}
           title="Заказов пока нет"
           description="Оформите первый заказ в каталоге Магазина"
-          action={<button onClick={() => navigate('/shop')} className="text-[#C9A96E] bg-transparent border-none cursor-pointer font-inherit text-sm">В каталог →</button>}
+          action={<button onClick={() => navigate('/shop')} className="text-dv-gold bg-transparent border-none cursor-pointer font-inherit text-sm">В каталог →</button>}
         />
       ) : (
         <div className="space-y-3 mt-5">
@@ -157,14 +157,14 @@ export default function ShopOrders() {
             const needsPay = o.status === 'awaiting_payment' || (o.status === 'pending' && !!o.meta?.paymentId);
             return (
               <motion.div key={o.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
-                <Card hover={false} className={payingOrderId === o.id ? 'ring-1 ring-[#C9A96E]/40' : undefined}>
+                <Card hover={false} className={payingOrderId === o.id ? 'ring-1 ring-dv-gold/40' : undefined}>
                   <CardContent>
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white">Заказ #{o.id.slice(0, 8)}</span>
+                        <span className="text-sm font-bold text-txt-primary">Заказ #{o.id.slice(0, 8)}</span>
                         <Badge variant={st.variant} size="xs">{st.label}</Badge>
                       </div>
-                      <span className="text-xs text-[var(--slate)]">{new Date(o.createdAt).toLocaleString('ru-RU')}</span>
+                      <span className="text-xs text-txt-muted">{new Date(o.createdAt).toLocaleString('ru-RU')}</span>
                     </div>
                     <div className="space-y-1.5 mb-3">
                       {(o.items || []).map((it: any, idx: number) => {
@@ -173,14 +173,14 @@ export default function ShopOrders() {
                         const price = Number(it.price || 0);
                         return (
                           <div key={it.id || `${o.id}-${idx}`} className="flex justify-between text-xs">
-                            <span className="text-[var(--slate-light)] break-words min-w-0">{name} <span className="text-[var(--slate)]">×{qty}</span></span>
-                            <span className="text-white">{tg(price * qty)}</span>
+                            <span className="text-txt-secondary break-words min-w-0">{name} <span className="text-txt-muted">×{qty}</span></span>
+                            <span className="text-txt-primary">{tg(price * qty)}</span>
                           </div>
                         );
                       })}
                     </div>
-                    <div className="flex items-center justify-between border-t border-[var(--border-subtle)] pt-2.5 gap-3 flex-wrap">
-                      <div className="flex items-center gap-3 text-[11px] text-[var(--slate)]">
+                    <div className="flex items-center justify-between border-t border-bdr-subtle pt-2.5 gap-3 flex-wrap">
+                      <div className="flex items-center gap-3 text-[11px] text-txt-muted">
                         {o.deliveryMethod && <span className="flex items-center gap-1"><Truck size={11} /> {o.deliveryMethod}</span>}
                         {o.paymentMethod && <span className="flex items-center gap-1"><Clock size={11} /> {o.paymentMethod}</span>}
                       </div>
@@ -195,7 +195,7 @@ export default function ShopOrders() {
                             Оплатить по QR
                           </Button>
                         )}
-                        <span className="text-base font-extrabold text-white">{tg(Number(o.total))}</span>
+                        <span className="text-base font-extrabold text-txt-primary">{tg(Number(o.total))}</span>
                       </div>
                     </div>
                   </CardContent>

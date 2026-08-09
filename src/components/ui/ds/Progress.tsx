@@ -45,7 +45,7 @@ export function ProgressBar({
           <span className="text-xs font-medium text-txt-primary">{Math.round(percent)}%</span>
         </div>
       )}
-      <div className={cn('w-full rounded-full bg-white/5 overflow-hidden', SIZE_CLASSES[size])}>
+      <div className={cn('w-full rounded-full bg-surface-1 overflow-hidden', SIZE_CLASSES[size])}>
         <div
           className={cn('h-full rounded-full transition-all duration-500 ease-out', VARIANT_CLASSES[variant])}
           style={{ width: `${percent}%` }}
@@ -95,7 +95,7 @@ export function CircularProgress({
           fill="none"
           stroke="currentColor"
           strokeWidth={strokeWidth}
-          className="text-white/5"
+          className="text-txt-primary/5"
         />
         <circle
           cx={size / 2}

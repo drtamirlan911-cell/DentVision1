@@ -295,7 +295,7 @@ export default function School() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2.5 min-h-11 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
-              tab === t.id ? 'border-[#C9A96E] text-[#C9A96E]' : 'border-transparent text-[#7A8899] hover:text-white'
+              tab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'
             }`}
           >
             {t.icon}{t.label}
@@ -305,20 +305,20 @@ export default function School() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <div className="h-9 w-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" />
+          <div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
         </div>
       ) : (
         <AnimatePresence mode="wait">
           <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
             {tab === 'overview' && (
               <>
-                <Card className="border-[#C9A96E]/20 bg-gradient-to-br from-[#C9A96E]/10 to-transparent">
+                <Card className="border-dv-gold/20 bg-gradient-to-br from-dv-gold/10 to-transparent">
                   <CardContent className="p-5 space-y-3">
                     <div className="flex items-start gap-3">
-                      <Radio className="text-[#C9A96E] shrink-0" size={20} />
+                      <Radio className="text-dv-gold shrink-0" size={20} />
                       <div>
-                        <p className="text-sm font-semibold text-white">Курсы, вебинары и учебники от лекторов</p>
-                        <p className="text-sm text-[#A8B4C0] mt-1">
+                        <p className="text-sm font-semibold text-txt-primary">Курсы, вебинары и учебники от лекторов</p>
+                        <p className="text-sm text-txt-secondary mt-1">
                           В кабинете лектора можно продавать онлайн-треки, live-вебинары, PDF-учебники и офис-курсы.
                         </p>
                       </div>
@@ -334,8 +334,8 @@ export default function School() {
 
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold text-white">Ближайшие вебинары</p>
-                    <button className="text-xs text-[#C9A96E] bg-transparent border-none cursor-pointer min-h-11 inline-flex items-center" onClick={() => setTab('webinars')}>
+                    <p className="text-sm font-semibold text-txt-primary">Ближайшие вебинары</p>
+                    <button className="text-xs text-dv-gold bg-transparent border-none cursor-pointer min-h-11 inline-flex items-center" onClick={() => setTab('webinars')}>
                       Все <ArrowRight size={10} className="inline" />
                     </button>
                   </div>
@@ -349,14 +349,14 @@ export default function School() {
                         onBuy={() => buy(w.id, 'webinar')}
                       />
                     ))}
-                    {webinars.length === 0 && <p className="text-sm text-[#7A8899]">Вебинары появятся здесь</p>}
+                    {webinars.length === 0 && <p className="text-sm text-txt-muted">Вебинары появятся здесь</p>}
                   </div>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold text-white">Офис-курсы (hands-on)</p>
-                    <button className="text-xs text-[#C9A96E] bg-transparent border-none cursor-pointer min-h-11 inline-flex items-center" onClick={() => setTab('office')}>
+                    <p className="text-sm font-semibold text-txt-primary">Офис-курсы (hands-on)</p>
+                    <button className="text-xs text-dv-gold bg-transparent border-none cursor-pointer min-h-11 inline-flex items-center" onClick={() => setTab('office')}>
                       Все <ArrowRight size={10} className="inline" />
                     </button>
                   </div>
@@ -375,8 +375,8 @@ export default function School() {
 
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold text-white">Учебники от лекторов</p>
-                    <button className="text-xs text-[#C9A96E] bg-transparent border-none cursor-pointer min-h-11 inline-flex items-center" onClick={() => setTab('textbooks')}>
+                    <p className="text-sm font-semibold text-txt-primary">Учебники от лекторов</p>
+                    <button className="text-xs text-dv-gold bg-transparent border-none cursor-pointer min-h-11 inline-flex items-center" onClick={() => setTab('textbooks')}>
                       Все <ArrowRight size={10} className="inline" />
                     </button>
                   </div>
@@ -390,7 +390,7 @@ export default function School() {
                         onBuy={() => buy(t.id, 'textbook')}
                       />
                     ))}
-                    {textbooks.length === 0 && <p className="text-sm text-[#7A8899]">Учебники появятся после публикации лекторами</p>}
+                    {textbooks.length === 0 && <p className="text-sm text-txt-muted">Учебники появятся после публикации лекторами</p>}
                   </div>
                 </div>
               </>
@@ -398,7 +398,7 @@ export default function School() {
 
             {tab === 'webinars' && (
               <div className="space-y-3">
-                <p className="text-sm text-[#7A8899]">Платные live-вебинары с записью и материалами. Лекторы публикуют их из кабинета.</p>
+                <p className="text-sm text-txt-muted">Платные live-вебинары с записью и материалами. Лекторы публикуют их из кабинета.</p>
                 {filteredWebinars.map((w: any) => (
                   <CommerceCard key={w.id} item={w} kind="webinar" buying={buyingId === w.id} onBuy={() => buy(w.id, 'webinar')} />
                 ))}
@@ -410,7 +410,7 @@ export default function School() {
 
             {tab === 'office' && (
               <div className="space-y-3">
-                <p className="text-sm text-[#7A8899]">Очные hands-on: место, материалы, сертификат. Основной офлайн-формат продаж.</p>
+                <p className="text-sm text-txt-muted">Очные hands-on: место, материалы, сертификат. Основной офлайн-формат продаж.</p>
                 {filteredOffice.map((o: any) => (
                   <CommerceCard key={o.id} item={o} kind="office" buying={buyingId === o.id} onBuy={() => buy(o.id, 'office')} />
                 ))}
@@ -422,7 +422,7 @@ export default function School() {
 
             {tab === 'textbooks' && (
               <div className="space-y-3">
-                <p className="text-sm text-[#7A8899]">PDF и цифровые учебники от лекторов. Покупка открывает доступ к материалу.</p>
+                <p className="text-sm text-txt-muted">PDF и цифровые учебники от лекторов. Покупка открывает доступ к материалу.</p>
                 {filteredTextbooks.map((t: any) => (
                   <CommerceCard key={t.id} item={t} kind="textbook" buying={buyingId === t.id} onBuy={() => buy(t.id, 'textbook')} />
                 ))}
@@ -434,7 +434,7 @@ export default function School() {
 
             {tab === 'courses' && (
               <div className="space-y-3">
-                <p className="text-sm text-[#7A8899]">Онлайн-треки дополняют вебинары и офис-курсы: модули, экзамен, сертификат.</p>
+                <p className="text-sm text-txt-muted">Онлайн-треки дополняют вебинары и офис-курсы: модули, экзамен, сертификат.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {filteredCourses.map((c: any) => (
                     <CourseCard key={c.id} course={c} onOpen={() => navigate(`/school/${c.id}`)} />
@@ -462,13 +462,13 @@ export default function School() {
                     <CardContent className="p-4 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-white">{l.name}</p>
-                          <p className="text-xs text-[#7A8899]">{l.academyName || 'Независимый лектор'}</p>
+                          <p className="text-sm font-semibold text-txt-primary">{l.name}</p>
+                          <p className="text-xs text-txt-muted">{l.academyName || 'Независимый лектор'}</p>
                         </div>
                         <Badge size="xs" variant="gold">{LEVEL_LABEL[l.level] || l.level}</Badge>
                       </div>
-                      {l.bio && <p className="text-xs text-[#A8B4C0] line-clamp-3">{l.bio}</p>}
-                      <p className="text-xs text-[#7A8899]">{l.courses} программ</p>
+                      {l.bio && <p className="text-xs text-txt-secondary line-clamp-3">{l.bio}</p>}
+                      <p className="text-xs text-txt-muted">{l.courses} программ</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -484,8 +484,8 @@ export default function School() {
                 ) : academies.map((a: any) => (
                   <Card key={a.id}>
                     <CardContent className="p-4">
-                      <p className="text-sm font-semibold text-white">{a.name}</p>
-                      <p className="text-xs text-[#7A8899] mt-1">{a.city || 'Онлайн'} · {a.lecturers} лекторов · {a.courses} программ</p>
+                      <p className="text-sm font-semibold text-txt-primary">{a.name}</p>
+                      <p className="text-xs text-txt-muted mt-1">{a.city || 'Онлайн'} · {a.lecturers} лекторов · {a.courses} программ</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -498,12 +498,12 @@ export default function School() {
                   <Card key={c.id}>
                     <CardContent className="p-4 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-white">{c.title}</p>
+                        <p className="text-sm font-semibold text-txt-primary">{c.title}</p>
                         <Badge size="xs">{c.category}</Badge>
                         {c.difficulty && <Badge size="xs" variant="gold">{c.difficulty}</Badge>}
                       </div>
-                      <p className="text-sm text-[#A8B4C0]">{c.description}</p>
-                      <p className="text-xs text-[#7A8899]">Диагноз: {c.diagnosis} · {c.author}</p>
+                      <p className="text-sm text-txt-secondary">{c.description}</p>
+                      <p className="text-xs text-txt-muted">Диагноз: {c.diagnosis} · {c.author}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -512,7 +512,7 @@ export default function School() {
 
             {tab === 'certs' && (
               <div className="space-y-3">
-                <p className="text-sm text-[#7A8899]">
+                <p className="text-sm text-txt-muted">
                   Сертификат — после офис-курса или экзамена трека. Попадает в портфолио врача.
                 </p>
                 {(certs.length ? certs : hub?.certificates || []).length === 0 ? (
@@ -528,8 +528,8 @@ export default function School() {
                       <div className="flex items-center gap-3">
                         <CheckCircle2 className="text-emerald-400" size={18} />
                         <div>
-                          <p className="text-sm font-semibold text-white">{c.title || c.courseTitle}</p>
-                          <p className="text-xs text-[#7A8899]">
+                          <p className="text-sm font-semibold text-txt-primary">{c.title || c.courseTitle}</p>
+                          <p className="text-xs text-txt-muted">
                             {c.category || 'Курс'} · {c.issuedAt ? new Date(c.issuedAt).toLocaleDateString('ru-RU') : 'выдан'}
                           </p>
                         </div>
@@ -545,8 +545,8 @@ export default function School() {
               <div className="space-y-4">
                 <Card>
                   <CardContent className="p-5 space-y-3">
-                    <p className="text-sm font-semibold text-white">Портфолио врача</p>
-                    <p className="text-sm text-[#A8B4C0]">
+                    <p className="text-sm font-semibold text-txt-primary">Портфолио врача</p>
+                    <p className="text-sm text-txt-secondary">
                       Сертификаты с офис-курсов и экзаменов собираются в профиль — его видят клиники и Вакансии.
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -569,21 +569,21 @@ export default function School() {
                 <Card>
                   <CardContent className="p-5 space-y-3">
                     <div className="flex items-center gap-2">
-                      <Brain className="text-[#C9A96E]" size={18} />
-                      <p className="text-sm font-semibold text-white">AI-проверка домашних работ</p>
+                      <Brain className="text-dv-gold" size={18} />
+                      <p className="text-sm font-semibold text-txt-primary">AI-проверка домашних работ</p>
                     </div>
-                    <p className="text-sm text-[#A8B4C0]">
+                    <p className="text-sm text-txt-secondary">
                       После вебинара или офис-курса опишите кейс — AI оценит протокол и фотопротокол.
                     </p>
                     <Input label="Название работы" value={hwForm.title} onChange={(e) => setHwForm({ ...hwForm, title: e.target.value })} placeholder="Ревизия 16 зуба" />
                     <Input label="Категория" value={hwForm.category} onChange={(e) => setHwForm({ ...hwForm, category: e.target.value })} />
                     <Input label="Число фото" type="number" value={hwForm.imageCount} onChange={(e) => setHwForm({ ...hwForm, imageCount: e.target.value })} />
-                    <label className="text-xs text-[#7A8899] block">Описание кейса</label>
+                    <label className="text-xs text-txt-muted block">Описание кейса</label>
                     <textarea
                       value={hwForm.notes}
                       onChange={(e) => setHwForm({ ...hwForm, notes: e.target.value })}
                       rows={5}
-                      className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                      className="w-full rounded-lg bg-surface-1 border border-bdr-subtle px-3 py-2 text-sm text-white"
                       placeholder="Жалобы, диагноз (МКБ), протокол, материалы…"
                     />
                     <Button loading={hwSaving} onClick={submitHomework} icon={<Sparkles size={14} />}>
@@ -596,7 +596,7 @@ export default function School() {
                   <Card className="border-emerald-500/20">
                     <CardContent className="p-5 space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-white">{hwResult.verdict}</p>
+                        <p className="text-sm font-semibold text-txt-primary">{hwResult.verdict}</p>
                         <Badge variant="gold" size="xs">{hwResult.score}/100</Badge>
                       </div>
                       {(hwResult.feedback || []).map((f: string, i: number) => (
@@ -656,12 +656,12 @@ function CommerceCard({
             {item.certificate && kind !== 'textbook' && <Badge size="xs" variant="success">Сертификат</Badge>}
             {item.source === 'lecturer' && <Badge size="xs">От лектора</Badge>}
           </div>
-          <p className="text-sm font-semibold text-white">{item.title}</p>
-          <p className="text-xs text-[#7A8899]">
+          <p className="text-sm font-semibold text-txt-primary">{item.title}</p>
+          <p className="text-xs text-txt-muted">
             {lecturer}
             {academy ? ` · ${academy}` : ''}
           </p>
-          <div className="flex flex-wrap gap-3 text-[11px] text-[#7A8899]">
+          <div className="flex flex-wrap gap-3 text-[11px] text-txt-muted">
             {kind !== 'textbook' && item.startsAt && (
               <span className="flex items-center gap-1">
                 <Calendar size={11} />
@@ -694,14 +694,14 @@ function CommerceCard({
             )}
           </div>
           {kind === 'office' && item.venue && (
-            <p className="text-[11px] text-[#7A8899] truncate">{item.venue}</p>
+            <p className="text-[11px] text-txt-muted truncate">{item.venue}</p>
           )}
           {Array.isArray(item.includes) && item.includes.length > 0 && (
-            <p className="text-[11px] text-[#A8B4C0]">{item.includes.slice(0, 3).join(' · ')}</p>
+            <p className="text-[11px] text-txt-secondary">{item.includes.slice(0, 3).join(' · ')}</p>
           )}
         </div>
         <div className="shrink-0 text-left sm:text-right space-y-2">
-          <p className="text-lg font-bold text-[#C9A96E]">{fmtPrice(item.price, item.currency)}</p>
+          <p className="text-lg font-bold text-dv-gold">{fmtPrice(item.price, item.currency)}</p>
           <Button size="sm" loading={buying} disabled={soldOut} onClick={onBuy} className="min-h-11">
             {soldOut
               ? 'Нет мест'
@@ -722,24 +722,24 @@ function CourseCard({ course, onOpen }: { course: any; onOpen: () => void }) {
   const price = course.price != null ? Number(course.price) : null
   return (
     <motion.div variants={fadeUp} initial="hidden" animate="show">
-      <Card className="cursor-pointer hover:border-[#C9A96E]/30 transition-colors" onClick={onOpen}>
+      <Card className="cursor-pointer hover:border-dv-gold/30 transition-colors" onClick={onOpen}>
         <CardContent className="p-4 space-y-2">
-          <div className="h-24 rounded-lg bg-gradient-to-br from-[#C9A96E]/20 to-[#1a2a40] flex items-center justify-center overflow-hidden relative">
+          <div className="h-24 rounded-lg bg-gradient-to-br from-dv-gold/20 to-[#1a2a40] flex items-center justify-center overflow-hidden relative">
             {cover ? (
               <img src={cover} alt={course.title} className="absolute inset-0 h-full w-full object-cover" />
             ) : (
-              <Play size={22} className="text-[#C9A96E]/70" />
+              <Play size={22} className="text-dv-gold/70" />
             )}
           </div>
           <Badge size="xs">{course.category || 'Трек'}</Badge>
-          <p className="text-sm font-semibold text-white line-clamp-2">{course.title}</p>
-          <p className="text-xs text-[#7A8899] truncate">{course.instructor || course.academyName || 'Academy OS'}</p>
+          <p className="text-sm font-semibold text-txt-primary line-clamp-2">{course.title}</p>
+          <p className="text-xs text-txt-muted truncate">{course.instructor || course.academyName || 'Academy OS'}</p>
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 text-[11px] text-[#7A8899]">
-              <span className="flex items-center gap-1"><Star size={11} className="text-[#C9A96E]" /> {course.rating || 4.8}</span>
+            <div className="flex items-center gap-3 text-[11px] text-txt-muted">
+              <span className="flex items-center gap-1"><Star size={11} className="text-dv-gold" /> {course.rating || 4.8}</span>
               <span className="flex items-center gap-1"><Clock size={11} /> {course.duration_hours || course.lesson_count || 0} ч</span>
             </div>
-            <span className="text-xs font-semibold text-[#C9A96E]">
+            <span className="text-xs font-semibold text-dv-gold">
               {price && price > 0 ? fmtPrice(price) : 'Бесплатно'}
             </span>
           </div>
@@ -751,10 +751,10 @@ function CourseCard({ course, onOpen }: { course: any; onOpen: () => void }) {
 
 function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="text-[#C9A96E] mb-1">{icon}</div>
-      <p className="text-lg font-bold text-white">{value}</p>
-      <p className="text-[11px] text-[#7A8899]">{label}</p>
+    <div className="rounded-xl border border-bdr-subtle bg-surface-1 p-3">
+      <div className="text-dv-gold mb-1">{icon}</div>
+      <p className="text-lg font-bold text-txt-primary">{value}</p>
+      <p className="text-[11px] text-txt-muted">{label}</p>
     </div>
   )
 }

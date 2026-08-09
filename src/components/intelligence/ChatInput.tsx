@@ -81,7 +81,7 @@ export function ChatInput({ value, onChange, onSend, disabled, onAttach, onVoice
           className={cn(
             'flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-150',
             value.trim() && !disabled
-              ? 'bg-dv-gold text-white hover:bg-dv-gold/90 shadow-lg shadow-dv-gold/30'
+              ? 'bg-dv-gold text-dv-gold-on hover:bg-dv-gold/90 shadow-lg shadow-dv-gold/30'
               : 'bg-surface-3 text-txt-muted cursor-not-allowed'
           )}
         >

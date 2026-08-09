@@ -260,7 +260,7 @@ export default function DiagnosticsTab() {
             </GlassCard>
             <GlassCard padding="md">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[#22C55E]/10 text-[#22C55E]"><Users size={18} /></div>
+                <div className="p-2 rounded-lg bg-[#22C55E]/10 text-success"><Users size={18} /></div>
                 <div>
                   <p className="text-lg font-bold text-txt-primary">{regList.length}</p>
                   <p className="text-xs text-txt-muted">Заявок на регистрацию</p>

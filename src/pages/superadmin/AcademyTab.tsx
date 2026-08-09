@@ -641,7 +641,7 @@ export default function AcademyTab() {
                 </GlassCard>
                 <GlassCard padding="md">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-[#22C55E]/10 text-[#22C55E]"><CheckCircle size={18} /></div>
+                    <div className="p-2 rounded-lg bg-[#22C55E]/10 text-success"><CheckCircle size={18} /></div>
                     <div>
                       <p className="text-lg font-bold text-txt-primary">{lecturerList.filter((l: any) => l.verificationStatus === 'approved' || l.verified).length}</p>
                       <p className="text-xs text-txt-muted">Верифицированы</p>
@@ -662,7 +662,7 @@ export default function AcademyTab() {
               {pendingVerifications.length === 0 ? (
                 <Card padding="md">
                   <div className="flex items-center justify-center gap-2 py-8">
-                    <CheckCircle size={20} className="text-[#22C55E]" />
+                    <CheckCircle size={20} className="text-success" />
                     <p className="text-sm text-txt-muted">Все лекторы проверены</p>
                   </div>
                 </Card>

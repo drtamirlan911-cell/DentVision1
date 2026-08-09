@@ -43,7 +43,7 @@ export default function LegalAITab() {
           { key: 'check', label: 'Проверить ошибки', icon: <AlertTriangle size={14} /> },
         ].map(m => (
           <button key={m.key} onClick={() => { setMode(m.key as any); setResult(null); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all min-h-11 ${mode === m.key ? 'bg-dv-gold text-dv-black font-semibold' : 'text-txt-secondary hover:text-txt-primary bg-surface-2'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all min-h-11 ${mode === m.key ? 'bg-dv-gold text-dv-gold-on font-semibold' : 'text-txt-secondary hover:text-txt-primary bg-surface-2'}`}>
             {m.icon} {m.label}
           </button>
         ))}

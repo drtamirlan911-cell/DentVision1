@@ -30,11 +30,25 @@ export default {
   theme: {
     extend: {
       colors: {
-        // DentVision Brand
+        // DentVision Brand.
+        //
+        // These were literals, so `html.light { --dv-gold: … }` in global.css
+        // was dead for every one of the ~1000 `*-dv-gold` utilities and the
+        // accent never inverted with the theme. Measured on the light surface,
+        // gold text sat at 2.03:1 against a 4.5:1 AA floor, and the primary
+        // button was ivory-on-gold at the same 2.03:1.
+        //
+        // `gold-on` is a separate role, not a shade: the foreground that sits
+        // on a solid gold fill. One token cannot be both an accessible
+        // foreground and a saturated fill, because the accent has to invert
+        // between themes while the text on it has to invert the other way.
         dv: {
-          gold: '#C9A96E',
-          'gold-light': '#E2C898',
-          'gold-dim': '#8B6F3E',
+          gold: themed('--dv-gold'),
+          'gold-light': themed('--dv-gold-light'),
+          'gold-dim': themed('--dv-gold-dim'),
+          'gold-on': themed('--dv-gold-on'),
+          'gold-from': themed('--dv-gold-from'),
+          'gold-to': themed('--dv-gold-to'),
           'gold-muted': 'rgba(201, 169, 110, 0.15)',
         },
         // Brand palette sampled from the DentVision logo

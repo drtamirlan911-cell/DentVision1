@@ -223,7 +223,7 @@ export default function Profile() {
                     openEdit()
                     setTimeout(() => photoInputRef.current?.click(), 80)
                   }}
-                  className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-dv-gold text-surface-0 shadow-lg hover:bg-dv-gold-light transition-colors"
+                  className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-dv-gold text-dv-gold-on shadow-lg hover:bg-dv-gold-light transition-colors"
                   title="Загрузить фото"
                 >
                   <Camera size={14} />

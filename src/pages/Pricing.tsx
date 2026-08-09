@@ -99,7 +99,7 @@ export default function Pricing() {
                 }`}
               >
                 {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-dv-gold text-surface-0 text-[10px] font-bold uppercase tracking-wider">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-dv-gold text-dv-gold-on text-[10px] font-bold uppercase tracking-wider">
                     Популярный
                   </div>
                 )}
@@ -137,7 +137,7 @@ export default function Pricing() {
                   onClick={() => setRegistrationModal(true)}
                   className={`w-full min-h-11 py-2.5 rounded-lg font-semibold text-sm transition-colors ${
                     plan.popular
-                      ? 'bg-dv-gold text-surface-0 hover:bg-dv-gold/90'
+                      ? 'bg-dv-gold text-dv-gold-on hover:bg-dv-gold/90'
                       : 'bg-surface-2 text-txt-primary border border-bdr-subtle hover:bg-surface-3'
                   }`}
                 >

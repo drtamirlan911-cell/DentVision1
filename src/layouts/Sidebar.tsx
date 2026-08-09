@@ -558,7 +558,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               type="button"
               onClick={() => handleNavClick('/crm/schedule?demo=1')}
-              className="w-full rounded-lg bg-dv-gold px-3 py-1.5 text-xs font-semibold text-surface-0 hover:bg-dv-gold/90 transition-colors"
+              className="w-full rounded-lg bg-dv-gold px-3 py-1.5 text-xs font-semibold text-dv-gold-on hover:bg-dv-gold/90 transition-colors"
             >
               {t('platform.guest_onboarding_btn')}
             </button>

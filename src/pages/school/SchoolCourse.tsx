@@ -247,26 +247,26 @@ export default function SchoolCourse() {
 
   if (loading) return (
     <div className="flex justify-center py-20">
-      <div className="w-9 h-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" />
+      <div className="w-9 h-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
     </div>
   );
 
-  if (!course) return <div className="py-10 text-center text-[var(--slate)]">Курс не найден</div>;
+  if (!course) return <div className="py-10 text-center text-txt-muted">Курс не найден</div>;
 
   return (
     <div className="min-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px))] max-w-full overflow-x-hidden">
-        <div className="px-3 sm:px-6 py-3 border-b border-[var(--border-subtle)]">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--slate)] min-w-0 overflow-hidden">
+        <div className="px-3 sm:px-6 py-3 border-b border-bdr-subtle">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-txt-muted min-w-0 overflow-hidden">
           <button
             onClick={() => navigate('/school')}
-            className="flex items-center gap-1 bg-transparent border-none text-[#C9A96E] cursor-pointer font-inherit text-xs shrink-0"
+            className="flex items-center gap-1 bg-transparent border-none text-dv-gold cursor-pointer font-inherit text-xs shrink-0"
           >
             <ArrowLeft size={14} /> Academy OS
           </button>
           <ChevronRight size={12} className="shrink-0" />
           <span className="truncate">{course.category}</span>
           <ChevronRight size={12} className="shrink-0 hidden sm:block" />
-          <span className="text-white truncate hidden sm:inline">{course.title}</span>
+          <span className="text-txt-primary truncate hidden sm:inline">{course.title}</span>
         </div>
       </div>
 
@@ -277,8 +277,8 @@ export default function SchoolCourse() {
             : 'grid gap-0 min-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px)-3rem)]'
         }
       >
-        <div className="border-b lg:border-b-0 lg:border-r border-[var(--border-subtle)] overflow-y-auto max-h-[min(50dvh,420px)] lg:max-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px)-3rem)]">
-          <div className="p-5 border-b border-[var(--border-subtle)]">
+        <div className="border-b lg:border-b-0 lg:border-r border-bdr-subtle overflow-y-auto max-h-[min(50dvh,420px)] lg:max-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px)-3rem)]">
+          <div className="p-5 border-b border-bdr-subtle">
             <div className="flex gap-1.5 mb-2">
               <span
                 className="text-[10px] font-bold px-2 py-0.5 rounded-md"
@@ -289,19 +289,19 @@ export default function SchoolCourse() {
               <Badge variant="gold" size="xs">{course.category}</Badge>
             </div>
             <h2 className="text-base font-bold text-txt-primary m-0 mb-1.5">{course.title}</h2>
-            <p className="text-xs text-[var(--slate)] m-0 mb-2.5">{course.subtitle}</p>
-            <div className="flex gap-3 text-[11px] text-[var(--slate)] mb-3 flex-wrap">
+            <p className="text-xs text-txt-muted m-0 mb-2.5">{course.subtitle}</p>
+            <div className="flex gap-3 text-[11px] text-txt-muted mb-3 flex-wrap">
               <span className="flex items-center gap-1"><Clock size={12} /> {course.duration_hours}ч</span>
               <span className="flex items-center gap-1"><BookOpen size={12} /> {course.lesson_count} уроков</span>
               <span className="flex items-center gap-1"><Users size={12} /> {course.enrolled_count}</span>
-              <span className="flex items-center gap-1"><Star size={12} className="text-[#C9A96E] fill-[#C9A96E]" /> {course.rating}</span>
+              <span className="flex items-center gap-1"><Star size={12} className="text-dv-gold fill-dv-gold" /> {course.rating}</span>
             </div>
 
             {enrolled && totalLessons > 0 && (
               <div className="mb-3">
-                <div className="flex justify-between text-[11px] text-[var(--slate)] mb-1">
+                <div className="flex justify-between text-[11px] text-txt-muted mb-1">
                   <span>Прогресс</span>
-                  <span className="text-[#C9A96E] font-semibold">{progress}%</span>
+                  <span className="text-dv-gold font-semibold">{progress}%</span>
                 </div>
                 <ProgressBar value={progress} />
               </div>
@@ -310,7 +310,7 @@ export default function SchoolCourse() {
             {!enrolled ? (
               <>
                 {course.price != null && Number(course.price) > 0 && (
-                  <p className="text-lg font-extrabold text-[#C9A96E] m-0 mb-2">
+                  <p className="text-lg font-extrabold text-dv-gold m-0 mb-2">
                     {Number(course.price).toLocaleString('ru-RU')} ₸
                   </p>
                 )}
@@ -318,13 +318,13 @@ export default function SchoolCourse() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleEnroll}
-                  className="w-full py-2.5 px-4 rounded-[10px] border-none bg-gradient-to-r from-[#C9A96E] to-[#C9A96E]/dd text-[#0D1B2E] text-[13px] font-bold cursor-pointer font-inherit min-h-11"
+                  className="w-full py-2.5 px-4 rounded-[10px] border-none bg-gradient-to-r from-dv-gold to-dv-gold text-dv-gold-on text-[13px] font-bold cursor-pointer font-inherit min-h-11"
                 >
                   {course.price != null && Number(course.price) > 0
                     ? `Купить · ${Number(course.price).toLocaleString('ru-RU')} ₸`
                     : 'Записаться бесплатно'}
                 </motion.button>
-                <p className="text-[11px] text-[var(--slate)] mt-1.5 text-center">
+                <p className="text-[11px] text-txt-muted mt-1.5 text-center">
                   {activeClinic ? `Запись для «${activeClinic.name}»` : 'Запись для личного обучения'}
                 </p>
                 {pendingPay && (
@@ -341,17 +341,17 @@ export default function SchoolCourse() {
                 )}
               </>
             ) : (
-              <div className="flex items-center gap-1.5 text-[#27AE60] text-[13px] font-semibold">
+              <div className="flex items-center gap-1.5 text-success text-[13px] font-semibold">
                 <Check size={16} /> Вы записаны
               </div>
             )}
 
             {certificate && (
-              <div className="mt-3 flex items-center gap-2 bg-[#C9A96E]/10 border border-[#C9A96E]/30 rounded-lg px-3 py-2">
-                <Award size={18} className="text-[#C9A96E]" />
+              <div className="mt-3 flex items-center gap-2 bg-dv-gold/10 border border-dv-gold/30 rounded-lg px-3 py-2">
+                <Award size={18} className="text-dv-gold" />
                 <div className="min-w-0">
-                  <p className="text-[11px] text-[#C9A96E] font-bold m-0">Сертификат получен</p>
-                  <p className="text-[10px] text-[var(--slate)] m-0 truncate">№ {certificate.certificateNumber}</p>
+                  <p className="text-[11px] text-dv-gold font-bold m-0">Сертификат получен</p>
+                  <p className="text-[10px] text-txt-muted m-0 truncate">№ {certificate.certificateNumber}</p>
                 </div>
               </div>
             )}
@@ -364,14 +364,14 @@ export default function SchoolCourse() {
                 <div key={mod.id} className="mb-1">
                   <button
                     onClick={() => toggleModule(mod.id)}
-                    className="w-full flex items-center gap-2 py-2.5 px-3 min-h-11 bg-white/[0.02] border-none rounded-lg text-white text-xs font-semibold cursor-pointer font-inherit text-left"
+                    className="w-full flex items-center gap-2 py-2.5 px-3 min-h-11 bg-surface-1 border-none rounded-lg text-white text-xs font-semibold cursor-pointer font-inherit text-left"
                   >
-                    <span className="w-[22px] h-[22px] rounded-md bg-[#C9A96E]/15 flex items-center justify-center text-[10px] font-bold text-[#C9A96E] shrink-0">
+                    <span className="w-[22px] h-[22px] rounded-md bg-dv-gold/15 flex items-center justify-center text-[10px] font-bold text-dv-gold shrink-0">
                       {mi + 1}
                     </span>
                     <span className="flex-1">{mod.title}</span>
                     <motion.span animate={{ rotate: isExpanded ? 90 : 0 }}>
-                      <ChevronRight size={14} className="text-[var(--slate)]" />
+                      <ChevronRight size={14} className="text-txt-muted" />
                     </motion.span>
                   </button>
                   <AnimatePresence>
@@ -392,16 +392,16 @@ export default function SchoolCourse() {
                               onClick={() => setActiveLesson(lesson)}
                               className={`w-full flex items-center gap-2.5 py-2 px-3 pl-[42px] min-h-11 bg-transparent border-none rounded text-xs cursor-pointer font-inherit text-left transition-all duration-150 ${
                                 isActive
-                                  ? 'border-l-[3px] border-l-[#C9A96E] text-[#C9A96E] bg-[#C9A96E]/[0.12]'
-                                  : 'border-l-[3px] border-l-transparent text-[var(--slate-light)]'
+                                  ? 'border-l-[3px] border-l-dv-gold text-dv-gold bg-dv-gold/[0.12]'
+                                  : 'border-l-[3px] border-l-transparent text-txt-secondary'
                               }`}
                             >
-                              {isDone ? <CheckCircle2 size={13} className="text-[#27AE60]" /> : <LIcon size={13} />}
+                              {isDone ? <CheckCircle2 size={13} className="text-success" /> : <LIcon size={13} />}
                               <span className="flex-1">{lesson.title}</span>
-                              <span className="text-[10px] text-[var(--slate)] flex items-center gap-0.5">
+                              <span className="text-[10px] text-txt-muted flex items-center gap-0.5">
                                 <Clock size={10} /> {lesson.duration_minutes}м
                               </span>
-                              {lesson.is_free && <span className="text-[9px] text-[#27AE60] font-bold">FREE</span>}
+                              {lesson.is_free && <span className="text-[9px] text-success font-bold">FREE</span>}
                             </button>
                           );
                         })}
@@ -422,7 +422,7 @@ export default function SchoolCourse() {
             transition={{ duration: 0.3 }}
             className="p-4 sm:p-6 lg:p-8 overflow-y-auto max-h-[calc(100dvh-var(--dv-topbar-height,3.5rem)-var(--dv-chrome-bottom,0px)-3rem)]"
           >
-            <div className="bg-gradient-to-br from-[#2980B9]/20 to-[#C9A96E]/10 rounded-2xl h-[min(400px,50dvh)] min-h-[200px] flex items-center justify-center mb-6 border border-[var(--border-subtle)] relative overflow-hidden">
+            <div className="bg-gradient-to-br from-[#2980B9]/20 to-dv-gold/10 rounded-2xl h-[min(400px,50dvh)] min-h-[200px] flex items-center justify-center mb-6 border border-bdr-subtle relative overflow-hidden">
               {activeLesson.type === 'video' && (activeLesson.videoUrl || activeLesson.video_url) ? (
                 <video
                   controls
@@ -435,11 +435,11 @@ export default function SchoolCourse() {
                 <div className="text-center">
                   <motion.div
                     whileHover={{ scale: 1.1 }}
-                    className="w-[72px] h-[72px] rounded-full bg-gradient-to-br from-[#C9A96E] to-[#C9A96E]/cc flex items-center justify-center cursor-pointer shadow-[0_0_30px_rgba(201,169,110,0.3)]"
+                    className="w-[72px] h-[72px] rounded-full bg-gradient-to-br from-dv-gold to-dv-gold flex items-center justify-center cursor-pointer shadow-[0_0_30px_rgba(201,169,110,0.3)]"
                   >
-                    <Play size={30} className="text-[#0D1B2E] fill-[#0D1B2E] ml-1" />
+                    <Play size={30} className="text-dv-gold-on fill-dv-gold-on ml-1" />
                   </motion.div>
-                  <p className="text-xs text-[var(--slate)] mt-3">
+                  <p className="text-xs text-txt-muted mt-3">
                     {(activeLesson.durationMinutes || activeLesson.duration_minutes || '—')} мин · видео скоро
                   </p>
                 </div>
@@ -449,7 +449,7 @@ export default function SchoolCourse() {
                     <div className="flex justify-center py-16 text-txt-muted">Загрузка экзамена…</div>
                   ) : !enrolled ? (
                     <div className="text-center py-10">
-                      <HelpCircle size={48} className="text-[#C9A96E]/60 mx-auto" />
+                      <HelpCircle size={48} className="text-dv-gold/60 mx-auto" />
                       <p className="text-sm mt-3">Запишитесь на курс, чтобы пройти тест</p>
                       <Button variant="primary" size="sm" className="mt-3" onClick={handleEnroll}>Записаться</Button>
                     </div>
@@ -485,18 +485,18 @@ export default function SchoolCourse() {
                         </p>
                       </div>
                       {(exam.questions || []).map((q: any, qi: number) => (
-                        <div key={q.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                        <div key={q.id} className="rounded-xl border border-bdr-subtle bg-surface-1 p-3 space-y-2">
                           <p className="text-sm text-txt-primary font-medium">{qi + 1}. {q.text}</p>
                           <div className="space-y-1.5">
                             {(q.options || []).map((opt: string, oi: number) => (
                               <label key={oi} className={`flex items-center gap-2 text-sm px-2.5 py-2 rounded-lg cursor-pointer border min-h-11 ${
                                 examAnswers[q.id] === oi
                                   ? 'border-dv-gold/40 bg-dv-gold/10 text-dv-gold'
-                                  : 'border-transparent hover:bg-white/5 text-txt-secondary'
+                                  : 'border-transparent hover:bg-surface-1 text-txt-secondary'
                               }`}>
                                 <input
                                   type="radio"
-                                  className="accent-[#C9A96E]"
+                                  className="accent-dv-gold"
                                   name={q.id}
                                   checked={examAnswers[q.id] === oi}
                                   onChange={() => setExamAnswers((prev) => ({ ...prev, [q.id]: oi }))}
@@ -518,7 +518,7 @@ export default function SchoolCourse() {
                     </div>
                   ) : (
                     <div className="text-center py-10">
-                      <HelpCircle size={48} className="text-[#C9A96E]/60 mx-auto" />
+                      <HelpCircle size={48} className="text-dv-gold/60 mx-auto" />
                       <p className="text-sm mt-3">Тест временно недоступен</p>
                     </div>
                   )}
@@ -537,12 +537,12 @@ export default function SchoolCourse() {
                 </div>
               ) : (
                 <div className="text-center">
-                  <FileText size={48} className="text-[#C9A96E]/60" />
-                  <p className="text-sm text-[var(--slate-light)] mt-2">Статья: {activeLesson.title}</p>
+                  <FileText size={48} className="text-dv-gold/60" />
+                  <p className="text-sm text-txt-secondary mt-2">Статья: {activeLesson.title}</p>
                 </div>
               )}
               {completedLessons.includes(activeLesson.id) && (
-                <div className="absolute top-3 right-3 flex items-center gap-1 bg-[#27AE60]/20 border border-[#27AE60]/40 text-[#27AE60] text-[10px] font-bold px-2 py-0.5 rounded-md">
+                <div className="absolute top-3 right-3 flex items-center gap-1 bg-success/20 border border-[#27AE60]/40 text-success text-[10px] font-bold px-2 py-0.5 rounded-md">
                   <Check size={11} /> Пройдено
                 </div>
               )}
@@ -550,9 +550,9 @@ export default function SchoolCourse() {
 
             <div className="mb-5">
               <h2 className="text-xl font-bold text-txt-primary m-0 mb-1.5">{activeLesson.title}</h2>
-              <div className="flex gap-3 text-xs text-[var(--slate)] flex-wrap">
+              <div className="flex gap-3 text-xs text-txt-muted flex-wrap">
                 <span className="flex items-center gap-1">
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#2980B9]/15 text-[#2980B9]">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-info/15 text-info">
                     {TYPE_LABELS[activeLesson.type] || activeLesson.type}
                   </span>
                 </span>
@@ -560,13 +560,13 @@ export default function SchoolCourse() {
               </div>
             </div>
 
-            <div className="bg-white/[0.02] border border-[var(--border-subtle)] rounded-xl p-6 min-h-[200px]">
+            <div className="bg-surface-1 border border-bdr-subtle rounded-xl p-6 min-h-[200px]">
               {['test', 'exam', 'quiz'].includes(String(activeLesson.type || '').toLowerCase()) ? (
-                <p className="text-sm text-[var(--slate-light)] leading-relaxed">
+                <p className="text-sm text-txt-secondary leading-relaxed">
                   Пройдите вопросы выше. После успешной сдачи урок и сертификат обновятся автоматически.
                 </p>
               ) : (
-                <p className="text-sm text-[var(--slate-light)] leading-relaxed">
+                <p className="text-sm text-txt-secondary leading-relaxed">
                   {activeLesson.content || `Содержание урока «${activeLesson.title}» будет доступно после начала курса. Видеоматериалы, иллюстрации и интерактивные элементы помогут вам освоить материал.`}
                 </p>
               )}
@@ -578,7 +578,7 @@ export default function SchoolCourse() {
                   const idx = allLessons.findIndex(l => l.id === activeLesson.id);
                   if (idx > 0) setActiveLesson(allLessons[idx - 1]);
                 }}
-                className="py-2 px-4 rounded-lg border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] text-xs font-semibold cursor-pointer font-inherit min-h-11"
+                className="py-2 px-4 rounded-lg border border-bdr-subtle bg-surface-2 text-txt-secondary text-xs font-semibold cursor-pointer font-inherit min-h-11"
               >
                 ← Предыдущий
               </button>
@@ -609,39 +609,39 @@ export default function SchoolCourse() {
             </div>
 
             {/* AI Tutor */}
-            <div className="mt-8 rounded-2xl border border-[#C9A96E]/25 bg-gradient-to-br from-[#C9A96E]/10 to-transparent p-4">
+            <div className="mt-8 rounded-2xl border border-dv-gold/25 bg-gradient-to-br from-dv-gold/10 to-transparent p-4">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-[#C9A96E]" />
+                  <Sparkles size={16} className="text-dv-gold" />
                   <h3 className="text-sm font-bold text-txt-primary m-0">AI Tutor</h3>
                 </div>
                 <Button size="sm" variant="secondary" onClick={() => setTutorOpen((v) => !v)}>
                   {tutorOpen ? 'Свернуть' : 'Открыть'}
                 </Button>
               </div>
-              <p className="text-xs text-[var(--slate)] m-0 mb-3">
+              <p className="text-xs text-txt-muted m-0 mb-3">
                 Персональный наставник по уроку и курсу. Объяснит материал и свяжет с клиникой без PHI.
               </p>
               {tutorOpen && (
                 <div className="space-y-3">
                   <div className="max-h-56 overflow-y-auto space-y-2 rounded-xl bg-black/20 p-3">
                     {tutorMessages.length === 0 ? (
-                      <p className="text-xs text-[var(--slate)] m-0">Спросите, например: «Объясни ключевую идею урока».</p>
+                      <p className="text-xs text-txt-muted m-0">Спросите, например: «Объясни ключевую идею урока».</p>
                     ) : (
                       tutorMessages.map((m, i) => (
                         <div
                           key={i}
                           className={`text-xs leading-relaxed rounded-lg px-3 py-2 ${
                             m.role === 'user'
-                              ? 'bg-[#C9A96E]/15 text-[#C9A96E] ml-6'
-                              : 'bg-white/[0.04] text-[var(--slate-light)] mr-6'
+                              ? 'bg-dv-gold/15 text-dv-gold ml-6'
+                              : 'bg-surface-2 text-txt-secondary mr-6'
                           }`}
                         >
                           {m.content}
                         </div>
                       ))
                     )}
-                    {tutorBusy && <p className="text-[11px] text-[#C9A96E] m-0">Tutor думает…</p>}
+                    {tutorBusy && <p className="text-[11px] text-dv-gold m-0">Tutor думает…</p>}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {tutorSuggestions.map((s) => (
@@ -649,7 +649,7 @@ export default function SchoolCourse() {
                         key={s}
                         type="button"
                         onClick={() => askTutor(s)}
-                        className="text-[10px] px-2.5 py-1 rounded-md border border-[var(--border-subtle)] bg-white/[0.04] text-[var(--slate-light)] cursor-pointer font-inherit min-h-11"
+                        className="text-[10px] px-2.5 py-1 rounded-md border border-bdr-subtle bg-surface-2 text-txt-secondary cursor-pointer font-inherit min-h-11"
                       >
                         {s}
                       </button>
@@ -661,7 +661,7 @@ export default function SchoolCourse() {
                       onChange={(e) => setTutorInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') askTutor(); }}
                       placeholder="Вопрос AI Tutor…"
-                      className="flex-1 rounded-lg bg-white/[0.04] border border-[var(--border-subtle)] px-3 py-2 text-xs text-white font-inherit outline-none"
+                      className="flex-1 rounded-lg bg-surface-2 border border-bdr-subtle px-3 py-2 text-xs text-white font-inherit outline-none"
                     />
                     <Button size="sm" className="min-h-11" onClick={() => askTutor()} disabled={tutorBusy || !tutorInput.trim()}>
                       <Send size={14} />
@@ -672,9 +672,9 @@ export default function SchoolCourse() {
             </div>
           </motion.div>
         ) : (
-          <div className="flex items-center justify-center text-[var(--slate)]">
+          <div className="flex items-center justify-center text-txt-muted">
             <EmptyState
-              icon={<Play size={48} className="text-[var(--slate)]/40" />}
+              icon={<Play size={48} className="text-txt-muted/40" />}
               title="Выберите урок для начала обучения"
             />
           </div>

@@ -179,7 +179,7 @@ export function MessagesPanel({ initialPeerId, onConsumedPeer }: MessagesPanelPr
                   className={cn(
                     'max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-snug',
                     mine
-                      ? 'bg-dv-gold text-surface-0 rounded-br-md'
+                      ? 'bg-dv-gold text-dv-gold-on rounded-br-md'
                       : 'bg-white/[0.06] text-txt-primary rounded-bl-md border border-bdr-subtle',
                   )}
                 >

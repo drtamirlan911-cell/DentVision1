@@ -127,14 +127,14 @@ export default function PersonsPage() {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-8 text-slate-400">Загрузка...</div>
+            <div className="text-center py-8 text-txt-muted">Загрузка...</div>
           ) : persons.length === 0 ? (
             <EmptyState icon={<Users size={48} />} title="Нет персон" description="Создайте первую запись" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/5 text-slate-400">
+                  <tr className="border-b border-white/5 text-txt-muted">
                     <th className="text-left py-3 px-2">Имя</th>
                     <th className="text-left py-3 px-2">Тип</th>
                     <th className="text-left py-3 px-2">Организация</th>
@@ -150,9 +150,9 @@ export default function PersonsPage() {
                       <td className="py-3 px-2">
                         <Badge variant="info">{PERSON_TYPE_LABEL[p.personType] || p.personType}</Badge>
                       </td>
-                      <td className="py-3 px-2 text-slate-400">{p.organization?.name || '—'}</td>
-                      <td className="py-3 px-2 text-slate-400">{p.specialization || '—'}</td>
-                      <td className="py-3 px-2 text-slate-400">{p.phone || '—'}</td>
+                      <td className="py-3 px-2 text-txt-muted">{p.organization?.name || '—'}</td>
+                      <td className="py-3 px-2 text-txt-muted">{p.specialization || '—'}</td>
+                      <td className="py-3 px-2 text-txt-muted">{p.phone || '—'}</td>
                       <td className="py-3 px-2 text-right">
                         <div className="flex gap-1 justify-end">
                           <Button size="icon-sm" variant="ghost" onClick={() => openEdit(p)} title="Редактировать" className="min-h-11">
@@ -173,7 +173,7 @@ export default function PersonsPage() {
           {pagination.pages > 1 && (
             <div className="flex justify-center gap-2 mt-4">
               <Button variant="ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="min-h-11">Назад</Button>
-              <span className="text-sm text-slate-400 self-center">{pagination.page} / {pagination.pages}</span>
+              <span className="text-sm text-txt-muted self-center">{pagination.page} / {pagination.pages}</span>
               <Button variant="ghost" disabled={page >= pagination.pages} onClick={() => setPage(p => p + 1)} className="min-h-11">Вперёд</Button>
             </div>
           )}
