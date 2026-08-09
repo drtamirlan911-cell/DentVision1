@@ -106,18 +106,18 @@ export default function ReferralForm() {
   }, [files]);
 
   const { data: centersData } = useQuery({
-    queryKey: queryKeys.diagnostics.centers(clinicCity),
-    queryFn: () => api.getDiagnosticCenters(undefined, clinicCity || undefined),
+    queryKey: queryKeys.diagnostics.centers(),
+    queryFn: () => api.getDiagnosticCenters(),
     staleTime: 60_000,
   });
-  const centers = useMemo(() => (centersData?.data || []).map((c: any) => ({ value: c.id, label: c.name })), [centersData]);
+  const centers = useMemo(() => (centersData?.data || []).map((c: any) => ({ value: c.id, label: c.city ? `${c.name} (${c.city})` : c.name })), [centersData]);
 
   const { data: labsData } = useQuery({
     queryKey: queryKeys.diagnostics.labs(),
     queryFn: () => api.getDiagnosticLaboratories(),
     staleTime: 60_000,
   });
-  const labs = useMemo(() => (labsData?.data || []).map((l: any) => ({ value: l.id, label: l.name })), [labsData]);
+  const labs = useMemo(() => (labsData?.data || []).map((l: any) => ({ value: l.id, label: l.city ? `${l.name} (${l.city})` : l.name })), [labsData]);
 
   const { data: centerStudiesData } = useQuery({
     queryKey: queryKeys.diagnostics.centerPricing(form.centerId),
