@@ -1249,6 +1249,19 @@ model Notification {
   @@map("notifications")
 }
 
+model NotificationPreference {
+  id        String  @id @default(uuid())
+  userId    String
+  type      String
+  enabled   Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId])
+  @@map("notification_preferences")
+}
+
 // --- AUDIT ---
 
 model AuditLog {

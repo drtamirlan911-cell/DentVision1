@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../types/index.js';
 import type { ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { NOTIFICATION_TYPES } from '../../services/notification.service.js';
 
 const notificationsRouter = Router();
 
@@ -114,11 +115,47 @@ notificationsRouter.post('/read-all', async (req: AuthRequest, res) => {
       data: { read: true },
     });
 
-    return res.json({ ok: true, data: { markedRead: true } });
+    return res.json({ ok: true, data: { markedRead: true } } satisfies ApiResponse);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    return res.status(500).json({ ok: false, error: message } satisfies ApiResponse);
   }
+});
+
+// ─── Preferences ───
+
+notificationsRouter.get('/preferences', async (req: AuthRequest, res) => {
+  try {
+    const prefs = await prisma.notificationPreference.findMany({
+      where: { userId: req.user!.id },
+      select: { type: true, enabled: true },
+    });
+    return res.json({ ok: true, data: prefs } satisfies ApiResponse);
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Failed to load preferences' } satisfies ApiResponse);
+  }
+});
+
+notificationsRouter.put('/preferences', async (req: AuthRequest, res) => {
+  try {
+    const { type, enabled } = req.body as { type: string; enabled: boolean };
+    if (!type || typeof enabled !== 'boolean') {
+      return res.status(400).json({ ok: false, error: 'type and enabled are required' } satisfies ApiResponse);
+    }
+    const pref = await prisma.notificationPreference.upsert({
+      where: { userId_type: { userId: req.user!.id, type } },
+      update: { enabled },
+      create: { id: uid(), userId: req.user!.id, type, enabled },
+    });
+    return res.json({ ok: true, data: pref } satisfies ApiResponse);
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Failed to update preference' } satisfies ApiResponse);
+  }
+});
+
+// Expose valid types so the frontend can build a preferences UI
+notificationsRouter.get('/types', async (_req, res) => {
+  return res.json({ ok: true, data: NOTIFICATION_TYPES } satisfies ApiResponse);
 });
 
 export { notificationsRouter };

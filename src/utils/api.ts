@@ -1550,6 +1550,22 @@ export async function markAllNotificationsRead(): Promise<any> {
   return apiRequest('/api/notifications/read-all', { method: 'POST' })
 }
 
+// ─── Notification Preferences ───
+
+export async function getNotificationPreferences(): Promise<Array<{ type: string; enabled: boolean }>> {
+  const data = await apiRequest('/api/notifications/preferences')
+  return data || []
+}
+
+export async function updateNotificationPreference(type: string, enabled: boolean): Promise<any> {
+  return apiRequest('/api/notifications/preferences', { method: 'PUT', body: JSON.stringify({ type, enabled }) })
+}
+
+export async function getNotificationTypes(): Promise<Record<string, string>> {
+  const data = await apiRequest('/api/notifications/types')
+  return data || {}
+}
+
 // ─── Shop content management (superadmin) ───
 export async function createShopCategory(data: any): Promise<any> { return apiRequest('/api/shop/categories', { method: 'POST', body: JSON.stringify(data) }); }
 export async function deleteShopCategory(id: string): Promise<any> { return apiRequest(`/api/shop/categories/${id}`, { method: 'DELETE' }); }

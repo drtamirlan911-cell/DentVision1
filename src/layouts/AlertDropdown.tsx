@@ -130,7 +130,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
       type: n.type || 'system',
       message: n.message,
       priority: n.read ? 'low' : 'medium',
-      action: n.action,
+      action: n.actionUrl ? { type: 'navigate', path: n.actionUrl } : undefined,
       source: 'notification' as const,
       read: n.read,
     }));

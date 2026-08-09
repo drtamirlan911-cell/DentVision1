@@ -8,16 +8,19 @@ interface Notification {
   message: string
   read: boolean
   createdAt: string
-  action?: { type: string; payload: any }
+  actionUrl?: string
 }
 
 interface NotificationState {
   notifications: Notification[]
   unread: number
   loading: boolean
+  preferences: Array<{ type: string; enabled: boolean }>
   loadNotifications: () => Promise<void>
   markAsRead: (id: string) => Promise<void>
   markAllAsRead: () => Promise<void>
+  loadPreferences: () => Promise<void>
+  updatePreference: (type: string, enabled: boolean) => Promise<void>
 }
 
 function mapNotification(n: any): Notification {
@@ -30,9 +33,7 @@ function mapNotification(n: any): Notification {
     message,
     read: n.read ?? false,
     createdAt: n.createdAt || new Date().toISOString(),
-    action: n.actionUrl
-      ? { type: 'navigate', payload: n.actionUrl }
-      : undefined,
+    actionUrl: n.link || n.actionUrl || undefined,
   }
 }
 
@@ -40,6 +41,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   unread: 0,
   loading: false,
+  preferences: [],
 
   loadNotifications: async () => {
     if (!api.getAccessToken()) {
@@ -82,6 +84,28 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       set((state) => ({
         notifications: state.notifications.map((n) => ({ ...n, read: true })),
         unread: 0,
+      }))
+    } catch {
+      // silently fail
+    }
+  },
+
+  loadPreferences: async () => {
+    try {
+      const prefs = await api.getNotificationPreferences()
+      set({ preferences: prefs })
+    } catch {
+      // silently fail
+    }
+  },
+
+  updatePreference: async (type, enabled) => {
+    try {
+      await api.updateNotificationPreference(type, enabled)
+      set((state) => ({
+        preferences: state.preferences.some((p) => p.type === type)
+          ? state.preferences.map((p) => (p.type === type ? { ...p, enabled } : p))
+          : [...state.preferences, { type, enabled }],
       }))
     } catch {
       // silently fail
