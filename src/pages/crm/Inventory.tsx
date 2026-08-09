@@ -306,7 +306,7 @@ export default function Inventory() {
                       </p>
                     )}
 
-                    <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                    <div className="flex gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
                       <Button variant="danger" size="icon-xs" className="min-h-11 min-w-11" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} aria-label="Уменьшить на 1" />
                       <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} aria-label="Увеличить на 1" />
                       <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" onClick={() => quickAdjust(item, 10)}>+10</Button>

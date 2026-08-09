@@ -5,7 +5,7 @@ import { ChevronDown, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 
 const inputVariants = cva(
-  'flex w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle placeholder:text-txt-muted transition-all duration-200 focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle placeholder:text-txt-muted transition-all duration-200 focus-visible:outline-none focus-visible:border-dv-gold/50 focus-visible:ring-1 focus-visible:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       size: {
@@ -19,7 +19,7 @@ const inputVariants = cva(
 )
 
 const textareaVariants = cva(
-  'flex min-h-[80px] w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle placeholder:text-txt-muted transition-all duration-200 resize-none focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
+  'flex min-h-[80px] w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle placeholder:text-txt-muted transition-all duration-200 resize-none focus-visible:outline-none focus-visible:border-dv-gold/50 focus-visible:ring-1 focus-visible:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       size: {
@@ -33,7 +33,7 @@ const textareaVariants = cva(
 )
 
 const selectVariants = cva(
-  'flex w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle transition-all duration-200 appearance-none focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle transition-all duration-200 appearance-none focus-visible:outline-none focus-visible:border-dv-gold/50 focus-visible:ring-1 focus-visible:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       size: {

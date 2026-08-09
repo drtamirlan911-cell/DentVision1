@@ -391,6 +391,7 @@ export default function Patients() {
       onClose={() => setModalOpen(false)}
       title={editPatient ? 'Редактировать пациента' : 'Новый пациент'}
       size="md"
+      className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
@@ -401,7 +402,7 @@ export default function Patients() {
           placeholder="Иванов Иван Иванович"
           icon={<User size={16} />}
         />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="Телефон"
             value={form.phone}
@@ -417,7 +418,7 @@ export default function Patients() {
             onChange={e => setForm({ ...form, dob: e.target.value })}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="ИИН"
             value={form.iin}

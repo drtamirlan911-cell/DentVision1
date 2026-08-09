@@ -126,7 +126,7 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
                 <button
                   onClick={onClose}
                   aria-label="Закрыть"
-                  className="rounded-lg p-1.5 text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors shrink-0"
+                  className="rounded-lg p-1.5 text-txt-muted hover:text-txt-primary hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40 transition-colors shrink-0"
                 >
                   <X size={18} />
                 </button>

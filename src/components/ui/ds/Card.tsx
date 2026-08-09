@@ -21,7 +21,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
         ref={ref}
         className={cn(
           'rounded-xl border border-bdr-subtle bg-surface-raised transition-all duration-200',
-          hover && 'hover:bg-surface-raised-hover hover:border-bdr/50 hover:shadow-card-hover cursor-pointer',
+          hover && 'hover:bg-surface-raised-hover hover:border-bdr/50 hover:shadow-card-hover cursor-pointer focus-visible:ring-2 focus-visible:ring-dv-gold/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0',
           active && 'border-dv-gold/30 bg-dv-gold/5',
           paddingMap[padding],
           className

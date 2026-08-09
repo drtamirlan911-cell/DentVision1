@@ -31,7 +31,7 @@ const buttonVariants = cva(
           'bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20',
       },
       size: {
-        xs: 'h-7 px-2.5 text-xs rounded-md',
+        xs: 'h-7 px-2.5 text-xs rounded-lg',
         sm: 'h-8 px-3 text-sm',
         md: 'h-9 px-4 text-sm',
         lg: 'h-10 px-5 text-base',
