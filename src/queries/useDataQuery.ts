@@ -76,49 +76,49 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
 
   // ─── Queries ───
   const patientsQ = useQuery({
-    queryKey: queryKeys.patients,
+    queryKey: [...queryKeys.patients, safeClinicId],
     queryFn: () => api.getPatients(safeClinicId),
     enabled,
   });
 
   const appointmentsQ = useQuery({
-    queryKey: queryKeys.appointments,
+    queryKey: [...queryKeys.appointments, safeClinicId],
     queryFn: () => api.getAppointments(safeClinicId),
     enabled,
   });
 
   const receiptsQ = useQuery({
-    queryKey: queryKeys.receipts,
+    queryKey: [...queryKeys.receipts, safeClinicId],
     queryFn: () => api.getReceipts(safeClinicId),
     enabled,
   });
 
   const labOrdersQ = useQuery({
-    queryKey: queryKeys.labOrders,
+    queryKey: [...queryKeys.labOrders, safeClinicId],
     queryFn: () => api.getLabOrders(safeClinicId),
     enabled,
   });
 
   const expensesQ = useQuery({
-    queryKey: queryKeys.expenses,
+    queryKey: [...queryKeys.expenses, safeClinicId],
     queryFn: () => api.getExpenses(safeClinicId),
     enabled,
   });
 
   const inventoryQ = useQuery({
-    queryKey: queryKeys.inventory,
+    queryKey: [...queryKeys.inventory, safeClinicId],
     queryFn: () => api.getInventory(safeClinicId),
     enabled,
   });
 
   const promotionsQ = useQuery({
-    queryKey: queryKeys.promotions,
+    queryKey: [...queryKeys.promotions, safeClinicId],
     queryFn: () => api.getPromotions(safeClinicId),
     enabled,
   });
 
   const bookingsQ = useQuery({
-    queryKey: queryKeys.bookings,
+    queryKey: [...queryKeys.bookings, safeClinicId],
     queryFn: () => api.getBookings(safeClinicId),
     enabled,
   });
@@ -130,13 +130,13 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   });
 
   const documentsQ = useQuery({
-    queryKey: queryKeys.documents,
+    queryKey: [...queryKeys.documents, safeClinicId],
     queryFn: () => api.getDocuments(safeClinicId, ''),
     enabled,
   });
 
   const waitingListQ = useQuery({
-    queryKey: queryKeys.waitingList,
+    queryKey: [...queryKeys.waitingList, safeClinicId],
     queryFn: () => api.getWaitingList(safeClinicId),
     enabled,
   });
@@ -151,9 +151,9 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   const upsertPatientM = useMutation({
     mutationFn: (data: Partial<Patient>) => api.upsertPatient({ ...data, clinicId: safeClinicId }),
     onMutate: async (data) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.patients });
-      const prev = queryClient.getQueryData<Patient[]>(queryKeys.patients);
-      queryClient.setQueryData<Patient[]>(queryKeys.patients, (old) => {
+      await queryClient.cancelQueries({ queryKey: [...queryKeys.patients, safeClinicId] });
+      const prev = queryClient.getQueryData<Patient[]>([...queryKeys.patients, safeClinicId]);
+      queryClient.setQueryData<Patient[]>([...queryKeys.patients, safeClinicId], (old) => {
         const list = old || [];
         const idx = list.findIndex((p) => p.id === data.id);
         const record = { ...data, clinicId: safeClinicId } as Patient;
@@ -163,32 +163,32 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(queryKeys.patients, ctx.prev);
+      if (ctx?.prev) queryClient.setQueryData([...queryKeys.patients, safeClinicId], ctx.prev);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.patients }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.patients, safeClinicId] }),
   });
 
   const deletePatientM = useMutation({
     mutationFn: (id: string) => api.deletePatient(id),
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.patients });
-      const prev = queryClient.getQueryData<Patient[]>(queryKeys.patients);
-      queryClient.setQueryData<Patient[]>(queryKeys.patients, (old) => (old || []).filter((p) => p.id !== id));
+      await queryClient.cancelQueries({ queryKey: [...queryKeys.patients, safeClinicId] });
+      const prev = queryClient.getQueryData<Patient[]>([...queryKeys.patients, safeClinicId]);
+      queryClient.setQueryData<Patient[]>([...queryKeys.patients, safeClinicId], (old) => (old || []).filter((p) => p.id !== id));
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(queryKeys.patients, ctx.prev);
+      if (ctx?.prev) queryClient.setQueryData([...queryKeys.patients, safeClinicId], ctx.prev);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.patients }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.patients, safeClinicId] }),
   });
 
   // ─── Optimistic Mutations: Appointments ───
   const upsertAppointmentM = useMutation({
     mutationFn: (data: Partial<Appointment>) => api.upsertAppointment({ ...data, clinicId: safeClinicId }),
     onMutate: async (data) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.appointments });
-      const prev = queryClient.getQueryData<Appointment[]>(queryKeys.appointments);
-      queryClient.setQueryData<Appointment[]>(queryKeys.appointments, (old) => {
+      await queryClient.cancelQueries({ queryKey: [...queryKeys.appointments, safeClinicId] });
+      const prev = queryClient.getQueryData<Appointment[]>([...queryKeys.appointments, safeClinicId]);
+      queryClient.setQueryData<Appointment[]>([...queryKeys.appointments, safeClinicId], (old) => {
         const list = old || [];
         const idx = list.findIndex((a) => a.id === data.id);
         const record = { ...data, clinicId: safeClinicId } as Appointment;
@@ -198,32 +198,32 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(queryKeys.appointments, ctx.prev);
+      if (ctx?.prev) queryClient.setQueryData([...queryKeys.appointments, safeClinicId], ctx.prev);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.appointments }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, safeClinicId] }),
   });
 
   const deleteAppointmentM = useMutation({
     mutationFn: (id: string) => api.deleteAppointment(id),
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.appointments });
-      const prev = queryClient.getQueryData<Appointment[]>(queryKeys.appointments);
-      queryClient.setQueryData<Appointment[]>(queryKeys.appointments, (old) => (old || []).filter((a) => a.id !== id));
+      await queryClient.cancelQueries({ queryKey: [...queryKeys.appointments, safeClinicId] });
+      const prev = queryClient.getQueryData<Appointment[]>([...queryKeys.appointments, safeClinicId]);
+      queryClient.setQueryData<Appointment[]>([...queryKeys.appointments, safeClinicId], (old) => (old || []).filter((a) => a.id !== id));
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(queryKeys.appointments, ctx.prev);
+      if (ctx?.prev) queryClient.setQueryData([...queryKeys.appointments, safeClinicId], ctx.prev);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.appointments }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, safeClinicId] }),
   });
 
   // ─── Optimistic Mutations: Receipts ───
   const upsertReceiptM = useMutation({
     mutationFn: (data: Partial<Receipt>) => api.upsertReceipt({ ...data, clinicId: safeClinicId }),
     onMutate: async (data) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.receipts });
-      const prev = queryClient.getQueryData<Receipt[]>(queryKeys.receipts);
-      queryClient.setQueryData<Receipt[]>(queryKeys.receipts, (old) => {
+      await queryClient.cancelQueries({ queryKey: [...queryKeys.receipts, safeClinicId] });
+      const prev = queryClient.getQueryData<Receipt[]>([...queryKeys.receipts, safeClinicId]);
+      queryClient.setQueryData<Receipt[]>([...queryKeys.receipts, safeClinicId], (old) => {
         const list = old || [];
         const idx = list.findIndex((r) => r.id === data.id);
         const record = { ...data, clinicId: safeClinicId } as Receipt;
@@ -233,18 +233,18 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(queryKeys.receipts, ctx.prev);
+      if (ctx?.prev) queryClient.setQueryData([...queryKeys.receipts, safeClinicId], ctx.prev);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.receipts }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.receipts, safeClinicId] }),
   });
 
   // ─── Optimistic Mutations: Documents ───
   const upsertDocumentM = useMutation({
     mutationFn: (data: Partial<Document>) => api.upsertDocument({ ...data, clinicId: safeClinicId }),
     onMutate: async (data) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.documents });
-      const prev = queryClient.getQueryData<Document[]>(queryKeys.documents);
-      queryClient.setQueryData<Document[]>(queryKeys.documents, (old) => {
+      await queryClient.cancelQueries({ queryKey: [...queryKeys.documents, safeClinicId] });
+      const prev = queryClient.getQueryData<Document[]>([...queryKeys.documents, safeClinicId]);
+      queryClient.setQueryData<Document[]>([...queryKeys.documents, safeClinicId], (old) => {
         const list = old || [];
         const idx = list.findIndex((d) => d.id === data.id);
         const record = { ...data, clinicId: safeClinicId } as Document;
@@ -254,62 +254,62 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(queryKeys.documents, ctx.prev);
+      if (ctx?.prev) queryClient.setQueryData([...queryKeys.documents, safeClinicId], ctx.prev);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.documents }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.documents, safeClinicId] }),
   });
 
   const deleteDocumentM = useMutation({
     mutationFn: (id: string) => api.deleteDocument(id),
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.documents });
-      const prev = queryClient.getQueryData<Document[]>(queryKeys.documents);
-      queryClient.setQueryData<Document[]>(queryKeys.documents, (old) => (old || []).filter((d) => d.id !== id));
+      await queryClient.cancelQueries({ queryKey: [...queryKeys.documents, safeClinicId] });
+      const prev = queryClient.getQueryData<Document[]>([...queryKeys.documents, safeClinicId]);
+      queryClient.setQueryData<Document[]>([...queryKeys.documents, safeClinicId], (old) => (old || []).filter((d) => d.id !== id));
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(queryKeys.documents, ctx.prev);
+      if (ctx?.prev) queryClient.setQueryData([...queryKeys.documents, safeClinicId], ctx.prev);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.documents }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.documents, safeClinicId] }),
   });
 
   // ─── Standard Mutations (no optimistic update needed — stub APIs) ───
   const upsertLabOrderM = useMutation({
     mutationFn: (data: Partial<LabOrder>) => api.upsertLabOrder({ ...data, clinicId: safeClinicId }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.labOrders }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.labOrders, safeClinicId] }),
   });
 
   const upsertExpenseM = useMutation({
     mutationFn: (data: Partial<Expense>) => api.upsertExpense({ ...data, clinicId: safeClinicId }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.expenses }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.expenses, safeClinicId] }),
   });
 
   const upsertInventoryItemM = useMutation({
     mutationFn: (data: Partial<InventoryItem>) => api.upsertInventoryItem({ ...data, clinicId: safeClinicId }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.inventory }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.inventory, safeClinicId] }),
   });
 
   const upsertPromotionM = useMutation({
     mutationFn: (data: Partial<Promotion>) => api.upsertPromotion({ ...data, clinicId: safeClinicId }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.promotions }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.promotions, safeClinicId] }),
   });
 
   const deletePromotionM = useMutation({
     mutationFn: (id: string) => api.deletePromotion(id),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.promotions }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.promotions, safeClinicId] }),
   });
 
   const upsertBookingM = useMutation({
     mutationFn: (data: Partial<Booking>) => api.upsertBooking({ ...data, clinicId: safeClinicId }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.bookings }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...queryKeys.bookings, safeClinicId] }),
   });
 
   const upsertMedicalCardM = useMutation({
     mutationFn: (data: Partial<MedicalCard>) => api.upsertMedicalCard({ ...data, clinicId: safeClinicId }),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.visits('') });
-      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
-      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.documents, safeClinicId] });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.patients, safeClinicId] });
     },
   });
 
@@ -386,11 +386,11 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
     upsertDocument: (data) => upsertDocumentM.mutateAsync(data),
     deleteDocument: (id) => deleteDocumentM.mutateAsync(id),
     upsertWaitingListItem: (data) => api.upsertWaitingListItem({ ...data, clinicId: safeClinicId }).then((r) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.waitingList });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.waitingList, safeClinicId] });
       return r;
     }),
     deleteWaitingListItem: (id) => api.deleteWaitingListItem(id).then(() => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.waitingList });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.waitingList, safeClinicId] });
     }),
   };
 }

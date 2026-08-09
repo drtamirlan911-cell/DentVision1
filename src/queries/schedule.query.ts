@@ -5,7 +5,7 @@ import type { Appointment } from '@/types'
 
 export function useAppointments(clinicId: string) {
   return useQuery({
-    queryKey: queryKeys.appointments,
+    queryKey: [...queryKeys.appointments, clinicId],
     queryFn: () => api.getAppointments(clinicId),
     enabled: !!clinicId,
   })
@@ -23,8 +23,9 @@ export function useCreateAppointment() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: Partial<Appointment>) => api.upsertAppointment(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+    onSuccess: (vars) => {
+      const cid = (vars as any)?.clinicId || (vars as any)?.data?.clinicId || '';
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, cid] });
     },
   })
 }

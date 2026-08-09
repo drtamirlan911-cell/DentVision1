@@ -2,6 +2,9 @@ export const queryKeys = {
   auth: ['auth'] as const,
   clinics: ['clinics'] as const,
   clinic: (id: string) => ['clinic', id] as const,
+  // Base keys (arrays). Clinic-scoped queries should spread + append clinicId:
+  //   queryKey: [...queryKeys.patients, safeClinicId]
+  // This keeps backward compatibility while making cache clinic-specific.
   patients: ['patients'] as const,
   patient: (id: string) => ['patient', id] as const,
   appointments: ['appointments'] as const,

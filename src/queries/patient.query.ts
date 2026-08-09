@@ -4,7 +4,7 @@ import { queryKeys } from './keys'
 
 export function usePatients(clinicId: string) {
   return useQuery({
-    queryKey: queryKeys.patients,
+    queryKey: [...queryKeys.patients, clinicId],
     queryFn: () => api.getPatients(clinicId),
     enabled: !!clinicId,
   })
