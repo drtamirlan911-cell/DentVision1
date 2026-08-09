@@ -578,9 +578,6 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
       link: `/diagnostics/referrals/${id}`,
     });
   }
-      },
-    });
-  }
 
   await writeAuditLog({
     action: 'REFERRAL_STATUS_CHANGED', entity: 'referral', entityId: id,
