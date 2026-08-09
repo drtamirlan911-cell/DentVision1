@@ -34,6 +34,8 @@ export interface WorkspaceConfig {
   getPayments: (orgId: string) => Promise<any>
   getDashboard: (orgId: string) => Promise<any>
   collectPayment: (orgId: string, payload: { referralId: string; cost: number }) => Promise<any>
+  /** Path to the registration page for users who are not yet partners. */
+  registerPath: string
 }
 
 export const WORKSPACES: Record<OrgKind, WorkspaceConfig> = {
@@ -54,6 +56,7 @@ export const WORKSPACES: Record<OrgKind, WorkspaceConfig> = {
     getPayments: (orgId) => api.getDiagnosticsCenterPayments(orgId),
     getDashboard: (orgId) => api.getDiagnosticsCenterDashboard(orgId),
     collectPayment: (orgId, payload) => api.collectDiagnosticsCashierPayment(orgId, payload),
+    registerPath: '/register-diagnostics?type=center',
   },
   LAB: {
     kind: 'LAB',
@@ -72,5 +75,6 @@ export const WORKSPACES: Record<OrgKind, WorkspaceConfig> = {
     getPayments: (orgId) => api.getDiagnosticsLabPayments(orgId),
     getDashboard: (orgId) => api.getDiagnosticsLabDashboard(orgId),
     collectPayment: (orgId, payload) => api.collectDiagnosticsLabCashierPayment(orgId, payload),
+    registerPath: '/register-diagnostics?type=lab',
   },
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { Building2, DollarSign, FileText, FlaskConical, TrendingUp, Wallet } from 'lucide-react'
@@ -6,6 +7,7 @@ import { Building2, DollarSign, FileText, FlaskConical, TrendingUp, Wallet } fro
 import { Card } from '@/components/ui/ds/Card'
 import { HeroStat, PageHeader } from '@/components/ui/ds/StatCard'
 import { Badge } from '@/components/ui/ds/Badge'
+import { Button } from '@/components/ui/ds/Button'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { countAwaitingAction, countByPhase, type PhaseId } from '@/lib/referralStatus'
 import { queryKeys } from '@/queries/keys'
@@ -30,6 +32,7 @@ import { FinanceTab } from './FinanceTab'
 export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
   const config = WORKSPACES[kind]
   const { user } = useAuth()
+  const navigate = useNavigate()
   const isOwnOrg = user?.organizationType === config.organizationType
   const ownOrgId = user?.organizationId || ''
   const [orgId, setOrgId] = useState<string>(isOwnOrg ? ownOrgId : '')
@@ -98,6 +101,25 @@ export function DiagnosticWorkspace({ kind }: { kind: OrgKind }) {
                 <option key={org.id} value={org.id}>{org.name}{org.city ? ` — ${org.city}` : ''}</option>
               ))}
             </select>
+          </div>
+        </Card>
+      )}
+
+      {!isOwnOrg && organizations.length === 0 && (
+        <Card padding="lg">
+          <div className="text-center space-y-4 py-6">
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/10 flex items-center justify-center">
+              <Building2 size={28} className="text-dv-gold" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-txt-primary">Стать {kind === 'CENTER' ? 'диагностическим центром' : 'лабораторией'}</h3>
+              <p className="text-sm text-txt-muted mt-2 max-w-md mx-auto">
+                Зарегистрируйте {kind === 'CENTER' ? 'свой диагностический центр' : 'свою лабораторию'} на платформе DentVision и получайте направления от клиник.
+              </p>
+            </div>
+            <Button variant="primary" className="min-h-11" onClick={() => navigate(config.registerPath)}>
+              Зарегистрироваться как партнёр
+            </Button>
           </div>
         </Card>
       )}
