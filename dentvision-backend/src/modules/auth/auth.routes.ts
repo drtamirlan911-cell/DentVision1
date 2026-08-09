@@ -61,6 +61,18 @@ function clearAuthCookies(res: any) {
 }
 
 
+// Detects a missing-column drift error (e.g. googleId absent in prod after a
+// skipped migration). Prisma surfaces these as P2025-style query errors whose
+// message names the offending column; we match by column name rather than the
+// fragile raw Postgres/SQLite text.
+function isMissingColumnError(err: unknown, column: string): boolean {
+  const msg = (err as any)?.message ?? '';
+  const code = (err as any)?.code;
+  return typeof msg === 'string' && msg.toLowerCase().includes(String(column).toLowerCase()) &&
+    (/(column|does not exist|missing|undefined)/i.test(msg) || code === 'P2025' || code === 'P2000');
+}
+
+
 /** What a successful sign-in returns, whatever proved the identity. */
 interface SignInUser {
   id: string;
@@ -350,22 +362,44 @@ authRouter.post('/google', async (req, res) => {
       // and the role is deliberately left alone — an existing OWNER signing in
       // with Google is still an OWNER.
       await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } })
-        .catch((e) => console.warn('[auth/google] could not record googleId:', e?.message));
+        .catch((e) => console.warn('[auth/google] could not record googleId:', isMissingColumnError(e, 'googleId') ? 'column missing in live DB (run `prisma migrate deploy`)' : e?.message));
     } else {
       const { firstName, lastName } = namesFromProfile(profile);
       // Same shape as open registration: no password, no clinic, STUDENT — the
       // role that grants nothing clinical until a clinic is joined or created.
-      await prisma.user.create({
-        data: {
-          id: uid(),
-          email: profile.email,
-          firstName,
-          lastName,
-          avatar: profile.picture || null,
-          googleId: profile.googleId,
-          role: 'STUDENT',
-        },
-      });
+      try {
+        await prisma.user.create({
+          data: {
+            id: uid(),
+            email: profile.email,
+            firstName,
+            lastName,
+            avatar: profile.picture || null,
+            googleId: profile.googleId,
+            role: 'STUDENT',
+          },
+        });
+      } catch (createErr: any) {
+        // Defensive: if the googleId column is missing in the live DB (migration
+        // drift), fall back to creating the user without the googleId binding
+        // instead of failing the whole Google sign-in. The account still works
+        // and can be linked later via `prisma db push` / `migrate deploy`.
+        if (isMissingColumnError(createErr, 'googleId')) {
+          console.warn('[auth/google] googleId column missing; creating user without it');
+          await prisma.user.create({
+            data: {
+              id: uid(),
+              email: profile.email,
+              firstName,
+              lastName,
+              avatar: profile.picture || null,
+              role: 'STUDENT',
+            },
+          });
+        } else {
+          throw createErr;
+        }
+      }
       user = await prisma.user.findUnique({ where: { email: profile.email }, select: membershipSelect });
     }
 
