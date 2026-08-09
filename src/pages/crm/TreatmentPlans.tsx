@@ -35,9 +35,9 @@ const STATUS_LABELS: Record<string, string> = {
 export default function TreatmentPlans() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { user, clinic } = useAuth();
+  const { user, clinic: authClinic } = useAuth();
   const { showToast } = useToast();
-  const clinicId = user?.clinicId || '';
+  const clinicId = authClinic?.id || user?.clinicId || ''
   const { patients, visits } = useDataQuery(clinicId);
   const [search, setSearch] = useState('');
   const [plans, setPlans] = useState<any[]>([]);
@@ -124,7 +124,7 @@ export default function TreatmentPlans() {
 
   const handlePrintPlan = async (plan: any) => {
     const patient = patientOptions.find((p: any) => p.id === plan.patientId);
-    let clinicData = clinic;
+    let clinicData = authClinic;
     try {
       if (clinicId) {
         const payload = await api.getClinicSettings(clinicId);
@@ -358,7 +358,7 @@ export default function TreatmentPlans() {
         open={editorOpen}
         onClose={() => { setEditorOpen(false); setEditingPlan(null); }}
         clinicId={clinicId}
-        clinic={clinic}
+        clinic={authClinic}
         doctorId={user?.id}
         doctorName={user?.name}
         patients={patientOptions}
