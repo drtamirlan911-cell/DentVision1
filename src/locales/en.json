@@ -74,6 +74,7 @@
     "school_workspace": "Lecturer Workspace",
     "lab_workspace": "Lab Workspace",
     "center_workspace": "Center Workspace",
+    "diagnostics_workspace": "Diagnostics Workspace",
     "partner_legal": "My Documents",
     "clinic_settings": "Clinic Settings",
     "billing": "Plan & Billing",
@@ -1035,6 +1036,7 @@
     "notification_empty": "No notifications yet",
     "notification_empty_short": "No notifications yet",
     "notification_source": "notification",
+    "notification_hints": "Tips",
     "notification_open": "· open",
     "notification_shop": "Shop",
     "notification_academy": "Academy",
@@ -1474,7 +1476,10 @@
       "success": {
         "title": "Request sent!",
         "confirm_message": "An administrator will contact you shortly to confirm your appointment.",
-        "book_again": "Book again"
+        "book_again": "Book again",
+        "portal_title": "Patient portal",
+        "portal_body": "See your visits, invoices, images and diagnostic results — and book without calling.",
+        "portal_cta": "Open the patient portal"
       },
       "submit": "Book appointment",
       "next": "Next",

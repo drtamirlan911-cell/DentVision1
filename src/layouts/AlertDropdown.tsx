@@ -53,6 +53,24 @@ interface AlertDropdownProps {
   setIsOpen: (v: boolean) => void;
 }
 
+/**
+ * What the bell badge counts.
+ *
+ * Only unread notifications — things that exist as records and that pressing
+ * "read" actually clears.
+ *
+ * It used to be `Math.max(unread, alerts.length, …)`, where `alerts` are the
+ * proactive AI hints. Those have no read state and cannot have one: they are
+ * recomputed from clinic data on every `/ai/proactive` call, the store assigns
+ * a fresh `crypto.randomUUID()` to each on every load, and nothing is
+ * persisted. Some of them are not even events ("Academy OS: курсы и вебинары").
+ * So the badge counted things no button could clear, and the bell was lit
+ * permanently — "прочитать все" only ever touched the notifications.
+ */
+export function badgeCountFor(input: { unreadNotifications: number }): number {
+  return Math.max(0, input.unreadNotifications);
+}
+
 function normalizePriority(p: BellAlert['priority']): 'high' | 'medium' | 'low' {
   if (p === 'high' || p === 'medium' || p === 'low') return p;
   const n = Number(p) || 0;
@@ -124,30 +142,63 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
     return () => document.removeEventListener('keydown', handleTab);
   }, [isOpen]);
 
-  const merged = useMemo(() => {
-    const fromNotif: BellAlert[] = (notifications || []).map((n) => ({
-      id: n.id,
-      type: n.type || 'system',
-      message: n.message,
-      priority: n.read ? 'low' : 'medium',
-      action: n.actionUrl ? { type: 'navigate', path: n.actionUrl } : undefined,
-      source: 'notification' as const,
-      read: n.read,
-    }));
-    const fromProactive: BellAlert[] = (alerts || []).map((a, i) => ({
-      ...a,
-      id: `pa-${i}`,
-      source: 'proactive' as const,
-    }));
-    // Unread notifications first, then proactive, then read.
-    return [...fromNotif.filter((n) => !n.read), ...fromProactive, ...fromNotif.filter((n) => n.read)].slice(0, 30);
-  }, [alerts, notifications]);
-
-  const badgeCount = Math.max(
-    unreadNotifs,
-    alerts.length,
-    merged.filter((a) => a.source === 'proactive' || !a.read).length,
+  // Notifications and hints are two different things and are now kept apart:
+  // notifications are records you clear, hints are standing advice.
+  const notifItems = useMemo<BellAlert[]>(
+    () =>
+      (notifications || [])
+        .map((n) => ({
+          id: n.id,
+          type: n.type || 'system',
+          message: n.title || n.message,
+          priority: (n.read ? 'low' : 'medium') as BellAlert['priority'],
+          action: n.actionUrl ? { type: 'navigate', path: n.actionUrl } : undefined,
+          source: 'notification' as const,
+          read: n.read,
+        }))
+        .sort((a, b) => Number(a.read) - Number(b.read))
+        .slice(0, 30),
+    [notifications],
   );
+
+  const hintItems = useMemo<BellAlert[]>(
+    () => (alerts || []).map((a, i) => ({ ...a, id: `pa-${i}`, source: 'proactive' as const })).slice(0, 10),
+    [alerts],
+  );
+
+  const badgeCount = badgeCountFor({ unreadNotifications: unreadNotifs });
+
+  const renderRow = (alert: BellAlert, i: number) => {
+    const pr = normalizePriority(alert.priority);
+    const text = alert.message || alert.text || '';
+    const path = resolveAlertPath(alert);
+    return (
+      <button
+        key={alert.id || `${alert.type}-${i}`}
+        type="button"
+        onClick={() => {
+          if (alert.source === 'notification' && alert.id && !alert.read) {
+            void markRead(alert.id);
+          }
+          if (path) navigate(path);
+          setIsOpen(false);
+        }}
+        className={cn(
+          'w-full text-left flex items-start gap-2.5 px-3 py-3 border-b border-bdr-subtle last:border-b-0 hover:bg-surface-2 transition-colors',
+          alert.source === 'notification' && !alert.read && 'bg-dv-gold/[0.06]',
+        )}
+      >
+        {priorityIcon[pr]}
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-txt-primary leading-snug break-words">{text}</p>
+          <span className="text-2xs text-txt-ghost uppercase mt-0.5 block">
+            {alert.source === 'notification' ? t('platform.notification_source') : alert.type}
+            {path ? t('platform.notification_open') : ''}
+          </span>
+        </div>
+      </button>
+    );
+  };
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -220,43 +271,30 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
                 </div>
               </div>
               <div className="max-h-[min(60vh,360px)] overflow-y-auto overscroll-contain">
-                {merged.length === 0 ? (
+                {notifItems.length === 0 && hintItems.length === 0 ? (
                   <div className="px-4 py-8 text-center">
                     <Bell size={22} className="mx-auto text-txt-ghost mb-2" />
                     <p className="text-xs text-txt-muted m-0">{t('platform.notification_empty_short')}</p>
                   </div>
                 ) : (
-                  merged.map((alert, i) => {
-                    const pr = normalizePriority(alert.priority);
-                    const text = alert.message || alert.text || '';
-                    const path = resolveAlertPath(alert);
-                    return (
-                      <button
-                        key={alert.id || `${alert.type}-${i}`}
-                        type="button"
-                        onClick={() => {
-                          if (alert.source === 'notification' && alert.id && !alert.read) {
-                            void markRead(alert.id);
-                          }
-                          if (path) navigate(path);
-                          setIsOpen(false);
-                        }}
-                        className={cn(
-                          'w-full text-left flex items-start gap-2.5 px-3 py-3 border-b border-bdr-subtle last:border-b-0 hover:bg-white/[0.03] transition-colors',
-                          alert.source === 'notification' && !alert.read && 'bg-amber-400/[0.04]',
-                        )}
-                      >
-                        {priorityIcon[pr]}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs text-txt-primary leading-snug break-words">{text}</p>
-                          <span className="text-2xs text-txt-ghost uppercase mt-0.5 block">
-                            {alert.source === 'notification' ? t('platform.notification_source') : alert.type}
-                            {path ? t('platform.notification_open') : ''}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })
+                  <>
+                    {notifItems.length === 0 && (
+                      <p className="px-3 py-4 text-xs text-txt-muted m-0">
+                        {t('platform.notification_empty_short')}
+                      </p>
+                    )}
+                    {notifItems.map(renderRow)}
+                    {hintItems.length > 0 && (
+                      <>
+                        {/* Standing advice, not events. Kept visible, kept out of
+                            the count — there is nothing here to clear. */}
+                        <p className="px-3 pt-3 pb-1.5 text-2xs uppercase tracking-wider text-txt-ghost m-0">
+                          {t('platform.notification_hints')}
+                        </p>
+                        {hintItems.map(renderRow)}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             </motion.div>

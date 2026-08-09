@@ -2958,12 +2958,45 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   // Relations
-  persons Person[]
+  persons     Person[]
+  invitations OrganizationInvitation[]
 
   @@unique([originalType, originalId])
   @@index([type])
   @@index([name])
   @@map("organizations")
+}
+
+/// Invite code letting a user join an organization that is not a clinic.
+///
+/// `ClinicInvitation` covers clinics only, so a diagnostic centre or laboratory
+/// had no way to gain a second member at all: `diagnostic_center_members` rows
+/// were only ever written by `grantDiagnosticsAccess` when a superadmin
+/// approved the founding registration request. This is the clinic invitation's
+/// shape, keyed on `Organization` so the same mechanism serves suppliers and
+/// the academy later without another table.
+model OrganizationInvitation {
+  id             String    @id @default(uuid())
+  organizationId String
+  /// Restricts the invite to one address when set; any signed-in user may use
+  /// it when null.
+  email          String?
+  /// Role inside the organization, in that organization's own vocabulary —
+  /// for diagnostics: admin | manager | radiologist | operator.
+  role           String
+  code           String    @unique
+  expiresAt      DateTime?
+  usedAt         DateTime?
+  usedBy         String?
+  createdBy      String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([organizationId])
+  @@map("organization_invitations")
 }
 
 model Person {

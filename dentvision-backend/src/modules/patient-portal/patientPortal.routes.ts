@@ -5,15 +5,26 @@ import { uid } from '../../lib/helpers.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireConsent } from '../../middleware/consentGate.js';
 import { decryptPatientFields, encryptField } from '../../lib/phi.js';
+import { resolvePatientForUser } from './patientLink.js';
 import type { AuthRequest } from '../../types/index.js';
 
 export const patientPortalRouter = Router();
 patientPortalRouter.use(authenticate);
 patientPortalRouter.use(requireConsent());
 
-async function getPatientRecord(userId: string) {
-  const patient = await (prisma as any).patient.findFirst({
-    where: { userId },
+/**
+ * This user's patient card, linking it by email or phone on first sight.
+ *
+ * The three call sites below each used to do their own `findFirst({ userId })`
+ * with an email fallback that never wrote the link down — so the fallback ran
+ * again on every request, and a patient entered by phone alone matched nothing.
+ * See patientLink.ts.
+ */
+async function getPatientRecord(user: { id: string; email?: string | null; phone?: string | null }) {
+  const match = await resolvePatientForUser(user);
+  if (!match) return null;
+  const patient = await (prisma as any).patient.findUnique({
+    where: { id: match.id },
     select: {
       id: true, firstName: true, lastName: true, phone: true,
       email: true, iin: true, medicalHistory: true, clinicId: true,
@@ -26,20 +37,8 @@ async function getPatientRecord(userId: string) {
 // Patient profile
 patientPortalRouter.get('/me', async (req: AuthRequest, res) => {
   try {
-    const patient = await getPatientRecord(req.user!.id);
-    if (!patient) {
-      // Fallback: find by email
-      const byEmail = await (prisma as any).patient.findFirst({
-        where: { email: req.user!.email },
-        select: {
-          id: true, firstName: true, lastName: true, phone: true,
-          email: true, iin: true, clinicId: true,
-          clinic: { select: { id: true, name: true } },
-        },
-      });
-      if (!byEmail) return res.json({ ok: true, data: { noPatientRecord: true } });
-      return res.json({ ok: true, data: decryptPatientFields(byEmail) });
-    }
+    const patient = await getPatientRecord(req.user!);
+    if (!patient) return res.json({ ok: true, data: { noPatientRecord: true } });
     return res.json({ ok: true, data: patient });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
@@ -51,14 +50,11 @@ function resolvePatientId(req: AuthRequest): string | null {
 }
 
 async function ensurePatient(req: AuthRequest, res: any, next: any) {
-  const patient = await getPatientRecord(req.user!.id);
-  if (!patient) {
-    const byEmail = await (prisma as any).patient.findFirst({ where: { email: req.user!.email } });
-    if (!byEmail) return res.status(403).json({ ok: false, error: 'Patient record not found. Ask your clinic to link your account.' });
-    (req as any)._patientId = byEmail.id;
-    return next();
+  const match = await resolvePatientForUser(req.user!);
+  if (!match) {
+    return res.status(403).json({ ok: false, error: 'Patient record not found. Ask your clinic to link your account.' });
   }
-  (req as any)._patientId = patient.id;
+  (req as any)._patientId = match.id;
   return next();
 }
 
@@ -297,30 +293,29 @@ patientPortalRouter.post('/link', async (req: AuthRequest, res) => {
     if (!clinic) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
 
     const user = req.user!;
+    // The phone the patient used when booking. It is the identifier reception
+    // records most reliably — email is optional on the public booking form —
+    // so it is the one that finds an existing card.
+    const phoneHint = typeof body.phone === 'string' ? body.phone : null;
 
-    // Already linked by userId?
-    let existing = await (prisma as any).patient.findFirst({
-      where: { clinicId: clinic.id, userId: user.id },
-    });
-    if (existing) {
-      return res.json({ ok: true, data: { patientId: existing.id, clinicName: clinic.name, alreadyLinked: true } });
-    }
-
-    // Staff may have created a patient record with email but no userId — link it
-    if (user.email) {
-      existing = await (prisma as any).patient.findFirst({
-        where: { clinicId: clinic.id, email: user.email, userId: null },
+    // Existing card first: already linked, or held by this person's email or
+    // phone and not yet claimed. Creating a second card in the same clinic
+    // hides the patient's own visits, invoices and images from them.
+    const match = await resolvePatientForUser(user, { clinicId: clinic.id, phoneHint });
+    if (match) {
+      return res.json({
+        ok: true,
+        data: {
+          patientId: match.id,
+          clinicName: clinic.name,
+          alreadyLinked: match.via === 'userId',
+          linkedExisting: match.via !== 'userId',
+          matchedBy: match.via,
+        },
       });
-      if (existing) {
-        await (prisma as any).patient.update({
-          where: { id: existing.id },
-          data: { userId: user.id },
-        });
-        return res.json({ ok: true, data: { patientId: existing.id, clinicName: clinic.name, linkedExisting: true } });
-      }
     }
 
-    // Create new patient record
+    // Nothing to adopt — a genuinely new patient of this clinic.
     const patient = await (prisma as any).patient.create({
       data: {
         id: uid(),
@@ -329,12 +324,12 @@ patientPortalRouter.post('/link', async (req: AuthRequest, res) => {
         firstName: user.firstName || user.email?.split('@')[0] || 'Пациент',
         lastName: user.lastName || '',
         email: user.email || null,
-        phone: null,
+        phone: phoneHint || user.phone || null,
       },
       select: { id: true },
     });
 
-    return res.json({ ok: true, data: { patientId: patient.id, clinicName: clinic.name } });
+    return res.json({ ok: true, data: { patientId: patient.id, clinicName: clinic.name, created: true } });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }

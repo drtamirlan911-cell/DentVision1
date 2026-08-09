@@ -53,6 +53,14 @@ export interface CreateNotificationInput {
   title: string;
   message: string;
   link?: string;
+  /**
+   * Clinic the notification belongs to. Passed through to the dispatcher so the
+   * extra channels (WhatsApp/SMS) can resolve that clinic's messenger config.
+   * `createNotificationForClinic` and `createNotificationForCenter` already set
+   * it; it was missing from the interface, so both were passing a field the
+   * type said did not exist.
+   */
+  clinicId?: string;
   /** Skip the user-preference check (always-deliver, e.g. security alerts). */
   force?: boolean;
 }

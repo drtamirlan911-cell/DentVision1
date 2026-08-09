@@ -2345,6 +2345,31 @@ export async function expireAllSessions(): Promise<any> {
 export async function getConsents(): Promise<any> {
   return apiRequest('/api/compliance/consents');
 }
+export interface RequiredConsentItem {
+  type: string;
+  title: string;
+  requiredVersion: string;
+  acceptedVersion: string | null;
+  /** `missing` — never accepted; `stale` — the catalogue version moved on. */
+  status: 'accepted' | 'missing' | 'stale';
+  mandatory: boolean;
+  link?: string;
+}
+
+/**
+ * Which agreements this account still owes, for its audience.
+ *
+ * `pending` is a list of type keys; the readable detail is in `items`.
+ */
+export async function getRequiredConsents(): Promise<{
+  audience: string;
+  allSatisfied: boolean;
+  pending: string[];
+  items: RequiredConsentItem[];
+}> {
+  return apiRequest('/api/compliance/consents/required');
+}
+
 export async function updateConsent(type: string, accepted: boolean): Promise<any> {
   return apiRequest('/api/compliance/consents', { method: 'POST', body: JSON.stringify({ type, accepted }) });
 }
@@ -2403,6 +2428,32 @@ export async function createDiagnosticLaboratory(data: any): Promise<any> {
 
 export async function joinOrganizationByInvite(code: string): Promise<any> {
   return apiRequest('/api/iam/join-by-invite', { method: 'POST', body: JSON.stringify({ code }) });
+}
+
+/**
+ * Attach the signed-in account to a clinic's patient card.
+ *
+ * `phone` is the number used when booking: reception records a phone far more
+ * reliably than an email (the public booking form does not even require one),
+ * so it is what finds an existing card instead of creating a duplicate.
+ */
+export async function linkPatientToClinic(data: { clinicId: string; phone?: string }): Promise<any> {
+  return apiRequest('/api/patient-portal/link', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Read-only: what organization and role does this code offer? */
+export async function lookupOrganizationInvite(code: string): Promise<any> {
+  return apiRequest(`/api/iam/invitations/lookup?code=${encodeURIComponent(code)}`);
+}
+
+export async function getOrganizationInvitations(organizationId: string): Promise<any> {
+  return apiRequest(`/api/iam/invitations?organizationId=${encodeURIComponent(organizationId)}`);
+}
+
+export async function createOrganizationInvitation(data: {
+  organizationId: string; role?: string; email?: string; expiresInDays?: number;
+}): Promise<any> {
+  return apiRequest('/api/iam/invitations', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function updateDiagnosticLaboratory(id: string, data: any): Promise<any> {

@@ -5,6 +5,12 @@ import { generateTokens } from '../../lib/jwt.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
 import { buildWorkspaceContexts } from './contexts.js';
+import {
+  acceptInvitation,
+  canManageMembers,
+  createInvitation,
+  rejectInvitation,
+} from './invitations.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // IAM module (Phase 2). Exposes the server-side permission model to clients so
@@ -217,6 +223,134 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('IAM switch-context error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при переключении контекста' } satisfies ApiResponse);
+  }
+});
+
+// ─── Organization invitations ───────────────────────────────────────────────
+//
+// Clinics join through /auth/join-clinic; everything else had no path at all.
+// See invitations.service.ts.
+
+// POST /api/iam/invitations — mint an invite code for an organization
+iamRouter.post('/invitations', async (req: AuthRequest, res) => {
+  try {
+    const { organizationId, role, email, expiresInDays } = req.body as {
+      organizationId?: string; role?: string; email?: string; expiresInDays?: number;
+    };
+    if (!organizationId) {
+      return res.status(400).json({ ok: false, error: 'organizationId обязателен' } satisfies ApiResponse);
+    }
+
+    // Accept either the Organization uuid or the mirrored entity's own id —
+    // the workspace holds the latter, the switcher the former.
+    const org =
+      (await prisma.organization.findUnique({ where: { id: organizationId } })) ||
+      (await prisma.organization.findFirst({ where: { originalId: organizationId } }));
+    if (!org) {
+      return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
+    }
+
+    const allowed = await canManageMembers(req.user!.id, org, req.user!.role === 'SUPERADMIN');
+    if (!allowed) {
+      return res.status(403).json({ ok: false, error: 'Только владелец или администратор может приглашать' } satisfies ApiResponse);
+    }
+
+    const invitation = await createInvitation({
+      organizationId: org.id,
+      role,
+      email,
+      expiresInDays,
+      createdBy: req.user!.id,
+    });
+    return res.status(201).json({ ok: true, data: invitation } satisfies ApiResponse);
+  } catch (error) {
+    console.error('IAM create invitation error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось создать приглашение' } satisfies ApiResponse);
+  }
+});
+
+// GET /api/iam/invitations?organizationId= — outstanding codes for an org
+iamRouter.get('/invitations', async (req: AuthRequest, res) => {
+  try {
+    const organizationId = String(req.query.organizationId || '');
+    if (!organizationId) {
+      return res.status(400).json({ ok: false, error: 'organizationId обязателен' } satisfies ApiResponse);
+    }
+
+    const org =
+      (await prisma.organization.findUnique({ where: { id: organizationId } })) ||
+      (await prisma.organization.findFirst({ where: { originalId: organizationId } }));
+    if (!org) {
+      return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
+    }
+
+    const allowed = await canManageMembers(req.user!.id, org, req.user!.role === 'SUPERADMIN');
+    if (!allowed) {
+      return res.status(403).json({ ok: false, error: 'Недостаточно прав' } satisfies ApiResponse);
+    }
+
+    const invitations = await prisma.organizationInvitation.findMany({
+      where: { organizationId: org.id, usedAt: null },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return res.json({ ok: true, data: invitations } satisfies ApiResponse);
+  } catch (error) {
+    console.error('IAM list invitations error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить приглашения' } satisfies ApiResponse);
+  }
+});
+
+// GET /api/iam/invitations/lookup?code= — what does this code offer?
+// Read-only, so the invitee sees the organization before committing.
+iamRouter.get('/invitations/lookup', async (req: AuthRequest, res) => {
+  try {
+    const code = String(req.query.code || '').trim();
+    if (!code) {
+      return res.status(400).json({ ok: false, error: 'code обязателен' } satisfies ApiResponse);
+    }
+
+    const invitation = await prisma.organizationInvitation.findUnique({
+      where: { code },
+      include: { organization: { select: { id: true, name: true, type: true } } },
+    });
+
+    const rejection = rejectInvitation(invitation, { userEmail: req.user!.email });
+    if (rejection) {
+      return res.status(rejection.status).json({ ok: false, error: rejection.error } satisfies ApiResponse);
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        organization: invitation!.organization,
+        role: invitation!.role,
+        expiresAt: invitation!.expiresAt,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('IAM lookup invitation error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось проверить приглашение' } satisfies ApiResponse);
+  }
+});
+
+// POST /api/iam/join-by-invite — consume a code and gain membership
+iamRouter.post('/join-by-invite', async (req: AuthRequest, res) => {
+  try {
+    const code = String((req.body || {}).code || '').trim();
+    if (!code) {
+      return res.status(400).json({ ok: false, error: 'code обязателен' } satisfies ApiResponse);
+    }
+
+    const result = await acceptInvitation(code, { id: req.user!.id, email: req.user!.email });
+    return res.status(201).json({ ok: true, data: result } satisfies ApiResponse);
+  } catch (error) {
+    const status = (error as any)?.status;
+    if (status) {
+      return res.status(status).json({ ok: false, error: (error as Error).message } satisfies ApiResponse);
+    }
+    console.error('IAM join-by-invite error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось присоединиться к организации' } satisfies ApiResponse);
   }
 });
 

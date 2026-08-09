@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2, Sparkles, Send } from 'lucide-react';
 import { Button, Badge, EmptyState, Card, ProgressBar } from '../../components/ui/ds';
+import { tintedAccent } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '../../components/ui/ds/Toast';
 import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel';
@@ -282,7 +283,7 @@ export default function SchoolCourse() {
             <div className="flex gap-1.5 mb-2">
               <span
                 className="text-[10px] font-bold px-2 py-0.5 rounded-md"
-                style={{ background: (DIFF_COLORS[course.difficulty!] || '#C9A96E') + '15', color: DIFF_COLORS[course.difficulty!] || '#C9A96E' }}
+                style={tintedAccent(DIFF_COLORS[course.difficulty!], 8)}
               >
                 {DIFF_LABELS[course.difficulty!] || course.difficulty}
               </span>

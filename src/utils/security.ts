@@ -29,8 +29,27 @@ export function validatePhone(phone: string): boolean {
   return cleaned.length >= 10 && cleaned.length <= 15;
 }
 
+/**
+ * The server's policy, restated (`lib/password.ts::assertPasswordPolicy`):
+ * at least 8 characters, with a letter and a digit.
+ *
+ * This used to accept 6 characters with no character requirement, so a password
+ * could pass the client check and then be rejected by the server — the user saw
+ * a failure only after submitting, with no idea which rule they had broken.
+ * Returns the reason rather than a bare boolean so the form can say it.
+ */
+export function passwordPolicyError(pw: unknown): string | null {
+  if (typeof pw !== 'string' || !pw) return 'Введите пароль';
+  if (pw.length < 8) return 'Пароль должен быть не короче 8 символов';
+  if (pw.length > 128) return 'Пароль слишком длинный';
+  if (!/[A-Za-zА-Яа-я]/.test(pw) || !/\d/.test(pw)) {
+    return 'Пароль должен содержать буквы и цифры';
+  }
+  return null;
+}
+
 export function validatePassword(pw: unknown): boolean {
-  return typeof pw === 'string' && pw.length >= 6 && pw.length <= 128;
+  return passwordPolicyError(pw) === null;
 }
 
 export function generateCSRFToken(): string {

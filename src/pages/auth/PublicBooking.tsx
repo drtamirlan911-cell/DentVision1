@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
@@ -66,6 +66,7 @@ export default function PublicBooking() {
   const { i18n } = useTranslation();
   const { locale } = useBookingLocale();
   const { clinicId } = useParams();
+  const navigate = useNavigate();
   const [payload, setPayload] = useState<PublicClinicPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -275,7 +276,29 @@ export default function PublicBooking() {
             {selectedDoctor ? ` · ${selectedDoctor.name}` : ''}
           </p>
           <p className="text-xs text-txt-muted mb-6">{t('patientPortal.publicBooking.success.confirm_message')}</p>
-          <Button onClick={resetBooking} className="w-full">{t('patientPortal.publicBooking.success.book_again')}</Button>
+
+          {/* The way into the portal. Nothing linked to it before — not the
+              landing page, not this screen, not an email — so a patient could
+              only find it by typing the URL. The clinic and the phone they just
+              booked with travel along, so the portal can attach them to the
+              card reception already holds instead of creating a second one. */}
+          <div className="mb-5 rounded-xl border border-bdr-subtle bg-surface-1 p-4 text-left">
+            <p className="text-sm font-medium text-txt-primary mb-1">
+              {t('patientPortal.publicBooking.success.portal_title')}
+            </p>
+            <p className="text-xs text-txt-muted mb-3">
+              {t('patientPortal.publicBooking.success.portal_body')}
+            </p>
+            <Button
+              variant="primary"
+              className="w-full min-h-11"
+              onClick={() => navigate(`/patient-portal?clinic=${encodeURIComponent(clinicId || '')}&phone=${encodeURIComponent(phone)}`)}
+            >
+              {t('patientPortal.publicBooking.success.portal_cta')}
+            </Button>
+          </div>
+
+          <Button variant="secondary" onClick={resetBooking} className="w-full min-h-11">{t('patientPortal.publicBooking.success.book_again')}</Button>
         </motion.div>
       </div>
     );

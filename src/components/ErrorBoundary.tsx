@@ -46,8 +46,11 @@ class ErrorBoundaryInner extends React.Component<ErrorBoundaryProps, ErrorBounda
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#080F1A',
-          color: '#fff',
+          // Variables, not classes: this screen renders when the app has
+          // already failed, so it must not assume any component CSS survived.
+          // The token definitions live in global.css and load independently.
+          background: 'var(--dv-surface-0)',
+          color: 'var(--dv-text-primary)',
           fontFamily: 'system-ui, sans-serif',
           padding: 24,
         }}>
@@ -55,7 +58,7 @@ class ErrorBoundaryInner extends React.Component<ErrorBoundaryProps, ErrorBounda
             <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
               {chunk ? this.props.t('error.boundary_title') : this.props.t('error.generic_title')}
             </h2>
-            <p style={{ fontSize: 13, color: '#7A8899', marginBottom: 20, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 13, color: 'var(--dv-text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
               {chunk
                 ? this.props.t('error.boundary_body')
                 : this.props.t('error.generic_body')}
@@ -71,8 +74,8 @@ class ErrorBoundaryInner extends React.Component<ErrorBoundaryProps, ErrorBounda
               }}
               style={{
                 padding: '10px 24px',
-                background: '#C9A96E',
-                color: '#fff',
+                background: 'var(--dv-gold)',
+                color: 'var(--dv-gold-on)',
                 border: 'none',
                 borderRadius: 8,
                 fontSize: 14,

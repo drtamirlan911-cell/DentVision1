@@ -17,6 +17,15 @@
        has to descend into bronze. Ink clears 8.37 and 11.63 across these. */
     --dv-gold-from: #C9A96E;
     --dv-gold-to: #E2C998;
+    /* Status colours. Unchanged from the literals they replace, so the dark
+       theme renders exactly as before: 6.68 / 5.03 / 8.76 on surface-0. `info`
+       measures 4.46 — a hair under AA, but raising it drops white-on-fill to
+       3.37, and it is used both ways; left as it was rather than trading one
+       failure for another. */
+    --dv-success: #27AE60;
+    --dv-error: #E74C3C;
+    --dv-warning: #F39C12;
+    --dv-info: #2980B9;
     --dv-ink: #080F1A;
     --dv-surface-0: #080F1A;
     --dv-surface-1: #0D1B2E;
@@ -101,6 +110,14 @@
        3.55:1 on the far end of the primary button. White clears 6.25 and 7.28. */
     --dv-gold-from: #785C26;
     --dv-gold-to: #6B5322;
+    /* Darkened until each clears AA against both light surfaces — a white card
+       and the ivory page (4.90/4.96/4.95/4.94 on white, ≥4.50 on ivory). The
+       ratio is symmetric, so white on these as a fill clears AA too and
+       `bg-success text-white` keeps working. */
+    --dv-success: #1D8147;
+    --dv-error: #C74134;
+    --dv-warning: #9C640C;
+    --dv-info: #2676AA;
     --dv-ink: #14181F;
     --dv-surface-0: #F5F4F0;
     --dv-surface-1: #FFFFFF;

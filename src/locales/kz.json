@@ -74,6 +74,7 @@
     "school_workspace": "Оқытушы кабинеті",
     "lab_workspace": "Зертхана кабинеті",
     "center_workspace": "Орталық кабинеті",
+    "diagnostics_workspace": "Диагностика кабинеті",
     "partner_legal": "Менің құжаттарым",
     "clinic_settings": "Клиника параметрлері",
     "billing": "Тариф және төлем",
@@ -1043,6 +1044,7 @@
     "notification_empty": "Әзірге хабарландырулар жоқ",
     "notification_empty_short": "Әзірге хабарландырулар жоқ",
     "notification_source": "хабарландыру",
+    "notification_hints": "Кеңестер",
     "notification_open": "· ашу",
     "notification_shop": "Дүкен",
     "notification_academy": "Академия",
@@ -1482,7 +1484,10 @@
       "success": {
         "title": "Өтініш жіберілді!",
         "confirm_message": "Әкімші жақын арада растау үшін сізбен байланысады.",
-        "book_again": "Қайта жазылу"
+        "book_again": "Қайта жазылу",
+        "portal_title": "Жеке кабинет",
+        "portal_body": "Қабылдауларыңызды, шоттарды, суреттер мен диагностика нәтижелерін көріңіз — және қоңырауcыз жазылыңыз.",
+        "portal_cta": "Жеке кабинетке кіру"
       },
       "submit": "Қабылдауға жазылу",
       "next": "Келесі",

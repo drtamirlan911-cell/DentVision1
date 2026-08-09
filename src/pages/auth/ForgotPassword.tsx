@@ -1,21 +1,31 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { GLOBAL_CSS } from '../../utils/constants';
-import { rateLimit, validatePassword } from '../../utils/security';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { rateLimit, passwordPolicyError } from '../../utils/security';
 import { Loader2, KeyRound } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<'request' | 'reset'>('request');
-  const [login, setLogin] = useState('');
+  const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // The letter links straight to the reset form with the token in the query,
+  // so someone arriving from their inbox does not have to copy anything.
+  useEffect(() => {
+    const fromLink = searchParams.get('token');
+    if (fromLink) {
+      setToken(fromLink);
+      setStep('reset');
+    }
+  }, [searchParams]);
 
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,8 +34,8 @@ export default function ForgotPassword() {
       setError('Слишком много запросов. Подождите минуту.');
       return;
     }
-    if (!login.trim()) {
-      setError('Введите логин');
+    if (!email.trim() || !email.includes('@')) {
+      setError('Введите email, указанный при регистрации');
       return;
     }
     setLoading(true);
@@ -33,15 +43,19 @@ export default function ForgotPassword() {
       const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login: login.trim() }),
+        // The server looks the account up by email — it never had a login
+        // column to search. The form used to ask for "логин" with `admin_c1` as
+        // the placeholder, so a correct answer found nothing.
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
       const data = await res.json();
       const devToken = data._devToken || data.data?._devToken;
       if (devToken) {
+        // Development only — the server never returns this in production.
         setToken(devToken);
-        setSuccess('Токен: ' + devToken.slice(0, 12) + '... (авто-заполнен)');
+        setSuccess('Токен подставлен (режим разработки)');
       } else {
-        setSuccess(data.data?.message || data.message || 'Инструкция отправлена');
+        setSuccess('Если такой аккаунт существует, письмо со ссылкой отправлено');
       }
       setStep('reset');
     } catch {
@@ -58,8 +72,9 @@ export default function ForgotPassword() {
       setError('Введите токен');
       return;
     }
-    if (!validatePassword(newPassword)) {
-      setError('Пароль должен быть не менее 6 символов');
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) {
+      setError(policyError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -86,7 +101,6 @@ export default function ForgotPassword() {
 
   return (
     <>
-      <style>{GLOBAL_CSS}</style>
       <div className="min-h-screen max-w-full overflow-x-hidden bg-surface-0 flex items-center justify-center p-5 relative overflow-hidden">
         <div className="absolute w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,rgba(201,169,110,0.08)_0%,transparent_70%)] -top-24 -right-24 pointer-events-none" />
 
@@ -99,7 +113,9 @@ export default function ForgotPassword() {
               {step === 'request' ? 'Сброс пароля' : 'Новый пароль'}
             </h1>
             <p className="text-xs text-txt-muted mt-1.5">
-              {step === 'request' ? 'Введите ваш логин для получения токена' : 'Введите токен и новый пароль'}
+              {step === 'request'
+                ? 'Укажите email — вышлем ссылку для сброса'
+                : 'Задайте новый пароль'}
             </p>
           </div>
 
@@ -118,9 +134,9 @@ export default function ForgotPassword() {
           {step === 'request' ? (
             <form onSubmit={handleRequest}>
               <div className="mb-5">
-                <label className="block text-xs font-semibold text-txt-secondary mb-1.5">Логин</label>
-                <input type="text" value={login} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLogin(e.target.value)}
-                  placeholder="admin_c1" required autoFocus
+                <label className="block text-xs font-semibold text-txt-secondary mb-1.5">Email</label>
+                <input type="email" value={email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                  placeholder="you@example.kz" required autoFocus
                   className="w-full min-h-11 bg-surface-2 border border-dv-gold/20 rounded-lg px-3.5 py-2.5 text-sm text-txt-primary outline-none focus:border-dv-gold transition-colors" />
               </div>
               <button type="submit" disabled={loading}
@@ -129,7 +145,7 @@ export default function ForgotPassword() {
                     ? 'bg-dv-gold-dim cursor-not-allowed'
                     : 'bg-gradient-to-r from-dv-gold to-dv-gold-dim cursor-pointer'
                 }`}>
-                {loading ? <><Loader2 size={16} className="animate-spin text-surface-0" /> Отправка...</> : 'Получить токен'}
+                {loading ? <><Loader2 size={16} className="animate-spin text-surface-0" /> Отправка...</> : 'Отправить ссылку'}
               </button>
             </form>
           ) : (
@@ -143,7 +159,7 @@ export default function ForgotPassword() {
               <div className="mb-3.5">
                 <label className="block text-xs font-semibold text-txt-secondary mb-1.5">Новый пароль</label>
                 <input type="password" value={newPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
-                  placeholder="Минимум 6 символов" required
+                  placeholder="Минимум 8 символов, буквы и цифры" required
                   className="w-full min-h-11 bg-surface-2 border border-dv-gold/20 rounded-lg px-3.5 py-2.5 text-sm text-txt-primary outline-none focus:border-dv-gold transition-colors" />
               </div>
               <div className="mb-5">

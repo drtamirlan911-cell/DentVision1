@@ -23,7 +23,7 @@
  */
 
 import prisma from '../../../lib/prisma.js';
-import { resolveClinicAccess } from '../../../lib/orgContext.js';
+import { resolveClinicAccess, resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
 import { resolveUserPermissions } from '../../../lib/resolvePermissions.js';
 import { toolsForRole } from './registry.js';
 import { TOOL_PERMISSIONS, permissionsSatisfy } from './toolPermissions.js';
@@ -75,15 +75,24 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
   // Verify the requested clinic scope before anything is allowed to read it.
   let role = String(user.role);
   let clinicId: string | null = null;
+  let organizationId: string | null = null;
   if (input.clinicId) {
     const access = await resolveClinicAccess(input.userId, input.clinicId);
     if (access) {
       role = access.role;
       clinicId = input.clinicId;
+      // `resolveUserPermissions` scopes by Organization.id, and a clinic id is
+      // a different value — the Person lookup matched nothing, so the DB
+      // permission graph never contributed here and every AI tool decision
+      // fell back to the hardcoded role matrix. The same mistake was already
+      // found and fixed in auth.routes.ts.
+      organizationId = await resolveOrganizationIdForClinic(input.clinicId);
     }
   }
 
-  const permissions = new Set(await resolveUserPermissions(input.userId, clinicId, role));
+  const permissions = new Set(
+    await resolveUserPermissions(input.userId, organizationId ?? clinicId, role),
+  );
 
   const allowed = new Set<string>();
   for (const tool of toolsForRole(role)) {

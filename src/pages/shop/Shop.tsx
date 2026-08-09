@@ -6,7 +6,6 @@ import {
   X, Plus, Minus, Eye, Sparkles, Zap, ChevronRight, ChevronLeft, Check,
   Clock, Shield, ChevronDown, MapPin, SlidersHorizontal, Building2, Wallet,
 } from 'lucide-react';
-import { T } from '../../lib/design-tokens';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
 import { useAuth } from '@/store/auth.store';
@@ -42,15 +41,14 @@ interface PromotionItem {
   discountPercent?: number; discountAmount?: number;
 }
 
-const G = T.gold;
-const S = T.slate;
-const BG = T.bg;
-const CARD = T.card;
-const CARD_HOV = T.cardHov;
-const BDR = T.border;
-const BDR_SUB = T.borderSub;
-
 const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, duration: 0.4 } };
+
+/**
+ * Native <option> popups are drawn by the OS, so utility classes do not reach
+ * them — the colour has to be inline. It reads the theme variable rather than a
+ * hardcoded navy, so the list stays legible in the light theme too.
+ */
+const OPTION_STYLE = { background: 'var(--dv-surface-1)', color: 'var(--dv-text-primary)' } as const;
 
 export default function Shop() {
   const navigate = useNavigate();
@@ -171,73 +169,69 @@ export default function Shop() {
 
     return (
       <motion.div variants={fadeUp}
-        className="group relative rounded-xl overflow-hidden transition-all duration-300 cursor-pointer"
-        style={{ background: CARD, border: `1px solid ${BDR_SUB}` }}
+        className="group relative rounded-xl overflow-hidden transition-all duration-300 cursor-pointer bg-surface-1 hover:bg-surface-2 border border-bdr-subtle"
         onClick={() => navigate(`/shop/${product.id}`)}
-        onMouseEnter={(e) => e.currentTarget.style.background = CARD_HOV}
-        onMouseLeave={(e) => e.currentTarget.style.background = CARD}
       >
-        <div className="relative aspect-square overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
+        <div className="relative aspect-square overflow-hidden bg-surface-1">
           {imgSrc ? (
             <img src={imgSrc} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.08)' }}>
+            <div className="w-full h-full flex items-center justify-center text-txt-ghost">
               <Package size={48} />
             </div>
           )}
           <div className="absolute top-2 left-2 flex flex-col gap-1">
             {hasDiscount && (
-              <span className="text-txt-primary text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: T.ruby }}>-{discountPercent}%</span>
+              <span className="text-txt-primary text-[10px] font-bold px-2 py-0.5 rounded-md bg-error">-{discountPercent}%</span>
             )}
             {product.own_brand && (
-              <span className="text-txt-primary text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: G }}>DentVision</span>
+              <span className="text-txt-primary text-[10px] font-bold px-2 py-0.5 rounded-md bg-dv-gold">DentVision</span>
             )}
             {product.stock <= 0 && (
-              <span className="text-txt-primary text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#1a1a2e' }}>Нет в наличии</span>
+              <span className="text-txt-primary text-[10px] font-bold px-2 py-0.5 rounded-md bg-surface-2">Нет в наличии</span>
             )}
           </div>
           <button onClick={(e) => { e.stopPropagation(); toggleFav(product as any); }}
-            className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-            style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
+            className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center transition-colors bg-black/40"
+            style={{ backdropFilter: 'blur(4px)' }}>
             <Heart size={14} className={isFav ? 'fill-red-500 text-red-500' : 'text-txt-muted'} />
           </button>
         </div>
         <div className="p-3 space-y-2">
           {product.brand && (
-            <p className="text-[10px] font-medium uppercase tracking-wider truncate" style={{ color: S }}>{product.brand}</p>
+            <p className="text-[10px] font-medium uppercase tracking-wider truncate text-txt-muted">{product.brand}</p>
           )}
-          <h3 className="text-sm font-semibold leading-tight line-clamp-2 min-h-[2.5rem] transition-colors"
-            style={{ color: '#FFFFFF' }}
+          <h3 className="text-sm font-semibold leading-tight line-clamp-2 min-h-[2.5rem] transition-colors text-dv-gold-on"
             onClick={(e) => { e.stopPropagation(); navigate(`/shop/${product.id}`); }}>
             {product.name}
           </h3>
           <div className="flex items-center gap-1.5">
             <div className="flex items-center">
-              <Star size={12} className={product.rating ? 'fill-yellow-400 text-yellow-400' : ''} style={{ color: product.rating ? undefined : 'rgba(255,255,255,0.1)' }} />
-              <span className="text-xs font-medium ml-1" style={{ color: S }}>{product.rating?.toFixed(1) || '—'}</span>
+              <Star size={12} className={product.rating ? 'fill-warning text-warning' : 'text-txt-ghost'} />
+              <span className="text-xs font-medium ml-1 text-txt-muted">{product.rating?.toFixed(1) || '—'}</span>
             </div>
-            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>({product.review_count})</span>
-            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
-            <span className="text-[10px]" style={{ color: product.stock > 0 ? T.emerald : T.ruby }}>
+            <span className="text-[10px] text-txt-ghost">({product.review_count})</span>
+            <span className="text-[10px] text-txt-ghost">·</span>
+            <span className={cn('text-[10px]', product.stock > 0 ? 'text-success' : 'text-error')}>
               {product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет'}
             </span>
           </div>
           {/* Supplier count */}
           {product.supplier_count && product.supplier_count > 1 && (
-            <p className="text-[10px]" style={{ color: T.purple }}>
+            <p className="text-[10px] text-info">
               {product.supplier_count} поставщика
             </p>
           )}
           {/* Delivery preview */}
           {deliveryMap[product.id] && (
             <div className="flex items-center gap-1">
-              <Truck size={12} style={{ color: deliveryMap[product.id].cost === 0 ? T.emerald : S }} />
-              <span className="text-[11px]" style={{ color: deliveryMap[product.id].cost === 0 ? T.emerald : S }}>
+              <Truck size={12} className={deliveryMap[product.id].cost === 0 ? 'text-success' : 'text-txt-muted'} />
+              <span className={cn('text-[11px]', deliveryMap[product.id].cost === 0 ? 'text-success' : 'text-txt-muted')}>
                 {deliveryMap[product.id].cost === 0 ? 'Бесплатно' : `от ${deliveryMap[product.id].cost.toLocaleString()} ₸`}
                 {deliveryMap[product.id].days ? ` · ${deliveryMap[product.id].days} дн` : ''}
               </span>
               {deliveryMap[product.id].freeFrom && deliveryMap[product.id].cost > 0 && (
-                <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <span className="text-[10px] text-txt-ghost">
                   (беспл. от {deliveryMap[product.id].freeFrom!.toLocaleString()} ₸)
                 </span>
               )}
@@ -245,14 +239,13 @@ export default function Shop() {
           )}
           <div className="flex items-center justify-between pt-1">
             <div>
-              <span className="text-lg font-bold" style={{ color: G }}>{product.price.toLocaleString()} ₸</span>
+              <span className="text-lg font-bold text-dv-gold">{product.price.toLocaleString()} ₸</span>
               {hasDiscount && (
-                <span className="text-xs line-through ml-2" style={{ color: S }}>{product.old_price!.toLocaleString()} ₸</span>
+                <span className="text-xs line-through ml-2 text-txt-muted">{product.old_price!.toLocaleString()} ₸</span>
               )}
             </div>
             <button onClick={(e) => { e.stopPropagation(); addToCart(product); }}
-              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40"
-              style={{ background: G, color: T.bg }}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 bg-dv-gold text-dv-gold-on"
               disabled={product.stock <= 0}>
               {inCart ? <Check size={14} /> : <Plus size={14} />}
             </button>
@@ -271,7 +264,7 @@ export default function Shop() {
       'linear-gradient(135deg, #C9A96E 0%, #1a1a2e 100%)',
     ];
     return (
-      <div className="relative overflow-hidden rounded-2xl" style={{ minHeight: 260, background: BG }}>
+      <div className="relative overflow-hidden rounded-2xl bg-surface-0" style={{ minHeight: 260 }}>
         {banners.map((b, i) => (
           <div key={b.id} className={`absolute inset-0 transition-opacity duration-700 ${i === activeBanner ? 'opacity-100' : 'opacity-0'}`}>
             {b.imageUrl && <img src={b.imageUrl} alt="" className="w-full h-full object-cover" />}
@@ -292,18 +285,21 @@ export default function Shop() {
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
               {banners.map((_, i) => (
                 <button key={i} onClick={() => setActiveBanner(i)}
-                  className={`w-2 h-2 rounded-full transition-all ${i === activeBanner ? 'w-6' : ''}`}
-                  style={{ background: i === activeBanner ? G : 'rgba(255,255,255,0.3)' }} />
+                  aria-label={`Баннер ${i + 1}`}
+                  className={cn(
+                    'h-2 rounded-full transition-all',
+                    i === activeBanner ? 'w-6 bg-dv-gold' : 'w-2 bg-white/30',
+                  )} />
               ))}
             </div>
             <button onClick={() => setActiveBanner((p) => (p - 1 + banners.length) % banners.length)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-txt-primary"
-              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}>
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white bg-white/15"
+              style={{ backdropFilter: 'blur(4px)' }}>
               <ChevronLeft size={16} />
             </button>
             <button onClick={() => setActiveBanner((p) => (p + 1) % banners.length)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-txt-primary"
-              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}>
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white bg-white/15"
+              style={{ backdropFilter: 'blur(4px)' }}>
               <ChevronRight size={16} />
             </button>
           </>
@@ -319,23 +315,19 @@ export default function Shop() {
       <section>
         <div className="flex items-center justify-between mb-4 flex-wrap">
           <h2 className="text-lg font-bold text-txt-primary">Категории</h2>
-            <button onClick={() => navigate('/shop?all_categories=1')} className="text-xs font-medium hover:underline" style={{ color: G }}>
+            <button onClick={() => navigate('/shop?all_categories=1')} className="text-xs font-medium hover:underline text-dv-gold">
               Все категории <ChevronRight size={14} className="inline" />
           </button>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {displayCats.map((cat) => (
             <button key={cat.id} onClick={() => { setSelectedCat(cat.slug); navigate(`/shop?category=${cat.slug}`); }}
-              className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all group"
-              style={{ background: CARD, border: `1px solid ${BDR_SUB}` }}
-              onMouseEnter={(e) => e.currentTarget.style.background = CARD_HOV}
-              onMouseLeave={(e) => e.currentTarget.style.background = CARD}>
-              <div className="w-12 h-12 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
-                style={{ background: 'rgba(201,169,110,0.1)', color: G }}>
+              className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all group bg-surface-1 hover:bg-surface-2 border border-bdr-subtle">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform bg-dv-gold/10 text-dv-gold">
                 <Package size={20} />
               </div>
               <span className="text-xs font-medium text-center leading-tight text-txt-primary">{cat.name}</span>
-              {cat._count && <span className="text-[10px]" style={{ color: S }}>{cat._count.products} товаров</span>}
+              {cat._count && <span className="text-[10px] text-txt-muted">{cat._count.products} товаров</span>}
             </button>
           ))}
         </div>
@@ -347,9 +339,9 @@ export default function Shop() {
     if (!promotions.length) return null;
     const promo = promotions[0];
     return (
-      <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #8B6F3E 0%, #C9A96E 100%)' }}>
+      <div className="rounded-xl p-4 flex items-center justify-between bg-gradient-to-br from-dv-gold-from to-dv-gold-to">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-txt-ghost">
             <Zap size={20} className="text-txt-primary" />
           </div>
           <div>
@@ -357,7 +349,7 @@ export default function Shop() {
             {promo.description && <p className="text-txt-primary/70 text-xs">{promo.description}</p>}
           </div>
         </div>
-        <Badge variant="default" className="text-xs font-bold whitespace-nowrap" style={{ background: T.bg, color: G }}>
+        <Badge variant="default" className="text-xs font-bold whitespace-nowrap bg-surface-0 text-dv-gold">
           {promo.discountPercent ? `-${promo.discountPercent}%` : 'Скидка'}
         </Badge>
       </div>
@@ -367,24 +359,24 @@ export default function Shop() {
   if (loading) {
     return (
       <div className="max-w-full overflow-x-hidden mx-auto px-4 py-8 space-y-8 sm:max-w-7xl">
-        <div className="rounded-2xl animate-pulse" style={{ background: CARD, height: 260 }} />
+        <div className="rounded-2xl animate-pulse bg-surface-1" style={{ height: 260 }} />
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex flex-col items-center gap-2 p-3 rounded-xl" style={{ background: CARD }}>
-              <div className="w-12 h-12 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }} />
-              <div className="h-3 w-16 rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
+            <div key={i} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-surface-1">
+              <div className="w-12 h-12 rounded-full bg-surface-2" />
+              <div className="h-3 w-16 rounded bg-surface-2" />
             </div>
           ))}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="rounded-xl overflow-hidden" style={{ background: CARD }}>
-              <div className="aspect-square animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+            <div key={i} className="rounded-xl overflow-hidden bg-surface-1">
+              <div className="aspect-square animate-pulse bg-surface-2" />
               <div className="p-3 space-y-2">
-                <div className="h-3 w-12 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                <div className="h-4 w-full rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                <div className="h-3 w-24 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                <div className="h-6 w-20 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                <div className="h-3 w-12 rounded animate-pulse bg-surface-2" />
+                <div className="h-4 w-full rounded animate-pulse bg-surface-2" />
+                <div className="h-3 w-24 rounded animate-pulse bg-surface-2" />
+                <div className="h-6 w-20 rounded animate-pulse bg-surface-2" />
               </div>
             </div>
           ))}
@@ -399,51 +391,51 @@ export default function Shop() {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex-1 relative">
           <form onSubmit={handleSearch}>
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: S }} />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Поиск товаров, брендов..."
-              style={{
-                width: '100%', height: 40, paddingLeft: 36, paddingRight: 12,
-                background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`,
-                color: '#fff', borderRadius: 12, fontSize: 13, outline: 'none'
-              }}
-              className="placeholder:text-txt-muted focus:border-dv-gold/50 transition-colors min-h-11" />
+              className="w-full h-10 min-h-11 pl-9 pr-3 rounded-xl border border-bdr-subtle bg-surface-2 text-[13px] text-txt-primary outline-none placeholder:text-txt-muted focus:border-dv-gold/50 transition-colors" />
           </form>
         </div>
         <div className="relative">
           <button onClick={() => setCityOpen(!cityOpen)}
-            className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium transition-colors whitespace-nowrap min-h-11"
-            style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`, color: city ? '#fff' : S }}>
+            className={cn(
+              'flex items-center gap-1.5 h-10 px-3 rounded-xl border border-bdr-subtle bg-surface-2 text-xs font-medium transition-colors whitespace-nowrap min-h-11',
+              city ? 'text-txt-primary' : 'text-txt-muted',
+            )}>
             <MapPin size={14} className={city ? 'text-dv-gold' : ''} />
             {city || 'Весь Казахстан'}
-            <ChevronDown size={12} style={{ color: S }} />
+            <ChevronDown size={12} className="text-txt-muted" />
           </button>
           {cityOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setCityOpen(false)} />
               <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                className="absolute right-0 top-full mt-1 z-50 w-64 rounded-xl p-2 shadow-2xl"
-                style={{ background: '#0D1B2E', border: `1px solid ${BDR}`, maxHeight: 320, overflowY: 'auto' }}>
+                className="absolute right-0 top-full mt-1 z-50 w-64 rounded-xl p-2 shadow-2xl bg-surface-1 border border-bdr"
+                style={{ maxHeight: 320, overflowY: 'auto' }}>
                 <button onClick={() => { updateCity(''); setCityOpen(false) }}
-                  className="w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors"
-                  style={{ color: !city ? '#C9A96E' : S, background: !city ? 'rgba(201,169,110,0.1)' : 'transparent' }}>
+                  className={cn(
+                    'w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors',
+                    !city ? 'bg-dv-gold/10 text-dv-gold' : 'text-txt-muted',
+                  )}>
                   Весь Казахстан
                 </button>
                 <div className="flex flex-wrap gap-1 my-2 px-1">
                   {KZ_POPULAR_CITIES.filter(c => !city || city === c).slice(0, 6).map(c => (
                     <button key={c} onClick={() => { updateCity(c); setCityOpen(false) }}
-                      className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors"
-                      style={{ background: city === c ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.05)', color: city === c ? '#C9A96E' : S }}>
+                      className={cn(
+                        'px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors',
+                        city === c ? 'bg-dv-gold/15 text-dv-gold' : 'bg-surface-2 text-txt-muted',
+                      )}>
                       {c}
                     </button>
                   ))}
                 </div>
-                <div className="border-t" style={{ borderColor: BDR_SUB }} />
+                <div className="border-t border-bdr-subtle" />
                 <select value={city} onChange={(e) => { updateCity(e.target.value); setCityOpen(false) }}
-                  className="w-full mt-2 rounded-lg px-3 py-1.5 text-xs outline-none min-h-11"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`, color: '#fff' }}>
+                  className="w-full mt-2 rounded-lg px-3 py-1.5 text-xs outline-none min-h-11 bg-surface-2 border border-bdr-subtle text-txt-primary">
                   {KZ_CITY_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value} style={{ background: '#0D1B2E' }}>{o.label}</option>
+                    <option key={o.value} value={o.value} className="bg-surface-1">{o.label}</option>
                   ))}
                 </select>
               </motion.div>
@@ -451,19 +443,16 @@ export default function Shop() {
           )}
         </div>
         <button onClick={() => setShowCart(true)}
-          className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors min-h-11"
-          style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}` }}>
-          <ShoppingCart size={18} style={{ color: S }} />
+          className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors min-h-11 bg-surface-2 border border-bdr-subtle">
+          <ShoppingCart size={18} className="text-txt-muted" />
           {cartCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-txt-primary text-[10px] font-bold flex items-center justify-center"
-              style={{ background: G }}>
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-txt-primary text-[10px] font-bold flex items-center justify-center bg-dv-gold">
               {cartCount > 99 ? '99+' : cartCount}
             </span>
           )}
         </button>
         <button onClick={() => navigate('/supplier')}
-          className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium whitespace-nowrap transition-colors min-h-11"
-          style={{ background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E' }}>
+          className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium whitespace-nowrap transition-colors min-h-11 bg-dv-gold/10 border border-dv-gold/30 text-dv-gold">
           <Store size={14} /> Стать поставщиком
         </button>
       </div>
@@ -482,9 +471,9 @@ export default function Shop() {
         <section>
           <div className="flex items-center justify-between mb-4 flex-wrap">
             <h2 className="text-lg font-bold text-txt-primary flex items-center gap-2">
-              <Zap size={18} style={{ color: T.ruby }} /> Хиты продаж
+              <Zap size={18} className="text-error" /> Хиты продаж
             </h2>
-            <button onClick={() => navigate('/shop?sort=price_asc')} className="text-xs font-medium hover:underline" style={{ color: G }}>
+            <button onClick={() => navigate('/shop?sort=price_asc')} className="text-xs font-medium hover:underline text-dv-gold">
               Все товары <ChevronRight size={14} className="inline" />
             </button>
           </div>
@@ -500,7 +489,7 @@ export default function Shop() {
         <section>
           <div className="flex items-center justify-between mb-4 flex-wrap">
             <h2 className="text-lg font-bold text-txt-primary flex items-center gap-2">
-              <Sparkles size={18} style={{ color: T.purple }} /> Рекомендуем
+              <Sparkles size={18} className="text-info" /> Рекомендуем
             </h2>
           </div>
           <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
@@ -515,9 +504,9 @@ export default function Shop() {
         <section>
           <div className="flex items-center justify-between mb-4 flex-wrap">
             <h2 className="text-lg font-bold text-txt-primary flex items-center gap-2">
-              <TrendingUp size={18} style={{ color: G }} /> Популярные бренды
+              <TrendingUp size={18} className="text-dv-gold" /> Популярные бренды
             </h2>
-            <button onClick={() => navigate('/shop?sort=rating')} className="text-xs font-medium hover:underline" style={{ color: G }}>
+            <button onClick={() => navigate('/shop?sort=rating')} className="text-xs font-medium hover:underline text-dv-gold">
               Все бренды <ChevronRight size={14} className="inline" />
             </button>
           </div>
@@ -533,15 +522,16 @@ export default function Shop() {
         <div className="flex items-center justify-between mb-4 flex-wrap">
           <h2 className="text-lg font-bold text-txt-primary">Все товары</h2>
           <div className="flex items-center gap-2 flex-wrap">
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="min-h-11"
-              style={{
-                fontSize: 12, border: `1px solid ${BDR_SUB}`, borderRadius: 8,
-                padding: '4px 8px', background: 'rgba(255,255,255,0.05)', color: '#fff', outline: 'none'
-              }}>
-              <option value="" style={{ background: '#0D1B2E', color: '#fff' }}>Сортировка</option>
-              <option value="price_asc" style={{ background: '#0D1B2E', color: '#fff' }}>Сначала дешевле</option>
-              <option value="price_desc" style={{ background: '#0D1B2E', color: '#fff' }}>Сначала дороже</option>
-              <option value="rating" style={{ background: '#0D1B2E', color: '#fff' }}>По рейтингу</option>
+            {/* The <option> background has to stay inline — browsers do not apply
+                utility classes to the native popup — but it reads the theme
+                variable instead of a hardcoded navy, so the list is legible in
+                both themes. */}
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+              className="min-h-11 rounded-lg border border-bdr-subtle bg-surface-2 px-2 py-1 text-xs text-txt-primary outline-none">
+              <option value="" style={OPTION_STYLE}>Сортировка</option>
+              <option value="price_asc" style={OPTION_STYLE}>Сначала дешевле</option>
+              <option value="price_desc" style={OPTION_STYLE}>Сначала дороже</option>
+              <option value="rating" style={OPTION_STYLE}>По рейтингу</option>
             </select>
           </div>
         </div>
@@ -559,61 +549,61 @@ export default function Shop() {
       <AnimatePresence>
         {showCart && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+            className="fixed inset-0 z-50 flex justify-end bg-black/60" style={{ backdropFilter: 'blur(8px)' }}
             onClick={() => setShowCart(false)}>
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="w-full max-w-full h-full overflow-y-auto sm:max-w-sm" style={{ background: '#0D1B2E', borderLeft: `1px solid ${BDR}` }}
+              className="w-full max-w-full h-full overflow-y-auto sm:max-w-sm bg-surface-1 border-l border-bdr"
               onClick={e => e.stopPropagation()}>
-              <div className="sticky top-0 z-10 p-4 flex items-center justify-between" style={{ background: '#0D1B2E', borderBottom: `1px solid ${BDR_SUB}` }}>
+              <div className="sticky top-0 z-10 p-4 flex items-center justify-between bg-surface-1 border-b border-bdr-subtle">
                 <h2 className="font-bold text-lg text-txt-primary">Корзина</h2>
-                <button aria-label="Close cart" onClick={() => setShowCart(false)}><X size={20} style={{ color: S }} /></button>
+                <button aria-label="Close cart" onClick={() => setShowCart(false)}><X size={20} className="text-txt-muted" /></button>
               </div>
               {cart.length === 0 ? (
                 <EmptyState icon={<ShoppingCart size={32} />} title="Корзина пуста" description="Добавьте товары из каталога" className="py-12" />
               ) : (
                 <div className="p-4 space-y-3">
                   {cart.map((item) => (
-                    <div key={item.id} className="flex gap-3 rounded-xl p-3" style={{ background: CARD }}>
-                      <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <div key={item.id} className="flex gap-3 rounded-xl p-3 bg-surface-1">
+                      <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-1">
                         {item.imageUrl ? (
                           <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.1)' }}>
+                          <div className="w-full h-full flex items-center justify-center text-txt-ghost">
                             <Package size={20} />
                           </div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-txt-primary truncate">{item.name}</p>
-                        <p className="text-xs" style={{ color: S }}>{item.brand}</p>
+                        <p className="text-xs text-txt-muted">{item.brand}</p>
                         <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${BDR_SUB}` }}>
+                          <div className="flex items-center rounded-lg overflow-hidden border border-bdr-subtle">
                             <button aria-label="Decrease quantity" onClick={() => updateQty(item.id, item.qty - 1)}
-                              className="w-7 h-7 flex items-center justify-center transition-colors"
-                              style={{ color: S }}><Minus size={12} /></button>
-                            <span className="w-7 h-7 flex items-center justify-center text-xs font-medium text-txt-primary"
-                              style={{ borderLeft: `1px solid ${BDR_SUB}`, borderRight: `1px solid ${BDR_SUB}` }}>{item.qty}</span>
+                              className="w-7 h-7 flex items-center justify-center transition-colors text-txt-muted"
+                             ><Minus size={12} /></button>
+                            <span className="w-7 h-7 flex items-center justify-center text-xs font-medium text-txt-primary border-x border-bdr-subtle"
+                             >{item.qty}</span>
                             <button aria-label="Increase quantity" onClick={() => updateQty(item.id, item.qty + 1)}
-                              className="w-7 h-7 flex items-center justify-center transition-colors"
-                              style={{ color: S }}><Plus size={12} /></button>
+                              className="w-7 h-7 flex items-center justify-center transition-colors text-txt-muted"
+                             ><Plus size={12} /></button>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-bold" style={{ color: G }}>{(item.price * item.qty).toLocaleString()} ₸</p>
-                            <button onClick={() => removeFromCart(item.id)} className="text-[10px] hover:underline"
-                              style={{ color: T.ruby }}>Удалить</button>
+                            <p className="text-sm font-bold text-dv-gold">{(item.price * item.qty).toLocaleString()} ₸</p>
+                            <button onClick={() => removeFromCart(item.id)} className="text-[10px] hover:underline text-error"
+                             >Удалить</button>
                           </div>
                         </div>
                       </div>
                     </div>
                   ))}
-                  <div className="pt-3 mt-3" style={{ borderTop: `1px solid ${BDR_SUB}` }}>
+                  <div className="pt-3 mt-3 border-t border-bdr-subtle">
                     <div className="flex justify-between mb-3">
-                      <span style={{ color: S }}>Цена:</span>
-                      <span className="text-lg font-bold" style={{ color: G }}>{cartTotal.toLocaleString()} ₸</span>
+                      <span className="text-txt-muted">Цена:</span>
+                      <span className="text-lg font-bold text-dv-gold">{cartTotal.toLocaleString()} ₸</span>
                     </div>
-                    <Button variant="primary" className="w-full" onClick={() => { setShowCart(false); navigate('/shop/checkout'); }}
-                      style={{ background: G, color: T.bg }}>
+                    <Button variant="primary" className="w-full bg-dv-gold text-dv-gold-on" onClick={() => { setShowCart(false); navigate('/shop/checkout'); }}
+                     >
                        Оформить заказ
                     </Button>
                   </div>

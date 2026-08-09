@@ -5,6 +5,7 @@ import {
   Plus, LogIn, FlaskConical, Building2, QrCode, Link2, KeyRound,
   CheckCircle2, ArrowRight, Sparkles, Loader2, Crown, ChevronRight,
 } from 'lucide-react';
+import { tintedAccent } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '@/components/ui/ds/Toast';
 import * as api from '@/utils/api';
@@ -105,8 +106,12 @@ export default function MyClinics() {
                   onClick={() => enterClinic(m.clinicId)}
                   className="w-full flex items-center gap-4 p-4 min-h-11 bg-surface-1 border border-bdr-subtle rounded-[14px] hover:border-dv-gold/40 transition-all text-left cursor-pointer"
                 >
+                  {/* The clinic picks its own accent, so this one is data, not
+                      a hardcoded palette; the fallback is the brand token, and
+                      the tint is mixed rather than concatenated so a `var()`
+                      fallback stays valid CSS. */}
                   <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold shrink-0"
-                    style={{ background: (m.clinic?.color || '#C9A96E') + '22', color: m.clinic?.color || '#C9A96E' }}>
+                    style={tintedAccent(m.clinic?.color, 13)}>
                     {(m.clinic?.name || '?').slice(0, 1)}
                   </div>
                   <div className="flex-1 min-w-0">
