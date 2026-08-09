@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma.js';
 import { uid } from '../lib/helpers.js';
+import { dispatchNotification, dispatchNotifications } from '../modules/notifications/dispatch.service.js';
 
 /**
  * Unified notification service — single entry point for all platform notifications.
@@ -7,8 +8,8 @@ import { uid } from '../lib/helpers.js';
  * Every module (CRM, Diagnostics, Shop, School, Admin) creates notifications
  * through this service so that:
  *  - user preferences are respected (opt-in / opt-out per type)
+ *  - channel dispatch (WhatsApp / SMS / email) happens automatically
  *  - deep links are consistent
- *  - batching / aggregation happens in one place
  */
 
 export const NOTIFICATION_TYPES = {
@@ -58,6 +59,7 @@ export interface CreateNotificationInput {
 
 /**
  * Create a notification for a single user if they have not opted out of this type.
+ * Dispatches to all configured channels (in-app, WhatsApp, SMS, email).
  */
 export async function createNotification(input: CreateNotificationInput): Promise<void> {
   try {
@@ -68,15 +70,13 @@ export async function createNotification(input: CreateNotificationInput): Promis
       if (pref && pref.enabled === false) return;
     }
 
-    await prisma.notification.create({
-      data: {
-        id: uid(),
-        userId: input.userId,
-        type: input.type,
-        title: input.title,
-        message: input.message,
-        link: input.link || null,
-      },
+    await dispatchNotification({
+      userId: input.userId,
+      clinicId: input.clinicId,
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      link: input.link,
     });
   } catch (err) {
     console.error('[NotificationService] Failed to create notification:', err);
@@ -85,6 +85,7 @@ export async function createNotification(input: CreateNotificationInput): Promis
 
 /**
  * Create the same notification for multiple users (batch).
+ * Checks preferences per-user.
  */
 export async function createNotificationForMany(
   userIds: string[],
@@ -107,7 +108,7 @@ export async function createNotificationForClinic(
     const where: any = { clinicId };
     if (opts?.roles?.length) where.role = { in: opts.roles };
     const members = await prisma.clinicMember.findMany({ where, select: { userId: true } });
-    await createNotificationForMany(members.map((m) => m.userId), input);
+    await createNotificationForMany(members.map((m) => m.userId), { ...input, clinicId });
   } catch (err) {
     console.error('[NotificationService] Failed to create clinic notifications:', err);
   }

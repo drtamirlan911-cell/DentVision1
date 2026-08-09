@@ -3,7 +3,7 @@ import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
 import { publish } from '../../lib/events.js';
-import { dispatchNotifications } from '../notifications/dispatch.service.js';
+import { createNotificationForCenter, NOTIFICATION_TYPES } from '../../services/notification.service.js';
 import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 
 // ─── Center Subscription ───
@@ -479,9 +479,19 @@ export async function createReferral(data: {
     doctorId: userId,
     patientName: data.patientName || '',
     studyType: data.studyType || '',
-    status: 'DRAFT' as ReferralStatus,
+    status: (data.centerId || data.labId) ? 'SENT' : 'DRAFT',
     userId,
   });
+
+  // Notify the center/lab that a new referral arrived
+  if (data.centerId) {
+    await createNotificationForCenter(data.centerId, {
+      type: NOTIFICATION_TYPES.REFERRAL_SENT,
+      title: 'Новое направление',
+      message: `${data.patientName || 'Пациент'} — ${data.studyType || 'исследование'}`,
+      link: `/center-workspace?tab=referrals`,
+    });
+  }
 
   return referral;
 }
@@ -538,34 +548,36 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
 
   // Notify diagnostic center/lab when referral is sent to them
   if (status === 'SENT' && updatedReferral.centerId) {
-    const centerMembers = await prisma.diagnosticCenterMember.findMany({
-      where: { centerId: updatedReferral.centerId, role: { in: ['admin', 'manager'] } },
+    await createNotificationForCenter(updatedReferral.centerId, {
+      type: NOTIFICATION_TYPES.REFERRAL_SENT,
+      title: 'Новое направление',
+      message: `${updatedReferral.patientName || 'Пациент'} — ${updatedReferral.studyType || 'исследование'}`,
+      link: `/center-workspace?tab=referrals`,
     });
-    for (const m of centerMembers) {
-      await prisma.notification.create({
-        data: { id: uid(), userId: m.userId, type: 'workflow', title: 'Новое направление', message: `${updatedReferral.patientName} — ${updatedReferral.studyType}. Клиника: ${updatedReferral.clinicId?.slice(0, 8) || '—'}`, link: `/diagnostics/referrals/${id}` },
-      });
-    }
   }
 
   // Notify referring doctor when center accepts and sets cost
   if (status === 'ACCEPTED' && updatedReferral.doctorId) {
     const costMsg = updatedReferral.cost ? ` Стоимость: ${Number(updatedReferral.cost).toLocaleString()} ₸` : '';
-    await prisma.notification.create({
-      data: { id: uid(), userId: updatedReferral.doctorId, type: 'workflow', title: 'Направление принято', message: `#${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}.${costMsg}`, link: `/diagnostics/referrals/${id}` },
+    await createNotification({
+      userId: updatedReferral.doctorId,
+      type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED,
+      title: 'Направление принято',
+      message: `#${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}.${costMsg}`,
+      link: `/diagnostics/referrals/${id}`,
     });
   }
 
   // Notify the referring doctor when results are ready
   if (status === 'COMPLETED' && updatedReferral.doctorId) {
-    await prisma.notification.create({
-      data: {
-        id: uid(),
-        userId: updatedReferral.doctorId,
-        type: 'workflow',
-        title: 'Результат диагностики готов',
-        message: `Направление #${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}. Результат готов к просмотру.`,
-        link: `/diagnostics/referrals/${id}`,
+    await createNotification({
+      userId: updatedReferral.doctorId,
+      type: NOTIFICATION_TYPES.REFERRAL_RESULT,
+      title: 'Результат диагностики готов',
+      message: `Направление #${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}. Результат готов к просмотру.`,
+      link: `/diagnostics/referrals/${id}`,
+    });
+  }
       },
     });
   }

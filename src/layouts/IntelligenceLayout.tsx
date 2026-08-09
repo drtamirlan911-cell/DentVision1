@@ -11,12 +11,14 @@ import { useWorkspaceStore } from '@/store/workspace.store';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
 import { useAIStore } from '@/store/ai.store';
+import { useNotificationStore } from '@/store/notification.store';
 import { trackProductEvent } from '@/utils/analytics';
 import { Sidebar } from './Sidebar';
 import { AlertDropdown } from './AlertDropdown';
 import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
 import GuestCRMModal from '@/components/guest/GuestCRMModal';
+import NotificationCenter from '@/components/NotificationCenter';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner';
 import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
@@ -140,10 +142,12 @@ export const IntelligenceLayout: React.FC = () => {
     if (!isMobile) setContextSheetOpen(false);
   }, [isMobile, setContextSheetOpen]);
 
+  const loadNotifications = useNotificationStore((s) => s.loadNotifications);
+
   useEffect(() => {
-    const t = setTimeout(() => { void loadProactiveAlerts() }, 500);
+    const t = setTimeout(() => { void loadProactiveAlerts(); void loadNotifications(); }, 500);
     return () => clearTimeout(t);
-  }, [loadProactiveAlerts]);
+  }, [loadProactiveAlerts, loadNotifications]);
 
   // Guests always get a labeled expanded sidebar (never icon-only rail).
   useEffect(() => {
@@ -448,6 +452,7 @@ export const IntelligenceLayout: React.FC = () => {
               <span>{t('common.search')}...</span>
               <kbd className="px-1 py-0.5 text-[10px] font-mono bg-surface-3 rounded border border-bdr-subtle">⌘K</kbd>
             </button>
+            <NotificationCenter />
             <AlertDropdown
               alerts={proactiveAlerts}
               isOpen={alertDropdownOpen}
