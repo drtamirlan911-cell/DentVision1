@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/ds/Button';
 import { Input } from '@/components/ui/ds/Input';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PageLoader } from '@/components/ui/PageLoader';
 import * as api from '@/utils/api';
 import { queryKeys } from '@/queries/keys';
@@ -102,15 +103,16 @@ export default function ReferralList() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 sm:p-6 space-y-4 max-w-full overflow-x-hidden">
-      <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-txt-primary">Направления</h1>
-          <p className="text-sm text-txt-muted mt-0.5">{total} всего</p>
-        </div>
-        <Button variant="primary" className="min-h-11" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')}>
-          Новое направление
-        </Button>
-      </div>
+      <PageHeader
+        title="Направления"
+        subtitle={`${total} всего`}
+        icon={<FileText size={22} />}
+        actions={
+          <Button variant="primary" className="min-h-11" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')}>
+            Новое направление
+          </Button>
+        }
+      />
 
       <div className="flex flex-col md:flex-row md:items-center gap-3">
         <div className="relative flex-1 max-w-full sm:max-w-sm">

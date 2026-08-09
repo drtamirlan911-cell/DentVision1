@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { cn, getGreeting, formatMoney } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
-import { StatCard } from '@/components/ui/ds/StatCard'
+import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
 import { Badge } from '@/components/ui/ds/Badge'
 
 import { useAuth } from '@/store/auth.store'
@@ -311,26 +311,22 @@ export default function Dashboard() {
       className="max-w-full overflow-x-hidden mx-auto space-y-6"
     >
       {/* Greeting */}
-      <motion.div variants={item} className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-txt-primary">
-            {getGreeting()}, {user?.name || user?.login}
-          </h1>
-          <p className="text-sm text-txt-secondary mt-1">
-            {new Date().toLocaleDateString('ru-RU', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
-          </p>
-        </div>
-        <div className="hidden md:flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dv-gold/10 border border-dv-gold/20">
-            <Sparkles size={14} className="text-dv-gold" />
-            <span className="text-xs font-medium text-dv-gold">AI включён</span>
-          </div>
-        </div>
+      <motion.div variants={item}>
+        <PageHeader
+          title={`${getGreeting()}, ${user?.name || user?.login}`}
+          subtitle={new Date().toLocaleDateString('ru-RU', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })}
+          actions={
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dv-gold/10 border border-dv-gold/20">
+              <Sparkles size={14} className="text-dv-gold" />
+              <span className="text-xs font-medium text-dv-gold">AI включён</span>
+            </div>
+          }
+        />
       </motion.div>
 
       {/* Quick Stats */}

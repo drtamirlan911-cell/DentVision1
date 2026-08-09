@@ -9,6 +9,18 @@ import { Badge } from '@/components/ui/ds/Badge';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
+/**
+ * Literal foregrounds on purpose. The fills are fixed semantic colours that do
+ * not follow the theme, so the text sitting on them must not follow it either —
+ * `text-txt-primary` here would be graphite on green in the light theme.
+ */
+const TOAST_FILL: Record<string, string> = {
+  success: 'bg-success text-white',
+  error: 'bg-error text-white',
+  warning: 'bg-warning text-[#0B1220]',
+  info: 'bg-info text-white',
+};
+
 interface DocumentData {
   id?: string;
   title?: string;
@@ -79,21 +91,21 @@ export default function DocumentSign() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-[#080F1A] flex items-center justify-center">
-      <Loader2 size={40} className="animate-spin text-[#C9A96E]" />
+    <div className="min-h-screen bg-surface-0 flex items-center justify-center">
+      <Loader2 size={40} className="animate-spin text-dv-gold" />
     </div>
   );
 
   if (signed) return (
-    <div className="min-h-screen bg-[#080F1A] flex items-center justify-center p-5">
+    <div className="min-h-screen bg-surface-0 flex items-center justify-center p-5">
       <div className="max-w-[480px] w-full text-center">
-        <div className="mb-5 flex justify-center text-[#27AE60]">
+        <div className="mb-5 flex justify-center text-success">
           <CheckCircle2 size={64} />
         </div>
-        <h1 className="font-['Georgia',serif] text-[26px] text-white mb-3">{t('patientPortal.documents.signed_page_title')}</h1>
-        <p className="text-sm text-[#B0BEC5] mb-2">{doc?.title}</p>
-        <p className="text-xs text-[#7A8899]">{t('patientPortal.documents.signed_by', { name: doc?.signed_by_name || name })}</p>
-        <p className="text-xs text-[#7A8899] mt-1">
+        <h1 className="font-serif text-3xl text-txt-primary mb-3">{t('patientPortal.documents.signed_page_title')}</h1>
+        <p className="text-sm text-txt-secondary mb-2">{doc?.title}</p>
+        <p className="text-xs text-txt-muted">{t('patientPortal.documents.signed_by', { name: doc?.signed_by_name || name })}</p>
+        <p className="text-xs text-txt-muted mt-1">
           {doc?.clinic_name && `${doc.clinic_name}`}
           {doc?.clinic_phone && ` · ${doc.clinic_phone}`}
         </p>
@@ -102,41 +114,41 @@ export default function DocumentSign() {
   );
 
   return (
-    <div className="min-h-screen bg-[#080F1A] py-10 px-5">
+    <div className="min-h-screen bg-surface-0 py-10 px-5">
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold shadow-lg ${toast.type === 'success' ? 'bg-[#27AE60] text-white' : toast.type === 'error' ? 'bg-[#E74C3C] text-white' : toast.type === 'warning' ? 'bg-[#F39C12] text-[#080F1A]' : 'bg-[#2980B9] text-white'}`}>
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold shadow-lg ${TOAST_FILL[toast.type] || TOAST_FILL.info}`}>
           {toast.msg}
           <button aria-label="Dismiss" onClick={() => setToast(null)} className="ml-2 opacity-70 hover:opacity-100"><X size={14} /></button>
         </div>
       )}
       <div className="max-w-[600px] mx-auto">
         <div className="text-center mb-8">
-          <div className="mb-2 flex justify-center text-[#C9A96E]">
+          <div className="mb-2 flex justify-center text-dv-gold">
             <Stethoscope size={40} />
           </div>
-          <h1 className="font-['Georgia',serif] text-2xl text-white">
+          <h1 className="font-serif text-2xl text-txt-primary">
             {doc?.clinic_name || 'DentVision'}
           </h1>
           {doc?.clinic_address && (
-            <p className="text-xs text-[#7A8899] mt-1 flex items-center justify-center gap-1">
+            <p className="text-xs text-txt-muted mt-1 flex items-center justify-center gap-1">
               <MapPin size={12} /> {doc.clinic_address}
             </p>
           )}
         </div>
 
-        <div className="bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-2xl px-6 py-7 mb-6">
+        <div className="bg-surface-1 border border-dv-gold/20 rounded-2xl px-6 py-7 mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <FileText size={20} className="text-[#C9A96E]" />
-            <h2 className="font-['Georgia',serif] text-lg text-white m-0">{doc?.title}</h2>
+            <FileText size={20} className="text-dv-gold" />
+            <h2 className="font-serif text-lg text-txt-primary m-0">{doc?.title}</h2>
           </div>
-          <p className="text-[11px] text-[#7A8899] mb-1">{t('patientPortal.documents.type')}: {doc?.doc_type}</p>
-          <div className="bg-white/[0.03] rounded-[10px] p-4 border border-[rgba(201,169,110,0.15)] text-[13px] text-[#B0BEC5] leading-[1.7] whitespace-pre-wrap font-['Georgia',serif] max-h-[400px] overflow-auto">
+          <p className="text-xs text-txt-muted mb-1">{t('patientPortal.documents.type')}: {doc?.doc_type}</p>
+          <div className="bg-surface-2 rounded-[10px] p-4 border border-dv-gold/20 text-sm text-txt-secondary leading-[1.7] whitespace-pre-wrap font-serif max-h-[400px] overflow-auto">
             {doc?.content || t('patientPortal.documents.document_content_missing')}
           </div>
         </div>
 
-        <div className="bg-[#0D1B2E] border border-[rgba(201,169,110,0.15)] rounded-2xl px-6 py-7">
-          <h2 className="font-['Georgia',serif] text-lg text-white m-0 mb-4">
+        <div className="bg-surface-1 border border-dv-gold/20 rounded-2xl px-6 py-7">
+          <h2 className="font-serif text-lg text-txt-primary m-0 mb-4">
             {t('patientPortal.documents.signing')}
           </h2>
 
@@ -146,11 +158,11 @@ export default function DocumentSign() {
               value={name}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               placeholder={t('patientPortal.documents.full_name_placeholder')}
-              className="w-full bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-sm text-white outline-none focus:border-[#C9A96E] transition-colors"
+              className="w-full bg-surface-2 border border-dv-gold/20 rounded-lg px-3.5 py-2.5 text-sm text-txt-primary outline-none focus:border-dv-gold transition-colors"
             />
           </div>
 
-          <p className="text-xs text-[#B0BEC5] mb-2">
+          <p className="text-xs text-txt-secondary mb-2">
             {t('patientPortal.documents.signature_hint')}
           </p>
 
@@ -166,15 +178,15 @@ export default function DocumentSign() {
           </div>
 
           {signing && (
-            <p className="text-xs text-[#C9A96E] text-center mt-3">{t('common.loading')}</p>
+            <p className="text-xs text-dv-gold text-center mt-3">{t('common.loading')}</p>
           )}
 
-          <p className="text-[10px] text-[#7A8899] mt-4 text-center">
+          <p className="text-[10px] text-txt-muted mt-4 text-center">
             {t('patientPortal.documents.consent')}
           </p>
         </div>
 
-        <p className="text-center text-[11px] text-[#7A8899] mt-5">
+        <p className="text-center text-xs text-txt-muted mt-5">
           Powered by DentVision
         </p>
       </div>

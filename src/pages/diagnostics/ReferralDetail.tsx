@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Textarea } from '@/components/ui/ds/Input';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
@@ -65,16 +66,19 @@ export default function ReferralDetail() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-4xl max-w-full overflow-x-hidden">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="icon-sm" aria-label="Назад" className="min-h-11" onClick={() => navigate('/diagnostics/referrals')}><ArrowLeft size={18} /></Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-txt-primary">{referral.patientName}</h1>
+      <PageHeader
+        title={referral.patientName}
+        subtitle={`${referral.studyType} · ${referral.category}`}
+        icon={<FileText size={22} />}
+        actions={
+          <>
             <StatusPill status={referral.status} />
-          </div>
-          <p className="text-sm text-txt-muted mt-0.5">{referral.studyType} · {referral.category}</p>
-        </div>
-      </div>
+            <Button variant="ghost" size="sm" className="min-h-11" icon={<ArrowLeft size={16} />} onClick={() => navigate('/diagnostics/referrals')}>
+              Назад
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
         <Card padding="md">

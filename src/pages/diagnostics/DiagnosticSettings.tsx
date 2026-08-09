@@ -5,6 +5,7 @@ import { Settings, Save } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Input, Select } from '@/components/ui/ds/Input';
 import { Button } from '@/components/ui/ds/Button';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
 import { useAuth } from '@/store/auth.store';
 
@@ -26,7 +27,11 @@ export default function DiagnosticSettings() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-full overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8 space-y-6">
-      <h1 className="text-xl font-bold text-txt-primary">Настройки диагностики</h1>
+      <PageHeader
+        title="Настройки диагностики"
+        subtitle="Значения по умолчанию для новых направлений"
+        icon={<Settings size={22} />}
+      />
 
       <Card padding="md">
         <h3 className="text-sm font-semibold text-txt-primary mb-4">Основные</h3>

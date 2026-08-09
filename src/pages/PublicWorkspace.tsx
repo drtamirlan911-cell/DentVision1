@@ -33,18 +33,20 @@ const PublicWorkspace = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-surface-0 p-4 w-full max-w-full overflow-x-hidden">
       <div className="w-full max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-2">DentVision</h1>
-        <h2 className="text-xl text-center mb-8">AI for Digital Dentistry</h2>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-8 mb-8">
-          <p className="text-center mb-4">Чем могу помочь?</p>
+        {/* `bg-white/5` and unset text colours only ever worked on the dark
+            theme — on the light one this was white panels on ivory with
+            whatever colour the body happened to inherit. */}
+        <h1 className="text-5xl font-semibold tracking-tight text-center text-txt-primary mb-2">DentVision</h1>
+        <h2 className="text-xl text-center text-txt-secondary mb-8">AI for Digital Dentistry</h2>
+        <div className="bg-surface-1 border border-bdr-subtle rounded-xl p-8 mb-8">
+          <p className="text-center text-txt-secondary mb-4">Чем могу помочь?</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div className="bg-white/5 border border-white/10 rounded-lg p-4 min-h-11 flex items-center">AI Assistant</div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-4 min-h-11 flex items-center">Shop</div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-4 min-h-11 flex items-center">Jobs</div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-4 min-h-11 flex items-center">School</div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-4 min-h-11 flex items-center">Community</div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-4 min-h-11 flex items-center">Demo Clinic</div>
+          {['AI Assistant', 'Shop', 'Jobs', 'School', 'Community', 'Demo Clinic'].map((item) => (
+            <div key={item} className="bg-surface-1 border border-bdr-subtle rounded-lg p-4 min-h-11 flex items-center text-txt-primary">
+              {item}
+            </div>
+          ))}
         </div>
       </div>
       <LoginModal

@@ -4,8 +4,8 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
-import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useAuth } from '@/store/auth.store';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
@@ -61,7 +61,11 @@ export default function DiagnosticCalendar() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-4 max-w-full overflow-x-hidden">
-      <h1 className="text-xl font-bold text-txt-primary">Календарь</h1>
+      <PageHeader
+        title="Календарь"
+        subtitle="Исследования по датам"
+        icon={<CalendarDays size={22} />}
+      />
 
       <Card padding="md">
         <div className="flex flex-wrap items-center justify-between mb-4 gap-2">

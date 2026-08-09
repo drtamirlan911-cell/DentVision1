@@ -67,7 +67,7 @@ export default function Register({ onBack }: RegisterProps) {
           <div className="mb-2.5 flex justify-center text-dv-gold">
             <UserPlus size={40} />
           </div>
-          <h1 className="font-serif text-[22px] font-bold text-txt-primary m-0">
+          <h1 className="font-serif text-2xl font-bold text-txt-primary m-0">
             Регистрация в DentVision
           </h1>
           <p className="text-xs text-txt-muted mt-1.5">
@@ -76,7 +76,7 @@ export default function Register({ onBack }: RegisterProps) {
         </div>
 
         {displayError && (
-          <div className="bg-error/15 border border-error/30 rounded-lg px-3.5 py-2.5 mb-4 text-[13px] text-error flex items-center gap-2">
+          <div className="bg-error/15 border border-error/30 rounded-lg px-3.5 py-2.5 mb-4 text-sm text-error flex items-center gap-2">
             <AlertTriangle size={16} />{displayError}
           </div>
         )}
@@ -103,7 +103,7 @@ export default function Register({ onBack }: RegisterProps) {
           </div>
 
           <div className="mt-6 flex flex-col sm:flex-row gap-2.5">
-            <button type="button" onClick={onBack} className="w-full sm:w-auto min-h-11 px-[18px] py-[11px] bg-white/[0.06] border border-bdr-subtle rounded-lg text-txt-muted text-[13px] cursor-pointer">
+            <button type="button" onClick={onBack} className="w-full sm:w-auto min-h-11 px-[18px] py-[11px] bg-surface-2 border border-bdr-subtle rounded-lg text-txt-muted text-sm cursor-pointer">
               ← Назад
             </button>
             <button
@@ -111,7 +111,7 @@ export default function Register({ onBack }: RegisterProps) {
               onClick={handleSubmit}
               disabled={loading}
               className={`w-full sm:w-auto sm:flex-1 min-h-11 py-[11px] border-none rounded-lg text-surface-0 text-sm font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(201,169,110,0.3)] ${
-                loading ? 'bg-dv-gold/60 cursor-not-allowed' : 'bg-gradient-to-r from-dv-gold to-[#8B6F3E] cursor-pointer'
+                loading ? 'bg-dv-gold/60 cursor-not-allowed' : 'bg-gradient-to-r from-dv-gold to-dv-gold-dim cursor-pointer'
               }`}
             >
               {loading ? <><Loader2 size={16} className="animate-spin" /> Создаём аккаунт…</> : 'Создать аккаунт'}
@@ -147,15 +147,15 @@ interface FieldProps {
 function Field({ label, value, onChange, placeholder, type = 'text', hint }: FieldProps) {
   return (
     <div className="mb-3.5">
-      <label className="block text-xs font-semibold text-[#B0BEC5] mb-1.5">{label}</label>
+      <label className="block text-xs font-semibold text-txt-secondary mb-1.5">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full min-h-11 bg-white/[0.06] border border-[rgba(201,169,110,0.15)] rounded-lg px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#C9A96E] transition-colors"
+        className="w-full min-h-11 bg-surface-2 border border-dv-gold/20 rounded-lg px-3.5 py-2.5 text-sm text-txt-primary outline-none focus:border-dv-gold transition-colors"
       />
-      {hint && <div className="text-[11px] text-[#7A8899] mt-1">{hint}</div>}
+      {hint && <div className="text-xs text-txt-muted mt-1">{hint}</div>}
     </div>
   );
 }

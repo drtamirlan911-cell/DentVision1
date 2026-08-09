@@ -1,16 +1,37 @@
 import React from 'react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Tone tints the icon only — never the figure.
+ *
+ * The default is `gold` on purpose: in a row of unrelated measures colour
+ * carries no meaning, and giving each tile its own hue reads as a legend that
+ * decodes to nothing. Reach for a tone only when the value *is* a status —
+ * an overdue count, a failure count — and the label alone still says which.
+ */
+export type StatTone = 'gold' | 'success' | 'warning' | 'error' | 'info'
+
+const TONE_RING: Record<StatTone, string> = {
+  gold: 'bg-dv-gold/10 text-dv-gold',
+  success: 'bg-success/10 text-success',
+  warning: 'bg-warning/10 text-warning',
+  error: 'bg-error/10 text-error',
+  info: 'bg-info/10 text-info',
+}
+
 interface StatCardProps {
   label: string
   value: string | number
   icon: React.ReactNode
   change?: { value: number; positive: boolean }
+  tone?: StatTone
+  /** Secondary line under the label — the context the figure needs. */
+  hint?: React.ReactNode
   className?: string
   onClick?: () => void
 }
 
-function StatCard({ label, value, icon, change, className, onClick }: StatCardProps) {
+function StatCard({ label, value, icon, change, tone = 'gold', hint, className, onClick }: StatCardProps) {
   return (
     <div
       onClick={onClick}
@@ -21,7 +42,7 @@ function StatCard({ label, value, icon, change, className, onClick }: StatCardPr
       )}
     >
       <div className="flex items-start justify-between mb-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-dv-gold/10 text-dv-gold">
+        <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', TONE_RING[tone])}>
           {icon}
         </div>
         {change && (
@@ -37,6 +58,7 @@ function StatCard({ label, value, icon, change, className, onClick }: StatCardPr
       </div>
       <p className="text-3xl font-semibold text-txt-primary tracking-tight">{value}</p>
       <p className="text-sm text-txt-muted mt-1">{label}</p>
+      {hint && <p className="text-xs text-txt-ghost mt-0.5">{hint}</p>}
     </div>
   )
 }

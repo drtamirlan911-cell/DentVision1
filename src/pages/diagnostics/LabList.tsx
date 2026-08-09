@@ -6,6 +6,7 @@ import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useAuth } from '@/store/auth.store';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
@@ -54,17 +55,16 @@ export default function LabList() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-txt-primary">Лаборатории</h1>
-          <p className="text-sm text-txt-muted mt-0.5">Все лаборатории в системе</p>
-        </div>
-        {isSuperAdmin && (
+      <PageHeader
+        title="Лаборатории"
+        subtitle="Все лаборатории в системе"
+        icon={<FlaskConical size={22} />}
+        actions={isSuperAdmin && (
           <Button variant="primary" icon={<Plus size={16} />} onClick={openCreate} className="min-h-11">
             Добавить лабораторию
           </Button>
         )}
-      </div>
+      />
 
       <div className="relative max-w-sm">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />

@@ -318,7 +318,7 @@ export default function Shop() {
     return (
       <section>
         <div className="flex items-center justify-between mb-4 flex-wrap">
-          <h2 className="text-lg font-bold text-white">Категории</h2>
+          <h2 className="text-lg font-bold text-txt-primary">Категории</h2>
             <button onClick={() => navigate('/shop?all_categories=1')} className="text-xs font-medium hover:underline" style={{ color: G }}>
               Все категории <ChevronRight size={14} className="inline" />
           </button>
@@ -481,7 +481,7 @@ export default function Shop() {
       {promotedProducts.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-4 flex-wrap">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-txt-primary flex items-center gap-2">
               <Zap size={18} style={{ color: T.ruby }} /> Хиты продаж
             </h2>
             <button onClick={() => navigate('/shop?sort=price_asc')} className="text-xs font-medium hover:underline" style={{ color: G }}>
@@ -499,7 +499,7 @@ export default function Shop() {
       {recommendations.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-4 flex-wrap">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-txt-primary flex items-center gap-2">
               <Sparkles size={18} style={{ color: T.purple }} /> Рекомендуем
             </h2>
           </div>
@@ -514,7 +514,7 @@ export default function Shop() {
       {featuredProducts.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-4 flex-wrap">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-txt-primary flex items-center gap-2">
               <TrendingUp size={18} style={{ color: G }} /> Популярные бренды
             </h2>
             <button onClick={() => navigate('/shop?sort=rating')} className="text-xs font-medium hover:underline" style={{ color: G }}>
@@ -531,7 +531,7 @@ export default function Shop() {
       {/* --- All Products --- */}
       <section>
         <div className="flex items-center justify-between mb-4 flex-wrap">
-          <h2 className="text-lg font-bold text-white">Все товары</h2>
+          <h2 className="text-lg font-bold text-txt-primary">Все товары</h2>
           <div className="flex items-center gap-2 flex-wrap">
             <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="min-h-11"
               style={{
@@ -566,7 +566,7 @@ export default function Shop() {
               className="w-full max-w-full h-full overflow-y-auto sm:max-w-sm" style={{ background: '#0D1B2E', borderLeft: `1px solid ${BDR}` }}
               onClick={e => e.stopPropagation()}>
               <div className="sticky top-0 z-10 p-4 flex items-center justify-between" style={{ background: '#0D1B2E', borderBottom: `1px solid ${BDR_SUB}` }}>
-                <h2 className="font-bold text-lg text-white">Корзина</h2>
+                <h2 className="font-bold text-lg text-txt-primary">Корзина</h2>
                 <button aria-label="Close cart" onClick={() => setShowCart(false)}><X size={20} style={{ color: S }} /></button>
               </div>
               {cart.length === 0 ? (

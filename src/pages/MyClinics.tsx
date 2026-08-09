@@ -11,6 +11,7 @@ import * as api from '@/utils/api';
 import { Input } from '@/components/ui/ds/Input';
 import { Button } from '@/components/ui/ds/Button';
 import { Modal } from '@/components/ui/ds/Modal';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import { GLOBAL_CSS } from '@/utils/constants';
 
 const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.06, duration: 0.4 } }) };
@@ -72,7 +73,7 @@ export default function MyClinics() {
   };
 
   if (loading) return (
-    <div className="flex justify-center py-20"><Loader2 size={28} className="animate-spin text-[#C9A96E]" /></div>
+    <div className="flex justify-center py-20"><Loader2 size={28} className="animate-spin text-dv-gold" /></div>
   );
 
   const enterClinic = async (clinicId: string) => {
@@ -81,22 +82,20 @@ export default function MyClinics() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080F1A] p-6 relative max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-surface-0 p-6 relative max-w-full overflow-x-hidden">
       <style>{GLOBAL_CSS}</style>
-      <div className="absolute w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,#C9A96E05_0%,transparent_70%)] -top-32 -right-32 pointer-events-none" />
+      <div className="absolute w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,rgba(201,169,110,0.06)_0%,transparent_70%)] -top-32 -right-32 pointer-events-none" />
 
-      <div className="max-w-[760px] mx-auto relative z-10">
-        <div className="flex flex-wrap items-center gap-3 mb-1">
-          <Building2 size={26} className="text-[#C9A96E]" />
-          <h1 className="text-2xl font-bold text-white m-0">Мои клиники</h1>
-        </div>
-        <p className="text-sm text-[#7A8899] mb-6">
-          {user?.name ? `${user.name}, ` : ''}выберите рабочее пространство или создайте новое
-        </p>
+      <div className="max-w-[760px] mx-auto relative z-10 space-y-8">
+        <PageHeader
+          title="Мои клиники"
+          subtitle={`${user?.name ? `${user.name}, ` : ''}выберите рабочее пространство или создайте новое`}
+          icon={<Building2 size={22} />}
+        />
 
         {clinics.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xs uppercase tracking-[0.08em] text-[#7A8899] mb-3">Ваши организации</h2>
+          <div>
+            <h2 className="text-xs uppercase tracking-[0.08em] text-txt-muted mb-3">Ваши организации</h2>
             <div className="space-y-2.5">
               {clinics.map((m, i) => (
                 <motion.button
@@ -104,48 +103,49 @@ export default function MyClinics() {
                   custom={i}
                   initial="hidden" animate="visible" variants={fadeUp}
                   onClick={() => enterClinic(m.clinicId)}
-                  className="w-full flex items-center gap-4 p-4 min-h-11 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px] hover:border-[#C9A96E]/40 transition-all text-left cursor-pointer"
+                  className="w-full flex items-center gap-4 p-4 min-h-11 bg-surface-1 border border-bdr-subtle rounded-[14px] hover:border-dv-gold/40 transition-all text-left cursor-pointer"
                 >
                   <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold shrink-0"
                     style={{ background: (m.clinic?.color || '#C9A96E') + '22', color: m.clinic?.color || '#C9A96E' }}>
                     {(m.clinic?.name || '?').slice(0, 1)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white m-0 truncate">{m.clinic?.name}</p>
-                    <p className="text-xs text-[#7A8899] m-0">{m.clinic?.city}{m.clinic?.city && (m.clinic as any)?.type ? ' · ' : ''}{(m.clinic as any)?.type === 'clinic' ? 'Клиника' : (m.clinic as any)?.type}</p>
+                    <p className="text-sm font-bold text-txt-primary m-0 truncate">{m.clinic?.name}</p>
+                    <p className="text-xs text-txt-muted m-0">{m.clinic?.city}{m.clinic?.city && (m.clinic as any)?.type ? ' · ' : ''}{(m.clinic as any)?.type === 'clinic' ? 'Клиника' : (m.clinic as any)?.type}</p>
                   </div>
-                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/[0.06] text-[#C9A96E] font-semibold shrink-0">
+                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-surface-2 text-dv-gold font-semibold shrink-0">
                     {m.role === 'owner' ? <><Crown size={11} className="inline mr-1" />Владелец</> : m.role}
                   </span>
-                  {activeMembership?.clinicId === m.clinicId && <CheckCircle2 size={16} className="text-[#27AE60] shrink-0" />}
-                  <ChevronRight size={18} className="text-[#7A8899] shrink-0" />
+                  {activeMembership?.clinicId === m.clinicId && <CheckCircle2 size={16} className="text-success shrink-0" />}
+                  <ChevronRight size={18} className="text-txt-muted shrink-0" />
                 </motion.button>
               ))}
             </div>
           </div>
         )}
 
-        <h2 className="text-xs uppercase tracking-[0.08em] text-[#7A8899] mb-3">Действия</h2>
+        <div>
+        <h2 className="text-xs uppercase tracking-[0.08em] text-txt-muted mb-3">Действия</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           <ActionCard
             icon={<Plus size={22} />}
             title="Создать клинику"
             desc="Для владельцев бизнеса"
-            color="#C9A96E"
+            tone="gold"
             onClick={() => setActiveTab('create')}
           />
           <ActionCard
             icon={<LogIn size={22} />}
             title="Присоединиться"
             desc="По коду приглашения"
-            color="#3498DB"
+            tone="info"
             onClick={() => setActiveTab('join')}
           />
           <ActionCard
             icon={<FlaskConical size={22} />}
             title="Попробовать демо"
             desc="Временный доступ"
-            color="#27AE60"
+            tone="success"
             onClick={handleDemo}
             loading={demoLoading}
           />
@@ -153,15 +153,16 @@ export default function MyClinics() {
             icon={<ArrowRight size={22} />}
             title="Продолжить без клиники"
             desc="Личный режим"
-            color="#8E44AD"
+            tone="purple"
             onClick={() => navigate('/')}
           />
         </div>
+        </div>
 
-        <div className="mt-8 p-4 bg-white/[0.03] border border-[rgba(255,255,255,0.06)] rounded-xl flex flex-wrap items-start gap-3">
-          <Sparkles size={18} className="text-[#C9A96E] mt-0.5 shrink-0" />
-          <p className="text-xs text-[#B0BEC5] leading-relaxed m-0">
-            Не хотите создавать клинику? Вы уже можете пользоваться <span className="text-[#C9A96E]">Магазином</span>, <span className="text-[#C9A96E]">Академией</span> и <span className="text-[#C9A96E]">AI-ассистентом</span> в личном режиме. CRM активируется только после выбора рабочего пространства.
+        <div className="p-4 bg-surface-1 border border-bdr-subtle rounded-xl flex flex-wrap items-start gap-3">
+          <Sparkles size={18} className="text-dv-gold mt-0.5 shrink-0" />
+          <p className="text-xs text-txt-secondary leading-relaxed m-0">
+            Не хотите создавать клинику? Вы уже можете пользоваться <span className="text-dv-gold">Магазином</span>, <span className="text-dv-gold">Академией</span> и <span className="text-dv-gold">AI-ассистентом</span> в личном режиме. CRM активируется только после выбора рабочего пространства.
           </p>
         </div>
       </div>
@@ -189,12 +190,12 @@ export default function MyClinics() {
       <Modal open={activeTab === 'join'} onClose={() => setActiveTab('list')} title="Присоединиться к клинике" className="w-full max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-[#B0BEC5] mb-1.5 block">Код приглашения</label>
+            <label className="text-xs text-txt-secondary mb-1.5 block">Код приглашения</label>
             <div className="flex gap-2">
               <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="ABCD-1234" icon={<KeyRound size={15} />} />
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-[#7A8899]">
+          <div className="flex items-center gap-2 text-xs text-txt-muted">
             <QrCode size={14} /> <Link2 size={14} /> Также можно присоединиться по ссылке-приглашению
           </div>
           <div className="flex flex-wrap gap-3 pt-2">
@@ -209,20 +210,32 @@ export default function MyClinics() {
   );
 }
 
-function ActionCard({ icon, title, desc, color, onClick, loading }: { icon: React.ReactNode; title: string; desc: string; color: string; onClick: () => void; loading?: boolean }) {
+/**
+ * Four unrelated entry points, so the tiles differ by hue — but from the token
+ * set, not four ad-hoc hexes. `#3498DB` was not even the `info` token
+ * (`#2980B9`), so the page shipped a fifth blue nobody had chosen.
+ */
+const ACTION_TONES = {
+  gold: 'bg-dv-gold/15 text-dv-gold',
+  info: 'bg-info/15 text-info',
+  success: 'bg-success/15 text-success',
+  purple: 'bg-accent-purple/15 text-accent-purple',
+} as const
+
+function ActionCard({ icon, title, desc, tone, onClick, loading }: { icon: React.ReactNode; title: string; desc: string; tone: keyof typeof ACTION_TONES; onClick: () => void; loading?: boolean }) {
   return (
     <motion.button
       whileHover={{ y: -3 }}
       disabled={loading}
       onClick={onClick}
-      className="p-5 min-h-11 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px] text-left cursor-pointer hover:border-[rgba(201,169,110,0.4)] transition-all flex flex-col gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+      className="p-5 min-h-11 bg-surface-1 border border-bdr-subtle rounded-[14px] text-left cursor-pointer hover:border-dv-gold/40 transition-all flex flex-col gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
     >
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: color + '22', color }}>{icon}</div>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${ACTION_TONES[tone]}`}>{icon}</div>
       <div>
-        <p className="text-sm font-bold text-white m-0">{title}</p>
-        <p className="text-xs text-[#7A8899] m-0 mt-0.5">{desc}</p>
+        <p className="text-sm font-bold text-txt-primary m-0">{title}</p>
+        <p className="text-xs text-txt-muted m-0 mt-0.5">{desc}</p>
       </div>
-      <ArrowRight size={15} className="text-[#7A8899] self-end" />
+      <ArrowRight size={15} className="text-txt-muted self-end" />
     </motion.button>
   );
 }

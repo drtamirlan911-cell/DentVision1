@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { ClipboardList, Search, Eye, CheckCircle, Clock, FileText } from 'lucide-react';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Card } from '@/components/ui/ds/Card';
-import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { StatusPill } from './workspace/Pipeline';
@@ -28,10 +28,11 @@ export default function ResultList() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-4 sm:p-6 space-y-6 max-w-full overflow-x-hidden">
-      <div>
-        <h1 className="text-xl font-bold text-txt-primary">Результаты исследований</h1>
-        <p className="text-sm text-txt-muted mt-0.5">Завершённые и просмотренные исследования</p>
-      </div>
+      <PageHeader
+        title="Результаты исследований"
+        subtitle="Завершённые и просмотренные исследования"
+        icon={<ClipboardList size={22} />}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 w-full sm:max-w-xs">

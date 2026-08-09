@@ -247,7 +247,7 @@ export default function ShopCheckout() {
         <div className="md:col-span-3 space-y-4">
           <Card>
             <CardContent>
-              <h3 className="text-sm font-bold text-white m-0 mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-txt-primary m-0 mb-3 flex items-center gap-2">
                 <Truck size={16} className="text-[#C9A96E]" /> Данные доставки
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -323,7 +323,7 @@ export default function ShopCheckout() {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <Card>
               <CardContent>
-                <h3 className="text-sm font-bold text-white m-0 mb-3">Ваш заказ</h3>
+                <h3 className="text-sm font-bold text-txt-primary m-0 mb-3">Ваш заказ</h3>
                 <div className="space-y-2.5 max-h-[260px] overflow-y-auto">
                   {cart.map(i => (
                     <div key={i.id} className="flex justify-between gap-2 text-xs">

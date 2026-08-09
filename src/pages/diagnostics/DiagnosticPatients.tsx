@@ -7,6 +7,7 @@ import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { StatusPill } from './workspace/Pipeline';
@@ -41,10 +42,11 @@ export default function DiagnosticPatients() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
-      <div>
-        <h1 className="text-xl font-bold text-txt-primary">Пациенты диагностики</h1>
-        <p className="text-sm text-txt-muted mt-0.5">Все пациенты, которым назначались исследования</p>
-      </div>
+      <PageHeader
+        title="Пациенты диагностики"
+        subtitle="Все пациенты, которым назначались исследования"
+        icon={<Users size={22} />}
+      />
 
       <div className="relative flex flex-wrap w-full sm:max-w-xs">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />

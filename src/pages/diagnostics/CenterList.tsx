@@ -6,6 +6,7 @@ import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useAuth } from '@/store/auth.store';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
@@ -54,17 +55,16 @@ export default function CenterList() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-4 md:p-6 space-y-6 max-w-full overflow-x-hidden">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-txt-primary">Диагностические центры</h1>
-          <p className="text-sm text-txt-muted mt-0.5">Все центры 3D-диагностики в системе</p>
-        </div>
-        {isSuperAdmin && (
-          <Button variant="primary" icon={<Plus size={16} />} onClick={openCreate}>
+      <PageHeader
+        title="Диагностические центры"
+        subtitle="Все центры 3D-диагностики в системе"
+        icon={<Building2 size={22} />}
+        actions={isSuperAdmin && (
+          <Button variant="primary" className="min-h-11" icon={<Plus size={16} />} onClick={openCreate}>
             Добавить центр
           </Button>
         )}
-      </div>
+      />
 
       {/* Search */}
       <div className="relative w-full max-w-sm">
