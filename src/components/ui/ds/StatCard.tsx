@@ -35,8 +35,8 @@ function StatCard({ label, value, icon, change, className, onClick }: StatCardPr
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-txt-primary tracking-tight">{value}</p>
-      <p className="text-xs text-txt-muted mt-1">{label}</p>
+      <p className="text-3xl font-semibold text-txt-primary tracking-tight">{value}</p>
+      <p className="text-sm text-txt-muted mt-1">{label}</p>
     </div>
   )
 }
@@ -58,14 +58,14 @@ function PageHeader({
     <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-5 sm:mb-6', className)}>
       <div className="flex items-start gap-3 min-w-0">
         {icon && (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold sm:h-12 sm:w-12">
             {icon}
           </div>
         )}
         <div className="min-w-0">
-          <h1 className="text-lg sm:text-xl font-bold text-txt-primary leading-tight break-words">{title}</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-txt-primary tracking-tight leading-tight break-words">{title}</h1>
           {subtitle && (
-            <p className="text-xs sm:text-sm text-txt-secondary mt-0.5 leading-snug break-words">{subtitle}</p>
+            <p className="text-sm text-txt-secondary mt-1 leading-snug break-words">{subtitle}</p>
           )}
         </div>
       </div>
@@ -78,4 +78,56 @@ function PageHeader({
   )
 }
 
-export { StatCard, PageHeader }
+/**
+ * The one number a screen leads with — at least 48px, exactly one per view.
+ *
+ * A dashboard where every figure is the same size has no lead, which is what
+ * made these screens read flat: page titles and stat values sat within one step
+ * of body text. This is the deliberate exception, so it stays a named component
+ * rather than a size someone reaches for ad hoc.
+ *
+ * Proportional figures on purpose — `tabular-nums` gives every digit the width
+ * of a zero, which looks loose at display sizes.
+ */
+function HeroStat({
+  value,
+  label,
+  hint,
+  icon,
+  tone = 'gold',
+  className,
+}: {
+  value: string | number
+  label: string
+  /** Secondary line — the context that makes the number mean something. */
+  hint?: React.ReactNode
+  icon?: React.ReactNode
+  tone?: 'gold' | 'success' | 'warning' | 'error'
+  className?: string
+}) {
+  const toneRing: Record<string, string> = {
+    gold: 'bg-dv-gold/10 text-dv-gold',
+    success: 'bg-success/10 text-success',
+    warning: 'bg-warning/10 text-warning',
+    error: 'bg-error/10 text-error',
+  }
+
+  return (
+    <div className={cn('flex items-center gap-4 sm:gap-5', className)}>
+      {icon && (
+        <div className={cn('flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl sm:h-16 sm:w-16', toneRing[tone])}>
+          {icon}
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="text-6xl font-semibold leading-none tracking-tight text-txt-primary sm:text-7xl">
+          {value}
+        </p>
+        <p className="mt-2 text-base font-medium text-txt-primary">{label}</p>
+        {hint && <p className="mt-0.5 text-sm text-txt-muted">{hint}</p>}
+      </div>
+    </div>
+  )
+}
+
+export { StatCard, PageHeader, HeroStat }

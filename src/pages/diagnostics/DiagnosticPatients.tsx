@@ -9,15 +9,8 @@ import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
+import { StatusPill } from './workspace/Pipeline';
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  SENT: { label: 'Отправлено', color: '#3498DB' },
-  ACCEPTED: { label: 'Принято', color: '#F39C12' },
-  IN_PROGRESS: { label: 'В работе', color: '#C9A96E' },
-  COMPLETED: { label: 'Завершено', color: '#27AE60' },
-  REVIEWED: { label: 'Просмотрено', color: '#95A5A6' },
-  CANCELLED: { label: 'Отменено', color: '#E74C3C' },
-};
 
 export default function DiagnosticPatients() {
   const navigate = useNavigate();
@@ -97,11 +90,8 @@ export default function DiagnosticPatients() {
                 {p.referrals.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {p.referrals.slice(-3).map((r: any) => {
-                      const si = STATUS_MAP[r.status] || { label: r.status, color: '#95A5A6' };
                       return (
-                        <span key={r.id} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: si.color + '18', color: si.color }}>
-                          {r.studyType || r.labTestType || 'Исследование'}
-                        </span>
+                        <StatusPill key={r.id} status={r.status} className="text-[10px]" />
                       );
                     })}
                   </div>

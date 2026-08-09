@@ -79,6 +79,11 @@ export default {
         '3xl': ['1.5rem', { lineHeight: '2rem' }],
         '4xl': ['1.875rem', { lineHeight: '2.25rem' }],
         '5xl': ['2.25rem', { lineHeight: '2.75rem' }],
+        // The scale is deliberately one step down from Tailwind's defaults
+        // (base = 14px) for a dense UI, which left nothing above 36px — a hero
+        // figure needs at least 48px to read as the number a screen leads with.
+        '6xl': ['3rem', { lineHeight: '1' }],
+        '7xl': ['3.75rem', { lineHeight: '1' }],
       },
       spacing: {
         '4.5': '1.125rem',

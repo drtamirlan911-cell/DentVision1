@@ -11,20 +11,8 @@ import { Skeleton } from '@/components/ui/ds/Skeleton';
 import { useToast } from '@/components/ui/ds/Toast';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
+import { StatusPill } from './workspace/Pipeline';
 
-const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'error' | 'info' }> = {
-  DRAFT: { label: 'Черновик', variant: 'default' },
-  SENT: { label: 'Отправлено', variant: 'info' },
-  ACCEPTED: { label: 'Принято', variant: 'info' },
-  SCHEDULED: { label: 'Запланировано', variant: 'warning' },
-  PATIENT_ARRIVED: { label: 'Пациент прибыл', variant: 'warning' },
-  IN_PROGRESS: { label: 'Выполняется', variant: 'warning' },
-  COMPLETED: { label: 'Завершено', variant: 'success' },
-  REVIEWED: { label: 'Просмотрено', variant: 'success' },
-  DELIVERED: { label: 'Доставлено', variant: 'success' },
-  CLOSED: { label: 'Закрыто', variant: 'default' },
-  CANCELLED: { label: 'Отменено', variant: 'error' },
-};
 
 export default function ReferralDetail() {
   const { id } = useParams();
@@ -74,7 +62,6 @@ export default function ReferralDetail() {
   if (isLoading) return <div className="p-6"><Skeleton className="h-64" /></div>;
   if (!referral) return <div className="p-6 text-txt-muted">Направление не найдено</div>;
 
-  const statusInfo = STATUS_MAP[referral.status] || { label: referral.status, variant: 'default' as const };
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-4xl max-w-full overflow-x-hidden">
@@ -83,7 +70,7 @@ export default function ReferralDetail() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-txt-primary">{referral.patientName}</h1>
-            <Badge variant={statusInfo.variant} size="sm">{statusInfo.label}</Badge>
+            <StatusPill status={referral.status} />
           </div>
           <p className="text-sm text-txt-muted mt-0.5">{referral.studyType} · {referral.category}</p>
         </div>

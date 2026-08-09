@@ -975,6 +975,142 @@ diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, 
   }
 });
 
+// ─── Laboratory parity ───
+//
+// Laboratories ran on a strict subset of what centres could do: no revenue
+// dashboard, no cashier, no way to add a test to their own price list. Nothing
+// about a laboratory makes those inapplicable — `Settlement.ownerType` already
+// accepts LAB, and both are paid the same way by the same patients — so the gap
+// was unfinished work rather than a decision, and it forced the two workspaces
+// apart in the UI. These mirror the centre handlers against LaboratoryTest and
+// the referral's labId.
+
+diagnosticsRouter.post('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
+  try {
+    const labId = req.params.id as string;
+    if (!hasOrgAccess(req.user, 'LABORATORY', labId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const { name, category, price } = req.body || {};
+    if (!name || !category) {
+      return res.status(400).json({ ok: false, error: 'Поля name и category обязательны' } satisfies ApiResponse);
+    }
+    const test = await (prisma as any).laboratoryTest.create({
+      data: {
+        id: uid(),
+        labId,
+        name: String(name),
+        category: String(category),
+        price: price != null ? Number(price) : 0,
+      },
+    });
+    return res.status(201).json({ ok: true, data: test } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.post('/laboratories/:id/cashier/collect', async (req: AuthRequest, res) => {
+  try {
+    const labId = req.params.id as string;
+    if (!hasOrgAccess(req.user, 'LABORATORY', labId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const { referralId, cost } = req.body || {};
+    if (!referralId) {
+      return res.status(400).json({ ok: false, error: 'referralId обязателен' } satisfies ApiResponse);
+    }
+    const costNum = Number(cost);
+    if (!costNum || costNum <= 0) {
+      return res.status(400).json({ ok: false, error: 'Укажите корректную сумму оплаты' } satisfies ApiResponse);
+    }
+
+    const referral = await (prisma as any).referral.findUnique({
+      where: { id: referralId },
+      select: { id: true, labId: true, paid: true, clinicId: true },
+    });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Направление не найдено' } as any);
+    if (referral.labId !== labId) return res.status(403).json({ ok: false, error: 'Направление не относится к этой лаборатории' } as any);
+    if (referral.paid) return res.status(409).json({ ok: false, error: 'Уже оплачено' } as any);
+
+    // Commission is computed server-side, never taken from the request body.
+    const { resolveCommissionBps } = await import('../finance/finance.service.js');
+    const bps = await resolveCommissionBps('diagnostics', labId);
+    const feeNum = Math.round((costNum * bps) / 10000);
+
+    await (prisma as any).referral.update({
+      where: { id: referralId },
+      data: { cost: costNum, platformFee: feeNum, paid: true, paidAt: new Date() },
+    });
+
+    try {
+      const { recordSale } = await import('../finance/finance.service.js');
+      await recordSale({
+        domain: 'diagnostics',
+        sellerType: 'CLINIC' as any,
+        sellerId: labId,
+        amountMinor: BigInt(Math.round(costNum * 100)),
+        refType: 'referral',
+        refId: referralId,
+      });
+    } catch (e) { console.warn('[Diagnostics] Lab cashier commission sale failed (non-fatal):', e); }
+
+    return res.json({ ok: true, data: { cost: costNum, platformFee: feeNum, net: costNum - feeNum } } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.get('/laboratories/:id/dashboard', async (req: AuthRequest, res) => {
+  try {
+    const labId = req.params.id as string;
+    if (!hasOrgAccess(req.user, 'LABORATORY', labId) && req.user?.role !== 'SUPERADMIN') {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now.getTime() - now.getDay() * 86400000);
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    const [allReferrals, lab] = await Promise.all([
+      (prisma as any).referral.findMany({
+        where: { labId },
+        select: { id: true, status: true, cost: true, platformFee: true, paid: true, createdAt: true, completedAt: true, studyType: true, patientName: true, clinicId: true },
+      }),
+      prisma.laboratory.findUnique({ where: { id: labId }, select: { name: true } }),
+    ]);
+
+    if (!lab) return res.status(404).json({ ok: false, error: 'Laboratory not found' } as any);
+
+    const completedReferrals = allReferrals.filter((r: any) => r.status === 'COMPLETED' || r.status === 'REVIEWED' || r.status === 'DELIVERED' || r.status === 'CLOSED');
+    const filterByDate = (list: any[], start: Date) => list.filter((r: any) => {
+      const d = r.completedAt ? new Date(r.completedAt) : new Date(r.createdAt);
+      return d >= start;
+    });
+    const sumCost = (list: any[]) => list.reduce((sum: number, r: any) => sum + (Number(r.cost) || 0), 0);
+    const sumFee = (list: any[]) => list.reduce((sum: number, r: any) => sum + (Number(r.platformFee) || 0), 0);
+
+    const todayCompleted = filterByDate(completedReferrals, startOfDay);
+    const weekCompleted = filterByDate(completedReferrals, startOfWeek);
+    const monthCompleted = filterByDate(completedReferrals, startOfMonth);
+    const yearCompleted = filterByDate(completedReferrals, startOfYear);
+
+    const revenue = { today: sumCost(todayCompleted), week: sumCost(weekCompleted), month: sumCost(monthCompleted), year: sumCost(yearCompleted), total: sumCost(completedReferrals) };
+    const commissions = { today: sumFee(todayCompleted), week: sumFee(weekCompleted), month: sumFee(monthCompleted), year: sumFee(yearCompleted), total: sumFee(completedReferrals) };
+    const netRevenue = { today: revenue.today - commissions.today, week: revenue.week - commissions.week, month: revenue.month - commissions.month, year: revenue.year - commissions.year, total: revenue.total - commissions.total };
+    const paymentStats = { paid: completedReferrals.filter((r: any) => r.paid).length, unpaid: completedReferrals.filter((r: any) => !r.paid).length };
+
+    const byStatus: Record<string, number> = {};
+    for (const r of allReferrals) byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+
+    return res.json({ ok: true, data: { name: lab.name, referralCount: allReferrals.length, completedCount: completedReferrals.length, revenue, commissions, netRevenue, paymentStats, byStatus } } satisfies ApiResponse);
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+
 // ─── Quick price lookup ───
 
 diagnosticsRouter.get('/centers/:id/study-price', async (req: AuthRequest, res) => {
