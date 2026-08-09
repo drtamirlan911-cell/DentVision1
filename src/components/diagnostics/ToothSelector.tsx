@@ -26,8 +26,8 @@ function Tooth({ num, selected, onClick }: { num: number; selected: boolean; onC
 
   const size = isMolar ? 'w-9 h-11' : isPremolar ? 'w-8 h-10' : isCanine ? 'w-7 h-10' : 'w-7 h-9';
   const bg = isUpper
-    ? (selected ? 'bg-dv-gold text-black' : 'bg-surface-2 text-txt-muted hover:bg-surface-1')
-    : (selected ? 'bg-dv-gold text-black' : 'bg-surface-1/80 text-txt-muted hover:bg-surface-1');
+    ? (selected ? 'bg-dv-gold text-dv-gold-on' : 'bg-surface-2 text-txt-muted hover:bg-surface-1')
+    : (selected ? 'bg-dv-gold text-dv-gold-on' : 'bg-surface-1/80 text-txt-muted hover:bg-surface-1');
 
   return (
     <button type="button" onClick={onClick}

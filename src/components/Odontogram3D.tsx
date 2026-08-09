@@ -222,7 +222,7 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
                 onClick={() => applyWhole(key)}
                 className={cn(
                   'px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-[11px] font-semibold border transition-colors flex items-center gap-1 sm:gap-1.5',
-                  active ? 'border-transparent text-white' : 'border-bdr-subtle text-txt-secondary hover:bg-white/5',
+                  active ? 'border-transparent text-white' : 'border-bdr-subtle text-txt-secondary hover:bg-surface-1',
                 )}
                 style={active ? { background: meta.color, borderColor: meta.color } : undefined}
               >
@@ -251,7 +251,7 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
                   onClick={() => setPaint(key)}
                   className={cn(
                     'px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-[11px] font-semibold border transition-colors',
-                    active ? 'ring-2 ring-dv-gold/50 border-transparent text-white' : 'border-bdr-subtle text-txt-secondary',
+                    active ? 'ring-2 ring-dv-gold/50 border-transparent text-txt-primary' : 'border-bdr-subtle text-txt-secondary',
                   )}
                   style={active ? { background: meta.color } : undefined}
                 >
@@ -272,11 +272,11 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
                   onClick={() => paintSurface(surface)}
                   className={cn(
                     'px-1 sm:px-2 py-2 sm:py-3 rounded-lg sm:rounded-xl border transition-all flex flex-col items-center gap-0.5 sm:gap-1',
-                    color ? 'border-white/20' : 'border-bdr-subtle bg-white/[0.04] hover:bg-white/[0.07]',
+                    color ? 'border-white/20' : 'border-bdr-subtle bg-surface-2 hover:bg-white/[0.07]',
                   )}
                   style={color ? { background: `${color}33`, boxShadow: `inset 0 0 0 1px ${color}` } : undefined}
                 >
-                  <span className="text-xs sm:text-sm font-bold text-white">{surface}</span>
+                  <span className="text-xs sm:text-sm font-bold text-txt-primary">{surface}</span>
                   <span className="text-[7px] sm:text-[9px] text-txt-muted leading-none">
                     {surface === 'M' && t('diagnostics.surface_med')}
                     {surface === 'O' && t('diagnostics.surface_occl')}
@@ -371,10 +371,10 @@ export function AutoTreatmentPlan({ teeth, patientId, patientName, clinicId, onA
         {recommendations.map((rec, idx) => (
           <div
             key={`${rec.tooth}-${idx}`}
-            className="px-3 py-2.5 rounded-xl border border-bdr-subtle bg-white/[0.03] flex justify-between items-center gap-2"
+            className="px-3 py-2.5 rounded-xl border border-bdr-subtle bg-surface-1 flex justify-between items-center gap-2"
           >
             <div className="min-w-0">
-              <p className="text-xs text-white font-semibold m-0">
+              <p className="text-xs text-txt-primary font-semibold m-0">
                 {t('diagnostics.plan_recommendation', { tooth: rec.tooth, procedure: rec.procedure })}
               </p>
               <p className="text-[10px] text-txt-muted m-0 mt-0.5">

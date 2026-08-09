@@ -187,19 +187,19 @@ export default function Shop() {
           )}
           <div className="absolute top-2 left-2 flex flex-col gap-1">
             {hasDiscount && (
-              <span className="text-white text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: T.ruby }}>-{discountPercent}%</span>
+              <span className="text-txt-primary text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: T.ruby }}>-{discountPercent}%</span>
             )}
             {product.own_brand && (
-              <span className="text-white text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: G }}>DentVision</span>
+              <span className="text-txt-primary text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: G }}>DentVision</span>
             )}
             {product.stock <= 0 && (
-              <span className="text-white text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#1a1a2e' }}>Нет в наличии</span>
+              <span className="text-txt-primary text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#1a1a2e' }}>Нет в наличии</span>
             )}
           </div>
           <button onClick={(e) => { e.stopPropagation(); toggleFav(product as any); }}
             className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
             style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
-            <Heart size={14} className={isFav ? 'fill-red-500 text-red-500' : 'text-gray-400'} />
+            <Heart size={14} className={isFav ? 'fill-red-500 text-red-500' : 'text-txt-muted'} />
           </button>
         </div>
         <div className="p-3 space-y-2">
@@ -297,12 +297,12 @@ export default function Shop() {
               ))}
             </div>
             <button onClick={() => setActiveBanner((p) => (p - 1 + banners.length) % banners.length)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white"
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-txt-primary"
               style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}>
               <ChevronLeft size={16} />
             </button>
             <button onClick={() => setActiveBanner((p) => (p + 1) % banners.length)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center text-txt-primary"
               style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}>
               <ChevronRight size={16} />
             </button>
@@ -334,7 +334,7 @@ export default function Shop() {
                 style={{ background: 'rgba(201,169,110,0.1)', color: G }}>
                 <Package size={20} />
               </div>
-              <span className="text-xs font-medium text-center leading-tight text-white">{cat.name}</span>
+              <span className="text-xs font-medium text-center leading-tight text-txt-primary">{cat.name}</span>
               {cat._count && <span className="text-[10px]" style={{ color: S }}>{cat._count.products} товаров</span>}
             </button>
           ))}
@@ -350,11 +350,11 @@ export default function Shop() {
       <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #8B6F3E 0%, #C9A96E 100%)' }}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
-            <Zap size={20} className="text-white" />
+            <Zap size={20} className="text-txt-primary" />
           </div>
           <div>
-            <p className="text-white font-bold text-sm">{promo.title}</p>
-            {promo.description && <p className="text-white/70 text-xs">{promo.description}</p>}
+            <p className="text-txt-primary font-bold text-sm">{promo.title}</p>
+            {promo.description && <p className="text-txt-primary/70 text-xs">{promo.description}</p>}
           </div>
         </div>
         <Badge variant="default" className="text-xs font-bold whitespace-nowrap" style={{ background: T.bg, color: G }}>
@@ -407,7 +407,7 @@ export default function Shop() {
                 background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}`,
                 color: '#fff', borderRadius: 12, fontSize: 13, outline: 'none'
               }}
-              className="placeholder:text-[#7A8899] focus:border-[#C9A96E]/50 transition-colors min-h-11" />
+              className="placeholder:text-txt-muted focus:border-dv-gold/50 transition-colors min-h-11" />
           </form>
         </div>
         <div className="relative">
@@ -455,7 +455,7 @@ export default function Shop() {
           style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${BDR_SUB}` }}>
           <ShoppingCart size={18} style={{ color: S }} />
           {cartCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-txt-primary text-[10px] font-bold flex items-center justify-center"
               style={{ background: G }}>
               {cartCount > 99 ? '99+' : cartCount}
             </span>
@@ -585,14 +585,14 @@ export default function Shop() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{item.name}</p>
+                        <p className="text-sm font-medium text-txt-primary truncate">{item.name}</p>
                         <p className="text-xs" style={{ color: S }}>{item.brand}</p>
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${BDR_SUB}` }}>
                             <button aria-label="Decrease quantity" onClick={() => updateQty(item.id, item.qty - 1)}
                               className="w-7 h-7 flex items-center justify-center transition-colors"
                               style={{ color: S }}><Minus size={12} /></button>
-                            <span className="w-7 h-7 flex items-center justify-center text-xs font-medium text-white"
+                            <span className="w-7 h-7 flex items-center justify-center text-xs font-medium text-txt-primary"
                               style={{ borderLeft: `1px solid ${BDR_SUB}`, borderRight: `1px solid ${BDR_SUB}` }}>{item.qty}</span>
                             <button aria-label="Increase quantity" onClick={() => updateQty(item.id, item.qty + 1)}
                               className="w-7 h-7 flex items-center justify-center transition-colors"

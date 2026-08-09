@@ -177,7 +177,7 @@ export default function RegistrationModal() {
             <button
               onClick={handleGuestLogin}
               disabled={loading}
-              className="w-full min-h-11 py-2.5 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full min-h-11 py-2.5 rounded-xl bg-dv-gold text-dv-gold-on font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
               {loading ? t('auth.signing_in') : t('auth.login')}
@@ -262,7 +262,7 @@ export default function RegistrationModal() {
             <button
               onClick={handleConvertAndRegister}
               disabled={loading}
-              className="w-full min-h-11 py-2.5 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full min-h-11 py-2.5 rounded-xl bg-dv-gold text-dv-gold-on font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
               {loading ? t('auth.registering') : t('auth.register')}

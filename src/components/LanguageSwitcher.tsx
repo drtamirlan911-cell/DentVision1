@@ -22,7 +22,7 @@ export default function LanguageSwitcher({ compact }: { compact?: boolean }) {
         {LANGUAGES.map((lang) => (
           <button key={lang.code} onClick={() => switchLang(lang.code)}
             className={`px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
-              current === lang.code ? 'bg-dv-gold text-white' : 'text-gray-400 hover:text-gray-200'
+              current === lang.code ? 'bg-dv-gold text-dv-gold-on' : 'text-gray-400 hover:text-gray-200'
             }`}>
             {lang.label}
           </button>
@@ -33,7 +33,7 @@ export default function LanguageSwitcher({ compact }: { compact?: boolean }) {
 
   return (
     <div className="relative group">
-      <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded-lg hover:bg-white/5">
+      <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded-lg hover:bg-surface-1">
         <Globe size={14} />
         <span>{LANGUAGES.find(l => l.code === current)?.label || 'Рус'}</span>
       </button>
@@ -41,7 +41,7 @@ export default function LanguageSwitcher({ compact }: { compact?: boolean }) {
         {LANGUAGES.map((lang) => (
           <button key={lang.code} onClick={() => switchLang(lang.code)}
             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-              current === lang.code ? 'bg-dv-gold/20 text-dv-gold' : 'text-gray-300 hover:bg-white/5'
+              current === lang.code ? 'bg-dv-gold/20 text-dv-gold' : 'text-gray-300 hover:bg-surface-1'
             }`}>
             {lang.full}
           </button>

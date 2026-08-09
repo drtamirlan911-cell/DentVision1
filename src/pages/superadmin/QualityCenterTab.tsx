@@ -76,7 +76,7 @@ function ScoreCircle({ value, max = 100, label, color }: { value: number; max?: 
     <div className="flex flex-col items-center gap-1">
       <div className="relative flex items-center justify-center w-16 h-16">
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 64 64">
-          <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4" className="text-white/5" />
+          <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4" className="text-txt-primary/5" />
           <circle cx="32" cy="32" r="28" fill="none" stroke={color} strokeWidth="4" strokeDasharray={`${pct * 1.76} 176`} strokeLinecap="round" transform="rotate(-90 32 32)" />
         </svg>
         <span className="text-lg font-bold" style={{ color }}>{pct}</span>
@@ -184,7 +184,7 @@ export default function QualityCenterTab() {
                   </thead>
                   <tbody>
                     {filteredItems.map(item => (
-                      <tr key={item.id} className="border-b border-bdr-subtle/50 cursor-pointer hover:bg-white/[0.02]" onClick={() => setSelectedItem(item)}>
+                      <tr key={item.id} className="border-b border-bdr-subtle/50 cursor-pointer hover:bg-surface-1" onClick={() => setSelectedItem(item)}>
                         <td className="px-4 py-3">
                           <div className="text-sm font-medium text-txt-primary">{item.label}</div>
                           <div className="text-xs text-txt-muted mt-0.5">{item.description}</div>

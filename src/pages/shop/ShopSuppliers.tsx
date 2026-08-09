@@ -22,7 +22,7 @@ export default function ShopSuppliers() {
 
   if (loading) return (
     <div className="flex justify-center py-16">
-      <div className="h-9 w-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" />
+      <div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
     </div>
   );
 
@@ -40,9 +40,9 @@ export default function ShopSuppliers() {
                 <CardContent>
                   <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                     <h3 className="text-sm font-bold text-txt-primary m-0">{s.name}</h3>
-                    {s.rating > 0 && <span className="flex items-center gap-0.5 text-xs text-[#C9A96E]"><Star size={12} className="fill-[#C9A96E]" /> {s.rating}</span>}
+                    {s.rating > 0 && <span className="flex items-center gap-0.5 text-xs text-dv-gold"><Star size={12} className="fill-dv-gold" /> {s.rating}</span>}
                   </div>
-                  <div className="space-y-1.5 text-xs text-[var(--slate-light)]">
+                  <div className="space-y-1.5 text-xs text-txt-secondary">
                     {s.country && <p className="flex items-center gap-1.5"><MapPin size={12} /> {s.city ? `${s.city}, ${s.country}` : s.country}</p>}
                     {s.phone && <p className="flex items-center gap-1.5"><Phone size={12} /> {s.phone}</p>}
                     {s.website && <p className="flex items-center gap-1.5 break-all"><Globe size={12} /> {s.website}</p>}

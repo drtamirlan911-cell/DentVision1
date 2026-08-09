@@ -8,6 +8,15 @@
     --dv-gold: #C9A96E;
     --dv-gold-light: #E2C998;
     --dv-gold-dim: #8B6F3E;
+    /* Foreground on a SOLID gold fill. The fill is light gold here, so the
+       text on it must be dark ink — 8.37:1. */
+    --dv-gold-on: #0B1220;
+    /* The primary action's gradient. It needs its own pair because a gradient
+       is only as readable as its weakest end, and which end that is flips with
+       the theme: here the ramp climbs toward the light, in the light theme it
+       has to descend into bronze. Ink clears 8.37 and 11.63 across these. */
+    --dv-gold-from: #C9A96E;
+    --dv-gold-to: #E2C998;
     --dv-ink: #080F1A;
     --dv-surface-0: #080F1A;
     --dv-surface-1: #0D1B2E;
@@ -72,9 +81,26 @@
   html.light {
     /* Premium clinical: warm porcelain / platinum surfaces, graphite text,
        champagne-gold accent, soft neutral borders. */
-    --dv-gold: #B8924A;
-    --dv-gold-light: #C9A96E;
-    --dv-gold-dim: #8B6F3E;
+    /* Gold has to invert with the theme, not merely soften: on porcelain a
+       champagne accent cannot be read. #B8924A — the value that lived here —
+       measures 2.63:1 as text, still far under the 4.5:1 AA floor, so it was
+       never going to be enough even once it started applying.
+
+       The value also has to clear AA *on its own tint*: `bg-dv-gold/10
+       text-dv-gold` is a chip pattern used across the app, and gold on a 10%
+       gold wash is a harder case than gold on the bare page. This clears
+       5.68 plain, 4.97 on a /10 tint and 4.62 on /15. The ramp stays monotonic
+       in contrast (light < base < dim) exactly as it does in the dark theme —
+       only the direction of "lighter" flips. */
+    --dv-gold: #785C26;
+    --dv-gold-light: #A8823C;
+    --dv-gold-dim: #6B5322;
+    /* The fill is deep bronze here, so its foreground flips to white — 5.02:1. */
+    --dv-gold-on: #FFFFFF;
+    /* Descending, not ascending: running toward #A8823C would leave white at
+       3.55:1 on the far end of the primary button. White clears 6.25 and 7.28. */
+    --dv-gold-from: #785C26;
+    --dv-gold-to: #6B5322;
     --dv-ink: #14181F;
     --dv-surface-0: #F5F4F0;
     --dv-surface-1: #FFFFFF;
@@ -86,18 +112,22 @@
     --dv-overlay: rgba(28, 24, 16, 0.42);
     --dv-text-primary: #1A1D23;
     --dv-text-secondary: #4D525B;
-    --dv-text-muted: #7C818A;
+    /* #7C818A measured 3.56:1 on the page and 3.91:1 on a white card — under
+       the 4.5:1 AA floor, and the only text token in either theme that missed
+       it. This clears 4.52 / 4.98 and still sits well below secondary (7.14),
+       so the emphasis ladder is unchanged. */
+    --dv-text-muted: #6B7079;
     --dv-text-ghost: #AEA99E;
     --dv-border: rgba(35, 31, 22, 0.10);
     --dv-border-subtle: rgba(35, 31, 22, 0.07);
-    --dv-border-focus: rgba(184, 146, 74, 0.55);
+    --dv-border-focus: rgba(138, 106, 46, 0.55);
     --dv-glass: rgba(40, 34, 22, 0.035);
     --dv-glass-strong: rgba(40, 34, 22, 0.06);
     --dv-sidebar-bg: #EEEBE4;
     --dv-sidebar-bg-end: #E2DDD3;
-    --dv-sidebar-brand-bg: rgba(184,146,74,0.16);
-    --dv-sidebar-brand-border: rgba(184,146,74,0.24);
-    --dv-sidebar-glow-gold: rgba(184,146,74,0.18);
+    --dv-sidebar-brand-bg: rgba(138,106,46,0.16);
+    --dv-sidebar-brand-border: rgba(138,106,46,0.24);
+    --dv-sidebar-glow-gold: rgba(138,106,46,0.18);
     --dv-sidebar-glow-blue: rgba(56,160,180,0.12);
     /* Brand / logo tokens on light surfaces: navy -> teal, dark ink */
     --logo-from: #1C3E6B;

@@ -250,7 +250,7 @@ export default function BIWorkspace() {
         {TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.id ? 'border-[#C9A96E] text-[#C9A96E]' : 'border-transparent text-[#7A8899] hover:text-white'
+              tab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'
             }`}>
             {t.icon}{t.label}
           </button>
@@ -518,7 +518,7 @@ export default function BIWorkspace() {
                     <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs whitespace-pre-wrap ${
                       m.role === 'user'
                         ? 'bg-dv-gold/20 text-txt-primary'
-                        : 'bg-white/[0.06] text-txt-primary'
+                        : 'bg-surface-2 text-txt-primary'
                     }`}>
                       {m.text}
                     </div>
@@ -526,7 +526,7 @@ export default function BIWorkspace() {
                 ))}
                 {cfoLoading && (
                   <div className="flex justify-start">
-                    <div className="bg-white/[0.06] rounded-xl px-3 py-2 text-xs text-txt-muted">
+                    <div className="bg-surface-2 rounded-xl px-3 py-2 text-xs text-txt-muted">
                       AI CFO думает…
                     </div>
                   </div>
@@ -585,7 +585,7 @@ export default function BIWorkspace() {
                 ]).map((t) => (
                   <button key={t.id} onClick={() => setCommandTab(t.id)}
                     className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
-                      commandTab === t.id ? 'border-[#C9A96E] text-[#C9A96E]' : 'border-transparent text-[#7A8899] hover:text-white'
+                      commandTab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'
                     }`}>
                     {t.icon}{t.label}
                     {!!t.badge && t.badge > 0 && (
@@ -821,7 +821,7 @@ function QueueCard({ title, icon, items, onOpen }: {
         ) : (
           <ul className="space-y-2 max-h-56 overflow-auto">
             {items.map((it) => (
-              <li key={it.id} className="text-xs border border-white/[0.05] rounded-lg px-2 py-1.5 cursor-pointer hover:bg-white/[0.03]"
+              <li key={it.id} className="text-xs border border-white/[0.05] rounded-lg px-2 py-1.5 cursor-pointer hover:bg-surface-1"
                 onClick={onOpen}>
                 <p className="text-txt-primary font-medium truncate">{it.title}</p>
                 <p className="text-txt-muted">{it.meta}</p>

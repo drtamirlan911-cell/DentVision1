@@ -270,7 +270,7 @@ export function AIInputArea({
                   className={cn(
                     'flex h-8 w-8 items-center justify-center rounded-xl transition-all',
                     text.trim()
-                      ? 'bg-dv-gold text-surface-0 shadow-lg shadow-dv-gold/20'
+                      ? 'bg-dv-gold text-dv-gold-on shadow-lg shadow-dv-gold/20'
                       : 'bg-white/[0.05] text-txt-muted'
                   )}
                 >

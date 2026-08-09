@@ -758,7 +758,7 @@ const result = await executeAction(
             <Bot size={18} className="text-dv-gold" />
           </div>
           <div className="min-w-0">
-            <h1 className="font-serif text-[14px] sm:text-[15px] font-semibold text-txt-primary tracking-tight truncate">{t('ai.intelligence_subtitle')}</h1>
+            <h1 className="font-serif text-base sm:text-lg font-semibold text-txt-primary tracking-tight truncate">{t('ai.intelligence_subtitle')}</h1>
             <p className="dv-ai-header-meta text-[11px] text-txt-muted truncate">
               {status === 'idle' ? (
                 activePersonaLabel

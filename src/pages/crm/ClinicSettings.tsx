@@ -578,7 +578,7 @@ export default function ClinicSettingsPage() {
 
       {activeTab === 'kaspi' && (
       <motion.div variants={fadeUp}>
-        <Card className="border-[#C9A96E]/25">
+        <Card className="border-dv-gold/25">
           <CardHeader>
             <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
               <span className="flex items-center gap-2">

@@ -49,7 +49,7 @@ const SERVICE_TILES = [
     icon: <Stethoscope size={22} />,
     path: '/crm/schedule',
     color: '#C9A96E',
-    gradient: 'from-[#C9A96E]/15 to-[#C9A96E]/5',
+    gradient: 'from-dv-gold/15 to-dv-gold/5',
   },
   {
     id: 'shop',

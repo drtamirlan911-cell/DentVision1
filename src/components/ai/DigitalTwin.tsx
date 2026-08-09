@@ -160,7 +160,7 @@ function GuestTwinView({ twin }: { twin: Twin }) {
           <button
             type="button"
             onClick={() => navigate('/crm/schedule?demo=1')}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-dv-gold px-3 py-2 text-xs font-semibold text-surface-0 hover:bg-dv-gold/90 transition-colors"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-dv-gold px-3 py-2 text-xs font-semibold text-dv-gold-on hover:bg-dv-gold/90 transition-colors"
           >
             <FlaskConical size={13} />
             Демо

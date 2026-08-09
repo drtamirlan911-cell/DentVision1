@@ -9,8 +9,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // `text-dv-gold-on`, not `--dv-ink`: the gold gradient inverts with the
+        // theme, so the text on it has to invert the other way. Ink on the
+        // light theme's bronze gradient measured 2.03:1 — the primary action
+        // was the least readable control on the screen.
         primary:
-          'bg-gradient-to-r from-dv-gold to-dv-gold-light text-[color:var(--dv-ink)] hover:shadow-glow-sm',
+          'bg-gradient-to-r from-dv-gold-from to-dv-gold-to text-dv-gold-on hover:shadow-glow-sm',
         secondary:
           'bg-surface-raised border border-bdr-subtle text-txt-primary hover:bg-surface-raised-hover hover:border-bdr/50',
         ghost:

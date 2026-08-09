@@ -357,7 +357,7 @@ export default function SupplierWorkspace() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <div className="h-9 w-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" />
+        <div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
       </div>
     )
   }
@@ -377,7 +377,7 @@ export default function SupplierWorkspace() {
         />
         <Card>
           <CardContent className="p-5 space-y-3">
-            <p className="text-sm font-medium text-white">Регистрация компании</p>
+            <p className="text-sm font-medium text-txt-primary">Регистрация компании</p>
             <Input label="Название компании *" value={regForm.name} onChange={(e) => setRegForm({ ...regForm, name: e.target.value })} placeholder="ТОО DentSupply" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input label="БИН" value={regForm.bin} onChange={(e) => setRegForm({ ...regForm, bin: e.target.value })} />
@@ -438,12 +438,12 @@ export default function SupplierWorkspace() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2.5 min-h-11 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
-              tab === t.id ? 'border-[#C9A96E] text-[#C9A96E]' : 'border-transparent text-[#7A8899] hover:text-white'
+              tab === t.id ? 'border-dv-gold text-dv-gold' : 'border-transparent text-txt-muted hover:text-txt-primary'
             }`}
           >
             {t.icon}{t.label}
             {t.count != null && t.count > 0 && (
-              <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white/10">{t.count}</span>
+              <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-surface-2">{t.count}</span>
             )}
           </button>
         ))}
@@ -461,7 +461,7 @@ export default function SupplierWorkspace() {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-txt-primary flex items-center gap-2">
-                  <Sparkles size={16} className="text-[#C9A96E]" /> AI-рекомендации
+                  <Sparkles size={16} className="text-dv-gold" /> AI-рекомендации
                 </h3>
                 {canWrite && (
                   <div className="flex flex-wrap gap-2">
@@ -507,26 +507,26 @@ export default function SupplierWorkspace() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Card>
                   <CardContent className="p-4 space-y-2">
-                    <p className="text-xs text-[#7A8899] uppercase tracking-wide">Последние продажи</p>
+                    <p className="text-xs text-txt-muted uppercase tracking-wide">Последние продажи</p>
                     {(dash?.orders || []).slice(0, 4).map((o: any) => (
                       <div key={o.id} className="flex justify-between text-sm gap-2">
-                        <span className="text-white truncate">{o.clinicName}</span>
-                        <span className="text-[#C9A96E] shrink-0">{fmtTenge(o.subtotal)}</span>
+                        <span className="text-txt-primary truncate">{o.clinicName}</span>
+                        <span className="text-dv-gold shrink-0">{fmtTenge(o.subtotal)}</span>
                       </div>
                     ))}
-                    {(dash?.orders || []).length === 0 && <p className="text-sm text-[#7A8899]">Заказов пока нет</p>}
+                    {(dash?.orders || []).length === 0 && <p className="text-sm text-txt-muted">Заказов пока нет</p>}
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4 space-y-2">
-                    <p className="text-xs text-[#7A8899] uppercase tracking-wide">Критичные остатки</p>
+                    <p className="text-xs text-txt-muted uppercase tracking-wide">Критичные остатки</p>
                     {(dash?.stock?.low || []).slice(0, 4).map((p: any) => (
                       <div key={p.id} className="flex justify-between text-sm gap-2">
-                        <span className="text-white truncate">{p.name}</span>
+                        <span className="text-txt-primary truncate">{p.name}</span>
                         <span className="text-amber-300 shrink-0">{p.stock} шт</span>
                       </div>
                     ))}
-                    {(dash?.stock?.low || []).length === 0 && <p className="text-sm text-[#7A8899]">Все остатки в норме</p>}
+                    {(dash?.stock?.low || []).length === 0 && <p className="text-sm text-txt-muted">Все остатки в норме</p>}
                   </CardContent>
                 </Card>
               </div>
@@ -535,7 +535,7 @@ export default function SupplierWorkspace() {
 
           {tab === 'sales' && (
             <div className="space-y-3">
-              <p className="text-sm text-[#7A8899]">Заказы клиник по вашим товарам</p>
+              <p className="text-sm text-txt-muted">Заказы клиник по вашим товарам</p>
               {(dash?.orders || []).length === 0 ? (
                 <EmptyState icon={<Truck size={28} />} title="Продаж пока нет" description="Когда клиника оформит заказ с вашим товаром, он появится здесь." />
               ) : (
@@ -544,19 +544,19 @@ export default function SupplierWorkspace() {
                     <CardContent className="p-4 space-y-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-white">{o.clinicName}</p>
-                          <p className="text-xs text-[#7A8899]">
+                          <p className="text-sm font-semibold text-txt-primary">{o.clinicName}</p>
+                          <p className="text-xs text-txt-muted">
                             {o.buyerName} · {new Date(o.createdAt).toLocaleString('ru-RU')}
                           </p>
                         </div>
                         <div className="text-right">
                           <Badge size="xs">{ORDER_STATUS[o.status] || o.status}</Badge>
-                          <p className="text-sm font-bold text-[#C9A96E] mt-1">{fmtTenge(o.subtotal)}</p>
+                          <p className="text-sm font-bold text-dv-gold mt-1">{fmtTenge(o.subtotal)}</p>
                         </div>
                       </div>
                       <div className="space-y-1">
                         {o.items.map((it: any, idx: number) => (
-                          <div key={idx} className="flex justify-between text-xs text-[#A8B4C0]">
+                          <div key={idx} className="flex justify-between text-xs text-txt-secondary">
                             <span>{it.name} × {it.qty}</span>
                             <span>{fmtTenge(it.total)}</span>
                           </div>
@@ -583,7 +583,7 @@ export default function SupplierWorkspace() {
           {tab === 'stock' && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-[#7A8899]">Управление остатками · низкий порог ≤ 5 шт</p>
+                <p className="text-sm text-txt-muted">Управление остатками · низкий порог ≤ 5 шт</p>
                 {canWrite && <Button size="sm" className="min-h-11" onClick={() => setAddOpen(true)} icon={<Plus size={14} />}>Добавить</Button>}
               </div>
               {products.length === 0 ? (
@@ -593,8 +593,8 @@ export default function SupplierWorkspace() {
                   <Card key={p.id} className={p.stock <= 5 ? 'ring-1 ring-amber-500/30' : ''}>
                     <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{p.name}</p>
-                        <p className="text-xs text-[#7A8899]">{p.category || 'Без категории'} · {fmtTenge(p.price)}</p>
+                        <p className="text-sm font-semibold text-txt-primary truncate">{p.name}</p>
+                        <p className="text-xs text-txt-muted">{p.category || 'Без категории'} · {fmtTenge(p.price)}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Input
@@ -611,7 +611,7 @@ export default function SupplierWorkspace() {
                           onBlur={(e) => handleStock(p.id, Number(e.target.value) || 0)}
                           disabled={!canWrite}
                         />
-                        <span className="text-xs text-[#7A8899]">шт</span>
+                        <span className="text-xs text-txt-muted">шт</span>
                         {p.stock <= 5 && <Badge size="xs" variant="gold">мало</Badge>}
                       </div>
                     </CardContent>
@@ -623,7 +623,7 @@ export default function SupplierWorkspace() {
 
           {tab === 'returns' && (
             <div className="space-y-3">
-              <p className="text-sm text-[#7A8899]">Возвраты и споры по вашим заказам</p>
+              <p className="text-sm text-txt-muted">Возвраты и споры по вашим заказам</p>
               {(dash?.returns || []).length === 0 ? (
                 <EmptyState icon={<RotateCcw size={28} />} title="Возвратов нет" description="Открытые споры появятся здесь автоматически." />
               ) : (
@@ -631,8 +631,8 @@ export default function SupplierWorkspace() {
                   <Card key={r.id}>
                     <CardContent className="p-4 flex flex-wrap justify-between gap-3">
                       <div>
-                        <p className="text-sm text-white">{r.reason}</p>
-                        <p className="text-xs text-[#7A8899] mt-1">{r.refType} · {r.refId}</p>
+                        <p className="text-sm text-txt-primary">{r.reason}</p>
+                        <p className="text-xs text-txt-muted mt-1">{r.refType} · {r.refId}</p>
                       </div>
                       <Badge size="xs">{r.status}</Badge>
                     </CardContent>
@@ -647,10 +647,10 @@ export default function SupplierWorkspace() {
               <Card>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start gap-2">
-                    <Percent size={16} className="text-[#C9A96E] mt-0.5 shrink-0" />
+                    <Percent size={16} className="text-dv-gold mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-sm font-semibold text-white">DentCash — кэшбэк покупателям</p>
-                      <p className="text-xs text-[#7A8899] mt-0.5">
+                      <p className="text-sm font-semibold text-txt-primary">DentCash — кэшбэк покупателям</p>
+                      <p className="text-xs text-txt-muted mt-0.5">
                         1 DentCash = 1 ₸. Списывается с вашего кошелька при начислении. Свой бренд — повышенный % по умолчанию платформы.
                       </p>
                     </div>
@@ -670,8 +670,8 @@ export default function SupplierWorkspace() {
                     </div>
                   )}
                   {cashbackRules.filter((r) => r.active && r.scope !== 'ALL').length > 0 && (
-                    <div className="text-xs text-[#7A8899] space-y-1 pt-2 border-t border-white/10">
-                      <p className="font-medium text-white/60">Переопределения</p>
+                    <div className="text-xs text-txt-muted space-y-1 pt-2 border-t border-bdr-subtle">
+                      <p className="font-medium text-txt-primary/60">Переопределения</p>
                       {cashbackRules.filter((r) => r.active && r.scope !== 'ALL').map((r) => (
                         <p key={r.id}>
                           {r.scope}
@@ -687,25 +687,25 @@ export default function SupplierWorkspace() {
               </Card>
 
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-[#7A8899]">Акции с повышенным кэшбэком (до 15%)</p>
+                <p className="text-sm text-txt-muted">Акции с повышенным кэшбэком (до 15%)</p>
                 {canWrite && <Button size="sm" className="min-h-11" onClick={() => setPromoOpen(true)} icon={<Tag size={14} />}>Создать акцию</Button>}
               </div>
               {(dash?.promotions || []).length > 0 ? (
                 <div className="space-y-2">
                   {(dash.promotions as any[]).map((p: any) => (
-                    <div key={p.id} className="rounded-lg border border-[#C9A96E]/20 bg-[#C9A96E]/5 px-3 py-2 text-sm text-white">
+                    <div key={p.id} className="rounded-lg border border-dv-gold/20 bg-dv-gold/5 px-3 py-2 text-sm text-white">
                       {p.title} · {p.productName}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-[#7A8899]">Пока нет активных акций</p>
+                <p className="text-sm text-txt-muted">Пока нет активных акций</p>
               )}
 
               <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-[#7A8899]">Товары: свой бренд и % кэшбэка</p>
+                <p className="text-xs uppercase tracking-wide text-txt-muted">Товары: свой бренд и % кэшбэка</p>
                 {products.length === 0 ? (
-                  <p className="text-sm text-[#7A8899]">Добавьте товары во вкладке «Каталог»</p>
+                  <p className="text-sm text-txt-muted">Добавьте товары во вкладке «Каталог»</p>
                 ) : (
                   <div className="space-y-2 max-h-80 overflow-y-auto">
                     {products.slice(0, 40).map((p: any) => {
@@ -714,12 +714,12 @@ export default function SupplierWorkspace() {
                         <Card key={p.id}>
                           <CardContent className="p-3 flex flex-wrap items-center gap-2">
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-white truncate">{p.name}</p>
-                              <p className="text-xs text-[#7A8899]">{p.category || '—'}</p>
+                              <p className="text-sm font-medium text-txt-primary truncate">{p.name}</p>
+                              <p className="text-xs text-txt-muted">{p.category || '—'}</p>
                             </div>
                             {canWrite && (
                               <>
-                                <label className="flex items-center gap-1.5 text-xs text-white/70 cursor-pointer">
+                                <label className="flex items-center gap-1.5 text-xs text-txt-primary/70 cursor-pointer">
                                   <input
                                     type="checkbox"
                                     checked={Boolean(p.ownBrand)}
@@ -741,7 +741,7 @@ export default function SupplierWorkspace() {
                               </>
                             )}
                             {!canWrite && rule && (
-                              <span className="text-xs text-[#C9A96E]">{(rule.rateBps / 100).toFixed(1)}%</span>
+                              <span className="text-xs text-dv-gold">{(rule.rateBps / 100).toFixed(1)}%</span>
                             )}
                           </CardContent>
                         </Card>
@@ -755,7 +755,7 @@ export default function SupplierWorkspace() {
 
           {tab === 'analytics' && (
             <div className="space-y-4">
-              <p className="text-sm text-[#7A8899]">Аналитика спроса по вашему ассортименту</p>
+              <p className="text-sm text-txt-muted">Аналитика спроса по вашему ассортименту</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCell icon={<BarChart3 size={16} />} label="Продаж всего" value={String(kpis.salesCount || 0)} />
                 <StatCell icon={<Wallet size={16} />} label="Заработано" value={fmtMoney(kpis.earnedMinor)} />
@@ -764,7 +764,7 @@ export default function SupplierWorkspace() {
               </div>
               {(dash?.demandTop || []).length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-wide text-[#7A8899]">Горячий спрос</p>
+                  <p className="text-xs uppercase tracking-wide text-txt-muted">Горячий спрос</p>
                   {(dash.demandTop as any[]).map((d) => (
                     <div key={d.id} className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
                       <p className="text-sm font-semibold text-emerald-100">{d.title}</p>
@@ -788,7 +788,7 @@ export default function SupplierWorkspace() {
           {tab === 'catalog' && (
             <div>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <p className="text-sm text-[#7A8899]">Товаров: {products.length}</p>
+                <p className="text-sm text-txt-muted">Товаров: {products.length}</p>
                 <div className="flex flex-wrap gap-2">
                   {canWrite && <Button size="sm" variant="ghost" className="min-h-11" icon={<Sparkles size={14} />} onClick={() => { loadPresets(); setImportOpen(true) }}>Быстрый импорт</Button>}
                   {canWrite && <Button size="sm" className="min-h-11" icon={<Plus size={15} />} onClick={() => setAddOpen(true)}>Добавить товар</Button>}
@@ -804,26 +804,26 @@ export default function SupplierWorkspace() {
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex gap-3 min-w-0">
-                              <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+                              <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-surface-1 flex items-center justify-center">
                                 {p.imageUrl ? (
                                   <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
                                 ) : (
-                                  <ImageIcon size={18} className="text-[#7A8899]" />
+                                  <ImageIcon size={18} className="text-txt-muted" />
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <p className="text-sm font-bold text-white truncate">{p.name}</p>
-                                <p className="text-xs text-[#7A8899] mt-0.5">{p.category || 'Без категории'} · остаток {p.stock}</p>
-                                <p className="text-sm text-[#C9A96E] font-semibold mt-1.5">{fmtTenge(p.price)}</p>
+                                <p className="text-sm font-bold text-txt-primary truncate">{p.name}</p>
+                                <p className="text-xs text-txt-muted mt-0.5">{p.category || 'Без категории'} · остаток {p.stock}</p>
+                                <p className="text-sm text-dv-gold font-semibold mt-1.5">{fmtTenge(p.price)}</p>
                                 {p.rating != null && (
-                                  <p className="text-xs text-[#7A8899] mt-1 flex items-center gap-1">
-                                    <Star size={11} className="text-[#C9A96E]" /> {p.rating}
+                                  <p className="text-xs text-txt-muted mt-1 flex items-center gap-1">
+                                    <Star size={11} className="text-dv-gold" /> {p.rating}
                                   </p>
                                 )}
                               </div>
                             </div>
                             {canWrite && (
-                              <button onClick={() => handleDelete(p.id)} className="p-1.5 min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-[#E74C3C] hover:bg-[#E74C3C]/10 transition-colors shrink-0" aria-label="Удалить">
+                              <button onClick={() => handleDelete(p.id)} className="p-1.5 min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-error hover:bg-error/10 transition-colors shrink-0" aria-label="Удалить">
                                 <Trash2 size={15} />
                               </button>
                             )}
@@ -853,7 +853,7 @@ export default function SupplierWorkspace() {
           <Input label="Категория" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} placeholder="Импланты" />
           <Input label="Описание" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Краткое описание" />
           <div>
-            <p className="text-xs text-[#7A8899] mb-1.5">Фото товара</p>
+            <p className="text-xs text-txt-muted mb-1.5">Фото товара</p>
             <input
               ref={photoInputRef}
               type="file"
@@ -865,19 +865,19 @@ export default function SupplierWorkspace() {
               }}
             />
             {form.imageUrl ? (
-              <div className="relative h-36 rounded-lg overflow-hidden border border-white/10 mb-2">
+              <div className="relative h-36 rounded-lg overflow-hidden border border-bdr-subtle mb-2">
                 <img src={form.imageUrl} alt="Превью" className="h-full w-full object-cover" />
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, imageUrl: '' }))}
-                  className="absolute top-2 right-2 rounded-md bg-black/50 px-2 py-1 text-[11px] text-white border-none cursor-pointer"
+                  className="absolute top-2 right-2 rounded-md bg-black/50 px-2 py-1 text-[11px] text-txt-primary border-none cursor-pointer"
                 >
                   Убрать
                 </button>
               </div>
             ) : (
-              <div className="h-28 rounded-lg border border-dashed border-white/15 bg-white/[0.03] flex items-center justify-center mb-2">
-                <ImageIcon size={22} className="text-[#7A8899]" />
+              <div className="h-28 rounded-lg border border-dashed border-white/15 bg-surface-1 flex items-center justify-center mb-2">
+                <ImageIcon size={22} className="text-txt-muted" />
               </div>
             )}
             <Button
@@ -901,11 +901,11 @@ export default function SupplierWorkspace() {
 
       <Modal open={promoOpen} onClose={() => setPromoOpen(false)} title="Запустить акцию" className="w-full max-w-full sm:max-w-lg lg:max-w-xl">
         <div className="space-y-3">
-          <label className="text-xs text-[#7A8899] block">Товар</label>
+          <label className="text-xs text-txt-muted block">Товар</label>
           <select
             value={promoForm.productId}
             onChange={(e) => setPromoForm((f) => ({ ...f, productId: e.target.value }))}
-            className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 min-h-11 text-sm text-white"
+            className="w-full rounded-lg bg-surface-1 border border-bdr-subtle px-3 py-2 min-h-11 text-sm text-white"
           >
             <option value="">Выберите товар…</option>
             {products.map((p: any) => (
@@ -936,28 +936,28 @@ export default function SupplierWorkspace() {
             onChange={(e) => { setPresetSearch(e.target.value); loadPresets(e.target.value) }}
           />
           {presetsLoading ? (
-            <p className="text-center text-sm text-[#7A8899] py-6">Загрузка…</p>
+            <p className="text-center text-sm text-txt-muted py-6">Загрузка…</p>
           ) : presets.length === 0 ? (
-            <p className="text-center text-sm text-[#7A8899] py-6">Ничего не найдено</p>
+            <p className="text-center text-sm text-txt-muted py-6">Ничего не найдено</p>
           ) : (
             <div className="space-y-2">
               {presets.map((preset: any) => (
-                <div key={preset.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <div key={preset.id} className="rounded-xl border border-bdr-subtle bg-surface-1 p-3">
                   <div className="flex items-start gap-3">
-                    <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+                    <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-surface-1 flex items-center justify-center">
                       {preset.imageUrl ? (
                         <img src={preset.imageUrl} alt={preset.name} className="h-full w-full object-cover" />
                       ) : (
-                        <Package size={18} className="text-[#7A8899]" />
+                        <Package size={18} className="text-txt-muted" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{preset.name}</p>
-                      {preset.brand && <p className="text-[11px] text-[#7A8899]">{preset.brand}</p>}
-                      {preset.description && <p className="text-xs text-[#7A8899] mt-1 line-clamp-2">{preset.description}</p>}
+                      <p className="text-sm font-bold text-txt-primary truncate">{preset.name}</p>
+                      {preset.brand && <p className="text-[11px] text-txt-muted">{preset.brand}</p>}
+                      {preset.description && <p className="text-xs text-txt-muted mt-1 line-clamp-2">{preset.description}</p>}
                       <div className="flex items-center gap-2 mt-1.5">
-                        {preset.avgPrice > 0 && <span className="text-xs text-[#C9A96E]">Ср. цена: {fmtTenge(preset.avgPrice)}</span>}
-                        <span className="text-[10px] text-white/40">/{preset.unit || 'шт'}</span>
+                        {preset.avgPrice > 0 && <span className="text-xs text-dv-gold">Ср. цена: {fmtTenge(preset.avgPrice)}</span>}
+                        <span className="text-[10px] text-txt-primary/40">/{preset.unit || 'шт'}</span>
                       </div>
                     </div>
                   </div>
@@ -997,10 +997,10 @@ export default function SupplierWorkspace() {
 
 function StatCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="p-3.5 bg-[#0D1B2E] border border-[rgba(255,255,255,0.06)] rounded-[14px]">
-      <div className="flex items-center gap-2 text-[#C9A96E] mb-1.5">{icon}</div>
-      <p className="text-lg font-bold text-white leading-tight">{value}</p>
-      <p className="text-[11px] text-[#7A8899] mt-0.5">{label}</p>
+    <div className="p-3.5 bg-surface-1 border border-bdr-subtle rounded-[14px]">
+      <div className="flex items-center gap-2 text-dv-gold mb-1.5">{icon}</div>
+      <p className="text-lg font-bold text-txt-primary leading-tight">{value}</p>
+      <p className="text-[11px] text-txt-muted mt-0.5">{label}</p>
     </div>
   )
 }

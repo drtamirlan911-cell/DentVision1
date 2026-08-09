@@ -58,8 +58,8 @@ function ServiceOrbitCards({ cards, cardTexts = {}, staggerDelay = 0.1, onCardCl
                   {card.icon}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-white/90">{card.name}</h3>
-                  <p className="text-[10px] text-white/40">{card.description}</p>
+                  <h3 className="text-sm font-semibold text-txt-primary/90">{card.name}</h3>
+                  <p className="text-[10px] text-txt-primary/40">{card.description}</p>
                 </div>
               </div>
               {eventText && (

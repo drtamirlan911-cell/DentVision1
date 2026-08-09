@@ -83,7 +83,7 @@ export default function Demo() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => navigate('/crm/schedule?demo=1')}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-dv-gold text-dv-gold-on font-semibold text-sm hover:bg-dv-gold/90 transition-colors"
               >
                 Открыть демо-клинику
                 <ArrowRight size={16} />
@@ -175,7 +175,7 @@ export default function Demo() {
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={() => setRegistrationModal(true)}
-              className="px-6 py-3 rounded-xl bg-dv-gold text-surface-0 font-semibold text-sm hover:bg-dv-gold/90 transition-colors"
+              className="px-6 py-3 rounded-xl bg-dv-gold text-dv-gold-on font-semibold text-sm hover:bg-dv-gold/90 transition-colors"
             >
               Начать бесплатно
             </motion.button>

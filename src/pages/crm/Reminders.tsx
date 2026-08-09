@@ -151,7 +151,7 @@ export default function Reminders() {
               <div className="flex items-center justify-between gap-3.5 flex-wrap">
                 <div className="flex-1 min-w-[220px]">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-sm font-bold text-white">{r.patient.name}</span>
+                    <span className="text-sm font-bold text-txt-primary">{r.patient.name}</span>
                     {r.sent && <Badge variant="success" size="sm">Отправлено</Badge>}
                   </div>
                   <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-txt-secondary">
@@ -228,7 +228,7 @@ export default function Reminders() {
 
       {/* Tabs */}
       <motion.div variants={fadeUp}>
-        <div className="flex flex-wrap gap-1 rounded-xl bg-white/5 p-1">
+        <div className="flex flex-wrap gap-1 rounded-xl bg-surface-1 p-1">
           {tabs.map(t => (
             <button
               key={t.id}
@@ -236,7 +236,7 @@ export default function Reminders() {
               className={`flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 min-h-11 ${
                 tab === t.id
                   ? 'bg-dv-gold/20 text-dv-gold'
-                  : 'text-txt-muted hover:bg-white/5'
+                  : 'text-txt-muted hover:bg-surface-1'
               }`}
             >
               {t.icon}
@@ -290,7 +290,7 @@ export default function Reminders() {
                     <div className="flex items-center justify-between gap-3.5 flex-wrap">
                       <div className="flex-1 min-w-[220px]">
                         <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-sm font-bold text-white">{r.patient.name}</span>
+                          <span className="text-sm font-bold text-txt-primary">{r.patient.name}</span>
                           {r.sent && <Badge variant="success" size="sm">Отправлено</Badge>}
                           {!r.sent && (
                             <Badge variant={r.monthsSince ? 'warning' : 'error'} size="sm">
@@ -350,7 +350,7 @@ export default function Reminders() {
                     <div className="flex items-center justify-between gap-3.5 flex-wrap">
                       <div className="flex-1 min-w-[220px]">
                         <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-sm font-bold text-white">{f.patientName}</span>
+                          <span className="text-sm font-bold text-txt-primary">{f.patientName}</span>
                           <Badge variant="warning" size="sm">{f.reason}</Badge>
                         </div>
                         <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-txt-secondary">
@@ -386,7 +386,7 @@ export default function Reminders() {
       )}
 
       {/* Info footer */}
-      <motion.div variants={fadeUp} className="flex items-start gap-2 rounded-xl border border-bdr-subtle bg-white/[0.03] p-3.5 text-[11px] leading-relaxed text-txt-secondary">
+      <motion.div variants={fadeUp} className="flex items-start gap-2 rounded-xl border border-bdr-subtle bg-surface-1 p-3.5 text-[11px] leading-relaxed text-txt-secondary">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
           Кнопка «Отправить WhatsApp» открывает чат с готовым текстом сообщения — просто нажмите «Отправить» в WhatsApp.

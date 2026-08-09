@@ -266,7 +266,7 @@ export default function CommunityPage() {
           >
             {t.label}
             {!!t.badge && t.badge > 0 && (
-              <span className="absolute top-1 right-2 min-w-[1rem] h-4 px-1 rounded-full bg-dv-gold text-[9px] font-bold text-surface-0 flex items-center justify-center">
+              <span className="absolute top-1 right-2 min-w-[1rem] h-4 px-1 rounded-full bg-dv-gold text-[9px] font-bold text-dv-gold-on flex items-center justify-center">
                 {t.badge > 9 ? '9+' : t.badge}
               </span>
             )}

@@ -44,7 +44,7 @@ interface A11yButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
 const A11yButton = React.forwardRef<HTMLButtonElement, A11yButtonProps>(
   ({ variant = 'primary', size = 'md', icon, loading, loadingText, children, disabled, className, ...props }, ref) => {
     const variants = {
-      primary: 'bg-dv-gold text-surface-0 hover:bg-dv-gold/90 shadow-sm',
+      primary: 'bg-dv-gold text-dv-gold-on hover:bg-dv-gold/90 shadow-sm',
       secondary: 'bg-surface-raised border border-bdr-subtle text-txt-primary hover:bg-surface-raised-hover',
       ghost: 'text-txt-secondary hover:text-txt-primary hover:bg-white/5',
       danger: 'bg-error/10 border border-error/20 text-error hover:bg-error/20',

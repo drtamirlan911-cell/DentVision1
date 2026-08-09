@@ -223,7 +223,7 @@ export default function ShopCheckout() {
     <div className="p-6 w-full max-w-full overflow-x-hidden mx-auto sm:max-w-[900px]">
       <button
         onClick={() => navigate('/shop')}
-        className="flex items-center gap-1 bg-transparent border-none text-[#C9A96E] cursor-pointer font-inherit text-xs mb-3"
+        className="flex items-center gap-1 bg-transparent border-none text-dv-gold cursor-pointer font-inherit text-xs mb-3"
       >
         <ArrowLeft size={14} /> Назад в каталог
       </button>
@@ -248,7 +248,7 @@ export default function ShopCheckout() {
           <Card>
             <CardContent>
               <h3 className="text-sm font-bold text-txt-primary m-0 mb-3 flex items-center gap-2">
-                <Truck size={16} className="text-[#C9A96E]" /> Данные доставки
+                <Truck size={16} className="text-dv-gold" /> Данные доставки
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <Input label="Контактное лицо" value={form.contactName} onChange={set('contactName')} placeholder="Имя" className="min-h-11" />
@@ -258,13 +258,13 @@ export default function ShopCheckout() {
                 <Input label="Адрес доставки" value={form.delivery_address} onChange={set('delivery_address')} placeholder="Город, улица, дом" className="min-h-11" />
               </div>
               <div className="mt-3">
-                <label className="text-xs text-[var(--slate)] mb-1.5 block">Купить для</label>
+                <label className="text-xs text-txt-muted mb-1.5 block">Купить для</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setForm(f => ({ ...f, buyFor: 'self' }))}
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all min-h-11 ${
-                      form.buyFor === 'self' ? 'border-[#C9A96E]/60 bg-[#C9A96E]/10 text-[#C9A96E]' : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)]'
+                      form.buyFor === 'self' ? 'border-dv-gold/60 bg-dv-gold/10 text-dv-gold' : 'border-bdr-subtle bg-surface-1 text-txt-muted'
                     }`}
                   >
                     <ShoppingBag size={15} /> Для себя
@@ -274,7 +274,7 @@ export default function ShopCheckout() {
                     disabled={!canBuyForClinic}
                     onClick={() => setForm(f => ({ ...f, buyFor: 'clinic' }))}
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed min-h-11 ${
-                      form.buyFor === 'clinic' ? 'border-[#C9A96E]/60 bg-[#C9A96E]/10 text-[#C9A96E]' : 'border-[var(--border-subtle)] bg-white/[0.03] text-[var(--slate)]'
+                      form.buyFor === 'clinic' ? 'border-dv-gold/60 bg-dv-gold/10 text-dv-gold' : 'border-bdr-subtle bg-surface-1 text-txt-muted'
                     }`}
                   >
                     <Building2 size={15} /> {activeClinic ? activeClinic.name : 'Для клиники'}
@@ -283,7 +283,7 @@ export default function ShopCheckout() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2.5">
                 <div>
-                  <label className="text-xs text-[var(--slate)] mb-1 block">Способ доставки</label>
+                  <label className="text-xs text-txt-muted mb-1 block">Способ доставки</label>
                   <select className="dv-select min-h-11" value={form.delivery_method} onChange={set('delivery_method')}>
                     <option value="courier">Курьер</option>
                     <option value="self">Самовывоз</option>
@@ -291,7 +291,7 @@ export default function ShopCheckout() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--slate)] mb-1 block">Зона доставки</label>
+                  <label className="text-xs text-txt-muted mb-1 block">Зона доставки</label>
                   <select className="dv-select min-h-11" value={form.delivery_zone_id} onChange={set('delivery_zone_id')}>
                     <option value="">По умолчанию (2500 ₸)</option>
                     {deliveryZones.map((z: any) => (
@@ -303,7 +303,7 @@ export default function ShopCheckout() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-[var(--slate)] mb-1 block">Оплата</label>
+                  <label className="text-xs text-txt-muted mb-1 block">Оплата</label>
                   <select className="dv-select min-h-11" value={form.payment_method} onChange={set('payment_method')}>
                     <option value="qr">Kaspi QR</option>
                     <option value="card">Картой онлайн</option>
@@ -312,7 +312,7 @@ export default function ShopCheckout() {
                 </div>
               </div>
               <div className="mt-2.5">
-                <label className="text-xs text-[var(--slate)] mb-1 block">Комментарий</label>
+                <label className="text-xs text-txt-muted mb-1 block">Комментарий</label>
                 <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Примечание к заказу" className="!rounded-lg min-h-11" />
               </div>
             </CardContent>
@@ -327,14 +327,14 @@ export default function ShopCheckout() {
                 <div className="space-y-2.5 max-h-[260px] overflow-y-auto">
                   {cart.map(i => (
                     <div key={i.id} className="flex justify-between gap-2 text-xs">
-                      <span className="text-[var(--slate-light)] truncate">{i.name} <span className="text-[var(--slate)]">×{i.qty}</span></span>
-                      <span className="text-white font-semibold shrink-0">{money(i.price * i.qty)}</span>
+                      <span className="text-txt-secondary truncate">{i.name} <span className="text-txt-muted">×{i.qty}</span></span>
+                      <span className="text-txt-primary font-semibold shrink-0">{money(i.price * i.qty)}</span>
                     </div>
                   ))}
                 </div>
-                <div className="border-t border-[var(--border-subtle)] mt-3 pt-3 space-y-1.5 text-xs">
-                  <div className="flex justify-between"><span className="text-[var(--slate)]">Товары:</span><span className="text-white">{money(cartTotal)}</span></div>
-                  <div className="flex justify-between"><span className="text-[var(--slate)]">Доставка:</span><span className="text-white">{deliveryCost === 0 ? 'Бесплатно' : money(deliveryCost)}</span></div>
+                <div className="border-t border-bdr-subtle mt-3 pt-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between"><span className="text-txt-muted">Товары:</span><span className="text-txt-primary">{money(cartTotal)}</span></div>
+                  <div className="flex justify-between"><span className="text-txt-muted">Доставка:</span><span className="text-txt-primary">{deliveryCost === 0 ? 'Бесплатно' : money(deliveryCost)}</span></div>
                   <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-2 space-y-1">
                     {!user ? (
                       <p className="text-emerald-200/90">Войдите, чтобы копить и списывать кэшбэк DentCash</p>
@@ -344,41 +344,41 @@ export default function ShopCheckout() {
                           <span>Кэшбэк после доставки:</span>
                           <span>+{money(earnPreview)}</span>
                         </div>
-                        <div className="flex justify-between text-[var(--slate-light)]">
+                        <div className="flex justify-between text-txt-secondary">
                           <span>Баланс DentCash:</span>
                           <span>{money(Number(quote.balanceTenge || 0))}</span>
                         </div>
                         {maxSpend > 0 ? (
                           <label className="flex items-center justify-between gap-2 pt-1 cursor-pointer">
-                            <span className="text-[var(--slate)] flex items-center gap-1.5">
-                              <Wallet size={12} className="text-[#C9A96E]" />
+                            <span className="text-txt-muted flex items-center gap-1.5">
+                              <Wallet size={12} className="text-dv-gold" />
                               Списать DentCash ({money(maxSpend)})
                             </span>
                             <input
                               type="checkbox"
                               checked={useDentCash}
                               onChange={(e) => setUseDentCash(e.target.checked)}
-                              className="accent-[#C9A96E]"
+                              className="accent-dv-gold"
                             />
                           </label>
                         ) : (
-                          <p className="text-[10px] text-[var(--slate)]">
+                          <p className="text-[10px] text-txt-muted">
                             Баланс 0 — кэшбэк появится после первой доставки.
                           </p>
                         )}
                       </>
                     ) : (
-                      <p className="text-[var(--slate)]">Считаем кэшбэк…</p>
+                      <p className="text-txt-muted">Считаем кэшбэк…</p>
                     )}
                   </div>
                   {useDentCash && spendTenge > 0 && (
-                    <div className="flex justify-between text-[#C9A96E]">
+                    <div className="flex justify-between text-dv-gold">
                       <span>DentCash:</span>
                       <span>−{money(spendTenge)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-[var(--border-subtle)]">
-                    <span className="text-white">Итого:</span><span className="text-[#C9A96E]">{money(total)}</span>
+                  <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-bdr-subtle">
+                    <span className="text-txt-primary">Итого:</span><span className="text-dv-gold">{money(total)}</span>
                   </div>
                 </div>
                 <Button variant="primary" size="lg" className="w-full mt-4 flex items-center justify-center gap-2 min-h-11" disabled={submitting} onClick={handleSubmit}>

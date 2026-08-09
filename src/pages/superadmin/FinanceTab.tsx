@@ -305,7 +305,7 @@ export default function FinanceTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <GlassCard padding="md">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[#22C55E]/10 text-[#22C55E]"><Check size={18} /></div>
+                <div className="p-2 rounded-lg bg-[#22C55E]/10 text-success"><Check size={18} /></div>
                 <div>
                   <p className="text-lg font-bold text-txt-primary">{reportData.completedTransactions ?? 0}</p>
                   <p className="text-xs text-txt-muted">Завершённых транзакций</p>
@@ -379,7 +379,7 @@ export default function FinanceTab() {
                             </Badge>
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`text-sm font-semibold ${tx.type === 'CREDIT' ? 'text-[#22C55E]' : tx.type === 'DEBIT' ? 'text-error' : 'text-txt-primary'}`}>
+                            <span className={`text-sm font-semibold ${tx.type === 'CREDIT' ? 'text-success' : tx.type === 'DEBIT' ? 'text-error' : 'text-txt-primary'}`}>
                               {tx.type === 'CREDIT' ? '+' : '-'}{fmtKzt(tx.amount)}
                             </span>
                           </td>
@@ -466,7 +466,7 @@ export default function FinanceTab() {
                             <Badge variant="info" size="sm">{w.type || '—'}</Badge>
                           </td>
                           <td className="px-4 py-3 text-sm font-semibold text-dv-gold">{fmtKzt(w.balance || 0)}</td>
-                          <td className="px-4 py-3 text-sm text-[#22C55E]">{fmtKzt(w.totalCredit || 0)}</td>
+                          <td className="px-4 py-3 text-sm text-success">{fmtKzt(w.totalCredit || 0)}</td>
                           <td className="px-4 py-3 text-sm text-error">{fmtKzt(w.totalDebit || 0)}</td>
                           <td className="px-4 py-3 text-xs text-txt-muted">{fd(w.updatedAt)}</td>
                         </tr>
@@ -606,7 +606,7 @@ export default function FinanceTab() {
             <>
               <GlassCard padding="md">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className={`p-2 rounded-lg ${ledgerData.healthy || ledgerData.balanced ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-error'}`}>
+                  <div className={`p-2 rounded-lg ${ledgerData.healthy || ledgerData.balanced ? 'bg-[#22C55E]/10 text-success' : 'bg-[#EF4444]/10 text-error'}`}>
                     <Shield size={20} />
                   </div>
                   <div>
@@ -625,11 +625,11 @@ export default function FinanceTab() {
                   </div>
                   <div className="p-3 rounded-lg bg-surface-2 border border-bdr-subtle">
                     <p className="text-xs text-txt-muted mb-1">Кредит итого</p>
-                    <p className="text-lg font-bold text-[#22C55E]">{ledgerData.totalCredit != null ? fmtKzt(ledgerData.totalCredit) : '—'}</p>
+                    <p className="text-lg font-bold text-success">{ledgerData.totalCredit != null ? fmtKzt(ledgerData.totalCredit) : '—'}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-surface-2 border border-bdr-subtle">
                     <p className="text-xs text-txt-muted mb-1">Разница</p>
-                    <p className={`text-lg font-bold ${(ledgerData.difference ?? 0) === 0 ? 'text-[#22C55E]' : 'text-error'}`}>
+                    <p className={`text-lg font-bold ${(ledgerData.difference ?? 0) === 0 ? 'text-success' : 'text-error'}`}>
                       {ledgerData.difference != null ? fmtKzt(ledgerData.difference) : '—'}
                     </p>
                   </div>
@@ -655,7 +655,7 @@ export default function FinanceTab() {
                           <tr key={idx} className="border-b border-bdr-subtle/50 hover:bg-white/[0.02] transition-colors">
                             <td className="px-4 py-3 text-sm text-txt-primary">{a.name || a.account || '—'}</td>
                             <td className="px-4 py-3 text-sm text-error">{fmtKzt(a.debit || 0)}</td>
-                            <td className="px-4 py-3 text-sm text-[#22C55E]">{fmtKzt(a.credit || 0)}</td>
+                            <td className="px-4 py-3 text-sm text-success">{fmtKzt(a.credit || 0)}</td>
                             <td className="px-4 py-3">
                               <Badge variant={(a.balance ?? 0) >= 0 ? 'success' : 'error'} size="sm">{fmtKzt(a.balance || 0)}</Badge>
                             </td>

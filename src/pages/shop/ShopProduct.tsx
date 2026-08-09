@@ -208,7 +208,7 @@ export default function ShopProduct() {
                 <Badge variant="error" className="text-sm font-bold px-3 py-1">-{discountPercent}%</Badge>
               )}
               {product.ownBrand && (
-                <Badge variant="default" className="bg-dv-gold text-surface-0">DentVision</Badge>
+                <Badge variant="default" className="bg-dv-gold text-dv-gold-on">DentVision</Badge>
               )}
               {product.stock <= 0 && (
                 <Badge variant="default" className="bg-txt-muted text-surface-0">Нет в наличии</Badge>

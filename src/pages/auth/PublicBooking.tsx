@@ -351,7 +351,7 @@ export default function PublicBooking() {
               >
                 <span className={cn(
                   'flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
-                  step === s.id ? 'bg-dv-gold text-surface-0' : 'bg-white/5',
+                  step === s.id ? 'bg-dv-gold text-dv-gold-on' : 'bg-white/5',
                 )}>
                   {i < stepIndex ? '✓' : i + 1}
                 </span>
@@ -511,7 +511,7 @@ export default function PublicBooking() {
                           className={cn(
                             'rounded-lg border py-2 text-xs font-semibold transition-all',
                             time === slot
-                              ? 'border-dv-gold bg-dv-gold text-surface-0 shadow-glow-sm'
+                              ? 'border-dv-gold bg-dv-gold text-dv-gold-on shadow-glow-sm'
                               : 'border-bdr-subtle text-txt-secondary hover:border-dv-gold/40 hover:text-dv-gold',
                           )}
                         >

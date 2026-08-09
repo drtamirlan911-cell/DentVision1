@@ -36,7 +36,7 @@ export default function ShopFavorites() {
 
   if (loading) return (
     <div className="flex justify-center py-16">
-      <div className="h-9 w-9 rounded-full border-[3px] border-[#C9A96E]/30 border-t-[#C9A96E] animate-spin" />
+      <div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
     </div>
   );
 
@@ -53,11 +53,11 @@ export default function ShopFavorites() {
               <Card hover>
                 <CardContent className="flex items-center gap-3 flex-wrap">
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/shop/${f.productId}`)}>
-                    <p className="text-[10px] text-[#C9A96E] font-semibold uppercase">{f.brand}</p>
-                    <p className="text-sm font-bold text-white truncate">{f.name}</p>
+                    <p className="text-[10px] text-dv-gold font-semibold uppercase">{f.brand}</p>
+                    <p className="text-sm font-bold text-txt-primary truncate">{f.name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-base font-extrabold text-white">{tg(f.price)}</span>
-                      {f.rating > 0 && <span className="flex items-center gap-0.5 text-[11px] text-[#C9A96E]"><Star size={11} className="fill-[#C9A96E]" /> {f.rating}</span>}
+                      <span className="text-base font-extrabold text-txt-primary">{tg(f.price)}</span>
+                      {f.rating > 0 && <span className="flex items-center gap-0.5 text-[11px] text-dv-gold"><Star size={11} className="fill-dv-gold" /> {f.rating}</span>}
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
