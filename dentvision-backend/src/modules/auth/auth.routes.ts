@@ -1097,11 +1097,11 @@ authRouter.post('/reset-password', async (req, res) => {
     }
 
     if (entry.expiresAt < new Date()) {
-    await prisma.passwordReset.delete({ where: { id: entry.id } });
-
-    // Invalidate all existing sessions — prevents a session hijacker from
-    // retaining access after the legitimate user resets their password.
-    try { await expireAllSessions(entry.user.id); } catch { /* non-fatal */ }
+      // Only discard the spent token. Expiring sessions here let anyone holding
+      // an expired token log the owner out of every device, and — worse — the
+      // invalidation was *only* here, so a successful reset left the old
+      // sessions alive, which is the case the protection is actually for.
+      await prisma.passwordReset.delete({ where: { id: entry.id } });
       return res.status(400).json({ ok: false, error: 'Токен истек' });
     }
 
@@ -1112,6 +1112,10 @@ authRouter.post('/reset-password', async (req, res) => {
     });
 
     await prisma.passwordReset.delete({ where: { id: entry.id } });
+
+    // Now that the password has actually changed: anyone holding a session on
+    // the old credentials loses it.
+    try { await expireAllSessions(entry.user.id); } catch { /* non-fatal */ }
 
     const response: ApiResponse = {
       ok: true,

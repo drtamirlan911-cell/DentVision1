@@ -3,6 +3,7 @@ import { useOutletContext, useSearchParams, useNavigate } from 'react-router-dom
 import { motion, AnimatePresence } from 'framer-motion';
 import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun, Microscope } from 'lucide-react';
 import { gid, today } from '../../utils/constants';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/ds/Toast'
 import { useDataQuery } from '../../queries/useDataQuery';
 import { Card, CardContent } from '../../components/ui/ds/Card';
@@ -432,7 +433,10 @@ function DiagnosticsList({ patientId }: { patientId: string }) {
       {referrals.map((r: any) => (
         <button key={r.id} onClick={() => navigate(`/diagnostics/referrals/${r.id}`)}
           className="w-full text-left flex items-start gap-3 p-3 rounded-xl border border-bdr-subtle bg-white/[0.02] hover:bg-surface-1 transition-colors">
-          <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: r.status === 'COMPLETED' ? '#27AE60' : r.status === 'ACCEPTED' ? '#FBBF24' : '#94A3B8' }} />
+          <div className={cn(
+            'w-2 h-2 rounded-full mt-1.5 shrink-0',
+            r.status === 'COMPLETED' ? 'bg-success' : r.status === 'ACCEPTED' ? 'bg-warning' : 'bg-txt-muted',
+          )} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-txt-primary">{r.studyType || '—'}</p>

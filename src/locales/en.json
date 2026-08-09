@@ -1035,6 +1035,7 @@
     "notification_empty": "No notifications yet",
     "notification_empty_short": "No notifications yet",
     "notification_source": "notification",
+    "notification_hints": "Tips",
     "notification_open": "· open",
     "notification_shop": "Shop",
     "notification_academy": "Academy",

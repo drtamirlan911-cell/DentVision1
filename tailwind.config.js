@@ -70,11 +70,15 @@ export default {
           'raised-hover': themed('--dv-surface-raised-hover'),
           overlay: themed('--dv-overlay'),
         },
-        // Semantic
-        success: '#27AE60',
-        error: '#E74C3C',
-        warning: '#F39C12',
-        info: '#2980B9',
+        // Semantic — themed for the same reason the gold family is (#186): a
+        // literal cannot follow the theme, and these are read as *text* far more
+        // often than they are used as a fill. Measured on white: success 2.87,
+        // warning 2.19, error 3.82, info 4.30 — all below AA, i.e. a green
+        // "в наличии" was barely legible on a light card.
+        success: themed('--dv-success'),
+        error: themed('--dv-error'),
+        warning: themed('--dv-warning'),
+        info: themed('--dv-info'),
         accent: {
           purple: '#8E44AD',
           cyan: '#00BCD4',

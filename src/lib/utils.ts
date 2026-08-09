@@ -11,6 +11,24 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * An accent chosen by data (a clinic's own colour, a difficulty band) with the
+ * brand token as the fallback, rendered as coloured text on a tint of itself.
+ *
+ * Inline is right here — the colour is a value, not a design decision — but the
+ * fallback still has to be the theme token rather than a frozen hex. The tint
+ * is mixed rather than built by string-concatenating an alpha suffix, which is
+ * what the call sites used to do: appending `'22'` to `var(--dv-gold)` produces
+ * invalid CSS and the whole declaration is dropped.
+ */
+export function tintedAccent(colour: string | null | undefined, tintPercent = 13) {
+  const accent = colour || 'var(--dv-gold)'
+  return {
+    background: `color-mix(in srgb, ${accent} ${tintPercent}%, transparent)`,
+    color: accent,
+  }
+}
+
 export function formatMoney(amount: number, currency = '₸'): string {
   return new Intl.NumberFormat('ru-KZ', {
     minimumFractionDigits: 0,

@@ -82,7 +82,7 @@ export default function DiagnosticPatients() {
                   </div>
                   <div className="flex items-center gap-2">
                     {activeCount > 0 && (
-                      <Badge variant="outline" style={{ borderColor: '#F39C12', color: '#F39C12' }}>
+                      <Badge variant="outline" className="border-warning text-warning">
                         {activeCount} активн.
                       </Badge>
                     )}

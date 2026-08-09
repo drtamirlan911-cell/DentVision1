@@ -41,6 +41,21 @@ const CLASS_ATTR = /class[nN]ame=(?:"[^"]*"|'[^']*'|\{`[^`]*`\}|\{[^{}]*\})/g
 const INLINE_FONT_STACK = /font-\['/
 /** A heading size that is not a step on the scale in tailwind.config.js. */
 const OFF_SCALE_SIZE = /text-\[\d+(px|rem)\]/
+/** An inline style object — the blind spot the className rules cannot see. */
+const INLINE_STYLE = /style=\{\{[^}]*\}\}/g
+/** A colour written straight into that object: hex, rgb(a) or hsl(a). */
+const INLINE_LITERAL_COLOUR = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/
+/**
+ * A translucent wash — an ambient glow behind content.
+ *
+ * These cannot make anything unreadable: they tint whatever is beneath them
+ * rather than replacing it, and nothing sets a foreground against them. What
+ * this rule is for is the opposite case: an opaque literal panel that stays
+ * dark while the text on it follows the theme.
+ */
+const TRANSLUCENT_WASH = /\b(?:rgba|hsla)\([^)]*,\s*0?\.[0-5]\d*\s*\)/g
+/** Shadows tint, they do not fill. */
+const SHADOW_DECL = /\bbox-?[Ss]hadow\s*:/
 
 /**
  * Every exception carries the reason it is one. An entry here is a claim that
@@ -49,13 +64,32 @@ const OFF_SCALE_SIZE = /text-\[\d+(px|rem)\]/
 const ALLOWED_LITERAL_HEADINGS: Array<{ file: string; line: number; why: string }> = [
   {
     file: 'src/pages/shop/Shop.tsx',
-    line: 282,
+    line: 275,
     why: 'Banner hero: sits on a gradient painted by an ancestor, so its foreground must not follow the theme.',
   },
   {
     file: 'src/pages/shop/Shop.tsx',
-    line: 283,
+    line: 276,
     why: 'Banner subtitle: same ancestor gradient as the heading above it.',
+  },
+  {
+    file: 'src/pages/shop/Shop.tsx',
+    line: 296,
+    why: 'Banner previous-slide control: sits on the same ancestor gradient as the hero text.',
+  },
+  {
+    file: 'src/pages/shop/Shop.tsx',
+    line: 301,
+    why: 'Banner next-slide control: sits on the same ancestor gradient as the hero text.',
+  },
+]
+
+/** Same contract as above, for colours that have to stay inline. */
+const ALLOWED_INLINE_COLOURS: Array<{ file: string; line: number; why: string }> = [
+  {
+    file: 'src/components/Odontogram3D.tsx',
+    line: 229,
+    why: 'Legend swatch: the literal *is* the datum — it shows which colour a tooth status is painted in the 3D scene.',
   },
 ]
 
@@ -167,6 +201,40 @@ describe('design tokens in page markup', () => {
     }
 
     expect(violations, `Use a step from theme.fontSize in tailwind.config.js:\n${format(violations)}`).toEqual([])
+  })
+
+  it('never paints a colour through an inline style', () => {
+    // The rule above reads `className`, so it could not see `style={{ background:
+    // '#0D1B2E' }}` — and that is exactly how the shop kept a dark palette in
+    // the light theme. `src/pages/shop/Shop.tsx` alone carried 86 inline style
+    // objects; the cart drawer was pinned to a hardcoded navy while its text
+    // used `text-txt-primary`, so on the light theme it rendered dark-on-dark.
+    //
+    // Layout, sizes and filters are none of this rule's business — only colour.
+    const violations: Violation[] = []
+
+    for (const absolute of files) {
+      const file = relative(ROOT, absolute)
+      const source = readFileSync(absolute, 'utf8')
+
+      for (const match of source.matchAll(INLINE_STYLE)) {
+        // Strip what cannot affect legibility before deciding, so the rule
+        // fires on opaque fills and not on decoration.
+        const body = match[0].replace(TRANSLUCENT_WASH, '').replace(SHADOW_DECL, '')
+        if (!INLINE_LITERAL_COLOUR.test(body)) continue
+        // A CSS variable is the theme, so it is the fix, not the defect —
+        // native <option> popups genuinely cannot be reached by a class.
+        if (/var\(--/.test(body)) continue
+
+        const line = lineOf(source, match.index ?? 0)
+        if (ALLOWED_INLINE_COLOURS.some((a) => a.file === file && a.line === line)) continue
+
+        violations.push({ file, line, snippet: body.replace(/\s+/g, ' ').slice(0, 140) })
+      }
+    }
+
+    expect(violations, `Move the colour into a token class — an inline hex cannot follow the theme:\n${format(violations)}`)
+      .toEqual([])
   })
 
   it('keeps the exception list honest', () => {
