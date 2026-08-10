@@ -64,18 +64,8 @@ const SHADOW_DECL = /\bbox-?[Ss]hadow\s*:/
 const ALLOWED_LITERAL_HEADINGS: Array<{ file: string; line: number; why: string }> = [
   {
     file: 'src/pages/shop/Shop.tsx',
-    line: 275,
-    why: 'Banner hero: sits on a gradient painted by an ancestor, so its foreground must not follow the theme.',
-  },
-  {
-    file: 'src/pages/shop/Shop.tsx',
-    line: 276,
-    why: 'Banner subtitle: same ancestor gradient as the heading above it.',
-  },
-  {
-    file: 'src/pages/shop/Shop.tsx',
     line: 296,
-    why: 'Banner previous-slide control: sits on the same ancestor gradient as the hero text.',
+    why: 'Banner previous-slide control: sits on a gradient ancestor and carries its own bg-white/15 fill, so the foreground is intentionally non-theme-bound.',
   },
   {
     file: 'src/pages/shop/Shop.tsx',
@@ -86,11 +76,9 @@ const ALLOWED_LITERAL_HEADINGS: Array<{ file: string; line: number; why: string 
 
 /** Same contract as above, for colours that have to stay inline. */
 const ALLOWED_INLINE_COLOURS: Array<{ file: string; line: number; why: string }> = [
-  {
-    file: 'src/components/Odontogram3D.tsx',
-    line: 229,
-    why: 'Legend swatch: the literal *is* the datum — it shows which colour a tooth status is painted in the 3D scene.',
-  },
+  // Intentionally empty: inline literal colours were removed in favour of
+  // token classes and CSS variables (see Odontogram3D.tsx tooth-status legend,
+  // which now uses --status-color instead of style={{ background: meta.color }}).
 ]
 
 /** Walked by hand rather than globbed: no glob package is a direct dependency. */

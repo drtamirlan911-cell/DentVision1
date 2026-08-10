@@ -272,8 +272,8 @@ export default function Shop() {
           </div>
         ))}
         <div className="relative z-10 p-8 md:p-12 flex flex-col justify-center" style={{ minHeight: 260 }}>
-          {current.title && <h2 className="text-2xl md:text-4xl font-bold text-white mb-2 max-w-lg">{current.title}</h2>}
-          {current.subtitle && <p className="text-white/70 text-sm md:text-base max-w-md mb-4">{current.subtitle}</p>}
+          {current.title && <h2 className="text-2xl md:text-4xl font-bold text-txt-primary mb-2 max-w-lg">{current.title}</h2>}
+          {current.subtitle && <p className="text-txt-secondary/70 text-sm md:text-base max-w-md mb-4">{current.subtitle}</p>}
           {current.linkUrl && (
             <Button variant="primary" className="w-fit" onClick={() => navigate(current.linkUrl!)}>
               Смотреть <ChevronRight size={16} />

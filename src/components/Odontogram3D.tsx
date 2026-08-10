@@ -222,11 +222,19 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
                 onClick={() => applyWhole(key)}
                 className={cn(
                   'px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-[11px] font-semibold border transition-colors flex items-center gap-1 sm:gap-1.5',
-                  active ? 'border-transparent text-white' : 'border-bdr-subtle text-txt-secondary hover:bg-surface-1',
+                  active
+                    ? 'border-transparent bg-[var(--status-color)] text-white'
+                    : 'border-bdr-subtle text-txt-secondary hover:bg-surface-1',
                 )}
-                style={active ? { background: meta.color, borderColor: meta.color } : undefined}
+                style={(active ? { '--status-color': meta.color } : undefined) as unknown as React.CSSProperties}
               >
-                <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: active ? 'rgba(255,255,255,0.9)' : meta.color }} />
+                <span
+                  className={cn(
+                    'w-2 h-2 rounded-sm shrink-0',
+                    active ? 'bg-white/90' : 'bg-[var(--status-color)]',
+                  )}
+                  style={(!active ? { '--status-color': meta.color } : undefined) as unknown as React.CSSProperties}
+                />
                 {meta.label}
               </button>
             )
