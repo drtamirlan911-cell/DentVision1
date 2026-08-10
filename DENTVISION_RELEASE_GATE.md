@@ -1,0 +1,32 @@
+# DentVision Release Gate
+
+| Check | Status | Details |
+|-------|--------|---------|
+| AUTH | PENDING | |
+| RBAC | PENDING | |
+| TENANT ISOLATION | PENDING | |
+| IDOR | PENDING | |
+| PATIENT | PENDING | |
+| APPOINTMENT | PENDING | |
+| DIAGNOSIS | PENDING | |
+| TREATMENT PLAN | PENDING | |
+| FILES | PENDING | |
+| DIAGNOSTIC | PENDING | |
+| AI | PENDING | |
+| MARKETPLACE | PENDING | |
+| PAYMENTS | PENDING | |
+| ACADEMY | PENDING | |
+| SECURITY | PENDING | |
+| DATABASE | PENDING | |
+| API | PENDING | |
+| E2E | PENDING | |
+| BUILD | PENDING | |
+| TYPECHECK | PENDING | |
+| LINT | PENDING | |
+| UNIT TESTS | PENDING | |
+
+## Final Status: NOT READY
+
+P0: -
+P1: -
+P2: -

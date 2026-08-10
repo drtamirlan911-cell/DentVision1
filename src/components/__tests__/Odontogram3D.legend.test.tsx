@@ -28,7 +28,7 @@ describe('SurfaceEditor legend', () => {
       <SurfaceEditor
         toothNumber={18}
         tooth="healthy"
-        surfaces={null}
+        surfaces={undefined}
         onSave={() => {}}
         onCancel={() => {}}
       />
