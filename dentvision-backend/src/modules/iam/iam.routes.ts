@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { generateTokens } from '../../lib/jwt.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
+import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { buildWorkspaceContexts } from './contexts.js';
 import {
   acceptInvitation,
@@ -12,6 +13,30 @@ import {
   rejectInvitation,
 } from './invitations.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+
+/** Roles allowed to manage clinic staff, mirroring MEMBER_MANAGER_ROLES for the other org types. */
+const CLINIC_MANAGER_ROLES = ['OWNER', 'ADMIN', 'DIRECTOR'];
+
+/**
+ * Can this user assign/remove roles on a person belonging to `org`?
+ *
+ * `canManageMembers` only understands DIAGNOSTIC_CENTER/LABORATORY — clinics
+ * have always had their own invite flow (`/auth/join-clinic`), so this adds
+ * the CLINIC branch here rather than widening that module's scope.
+ */
+export async function canManageRolesFor(
+  user: { id: string; role: string },
+  org: { id: string; type: string; originalId: string | null } | null,
+): Promise<boolean> {
+  if (user.role === 'SUPERADMIN') return true;
+  if (!org) return false;
+  if (org.type === 'CLINIC') {
+    const clinicId = org.originalId || org.id;
+    const access = await resolveClinicAccess(user.id, clinicId);
+    return !!access && CLINIC_MANAGER_ROLES.includes(String(access.role).toUpperCase());
+  }
+  return canManageMembers(user.id, org, false);
+}
 
 // IAM module (Phase 2). Exposes the server-side permission model to clients so
 // the frontend can drive UI from real, enforced permissions instead of a
@@ -374,9 +399,14 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
     const personId = String(req.params.personId);
     const { roleId, scopeType, scopeId } = req.body as { roleId: string; scopeType?: string; scopeId?: string };
 
-    const person = await prisma.person.findUnique({ where: { id: personId } });
+    const person = await prisma.person.findUnique({ where: { id: personId }, include: { organization: true } });
     if (!person) {
       return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
+    }
+
+    const allowed = await canManageRolesFor(req.user!, person.organization);
+    if (!allowed) {
+      return res.status(403).json({ ok: false, error: 'Недостаточно прав для назначения роли' } satisfies ApiResponse);
     }
 
     const role = await prisma.role.findUnique({ where: { id: roleId } });
@@ -402,6 +432,16 @@ iamRouter.delete('/persons/:personId/roles/:roleId', async (req: AuthRequest, re
   try {
     const personId = String(req.params.personId);
     const roleId = String(req.params.roleId);
+
+    const person = await prisma.person.findUnique({ where: { id: personId }, include: { organization: true } });
+    if (!person) {
+      return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
+    }
+
+    const allowed = await canManageRolesFor(req.user!, person.organization);
+    if (!allowed) {
+      return res.status(403).json({ ok: false, error: 'Недостаточно прав для удаления роли' } satisfies ApiResponse);
+    }
 
     await prisma.personRole.deleteMany({
       where: { personId, roleId },

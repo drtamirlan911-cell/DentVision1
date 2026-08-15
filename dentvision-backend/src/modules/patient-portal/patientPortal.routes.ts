@@ -6,6 +6,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requireConsent } from '../../middleware/consentGate.js';
 import { decryptPatientFields, encryptField } from '../../lib/phi.js';
 import { resolvePatientForUser } from './patientLink.js';
+import { isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured } from '../../lib/storage.js';
 import type { AuthRequest } from '../../types/index.js';
 
 export const patientPortalRouter = Router();
@@ -207,11 +208,19 @@ patientPortalRouter.get('/documents/:id/content', ensurePatient, async (req: Aut
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.title || 'document')}.txt"`);
       return res.send(content);
     }
-    // External URL or mock-storage path — redirect
+    // External URL — redirect
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return res.redirect(url);
     }
-    return res.json({ ok: false, error: 'Документ недоступен для скачивания' });
+    // S3-backed upload — patient identity was already resolved above.
+    if (isStorageKey(url)) {
+      if (!storageConfigured()) {
+        return res.status(503).json({ ok: false, error: 'Файловое хранилище не настроено' });
+      }
+      const signed = await signedDownloadUrl(keyFromStorageUrl(url));
+      return res.redirect(signed);
+    }
+    return res.status(410).json({ ok: false, error: 'Документ недоступен для скачивания' });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }

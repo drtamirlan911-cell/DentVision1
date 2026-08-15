@@ -126,13 +126,19 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
     if (status === 'cancelled') {
       // Restore stock atomically with the status flip so a cancelled order does
       // not keep its reserved inventory (audit F-1).
+      //
+      // `owned` comes from getSupplierOrders(), which maps raw Order.items
+      // (product_id/quantity) into { productId, qty, ... } and filters to only
+      // this supplier's own lines (supplierDashboard.ts) — the raw field names
+      // never appear here, so restoring by product_id/quantity would silently
+      // never match and leave every cancelled order's stock un-restored.
       order = await prisma.$transaction(async (tx) => {
         const items = Array.isArray(owned.items) ? (owned.items as any[]) : [];
         for (const item of items) {
-          if (item.product_id && item.quantity) {
+          if (item.productId && item.qty) {
             await tx.product.updateMany({
-              where: { id: item.product_id },
-              data: { stock: { increment: item.quantity } },
+              where: { id: item.productId },
+              data: { stock: { increment: item.qty } },
             });
           }
         }

@@ -7,7 +7,12 @@
  * `canTransitionOrder`.
  */
 export const ORDER_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
-  pending: ['awaiting_payment', 'paid', 'cancelled'],
+  // 'packing' is a legal successor of 'pending', not just 'paid' — a
+  // cash-on-delivery order (shop.routes.ts: paymentMethod:'cash' skips the
+  // online-payment branch entirely) never gets a Payment record and never
+  // leaves 'pending' on its own; the supplier fulfils it directly from that
+  // status. Without this, no cash order could ever be shipped.
+  pending: ['awaiting_payment', 'paid', 'packing', 'cancelled'],
   awaiting_payment: ['paid', 'cancelled'],
   paid: ['packing', 'shipped', 'delivered', 'cancelled'],
   packing: ['shipped', 'delivered', 'cancelled'],

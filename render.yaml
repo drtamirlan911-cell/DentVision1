@@ -35,6 +35,21 @@ services:
         value: "https://dentvision-api.onrender.com"
       - key: FRONTEND_URL
         value: "https://dent-vision1.vercel.app"
+      # Object storage for uploaded files (X-rays, CBCT, consent documents).
+      # Without all three of S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY, uploads
+      # are refused outright (503) rather than silently discarded. S3_ENDPOINT
+      # is only needed for an S3-compatible provider other than AWS itself
+      # (R2, Spaces, MinIO); leave it unset for real AWS S3.
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        value: "eu-central-1"
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
       - key: META_APP_ID
         sync: false
       - key: META_APP_SECRET
@@ -42,6 +57,19 @@ services:
       - key: META_WEBHOOK_VERIFY_TOKEN
         sync: false
       - key: KASPI_CALLBACK_SECRET
+        sync: false
+      # Kaspi merchant credentials. Without these, kaspiProvider silently runs
+      # in mock mode: it still builds a real-looking pay.kaspi.kz QR/link, but
+      # never registers a real transaction with Kaspi, so getPaymentStatus can
+      # never become 'paid' outside the sandbox self-confirm bypass (which is
+      # itself correctly disabled when NODE_ENV=production). That means every
+      # money-moving flow this key mediates — subscriptions, marketplace
+      # checkout, diagnostics settlement, academy payments, auto-renewal — can
+      # look like it works while never actually collecting payment. Set both
+      # in the Render dashboard from the Kaspi merchant portal.
+      - key: KASPI_MERCHANT_ID
+        sync: false
+      - key: KASPI_API_KEY
         sync: false
       # Transactional email (password reset, patient portal links).
       # SMTP_PASSWORD must be a Google App Password for this account — Google

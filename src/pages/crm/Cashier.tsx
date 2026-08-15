@@ -91,7 +91,10 @@ export default function Cashier() {
   const { user, clinic: authClinic } = useAuth()
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
-  const { receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense } = useDataQuery(clinicId || undefined)
+  const {
+    receipts, patients, doctors, appointments, upsertReceipt, upsertAppointment, expenses, upsertExpense,
+    isLoading: crmLoading, isError: crmError, refetchCore,
+  } = useDataQuery(clinicId || undefined)
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -459,6 +462,14 @@ export default function Cashier() {
           </>
         }
       />
+
+      {crmError && !crmLoading && (
+        <div className="mb-4 rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3">
+          <AlertTriangle size={16} className="text-error shrink-0" />
+          <span className="flex-1">Не удалось загрузить финансовые данные. Проверьте соединение и попробуйте снова.</span>
+          <Button size="sm" variant="secondary" onClick={() => refetchCore()}>Повторить</Button>
+        </div>
+      )}
 
       <div className="mb-4">
         <FinancePeriodBar period={period} onChange={setPeriod} />
