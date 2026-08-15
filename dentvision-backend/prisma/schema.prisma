@@ -200,6 +200,9 @@ model User {
   notificationPreferences        NotificationPreference[]
   auditLogs                     AuditLog[]
   aiEvents                      AIEvent[]
+  crossClinicGrantsAsPatient     CrossClinicAccessGrant[] @relation("CrossClinicGrantAsPatient")
+  crossClinicGrantsRequested     CrossClinicAccessGrant[] @relation("CrossClinicGrantRequestedBy")
+  crossClinicAccessLogs          CrossClinicAccessLog[]
 
   @@map("users")
 }
@@ -243,6 +246,8 @@ model Clinic {
   reviews ShopReview[]
   auditLogs AuditLog[]
   aiEvents  AIEvent[]
+  crossClinicGrantsAsSource    CrossClinicAccessGrant[] @relation("CrossClinicGrantAsSource")
+  crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantAsReceiving")
 
   @@map("clinics")
 }
@@ -324,6 +329,12 @@ model Patient {
   address        String?
   notes          String?
   iin            String?
+  /// HMAC-SHA256 of the normalized plaintext IIN (deterministic blind index).
+  /// `iin` itself is encrypted with a random IV (fieldEncryption.ts) so two
+  /// encryptions of the same IIN never match — this is what makes "does this
+  /// person have records at another clinic" a queryable equality lookup at
+  /// all. Written alongside every `iin` write via `hmacIin()` (lib/phi.ts).
+  iinHash        String?   @db.VarChar(64)
   medicalHistory Json?
   prepaidBalance Int       @default(0)
   deletedAt      DateTime?
@@ -342,11 +353,14 @@ model Patient {
   aiActionLogs        AIActionLog[]
   medicalFileAccesses MedicalFileAccess[]
   diagnosticReferrals Referral[]
+  crossClinicGrantsAsSource    CrossClinicAccessGrant[] @relation("CrossClinicGrantSourcePatient")
+  crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantReceivingPatient")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
+  @@index([iinHash])
   @@map("patients")
 }
 
@@ -2200,6 +2214,84 @@ model MedicalFileAccess {
   @@index([patientId])
   @@index([uploadedBy])
   @@map("medical_file_access")
+}
+
+enum CrossClinicAccessStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  REVOKED
+  EXPIRED
+}
+
+/// Patient-consented, cross-clinic access to one patient's clinical history.
+/// One row per (patient identity, source clinic, receiving clinic) triple —
+/// granularity is per source clinic, not "all clinics at once": a patient
+/// with records at three clinics can grant a fourth access to just one of
+/// them without exposing even the existence of the others.
+///
+/// The patient identity is the portal `User` (patientLink.ts already links
+/// one User to Patient rows across clinics) — this reuses that mechanism
+/// rather than inventing a parallel global-patient-identity model.
+model CrossClinicAccessGrant {
+  id                 String                   @id @default(uuid())
+  patientUserId      String
+  sourceClinicId     String
+  /// The specific Patient row at sourceClinicId this grant reads from.
+  sourcePatientId    String
+  receivingClinicId  String
+  /// The receiving clinic's own local Patient row for the same human — set
+  /// at request time. Lets MedicalCard.tsx find grants for "this patient"
+  /// without ever mutating that row's userId (no auto-claiming a portal
+  /// identity onto a walk-in record).
+  receivingPatientId String
+  requestedByUserId  String
+  status             CrossClinicAccessStatus @default(PENDING)
+  requestedAt        DateTime                 @default(now())
+  respondedAt        DateTime?
+  revokedAt          DateTime?
+  /// Optional TTL — null means indefinite until the patient revokes it.
+  expiresAt          DateTime?
+
+  patientUser      User    @relation("CrossClinicGrantAsPatient", fields: [patientUserId], references: [id], onDelete: Cascade)
+  sourceClinic     Clinic  @relation("CrossClinicGrantAsSource", fields: [sourceClinicId], references: [id], onDelete: Cascade)
+  sourcePatient    Patient @relation("CrossClinicGrantSourcePatient", fields: [sourcePatientId], references: [id], onDelete: Cascade)
+  receivingClinic  Clinic  @relation("CrossClinicGrantAsReceiving", fields: [receivingClinicId], references: [id], onDelete: Cascade)
+  receivingPatient Patient @relation("CrossClinicGrantReceivingPatient", fields: [receivingPatientId], references: [id], onDelete: Cascade)
+  requestedBy      User    @relation("CrossClinicGrantRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  accessLogs       CrossClinicAccessLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([patientUserId, sourceClinicId, receivingClinicId])
+  @@index([patientUserId, status])
+  @@index([receivingClinicId, status])
+  @@index([receivingPatientId])
+  @@index([sourceClinicId])
+  @@map("cross_clinic_access_grants")
+}
+
+/// Audit trail for every actual read of another clinic's data through a
+/// grant — separate from MedicalFileAccess (single-clinic, upload-centric)
+/// because this keys off a grant, not a bare patientId+clinic pair.
+model CrossClinicAccessLog {
+  id               String  @id @default(uuid())
+  grantId          String
+  accessedByUserId String
+  /// 'visits' | 'treatment_plans' | 'medical_history' | 'files' | 'full_summary'
+  dataCategory     String
+  recordCount      Int?
+  ip               String?
+
+  grant      CrossClinicAccessGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  accessedBy User                   @relation(fields: [accessedByUserId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([grantId, createdAt])
+  @@index([accessedByUserId])
+  @@map("cross_clinic_access_logs")
 }
 
 model AIActionLog {

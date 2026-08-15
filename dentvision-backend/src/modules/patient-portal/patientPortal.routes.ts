@@ -7,6 +7,7 @@ import { requireConsent } from '../../middleware/consentGate.js';
 import { decryptPatientFields, encryptField } from '../../lib/phi.js';
 import { resolvePatientForUser } from './patientLink.js';
 import { isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured } from '../../lib/storage.js';
+import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
 import type { AuthRequest } from '../../types/index.js';
 
 export const patientPortalRouter = Router();
@@ -369,6 +370,73 @@ patientPortalRouter.post('/appointments/:id/cancel', ensurePatient, async (req: 
       });
     }
     return res.json({ ok: true, data: { cancelled: true } });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─────────────── Cross-clinic access requests (patient consent) ───────────────
+// These operate on req.user!.id directly — the portal *account*, not the
+// per-clinic `_patientId` resolved by `ensurePatient` — because a grant is
+// consent from the person, and one person can be `patientUserId` on grants
+// naming several different source clinics at once.
+
+patientPortalRouter.get('/access-requests', async (req: AuthRequest, res) => {
+  try {
+    const requests = await crossClinicSvc.listAccessRequests(req.user!.id);
+    return res.json({ ok: true, data: requests });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+patientPortalRouter.post('/access-requests/:grantId/approve', async (req: AuthRequest, res) => {
+  try {
+    const ok = await crossClinicSvc.approveRequest(req.params.grantId, req.user!.id);
+    if (!ok) return res.status(404).json({ ok: false, error: 'Запрос не найден' });
+    return res.json({ ok: true, data: { approved: true } });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+patientPortalRouter.post('/access-requests/:grantId/decline', async (req: AuthRequest, res) => {
+  try {
+    const ok = await crossClinicSvc.declineRequest(req.params.grantId, req.user!.id);
+    if (!ok) return res.status(404).json({ ok: false, error: 'Запрос не найден' });
+    return res.json({ ok: true, data: { declined: true } });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+patientPortalRouter.get('/access-grants', async (req: AuthRequest, res) => {
+  try {
+    const grants = await crossClinicSvc.listAccessGrants(req.user!.id);
+    return res.json({ ok: true, data: grants });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+patientPortalRouter.post('/access-grants/:grantId/revoke', async (req: AuthRequest, res) => {
+  try {
+    // Fail-closed by design: requireCrossClinicAccess() re-queries this exact
+    // grant (status='APPROVED', revokedAt=null) on every read, so the very
+    // next request the receiving clinic makes after this succeeds gets 403 —
+    // there is no cache to invalidate.
+    const ok = await crossClinicSvc.revokeGrant(req.params.grantId, req.user!.id);
+    if (!ok) return res.status(404).json({ ok: false, error: 'Доступ не найден' });
+    return res.json({ ok: true, data: { revoked: true } });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+patientPortalRouter.get('/access-log', async (req: AuthRequest, res) => {
+  try {
+    const log = await crossClinicSvc.getAccessLog(req.user!.id);
+    return res.json({ ok: true, data: log });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }

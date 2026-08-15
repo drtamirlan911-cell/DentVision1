@@ -8,6 +8,8 @@
  * In dev (no ENCRYPTION_KEY) the functions pass through plaintext so nothing
  * breaks locally.
  */
+import crypto from 'crypto';
+
 import { encrypt as rawEncrypt, decrypt as rawDecrypt } from './fieldEncryption.js';
 
 let encryptionAvailable: boolean | null = null;
@@ -44,6 +46,37 @@ export function decryptField(value: string | null): string | null {
     // Corrupted or key-rotated — return the raw value so the app doesn't crash.
     return value;
   }
+}
+
+/**
+ * Deterministic blind index for IIN lookups.
+ *
+ * `iin` is stored via `encryptField`, which uses a random IV per call — two
+ * encryptions of the identical IIN produce different ciphertext, so nothing
+ * can ever `WHERE iin = $1` across rows. This HMAC is what makes "does this
+ * person already have records at another clinic" a queryable equality
+ * lookup: same normalized input always produces the same hash, but the hash
+ * alone doesn't reveal the IIN (unlike storing it in plaintext for search).
+ *
+ * The pepper reuses ENCRYPTION_KEY rather than requiring a second secret —
+ * derived with a fixed, distinct salt so it is not the same key material as
+ * field encryption itself. Same production-required guard as fieldEncryption.ts.
+ */
+function iinHashPepper(): Buffer {
+  const raw = process.env.ENCRYPTION_KEY;
+  if (!raw || raw.length < 32) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[phi] ENCRYPTION_KEY must be set in production (min 32 chars)');
+    }
+    return crypto.scryptSync('dev-only-key-not-for-production', 'iin-hash-pepper', 32);
+  }
+  return crypto.scryptSync(raw, 'iin-hash-pepper', 32);
+}
+
+export function hmacIin(iin: string | null | undefined): string | null {
+  const normalized = String(iin ?? '').trim();
+  if (!normalized) return null;
+  return crypto.createHmac('sha256', iinHashPepper()).update(normalized).digest('hex');
 }
 
 /** Encrypt sensitive patient fields in place (mutates the data object). */

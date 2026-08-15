@@ -3,6 +3,7 @@ import { Agent } from '../core/agent.router.js';
 import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
+import { hmacIin } from '../../../lib/phi.js';
 
 const PAIN_LOCATIONS = ['Верхняя челюсть', 'Нижняя челюсть', 'Слева', 'Справа', 'Передние зубы', 'Жевательные', 'Не знает'];
 const PAIN_DURATIONS = ['Сегодня', 'Несколько дней', 'Неделю', 'Месяц', 'Больше месяца'];
@@ -383,6 +384,7 @@ export class AdminAgent implements Agent {
         lastName: session.data.name?.split(' ').slice(1).join(' ') || '',
         phone: session.data.phone,
         iin: session.data.iin,
+        iinHash: hmacIin(session.data.iin),
         source: session.data.source,
       },
     });
