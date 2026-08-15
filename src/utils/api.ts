@@ -551,6 +551,48 @@ export async function getCrossClinicHistory(receivingPatientId: string): Promise
   return apiRequest(`/api/cross-clinic/history/${receivingPatientId}`);
 }
 
+// ─── Cross-clinic access — patient portal side (grant/revoke consent) ───
+export interface CrossClinicAccessGrantView {
+  id: string;
+  status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'REVOKED' | 'EXPIRED';
+  requestedAt: string;
+  respondedAt: string | null;
+  sourceClinic: { id: string; name: string };
+  receivingClinic: { id: string; name: string };
+}
+
+export async function getAccessRequests(): Promise<CrossClinicAccessGrantView[]> {
+  return apiRequest('/api/patient-portal/access-requests');
+}
+
+export async function approveAccessRequest(grantId: string): Promise<{ approved: true }> {
+  return apiRequest(`/api/patient-portal/access-requests/${grantId}/approve`, { method: 'POST' });
+}
+
+export async function declineAccessRequest(grantId: string): Promise<{ declined: true }> {
+  return apiRequest(`/api/patient-portal/access-requests/${grantId}/decline`, { method: 'POST' });
+}
+
+export async function getAccessGrants(): Promise<CrossClinicAccessGrantView[]> {
+  return apiRequest('/api/patient-portal/access-grants');
+}
+
+export async function revokeAccessGrant(grantId: string): Promise<{ revoked: true }> {
+  return apiRequest(`/api/patient-portal/access-grants/${grantId}/revoke`, { method: 'POST' });
+}
+
+export interface CrossClinicAccessLogEntry {
+  id: string;
+  receivingClinicName: string;
+  accessedBy: string;
+  dataCategory: string;
+  createdAt: string;
+}
+
+export async function getCrossClinicAccessLog(): Promise<CrossClinicAccessLogEntry[]> {
+  return apiRequest('/api/patient-portal/access-log');
+}
+
 export async function getAppointments(clinicId: string): Promise<Appointment[]> {
   return collection<Appointment>(await apiRequest('/api/appointments?limit=200'));
 }
