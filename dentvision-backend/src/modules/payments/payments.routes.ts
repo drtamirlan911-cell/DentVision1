@@ -715,15 +715,20 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
             ? 'expired'
             : 'pending';
 
-    const updated = await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: newStatus },
-    });
-
+    // Atomic: update status + settle in one transaction, matching /:id/confirm
+    // and the platform /callbacks/kaspi handler — a settlement failure must not
+    // leave the payment permanently marked paid with nothing settled.
     let settled = false;
-    if (newStatus === 'paid') {
-      settled = await settlePaidPayment(payment);
-    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.payment.update({
+        where: { id: payment.id },
+        data: { status: newStatus },
+      });
+      if (newStatus === 'paid') {
+        settled = await settlePaidPayment(payment);
+      }
+      return result;
+    });
 
     return res.json({ ok: true, data: { id: updated.id, status: updated.status, settled } } satisfies ApiResponse);
   } catch (error: any) {

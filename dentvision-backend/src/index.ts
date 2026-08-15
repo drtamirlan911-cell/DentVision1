@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 import app from './app.js';
 import { env } from './config.js';
 import prisma from './lib/prisma.js';
@@ -191,8 +193,16 @@ async function markMigrationDone(key: string, durationMs: number) {
      ON CONFLICT ("key") DO NOTHING`, key, durationMs,
   );
 }
-/** Run a one-time DDL block unless it already applied on a previous boot. */
-async function runOnceMigration(key: string, label: string, fn: () => Promise<void>) {
+/**
+ * Run a one-time DDL block unless it already applied on a previous boot.
+ *
+ * `fn` receives the transaction client and MUST issue every raw statement
+ * through it (`tx.$executeRawUnsafe`, not the module-level `prisma`) — Prisma
+ * raw queries run on whatever client they're called on, so a block that used
+ * the global client would execute outside this transaction and defeat the
+ * rollback-on-partial-failure guarantee entirely.
+ */
+async function runOnceMigration(key: string, label: string, fn: (tx: Prisma.TransactionClient) => Promise<void>) {
   if (await hasRunMigration(key)) {
     console.log(`[MIGRATION] ${label} — skipped (already applied)`);
     return;
@@ -200,7 +210,7 @@ async function runOnceMigration(key: string, label: string, fn: () => Promise<vo
   const t0 = Date.now();
   try {
     // Wrap in a transaction so partial failures roll back cleanly.
-    await prisma.$transaction(async () => { await fn(); });
+    await prisma.$transaction(fn);
     await markMigrationDone(key, Date.now() - t0);
     console.log(`[MIGRATION] ${label} ready (${Date.now() - t0}ms)`);
   } catch (err) {
@@ -214,19 +224,19 @@ async function main() {
   await ensureSchemaMigrationsTable();
 
   // Run schema migrations
-  await runOnceMigration('patients_iin', 'Patient.iin column', async () => {
-    await prisma.$executeRawUnsafe(`ALTER TABLE IF EXISTS "patients" ADD COLUMN IF NOT EXISTS "iin" TEXT`);
-    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patients_iin_idx" ON "patients"("iin")`);
+  await runOnceMigration('patients_iin', 'Patient.iin column', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE IF EXISTS "patients" ADD COLUMN IF NOT EXISTS "iin" TEXT`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patients_iin_idx" ON "patients"("iin")`);
   });
 
   // UserRole enum may be missing SUPPORT (init_full_schema was generated before it was added)
-  await runOnceMigration('userrole_support', 'UserRole SUPPORT value', async () => {
-    await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPPORT'`);
+  await runOnceMigration('userrole_support', 'UserRole SUPPORT value', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPPORT'`);
   });
 
   // Diagnostic center subscriptions
-  await runOnceMigration('center_subscriptions_table', 'Center subscription table', async () => {
-    await prisma.$executeRawUnsafe(`
+  await runOnceMigration('center_subscriptions_table', 'Center subscription table', async (tx) => {
+    await tx.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "center_subscriptions" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         center_id UUID NOT NULL UNIQUE,
@@ -255,9 +265,9 @@ async function main() {
   }
 
   // Shared product catalog — prevent duplicate listings across suppliers
-  await runOnceMigration('products_shared_id', 'Product shared_product_id column', async () => {
-    await prisma.$executeRawUnsafe(`ALTER TABLE IF EXISTS "products" ADD COLUMN IF NOT EXISTS "shared_product_id" TEXT`);
-    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "products_shared_idx" ON "products"("shared_product_id")`);
+  await runOnceMigration('products_shared_id', 'Product shared_product_id column', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE IF EXISTS "products" ADD COLUMN IF NOT EXISTS "shared_product_id" TEXT`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "products_shared_idx" ON "products"("shared_product_id")`);
   });
 
   // Ensure marketplace tables exist (init_full_schema migration may have failed)
@@ -863,8 +873,8 @@ async function main() {
   }
 
   // School content tables
-  await runOnceMigration('school_content_tables', 'School content tables', async () => {
-    await prisma.$executeRawUnsafe(`
+  await runOnceMigration('school_content_tables', 'School content tables', async (tx) => {
+    await tx.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "school_clinical_cases" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title TEXT NOT NULL,
@@ -876,7 +886,7 @@ async function main() {
         created_at TIMESTAMPTZ DEFAULT now()
       )
     `);
-    await prisma.$executeRawUnsafe(`
+    await tx.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "school_library_items" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title TEXT NOT NULL,
@@ -888,9 +898,9 @@ async function main() {
         created_at TIMESTAMPTZ DEFAULT now()
       )
     `);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "school_library_items" ADD COLUMN IF NOT EXISTS content TEXT`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "school_library_items" ADD COLUMN IF NOT EXISTS tags JSONB`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "school_clinical_cases" ADD COLUMN IF NOT EXISTS author TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "school_library_items" ADD COLUMN IF NOT EXISTS content TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "school_library_items" ADD COLUMN IF NOT EXISTS tags JSONB`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "school_clinical_cases" ADD COLUMN IF NOT EXISTS author TEXT`);
   });
 
   try {
@@ -1079,8 +1089,8 @@ async function main() {
   }
 
   // ─── Diagnostics: applicant org access ───
-  await runOnceMigration('registration_requests_userId', 'registration_requests.userId column', async () => {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "registration_requests" ADD COLUMN IF NOT EXISTS "userId" TEXT`);
+  await runOnceMigration('registration_requests_userId', 'registration_requests.userId column', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "registration_requests" ADD COLUMN IF NOT EXISTS "userId" TEXT`);
   });
 
   // Backfill access for already-approved registrations (match applicant by email) so the
@@ -1117,8 +1127,8 @@ async function main() {
   // Platform-commission settlements: table + referrals.settlementId link.
   // Mirrors prisma/migrations/20260808_add_settlement (not run via migrate deploy
   // on production), idempotent so it can re-run on every boot.
-  await runOnceMigration('settlements', 'Settlement tables', async () => {
-    await prisma.$executeRawUnsafe(`
+  await runOnceMigration('settlements', 'Settlement tables', async (tx) => {
+    await tx.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "settlements" (
         "id" TEXT NOT NULL,
         "ownerType" TEXT NOT NULL,
@@ -1136,12 +1146,12 @@ async function main() {
         CONSTRAINT "settlements_pkey" PRIMARY KEY ("id")
       )
     `);
-    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "settlements_ownerType_ownerId_idx" ON "settlements"("ownerType", "ownerId")`);
-    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "settlements_status_idx" ON "settlements"("status")`);
-    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "settlements_periodStart_periodEnd_idx" ON "settlements"("periodStart", "periodEnd")`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "referrals" ADD COLUMN IF NOT EXISTS "settlementId" TEXT`);
-    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "referrals_settlementId_idx" ON "referrals"("settlementId")`);
-    await prisma.$executeRawUnsafe(`
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "settlements_ownerType_ownerId_idx" ON "settlements"("ownerType", "ownerId")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "settlements_status_idx" ON "settlements"("status")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "settlements_periodStart_periodEnd_idx" ON "settlements"("periodStart", "periodEnd")`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "referrals" ADD COLUMN IF NOT EXISTS "settlementId" TEXT`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "referrals_settlementId_idx" ON "referrals"("settlementId")`);
+    await tx.$executeRawUnsafe(`
       DO $$
       BEGIN
         IF NOT EXISTS (
@@ -1160,11 +1170,11 @@ async function main() {
   // without the columns — every prisma.document.findMany() was failing with
   // "column documents.signToken does not exist" — so they are applied here,
   // the same way every other table in this file is kept current.
-  await runOnceMigration('document_sign_fields', 'Document signing columns', async () => {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signToken" TEXT`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signatureData" TEXT`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signedByName" TEXT`);
-    await prisma.$executeRawUnsafe(
+  await runOnceMigration('document_sign_fields', 'Document signing columns', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signToken" TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signatureData" TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "signedByName" TEXT`);
+    await tx.$executeRawUnsafe(
       `CREATE UNIQUE INDEX IF NOT EXISTS "documents_signToken_key" ON "documents"("signToken")`,
     );
   });
@@ -1174,8 +1184,8 @@ async function main() {
   // The column spelling differs between tables here (persons keeps
   // organization_id while the rest were normalized to camelCase above), so
   // both are resolved at runtime.
-  await runOnceMigration('person_multi_org', 'Person multi-organization index', async () => {
-    await prisma.$executeRawUnsafe(`
+  await runOnceMigration('person_multi_org', 'Person multi-organization index', async (tx) => {
+    await tx.$executeRawUnsafe(`
       DO $$
       DECLARE
         user_col text;
@@ -1251,9 +1261,9 @@ async function main() {
   // Performance indexes: composite btree for list/aggregate hot paths
   // (clinic-scoped lists, monthly revenue, GMV) plus trigram GIN for
   // %term% text search (patients, marketplace catalog). Idempotent.
-  await runOnceMigration('performance_indexes', 'Performance indexes', async () => {
+  await runOnceMigration('performance_indexes', 'Performance indexes', async (tx) => {
     try {
-      await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+      await tx.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
     } catch (err) {
       console.warn('[MIGRATION] pg_trgm unavailable — search GIN indexes skipped:', (err as Error).message);
     }
@@ -1267,7 +1277,7 @@ async function main() {
     ];
     for (const sql of perfIndexes) {
       try {
-        await prisma.$executeRawUnsafe(sql);
+        await tx.$executeRawUnsafe(sql);
       } catch (err) {
         console.warn('[MIGRATION] Perf index failed (non-fatal):', (err as Error).message);
       }
@@ -1285,7 +1295,7 @@ async function main() {
     ];
     for (const sql of ginIndexes) {
       try {
-        await prisma.$executeRawUnsafe(sql);
+        await tx.$executeRawUnsafe(sql);
       } catch (err) {
         console.warn('[MIGRATION] Search GIN index failed (non-fatal):', (err as Error).message);
       }
@@ -1293,8 +1303,8 @@ async function main() {
   });
 
   // Login attempt table for persistent brute-force protection (survives restart / multi-instance).
-  await runOnceMigration('login_attempts', 'login_attempts table', async () => {
-    await prisma.$executeRawUnsafe(`
+  await runOnceMigration('login_attempts', 'login_attempts table', async (tx) => {
+    await tx.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "login_attempts" (
         "id"          TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
         "email"       TEXT NOT NULL,

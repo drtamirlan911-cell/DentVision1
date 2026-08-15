@@ -8,6 +8,7 @@ import type { AuthRequest } from '../../types/index.js';
 import type { ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { assertSameClinic, denyGuest, requireClinicScope } from '../../lib/clinicAccess.js';
+import { isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured, toStorageUrl, uploadObject } from '../../lib/storage.js';
 import { createSignLink, signDocument } from './documentSign.service.js';
 
 const filesRouter = Router();
@@ -17,7 +18,8 @@ filesRouter.use(authenticate);
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  // CBCT/DICOM studies commonly run 50MB+; 10MB silently truncated real cases.
+  limits: { fileSize: 60 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = [
       '.jpg', '.jpeg', '.png', '.gif', '.webp',
@@ -167,6 +169,13 @@ filesRouter.post('/upload', upload.single('file'), requirePermission('patient.wr
     if (!req.file) {
       return res.status(400).json({ ok: false, error: 'Файл не загружен' });
     }
+    if (!storageConfigured()) {
+      // Refuse loudly rather than fabricate a URL nothing serves — the prior
+      // "mock-storage" path looked like success and silently discarded every
+      // uploaded X-ray/CBCT/consent file.
+      console.error('[files] Upload rejected: S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY not configured');
+      return res.status(503).json({ ok: false, error: 'Файловое хранилище не настроено. Обратитесь к администратору.' });
+    }
 
     const clinicId = requireClinicScope(req, res);
     if (!clinicId && String(req.user?.role || '').toUpperCase() !== 'SUPERADMIN') return;
@@ -190,6 +199,12 @@ filesRouter.post('/upload', upload.single('file'), requirePermission('patient.wr
     const fileId = uid();
     const safeName = req.file.originalname.replace(/[/\\]/g, '_');
     const safeExt = path.extname(safeName).toLowerCase();
+    // Clinic-prefixed key: even though reads are already gated by
+    // assertSameClinic on every route below, this keeps objects segregated
+    // in the bucket itself rather than relying solely on the app-layer check.
+    const storageKey = `clinics/${scopedClinic}/${fileId}${safeExt}`;
+    await uploadObject(storageKey, req.file.buffer, req.file.mimetype);
+
     const doc = await prisma.document.create({
       data: {
         id: uid(),
@@ -197,7 +212,7 @@ filesRouter.post('/upload', upload.single('file'), requirePermission('patient.wr
         clinicId: scopedClinic,
         type: fileType,
         name: safeName,
-        url: `/mock-storage/${fileId}/${fileId}${safeExt}`,
+        url: toStorageUrl(storageKey),
       },
     });
 
@@ -263,8 +278,19 @@ filesRouter.get('/:id/content', requirePermission('patient.read'), async (req: A
       return res.redirect(url);
     }
 
-    // Mock-storage / uploaded files — return URL for client to handle
-    return res.json({ ok: true, data: { url, type: 'file', title } });
+    // S3-backed upload — access was already checked above (assertSameClinic);
+    // hand the client a short-lived signed URL rather than the bucket key.
+    if (isStorageKey(url)) {
+      if (!storageConfigured()) {
+        return res.status(503).json({ ok: false, error: 'Файловое хранилище не настроено' });
+      }
+      const signed = await signedDownloadUrl(keyFromStorageUrl(url));
+      return res.redirect(signed);
+    }
+
+    // Legacy placeholder from before real storage was wired up — the file
+    // behind this URL was never actually persisted.
+    return res.status(410).json({ ok: false, error: 'Файл недоступен (загружен до подключения хранилища)' });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
     return res.status(500).json({ ok: false, error: message });

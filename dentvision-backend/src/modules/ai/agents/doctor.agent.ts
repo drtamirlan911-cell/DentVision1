@@ -466,8 +466,8 @@ export class DoctorAgent implements Agent {
       return { message: 'Укажите ID пациента', intent: 'OPEN_MEDICAL_CARD', suggestions: [] };
     }
 
-    const patient = await prisma.patient.findUnique({
-      where: { id: patientId },
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId: context.clinicId },
       include: {
         visits: { orderBy: { date: 'desc' }, take: 10 },
         treatmentPlans: { orderBy: { createdAt: 'desc' }, take: 5 },
@@ -493,6 +493,11 @@ export class DoctorAgent implements Agent {
     const { patientId, items } = params;
     if (!patientId || !items) {
       return { message: 'Укажите пациента и элементы плана', intent: 'CREATE_TREATMENT_PLAN', needsConfirmation: true, suggestions: [] };
+    }
+
+    const owner = await prisma.patient.findFirst({ where: { id: patientId as string, clinicId: context.clinicId }, select: { id: true } });
+    if (!owner) {
+      return { message: 'Пациент не найден', intent: 'CREATE_TREATMENT_PLAN', suggestions: [] };
     }
 
     const plan = await prisma.treatmentPlan.create({
@@ -521,7 +526,7 @@ export class DoctorAgent implements Agent {
     }
 
     const images = await prisma.patientImage.findMany({
-      where: { patientId, type: 'CBCT' },
+      where: { patientId, type: 'CBCT', patient: { clinicId: context.clinicId } },
       orderBy: { createdAt: 'desc' },
       take: 5,
     });

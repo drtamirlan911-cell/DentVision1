@@ -99,6 +99,24 @@ supplierWorkspaceRouter.get('/orders', async (req: AuthRequest, res) => {
   }
 });
 
+// Which statuses a supplier may move an order *into*, keyed by its *current*
+// status. Without this, a target-only allowlist let a supplier PATCH an
+// already-delivered order back to 'cancelled' (or bounce packing→cancelled→
+// packing repeatedly), double-firing the cashback release/reversal side
+// effects below and, for cancel, losing stock permanently since the old code
+// never restored it on this path (unlike the abandoned-order cron).
+// 'pending' is a real predecessor of 'packing', not just 'paid' — cash-on-
+// delivery orders (paymentMethod:'cash') never get a Payment record at all
+// (shop.routes.ts: `needsOnlinePay = finalTotal > 0 && method !== 'cash'`)
+// and stay 'pending' until the supplier ships them.
+const ORDER_STATUS_TRANSITIONS: Record<string, string[]> = {
+  pending: ['packing', 'cancelled'],
+  awaiting_payment: ['cancelled'],
+  paid: ['packing', 'cancelled'],
+  packing: ['shipped', 'cancelled'],
+  shipped: ['delivered', 'cancelled'],
+};
+
 supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async (req: AuthRequest, res) => {
   try {
     const status = String(req.body?.status || '').toLowerCase();
@@ -113,9 +131,35 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
       return res.status(404).json({ ok: false, error: 'Заказ не найден' } satisfies ApiResponse);
     }
 
-    const order = await prisma.order.update({
-      where: { id: owned.id },
-      data: { status },
+    const allowedNext = ORDER_STATUS_TRANSITIONS[owned.status] || [];
+    if (!allowedNext.includes(status)) {
+      return res.status(400).json({
+        ok: false,
+        error: `Нельзя перевести заказ из статуса «${owned.status}» в «${status}»`,
+      } satisfies ApiResponse);
+    }
+
+    const order = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where: { id: owned.id },
+        data: { status },
+      });
+      if (status === 'cancelled') {
+        // Mirror reminderCron.ts's abandoned-order cleanup: a cancelled order
+        // must give its reserved stock back, or it's lost permanently. `owned`
+        // comes from getSupplierOrders(), already filtered to this supplier's
+        // own product lines — restoring only those is correct, not a gap: a
+        // multi-supplier order's other lines are that supplier's own to cancel.
+        for (const item of (owned.items as Array<{ productId: string; qty: number }>) || []) {
+          if (item.productId && item.qty) {
+            await tx.product.updateMany({
+              where: { id: item.productId },
+              data: { stock: { increment: item.qty } },
+            });
+          }
+        }
+      }
+      return updated;
     });
 
     if (status === 'delivered' || status === 'completed') {
