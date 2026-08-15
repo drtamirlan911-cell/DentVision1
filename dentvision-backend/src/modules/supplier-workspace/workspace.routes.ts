@@ -7,6 +7,7 @@ import { serializeBigInt, tengeToMinor } from '../../lib/money.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { buildSupplierDashboard, buildSupplierInsights, getSupplierOrders } from './supplierDashboard.js';
+import { canTransitionOrder } from '../../lib/orderStatus.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supplier Workspace (self-service cabinet). All routes operate strictly on the
@@ -99,24 +100,6 @@ supplierWorkspaceRouter.get('/orders', async (req: AuthRequest, res) => {
   }
 });
 
-// Which statuses a supplier may move an order *into*, keyed by its *current*
-// status. Without this, a target-only allowlist let a supplier PATCH an
-// already-delivered order back to 'cancelled' (or bounce packing→cancelled→
-// packing repeatedly), double-firing the cashback release/reversal side
-// effects below and, for cancel, losing stock permanently since the old code
-// never restored it on this path (unlike the abandoned-order cron).
-// 'pending' is a real predecessor of 'packing', not just 'paid' — cash-on-
-// delivery orders (paymentMethod:'cash') never get a Payment record at all
-// (shop.routes.ts: `needsOnlinePay = finalTotal > 0 && method !== 'cash'`)
-// and stay 'pending' until the supplier ships them.
-const ORDER_STATUS_TRANSITIONS: Record<string, string[]> = {
-  pending: ['packing', 'cancelled'],
-  awaiting_payment: ['cancelled'],
-  paid: ['packing', 'cancelled'],
-  packing: ['shipped', 'cancelled'],
-  shipped: ['delivered', 'cancelled'],
-};
-
 supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async (req: AuthRequest, res) => {
   try {
     const status = String(req.body?.status || '').toLowerCase();
@@ -131,26 +114,27 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
       return res.status(404).json({ ok: false, error: 'Заказ не найден' } satisfies ApiResponse);
     }
 
-    const allowedNext = ORDER_STATUS_TRANSITIONS[owned.status] || [];
-    if (!allowedNext.includes(status)) {
-      return res.status(400).json({
+    // Enforce the order status state machine — no arbitrary jumps (audit F-2).
+    if (!canTransitionOrder(owned.status, status)) {
+      return res.status(409).json({
         ok: false,
-        error: `Нельзя перевести заказ из статуса «${owned.status}» в «${status}»`,
+        error: `Недопустимый переход статуса: ${owned.status} → ${status}`,
       } satisfies ApiResponse);
     }
 
-    const order = await prisma.$transaction(async (tx) => {
-      const updated = await tx.order.update({
-        where: { id: owned.id },
-        data: { status },
-      });
-      if (status === 'cancelled') {
-        // Mirror reminderCron.ts's abandoned-order cleanup: a cancelled order
-        // must give its reserved stock back, or it's lost permanently. `owned`
-        // comes from getSupplierOrders(), already filtered to this supplier's
-        // own product lines — restoring only those is correct, not a gap: a
-        // multi-supplier order's other lines are that supplier's own to cancel.
-        for (const item of (owned.items as Array<{ productId: string; qty: number }>) || []) {
+    let order;
+    if (status === 'cancelled') {
+      // Restore stock atomically with the status flip so a cancelled order does
+      // not keep its reserved inventory (audit F-1).
+      //
+      // `owned` comes from getSupplierOrders(), which maps raw Order.items
+      // (product_id/quantity) into { productId, qty, ... } and filters to only
+      // this supplier's own lines (supplierDashboard.ts) — the raw field names
+      // never appear here, so restoring by product_id/quantity would silently
+      // never match and leave every cancelled order's stock un-restored.
+      order = await prisma.$transaction(async (tx) => {
+        const items = Array.isArray(owned.items) ? (owned.items as any[]) : [];
+        for (const item of items) {
           if (item.productId && item.qty) {
             await tx.product.updateMany({
               where: { id: item.productId },
@@ -158,9 +142,11 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
             });
           }
         }
-      }
-      return updated;
-    });
+        return tx.order.update({ where: { id: owned.id }, data: { status } });
+      });
+    } else {
+      order = await prisma.order.update({ where: { id: owned.id }, data: { status } });
+    }
 
     if (status === 'delivered' || status === 'completed') {
       const { releaseOrderCashback } = await import('../dentcash/cashback.engine.js');

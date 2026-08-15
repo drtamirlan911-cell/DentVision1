@@ -8,7 +8,10 @@ import { AIWorkspaceIndex } from './components/intelligence/AIWorkspaceIndex';
 import IntelligenceLayout from './layouts/IntelligenceLayout';
 import { lazyWithRetry } from '@/utils/lazyWithRetry';
 import { RequirePage } from '@/components/auth/RequirePage';
+import { initSentry } from './lib/sentry';
 import './lib/i18n';
+
+initSentry();
 
 const Login = lazyWithRetry(() => import('./pages/auth/Login'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));

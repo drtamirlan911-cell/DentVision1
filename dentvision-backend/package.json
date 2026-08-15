@@ -29,6 +29,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1111.0",
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/client": "^6.19.0",
+    "@sentry/node": "^10.69.0",
     "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.81.2",

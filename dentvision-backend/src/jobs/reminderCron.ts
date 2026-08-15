@@ -182,20 +182,19 @@ export function startReminderCronInterval(ms = 15 * 60 * 1000): void {
 }
 
 /**
- * Cancel orders stuck in pending/awaiting_payment > 30 min and restore stock.
- * Prevents inventory hoarding from abandoned checkouts.
- *
- * `awaiting_payment` is the status a real checkout actually lands in once a
- * Kaspi QR is issued (see shop.routes.ts) — orders that never got that far
- * stay `pending`. Only matching `pending` here left every abandoned-after-QR
- * order holding its reserved stock forever.
+ * Cancel orders stuck in pending / awaiting_payment longer than the TTL and
+ * restore stock. Prevents inventory hoarding from abandoned checkouts
+ * (audit F-1).
  */
 export async function cleanupAbandonedOrders(): Promise<void> {
   const cutoff = new Date(Date.now() - 30 * 60 * 1000);
   try {
     const stale = await prisma.order.findMany({
-      where: { status: { in: ['pending', 'awaiting_payment'] }, createdAt: { lt: cutoff } },
-      select: { id: true, items: true },
+      where: {
+        status: { in: ['pending', 'awaiting_payment'] },
+        createdAt: { lt: cutoff },
+      },
+      select: { id: true, items: true, meta: true },
     });
     if (!stale.length) return;
 
@@ -209,6 +208,15 @@ export async function cleanupAbandonedOrders(): Promise<void> {
               data: { stock: { increment: item.quantity } },
             });
           }
+        }
+        // Expire any still-pending payment for this order so a late callback
+        // cannot resurrect a cancelled checkout.
+        const meta = (o.meta && typeof o.meta === 'object' ? o.meta : {}) as { paymentId?: string };
+        if (meta.paymentId) {
+          await tx.payment.updateMany({
+            where: { id: meta.paymentId, status: 'pending' },
+            data: { status: 'expired' },
+          });
         }
         await tx.order.update({ where: { id: o.id }, data: { status: 'cancelled' } });
       });

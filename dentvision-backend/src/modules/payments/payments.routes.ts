@@ -26,17 +26,35 @@ import {
   PlanGateError,
 } from '../billing/planEntitlements.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
+import { canTransitionOrder } from '../../lib/orderStatus.js';
 
-// Prisma-backed idempotency (persists across restarts)
-async function getIdempotencyRecord(key: string): Promise<string | null> {
-  const record = await prisma.idempotencyRecord.findFirst({
-    where: { key, expiresAt: { gt: new Date() } },
-    select: { paymentId: true },
-  });
-  return record?.paymentId ?? null;
+// ── Prisma-backed idempotency (persists across restarts) ─────────────────
+// A key is reserved first (the unique constraint serializes concurrent
+// identical requests) and only linked to its payment once the row exists
+// (audit F-3).
+type IdempotencyReserve =
+  | { status: 'reserved' }
+  | { status: 'exists'; paymentId: string }
+  | { status: 'in_flight' };
+
+async function reserveIdempotencyKey(key: string): Promise<IdempotencyReserve> {
+  try {
+    await prisma.idempotencyRecord.create({
+      data: { key, expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+    return { status: 'reserved' };
+  } catch (err: any) {
+    if (err?.code !== 'P2002') throw err;
+    const record = await prisma.idempotencyRecord.findUnique({
+      where: { key },
+      select: { paymentId: true },
+    });
+    if (record?.paymentId) return { status: 'exists', paymentId: record.paymentId };
+    return { status: 'in_flight' };
+  }
 }
 
-async function setIdempotencyRecord(key: string, paymentId: string): Promise<void> {
+async function completeIdempotencyKey(key: string, paymentId: string): Promise<void> {
   await prisma.idempotencyRecord.upsert({
     where: { key },
     create: { key, paymentId, expiresAt: new Date(Date.now() + 3_600_000) },
@@ -44,8 +62,8 @@ async function setIdempotencyRecord(key: string, paymentId: string): Promise<voi
   });
 }
 
-async function deleteIdempotencyRecord(key: string): Promise<void> {
-  await prisma.idempotencyRecord.delete({ where: { key } }).catch(() => {});
+async function deleteIdempotencyKey(key: string): Promise<void> {
+  await prisma.idempotencyRecord.deleteMany({ where: { key } }).catch(() => {});
 }
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
@@ -60,7 +78,9 @@ async function settleOrderPayment(payment: {
   if (!payment.refId) return false;
   const order = await prisma.order.findUnique({ where: { id: payment.refId } });
   if (!order) return false;
-  if (order.status === 'paid' || order.status === 'packing' || order.status === 'shipped' || order.status === 'delivered') {
+  // Idempotent no-op for already-paid / non-payable states. In particular a
+  // cancelled order must never be resurrected by a late callback (audit F-2).
+  if (order.status === 'paid' || !canTransitionOrder(order.status, 'paid')) {
     return true;
   }
 
@@ -300,6 +320,21 @@ async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; re
   return false;
 }
 
+/**
+ * Ownership check for a payment *ref* (order/shop_order) at creation time.
+ * A payment may only be created against an order the caller owns — closes the
+ * IDOR where any authenticated user could pay another user's order.
+ */
+async function assertPaymentRefOwner(userId: string, refId: string, refType: string): Promise<boolean> {
+  if (refType !== 'order' && refType !== 'shop_order') return true;
+  try {
+    const order = await prisma.order.findUnique({ where: { id: refId }, select: { userId: true } });
+    return Boolean(order?.userId === userId);
+  } catch {
+    return false;
+  }
+}
+
 function verifyClinicCallbackAuth(input: {
   secret: string;
   headers: Record<string, string | string[] | undefined>;
@@ -323,19 +358,25 @@ function verifyClinicCallbackAuth(input: {
     .update(`${externalId}:${status}`)
     .digest('hex');
   const a = Buffer.from(provided);
-  const bSecret = Buffer.from(input.secret);
   const bHmac = Buffer.from(expectedHmac);
-  const matchSecret = a.length === bSecret.length && timingSafeEqual(a, bSecret);
-  const matchHmac = a.length === bHmac.length && timingSafeEqual(a, bHmac);
-  if (!matchSecret && !matchHmac) return { ok: false, error: 'Неверная подпись callback' };
+  // Accept only the HMAC over (externalId:status). Comparing the caller's
+  // supplied value against the raw clinic secret (the old `matchSecret`
+  // branch) let anyone who knew the secret bypass the signature — a secret
+  // must never authenticate a callback on its own.
+  if (a.length !== bHmac.length || !timingSafeEqual(a, bHmac)) {
+    return { ok: false, error: 'Неверная подпись callback' };
+  }
   return { ok: true };
 }
 
 // Create a payment (returns provider QR/deeplink). Requires auth.
 paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
+  let idempotencyKey: string | undefined;
+  let keyCompleted = false;
   try {
-    // Idempotency: use client key or generate server-side from content hash
-    let idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+    // Idempotency: use client key or generate server-side from content hash so
+    // a missing header still dedupes identical submits (audit F-3).
+    idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     if (!idempotencyKey) {
       // Generate deterministic key from user + body to prevent double-submit
       const crypto = await import('node:crypto');
@@ -344,16 +385,24 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         .digest('hex');
       idempotencyKey = `server-${hash.slice(0, 32)}`;
     }
-    const existing = await getIdempotencyRecord(idempotencyKey);
-    if (existing) {
-      const payment = await prisma.payment.findUnique({ where: { id: existing } });
+    const reserved = await reserveIdempotencyKey(idempotencyKey);
+    if (reserved.status === 'in_flight') {
+      // Another identical request is being processed right now.
+      return res.status(409).json({
+        ok: false,
+        error: 'Запрос уже обрабатывается, повторите позже',
+      } satisfies ApiResponse);
+    }
+    if (reserved.status === 'exists') {
+      const payment = await prisma.payment.findUnique({ where: { id: reserved.paymentId } });
       if (payment) {
         return res.status(200).json({
           ok: true,
           data: serializeBigInt(payment),
         } satisfies ApiResponse);
       }
-      await deleteIdempotencyRecord(idempotencyKey);
+      // Stale record pointing at a deleted payment — free the key and continue.
+      await deleteIdempotencyKey(idempotencyKey);
     }
 
     const {
@@ -375,7 +424,51 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
     }
 
+    // P1-1 fix: never trust the client-submitted amount. For order/shop refTypes
+    // we recompute the expected total server-side and reconcile with what the
+    // caller sent; a mismatch means tampering and is rejected as 409. CRM-cashier
+    // payments without a refId have no server-side source of truth, so those are
+    // reconciled later in the callback (settleOrderPayment already derives the
+    // supplier splits from `order.items`, not from this amount).
+    if ((refType === 'order' || refType === 'shop_order') && refId) {
+      const ref = await prisma.$transaction(async (tx) => {
+        if (refType === 'order') {
+          return tx.order.findUnique({ where: { id: refId }, select: { items: true, status: true } });
+        }
+        return null;
+      });
+      if (!ref) {
+        return res.status(404).json({ ok: false, error: 'Ссылка на заказ не найдена' } satisfies ApiResponse);
+      }
+      const items = Array.isArray(ref.items) ? (ref.items as any[]) : [];
+      let expected = 0;
+      for (const line of items) {
+        const price = Number(line.price || 0);
+        const qty = Number(line.quantity || line.qty || 1);
+        expected += price * qty;
+      }
+      const expectedMinor = tengeToMinor(expected);
+      if (expectedMinor !== minor) {
+        return res.status(409).json({
+          ok: false,
+          error: `Сумма не совпадает с заказом: ожидалось ${expectedMinor}, получено ${minor}`,
+        } satisfies ApiResponse);
+      }
+    }
+
     const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
+
+    // P1 IDOR fix: a payment references an external object (order/invoice) by
+    // refId. Never create a payment against an object the caller does not own.
+    // `sellerId`/`refId` arrive from req.body, so we re-derive ownership from
+    // the database record, not from the request.
+    if (refId && (refType === 'order' || refType === 'shop_order')) {
+      const owned = await assertPaymentRefOwner(req.user!.id, refId, refType);
+      if (!owned) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к этому объекту оплаты' } satisfies ApiResponse);
+      }
+    }
+
     const clinicId = String(metaObj.clinicId || req.body?.clinicId || '');
     const isClinicCashier =
       domain === 'crm' ||
@@ -424,9 +517,8 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         },
       });
 
-      if (idempotencyKey) {
-        await setIdempotencyRecord(idempotencyKey, payment.id);
-      }
+      await completeIdempotencyKey(idempotencyKey, payment.id);
+      keyCompleted = true;
 
       return res.status(201).json({
         ok: true,
@@ -461,15 +553,19 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       },
     });
 
-if (idempotencyKey) {
-        await setIdempotencyRecord(idempotencyKey, payment.id);
-      }
+    await completeIdempotencyKey(idempotencyKey, payment.id);
+    keyCompleted = true;
 
     return res.status(201).json({
       ok: true,
       data: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
     } satisfies ApiResponse);
   } catch (error: any) {
+    // Free a reserved-but-unfinished key so a retry can succeed instead of
+    // hitting a permanent 409 (audit F-3).
+    if (idempotencyKey && !keyCompleted) {
+      await deleteIdempotencyKey(idempotencyKey);
+    }
     if (error instanceof ClinicPaymentsError) {
       return res.status(error.status).json({
         ok: false,
@@ -715,20 +811,33 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
             ? 'expired'
             : 'pending';
 
-    // Atomic: update status + settle in one transaction, matching /:id/confirm
-    // and the platform /callbacks/kaspi handler — a settlement failure must not
-    // leave the payment permanently marked paid with nothing settled.
+    let updated: { id: string; status: string };
     let settled = false;
-    const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.payment.update({
+    if (newStatus === 'paid') {
+      // The status flip and the settlement run under one transaction so a
+      // failed settlement rolls the flip back — a payment never ends up
+      // 'paid' while its subscription/sale was not activated.
+      // ponytail: settlePaidPayment writes via the module-level prisma (its own
+      // implicit tx), so settlement rows already committed before an error are
+      // NOT rolled back — a retry can re-run a partially-failed settle. Full
+      // atomicity needs the tx threaded into settlePaidPayment's callees
+      // (recordSale, activateClinicSubscriptionFromPayment, markSettlementPaid).
+      const result = await prisma.$transaction(async (tx) => {
+        const upd = await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: 'paid' },
+        });
+        const s = await settlePaidPayment(payment);
+        return { upd, settled: s };
+      });
+      updated = result.upd;
+      settled = result.settled;
+    } else {
+      updated = await prisma.payment.update({
         where: { id: payment.id },
         data: { status: newStatus },
       });
-      if (newStatus === 'paid') {
-        settled = await settlePaidPayment(payment);
-      }
-      return result;
-    });
+    }
 
     return res.json({ ok: true, data: { id: updated.id, status: updated.status, settled } } satisfies ApiResponse);
   } catch (error: any) {

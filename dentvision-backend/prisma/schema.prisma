@@ -198,6 +198,8 @@ model User {
   legalAuditLogs                LegalAuditLog[]
   legalInvoicesCreated          LegalInvoice[]
   notificationPreferences        NotificationPreference[]
+  auditLogs                     AuditLog[]
+  aiEvents                      AIEvent[]
 
   @@map("users")
 }
@@ -239,6 +241,8 @@ model Clinic {
   diagnosticReferrals Referral[]
 
   reviews ShopReview[]
+  auditLogs AuditLog[]
+  aiEvents  AIEvent[]
 
   @@map("clinics")
 }
@@ -1285,10 +1289,17 @@ model AuditLog {
   details    Json?
   ip         String?
 
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([clinicId, createdAt])
+  @@index([userId, createdAt])
   @@map("audit_logs")
 }
 
@@ -1569,7 +1580,7 @@ model Payment {
 model IdempotencyRecord {
   id        String   @id @default(cuid())
   key       String   @unique
-  paymentId String
+  paymentId String?
   createdAt DateTime @default(now())
   expiresAt DateTime
 
@@ -1996,10 +2007,14 @@ model AIEvent {
   createdAt   DateTime      @default(now())
   processedAt DateTime?
 
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
   @@index([clinicId])
   @@index([status])
   @@index([type])
   @@index([createdAt])
+  @@index([userId])
   @@map("ai_events")
 }
 

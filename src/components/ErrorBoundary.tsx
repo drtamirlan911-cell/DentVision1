@@ -1,6 +1,8 @@
 import React from 'react';
+import * as Sentry from '@sentry/react';
 import { isChunkLoadError } from '@/utils/lazyWithRetry';
 import { withTranslation, WithTranslation } from 'react-i18next';
+import { isSentryEnabled } from '@/lib/sentry';
 
 interface ErrorBoundaryProps extends WithTranslation {
   children: React.ReactNode;
@@ -24,6 +26,11 @@ class ErrorBoundaryInner extends React.Component<ErrorBoundaryProps, ErrorBounda
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
+    if (isSentryEnabled()) {
+      Sentry.captureException(error, {
+        contexts: { react: { componentStack: errorInfo.componentStack } },
+      });
+    }
     // Stale deploy / protected preview: one hard reload usually fixes asset map mismatch.
     if (isChunkLoadError(error)) {
       try {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import { optionalAuth } from '../../middleware/auth.js';
@@ -101,7 +100,7 @@ diagnosticsRouter.get('/centers', async (req: AuthRequest, res) => {
 
 diagnosticsRouter.get('/centers/:id', async (req: AuthRequest, res) => {
   try {
-    const data = await svc.getCenter(req.params.id);
+    const data = await svc.getCenter(req.params.id as string);
     if (!data) return res.status(404).json({ ok: false, error: 'Center not found' } satisfies ApiResponse);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
@@ -120,7 +119,7 @@ diagnosticsRouter.post('/centers', requireSuperadmin, async (req: AuthRequest, r
 
 diagnosticsRouter.patch('/centers/:id', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
-    const data = await svc.updateCenter(req.params.id, req.body);
+    const data = await svc.updateCenter(req.params.id as string, req.body);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -141,7 +140,7 @@ diagnosticsRouter.get('/laboratories', async (req: AuthRequest, res) => {
 
 diagnosticsRouter.get('/laboratories/:id', async (req: AuthRequest, res) => {
   try {
-    const data = await svc.getLaboratory(req.params.id);
+    const data = await svc.getLaboratory(req.params.id as string);
     if (!data) return res.status(404).json({ ok: false, error: 'Laboratory not found' } satisfies ApiResponse);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
@@ -160,7 +159,7 @@ diagnosticsRouter.post('/laboratories', requireSuperadmin, async (req: AuthReque
 
 diagnosticsRouter.patch('/laboratories/:id', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
-    const data = await svc.updateLaboratory(req.params.id, req.body);
+    const data = await svc.updateLaboratory(req.params.id as string, req.body);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -179,7 +178,7 @@ diagnosticsRouter.get('/registrations', requireSuperadmin, async (req: AuthReque
 
 diagnosticsRouter.post('/registrations/:id/approve', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
-    const data = await svc.approveRegistrationRequest(req.params.id, req.user!.id);
+    const data = await svc.approveRegistrationRequest(req.params.id as string, req.user!.id);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -189,7 +188,7 @@ diagnosticsRouter.post('/registrations/:id/approve', requireSuperadmin, async (r
 diagnosticsRouter.post('/registrations/:id/reject', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { reason } = req.body;
-    const data = await svc.rejectRegistrationRequest(req.params.id, req.user!.id, reason);
+    const data = await svc.rejectRegistrationRequest(req.params.id as string, req.user!.id, reason);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -238,7 +237,7 @@ diagnosticsRouter.get('/referrals', loadClinicAccess, async (req: AuthRequest, r
     const labId = req.query.labId as string || undefined;
 
     const authz = await authorizeReferralListScope(req.user, { clinicId, centerId, labId });
-    if (!authz.ok) return res.status(authz.status).json({ ok: false, error: authz.error } satisfies ApiResponse);
+    if (authz.ok !== true) return res.status(authz.status).json({ ok: false, error: authz.error } satisfies ApiResponse);
 
     const data = await svc.listReferrals({
       clinicId,
@@ -259,7 +258,7 @@ diagnosticsRouter.get('/referrals', loadClinicAccess, async (req: AuthRequest, r
 
 diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req: AuthRequest, res) => {
   try {
-    const data = await svc.getReferral(req.params.id);
+    const data = await svc.getReferral(req.params.id as string);
     if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' } satisfies ApiResponse);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
@@ -292,7 +291,7 @@ diagnosticsRouter.patch('/referrals/:id', requireReferralAccess(true), async (re
     for (const k of allowed) {
       if (k in req.body) picked[k] = req.body[k];
     }
-    const data = await svc.updateReferral(req.params.id, picked, req.user!.id);
+    const data = await svc.updateReferral(req.params.id as string, picked, req.user!.id);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -302,7 +301,7 @@ diagnosticsRouter.patch('/referrals/:id', requireReferralAccess(true), async (re
 diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), async (req: AuthRequest, res) => {
   try {
     const { status, reason, cost, platformFee } = req.body;
-    const data = await svc.changeReferralStatus(req.params.id, status, req.user!.id, reason, cost, platformFee);
+    const data = await svc.changeReferralStatus(req.params.id as string, status, req.user!.id, reason, cost, platformFee);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -311,7 +310,7 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
 
 diagnosticsRouter.delete('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => {
   try {
-    await svc.deleteReferral(req.params.id, req.user!.id);
+    await svc.deleteReferral(req.params.id as string, req.user!.id);
     return res.json({ ok: true } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -347,7 +346,7 @@ diagnosticsRouter.delete('/files/:id', async (req: AuthRequest, res, next) => {
   next();
 }, requireReferralAccess(true), async (req: AuthRequest, res) => {
   try {
-    await svc.deleteReferralFile(req.params.id, req.user!.id);
+    await svc.deleteReferralFile(req.params.id as string, req.user!.id);
     return res.json({ ok: true } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -372,7 +371,7 @@ diagnosticsRouter.post('/results/:id/sign', requireReferralAccess(true), async (
     const { reportText, conclusion } = req.body;
     if (!reportText) return res.status(400).json({ ok: false, error: 'reportText required' } satisfies ApiResponse);
     const data = await svc.saveAndSignResult({
-      referralId: req.params.id, reportText, conclusion, doctorId: req.user!.id,
+      referralId: req.params.id as string, reportText, conclusion, doctorId: req.user!.id,
     });
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
@@ -386,7 +385,7 @@ diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess(true), a
   try {
     const { text } = req.body;
     if (!text) return res.status(400).json({ ok: false, error: 'Text required' } satisfies ApiResponse);
-    const data = await svc.addComment(req.params.id, req.user!.id, text);
+    const data = await svc.addComment(req.params.id as string, req.user!.id, text);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
@@ -450,11 +449,11 @@ diagnosticsRouter.get('/centers/:id/pricing', async (req: AuthRequest, res) => {
 
 diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
-    const centerId = req.params.id;
+    const centerId = req.params.id as string;
     if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
       return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
     }
-    const { studies } = req.body as { studies: { id: string; price: number }[] };
+    const { studies } = req.body as { studies: { id: string; price: number; active?: boolean }[] };
     if (!Array.isArray(studies)) {
       return res.status(400).json({ ok: false, error: 'studies array required' } satisfies ApiResponse);
     }
@@ -478,7 +477,7 @@ diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) =>
 // Create a new service (study) for a center — center members or superadmin
 diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
-    const centerId = req.params.id;
+    const centerId = req.params.id as string;
     if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
       return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
     }
@@ -519,7 +518,7 @@ diagnosticsRouter.get('/laboratories/:id/pricing', async (req: AuthRequest, res)
 
 diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
-    const labId = req.params.id;
+    const labId = req.params.id as string;
     if (!hasOrgAccess(req.user, 'LABORATORY', labId)) {
       return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
     }
@@ -545,7 +544,7 @@ diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, re
 
 diagnosticsRouter.get('/centers/:id/payments', async (req: AuthRequest, res) => {
   try {
-    const centerId = req.params.id;
+    const centerId = req.params.id as string;
     if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
       return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
     }
@@ -569,7 +568,7 @@ diagnosticsRouter.get('/centers/:id/payments', async (req: AuthRequest, res) => 
 
 diagnosticsRouter.get('/laboratories/:id/payments', async (req: AuthRequest, res) => {
   try {
-    const labId = req.params.id;
+    const labId = req.params.id as string;
     if (!hasOrgAccess(req.user, 'LABORATORY', labId)) {
       return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
     }
@@ -775,7 +774,7 @@ diagnosticsRouter.post('/settlements/:id/pay', authenticate, async (req: AuthReq
     const { paySettlement, userOwnsSettlement } = await import('./settlement.service.js');
     const { serializeBigInt } = await import('../../lib/money.js');
     const { withPaymentQr } = await import('../payments/kaspi.provider.js');
-    const settlement = await prisma.settlement.findUnique({ where: { id: req.params.id } });
+    const settlement = await prisma.settlement.findUnique({ where: { id: req.params.id as string } });
     if (!settlement) {
       return res.status(404).json({ ok: false, error: 'Расчёт не найден' } satisfies ApiResponse);
     }
@@ -783,7 +782,7 @@ diagnosticsRouter.post('/settlements/:id/pay', authenticate, async (req: AuthReq
     if (!owns && req.user!.role !== 'SUPERADMIN') {
       return res.status(403).json({ ok: false, error: 'Нет доступа к оплате этого расчёта' } satisfies ApiResponse);
     }
-    const result = await paySettlement(req.params.id);
+    const result = await paySettlement(req.params.id as string);
     const payment = result.payment
       ? withPaymentQr(serializeBigInt(result.payment) as Record<string, unknown>, (result as any).qr)
       : null;
@@ -930,7 +929,7 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res)
 
 diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, res) => {
   try {
-    const centerId = req.params.id;
+    const centerId = req.params.id as string;
     if (!hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', centerId)) {
       return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
     }
