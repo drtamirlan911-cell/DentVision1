@@ -930,11 +930,15 @@ async function main() {
   try {
     const centerCount = await prisma.diagnosticCenter.count();
     if (centerCount === 0) {
+      // DiagnosticCenter has no `description` column (schema.prisma) — this seed
+      // silently failed on every fresh deploy (PrismaClientValidationError,
+      // caught below as "non-fatal") until this was fixed, so no clinic ever
+      // actually got demo centers to refer patients to.
       const demoCenters = [
-        { name: 'TomoDent CBCT', city: 'Алматы', address: 'пр. Аль-Фараби 77', phone: '+77002000111', description: 'КЛКТ/КТ челюстей, височно-нижнечелюстных суставов' },
-        { name: 'AlphaScan 3D', city: 'Алматы', address: 'ул. Толе би 211', phone: '+77002000222', description: 'ОПТГ, ТРГ, цефалометрия' },
-        { name: 'LabExpress', city: 'Астана', address: 'пр. Мангилик Ел 55', phone: '+77002000333', description: 'Гистология, ПЦР, микробиология' },
-        { name: 'MedLab', city: 'Астана', address: 'ул. Кунаева 32', phone: '+77002000444', description: 'Биохимия, аллергопанели' },
+        { name: 'TomoDent CBCT', city: 'Алматы', address: 'пр. Аль-Фараби 77', phone: '+77002000111' },
+        { name: 'AlphaScan 3D', city: 'Алматы', address: 'ул. Толе би 211', phone: '+77002000222' },
+        { name: 'LabExpress', city: 'Астана', address: 'пр. Мангилик Ел 55', phone: '+77002000333' },
+        { name: 'MedLab', city: 'Астана', address: 'ул. Кунаева 32', phone: '+77002000444' },
       ];
       for (const c of demoCenters) {
         await prisma.diagnosticCenter.create({
@@ -963,9 +967,10 @@ async function main() {
   try {
     const labCount = await prisma.laboratory.count();
     if (labCount === 0) {
+      // Same missing-column issue as the diagnostic centers seed above.
       const demoLabs = [
-        { name: 'DentaLab', city: 'Алматы', address: 'ул. Розыбакиева 247', phone: '+77003000111', description: 'Завиши, коронки, протезы' },
-        { name: 'CeramicPro', city: 'Астана', address: 'пр. Кабанбай батыра 40', phone: '+77003000222', description: 'Керамика, CAD/CAM' },
+        { name: 'DentaLab', city: 'Алматы', address: 'ул. Розыбакиева 247', phone: '+77003000111' },
+        { name: 'CeramicPro', city: 'Астана', address: 'пр. Кабанбай батыра 40', phone: '+77003000222' },
       ];
       for (const l of demoLabs) {
         await prisma.laboratory.create({
