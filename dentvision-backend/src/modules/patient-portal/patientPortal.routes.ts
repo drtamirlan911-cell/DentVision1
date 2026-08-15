@@ -8,6 +8,7 @@ import { decryptPatientFields, encryptField } from '../../lib/phi.js';
 import { resolvePatientForUser } from './patientLink.js';
 import { isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured } from '../../lib/storage.js';
 import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
+import { parseMeta } from '../crm/appointmentMeta.js';
 import type { AuthRequest } from '../../types/index.js';
 
 export const patientPortalRouter = Router();
@@ -67,77 +68,147 @@ patientPortalRouter.get('/appointments', ensurePatient, async (req: AuthRequest,
     const appointments = await (prisma as any).appointment.findMany({
       where: { patientId: pid },
       select: {
-        id: true, date: true, time: true, status: true,
-        toothNumber: true, procedureType: true, reason: true, notes: true,
+        id: true, date: true, time: true, status: true, type: true, notes: true, meta: true,
         doctor: { select: { firstName: true, lastName: true } },
         clinic: { select: { id: true, name: true } },
       },
       orderBy: { date: 'desc' },
       take: 50,
     });
-    return res.json({ ok: true, data: appointments });
+    // toothNumber/procedureType/reason are not columns — they live in the
+    // freeform `meta` JSON (see appointmentMeta.ts, shared with the CRM schedule).
+    const mapped = appointments.map((a: any) => {
+      const meta = parseMeta(a.meta);
+      return {
+        id: a.id, date: a.date, time: a.time, status: a.status, notes: a.notes,
+        doctor: a.doctor, clinic: a.clinic,
+        procedureType: meta.serviceName || a.type || '',
+        toothNumber: meta.toothNumber ?? '',
+        reason: meta.reason || meta.serviceName || a.type || '',
+      };
+    });
+    return res.json({ ok: true, data: mapped });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-// Treatments
+// Treatments — there is no dedicated `Treatment` model; individual procedures
+// live nested inside `TreatmentPlan.items.stages[].items[]` (see crm.routes.ts,
+// where a plan is built and serialized). Flatten every stage line item across
+// all of the patient's plans into the flat list the portal displays.
 patientPortalRouter.get('/treatments', ensurePatient, async (req: AuthRequest, res) => {
   try {
     const pid = resolvePatientId(req);
-    const treatments = await (prisma as any).treatment.findMany({
-      where: { patientId: pid },
-      select: {
-        id: true, toothNumber: true, procedureType: true, cost: true,
-        diagnosis: true, notes: true, createdAt: true,
-        doctor: { select: { firstName: true, lastName: true } },
-        clinic: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+    const patient = await (prisma as any).patient.findUnique({
+      where: { id: pid },
+      select: { clinic: { select: { id: true, name: true } } },
     });
-    return res.json({ ok: true, data: treatments });
+    const plans = await (prisma as any).treatmentPlan.findMany({
+      where: { patientId: pid },
+      select: { id: true, items: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    const treatments: any[] = [];
+    for (const plan of plans) {
+      const items = plan.items || {};
+      const diagnosis = items.diagnosis ?? null;
+      const stages = Array.isArray(items.stages) ? items.stages : [];
+      for (const stage of stages) {
+        const stageItems = Array.isArray(stage.items) ? stage.items : [];
+        for (const item of stageItems) {
+          const teeth = Array.isArray(item.teeth) ? item.teeth : [];
+          const units = teeth.length > 0 ? teeth.length : (Number(item.qty) || 1);
+          treatments.push({
+            id: item.id || `${plan.id}-${treatments.length}`,
+            toothNumber: teeth.join(', '),
+            procedureType: item.serviceName || '',
+            cost: Math.round((Number(item.price) || 0) * units),
+            diagnosis,
+            notes: stage.notes || null,
+            clinic: patient?.clinic || null,
+            createdAt: plan.createdAt,
+          });
+        }
+      }
+    }
+    treatments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return res.json({ ok: true, data: treatments.slice(0, 100) });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-// Treatment plans
+// Treatment plans — `stages`/`teeth` are not columns, they live inside the
+// `items` JSON blob (see crm.routes.ts::serializePlan for the same unpacking).
+// TreatmentPlan also has no direct `clinic` relation; it comes via `patient`.
 patientPortalRouter.get('/treatment-plans', ensurePatient, async (req: AuthRequest, res) => {
   try {
     const pid = resolvePatientId(req);
     const plans = await (prisma as any).treatmentPlan.findMany({
       where: { patientId: pid },
       select: {
-        id: true, title: true, status: true, stages: true, teeth: true,
+        id: true, title: true, status: true, items: true, price: true, notes: true,
         createdAt: true,
-        clinic: { select: { id: true, name: true } },
+        patient: { select: { clinic: { select: { id: true, name: true } } } },
       },
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
-    return res.json({ ok: true, data: plans });
+    const mapped = plans.map((p: any) => {
+      const items = p.items || {};
+      return {
+        id: p.id,
+        title: p.title,
+        status: p.status,
+        diagnosis: items.diagnosis ?? p.notes ?? null,
+        teeth: items.teeth || [],
+        stages: items.stages || [],
+        totalBudget: p.price ?? items.totalBudget ?? null,
+        createdAt: p.createdAt,
+        clinic: p.patient?.clinic || null,
+      };
+    });
+    return res.json({ ok: true, data: mapped });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-// Visits
+// Visits — `Visit` has no `doctor`/`clinic` relations (only a raw `doctorId`
+// and `patientId`) and no `treatmentPlan`/`procedures`/`prescription` columns
+// (freeform notes live in `treatment`, a Json blob nothing currently writes a
+// fixed shape into). Resolve the doctor's name separately and take the clinic
+// from the patient, which is fixed for this whole request.
 patientPortalRouter.get('/visits', ensurePatient, async (req: AuthRequest, res) => {
   try {
     const pid = resolvePatientId(req);
+    const patient = await (prisma as any).patient.findUnique({
+      where: { id: pid },
+      select: { clinic: { select: { id: true, name: true } } },
+    });
     const visits = await (prisma as any).visit.findMany({
       where: { patientId: pid },
       select: {
-        id: true, date: true, diagnosis: true, treatmentPlan: true,
-        procedures: true, prescription: true, notes: true,
-        doctor: { select: { firstName: true, lastName: true } },
-        clinic: { select: { id: true, name: true } },
+        id: true, date: true, diagnosis: true, complaints: true, anamnesis: true,
+        treatment: true, notes: true, doctorId: true,
       },
       orderBy: { date: 'desc' },
       take: 50,
     });
-    return res.json({ ok: true, data: visits });
+    const doctorIds = [...new Set(visits.map((v: any) => v.doctorId).filter(Boolean))];
+    const doctors = doctorIds.length
+      ? await (prisma as any).user.findMany({ where: { id: { in: doctorIds } }, select: { id: true, firstName: true, lastName: true } })
+      : [];
+    const doctorMap = new Map(doctors.map((d: any) => [d.id, d]));
+    const mapped = visits.map((v: any) => ({
+      id: v.id, date: v.date, diagnosis: v.diagnosis, complaints: v.complaints,
+      anamnesis: v.anamnesis, treatment: v.treatment, notes: v.notes,
+      doctor: doctorMap.get(v.doctorId) || null,
+      clinic: patient?.clinic || null,
+    }));
+    return res.json({ ok: true, data: mapped });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -167,22 +238,35 @@ patientPortalRouter.get('/invoices', ensurePatient, async (req: AuthRequest, res
   }
 });
 
-// Documents
+// Documents — the columns are `type`/`name`, not `docType`/`title`; aliased
+// in the response so the existing frontend field names keep working.
 patientPortalRouter.get('/documents', ensurePatient, async (req: AuthRequest, res) => {
   try {
     const pid = resolvePatientId(req);
     const docs = await (prisma as any).document.findMany({
       where: { patientId: pid },
       select: {
-        id: true, docType: true, title: true, url: true,
-        signed: true, signedAt: true, signatureData: true,
+        id: true, type: true, name: true, url: true,
+        signed: true, signedAt: true, signatureData: true, signedByName: true,
         createdAt: true,
         clinic: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
-    return res.json({ ok: true, data: docs });
+    const mapped = docs.map((d: any) => ({
+      id: d.id,
+      docType: d.type,
+      title: d.name || d.type,
+      url: d.url,
+      signed: d.signed,
+      signedAt: d.signedAt,
+      signatureData: d.signatureData,
+      signedByName: d.signedByName,
+      createdAt: d.createdAt,
+      clinic: d.clinic,
+    }));
+    return res.json({ ok: true, data: mapped });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -194,7 +278,7 @@ patientPortalRouter.get('/documents/:id/content', ensurePatient, async (req: Aut
     const pid = resolvePatientId(req);
     const doc = await (prisma as any).document.findFirst({
       where: { id: req.params.id, patientId: pid },
-      select: { url: true, type: true, title: true },
+      select: { url: true, type: true, name: true },
     });
     if (!doc) return res.status(404).json({ ok: false, error: 'Документ не найден' });
 
@@ -206,7 +290,7 @@ patientPortalRouter.get('/documents/:id/content', ensurePatient, async (req: Aut
         ? Buffer.from(base64Match[1], 'base64').toString('utf-8')
         : decodeURIComponent(url.replace(/^data:text\/plain;charset=utf-8,/, ''));
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.title || 'document')}.txt"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.name || 'document')}.txt"`);
       return res.send(content);
     }
     // External URL — redirect
