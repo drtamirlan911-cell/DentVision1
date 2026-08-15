@@ -522,6 +522,35 @@ export async function getPatientSummary(patientId: string): Promise<any> {
   return apiRequest(`/api/patients/${patientId}/summary`);
 }
 
+// ─── Cross-clinic access (patient-consented history sharing) ───
+// The request endpoint always resolves the same way regardless of whether a
+// match was found — do not add UI logic that branches on its response shape
+// beyond success/failure, that would defeat the anti-enumeration design.
+export async function requestCrossClinicAccess(receivingPatientId: string): Promise<{ requested: true }> {
+  return apiRequest('/api/cross-clinic/request', {
+    method: 'POST',
+    body: JSON.stringify({ receivingPatientId }),
+  });
+}
+
+export async function getCrossClinicStatus(receivingPatientId: string): Promise<{ status: 'none' | 'pending' | 'approved' | 'declined' }> {
+  return apiRequest(`/api/cross-clinic/status/${receivingPatientId}`);
+}
+
+export interface CrossClinicHistoryBlock {
+  sourceClinic: { id: string; name: string };
+  approvedAt: string | null;
+  visits: Array<{ id: string; date: string; diagnosis: string | null; complaints: string | null; treatment: unknown; notes: string | null }>;
+  treatmentPlans: Array<{ id: string; title: string; status: string; items: unknown; createdAt: string }>;
+  medicalHistory: unknown;
+  images: Array<{ id: string; type: string; name: string | null; url: string | null; createdAt: string }>;
+  documents: Array<{ id: string; type: string; name: string | null; url: string | null; createdAt: string }>;
+}
+
+export async function getCrossClinicHistory(receivingPatientId: string): Promise<CrossClinicHistoryBlock[]> {
+  return apiRequest(`/api/cross-clinic/history/${receivingPatientId}`);
+}
+
 export async function getAppointments(clinicId: string): Promise<Appointment[]> {
   return collection<Appointment>(await apiRequest('/api/appointments?limit=200'));
 }

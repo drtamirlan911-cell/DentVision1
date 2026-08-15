@@ -1,7 +1,7 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react';
 import { useOutletContext, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun, Microscope } from 'lucide-react';
+import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun, Microscope, Building2, Image as ImageIcon } from 'lucide-react';
 import { gid, today } from '../../utils/constants';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/ds/Toast'
@@ -22,6 +22,7 @@ const CARD_SECTIONS = [
   { id: 'diagnostics', label: 'Диагностика', icon: <Microscope size={16} /> },
   { id: 'allergies', label: 'Аллергии и лекарства', icon: <AlertTriangle size={16} /> },
   { id: 'history', label: 'История болезней', icon: <FileText size={16} /> },
+  { id: 'cross-clinic', label: 'Из других клиник', icon: <Building2 size={16} /> },
   { id: 'emergency', label: 'Экстренный контакт', icon: <Phone size={16} /> },
 ];
 
@@ -70,6 +71,19 @@ export default function MedicalCard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [editing, setEditing] = useState(false);
   const [activeSection, setActiveSection] = useState('personal');
+  const [ccHistory, setCcHistory] = useState<api.CrossClinicHistoryBlock[] | null>(null);
+  const [ccLoading, setCcLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedPatientId || activeSection !== 'cross-clinic') return;
+    let cancelled = false;
+    setCcLoading(true);
+    api.getCrossClinicHistory(selectedPatientId)
+      .then((blocks) => { if (!cancelled) setCcHistory(blocks); })
+      .catch(() => { if (!cancelled) setCcHistory([]); })
+      .finally(() => { if (!cancelled) setCcLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedPatientId, activeSection]);
   const [form, setForm] = useState<MedicalCardForm>({
     bloodType: '', allergies: '', chronicDiseases: '', medications: '',
     pastSurgeries: '', familyHistory: '', emergencyContact: '', emergencyPhone: '',
@@ -367,6 +381,92 @@ export default function MedicalCard() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {activeSection === 'cross-clinic' && (
+                  <div className="space-y-4">
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary">
+                      <Building2 size={16} className="text-sky-400" /> История из других клиник
+                    </h3>
+                    <p className="text-xs text-txt-muted">
+                      Данные ниже — только для чтения и приходят из карты пациента в другой клинике
+                      по его личному согласию. Они не сливаются с картой этой клиники — любые записи
+                      о лечении здесь ведутся отдельно, как обычно.
+                    </p>
+                    {ccLoading ? (
+                      <p className="text-sm text-txt-ghost">Загрузка…</p>
+                    ) : !ccHistory || ccHistory.length === 0 ? (
+                      <EmptyState
+                        icon={<Building2 size={28} />}
+                        title="Нет доступа к данным других клиник"
+                        description="На вкладке пациента нажмите «Запросить историю из других клиник» — доступ откроется после подтверждения пациентом в его личном кабинете."
+                      />
+                    ) : (
+                      <div className="space-y-5">
+                        {ccHistory.map((block, i) => (
+                          <div key={i} className="rounded-lg border border-bdr-subtle bg-surface-raised p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="flex items-center gap-2 text-sm font-bold text-dv-gold">
+                                <Building2 size={14} /> {block.sourceClinic.name}
+                              </span>
+                              <Badge variant="default" size="sm">только чтение</Badge>
+                            </div>
+
+                            {block.visits.length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-xs font-semibold text-txt-muted mb-1">Визиты ({block.visits.length})</p>
+                                <div className="space-y-2">
+                                  {block.visits.map((v) => (
+                                    <div key={v.id} className="rounded-lg bg-white/5 border border-bdr-subtle p-2.5">
+                                      <div className="flex justify-between text-xs text-txt-muted">
+                                        <span>{new Date(v.date).toLocaleDateString('ru-RU')}</span>
+                                      </div>
+                                      <p className="text-sm text-txt-primary mt-1">{v.diagnosis || 'Без диагноза'}</p>
+                                      {v.complaints && <p className="text-xs text-txt-muted mt-0.5">Жалобы: {v.complaints}</p>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {block.treatmentPlans.length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-xs font-semibold text-txt-muted mb-1">Планы лечения ({block.treatmentPlans.length})</p>
+                                <div className="space-y-2">
+                                  {block.treatmentPlans.map((p) => (
+                                    <div key={p.id} className="rounded-lg bg-white/5 border border-bdr-subtle p-2.5 flex justify-between items-center">
+                                      <span className="text-sm text-txt-primary">{p.title}</span>
+                                      <Badge variant="default" size="sm">{p.status}</Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {(block.images.length > 0 || block.documents.length > 0) && (
+                              <div>
+                                <p className="text-xs font-semibold text-txt-muted mb-1">Снимки и документы ({block.images.length + block.documents.length})</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {[...block.images, ...block.documents].map((f) => (
+                                    f.url ? (
+                                      <a key={f.id} href={f.url} target="_blank" rel="noreferrer"
+                                        className="flex items-center gap-1.5 text-xs text-dv-gold hover:underline rounded-lg bg-white/5 border border-bdr-subtle px-2.5 py-1.5">
+                                        <ImageIcon size={12} /> {f.name || f.type}
+                                      </a>
+                                    ) : (
+                                      <span key={f.id} className="flex items-center gap-1.5 text-xs text-txt-ghost rounded-lg bg-white/5 border border-bdr-subtle px-2.5 py-1.5">
+                                        <ImageIcon size={12} /> {f.name || f.type} (недоступно)
+                                      </span>
+                                    )
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
