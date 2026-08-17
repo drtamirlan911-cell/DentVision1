@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
@@ -258,7 +257,7 @@ patientPortalRouter.post('/link', async (req: AuthRequest, res) => {
         firstName: user.firstName || user.email?.split('@')[0] || 'Пациент',
         lastName: user.lastName || '',
         email: user.email || null,
-        phone: phoneHint || user.phone || null,
+        phone: phoneHint || null,
       },
       select: { id: true },
     });

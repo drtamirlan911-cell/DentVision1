@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Reminder cron — scan upcoming appointments and send WhatsApp/SMS.
  * Spec §05: server cron (deep-link UI remains as manual fallback).
@@ -66,7 +65,9 @@ export async function runReminderCron(opts: {
         select: { id: true, firstName: true, lastName: true },
       }).catch((err: any) => (String(err?.code) === 'P2021' ? [] : Promise.reject(err)))
     : [];
-  const doctorMap = new Map(doctors.map((d) => [d.id, `${d.firstName} ${d.lastName}`.trim()]));
+  const doctorMap = new Map<string, string>(
+    doctors.map((d: { id: string; firstName: string; lastName: string }) => [d.id, `${d.firstName} ${d.lastName}`.trim()]),
+  );
 
   // Batch-fetch already-sent reminder logs once instead of per-appointment.
   const reminderKeys = appointments.map((a) => `appt_${a.id}`);
