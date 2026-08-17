@@ -182,6 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         label: t('nav.section_admin'),
         adminOnly: true,
         items: [
+          { id: 'patient-inbox', label: t('nav.patient_inbox'), path: '/crm/patient-inbox' },
           { id: 'clinic-settings', label: t('nav.clinic_settings'), path: '/crm/clinic-settings' },
           { id: 'billing', label: t('nav.billing'), path: '/crm/billing' },
           { id: 'integrations', label: t('nav.integrations'), path: '/crm/integrations/messaging' },

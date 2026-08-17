@@ -12,6 +12,7 @@ export const PATH_PAGE_ID: Record<string, string> = {
   '/crm/cashier': 'cashier',
   '/crm/clinic-settings': 'clinic-settings',
   '/crm/billing': 'billing',
+  '/crm/patient-inbox': 'patient-inbox',
   '/crm/visits': 'visits',
   '/crm/dental-chart': 'dental-chart',
   '/crm/treatment-plans': 'treatment-plans',
@@ -63,6 +64,7 @@ export const CRM_NAV_PAGE_IDS = [
   'reminders',
   'promotions',
   'icd10',
+  'patient-inbox',
 ] as const
 
 export function pageIdFromPath(pathname: string): string | null {

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Sparkles, Send, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Sparkles, Send, ShieldCheck, AlertCircle, Clock, UserRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
+import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { useEventStream } from '@/hooks/useEventStream';
 import * as api from '@/utils/api';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +19,12 @@ import { cn } from '@/lib/utils';
  * spent, or if the patient simply declines, this panel says so plainly and the
  * sections keep working. A medical record should not be reachable only through
  * a language model.
+ *
+ * Two channels share this one box. Ordinarily it is the assistant, reading the
+ * record and answering. The moment `askClinicStaff` fires — the model decided
+ * it could not answer, or triage came back urgent — this switches to the live
+ * thread with clinic staff, and stays there until the thread resolves. The
+ * patient never picks a channel; the panel just becomes whichever one is live.
  */
 
 /** The questions worth suggesting are the ones a patient actually opens the portal to ask. */
@@ -27,8 +35,7 @@ const OPENERS = [
   'Есть ли документы на подпись?',
 ];
 
-function Bubble({ role, content }: { role: 'user' | 'assistant'; content: string }) {
-  const mine = role === 'user';
+function Bubble({ mine, content }: { mine: boolean; content: string }) {
   return (
     <div className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
       <div
@@ -64,6 +71,27 @@ export function Assistant() {
     enabled: Boolean(statusQuery.data?.consented),
   });
 
+  // Checked whenever the assistant is reachable at all, consent or not — a
+  // thread already escalated must keep working even if consent later lapses.
+  const conversationQuery = useQuery({
+    queryKey: ['pp-conversation'],
+    queryFn: () => api.getCurrentConversation(),
+    enabled: Boolean(statusQuery.data?.linked),
+  });
+
+  const conversation = conversationQuery.data;
+  const isLive = Boolean(conversation && conversation.status !== 'RESOLVED');
+
+  // Only subscribed once a thread is known to exist — before that there is
+  // nothing to stream, and opening a connection that 404s in a loop wastes a
+  // socket for no reason.
+  const streamUrl = isLive ? api.conversationStreamUrl() : null;
+  useEventStream(streamUrl, (event: any) => {
+    if (event?.type === 'message') {
+      queryClient.invalidateQueries({ queryKey: ['pp-conversation'] });
+    }
+  });
+
   const consent = useMutation({
     mutationFn: () => api.acceptPatientAiConsent(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pp-ai-status'] }),
@@ -72,25 +100,41 @@ export function Assistant() {
 
   const send = useMutation({
     mutationFn: (text: string) => api.sendPatientAiMessage(text),
-    onSuccess: () => {
+    onSuccess: (data) => {
       setError('');
       queryClient.invalidateQueries({ queryKey: ['pp-ai-history'] });
       queryClient.invalidateQueries({ queryKey: ['pp-ai-status'] });
+      // The assistant just handed off — switch to the live thread instead of
+      // waiting for the next poll to notice it exists.
+      if (data.toolsUsed?.includes('askClinicStaff')) {
+        queryClient.invalidateQueries({ queryKey: ['pp-conversation'] });
+      }
+    },
+    onError: (e: any) => setError(e?.message || 'Не удалось отправить сообщение'),
+  });
+
+  const sendLive = useMutation({
+    mutationFn: (text: string) => api.sendConversationMessage(text),
+    onSuccess: () => {
+      setError('');
+      queryClient.invalidateQueries({ queryKey: ['pp-conversation'] });
     },
     onError: (e: any) => setError(e?.message || 'Не удалось отправить сообщение'),
   });
 
   const messages = historyQuery.data || [];
+  const busy = isLive ? sendLive.isPending : send.isPending;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
-  }, [messages.length, send.isPending, reduceMotion]);
+  }, [messages.length, conversation?.messages.length, busy, reduceMotion]);
 
   function submit(text: string) {
     const value = text.trim();
-    if (!value || send.isPending) return;
+    if (!value || busy) return;
     setDraft('');
-    send.mutate(value);
+    if (isLive) sendLive.mutate(value);
+    else send.mutate(value);
   }
 
   if (statusQuery.isLoading) {
@@ -112,7 +156,9 @@ export function Assistant() {
     );
   }
 
-  if (statusQuery.data && !statusQuery.data.consented) {
+  // A live thread already exists — this is a human conversation now, so it
+  // stays reachable even if AI consent was never given or has lapsed.
+  if (!isLive && statusQuery.data && !statusQuery.data.consented) {
     return (
       <Card padding="xl">
         <div className="flex items-start gap-3">
@@ -144,12 +190,40 @@ export function Assistant() {
     );
   }
 
-  const outOfQuota = (statusQuery.data?.remaining ?? 1) <= 0;
+  const outOfQuota = !isLive && (statusQuery.data?.remaining ?? 1) <= 0;
 
   return (
     <div className="space-y-4">
+      {isLive && (
+        <div
+          className={cn(
+            'flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs',
+            conversation!.status === 'WAITING'
+              ? 'border-warning/25 bg-warning/10 text-warning'
+              : 'border-success/25 bg-success/10 text-success'
+          )}
+        >
+          {conversation!.status === 'WAITING' ? <Clock size={14} /> : <UserRound size={14} />}
+          <span>
+            {conversation!.status === 'WAITING'
+              ? 'Вопрос передан администратору клиники. Ответ придёт сюда же — можно писать дальше.'
+              : 'С вами общается сотрудник клиники.'}
+          </span>
+          <Badge variant="outline" size="sm" className="ml-auto shrink-0">
+            {conversation!.status === 'WAITING' ? 'ждём ответа' : 'на связи'}
+          </Badge>
+        </div>
+      )}
+
       <Card padding="xl" className="min-h-[320px]">
-        {historyQuery.isLoading ? (
+        {isLive ? (
+          <div className="space-y-3">
+            {conversation!.messages.map((m) => (
+              <Bubble key={m.id} mine={m.authorType === 'PATIENT'} content={m.body} />
+            ))}
+            <div ref={endRef} />
+          </div>
+        ) : historyQuery.isLoading ? (
           <div className="space-y-3">
             <Skeleton variant="card" height={48} />
             <Skeleton variant="card" height={48} />
@@ -177,9 +251,9 @@ export function Assistant() {
         ) : (
           <div className="space-y-3">
             {messages.map((m) => (
-              <Bubble key={m.id} role={m.role} content={m.content} />
+              <Bubble key={m.id} mine={m.role === 'user'} content={m.content} />
             ))}
-            {send.isPending && (
+            {busy && (
               <motion.div
                 initial={reduceMotion ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -212,9 +286,15 @@ export function Assistant() {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          disabled={outOfQuota || send.isPending}
-          placeholder={outOfQuota ? 'Дневной лимит вопросов исчерпан' : 'Спросите о приёме, лечении или счёте…'}
-          aria-label="Сообщение ассистенту"
+          disabled={outOfQuota || busy}
+          placeholder={
+            outOfQuota
+              ? 'Дневной лимит вопросов исчерпан'
+              : isLive
+                ? 'Написать администратору…'
+                : 'Спросите о приёме, лечении или счёте…'
+          }
+          aria-label="Сообщение"
           className="min-h-11 w-full rounded-xl border border-bdr-subtle bg-surface-raised px-4 text-sm text-txt-primary placeholder:text-txt-ghost focus:border-dv-gold/40 focus:outline-none focus:ring-2 focus:ring-dv-gold/20 disabled:opacity-60"
         />
         <Button
@@ -222,7 +302,7 @@ export function Assistant() {
           variant="primary"
           className="min-h-11 shrink-0"
           disabled={outOfQuota || !draft.trim()}
-          loading={send.isPending}
+          loading={busy}
           icon={<Send size={15} />}
         >
           <span className="sr-only">{t('common.send', 'Отправить')}</span>
@@ -230,8 +310,10 @@ export function Assistant() {
       </form>
 
       <p className="text-2xs text-txt-ghost">
-        Ассистент объясняет то, что записано в вашей карте, и не заменяет консультацию врача.
-        {typeof statusQuery.data?.remaining === 'number' && (
+        {isLive
+          ? 'Вы говорите с сотрудником клиники, а не с ассистентом.'
+          : 'Ассистент объясняет то, что записано в вашей карте, и не заменяет консультацию врача.'}
+        {!isLive && typeof statusQuery.data?.remaining === 'number' && (
           <> Осталось вопросов сегодня: {statusQuery.data.remaining}.</>
         )}
       </p>

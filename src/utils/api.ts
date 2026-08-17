@@ -2813,3 +2813,93 @@ export async function sendPatientAiMessage(text: string): Promise<PatientAiReply
   });
   return res.data ?? res;
 }
+
+// ─────────────── Patient conversation (live human thread) ───────────────
+
+export type ConversationStatus = 'WAITING' | 'LIVE' | 'RESOLVED';
+
+export interface ConversationMessage {
+  id: string;
+  authorType: 'PATIENT' | 'STAFF' | 'SYSTEM';
+  body: string;
+  createdAt: string;
+}
+
+export interface PatientConversationView {
+  id: string;
+  status: ConversationStatus;
+  createdAt: string;
+  messages: ConversationMessage[];
+}
+
+export async function getCurrentConversation(): Promise<PatientConversationView | null> {
+  const res = await apiRequest('/api/patient-portal/conversation');
+  return res.data ?? res ?? null;
+}
+
+export async function sendConversationMessage(text: string): Promise<ConversationMessage> {
+  const res = await apiRequest('/api/patient-portal/conversation/message', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+  return res.data ?? res;
+}
+
+/** `EventSource` cannot set an Authorization header, so the token travels in the query string. */
+export function conversationStreamUrl(): string {
+  const token = getAccessToken() || '';
+  return `${API_URL}/api/patient-portal/conversation/stream?token=${encodeURIComponent(token)}`;
+}
+
+// ─────────────── Patient inbox (staff side) ───────────────
+
+export interface InboxConversationSummary {
+  id: string;
+  clinicId: string;
+  status: ConversationStatus;
+  escalationReason: string | null;
+  lastPatientMessageAt: string | null;
+  lastStaffMessageAt: string | null;
+  createdAt: string;
+  patientUser: { id: string; firstName: string; lastName: string; phone: string | null };
+  assignedTo: { id: string; firstName: string; lastName: string } | null;
+}
+
+export interface InboxThread {
+  conversation: InboxConversationSummary;
+  messages: ConversationMessage[];
+}
+
+export async function getInboxConversations(status?: ConversationStatus): Promise<InboxConversationSummary[]> {
+  const qs = status ? `?status=${status}` : '';
+  const res = await apiRequest(`/api/patient-inbox/conversations${qs}`);
+  return res.data ?? res ?? [];
+}
+
+export async function getInboxThread(id: string): Promise<InboxThread> {
+  const res = await apiRequest(`/api/patient-inbox/conversations/${id}`);
+  return res.data ?? res;
+}
+
+export async function claimInboxConversation(id: string): Promise<InboxConversationSummary> {
+  const res = await apiRequest(`/api/patient-inbox/conversations/${id}/claim`, { method: 'POST' });
+  return res.data ?? res;
+}
+
+export async function replyToInboxConversation(id: string, text: string): Promise<ConversationMessage> {
+  const res = await apiRequest(`/api/patient-inbox/conversations/${id}/reply`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+  return res.data ?? res;
+}
+
+export async function resolveInboxConversation(id: string): Promise<InboxConversationSummary> {
+  const res = await apiRequest(`/api/patient-inbox/conversations/${id}/resolve`, { method: 'POST' });
+  return res.data ?? res;
+}
+
+export function inboxStreamUrl(clinicId: string): string {
+  const token = getAccessToken() || '';
+  return `${API_URL}/api/patient-inbox/stream?token=${encodeURIComponent(token)}&clinicId=${encodeURIComponent(clinicId)}`;
+}
