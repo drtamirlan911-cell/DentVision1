@@ -201,7 +201,11 @@ export default function Shop() {
           {product.brand && (
             <p className="text-[10px] font-medium uppercase tracking-wider truncate text-txt-muted">{product.brand}</p>
           )}
-          <h3 className="text-sm font-semibold leading-tight line-clamp-2 min-h-[2.5rem] transition-colors text-dv-gold-on"
+          {/* `gold-on` is the ink for a SOLID gold fill (#0B1220 in dark). On the
+              card's dark surface it rendered at 1.08:1 — the product name was
+              effectively invisible. The card is a `group`, and `transition-colors`
+              was already here, so the intent was a hover accent, not a base colour. */}
+          <h3 className="text-sm font-semibold leading-tight line-clamp-2 min-h-[2.5rem] transition-colors text-txt-primary group-hover:text-dv-gold"
             onClick={(e) => { e.stopPropagation(); navigate(`/shop/${product.id}`); }}>
             {product.name}
           </h3>
