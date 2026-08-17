@@ -4,14 +4,21 @@ import { cn } from '@/lib/utils'
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   hover?: boolean
   active?: boolean
-  padding?: 'none' | 'sm' | 'md' | 'lg'
+  padding?: 'none' | 'sm' | 'md' | 'lg' | 'xl'
 }
 
+/**
+ * `xl` exists for the few surfaces a screen is built around — the card a
+ * patient reads their own history in, not the tiles beside it. Generous
+ * padding is most of what separates a premium surface from a dense one, but
+ * it only reads that way when it is rare: if every card is `xl`, none is.
+ */
 const paddingMap = {
   none: '',
   sm: 'p-3',
   md: 'p-4',
   lg: 'p-6',
+  xl: 'p-6 sm:p-8',
 }
 
 const Card = React.forwardRef<HTMLDivElement, CardProps>(

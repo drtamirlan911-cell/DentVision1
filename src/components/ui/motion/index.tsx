@@ -1,5 +1,5 @@
 import React from 'react'
-import { motion, type HTMLMotionProps, type Variants } from 'framer-motion'
+import { motion, useReducedMotion, type HTMLMotionProps, type Variants } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 interface PageTransitionProps extends HTMLMotionProps<'div'> {
@@ -14,25 +14,22 @@ export function PageTransition({
   children,
   ...props
 }: PageTransitionProps) {
+  const reduceMotion = useReducedMotion()
+
+  // One layer, not two. This wrapped a second motion.div that faded on its own
+  // timing, so every page arrived through two overlapping fades — the reason
+  // navigation felt soft rather than crisp. That inner layer also keyed off
+  // `props.key`, which React never puts in props, so it was a constant.
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+      exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+      transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
       className={cn('w-full h-full', className)}
       {...props}
     >
-      <motion.div
-        key={props.key || 'page'}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
-        className="h-full"
-      >
-        {children}
-      </motion.div>
+      {children}
     </motion.div>
   )
 }
@@ -45,20 +42,24 @@ interface StaggerContainerProps extends HTMLMotionProps<'div'> {
 }
 
 export function StaggerContainer({
-  staggerChildren = 0.06,
+  staggerChildren = 0.04,
   delayChildren = 0,
   className,
   children,
   ...props
 }: StaggerContainerProps) {
+  const reduceMotion = useReducedMotion()
+
   const containerVariants = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
-      transition: {
-        staggerChildren,
-        delayChildren,
-      },
+      transition: reduceMotion
+        ? { duration: 0 }
+        : {
+            staggerChildren,
+            delayChildren,
+          },
     },
   } as Variants
 
@@ -80,18 +81,28 @@ interface StaggerItemProps extends HTMLMotionProps<'div'> {
   children: React.ReactNode
 }
 
+/**
+ * Deliberately undramatic: an 8px rise and a fade, on an ease-out curve.
+ *
+ * This used to travel 16px and scale from 0.95 on a stiff spring, so a list
+ * arrived by springing and overshooting — the single loudest thing separating
+ * these screens from a considered product. Content that is simply *there*,
+ * settling rather than bouncing, is what reads as expensive. Anything a user
+ * notices as an animation on a clinical record is already too much.
+ */
 export function StaggerItem({
   className,
   children,
   ...props
 }: StaggerItemProps) {
+  const reduceMotion = useReducedMotion()
+
   const itemVariants = {
-    hidden: { opacity: 0, y: 16, scale: 0.95 },
+    hidden: reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 },
     show: {
       opacity: 1,
       y: 0,
-      scale: 1,
-      transition: { type: 'spring', stiffness: 300, damping: 25 },
+      transition: reduceMotion ? { duration: 0 } : { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
     },
   } as Variants
 

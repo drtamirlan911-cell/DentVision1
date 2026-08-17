@@ -1331,7 +1331,8 @@
       "visits": "Visits",
       "payments": "Payments",
       "documents": "Documents",
-      "diagnostics": "Diagnostics"
+      "diagnostics": "Diagnostics",
+      "access": "Clinic access"
     },
     "loading": "Loading...",
     "error": "Failed to load data",
