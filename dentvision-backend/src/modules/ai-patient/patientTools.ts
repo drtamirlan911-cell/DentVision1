@@ -305,6 +305,87 @@ PATIENT_TOOLS.askClinicStaff = {
   },
 };
 
+/**
+ * Show what times are actually free — never let the model invent one.
+ *
+ * The date has to be a real calendar date the patient (or the model on their
+ * behalf, from "завтра"/"в пятницу") resolved to YYYY-MM-DD; this tool does
+ * not parse relative dates itself, so a model that has not resolved "завтра"
+ * yet will pass something `requestAppointment` rejects rather than something
+ * silently wrong.
+ */
+PATIENT_TOOLS.getMyAvailableSlots = {
+  name: 'getMyAvailableSlots',
+  description:
+    'Свободное время для записи в клинике пациента на конкретную дату. Вызывай перед requestAppointment — записывать можно только на слот из этого списка. ' +
+    'Дату переводи в формат YYYY-MM-DD сам (если пациент сказал «завтра» или «в пятницу» — посчитай дату).',
+  parameters: {
+    type: 'object',
+    properties: {
+      date: { type: 'string', description: 'Дата в формате YYYY-MM-DD' },
+      doctorId: { type: 'string', description: 'id конкретного врача, если пациент его назвал' },
+    },
+    required: ['date'],
+  },
+  async execute(args, ctx) {
+    if (!ctx.clinicId) throw new Error('NO_CLINIC');
+    const date = String(args.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('INVALID_DATE');
+    return portalSvc.getAvailableSlots(ctx.clinicId, date, (args.doctorId as string) || null);
+  },
+};
+
+/**
+ * Files a request, not a confirmed appointment.
+ *
+ * A slot from `getMyAvailableSlots` can be taken by someone else in the
+ * seconds before this call, so the service re-checks it at write time — this
+ * tool never trusts its own earlier read. Landing as `Booking(status:
+ * 'pending')`, exactly what the public booking widget produces, means a human
+ * at the clinic confirms it before it becomes a commitment on the calendar;
+ * the assistant proposes a time, it does not schedule one.
+ */
+PATIENT_TOOLS.requestAppointment = {
+  name: 'requestAppointment',
+  description:
+    'Отправить заявку на запись на выбранное время (только из getMyAvailableSlots — не предлагай время, которого там нет). ' +
+    'Клиника подтвердит заявку сама, это не мгновенная запись. Скажи об этом пациенту прямо.',
+  parameters: {
+    type: 'object',
+    properties: {
+      date: { type: 'string', description: 'Дата в формате YYYY-MM-DD, как в getMyAvailableSlots' },
+      time: { type: 'string', description: 'Время из списка getMyAvailableSlots, например 14:30' },
+      doctorId: { type: 'string', description: 'id врача, если выбирали конкретного' },
+      serviceName: { type: 'string', description: 'Что за приём, если пациент сказал (например «чистка», «боль в зубе»)' },
+    },
+    required: ['date', 'time'],
+  },
+  async execute(args, ctx) {
+    if (!ctx.clinicId) throw new Error('NO_CLINIC');
+    const date = String(args.date || '');
+    const time = String(args.time || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('INVALID_DATE');
+    if (!time) throw new Error('TIME_REQUIRED');
+
+    await logAIAction(
+      ctx.userId,
+      'ai-patient.requestAppointment',
+      { date, time, doctorId: args.doctorId, serviceName: args.serviceName },
+      undefined,
+      ctx.patientId,
+    ).catch(() => undefined);
+
+    return portalSvc.requestAppointment({
+      patientId: ctx.patientId,
+      clinicId: ctx.clinicId,
+      date,
+      time,
+      doctorId: (args.doctorId as string) || null,
+      serviceName: (args.serviceName as string) || null,
+    });
+  },
+};
+
 export function listPatientToolNames(): string[] {
   return Object.keys(PATIENT_TOOLS);
 }

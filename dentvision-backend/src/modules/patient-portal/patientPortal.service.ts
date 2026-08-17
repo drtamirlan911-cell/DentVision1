@@ -13,6 +13,7 @@
  */
 
 import prisma from '../../lib/prisma.js';
+import { uid } from '../../lib/helpers.js';
 import { parseMeta } from '../crm/appointmentMeta.js';
 
 export async function getAppointments(patientId: string) {
@@ -254,4 +255,161 @@ export async function cancelAppointment(patientId: string, appointmentId: string
 
   await (prisma as any).appointment.update({ where: { id: appointmentId }, data });
   return { cancelled: true, date: appt.date, time: appt.time };
+}
+
+// ─────────────── Booking ───────────────
+//
+// A request, not an instant appointment — the same shape the public booking
+// widget already uses (`Booking`, `status: 'pending'`). Staff confirm it into
+// an `Appointment`. Reusing that model rather than writing straight to
+// `Appointment` means the assistant cannot place a patient on the calendar
+// without a human ever looking at it, and it means slot listing, conflict
+// checking and clinic hours all come from the one place already exercised by
+// real traffic (`public.routes.ts`) instead of a second implementation that
+// could drift from it.
+
+import { mergeClinicSettings } from '../clinics/clinicSettings.js';
+import { buildTimeSlots, isWorkingDay, filterAvailableSlots } from '../public/bookingSlots.js';
+
+export interface AvailableSlotsResult {
+  date: string;
+  workingDay: boolean;
+  slots: string[];
+}
+
+export async function getAvailableSlots(
+  clinicId: string,
+  date: string,
+  doctorId?: string | null,
+): Promise<AvailableSlotsResult> {
+  const clinic = await (prisma as any).clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
+  if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
+
+  const settings = mergeClinicSettings(clinic.settings);
+  const day = new Date(`${date}T12:00:00.000Z`);
+  if (!isWorkingDay(day, settings)) {
+    return { date, workingDay: false, slots: [] };
+  }
+
+  const dayStart = new Date(`${date}T00:00:00.000Z`);
+  const dayEnd = new Date(`${date}T23:59:59.999Z`);
+  const doctorCount = doctorId
+    ? 1
+    : (await (prisma as any).clinicMember.count({ where: { clinicId, role: { in: ['DOCTOR', 'OWNER'] } } })) || 1;
+
+  const [appointments, bookings] = await Promise.all([
+    (prisma as any).appointment.findMany({
+      where: { clinicId, date: { gte: dayStart, lte: dayEnd }, status: { notIn: ['cancelled', 'no_show'] }, ...(doctorId ? { doctorId } : {}) },
+      select: { time: true, doctorId: true },
+    }),
+    (prisma as any).booking.findMany({
+      where: { clinicId, date: dayStart, status: { in: ['pending', 'confirmed'] }, ...(doctorId ? { doctorId } : {}) },
+      select: { time: true, doctorId: true },
+    }),
+  ]);
+
+  const occupied = [
+    ...appointments.filter((a: any) => a.time).map((a: any) => ({ time: a.time, doctorId: a.doctorId })),
+    ...bookings.map((b: any) => ({ time: b.time, doctorId: b.doctorId })),
+  ];
+
+  const allSlots = buildTimeSlots(settings);
+  return { date, workingDay: true, slots: filterAvailableSlots(allSlots, occupied, doctorId ?? null, doctorCount) };
+}
+
+export interface RequestAppointmentInput {
+  patientId: string;
+  clinicId: string;
+  date: string;
+  time: string;
+  doctorId?: string | null;
+  serviceName?: string | null;
+  notes?: string | null;
+}
+
+/**
+ * Files a booking request, re-checking the slot at write time.
+ *
+ * The list the caller saw came from `getAvailableSlots` moments earlier;
+ * between that read and this write somebody else could have taken it. The
+ * conflict queries here are the write-side check, same as the public form —
+ * a slot is only ever trusted at the instant it is claimed.
+ */
+export async function requestAppointment(input: RequestAppointmentInput) {
+  const [patient, clinic] = await Promise.all([
+    (prisma as any).patient.findUnique({
+      where: { id: input.patientId },
+      select: { firstName: true, lastName: true, phone: true, email: true },
+    }),
+    (prisma as any).clinic.findUnique({ where: { id: input.clinicId }, select: { settings: true } }),
+  ]);
+  if (!patient) throw new PortalActionError('Карта пациента не найдена', 'NOT_FOUND');
+  if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
+
+  const settings = mergeClinicSettings(clinic.settings);
+  if (settings.onlineBookingEnabled === false) {
+    throw new PortalActionError('Онлайн-запись в этой клинике сейчас недоступна', 'BAD_STATUS');
+  }
+
+  const day = new Date(`${input.date}T12:00:00.000Z`);
+  if (!isWorkingDay(day, settings)) {
+    throw new PortalActionError('Клиника не работает в выбранный день', 'BAD_STATUS');
+  }
+  if (!buildTimeSlots(settings).includes(input.time)) {
+    throw new PortalActionError('Такого времени нет в расписании клиники', 'BAD_STATUS');
+  }
+
+  const dayStart = new Date(`${input.date}T00:00:00.000Z`);
+  const dayEnd = new Date(`${input.date}T23:59:59.999Z`);
+
+  const [conflictAppt, conflictBooking] = await Promise.all([
+    (prisma as any).appointment.findFirst({
+      where: {
+        clinicId: input.clinicId, date: { gte: dayStart, lte: dayEnd }, time: input.time,
+        status: { notIn: ['cancelled', 'no_show'] }, ...(input.doctorId ? { doctorId: input.doctorId } : {}),
+      },
+    }),
+    (prisma as any).booking.findFirst({
+      where: {
+        clinicId: input.clinicId, date: dayStart, time: input.time,
+        status: { in: ['pending', 'confirmed'] }, ...(input.doctorId ? { doctorId: input.doctorId } : {}),
+      },
+    }),
+  ]);
+  if (conflictAppt || conflictBooking) {
+    throw new PortalActionError('Это время уже занято. Выберите другое.', 'BAD_STATUS');
+  }
+
+  let doctorName: string | null = null;
+  if (input.doctorId) {
+    const member = await (prisma as any).clinicMember.findFirst({
+      where: { clinicId: input.clinicId, userId: input.doctorId },
+      include: { user: { select: { firstName: true, lastName: true } } },
+    });
+    if (!member) throw new PortalActionError('Врач не найден', 'NOT_FOUND');
+    doctorName = [member.user.firstName, member.user.lastName].filter(Boolean).join(' ').trim();
+  }
+
+  const patientName = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim() || 'Пациент';
+  const row = await (prisma as any).booking.create({
+    data: {
+      id: uid(),
+      clinicId: input.clinicId,
+      patientName,
+      phone: patient.phone || '',
+      email: patient.email || null,
+      doctorId: input.doctorId || null,
+      doctorName,
+      serviceName: input.serviceName || null,
+      date: dayStart,
+      time: input.time,
+      notes: input.notes || null,
+      status: 'pending',
+      // Distinguishes a request the assistant filed from one a patient typed
+      // into the public widget themselves — staff-facing, not shown to the patient.
+      source: 'ai-assistant',
+    },
+  });
+
+  return { id: row.id, date: input.date, time: row.time, doctorName, status: row.status };
 }
