@@ -272,29 +272,12 @@ patientPortalRouter.post('/link', async (req: AuthRequest, res) => {
 // ─────────────── Cancel appointment ───────────────
 patientPortalRouter.post('/appointments/:id/cancel', ensurePatient, async (req: AuthRequest, res) => {
   try {
-    const pid = resolvePatientId(req);
-    const appointmentId = req.params.id;
-    const appt = await (prisma as any).appointment.findFirst({
-      where: { id: appointmentId, patientId: pid },
-    });
-    if (!appt) return res.status(404).json({ ok: false, error: 'Запись не найдена' });
-    if (appt.status === 'cancelled' || appt.status === 'completed' || appt.status === 'no_show') {
-      return res.status(400).json({ ok: false, error: 'Нельзя отменить запись в этом статусе' });
-    }
-    if (appt.status === 'confirmed') {
-      // Allow cancellation but mark as patient-requested
-      await (prisma as any).appointment.update({
-        where: { id: appointmentId },
-        data: { status: 'cancelled', notes: `${appt.notes || ''}\n[Отмена пациентом через портал]`.trim() },
-      });
-    } else {
-      await (prisma as any).appointment.update({
-        where: { id: appointmentId },
-        data: { status: 'cancelled' },
-      });
-    }
-    return res.json({ ok: true, data: { cancelled: true } });
+    const result = await portalSvc.cancelAppointment(resolvePatientId(req), req.params.id);
+    return res.json({ ok: true, data: result });
   } catch (e: any) {
+    if (e instanceof portalSvc.PortalActionError) {
+      return res.status(e.code === 'NOT_FOUND' ? 404 : 400).json({ ok: false, error: e.message });
+    }
     return res.status(500).json({ ok: false, error: e.message });
   }
 });

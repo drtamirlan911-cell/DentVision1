@@ -19,6 +19,7 @@
  */
 
 import * as portalSvc from '../patient-portal/patientPortal.service.js';
+import { logAIAction } from '../compliance/compliance.service.js';
 import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
 
 export interface PatientToolContext {
@@ -141,6 +142,54 @@ export const PATIENT_TOOLS: Record<string, PatientTool> = {
       ]);
       return { requests, grants, log };
     },
+  },
+};
+
+/**
+ * Cancelling is the one action the assistant performs on its own.
+ *
+ * It qualifies as routine because it is reversible in the only way that
+ * matters — the patient can book again — and because the alternative is worse:
+ * a patient who cannot make it and cannot reach anyone simply does not show
+ * up, which costs the clinic the slot anyway and costs the patient a mark on
+ * their record. Booking and rescheduling are *not* here: those place a
+ * commitment on a specific doctor at a specific hour, and doing that from an
+ * inference needs the clinic's real availability, which is the next step.
+ *
+ * The safety here is not a confirmation prompt, it is the query shape: the
+ * service filters by `patientId` as well as appointment id, so an id belonging
+ * to somebody else matches nothing. Every call is written to `AIActionLog`
+ * whether or not it succeeds, so a cancellation the patient disputes has a
+ * record naming the assistant as the actor.
+ */
+PATIENT_TOOLS.cancelMyAppointment = {
+  name: 'cancelMyAppointment',
+  description:
+    'Отменить приём пациента по его id (id берётся из getMyAppointments — сначала вызови её). ' +
+    'Отменяй только когда пациент прямо об этом попросил. Уже прошедший, завершённый или ранее отменённый приём отменить нельзя. ' +
+    'После отмены скажи пациенту, какой именно приём отменён — дату и время.',
+  parameters: {
+    type: 'object',
+    properties: {
+      appointmentId: { type: 'string', description: 'id приёма из getMyAppointments' },
+    },
+    required: ['appointmentId'],
+  },
+  async execute(args, ctx) {
+    const appointmentId = String(args.appointmentId || '').trim();
+    if (!appointmentId) throw new Error('APPOINTMENT_ID_REQUIRED');
+
+    // Audited before the attempt, so a failed or disputed cancellation still
+    // leaves a trace of what was asked for.
+    await logAIAction(
+      ctx.userId,
+      'ai-patient.cancelMyAppointment',
+      { appointmentId },
+      undefined,
+      ctx.patientId,
+    ).catch(() => undefined);
+
+    return portalSvc.cancelAppointment(ctx.patientId, appointmentId);
   },
 };
 
