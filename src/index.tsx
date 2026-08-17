@@ -73,6 +73,7 @@ const DentalChart = lazyWithRetry(() => import('./pages/crm/DentalChart'));
 const TreatmentPlans = lazyWithRetry(() => import('./pages/crm/TreatmentPlans'));
 const ClinicSettings = lazyWithRetry(() => import('./pages/crm/ClinicSettings'));
 const ClinicBilling = lazyWithRetry(() => import('./pages/crm/ClinicBilling'));
+const PatientInbox = lazyWithRetry(() => import('./pages/crm/PatientInbox'));
 const IntegrationsMessaging = lazyWithRetry(() => import('./pages/clinic/IntegrationMessaging'));
 
 // Shop sub-app pages
@@ -181,6 +182,8 @@ if (container) {
                   <Route path="crm/finance" element={guarded('finance', <Cashier />)} />
                   <Route path="crm/clinic-settings" element={guarded('clinic-settings', <ClinicSettings />)} />
                   <Route path="crm/billing" element={guarded('billing', <ClinicBilling />)} />
+                  <Route path="crm/patient-inbox" element={guarded('patient-inbox', <PatientInbox />)} />
+                  <Route path="crm/patient-inbox/:id" element={guarded('patient-inbox', <PatientInbox />)} />
                   <Route path="crm/integrations/messaging" element={guarded('clinic-settings', <IntegrationsMessaging />)} />
 
                   {/* Shop sub-app — under IntelligenceLayout sidebar */}
