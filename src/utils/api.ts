@@ -2764,3 +2764,52 @@ export async function assignPersonRole(personId: string, roleId: string, scopeTy
 export async function removePersonRole(personId: string, roleId: string): Promise<any> {
   return apiRequest(`/api/iam/persons/${personId}/roles/${roleId}`, { method: 'DELETE' });
 }
+
+// ─────────────── Patient assistant ───────────────
+
+export interface PatientAiStatus {
+  linked: boolean;
+  consented: boolean;
+  remaining: number;
+  dailyLimit: number;
+}
+
+export interface PatientAiMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export interface PatientAiReply {
+  reply: string;
+  toolsUsed: string[];
+  data: Record<string, unknown>;
+  remaining: number;
+}
+
+export async function getPatientAiStatus(): Promise<PatientAiStatus> {
+  const res = await apiRequest('/api/patient-portal/ai/status');
+  return res.data ?? res;
+}
+
+export async function acceptPatientAiConsent(): Promise<{ consented: boolean }> {
+  const res = await apiRequest('/api/patient-portal/ai/consent', {
+    method: 'POST',
+    body: JSON.stringify({ accepted: true }),
+  });
+  return res.data ?? res;
+}
+
+export async function getPatientAiHistory(): Promise<PatientAiMessage[]> {
+  const res = await apiRequest('/api/patient-portal/ai/history');
+  return res.data ?? res ?? [];
+}
+
+export async function sendPatientAiMessage(text: string): Promise<PatientAiReply> {
+  const res = await apiRequest('/api/patient-portal/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+  return res.data ?? res;
+}

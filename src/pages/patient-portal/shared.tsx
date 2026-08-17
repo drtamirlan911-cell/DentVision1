@@ -14,6 +14,7 @@ import { getAccessToken } from '@/utils/api';
  */
 
 export type PortalTab =
+  | 'assistant'
   | 'appointments'
   | 'treatments'
   | 'visits'

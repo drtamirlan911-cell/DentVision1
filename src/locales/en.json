@@ -1326,6 +1326,7 @@
     "register": "Register",
     "link_hint": "After registration, ask your clinic to link your account to your patient card",
     "tabs": {
+      "assistant": "Assistant",
       "appointments": "Appointments",
       "treatments": "Treatment",
       "visits": "Visits",

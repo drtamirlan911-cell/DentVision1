@@ -32,6 +32,12 @@ export const REQUIRED_CONSENTS: RequiredConsent[] = [
   { type: 'privacy_policy', version: '1.0', audience: ['all'], title: 'Политика конфиденциальности', mandatory: true, link: '/legal/privacy' },
   { type: 'data_processing', version: '1.0', audience: ['patient'], title: 'Согласие на обработку персональных и медицинских данных', mandatory: true, link: '/legal/data-processing' },
   { type: 'platform_offer', version: '1.0', audience: ['clinic', 'supplier', 'center', 'lab', 'lecturer'], title: 'Публичная оферта платформы DentVision', mandatory: true, link: '/legal/offer' },
+  // Non-mandatory on purpose: a patient who declines still gets the whole
+  // portal, they just do not get the assistant. Making it mandatory would put
+  // a consent wall in front of someone who only wants to see when their
+  // appointment is — and would make "agree or leave" the price of the record
+  // they already consented to under `data_processing`.
+  { type: 'ai_assistant', version: '1.0', audience: ['patient'], title: 'Согласие на обработку медицинских данных ИИ-ассистентом', mandatory: false, link: '/legal/ai-assistant' },
 ];
 
 export type ConsentState = 'accepted' | 'stale' | 'missing';
