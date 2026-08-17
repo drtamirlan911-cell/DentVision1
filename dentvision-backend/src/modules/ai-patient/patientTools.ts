@@ -1,0 +1,164 @@
+/**
+ * The tools the patient-facing assistant may call — a registry of its own,
+ * deliberately not an extension of `os/registry.ts`.
+ *
+ * The staff registry hands tools out by role, and a portal account carries the
+ * `STUDENT` role, which the clinic-side matrix grants `patients.read` and
+ * `medical.read`. Adding a patient persona there would put `searchPatients`
+ * one inference away from someone who should only ever see their own card.
+ * A separate registry means a staff tool cannot reach this surface by
+ * accident, however the role matrix changes later.
+ *
+ * The invariant this file exists to hold:
+ *
+ *   **No tool takes a patient id.** Identity is resolved from the session by
+ *   the caller and arrives in `ctx.patientId`. Nothing the model emits is ever
+ *   used to choose *whose* record is read — the model can only choose *what*
+ *   is read about the patient already established. `patientTools.test.ts`
+ *   enforces this against the declared parameter schemas.
+ */
+
+import * as portalSvc from '../patient-portal/patientPortal.service.js';
+import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
+
+export interface PatientToolContext {
+  /** The authenticated portal user. */
+  userId: string;
+  /** Resolved server-side via `resolvePatientForUser`, never from the model. */
+  patientId: string;
+  /** The clinic holding the active card, when there is one. */
+  clinicId: string | null;
+}
+
+export interface PatientTool {
+  name: string;
+  description: string;
+  parameters: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+  execute(args: Record<string, unknown>, ctx: PatientToolContext): Promise<unknown>;
+}
+
+/**
+ * Parameter names that would let the model point a tool at someone else.
+ * Rejected by test rather than by convention, because the cost of one slipping
+ * in is another patient's medical record.
+ */
+export const FORBIDDEN_PARAM_NAMES = [
+  'patientid',
+  'patient_id',
+  'patient',
+  'userid',
+  'user_id',
+  'clinicid',
+  'clinic_id',
+  'iin',
+  'phone',
+  'email',
+];
+
+const NO_ARGS = { type: 'object' as const, properties: {} };
+
+export const PATIENT_TOOLS: Record<string, PatientTool> = {
+  getMyAppointments: {
+    name: 'getMyAppointments',
+    description:
+      'Приёмы пациента: прошедшие и предстоящие, с датой, временем, врачом, клиникой и статусом. ' +
+      'Используй, когда спрашивают «когда я записан», «когда мой приём», «к кому я иду».',
+    parameters: NO_ARGS,
+    execute: (_args, ctx) => portalSvc.getAppointments(ctx.patientId),
+  },
+
+  getMyTreatments: {
+    name: 'getMyTreatments',
+    description:
+      'Выполненные и запланированные процедуры по зубам, со стоимостью. ' +
+      'Используй для вопросов «что мне делали», «сколько стоило лечение», «какой зуб лечили».',
+    parameters: NO_ARGS,
+    execute: (_args, ctx) => portalSvc.getTreatments(ctx.patientId),
+  },
+
+  getMyTreatmentPlans: {
+    name: 'getMyTreatmentPlans',
+    description:
+      'Планы лечения: этапы, зубы, диагноз и ориентир бюджета. ' +
+      'Используй для «что мне предстоит», «какой план лечения», «сколько это будет стоить».',
+    parameters: NO_ARGS,
+    execute: (_args, ctx) => portalSvc.getTreatmentPlans(ctx.patientId),
+  },
+
+  getMyVisits: {
+    name: 'getMyVisits',
+    description:
+      'История визитов: дата, диагноз, жалобы, анамнез, врач. ' +
+      'Используй для «что было на приёме», «какой у меня диагноз», «когда я был последний раз».',
+    parameters: NO_ARGS,
+    execute: (_args, ctx) => portalSvc.getVisits(ctx.patientId),
+  },
+
+  getMyInvoices: {
+    name: 'getMyInvoices',
+    description:
+      'Счета пациента и сводка: всего, оплачено, к оплате. ' +
+      'Используй для «сколько я должен», «есть ли задолженность», «за что счёт».',
+    parameters: NO_ARGS,
+    execute: (_args, ctx) => portalSvc.getInvoices(ctx.patientId),
+  },
+
+  getMyDocuments: {
+    name: 'getMyDocuments',
+    description:
+      'Документы пациента и их статус подписи. ' +
+      'Используй для «что мне подписать», «есть ли неподписанные документы», «где моё согласие». ' +
+      'Подписать документ ты не можешь — подпись ставит только сам пациент.',
+    parameters: NO_ARGS,
+    execute: (_args, ctx) => portalSvc.getDocuments(ctx.patientId),
+  },
+
+  getMyDiagnostics: {
+    name: 'getMyDiagnostics',
+    description:
+      'Направления на диагностику и результаты исследований (снимки, заключения). ' +
+      'Используй для «готов ли снимок», «что показало исследование», «какое заключение».',
+    parameters: NO_ARGS,
+    execute: (_args, ctx) => portalSvc.getDiagnostics(ctx.patientId),
+  },
+
+  getMyClinicAccess: {
+    name: 'getMyClinicAccess',
+    description:
+      'Кто из клиник запросил доступ к медкарте пациента, у кого доступ сейчас есть и кто её смотрел. ' +
+      'Используй для «кто видит мою карту», «какая клиника запрашивала доступ», «кто смотрел мои данные». ' +
+      'Только чтение: разрешение и отзыв доступа пациент делает сам.',
+    parameters: NO_ARGS,
+    execute: async (_args, ctx) => {
+      const [requests, grants, log] = await Promise.all([
+        crossClinicSvc.listAccessRequests(ctx.userId),
+        crossClinicSvc.listAccessGrants(ctx.userId),
+        crossClinicSvc.getAccessLog(ctx.userId),
+      ]);
+      return { requests, grants, log };
+    },
+  },
+};
+
+export function listPatientToolNames(): string[] {
+  return Object.keys(PATIENT_TOOLS);
+}
+
+/**
+ * Run a tool by name. Unknown names throw rather than no-op: a model asking
+ * for a tool that does not exist is a bug worth surfacing, not something to
+ * paper over with an empty result the model will then narrate as fact.
+ */
+export async function executePatientTool(
+  name: string,
+  args: Record<string, unknown>,
+  ctx: PatientToolContext,
+): Promise<unknown> {
+  const tool = PATIENT_TOOLS[name];
+  if (!tool) throw new Error(`UNKNOWN_PATIENT_TOOL:${name}`);
+  return tool.execute(args || {}, ctx);
+}

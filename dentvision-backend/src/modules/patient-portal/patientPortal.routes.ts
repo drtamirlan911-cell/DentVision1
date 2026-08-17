@@ -8,7 +8,7 @@ import { decryptPatientFields, encryptField } from '../../lib/phi.js';
 import { resolvePatientForUser } from './patientLink.js';
 import { isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured } from '../../lib/storage.js';
 import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
-import { parseMeta } from '../crm/appointmentMeta.js';
+import * as portalSvc from './patientPortal.service.js';
 import type { AuthRequest } from '../../types/index.js';
 
 export const patientPortalRouter = Router();
@@ -64,30 +64,7 @@ async function ensurePatient(req: AuthRequest, res: any, next: any) {
 // Appointments
 patientPortalRouter.get('/appointments', ensurePatient, async (req: AuthRequest, res) => {
   try {
-    const pid = resolvePatientId(req);
-    const appointments = await (prisma as any).appointment.findMany({
-      where: { patientId: pid },
-      select: {
-        id: true, date: true, time: true, status: true, type: true, notes: true, meta: true,
-        doctor: { select: { firstName: true, lastName: true } },
-        clinic: { select: { id: true, name: true } },
-      },
-      orderBy: { date: 'desc' },
-      take: 50,
-    });
-    // toothNumber/procedureType/reason are not columns — they live in the
-    // freeform `meta` JSON (see appointmentMeta.ts, shared with the CRM schedule).
-    const mapped = appointments.map((a: any) => {
-      const meta = parseMeta(a.meta);
-      return {
-        id: a.id, date: a.date, time: a.time, status: a.status, notes: a.notes,
-        doctor: a.doctor, clinic: a.clinic,
-        procedureType: meta.serviceName || a.type || '',
-        toothNumber: meta.toothNumber ?? '',
-        reason: meta.reason || meta.serviceName || a.type || '',
-      };
-    });
-    return res.json({ ok: true, data: mapped });
+    return res.json({ ok: true, data: await portalSvc.getAppointments(resolvePatientId(req)) });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -99,42 +76,7 @@ patientPortalRouter.get('/appointments', ensurePatient, async (req: AuthRequest,
 // all of the patient's plans into the flat list the portal displays.
 patientPortalRouter.get('/treatments', ensurePatient, async (req: AuthRequest, res) => {
   try {
-    const pid = resolvePatientId(req);
-    const patient = await (prisma as any).patient.findUnique({
-      where: { id: pid },
-      select: { clinic: { select: { id: true, name: true } } },
-    });
-    const plans = await (prisma as any).treatmentPlan.findMany({
-      where: { patientId: pid },
-      select: { id: true, items: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-    const treatments: any[] = [];
-    for (const plan of plans) {
-      const items = plan.items || {};
-      const diagnosis = items.diagnosis ?? null;
-      const stages = Array.isArray(items.stages) ? items.stages : [];
-      for (const stage of stages) {
-        const stageItems = Array.isArray(stage.items) ? stage.items : [];
-        for (const item of stageItems) {
-          const teeth = Array.isArray(item.teeth) ? item.teeth : [];
-          const units = teeth.length > 0 ? teeth.length : (Number(item.qty) || 1);
-          treatments.push({
-            id: item.id || `${plan.id}-${treatments.length}`,
-            toothNumber: teeth.join(', '),
-            procedureType: item.serviceName || '',
-            cost: Math.round((Number(item.price) || 0) * units),
-            diagnosis,
-            notes: stage.notes || null,
-            clinic: patient?.clinic || null,
-            createdAt: plan.createdAt,
-          });
-        }
-      }
-    }
-    treatments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return res.json({ ok: true, data: treatments.slice(0, 100) });
+    return res.json({ ok: true, data: await portalSvc.getTreatments(resolvePatientId(req)) });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -145,32 +87,7 @@ patientPortalRouter.get('/treatments', ensurePatient, async (req: AuthRequest, r
 // TreatmentPlan also has no direct `clinic` relation; it comes via `patient`.
 patientPortalRouter.get('/treatment-plans', ensurePatient, async (req: AuthRequest, res) => {
   try {
-    const pid = resolvePatientId(req);
-    const plans = await (prisma as any).treatmentPlan.findMany({
-      where: { patientId: pid },
-      select: {
-        id: true, title: true, status: true, items: true, price: true, notes: true,
-        createdAt: true,
-        patient: { select: { clinic: { select: { id: true, name: true } } } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    });
-    const mapped = plans.map((p: any) => {
-      const items = p.items || {};
-      return {
-        id: p.id,
-        title: p.title,
-        status: p.status,
-        diagnosis: items.diagnosis ?? p.notes ?? null,
-        teeth: items.teeth || [],
-        stages: items.stages || [],
-        totalBudget: p.price ?? items.totalBudget ?? null,
-        createdAt: p.createdAt,
-        clinic: p.patient?.clinic || null,
-      };
-    });
-    return res.json({ ok: true, data: mapped });
+    return res.json({ ok: true, data: await portalSvc.getTreatmentPlans(resolvePatientId(req)) });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -183,32 +100,7 @@ patientPortalRouter.get('/treatment-plans', ensurePatient, async (req: AuthReque
 // from the patient, which is fixed for this whole request.
 patientPortalRouter.get('/visits', ensurePatient, async (req: AuthRequest, res) => {
   try {
-    const pid = resolvePatientId(req);
-    const patient = await (prisma as any).patient.findUnique({
-      where: { id: pid },
-      select: { clinic: { select: { id: true, name: true } } },
-    });
-    const visits = await (prisma as any).visit.findMany({
-      where: { patientId: pid },
-      select: {
-        id: true, date: true, diagnosis: true, complaints: true, anamnesis: true,
-        treatment: true, notes: true, doctorId: true,
-      },
-      orderBy: { date: 'desc' },
-      take: 50,
-    });
-    const doctorIds = [...new Set(visits.map((v: any) => v.doctorId).filter(Boolean))];
-    const doctors = doctorIds.length
-      ? await (prisma as any).user.findMany({ where: { id: { in: doctorIds } }, select: { id: true, firstName: true, lastName: true } })
-      : [];
-    const doctorMap = new Map(doctors.map((d: any) => [d.id, d]));
-    const mapped = visits.map((v: any) => ({
-      id: v.id, date: v.date, diagnosis: v.diagnosis, complaints: v.complaints,
-      anamnesis: v.anamnesis, treatment: v.treatment, notes: v.notes,
-      doctor: doctorMap.get(v.doctorId) || null,
-      clinic: patient?.clinic || null,
-    }));
-    return res.json({ ok: true, data: mapped });
+    return res.json({ ok: true, data: await portalSvc.getVisits(resolvePatientId(req)) });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -217,22 +109,7 @@ patientPortalRouter.get('/visits', ensurePatient, async (req: AuthRequest, res) 
 // Invoices
 patientPortalRouter.get('/invoices', ensurePatient, async (req: AuthRequest, res) => {
   try {
-    const pid = resolvePatientId(req);
-    const invoices = await (prisma as any).invoice.findMany({
-      where: { patientId: pid },
-      select: {
-        id: true, amount: true, status: true, items: true, createdAt: true,
-        clinic: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-    const summary = {
-      total: invoices.reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
-      unpaid: invoices.filter((i: any) => i.status === 'pending' || i.status === 'unpaid').reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
-      paid: invoices.filter((i: any) => i.status === 'paid').reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
-    };
-    return res.json({ ok: true, data: { invoices, summary } });
+    return res.json({ ok: true, data: await portalSvc.getInvoices(resolvePatientId(req)) });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -242,31 +119,7 @@ patientPortalRouter.get('/invoices', ensurePatient, async (req: AuthRequest, res
 // in the response so the existing frontend field names keep working.
 patientPortalRouter.get('/documents', ensurePatient, async (req: AuthRequest, res) => {
   try {
-    const pid = resolvePatientId(req);
-    const docs = await (prisma as any).document.findMany({
-      where: { patientId: pid },
-      select: {
-        id: true, type: true, name: true, url: true,
-        signed: true, signedAt: true, signatureData: true, signedByName: true,
-        createdAt: true,
-        clinic: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-    });
-    const mapped = docs.map((d: any) => ({
-      id: d.id,
-      docType: d.type,
-      title: d.name || d.type,
-      url: d.url,
-      signed: d.signed,
-      signedAt: d.signedAt,
-      signatureData: d.signatureData,
-      signedByName: d.signedByName,
-      createdAt: d.createdAt,
-      clinic: d.clinic,
-    }));
-    return res.json({ ok: true, data: mapped });
+    return res.json({ ok: true, data: await portalSvc.getDocuments(resolvePatientId(req)) });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -314,20 +167,7 @@ patientPortalRouter.get('/documents/:id/content', ensurePatient, async (req: Aut
 // Diagnostics referrals
 patientPortalRouter.get('/diagnostics', ensurePatient, async (req: AuthRequest, res) => {
   try {
-    const pid = resolvePatientId(req);
-    const referrals = await (prisma as any).referral.findMany({
-      where: { patientId: pid },
-      select: {
-        id: true, studyType: true, category: true, status: true,
-        cost: true, platformFee: true, paid: true, createdAt: true,
-        center: { select: { id: true, name: true } },
-        lab: { select: { id: true, name: true } },
-        result: { select: { reportText: true, conclusion: true, createdAt: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-    });
-    return res.json({ ok: true, data: referrals });
+    return res.json({ ok: true, data: await portalSvc.getDiagnostics(resolvePatientId(req)) });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
