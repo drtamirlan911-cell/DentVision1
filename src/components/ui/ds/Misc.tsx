@@ -14,40 +14,82 @@ interface TabsProps {
   onChange: (id: string) => void
   className?: string
   size?: 'sm' | 'md'
+  /**
+   * `pill` is the dense control that belongs inside a working screen.
+   *
+   * `underline` is for a screen's primary navigation, where a filled chip
+   * competes with the content it is introducing: the row reads as a quiet
+   * baseline and only the active label carries the gold. It also lets the
+   * tabs sit directly on the page surface instead of on a `surface-2` slab,
+   * which is what makes a header feel built rather than assembled.
+   */
+  variant?: 'pill' | 'underline'
 }
 
-function Tabs({ tabs, active, onChange, className, size = 'md' }: TabsProps) {
+function Tabs({ tabs, active, onChange, className, size = 'md', variant = 'pill' }: TabsProps) {
+  const underline = variant === 'underline'
+
   return (
-    <div className={cn('w-full max-w-full overflow-x-auto overscroll-x-contain', className)}>
-      <div className="inline-flex items-center gap-1 rounded-xl bg-surface-2 p-1 min-w-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => onChange(tab.id)}
-            className={cn(
-              'relative flex items-center gap-1.5 rounded-lg font-medium transition-all duration-200 whitespace-nowrap shrink-0',
-              size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-3 sm:px-4 py-2 text-xs sm:text-sm',
-              active === tab.id
-                ? 'bg-surface-raised text-dv-gold shadow-sm'
-                : 'text-txt-muted hover:text-txt-secondary hover:bg-white/[0.03]'
-            )}
-          >
-            {tab.icon}
-            {tab.label}
-            {tab.count !== undefined && (
-              <span
-                className={cn(
-                  'rounded-full px-1.5 py-0.5 text-2xs font-bold',
-                  active === tab.id
-                    ? 'bg-dv-gold/20 text-dv-gold'
-                    : 'bg-white/5 text-txt-muted'
-                )}
-              >
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
+    <div
+      className={cn(
+        'w-full max-w-full overflow-x-auto overscroll-x-contain',
+        underline && 'border-b border-bdr-subtle',
+        className
+      )}
+    >
+      <div
+        role="tablist"
+        className={cn(
+          'inline-flex min-w-0 items-center',
+          underline ? 'gap-1 sm:gap-2' : 'gap-1 rounded-xl bg-surface-2 p-1'
+        )}
+      >
+        {tabs.map((tab) => {
+          const isActive = active === tab.id
+
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChange(tab.id)}
+              className={cn(
+                'relative flex shrink-0 items-center gap-1.5 whitespace-nowrap font-medium transition-all duration-200',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40',
+                size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-3 py-2 text-xs sm:px-4 sm:text-sm',
+                underline
+                  ? cn(
+                      // The active bar overlaps the container's own hairline, so
+                      // the two read as one line rather than a stack of two.
+                      'rounded-t-lg after:absolute after:inset-x-2 after:-bottom-px after:h-px after:transition-colors after:duration-200',
+                      isActive
+                        ? 'text-txt-primary after:bg-dv-gold'
+                        : 'text-txt-muted after:bg-transparent hover:text-txt-secondary'
+                    )
+                  : cn(
+                      'rounded-lg',
+                      isActive
+                        ? 'bg-surface-raised text-dv-gold shadow-sm'
+                        : 'text-txt-muted hover:bg-white/[0.03] hover:text-txt-secondary'
+                    )
+              )}
+            >
+              {tab.icon}
+              {tab.label}
+              {tab.count !== undefined && (
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 py-0.5 text-2xs font-bold',
+                    isActive ? 'bg-dv-gold/20 text-dv-gold' : 'bg-white/5 text-txt-muted'
+                  )}
+                >
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

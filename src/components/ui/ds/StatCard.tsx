@@ -70,8 +70,14 @@ function PageHeader({
   actions,
   className,
 }: {
-  title: string
-  subtitle?: string
+  /**
+   * Node rather than string so a screen can compose its own title — a serif
+   * lead with the patient's name set apart, say — without forking the header
+   * or dropping to a raw `<h1>` the token guard would then have to police.
+   * Plain strings keep working exactly as before.
+   */
+  title: React.ReactNode
+  subtitle?: React.ReactNode
   icon?: React.ReactNode
   actions?: React.ReactNode
   className?: string
