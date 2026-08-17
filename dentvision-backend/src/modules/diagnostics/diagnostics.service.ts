@@ -192,8 +192,22 @@ export async function createRegistrationRequest(data: {
   name: string; city?: string; address?: string; phone?: string; email?: string; comment?: string;
   userId?: string;
 }) {
+  // Explicit whitelist, not `...data` — the route passes `{ ...req.body, userId }`,
+  // and a raw spread here would let `id`/`status`/`reviewerId`/`reviewNote` be
+  // set directly by whoever submits the request.
   return prisma.registrationRequest.create({
-    data: { id: uid(), ...data, status: 'PENDING' },
+    data: {
+      id: uid(),
+      type: data.type,
+      name: data.name,
+      city: data.city,
+      address: data.address,
+      phone: data.phone,
+      email: data.email,
+      comment: data.comment,
+      userId: data.userId,
+      status: 'PENDING',
+    },
   });
 }
 
@@ -460,12 +474,43 @@ export async function createReferral(data: {
     if (count >= 5) throw new Error('Daily referral limit reached (5). Upgrade to clinic plan.');
   }
 
+  // Explicit field-by-field whitelist, not `...data`. The route handler builds
+  // `data` as `{ ...req.body, doctorId: userId }` — TS's parameter type above
+  // only *documents* the intended shape, it doesn't strip anything at runtime
+  // (excess-property checks don't apply to spread expressions), so a raw
+  // spread here would let a caller set `cost`/`platformFee`/`paid`/`paidAt`/
+  // `settlementId`/`reviewerId`/`operatorId`/`radiologistId`/`id` directly —
+  // bypassing the server-computed commission the mark-paid/cashier routes are
+  // careful to enforce, or forging referral audit/assignment fields.
   const referral = await prisma.referral.create({
     data: {
       id: uid(),
-      ...data,
+      patientName: data.patientName,
+      patientIin: data.patientIin,
       patientBirth: data.patientBirth ? new Date(data.patientBirth) : undefined,
+      patientGender: data.patientGender,
+      patientPhone: data.patientPhone,
+      patientEmail: data.patientEmail,
+      pregnancy: data.pregnancy,
+      allergies: data.allergies,
+      specialNotes: data.specialNotes,
+      clinicId: data.clinicId,
+      doctorId: data.doctorId,
+      doctorName: data.doctorName,
+      doctorPhone: data.doctorPhone,
+      doctorEmail: data.doctorEmail,
+      category: data.category,
+      studyType: data.studyType,
       anatomicalSites: data.anatomicalSites || undefined,
+      complaints: data.complaints,
+      preliminaryDx: data.preliminaryDx,
+      studyGoal: data.studyGoal,
+      commentForDoctor: data.commentForDoctor,
+      commentForLab: data.commentForLab,
+      priority: data.priority,
+      centerId: data.centerId,
+      labId: data.labId,
+      patientId: data.patientId,
       // A referral sent to a center/lab should be SENT, not DRAFT
       status: (data.centerId || data.labId) ? 'SENT' : 'DRAFT',
     },
