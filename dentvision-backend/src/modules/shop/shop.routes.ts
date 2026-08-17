@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
@@ -6,6 +7,7 @@ import { AuthRequest } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import { resolveSupplierCity } from '../../lib/kzCities.js';
 import { assertOrgAccess, resolveAnyClinicMembership } from '../../lib/orgContext.js';
+import { productCreateSchema, productUpdateSchema, productDataFromBody } from './shop.schemas.js';
 
 const shopRouter = Router();
 
@@ -843,27 +845,39 @@ shopRouter.get('/products/:id/offers', async (req, res) => {
 shopRouter.post('/products', authenticate, async (req: AuthRequest, res) => {
   try {
     if (!req.user?.supplierId) { res.status(403).json({ ok: false, error: 'Только поставщик' }); return; }
-    const { name } = req.body || {};
-    if (!name) return res.status(400).json({ ok: false, error: 'Название обязательно' });
+    // Whitelist parse: previously `data: { supplierId: req.user.supplierId, ...req.body }`
+    // put the trusted supplierId *before* the spread, so a body containing its
+    // own `supplierId` (or `id`, `sharedProductId`, `rating`, `reviewCount`, …)
+    // would silently override it — a supplier could attribute a listing to
+    // another supplier's id. Parsing req.body against an explicit schema and
+    // building the Prisma `data` object field-by-field closes that off.
+    const parsed = productCreateSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ ok: false, error: parsed.error.errors.map((e) => e.message).join(', ') });
+    }
+    const body = parsed.data;
 
     // Auto-link to existing catalog product — prevent duplicate listings
     let sharedProductId: string | null = null;
-    if (name) {
-      const existing = await prisma.product.findFirst({
-        where: { name: { equals: name, mode: 'insensitive' }, supplierId: { not: req.user.supplierId } },
-        select: { id: true, sharedProductId: true },
-      });
-      if (existing) {
-        sharedProductId = existing.sharedProductId || existing.id;
-        // Ensure the canonical product also has sharedProductId set
-        if (!existing.sharedProductId) {
-          await prisma.product.update({ where: { id: existing.id }, data: { sharedProductId: existing.id } });
-        }
+    const existing = await prisma.product.findFirst({
+      where: { name: { equals: body.name, mode: 'insensitive' }, supplierId: { not: req.user.supplierId } },
+      select: { id: true, sharedProductId: true },
+    });
+    if (existing) {
+      sharedProductId = existing.sharedProductId || existing.id;
+      // Ensure the canonical product also has sharedProductId set
+      if (!existing.sharedProductId) {
+        await prisma.product.update({ where: { id: existing.id }, data: { sharedProductId: existing.id } });
       }
     }
 
     const data = await prisma.product.create({
-      data: { id: uid(), supplierId: req.user.supplierId, sharedProductId: sharedProductId as string | null, ...req.body, price: Number(req.body.price) },
+      data: {
+        id: uid(),
+        supplierId: req.user.supplierId,
+        sharedProductId,
+        ...productDataFromBody(body),
+      } as Prisma.ProductUncheckedCreateInput,
     });
     res.status(201).json({ ok: true, data });
   } catch (e) { res.status(500).json({ ok: false, error: 'Failed to create product' }); }
@@ -875,7 +889,14 @@ shopRouter.patch('/products/:id', authenticate, async (req: AuthRequest, res) =>
     const product = await prisma.product.findUnique({ where: { id } });
     if (!product) { res.status(404).json({ ok: false, error: 'Not found' }); return; }
     if (product.supplierId !== req.user?.supplierId) { res.status(403).json({ ok: false, error: 'Нет доступа' }); return; }
-    const updated = await prisma.product.update({ where: { id }, data: { ...req.body, price: req.body.price != null ? Number(req.body.price) : undefined } });
+    const parsed = productUpdateSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ ok: false, error: parsed.error.errors.map((e) => e.message).join(', ') });
+    }
+    const updated = await prisma.product.update({
+      where: { id },
+      data: productDataFromBody(parsed.data) as Prisma.ProductUncheckedUpdateInput,
+    });
     res.json({ ok: true, data: updated });
   } catch (e) { res.status(500).json({ ok: false, error: 'Failed to update product' }); }
 });
