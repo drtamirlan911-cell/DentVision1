@@ -10,6 +10,7 @@
  * Linking (`Referral.settlementId`) is the idempotency guard: a fee is included
  * in at most one settlement, and re-running generation never double-counts.
  */
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { tengeToMinor } from '../../lib/money.js';
 import { providers } from '../payments/kaspi.provider.js';
@@ -207,8 +208,12 @@ export async function paySettlement(settlementId: string) {
  * Flip a settlement to `paid` (called from the payment callback). Idempotent:
  * a re-delivered callback returns false without double-applying.
  */
-export async function markSettlementPaid(settlementId: string, paymentId?: string): Promise<boolean> {
-  const res = await prisma.settlement.updateMany({
+export async function markSettlementPaid(
+  settlementId: string,
+  paymentId?: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<boolean> {
+  const res = await db.settlement.updateMany({
     where: { id: settlementId, status: { not: 'paid' } },
     data: { status: 'paid', paidAt: new Date(), ...(paymentId ? { paymentId } : {}) },
   });

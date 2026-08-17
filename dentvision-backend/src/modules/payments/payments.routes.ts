@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import type { WalletOwnerType } from '@prisma/client';
+import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { uid } from '../../lib/helpers.js';
 import { serializeBigInt, tengeToMinor } from '../../lib/money.js';
-import { recordSale } from '../finance/finance.service.js';
+import { recordSaleTx } from '../finance/finance.service.js';
 import { env } from '../../config.js';
 import {
   providers,
@@ -69,14 +69,17 @@ async function deleteIdempotencyKey(key: string): Promise<void> {
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
 
-async function settleOrderPayment(payment: {
-  id: string;
-  refId: string | null;
-  amount: bigint;
-  meta: unknown;
-}): Promise<boolean> {
+async function settleOrderPayment(
+  payment: {
+    id: string;
+    refId: string | null;
+    amount: bigint;
+    meta: unknown;
+  },
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
   if (!payment.refId) return false;
-  const order = await prisma.order.findUnique({ where: { id: payment.refId } });
+  const order = await db.order.findUnique({ where: { id: payment.refId } });
   if (!order) return false;
   // Idempotent no-op for already-paid / non-payable states. In particular a
   // cancelled order must never be resurrected by a late callback (audit F-2).
@@ -93,7 +96,7 @@ async function settleOrderPayment(payment: {
     bySupplier.set(supplierId, (bySupplier.get(supplierId) || 0) + lineTotal);
   }
 
-  const alreadySold = await prisma.transaction.findFirst({
+  const alreadySold = await db.transaction.findFirst({
     where: { refType: 'order', refId: order.id, type: 'sale' },
   });
 
@@ -102,19 +105,22 @@ async function settleOrderPayment(payment: {
     for (const [supplierId, tenge] of bySupplier) {
       const share = tengeToMinor(tenge);
       if (share <= 0n) continue;
-      await recordSale({
-        domain: 'shop',
-        sellerType: 'SUPPLIER',
-        sellerId: supplierId,
-        amountMinor: share,
-        refType: 'order',
-        refId: order.id,
-      });
+      await recordSaleTx(
+        {
+          domain: 'shop',
+          sellerType: 'SUPPLIER',
+          sellerId: supplierId,
+          amountMinor: share,
+          refType: 'order',
+          refId: order.id,
+        },
+        db,
+      );
     }
   }
 
   const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
-  await prisma.order.update({
+  await db.order.update({
     where: { id: order.id },
     data: {
       status: 'paid',
@@ -124,14 +130,17 @@ async function settleOrderPayment(payment: {
   return true;
 }
 
-async function settleEnrollmentPayment(payment: {
-  id: string;
-  refId: string | null;
-  amount: bigint;
-  sellerType: string | null;
-  sellerId: string | null;
-  meta: unknown;
-}): Promise<boolean> {
+async function settleEnrollmentPayment(
+  payment: {
+    id: string;
+    refId: string | null;
+    amount: bigint;
+    sellerType: string | null;
+    sellerId: string | null;
+    meta: unknown;
+  },
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
   const meta = (payment.meta || {}) as {
     courseId?: string;
     userId?: string;
@@ -140,33 +149,36 @@ async function settleEnrollmentPayment(payment: {
   const userId = meta.userId;
   if (!courseId || !userId) return false;
 
-  const course = await prisma.course.findUnique({ where: { id: courseId } });
+  const course = await db.course.findUnique({ where: { id: courseId } });
   if (!course) return false;
 
-  let enrollment = await prisma.schoolEnrollment.findUnique({
+  let enrollment = await db.schoolEnrollment.findUnique({
     where: { userId_courseId: { userId, courseId } },
   });
   const createdNow = !enrollment;
   if (!enrollment) {
-    enrollment = await prisma.schoolEnrollment.create({
+    enrollment = await db.schoolEnrollment.create({
       data: { id: uid(), userId, courseId },
     });
   }
 
-  const alreadySold = await prisma.transaction.findFirst({
+  const alreadySold = await db.transaction.findFirst({
     where: { refType: 'enrollment', refId: enrollment.id, type: 'sale' },
   });
 
   const lecturerId = payment.sellerId || course.lecturerId;
   if (lecturerId && payment.amount > 0n && !alreadySold) {
-    await recordSale({
-      domain: 'school',
-      sellerType: (payment.sellerType as WalletOwnerType) || 'LECTURER',
-      sellerId: lecturerId,
-      amountMinor: payment.amount,
-      refType: 'enrollment',
-      refId: enrollment.id,
-    });
+    await recordSaleTx(
+      {
+        domain: 'school',
+        sellerType: (payment.sellerType as WalletOwnerType) || 'LECTURER',
+        sellerId: lecturerId,
+        amountMinor: payment.amount,
+        refType: 'enrollment',
+        refId: enrollment.id,
+      },
+      db,
+    );
   }
 
   if (createdNow || !alreadySold) {
@@ -183,13 +195,16 @@ async function settleEnrollmentPayment(payment: {
   return true;
 }
 
-async function settleAcademyEventPayment(payment: {
-  id: string;
-  amount: bigint;
-  sellerType?: string | null;
-  sellerId?: string | null;
-  meta: unknown;
-}): Promise<boolean> {
+async function settleAcademyEventPayment(
+  payment: {
+    id: string;
+    amount: bigint;
+    sellerType?: string | null;
+    sellerId?: string | null;
+    meta: unknown;
+  },
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
   const meta = (payment.meta || {}) as {
     productId?: string;
     format?: string;
@@ -201,7 +216,7 @@ async function settleAcademyEventPayment(payment: {
 
   // Lecturer-owned DB product: create enrollment + credit lecturer wallet.
   if (meta.courseId) {
-    await prisma.schoolEnrollment.upsert({
+    await db.schoolEnrollment.upsert({
       where: { userId_courseId: { userId: meta.userId, courseId: meta.courseId } },
       create: { id: uid(), userId: meta.userId, courseId: meta.courseId },
       update: {},
@@ -211,16 +226,24 @@ async function settleAcademyEventPayment(payment: {
   if (payment.amount > 0n) {
     const sellerType = (payment.sellerType || 'PLATFORM') as WalletOwnerType;
     const sellerId = payment.sellerId || 'system';
-    await recordSale({
-      domain: 'school',
-      sellerType,
-      sellerId,
-      amountMinor: payment.amount,
-      refType: 'academy_event',
-      refId: payment.id,
-    }).catch((err) => console.error('[academy event sale]', err));
+    // Previously best-effort (`.catch()`-swallowed) because recordSale opened
+    // its own independent transaction. Now that this runs inside the caller's
+    // shared `db`, a failure here must abort the whole settlement instead of
+    // being silently absorbed — otherwise the payment would still be marked
+    // 'confirmed' below with no matching ledger entry.
+    await recordSaleTx(
+      {
+        domain: 'school',
+        sellerType,
+        sellerId,
+        amountMinor: payment.amount,
+        refType: 'academy_event',
+        refId: payment.id,
+      },
+      db,
+    );
   }
-  await prisma.payment.update({
+  await db.payment.update({
     where: { id: payment.id },
     data: {
       meta: {
@@ -233,27 +256,33 @@ async function settleAcademyEventPayment(payment: {
   return true;
 }
 
-async function settlePaidPayment(payment: {
-  id: string;
-  refType: string | null;
-  refId: string | null;
-  domain: string | null;
-  sellerType: string | null;
-  sellerId: string | null;
-  amount: bigint;
-  meta: unknown;
-}): Promise<boolean> {
+async function settlePaidPayment(
+  payment: {
+    id: string;
+    refType: string | null;
+    refId: string | null;
+    domain: string | null;
+    sellerType: string | null;
+    sellerId: string | null;
+    amount: bigint;
+    meta: unknown;
+  },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<boolean> {
   let settled = false;
 
   if (payment.refType === 'sale' && payment.sellerType && payment.sellerId) {
-    await recordSale({
-      domain: payment.domain || 'shop',
-      sellerType: payment.sellerType as WalletOwnerType,
-      sellerId: payment.sellerId,
-      amountMinor: payment.amount,
-      refType: 'payment',
-      refId: payment.id,
-    });
+    await recordSaleTx(
+      {
+        domain: payment.domain || 'shop',
+        sellerType: payment.sellerType as WalletOwnerType,
+        sellerId: payment.sellerId,
+        amountMinor: payment.amount,
+        refType: 'payment',
+        refId: payment.id,
+      },
+      db,
+    );
     settled = true;
   }
 
@@ -266,12 +295,15 @@ async function settlePaidPayment(payment: {
       '../billing/clinicSubscription.service.js'
     );
     if (isSaasPlanId(saasPlan)) {
-      await activateClinicSubscriptionFromPayment({
-        clinicId: payment.refId,
-        saasPlan,
-        months: meta.months || 1,
-        paymentId: payment.id,
-      });
+      await activateClinicSubscriptionFromPayment(
+        {
+          clinicId: payment.refId,
+          saasPlan,
+          months: meta.months || 1,
+          paymentId: payment.id,
+        },
+        db,
+      );
       if (meta.userId) {
         const { accrueSaasCashback } = await import('../dentcash/cashback.engine.js');
         await accrueSaasCashback({
@@ -286,24 +318,42 @@ async function settlePaidPayment(payment: {
   }
 
   if (payment.refType === 'order') {
-    settled = (await settleOrderPayment(payment)) || settled;
+    settled = (await settleOrderPayment(payment, db)) || settled;
   }
 
   if (payment.refType === 'enrollment') {
-    settled = (await settleEnrollmentPayment(payment)) || settled;
+    settled = (await settleEnrollmentPayment(payment, db)) || settled;
   }
 
   if (payment.refType === 'academy_event') {
-    settled = (await settleAcademyEventPayment(payment)) || settled;
+    settled = (await settleAcademyEventPayment(payment, db)) || settled;
   }
 
   if (payment.refType === 'settlement' && payment.refId) {
     const { markSettlementPaid } = await import('../diagnostics/settlement.service.js');
-    await markSettlementPaid(payment.refId, payment.id);
+    await markSettlementPaid(payment.refId, payment.id, db);
     settled = true;
   }
 
   return settled;
+}
+
+/**
+ * Atomically claims a not-yet-paid payment for settlement: flips status→'paid'
+ * only if it isn't already, via a conditional `updateMany` rather than a plain
+ * check-then-act read+write. Two concurrent /confirm calls (or callbacks) for
+ * the same payment can therefore never both win and both run
+ * settlePaidPayment — the loser sees `count === 0` and must not settle again.
+ */
+async function claimPaymentForSettlement(
+  db: Prisma.TransactionClient,
+  paymentId: string,
+): Promise<boolean> {
+  const claimed = await db.payment.updateMany({
+    where: { id: paymentId, status: { not: 'paid' } },
+    data: { status: 'paid' },
+  });
+  return claimed.count === 1;
 }
 
 async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; refType: string | null; refId: string | null }) {
@@ -678,14 +728,20 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       markMockPaymentStatus(payment.externalId, 'paid');
     }
 
-    // Atomic: update status + settle in one transaction to avoid inconsistent state
+    // Atomic: the status flip is guarded by `status: { not: 'paid' }` so two
+    // concurrent /confirm calls can't both win the race and both run
+    // settlePaidPayment (double wallet credit / double subscription activation).
+    // Settlement itself now runs against the same `tx`, so a failure anywhere
+    // in the chain (recordSale, subscription activation, order/enrollment
+    // settlement) rolls the status flip back too.
     const result = await prisma.$transaction(async (tx) => {
-      const updated = await tx.payment.update({
-        where: { id: payment.id },
-        data: { status: 'paid' },
-      });
-      const settled = await settlePaidPayment({ ...payment, status: 'paid' } as typeof payment);
-      return { updated, settled };
+      const won = await claimPaymentForSettlement(tx, payment.id);
+      const updated = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
+      if (!won) {
+        return { updated, settled: false, alreadyPaid: true };
+      }
+      const settled = await settlePaidPayment({ ...payment, status: 'paid' } as typeof payment, tx);
+      return { updated, settled, alreadyPaid: false };
     });
 
     const qrMeta = (result.updated.meta || {}) as { qr?: string };
@@ -696,6 +752,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
          ...serializeBigInt(result.updated),
          qr: qrMeta.qr || null,
          settled: result.settled,
+         alreadyPaid: result.alreadyPaid,
         sandbox: !isClinic && sandbox && providerStatus !== 'paid',
         clinicStaffConfirm: isClinic && providerStatus !== 'paid',
       },
@@ -745,12 +802,12 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
 
     let settled = false;
     if (newStatus === 'paid') {
+      // Same atomic guard as /confirm: only the caller that actually flips
+      // pending→paid runs settlePaidPayment, and it runs against the same tx.
       const result = await prisma.$transaction(async (tx) => {
-        const updated = await tx.payment.update({
-          where: { id: payment.id },
-          data: { status: 'paid' },
-        });
-        const s = await settlePaidPayment(payment);
+        const won = await claimPaymentForSettlement(tx, payment.id);
+        if (!won) return { settled: false };
+        const s = await settlePaidPayment(payment, tx);
         return { settled: s };
       });
       settled = result.settled;
@@ -814,20 +871,17 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
     let updated: { id: string; status: string };
     let settled = false;
     if (newStatus === 'paid') {
-      // The status flip and the settlement run under one transaction so a
-      // failed settlement rolls the flip back — a payment never ends up
-      // 'paid' while its subscription/sale was not activated.
-      // ponytail: settlePaidPayment writes via the module-level prisma (its own
-      // implicit tx), so settlement rows already committed before an error are
-      // NOT rolled back — a retry can re-run a partially-failed settle. Full
-      // atomicity needs the tx threaded into settlePaidPayment's callees
-      // (recordSale, activateClinicSubscriptionFromPayment, markSettlementPaid).
+      // The status flip and the settlement run under one transaction, guarded
+      // by `status: { not: 'paid' }` so two concurrent callbacks for the same
+      // payment can't both win and both settle. settlePaidPayment now runs
+      // against this same tx (not the module-level prisma), so a failure
+      // anywhere in the settlement chain rolls the status flip back too —
+      // no more partially-committed settlement rows surviving a rollback.
       const result = await prisma.$transaction(async (tx) => {
-        const upd = await tx.payment.update({
-          where: { id: payment.id },
-          data: { status: 'paid' },
-        });
-        const s = await settlePaidPayment(payment);
+        const won = await claimPaymentForSettlement(tx, payment.id);
+        const upd = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
+        if (!won) return { upd, settled: false };
+        const s = await settlePaidPayment(payment, tx);
         return { upd, settled: s };
       });
       updated = result.upd;
@@ -850,4 +904,4 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
 });
 
 export default paymentsRouter;
-export { settlePaidPayment };
+export { settlePaidPayment, claimPaymentForSettlement };
