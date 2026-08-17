@@ -2845,10 +2845,16 @@ export async function sendConversationMessage(text: string): Promise<Conversatio
   return res.data ?? res;
 }
 
-/** `EventSource` cannot set an Authorization header, so the token travels in the query string. */
-export function conversationStreamUrl(): string {
-  const token = getAccessToken() || '';
-  return `${API_URL}/api/patient-portal/conversation/stream?token=${encodeURIComponent(token)}`;
+/**
+ * `EventSource` cannot set an Authorization header, so a short-lived,
+ * one-time ticket travels in the query string instead of the caller's real
+ * access token — a URL that ends up in a proxy log or browser history is
+ * worthless within a minute and can't be replayed.
+ */
+export async function conversationStreamUrl(): Promise<string> {
+  const res = await apiRequest('/api/patient-portal/conversation/ticket', { method: 'POST' });
+  const ticket = (res.data ?? res)?.ticket || '';
+  return `${API_URL}/api/patient-portal/conversation/stream?ticket=${encodeURIComponent(ticket)}`;
 }
 
 // ─────────────── Patient inbox (staff side) ───────────────
@@ -2899,7 +2905,9 @@ export async function resolveInboxConversation(id: string): Promise<InboxConvers
   return res.data ?? res;
 }
 
-export function inboxStreamUrl(clinicId: string): string {
-  const token = getAccessToken() || '';
-  return `${API_URL}/api/patient-inbox/stream?token=${encodeURIComponent(token)}&clinicId=${encodeURIComponent(clinicId)}`;
+/** Same one-time-ticket shape as `conversationStreamUrl` — see that doc comment. */
+export async function inboxStreamUrl(clinicId: string): Promise<string> {
+  const res = await apiRequest('/api/patient-inbox/ticket', { method: 'POST' });
+  const ticket = (res.data ?? res)?.ticket || '';
+  return `${API_URL}/api/patient-inbox/stream?ticket=${encodeURIComponent(ticket)}&clinicId=${encodeURIComponent(clinicId)}`;
 }

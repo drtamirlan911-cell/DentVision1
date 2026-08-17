@@ -9,9 +9,13 @@
 
 import { Router, Response, Request } from 'express';
 import { EventEmitter } from 'events';
-import jwt from 'jsonwebtoken';
 import { isOriginAllowed } from '../../lib/cors.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
+import { authenticate } from '../../middleware/auth.js';
+import { issueSseTicket, consumeSseTicket } from '../../lib/sseTicket.js';
+import type { AuthRequest } from '../../types/index.js';
+
+const SSE_SCOPE = 'ai-notifications';
 
 // ─── Types ───
 
@@ -91,30 +95,36 @@ export const sseManager = new SSEManager();
 const router = Router();
 
 /**
+ * POST /api/ai/notifications/ticket
+ * Mint a short-lived, one-time ticket for the /stream connection below. A
+ * normal authenticated fetch (unlike EventSource, this can set an
+ * Authorization header), so it goes through the same `authenticate` every
+ * other endpoint does.
+ */
+router.post('/ticket', authenticate, (req: AuthRequest, res: Response) => {
+  res.json({ ok: true, data: { ticket: issueSseTicket(req.user!.id, SSE_SCOPE) } });
+});
+
+/**
  * GET /api/ai/notifications/stream
  * SSE endpoint for real-time AI notifications.
- * Query params: clinicId (required)
+ * Query params: clinicId (required), ticket (required, from POST /ticket)
  */
 router.get('/stream', async (req: Request, res: Response) => {
   const clinicId = req.query.clinicId as string;
-  const token = req.query.token as string;
-  if (!clinicId || !token) {
-    res.status(401).json({ ok: false, error: 'clinicId and token required' });
+  const ticket = req.query.ticket as string;
+  if (!clinicId || !ticket) {
+    res.status(401).json({ ok: false, error: 'clinicId and ticket required' });
     return;
   }
 
-  // Verify JWT and clinic membership
-  try {
-    const secret = process.env.JWT_SECRET || '';
-    const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as any;
-    const userId = payload.id || payload.sub || payload.userId;
-    if (!userId) { res.status(401).json({ ok: false, error: 'Invalid token' }); return; }
-    const access = await resolveClinicAccess(userId, clinicId);
-    if (!access) { res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); return; }
-  } catch {
-    res.status(401).json({ ok: false, error: 'Invalid or expired token' });
+  const userId = consumeSseTicket(ticket, SSE_SCOPE);
+  if (!userId) {
+    res.status(401).json({ ok: false, error: 'Invalid or expired ticket' });
     return;
   }
+  const access = await resolveClinicAccess(userId, clinicId);
+  if (!access) { res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); return; }
 
   // Set SSE headers
   const origin = req.headers.origin || '';

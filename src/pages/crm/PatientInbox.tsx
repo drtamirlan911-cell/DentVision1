@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOutletContext, useNavigate, useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -93,8 +93,8 @@ function ThreadPanel({ clinicId, conversationId }: { clinicId: string; conversat
     queryFn: () => api.getInboxThread(conversationId),
   });
 
-  const streamUrl = useMemo(() => api.inboxStreamUrl(clinicId), [clinicId]);
-  useEventStream(streamUrl, (event: any) => {
+  const getStreamUrl = useCallback(() => api.inboxStreamUrl(clinicId), [clinicId]);
+  useEventStream(getStreamUrl, (event: any) => {
     if (event?.conversationId === conversationId || event?.type === 'reply') {
       queryClient.invalidateQueries({ queryKey: ['inbox-thread', conversationId] });
     }
@@ -242,8 +242,9 @@ export default function PatientInbox() {
     queryFn: () => api.getInboxConversations(statusFilter === 'ALL' ? undefined : statusFilter),
   });
 
-  const streamUrl = useMemo(() => (clinic?.id ? api.inboxStreamUrl(clinic.id) : null), [clinic?.id]);
-  useEventStream(streamUrl, () => {
+  const clinicId = clinic?.id;
+  const getStreamUrl = useCallback(() => api.inboxStreamUrl(clinicId!), [clinicId]);
+  useEventStream(clinicId ? getStreamUrl : null, () => {
     queryClient.invalidateQueries({ queryKey: ['inbox-conversations'] });
   });
 

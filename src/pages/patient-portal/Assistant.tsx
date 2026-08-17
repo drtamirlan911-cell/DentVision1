@@ -84,9 +84,11 @@ export function Assistant() {
 
   // Only subscribed once a thread is known to exist — before that there is
   // nothing to stream, and opening a connection that 404s in a loop wastes a
-  // socket for no reason.
-  const streamUrl = isLive ? api.conversationStreamUrl() : null;
-  useEventStream(streamUrl, (event: any) => {
+  // socket for no reason. `api.conversationStreamUrl` is a stable module-level
+  // reference (it takes no arguments), so no `useCallback` is needed to keep
+  // it from reconnecting the stream on every render.
+  const getStreamUrl = isLive ? api.conversationStreamUrl : null;
+  useEventStream(getStreamUrl, (event: any) => {
     if (event?.type === 'message') {
       queryClient.invalidateQueries({ queryKey: ['pp-conversation'] });
     }

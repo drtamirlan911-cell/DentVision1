@@ -10,7 +10,7 @@ import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import { requireClinicScope } from '../../lib/clinicAccess.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
-import { verifyAccessToken } from '../../lib/jwt.js';
+import { issueSseTicket, consumeSseTicket } from '../../lib/sseTicket.js';
 import * as convo from './patientConversation.service.js';
 import { clinicInboxHub, patientConversationHub } from './conversationHub.js';
 import type { AuthRequest } from '../../types/index.js';
@@ -18,6 +18,7 @@ import type { AuthRequest } from '../../types/index.js';
 export const patientInboxRouter = Router();
 
 const INBOX_ROLES = new Set(['OWNER', 'ADMIN', 'SUPERADMIN']);
+const SSE_SCOPE = 'clinic-inbox';
 
 /** `requireClinicScope` proves clinic membership; this adds the role bar the inbox needs on top of it. */
 async function requireInboxAccess(req: AuthRequest, res: any): Promise<string | null> {
@@ -31,9 +32,12 @@ async function requireInboxAccess(req: AuthRequest, res: any): Promise<string | 
   return clinicId;
 }
 
-patientInboxRouter.use(authenticate);
-
-patientInboxRouter.get('/conversations', async (req: AuthRequest, res) => {
+// `authenticate` is applied per-route, not with a blanket `.use()` — see the
+// matching comment in patientConversation.routes.ts: a router-level
+// `.use(authenticate)` in front of /stream rejected every SSE connection
+// before the route's own (ticket-based) check ever ran, since `EventSource`
+// carries neither an Authorization header nor a cross-origin cookie.
+patientInboxRouter.get('/conversations', authenticate, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -45,7 +49,7 @@ patientInboxRouter.get('/conversations', async (req: AuthRequest, res) => {
   }
 });
 
-patientInboxRouter.get('/conversations/:id', async (req: AuthRequest, res) => {
+patientInboxRouter.get('/conversations/:id', authenticate, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -57,7 +61,7 @@ patientInboxRouter.get('/conversations/:id', async (req: AuthRequest, res) => {
   }
 });
 
-patientInboxRouter.post('/conversations/:id/claim', async (req: AuthRequest, res) => {
+patientInboxRouter.post('/conversations/:id/claim', authenticate, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -71,7 +75,7 @@ patientInboxRouter.post('/conversations/:id/claim', async (req: AuthRequest, res
   }
 });
 
-patientInboxRouter.post('/conversations/:id/reply', async (req: AuthRequest, res) => {
+patientInboxRouter.post('/conversations/:id/reply', authenticate, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -89,7 +93,7 @@ patientInboxRouter.post('/conversations/:id/reply', async (req: AuthRequest, res
   }
 });
 
-patientInboxRouter.post('/conversations/:id/resolve', async (req: AuthRequest, res) => {
+patientInboxRouter.post('/conversations/:id/resolve', authenticate, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -102,18 +106,22 @@ patientInboxRouter.post('/conversations/:id/resolve', async (req: AuthRequest, r
   }
 });
 
-/** Same query-token SSE shape as the patient side — see that file's doc comment. */
-patientInboxRouter.get('/stream', async (req, res) => {
-  const token = String(req.query.token || '');
-  const clinicId = String(req.query.clinicId || '');
-  if (!token || !clinicId) return res.status(401).json({ ok: false, error: 'token и clinicId обязательны' });
+/**
+ * POST /api/patient-inbox/ticket
+ * Mint a short-lived, one-time ticket for the /stream connection below.
+ */
+patientInboxRouter.post('/ticket', authenticate, (req: AuthRequest, res) => {
+  res.json({ ok: true, data: { ticket: issueSseTicket(req.user!.id, SSE_SCOPE) } });
+});
 
-  let userId: string;
-  try {
-    userId = verifyAccessToken(token).sub;
-  } catch {
-    return res.status(401).json({ ok: false, error: 'Недействительный токен' });
-  }
+/** Same one-time-ticket SSE shape as the patient side — see that file's doc comment. */
+patientInboxRouter.get('/stream', async (req, res) => {
+  const ticket = String(req.query.ticket || '');
+  const clinicId = String(req.query.clinicId || '');
+  if (!ticket || !clinicId) return res.status(401).json({ ok: false, error: 'ticket и clinicId обязательны' });
+
+  const userId = consumeSseTicket(ticket, SSE_SCOPE);
+  if (!userId) return res.status(401).json({ ok: false, error: 'Недействительный или истёкший ticket' });
 
   const access = await resolveClinicAccess(userId, clinicId);
   if (!access || !INBOX_ROLES.has(access.role)) {
