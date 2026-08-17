@@ -69,6 +69,7 @@ import { metaRouter } from './modules/meta-oauth/meta.routes.js';
 import { organizationsRouter } from './modules/organizations/organizations.routes.js';
 import { personsRouter } from './modules/persons/persons.routes.js';
 import { patientPortalRouter } from './modules/patient-portal/patientPortal.routes.js';
+import { crossClinicRouter } from './modules/cross-clinic/cross-clinic.routes.js';
 import compatRouter from './compat/compatRouter.js';
 import { registerSubscribers } from './events/subscribers.js';
 
@@ -263,6 +264,7 @@ app.use('/api/meta', metaRouter);
 app.use('/api/organizations', organizationsRouter);
 app.use('/api/persons', personsRouter);
 app.use('/api/patient-portal', patientPortalRouter);
+app.use('/api/cross-clinic', crossClinicRouter);
 
 // ─── Error Handling ───
 app.use(notFound);

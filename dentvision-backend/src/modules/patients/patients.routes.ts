@@ -7,6 +7,7 @@ import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
 import { loadClinicAccess, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
+import { hmacIin } from '../../lib/phi.js';
 
 export const patientsRouter = Router();
 
@@ -208,6 +209,7 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
             address: body.address ?? existing.address,
             notes: body.notes ?? existing.notes,
             iin: body.iin ?? (existing as any).iin,
+            iinHash: body.iin !== undefined ? hmacIin(body.iin) : undefined,
             medicalHistory: history as Prisma.InputJsonValue,
           },
           include: { teeth: true },
@@ -225,6 +227,7 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
             address: body.address || null,
             notes: body.notes || null,
             iin: body.iin || null,
+            iinHash: hmacIin(body.iin),
             medicalHistory: history as Prisma.InputJsonValue,
           },
           include: { teeth: true },

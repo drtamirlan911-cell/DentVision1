@@ -124,6 +124,33 @@ export default function Patients() {
   } | null>(null)
   const [openPlanIds, setOpenPlanIds] = useState<Set<string>>(new Set())
   const [patientReferrals, setPatientReferrals] = useState<any[]>([])
+  const [ccStatus, setCcStatus] = useState<'none' | 'pending' | 'approved' | 'declined' | null>(null)
+  const [ccRequesting, setCcRequesting] = useState(false)
+
+  useEffect(() => {
+    if (!selected?.id) { setCcStatus(null); return }
+    let cancelled = false
+    api.getCrossClinicStatus(selected.id).then((res) => {
+      if (!cancelled) setCcStatus(res.status)
+    }).catch(() => { if (!cancelled) setCcStatus(null) })
+    return () => { cancelled = true }
+  }, [selected?.id])
+
+  const requestCrossClinicHistory = useCallback(async () => {
+    if (!selected?.id || ccRequesting) return
+    setCcRequesting(true)
+    try {
+      await api.requestCrossClinicAccess(selected.id)
+      // Deliberately the same message regardless of whether a match was
+      // found — the response shape never differs, so the UI must not either.
+      showToast('Запрос отправлен. Если у пациента есть карта в другой клинике, ему придёт запрос на подтверждение.', 'success')
+      setCcStatus('pending')
+    } catch {
+      showToast('Не удалось отправить запрос', 'error')
+    } finally {
+      setCcRequesting(false)
+    }
+  }, [selected?.id, ccRequesting, showToast])
 
   useEffect(() => {
     if (selected?.id && activeTab === 'diagnostics') {
@@ -743,6 +770,43 @@ export default function Patients() {
           <Button variant="secondary" icon={<FileText size={16} />} className="min-h-[44px] sm:min-h-0" onClick={() => openEdit(selected)}>
             Редактировать
           </Button>
+          {selected.iin && ccStatus === 'none' && (
+            <Button
+              variant="outline"
+              icon={<Send size={16} />}
+              className="min-h-[44px] sm:min-h-0"
+              disabled={ccRequesting}
+              onClick={requestCrossClinicHistory}
+            >
+              Запросить историю из других клиник
+            </Button>
+          )}
+          {selected.iin && ccStatus === 'pending' && (
+            <Button variant="outline" icon={<Send size={16} />} className="min-h-[44px] sm:min-h-0" disabled>
+              Запрос отправлен пациенту
+            </Button>
+          )}
+          {selected.iin && ccStatus === 'declined' && (
+            <Button
+              variant="outline"
+              icon={<Send size={16} />}
+              className="min-h-[44px] sm:min-h-0"
+              disabled={ccRequesting}
+              onClick={requestCrossClinicHistory}
+            >
+              Запросить повторно
+            </Button>
+          )}
+          {selected.iin && ccStatus === 'approved' && (
+            <Button
+              variant="outline"
+              icon={<FileText size={16} />}
+              className="min-h-[44px] sm:min-h-0"
+              onClick={() => navigate(`/crm/medical-card?patient=${selected.id}`)}
+            >
+              История из других клиник доступна
+            </Button>
+          )}
         </div>
       </div>
 
