@@ -20,6 +20,7 @@
 
 import * as portalSvc from '../patient-portal/patientPortal.service.js';
 import { logAIAction } from '../compliance/compliance.service.js';
+import { assessTriage, nextTriageQuestion, type TriageAnswers } from '../../lib/triage.js';
 import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
 
 export interface PatientToolContext {
@@ -190,6 +191,55 @@ PATIENT_TOOLS.cancelMyAppointment = {
     ).catch(() => undefined);
 
     return portalSvc.cancelAppointment(ctx.patientId, appointmentId);
+  },
+};
+
+/**
+ * Urgency, decided by `lib/triage.ts` rather than by the model.
+ *
+ * The model's job is to turn what the patient said into slots; the level comes
+ * back from a rule table. That split is the point: a verdict a clinician can
+ * review as a list of rules, that returns the same answer to the same answers,
+ * and that has a test for every red flag. A model asked to judge urgency
+ * directly gives none of those three.
+ *
+ * Every verdict is written to `AIActionLog`. If a patient is ever told to wait
+ * and should not have been, the answers and the rule that fired are on record.
+ */
+PATIENT_TOOLS.assessUrgency = {
+  name: 'assessUrgency',
+  description:
+    'Оценить срочность по симптомам пациента. Передавай только то, что пациент действительно сказал — не додумывай. ' +
+    'Вернёт уровень срочности, готовый текст для пациента и следующий вопрос, если чего-то не хватает. ' +
+    'Уровень срочности определяешь НЕ ты: бери его из ответа инструмента и передай пациенту как есть. ' +
+    'Диагноз не ставь ни при каких ответах.',
+  parameters: {
+    type: 'object',
+    properties: {
+      painLevel: { type: 'number', description: 'Боль по шкале 0-10, как её оценил пациент' },
+      swelling: { type: 'string', enum: ['none', 'local', 'spreading'], description: 'Отёк: нет / только у зуба / расходится по лицу или шее' },
+      breathingOrSwallowing: { type: 'boolean', description: 'Трудно дышать или глотать' },
+      fever: { type: 'boolean', description: 'Есть температура' },
+      uncontrolledBleeding: { type: 'boolean', description: 'Кровотечение не останавливается' },
+      trauma: { type: 'boolean', description: 'Был удар по лицу или зубам' },
+      toothKnockedOut: { type: 'boolean', description: 'Постоянный зуб выбит полностью' },
+      wakesAtNight: { type: 'boolean', description: 'Боль будит ночью' },
+      durationDays: { type: 'number', description: 'Сколько дней продолжается' },
+    },
+  },
+  async execute(args, ctx) {
+    const answers = args as TriageAnswers;
+    const verdict = assessTriage(answers);
+
+    await logAIAction(
+      ctx.userId,
+      'ai-patient.assessUrgency',
+      { answers, verdict },
+      undefined,
+      ctx.patientId,
+    ).catch(() => undefined);
+
+    return { ...verdict, nextQuestion: nextTriageQuestion(answers) };
   },
 };
 
