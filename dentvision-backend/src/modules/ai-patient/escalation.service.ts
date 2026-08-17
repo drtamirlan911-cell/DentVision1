@@ -6,13 +6,16 @@
  * the question is worse than one that never offered — the patient has spent
  * their attempt and got nothing.
  *
- * The first layer is notification, not a live thread: OWNER and ADMIN of the
- * clinic holding the patient's card get the question in the bell they already
- * watch, and can call back. A real-time conversation with a staff inbox is the
- * next step; this one works today and does not leave the question nowhere.
+ * OWNER and ADMIN of the clinic holding the patient's card get the question
+ * in the bell they already watch, and the same escalation opens (or reuses)
+ * a `PatientConversation` thread — so the notification is not the whole
+ * answer, it is what tells staff a thread is waiting in their inbox, and the
+ * patient's portal picks up the reply the moment it is sent.
  */
 
 import prisma from '../../lib/prisma.js';
+import * as convo from '../patient-conversation/patientConversation.service.js';
+import { clinicInboxHub } from '../patient-conversation/conversationHub.js';
 
 export interface EscalationInput {
   patientId: string;
@@ -32,6 +35,7 @@ export interface EscalationResult {
   recipients: number;
   clinicName: string | null;
   clinicPhone: string | null;
+  conversationId: string;
 }
 
 /** Urgency drives the wording, so a staff member triaging their bell sees it. */
@@ -62,6 +66,12 @@ export async function escalateToClinic(input: EscalationInput): Promise<Escalati
   const patientName = [patient?.firstName, patient?.lastName].filter(Boolean).join(' ') || 'Пациент';
   const prefix = URGENCY_PREFIX[input.urgency || 'routine'] ?? '';
 
+  // The thread first — the notification links to it, so it has to exist
+  // before the notification is built.
+  const conversation = await convo.getOrOpenConversation(input.patientUserId, input.clinicId, input.reason);
+  await convo.appendMessage(conversation.id, 'PATIENT', input.question);
+  clinicInboxHub.broadcast(input.clinicId, { type: 'escalation', conversationId: conversation.id, urgency: input.urgency || null });
+
   if (members.length > 0) {
     const { dispatchNotifications } = await import('../notifications/dispatch.service.js');
     await dispatchNotifications(
@@ -79,7 +89,7 @@ export async function escalateToClinic(input: EscalationInput): Promise<Escalati
         ]
           .filter(Boolean)
           .join('\n'),
-        link: '/crm/patients',
+        link: `/crm/patient-inbox/${conversation.id}`,
       })),
     );
   }
@@ -89,5 +99,6 @@ export async function escalateToClinic(input: EscalationInput): Promise<Escalati
     recipients: members.length,
     clinicName: clinic?.name || null,
     clinicPhone: clinic?.phone || null,
+    conversationId: conversation.id,
   };
 }
