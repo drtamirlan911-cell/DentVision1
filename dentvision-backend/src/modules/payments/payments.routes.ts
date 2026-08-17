@@ -3,7 +3,7 @@ import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { uid } from '../../lib/helpers.js';
-import { serializeBigInt, tengeToMinor } from '../../lib/money.js';
+import { serializeBigInt, tengeToMinor, parseTengeToMinor } from '../../lib/money.js';
 import { recordSaleTx } from '../finance/finance.service.js';
 import { env } from '../../config.js';
 import {
@@ -469,7 +469,12 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     if (amount === undefined && amountMinor === undefined) {
       return res.status(400).json({ ok: false, error: 'amount обязателен' } satisfies ApiResponse);
     }
-    const minor = amountMinor !== undefined ? BigInt(amountMinor) : tengeToMinor(Number(amount));
+    let minor: bigint;
+    try {
+      minor = amountMinor !== undefined ? BigInt(amountMinor) : parseTengeToMinor(amount);
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse);
+    }
     if (minor <= 0n) {
       return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
     }

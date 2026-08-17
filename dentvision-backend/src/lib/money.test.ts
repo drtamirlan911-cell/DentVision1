@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   commissionMinor,
   minorToTenge,
+  parseTengeToMinor,
   serializeBigInt,
   tengeToMinor,
 } from './money.js'
@@ -27,6 +28,52 @@ describe('tengeToMinor / minorToTenge', () => {
   it('minorToTenge divides by 100', () => {
     expect(minorToTenge(10000n)).toBe(100)
     expect(minorToTenge(4990000n)).toBe(49900)
+  })
+})
+
+describe('parseTengeToMinor (exact decimal, never touches float arithmetic)', () => {
+  it('parses whole and two-decimal amounts exactly', () => {
+    expect(parseTengeToMinor('100')).toBe(10000n)
+    expect(parseTengeToMinor('0')).toBe(0n)
+    expect(parseTengeToMinor('12500.50')).toBe(1250050n)
+    expect(parseTengeToMinor('99999.99')).toBe(9999999n)
+    expect(parseTengeToMinor('0.29')).toBe(29n)
+    expect(parseTengeToMinor('0.1')).toBe(10n)
+  })
+
+  it('pads a single fractional digit', () => {
+    expect(parseTengeToMinor('1.5')).toBe(150n)
+  })
+
+  it('accepts a JS number by round-tripping through its own toString(), not multiplication', () => {
+    expect(parseTengeToMinor(12500.5)).toBe(1250050n)
+    expect(parseTengeToMinor(0)).toBe(0n)
+    expect(parseTengeToMinor(49900)).toBe(4990000n)
+  })
+
+  it('never silently rounds away a third decimal digit — rejects it instead', () => {
+    expect(() => parseTengeToMinor('12500.505')).toThrow()
+    expect(() => parseTengeToMinor(0.005)).toThrow() // 0.005.toString() === '0.005'
+  })
+
+  it('rejects garbage, empty, and non-numeric input', () => {
+    expect(() => parseTengeToMinor('')).toThrow()
+    expect(() => parseTengeToMinor('abc')).toThrow()
+    expect(() => parseTengeToMinor('12,500.50')).toThrow()
+    expect(() => parseTengeToMinor('1e21')).toThrow() // exponential notation, not plain decimal
+    expect(() => parseTengeToMinor(NaN)).toThrow()
+    expect(() => parseTengeToMinor(Infinity)).toThrow()
+  })
+
+  it('supports a negative sign (refunds/adjustments)', () => {
+    expect(parseTengeToMinor('-100')).toBe(-10000n)
+    expect(parseTengeToMinor('-12500.50')).toBe(-1250050n)
+  })
+
+  it('agrees with tengeToMinor on ordinary amounts', () => {
+    for (const t of [0, 1, 100, 49900, 149900, 12500.5]) {
+      expect(parseTengeToMinor(t)).toBe(tengeToMinor(t))
+    }
   })
 })
 

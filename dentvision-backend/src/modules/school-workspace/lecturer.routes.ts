@@ -3,7 +3,7 @@ import type { Response, NextFunction } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { uid } from '../../lib/helpers.js';
-import { serializeBigInt, tengeToMinor } from '../../lib/money.js';
+import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
 import { syncPersonFromLecturer } from '../../lib/syncMembership.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -217,7 +217,12 @@ lecturerRouter.post('/payouts', async (req: AuthRequest, res) => {
   if (amount === undefined && amountMinor === undefined) {
     return res.status(400).json({ ok: false, error: 'amount обязателен' } satisfies ApiResponse);
   }
-  const minor = amountMinor !== undefined ? BigInt(amountMinor) : tengeToMinor(Number(amount));
+  let minor: bigint;
+  try {
+    minor = amountMinor !== undefined ? BigInt(amountMinor) : parseTengeToMinor(amount);
+  } catch {
+    return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse);
+  }
   const wallet = await getOrCreateWallet('LECTURER', req.user!.lecturerId!);
   if (wallet.balance < minor) {
     return res.status(409).json({ ok: false, error: 'Недостаточно средств' } satisfies ApiResponse);

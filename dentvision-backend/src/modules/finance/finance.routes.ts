@@ -3,7 +3,7 @@ import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
-import { serializeBigInt, tengeToMinor } from '../../lib/money.js';
+import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
 import { getOrCreateWallet, recordSale, ledgerNetBalance } from './finance.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
@@ -140,7 +140,12 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
     if (!OWNER_TYPES.includes(String(sellerType).toUpperCase())) {
       return res.status(400).json({ ok: false, error: 'Некорректный sellerType' } satisfies ApiResponse);
     }
-    const minor = amountMinor !== undefined ? BigInt(amountMinor) : tengeToMinor(Number(amount));
+    let minor: bigint;
+    try {
+      minor = amountMinor !== undefined ? BigInt(amountMinor) : parseTengeToMinor(amount);
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse);
+    }
     if (minor <= 0n) {
       return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
     }
@@ -169,7 +174,12 @@ financeRouter.post('/transactions/manual', requirePermission('finance.manage'), 
     if (type !== 'CREDIT' && type !== 'DEBIT') {
       return res.status(400).json({ ok: false, error: 'type должен быть CREDIT или DEBIT' } satisfies ApiResponse);
     }
-    const minor = tengeToMinor(Number(amount));
+    let minor: bigint;
+    try {
+      minor = parseTengeToMinor(amount);
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse);
+    }
     if (minor <= 0n) {
       return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
     }
