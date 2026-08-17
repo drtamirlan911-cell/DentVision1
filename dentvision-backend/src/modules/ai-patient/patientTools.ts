@@ -21,6 +21,7 @@
 import * as portalSvc from '../patient-portal/patientPortal.service.js';
 import { logAIAction } from '../compliance/compliance.service.js';
 import { assessTriage, nextTriageQuestion, type TriageAnswers } from '../../lib/triage.js';
+import { escalateToClinic } from './escalation.service.js';
 import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
 
 export interface PatientToolContext {
@@ -240,6 +241,67 @@ PATIENT_TOOLS.assessUrgency = {
     ).catch(() => undefined);
 
     return { ...verdict, nextQuestion: nextTriageQuestion(answers) };
+  },
+};
+
+/**
+ * Hand the question to a human.
+ *
+ * This is the tool that makes "я не знаю" honest. Every other tool answers
+ * from the record; this one admits the record does not contain the answer and
+ * gets the question in front of someone who can decide.
+ *
+ * It is not gated behind a confirmation. Asking a clinic a question is not a
+ * destructive act, and putting a prompt in the way would mean the patient who
+ * most needs a human — frightened, in pain, at the end of what the assistant
+ * can do — has one more thing to click first.
+ */
+PATIENT_TOOLS.askClinicStaff = {
+  name: 'askClinicStaff',
+  description:
+    'Передать вопрос пациента живому администратору клиники. ' +
+    'Вызывай, когда не можешь ответить по карте, когда вопрос требует решения человека (изменить сумму, договориться, уточнить у врача), ' +
+    'когда assessUrgency вернул emergency или urgent, или когда пациент прямо просит связать его с клиникой. ' +
+    'После вызова скажи пациенту, что вопрос передан, и назови часы работы, если он спросит. Не обещай конкретное время ответа.',
+  parameters: {
+    type: 'object',
+    properties: {
+      question: { type: 'string', description: 'Вопрос пациента своими словами пациента, а не пересказом' },
+      reason: { type: 'string', description: 'Почему ты не смог ответить сам — это увидит сотрудник, не пациент' },
+      urgency: {
+        type: 'string',
+        enum: ['emergency', 'urgent', 'soon', 'routine'],
+        description: 'Уровень из assessUrgency, если он вызывался',
+      },
+    },
+    required: ['question', 'reason'],
+  },
+  async execute(args, ctx) {
+    const question = String(args.question || '').trim();
+    if (!question) throw new Error('QUESTION_REQUIRED');
+    if (!ctx.clinicId) throw new Error('NO_CLINIC');
+
+    await logAIAction(
+      ctx.userId,
+      'ai-patient.askClinicStaff',
+      { question, reason: args.reason, urgency: args.urgency },
+      undefined,
+      ctx.patientId,
+    ).catch(() => undefined);
+
+    const result = await escalateToClinic({
+      patientId: ctx.patientId,
+      patientUserId: ctx.userId,
+      clinicId: ctx.clinicId,
+      question,
+      reason: String(args.reason || 'не смог ответить по карте'),
+      urgency: (args.urgency as any) || null,
+    });
+
+    // `delivered: false` is reported, not hidden: a clinic with no OWNER or
+    // ADMIN account means nobody was told, and the assistant must say so
+    // rather than reassure the patient that someone will be in touch.
+    return result;
   },
 };
 

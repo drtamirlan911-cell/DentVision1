@@ -73,7 +73,7 @@ describe('the patient registry is separate from the staff one', () => {
     // for individually. Pinning the list means a new action cannot be added
     // without someone changing this line and noticing why it is here.
     const acting = listPatientToolNames().filter((n) => !/^getMy/.test(n));
-    expect(acting).toEqual(['cancelMyAppointment', 'assessUrgency']);
+    expect(acting).toEqual(['cancelMyAppointment', 'assessUrgency', 'askClinicStaff']);
   });
 
   it('will not cancel without an appointment id', async () => {
