@@ -2,7 +2,7 @@
  * Clinic SaaS subscription helpers — single source of truth for plans,
  * trial bootstrap, payment activation, and expiry notifications.
  */
-import type { ClinicPlan, WalletOwnerType } from '@prisma/client';
+import type { ClinicPlan, Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { tengeToMinor } from '../../lib/money.js';
@@ -165,44 +165,51 @@ export async function startClinicTrial(clinicId: string, days = TRIAL_DAYS) {
   });
 }
 
-export async function upsertClinicSubscription(opts: {
-  clinicId: string;
-  saasPlan: string;
-  clinicPlan: ClinicPlan;
-  status: string;
-  periodEnd: Date | null;
-}) {
+export async function upsertClinicSubscription(
+  opts: {
+    clinicId: string;
+    saasPlan: string;
+    clinicPlan: ClinicPlan;
+    status: string;
+    periodEnd: Date | null;
+  },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+) {
   const { clinicId, saasPlan, clinicPlan, status, periodEnd } = opts;
-  const [clinic, subscription] = await prisma.$transaction([
-    prisma.clinic.update({
-      where: { id: clinicId },
-      data: { plan: clinicPlan, active: status !== 'expired' && status !== 'suspended' },
-    }),
-    prisma.subscription.upsert({
-      where: { ownerType_ownerId: { ownerType: 'CLINIC' as WalletOwnerType, ownerId: clinicId } },
-      create: {
-        ownerType: 'CLINIC',
-        ownerId: clinicId,
-        plan: saasPlan,
-        status,
-        periodEnd,
-      },
-      update: { plan: saasPlan, status, periodEnd },
-    }),
-  ]);
+  // Explicit sequential calls on `db` rather than the batch `prisma.$transaction([...])`
+  // form — the batch form always opens its own transaction, which Prisma does
+  // not allow nesting inside a caller's already-open interactive transaction.
+  const clinic = await db.clinic.update({
+    where: { id: clinicId },
+    data: { plan: clinicPlan, active: status !== 'expired' && status !== 'suspended' },
+  });
+  const subscription = await db.subscription.upsert({
+    where: { ownerType_ownerId: { ownerType: 'CLINIC' as WalletOwnerType, ownerId: clinicId } },
+    create: {
+      ownerType: 'CLINIC',
+      ownerId: clinicId,
+      plan: saasPlan,
+      status,
+      periodEnd,
+    },
+    update: { plan: saasPlan, status, periodEnd },
+  });
   return { clinic, subscription };
 }
 
 /** Activate / renew after successful payment. */
-export async function activateClinicSubscriptionFromPayment(opts: {
-  clinicId: string;
-  saasPlan: SaasPlanId;
-  months?: number;
-  paymentId?: string;
-}) {
+export async function activateClinicSubscriptionFromPayment(
+  opts: {
+    clinicId: string;
+    saasPlan: SaasPlanId;
+    months?: number;
+    paymentId?: string;
+  },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+) {
   const months = Math.min(Math.max(opts.months || 1, 1), 24);
   const clinicPlan = saasPlanToClinicPlan(opts.saasPlan);
-  const existing = await prisma.subscription.findUnique({
+  const existing = await db.subscription.findUnique({
     where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: opts.clinicId } },
   });
 
@@ -216,16 +223,21 @@ export async function activateClinicSubscriptionFromPayment(opts: {
     periodEnd = addMonths(base, months);
   }
 
-  const result = await upsertClinicSubscription({
-    clinicId: opts.clinicId,
-    saasPlan: opts.saasPlan,
-    clinicPlan,
-    status: 'active',
-    periodEnd,
-  });
+  const result = await upsertClinicSubscription(
+    {
+      clinicId: opts.clinicId,
+      saasPlan: opts.saasPlan,
+      clinicPlan,
+      status: 'active',
+      periodEnd,
+    },
+    db,
+  );
 
-  // Notify owners/admins (batched in-app create)
-  const members = await prisma.clinicMember.findMany({
+  // Notify owners/admins (batched in-app create). Runs on the same `db` as the
+  // rest of this function so the notification never survives a rollback of
+  // the subscription it claims was activated.
+  const members = await db.clinicMember.findMany({
     where: { clinicId: opts.clinicId, role: { in: ['OWNER', 'ADMIN'] } },
     select: { userId: true },
   });
@@ -236,7 +248,7 @@ export async function activateClinicSubscriptionFromPayment(opts: {
       : `Тариф ${opts.saasPlan} оплачен. Действует до ${periodEnd?.toISOString().slice(0, 10)}.`;
 
   if (members.length > 0) {
-    await prisma.notification.createMany({
+    await db.notification.createMany({
       data: members.map((m) => ({
         id: uid(),
         userId: m.userId,
