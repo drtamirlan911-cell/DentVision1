@@ -11,7 +11,7 @@ import { useAuth } from '@/store/auth.store';
 import * as api from '@/utils/api';
 
 const DIAG_SUBNAV = [
-  { id: 'dashboard', label: 'Dashboard', path: '/diagnostics', icon: <LayoutDashboard size={16} /> },
+  { id: 'dashboard', label: 'Обзор', path: '/diagnostics', icon: <LayoutDashboard size={16} /> },
   { id: 'referrals', label: 'Мои направления', path: '/diagnostics/referrals', icon: <FileText size={16} /> },
   { id: 'center-dashboard', label: 'Центр панель', path: '/diagnostics/center-dashboard', icon: <Microscope size={16} />, orgType: 'DIAGNOSTIC_CENTER' },
   { id: 'lab-dashboard', label: 'Лаборатория панель', path: '/diagnostics/lab-dashboard', icon: <TestTube size={16} />, orgType: 'LABORATORY' },
