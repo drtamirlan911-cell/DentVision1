@@ -68,10 +68,19 @@ describe('the patient registry is separate from the staff one', () => {
     expect(shared).toEqual([]);
   });
 
-  it('exposes only read tools while actions are still gated elsewhere', () => {
-    // Phase 3 is read-only on purpose: booking, cancelling and paying arrive
-    // with their confirmation flow, not ahead of it.
-    const mutating = listPatientToolNames().filter((n) => !/^getMy/.test(n));
-    expect(mutating).toEqual([]);
+  it('keeps the set of acting tools to the one that was reasoned about', () => {
+    // Reads are safe by construction; anything that writes had to be argued
+    // for individually. Pinning the list means a new action cannot be added
+    // without someone changing this line and noticing why it is here.
+    const acting = listPatientToolNames().filter((n) => !/^getMy/.test(n));
+    expect(acting).toEqual(['cancelMyAppointment']);
+  });
+
+  it('will not cancel without an appointment id', async () => {
+    // A model that has not called getMyAppointments yet must fail loudly
+    // rather than reach the service with an empty filter.
+    await expect(
+      executePatientTool('cancelMyAppointment', {}, { userId: 'u', patientId: 'p', clinicId: null }),
+    ).rejects.toThrow('APPOINTMENT_ID_REQUIRED');
   });
 });

@@ -216,3 +216,42 @@ export async function getDiagnostics(patientId: string) {
     take: 30,
   });
 }
+
+/** Statuses a patient can no longer act on — already closed, one way or another. */
+const UNCANCELLABLE = ['cancelled', 'completed', 'no_show'];
+
+export class PortalActionError extends Error {
+  constructor(message: string, readonly code: 'NOT_FOUND' | 'BAD_STATUS') {
+    super(message);
+  }
+}
+
+/**
+ * Cancel one of this patient's appointments.
+ *
+ * The `patientId` filter is the whole security boundary: an appointment id
+ * belonging to someone else simply does not match, so the caller — a route or
+ * the assistant — cannot reach another patient's schedule by passing a
+ * different id. It is a filter rather than a fetch-then-compare on purpose;
+ * the comparison is the step people forget.
+ */
+export async function cancelAppointment(patientId: string, appointmentId: string) {
+  const appt = await (prisma as any).appointment.findFirst({
+    where: { id: appointmentId, patientId },
+    select: { id: true, status: true, notes: true, date: true, time: true },
+  });
+  if (!appt) throw new PortalActionError('Запись не найдена', 'NOT_FOUND');
+  if (UNCANCELLABLE.includes(appt.status)) {
+    throw new PortalActionError('Нельзя отменить запись в этом статусе', 'BAD_STATUS');
+  }
+
+  // A confirmed slot the clinic was holding is worth marking as the patient's
+  // doing, so reception can tell it apart from their own cancellations.
+  const data =
+    appt.status === 'confirmed'
+      ? { status: 'cancelled', notes: `${appt.notes || ''}\n[Отмена пациентом через портал]`.trim() }
+      : { status: 'cancelled' };
+
+  await (prisma as any).appointment.update({ where: { id: appointmentId }, data });
+  return { cancelled: true, date: appt.date, time: appt.time };
+}
