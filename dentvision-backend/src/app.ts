@@ -69,6 +69,7 @@ import { metaRouter } from './modules/meta-oauth/meta.routes.js';
 import { organizationsRouter } from './modules/organizations/organizations.routes.js';
 import { personsRouter } from './modules/persons/persons.routes.js';
 import { patientPortalRouter } from './modules/patient-portal/patientPortal.routes.js';
+import { aiPatientRouter } from './modules/ai-patient/aiPatient.routes.js';
 import { crossClinicRouter } from './modules/cross-clinic/cross-clinic.routes.js';
 import compatRouter from './compat/compatRouter.js';
 import { registerSubscribers } from './events/subscribers.js';
@@ -263,6 +264,10 @@ app.use('/api/meta', metaRouter);
 // ─── Universal Organization / Person API (Phase 2) ───
 app.use('/api/organizations', organizationsRouter);
 app.use('/api/persons', personsRouter);
+// Mounted before the portal router so the assistant is not behind the
+// portal's blanket `requireConsent()` — a patient who has not yet accepted the
+// AI agreement still needs `/ai/status` to tell the UI to ask for it.
+app.use('/api/patient-portal/ai', aiPatientRouter);
 app.use('/api/patient-portal', patientPortalRouter);
 app.use('/api/cross-clinic', crossClinicRouter);
 

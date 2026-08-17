@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   Calendar, FileText, Receipt, Activity, LogIn, UserPlus,
-  ClipboardList, FileImage, User, CheckCircle2,
+  ClipboardList, FileImage, User, CheckCircle2, Sparkles,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tabs } from '@/components/ui/ds/Misc';
@@ -23,6 +23,7 @@ import { PaymentsTab } from './tabs/PaymentsTab';
 import { DocumentsTab } from './tabs/DocumentsTab';
 import { DiagnosticsTab } from './tabs/DiagnosticsTab';
 import { AccessTab } from './tabs/AccessTab';
+import { Assistant } from './Assistant';
 
 export default function PatientPortal() {
   const { t } = useTranslation();
@@ -30,7 +31,7 @@ export default function PatientPortal() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<PortalTab>('appointments');
+  const [activeTab, setActiveTab] = useState<PortalTab>('assistant');
 
   // Arriving from a booking confirmation: the clinic and the phone used to book
   // come along in the query. `/link` attaches this account to the card
@@ -62,6 +63,7 @@ export default function PatientPortal() {
   }, [isAuthenticated, linkClinicId, linkPhone, linkState, queryClient]);
 
   const tabs = useMemo(() => [
+    { id: 'assistant' as PortalTab, label: t('patientPortal.tabs.assistant'), icon: <Sparkles size={14} /> },
     { id: 'appointments' as PortalTab, label: t('patientPortal.tabs.appointments'), icon: <Calendar size={14} /> },
     { id: 'treatments' as PortalTab, label: t('patientPortal.tabs.treatments'), icon: <Activity size={14} /> },
     { id: 'visits' as PortalTab, label: t('patientPortal.tabs.visits'), icon: <ClipboardList size={14} /> },
@@ -114,9 +116,10 @@ export default function PatientPortal() {
         }
       />
 
-      <Tabs tabs={tabs} active={activeTab} onChange={(id) => setActiveTab(id as PortalTab)} />
+      <Tabs variant="underline" tabs={tabs} active={activeTab} onChange={(id) => setActiveTab(id as PortalTab)} />
 
       <div className="min-h-[200px]">
+        {activeTab === 'assistant' && <Assistant />}
         {activeTab === 'appointments' && <AppointmentsTab />}
         {activeTab === 'treatments' && <TreatmentsTab />}
         {activeTab === 'visits' && <VisitsTab />}
