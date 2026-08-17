@@ -203,6 +203,9 @@ model User {
   crossClinicGrantsAsPatient     CrossClinicAccessGrant[] @relation("CrossClinicGrantAsPatient")
   crossClinicGrantsRequested     CrossClinicAccessGrant[] @relation("CrossClinicGrantRequestedBy")
   crossClinicAccessLogs          CrossClinicAccessLog[]
+  patientConversationsAsPatient  PatientConversation[]        @relation("PatientConversationAsPatient")
+  patientConversationsAssigned   PatientConversation[]        @relation("PatientConversationAssignee")
+  patientConversationMessages    PatientConversationMessage[]
 
   @@map("users")
 }
@@ -248,6 +251,7 @@ model Clinic {
   aiEvents  AIEvent[]
   crossClinicGrantsAsSource    CrossClinicAccessGrant[] @relation("CrossClinicGrantAsSource")
   crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantAsReceiving")
+  patientConversations         PatientConversation[]
 
   @@map("clinics")
 }
@@ -1474,6 +1478,80 @@ model DmMessage {
 
   @@index([conversationId, createdAt])
   @@map("dm_messages")
+}
+
+/**
+ * The live-human channel a patient's assistant conversation escalates into.
+ *
+ * Distinct from `DmConversation` above (staff-to-staff, `pairKey`-unique 1:1)
+ * and from `AISession`/`AIMessage` (the patient's conversation with the
+ * assistant): this is the thread a human at the clinic actually answers on,
+ * and it can have more than one possible answerer — any OWNER or ADMIN of the
+ * clinic — so it is keyed by clinic and patient, not by a pair of users.
+ */
+enum PatientConversationStatus {
+  /// Nobody has taken it yet — sits in every OWNER/ADMIN's inbox.
+  WAITING
+  /// A staff member has claimed it and is replying.
+  LIVE
+  /// Closed. A new escalation from the same patient opens a new thread.
+  RESOLVED
+}
+
+model PatientConversation {
+  id                   String                     @id @default(uuid())
+  patientUserId        String
+  clinicId             String
+  status               PatientConversationStatus  @default(WAITING)
+  assignedToUserId     String?
+  /// Why the assistant handed this over — shown to staff, never to the patient.
+  escalationReason     String?
+  lastPatientMessageAt DateTime?
+  lastStaffMessageAt   DateTime?
+  /// Set when the on-call timer has already re-notified once, so the timer
+  /// does not nag on every pass while a thread sits unclaimed.
+  onCallNotifiedAt     DateTime?
+  resolvedAt           DateTime?
+
+  patientUser User    @relation("PatientConversationAsPatient", fields: [patientUserId], references: [id], onDelete: Cascade)
+  clinic      Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  assignedTo  User?   @relation("PatientConversationAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  messages    PatientConversationMessage[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId, status, lastPatientMessageAt])
+  @@index([patientUserId, clinicId])
+  @@map("patient_conversations")
+}
+
+enum PatientConversationAuthorType {
+  PATIENT
+  STAFF
+  /// The escalation summary the assistant hands off with — the patient's
+  /// verbatim question and why it could not be answered. Not the assistant
+  /// chatting; see `AIMessage` for that separate transcript.
+  SYSTEM
+}
+
+model PatientConversationMessage {
+  id             String                         @id @default(uuid())
+  conversationId String
+  authorType     PatientConversationAuthorType
+  /// Set for STAFF messages, null for PATIENT (identity comes from the
+  /// conversation's own patientUserId) and SYSTEM.
+  authorUserId   String?
+  body           String
+  readAt         DateTime?
+
+  conversation PatientConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorUser   User?               @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("patient_conversation_messages")
 }
 
 // --- FINANCE (Phase 4) ---

@@ -70,6 +70,8 @@ import { organizationsRouter } from './modules/organizations/organizations.route
 import { personsRouter } from './modules/persons/persons.routes.js';
 import { patientPortalRouter } from './modules/patient-portal/patientPortal.routes.js';
 import { aiPatientRouter } from './modules/ai-patient/aiPatient.routes.js';
+import { patientConversationRouter } from './modules/patient-conversation/patientConversation.routes.js';
+import { patientInboxRouter } from './modules/patient-conversation/patientInbox.routes.js';
 import { crossClinicRouter } from './modules/cross-clinic/cross-clinic.routes.js';
 import compatRouter from './compat/compatRouter.js';
 import { registerSubscribers } from './events/subscribers.js';
@@ -268,8 +270,13 @@ app.use('/api/persons', personsRouter);
 // portal's blanket `requireConsent()` — a patient who has not yet accepted the
 // AI agreement still needs `/ai/status` to tell the UI to ask for it.
 app.use('/api/patient-portal/ai', aiPatientRouter);
+// Same reasoning: a live thread the assistant already escalated into must
+// stay reachable even if the patient's AI consent lapses — this is a human
+// conversation, not the assistant.
+app.use('/api/patient-portal/conversation', patientConversationRouter);
 app.use('/api/patient-portal', patientPortalRouter);
 app.use('/api/cross-clinic', crossClinicRouter);
+app.use('/api/patient-inbox', patientInboxRouter);
 
 // ─── Error Handling ───
 app.use(notFound);
