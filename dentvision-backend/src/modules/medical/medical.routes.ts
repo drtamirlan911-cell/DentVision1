@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -6,6 +7,12 @@ import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { DENTAL_ICD10_SEED, mapIcd10Row, searchDentalCatalog } from './icd10.catalog.js';
+import {
+  collectPlanTeeth,
+  enrichStages,
+  normalizePlanItems,
+  planTotal,
+} from '../../lib/treatmentPlanShape.js';
 
 const medicalRouter = Router();
 
@@ -192,13 +199,21 @@ medicalRouter.post('/treatment-plan', requirePermission('patient.write'), async 
 
     if (!(await requirePatientAccess(req, res, patientId))) return;
 
+    // Normalise instead of storing the request body verbatim: this route used
+    // to accept any JSON at all, so a plan written here could not be read back
+    // by the CRM, the portal or the printer, all of which expect
+    // `items.stages`. `price` is derived rather than trusted from the body for
+    // the same reason — a client-supplied total is not the plan's total.
+    const normalized = normalizePlanItems(items);
+    const stages = enrichStages(normalized.stages);
+    const computedTotal = planTotal(stages);
     const plan = await prisma.treatmentPlan.create({
       data: {
         id: uid(),
         patientId,
         title,
-        items: items || undefined,
-        price: price || 0,
+        items: { ...normalized, stages, teeth: collectPlanTeeth(stages) } as any,
+        price: computedTotal || Number(price) || 0,
       },
     });
 
@@ -215,12 +230,25 @@ medicalRouter.patch('/treatment-plan/:id', requirePermission('patient.write'), a
 
     const { title, items, price, status } = req.body;
 
+    let normalizedItems: Prisma.InputJsonValue | undefined;
+    let derivedPrice: number | undefined;
+    if (items !== undefined) {
+      const normalized = normalizePlanItems(items);
+      const stages = enrichStages(normalized.stages);
+      normalizedItems = {
+        ...normalized,
+        stages,
+        teeth: collectPlanTeeth(stages),
+      } as unknown as Prisma.InputJsonValue;
+      derivedPrice = planTotal(stages) || undefined;
+    }
+
     const plan = await prisma.treatmentPlan.update({
       where: { id },
       data: {
         ...(title !== undefined && { title }),
-        ...(items !== undefined && { items }),
-        ...(price !== undefined && { price }),
+        ...(normalizedItems !== undefined && { items: normalizedItems }),
+        ...((derivedPrice ?? price) !== undefined && { price: derivedPrice ?? Number(price) }),
         ...(status !== undefined && { status }),
       },
     });
