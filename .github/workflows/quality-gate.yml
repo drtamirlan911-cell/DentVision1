@@ -11,6 +11,9 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npx tsc --noEmit
-      - run: npx eslint src/ --max-warnings 10000
+      # Locks in the current warning count (13) so it can't grow — the old
+      # 10000 ceiling meant "warnings allowed" in practice. Lower this number
+      # as warnings get cleaned up over time.
+      - run: npx eslint src/ --max-warnings 13
       - run: npx tsx quality-scripts/release-gate.ts
         continue-on-error: true

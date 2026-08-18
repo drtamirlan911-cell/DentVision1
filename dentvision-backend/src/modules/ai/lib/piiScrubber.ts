@@ -12,7 +12,7 @@ const SCRUBBABLE_KEYS = new Set([
 ]);
 
 export function scrubPII(text: string): string {
-  let result = text
+  const result = text
     .replace(PHONE_RX, (m) => {
       const digits = m.replace(/\D/g, '');
       if (digits.length === 11) {

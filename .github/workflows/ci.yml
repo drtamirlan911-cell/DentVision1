@@ -42,3 +42,7 @@ jobs:
           cache-dependency-path: dentvision-backend/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
+      # Locks in the current warning count (all `no-console`) so it can't grow —
+      # not 0, since fixing the existing debt in one shot is a separate, much
+      # larger change. Lower this number as warnings get cleaned up over time.
+      - run: npx eslint src/ --max-warnings 70

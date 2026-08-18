@@ -40,7 +40,7 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
 
   const MAX_ITERATIONS = 5
   let iteration = 0
-  let currentMessages = inputMessages
+  const currentMessages = inputMessages
 
   while (iteration < MAX_ITERATIONS) {
     iteration++
