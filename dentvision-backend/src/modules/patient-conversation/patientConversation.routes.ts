@@ -9,13 +9,15 @@
 
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
-import { verifyAccessToken } from '../../lib/jwt.js';
+import { issueSseTicket, consumeSseTicket } from '../../lib/sseTicket.js';
 import { resolvePatientForUser } from '../patient-portal/patientLink.js';
 import * as convo from './patientConversation.service.js';
 import { patientConversationHub } from './conversationHub.js';
 import type { AuthRequest } from '../../types/index.js';
 
 export const patientConversationRouter = Router();
+
+const SSE_SCOPE = 'patient-conversation';
 
 async function requireLinkedPatient(req: AuthRequest, res: any) {
   const match = await resolvePatientForUser(req.user!);
@@ -26,9 +28,15 @@ async function requireLinkedPatient(req: AuthRequest, res: any) {
   return match;
 }
 
-patientConversationRouter.use(authenticate);
-
-patientConversationRouter.get('/', async (req: AuthRequest, res) => {
+// `authenticate` is applied per-route, not with a blanket `.use()` — /stream
+// and /ticket below manage their own auth (a ticket, not the router's normal
+// Bearer/cookie check). A blanket `.use(authenticate)` here previously sat in
+// front of /stream too, and since `EventSource` sends neither an
+// Authorization header nor (cross-origin, no `withCredentials`) a cookie,
+// every /stream request was rejected by this middleware before the route's
+// own token check ever ran — the live-thread SSE connection could never
+// actually open.
+patientConversationRouter.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
     const match = await requireLinkedPatient(req, res);
     if (!match) return;
@@ -55,7 +63,7 @@ patientConversationRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
-patientConversationRouter.post('/message', async (req: AuthRequest, res) => {
+patientConversationRouter.post('/message', authenticate, async (req: AuthRequest, res) => {
   try {
     const match = await requireLinkedPatient(req, res);
     if (!match) return;
@@ -81,22 +89,25 @@ patientConversationRouter.post('/message', async (req: AuthRequest, res) => {
 });
 
 /**
- * SSE, token via query string — an `EventSource` cannot set an Authorization
- * header, the same constraint `ai.notifications.routes.ts` works around.
- * Verified with `verifyAccessToken` (the same check `authenticate` runs),
- * not a hand-rolled `jwt.verify`, so this endpoint cannot drift from the
- * app's actual auth rules.
+ * POST /api/patient-portal/conversation/ticket
+ * Mint a short-lived, one-time ticket for the /stream connection below.
+ */
+patientConversationRouter.post('/ticket', authenticate, (req: AuthRequest, res) => {
+  res.json({ ok: true, data: { ticket: issueSseTicket(req.user!.id, SSE_SCOPE) } });
+});
+
+/**
+ * SSE, ticket via query string — an `EventSource` cannot set an Authorization
+ * header, the same constraint `ai.notifications.routes.ts` works around. A
+ * one-time, 45s ticket rather than the caller's real access token, so a URL
+ * that ends up in a proxy log or browser history is worthless shortly after.
  */
 patientConversationRouter.get('/stream', async (req, res) => {
-  const token = String(req.query.token || '');
-  if (!token) return res.status(401).json({ ok: false, error: 'token обязателен' });
+  const ticket = String(req.query.ticket || '');
+  if (!ticket) return res.status(401).json({ ok: false, error: 'ticket обязателен' });
 
-  let userId: string;
-  try {
-    userId = verifyAccessToken(token).sub;
-  } catch {
-    return res.status(401).json({ ok: false, error: 'Недействительный токен' });
-  }
+  const userId = consumeSseTicket(ticket, SSE_SCOPE);
+  if (!userId) return res.status(401).json({ ok: false, error: 'Недействительный или истёкший ticket' });
 
   const { default: prisma } = await import('../../lib/prisma.js');
   const user = await prisma.user.findUnique({ where: { id: userId } });
