@@ -25,6 +25,7 @@ import { cn, today } from '@/lib/utils'
 import { Button } from '@/components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card'
 import { Input, Select } from '@/components/ui/ds/Input'
+import { DatePicker } from '@/components/ui/ds/DatePicker'
 import { Badge, StatusBadge } from '@/components/ui/ds/Badge'
 import { Modal } from '@/components/ui/ds/Modal'
 import { Tabs } from '@/components/ui/ds/Misc'
@@ -859,8 +860,9 @@ export default function Schedule() {
           <motion.div variants={fadeUp} className="flex flex-col gap-3 p-3 rounded-xl bg-surface-raised border border-bdr-subtle">
             <div className="flex items-center gap-2 flex-wrap">
               <Button variant="ghost" size="icon-sm" aria-label="Назад" onClick={() => shiftPeriod(-1)} className="!min-w-11 !min-h-11"><ChevronLeft size={16} /></Button>
-              <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
-                className="h-9 px-3 rounded-lg bg-white/[0.04] border border-bdr-subtle text-sm text-txt-primary outline-none min-w-0" />
+              <DatePicker value={selDate} onChange={e => setSelDate(e.target.value)}
+                size="sm" aria-label="Дата"
+                className="!h-9 !text-sm bg-white/[0.04] border-bdr-subtle min-w-0" />
               <Button variant="ghost" size="icon-sm" aria-label="Вперёд" onClick={() => shiftPeriod(1)} className="!min-w-11 !min-h-11"><ChevronRight size={16} /></Button>
               <Button variant="outline" size="sm" onClick={() => setSelDate(today())}>Сегодня</Button>
 

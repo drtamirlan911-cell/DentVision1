@@ -8,6 +8,7 @@ import {
   buildPeriod,
 } from '@/lib/financePeriod'
 import { useTranslation } from 'react-i18next'
+import { DatePicker } from '@/components/ui/ds/DatePicker'
 
 interface Props {
   period: FinancePeriod
@@ -48,18 +49,20 @@ export function FinancePeriodBar({ period, onChange, className }: Props) {
       ))}
       {period.preset === 'custom' && (
         <div className="flex items-center gap-1.5 ml-1">
-          <input
-            type="date"
+          <DatePicker
+            size="sm"
+            aria-label="Дата начала"
             value={period.from}
             onChange={(e) => onChange({ ...period, from: e.target.value, preset: 'custom' })}
-            className="h-8 rounded-lg bg-surface-2 border border-bdr-subtle px-2 text-xs text-txt-primary"
+            className="bg-surface-2 border-bdr-subtle"
           />
           <span className="text-txt-muted text-xs">—</span>
-          <input
-            type="date"
+          <DatePicker
+            size="sm"
+            aria-label="Дата окончания"
             value={period.to}
             onChange={(e) => onChange({ ...period, to: e.target.value, preset: 'custom' })}
-            className="h-8 rounded-lg bg-surface-2 border border-bdr-subtle px-2 text-xs text-txt-primary"
+            className="bg-surface-2 border-bdr-subtle"
           />
         </div>
       )}

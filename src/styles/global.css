@@ -571,3 +571,41 @@
     }
   }
 }
+
+/* --------------------------------------------------------------------------
+   Localised date fields
+
+   `<input type="date">` renders its text using the BROWSER's UI language, not
+   the app's. A clinic in Almaty running an English-locale Chrome saw
+   "08/17/2026" inside an otherwise Russian screen, and no CSS or `lang`
+   attribute changes that.
+
+   So we hide the native text (keeping the native picker, keyboard handling and
+   accessibility intact) and paint our own dd.mm.yyyy label underneath. The
+   input stays on top and fully clickable — only its glyphs go transparent.
+   -------------------------------------------------------------------------- */
+.dv-date-native::-webkit-datetime-edit,
+.dv-date-native::-webkit-inner-spin-button,
+.dv-date-native::-webkit-clear-button {
+  opacity: 0;
+}
+
+.dv-date-native::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+  /* Stretch the invisible indicator across the field so a click anywhere opens
+     the picker, matching what the painted label implies is clickable. */
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+}
+
+/* Firefox has no ::-webkit-* pseudos and already formats per app locale well
+   enough; there the native text would double up with our label, so hide ours. */
+@supports (-moz-appearance: none) {
+  .dv-date-native { color: inherit; }
+  .dv-date-label { display: none; }
+}
