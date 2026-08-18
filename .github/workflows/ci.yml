@@ -30,19 +30,25 @@ jobs:
 
   backend-lint:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: dentvision-backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: dentvision-backend/package-lock.json
+      # eslint + eslint.config.js live only at the repo root (dentvision-backend
+      # has no eslint devDependency of its own) — root npm ci puts a real eslint
+      # binary on the path that dentvision-backend/'s npx invocation below can
+      # find by walking up node_modules, instead of npx silently auto-fetching
+      # a fresh, unpinned, mismatched ESLint version that can't resolve the
+      # config's own @eslint/js dependency.
       - run: npm ci
+      - run: npm ci
+        working-directory: dentvision-backend
       - run: npx tsc --noEmit
+        working-directory: dentvision-backend
       # Locks in the current warning count (all `no-console`) so it can't grow —
       # not 0, since fixing the existing debt in one shot is a separate, much
       # larger change. Lower this number as warnings get cleaned up over time.
       - run: npx eslint src/ --max-warnings 70
+        working-directory: dentvision-backend
