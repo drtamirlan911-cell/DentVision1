@@ -878,6 +878,22 @@ diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res
 
 // ─── Payment Settlement ───
 
+/**
+ * Atomically claims a not-yet-paid referral for settlement: flips `paid`
+ * only if it's still `false`, via a conditional `updateMany` rather than a
+ * plain check-then-act read+write. Two concurrent mark-paid/cashier-collect
+ * calls for the same referral can therefore never both win and both run
+ * `recordSale` — the loser sees `count === 0` and must not settle again.
+ * Same pattern as `claimPaymentForSettlement` in payments.routes.ts.
+ */
+export async function claimReferralPaid(id: string, data: Record<string, unknown>): Promise<boolean> {
+  const claimed = await (prisma as any).referral.updateMany({
+    where: { id, paid: false },
+    data,
+  });
+  return claimed.count === 1;
+}
+
 diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
@@ -902,7 +918,8 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', async (req: AuthRequest, res)
     const { resolveCommissionBps } = await import('../finance/finance.service.js');
     const bps = referral.centerId ? await resolveCommissionBps('diagnostics', referral.centerId) : 0;
     const fee = referral.cost ? Math.round((Number(referral.cost) * bps) / 10000) : 0;
-    await (prisma as any).referral.update({ where: { id }, data: { paid: true, paidAt: new Date(), platformFee: fee } });
+    const won = await claimReferralPaid(id, { paid: true, paidAt: new Date(), platformFee: fee });
+    if (!won) return res.status(409).json({ ok: false, error: 'Уже оплачено' } as any);
 
     // Record diagnostic sale through Commission Engine
     if (referral.cost && referral.centerId) {
@@ -956,10 +973,8 @@ diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, 
     const bps = await resolveCommissionBps('diagnostics', centerId);
     const feeNum = Math.round((costNum * bps) / 10000);
 
-    await (prisma as any).referral.update({
-      where: { id: referralId },
-      data: { cost: costNum, platformFee: feeNum, paid: true, paidAt: new Date() },
-    });
+    const won = await claimReferralPaid(referralId, { cost: costNum, platformFee: feeNum, paid: true, paidAt: new Date() });
+    if (!won) return res.status(409).json({ ok: false, error: 'Уже оплачено' } as any);
 
     // Record diagnostic sale through Commission Engine
     try {
@@ -1043,10 +1058,8 @@ diagnosticsRouter.post('/laboratories/:id/cashier/collect', async (req: AuthRequ
     const bps = await resolveCommissionBps('diagnostics', labId);
     const feeNum = Math.round((costNum * bps) / 10000);
 
-    await (prisma as any).referral.update({
-      where: { id: referralId },
-      data: { cost: costNum, platformFee: feeNum, paid: true, paidAt: new Date() },
-    });
+    const won = await claimReferralPaid(referralId, { cost: costNum, platformFee: feeNum, paid: true, paidAt: new Date() });
+    if (!won) return res.status(409).json({ ok: false, error: 'Уже оплачено' } as any);
 
     try {
       const { recordSale } = await import('../finance/finance.service.js');
