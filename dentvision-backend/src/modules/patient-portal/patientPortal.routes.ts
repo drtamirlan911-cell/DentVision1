@@ -271,7 +271,7 @@ patientPortalRouter.post('/link', async (req: AuthRequest, res) => {
 // ─────────────── Cancel appointment ───────────────
 patientPortalRouter.post('/appointments/:id/cancel', ensurePatient, async (req: AuthRequest, res) => {
   try {
-    const result = await portalSvc.cancelAppointment(resolvePatientId(req), req.params.id);
+    const result = await portalSvc.cancelAppointment(resolvePatientId(req), String(req.params.id));
     return res.json({ ok: true, data: result });
   } catch (e: any) {
     if (e instanceof portalSvc.PortalActionError) {
@@ -298,7 +298,7 @@ patientPortalRouter.get('/access-requests', async (req: AuthRequest, res) => {
 
 patientPortalRouter.post('/access-requests/:grantId/approve', async (req: AuthRequest, res) => {
   try {
-    const ok = await crossClinicSvc.approveRequest(req.params.grantId, req.user!.id);
+    const ok = await crossClinicSvc.approveRequest(String(req.params.grantId), req.user!.id);
     if (!ok) return res.status(404).json({ ok: false, error: 'Запрос не найден' });
     return res.json({ ok: true, data: { approved: true } });
   } catch (e: any) {
@@ -308,7 +308,7 @@ patientPortalRouter.post('/access-requests/:grantId/approve', async (req: AuthRe
 
 patientPortalRouter.post('/access-requests/:grantId/decline', async (req: AuthRequest, res) => {
   try {
-    const ok = await crossClinicSvc.declineRequest(req.params.grantId, req.user!.id);
+    const ok = await crossClinicSvc.declineRequest(String(req.params.grantId), req.user!.id);
     if (!ok) return res.status(404).json({ ok: false, error: 'Запрос не найден' });
     return res.json({ ok: true, data: { declined: true } });
   } catch (e: any) {
@@ -331,7 +331,7 @@ patientPortalRouter.post('/access-grants/:grantId/revoke', async (req: AuthReque
     // grant (status='APPROVED', revokedAt=null) on every read, so the very
     // next request the receiving clinic makes after this succeeds gets 403 —
     // there is no cache to invalidate.
-    const ok = await crossClinicSvc.revokeGrant(req.params.grantId, req.user!.id);
+    const ok = await crossClinicSvc.revokeGrant(String(req.params.grantId), req.user!.id);
     if (!ok) return res.status(404).json({ ok: false, error: 'Доступ не найден' });
     return res.json({ ok: true, data: { revoked: true } });
   } catch (e: any) {
