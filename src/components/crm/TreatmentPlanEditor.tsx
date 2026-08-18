@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
-  Plus, Trash2, Save, Printer, Layers, ChevronDown, ChevronUp, GripVertical,
+  Plus, Trash2, Save, Printer, Layers, ChevronDown, ChevronUp, GripVertical, ShieldCheck,
 } from 'lucide-react'
 import { Modal } from '@/components/ui/ds/Modal'
 import { Button } from '@/components/ui/ds/Button'
@@ -83,6 +83,7 @@ export function TreatmentPlanEditor({
 
   const { showToast } = useToast()
   const [saving, setSaving] = useState(false)
+  const [approving, setApproving] = useState(false)
   const [services, setServices] = useState<ServiceOption[]>([])
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null)
   const [pickerTeeth, setPickerTeeth] = useState<number[]>([])
@@ -304,6 +305,55 @@ export function TreatmentPlanEditor({
       showToast(t('treatmentPlan.toast_save_failed'), 'error')
     } finally {
       setSaving(false)
+    }
+  }
+
+  /**
+   * Save, then freeze the plan as this clinician signed it and release it.
+   *
+   * Saving and approving are one click here but two records on the server:
+   * `approvedAt` says a named doctor signed off on the medicine, `publishedAt`
+   * says the patient may see it. Until this runs, the patient sees nothing —
+   * an unapproved plan is not visible in the portal at all.
+   */
+  const handleApproveAndPublish = async () => {
+    if (!draft.patientId) {
+      showToast(t('crm.select_patient'), 'warning')
+      return
+    }
+    if (!draft.stages.some((s) => s.items.length > 0)) {
+      showToast(t('treatmentPlan.toast_add_service'), 'warning')
+      return
+    }
+
+    setApproving(true)
+    try {
+      const stages = enrichStagesWithCosts(draft.stages)
+      // Save first: approval freezes whatever is persisted, so publishing a
+      // stale version would be the one failure mode that matters here.
+      const saved = await api.upsertTreatmentPlan({
+        id: draft.id,
+        clinicId,
+        patientId: draft.patientId,
+        doctorId,
+        title: draft.title || t('treatmentPlan.title'),
+        diagnosis: draft.diagnosis || null,
+        status: draft.status,
+        totalBudget: planTotal(stages),
+        teeth: collectPlanTeeth(stages),
+        stages,
+      })
+      const planId = draft.id || saved?.id || saved?.data?.id
+      if (!planId) throw new Error('no plan id')
+
+      await api.approveTreatmentPlan(planId, { publish: true })
+      showToast(t('treatmentPlan.toast_published'), 'success')
+      onSaved()
+      onClose()
+    } catch {
+      showToast(t('treatmentPlan.toast_publish_failed'), 'error')
+    } finally {
+      setApproving(false)
     }
   }
 
@@ -584,8 +634,11 @@ export function TreatmentPlanEditor({
             <Button size="sm" variant="secondary" onClick={onClose}>
               {t('common.cancel')}
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving} icon={<Save size={14} />}>
+            <Button size="sm" variant="secondary" onClick={handleSave} disabled={saving || approving} icon={<Save size={14} />}>
               {saving ? t('treatmentPlan.saving_plan') : t('treatmentPlan.save_plan')}
+            </Button>
+            <Button size="sm" onClick={handleApproveAndPublish} disabled={saving || approving} icon={<ShieldCheck size={14} />}>
+              {approving ? t('treatmentPlan.publishing') : t('treatmentPlan.approve_and_publish')}
             </Button>
           </div>
         </div>

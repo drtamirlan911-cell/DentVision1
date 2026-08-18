@@ -1554,6 +1554,38 @@ export async function deleteTreatmentPlan(id: string): Promise<any> {
   return apiRequest(`/api/crm/treatment-plans/${id}`, { method: 'DELETE' });
 }
 
+// ─── Doctor Approval Layer ───
+// A patient only ever sees a plan a named clinician approved and published.
+// These four calls are the clinic side of that; the patient side reads the
+// frozen release, never the editable plan.
+
+/** Freeze the plan as signed. `publish: true` also releases it to the patient. */
+export async function approveTreatmentPlan(
+  planId: string,
+  opts: { note?: string; publish?: boolean; validityDays?: number } = {},
+): Promise<any> {
+  return apiRequest(`/api/crm/treatment-plans/${planId}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(opts),
+  });
+}
+
+export async function publishPlanRelease(releaseId: string): Promise<any> {
+  return apiRequest(`/api/crm/plan-releases/${releaseId}/publish`, { method: 'POST' });
+}
+
+export async function withdrawPlanRelease(releaseId: string, reason?: string): Promise<any> {
+  return apiRequest(`/api/crm/plan-releases/${releaseId}/withdraw`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+/** Version history for a plan, superseded and withdrawn versions included. */
+export async function getPlanReleases(planId: string): Promise<any[]> {
+  return apiRequest(`/api/crm/treatment-plans/${planId}/releases`);
+}
+
 // ─── AI Threads ───
 export async function getAiThreads(): Promise<any> {
   return apiRequest('/api/ai/threads');

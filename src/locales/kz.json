@@ -969,7 +969,11 @@
     "page_title_template": "Емдеу жоспары — {{name}}",
     "stage_fallback": "{{sortOrder}}-кезең",
     "service_fallback": "Қызмет",
-    "clinic_fallback": "Клиника"
+    "clinic_fallback": "Клиника",
+    "approve_and_publish": "Бекіту және жариялау",
+    "publishing": "Жариялануда…",
+    "toast_published": "Жоспар бекітілді және емделушіге жарияланды",
+    "toast_publish_failed": "Жоспарды жариялау сәтсіз аяқталды"
   },
   "billing": {
     "free": "Тегін",

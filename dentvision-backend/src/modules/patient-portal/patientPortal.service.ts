@@ -20,9 +20,11 @@ import {
   enrichStages,
   lineItemTotal,
   normalizePlanItems,
-  planTotal,
-  PATIENT_VISIBLE_PLAN_STATUSES,
 } from '../../lib/treatmentPlanShape.js';
+// The patient side reads releases, never `TreatmentPlan` — see
+// modules/patient-presentation/planRelease.service.ts. A structural test
+// (planReleaseBoundary.test.ts) fails if that ever stops being true.
+import { listPublishedReleases } from '../patient-presentation/planRelease.service.js';
 
 export async function getAppointments(patientId: string) {
   const appointments = await (prisma as any).appointment.findMany({
@@ -62,32 +64,24 @@ export async function getAppointments(patientId: string) {
  * no clinician had reviewed.
  */
 export async function getTreatments(patientId: string) {
-  const patient = await (prisma as any).patient.findUnique({
-    where: { id: patientId },
-    select: { clinic: { select: { id: true, name: true } } },
-  });
-  const plans = await (prisma as any).treatmentPlan.findMany({
-    where: { patientId, status: { in: [...PATIENT_VISIBLE_PLAN_STATUSES] } },
-    select: { id: true, items: true, createdAt: true },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  const releases = await listPublishedReleases(patientId);
   const treatments: any[] = [];
-  for (const plan of plans) {
-    const items = normalizePlanItems(plan.items);
+  for (const release of releases) {
+    const items = normalizePlanItems(release.snapshot);
     const diagnosis = items.diagnosis ?? null;
+    const clinic = (release as any).clinic ?? null;
     for (const stage of items.stages!) {
       for (const item of stage.items || []) {
         const teeth = Array.isArray(item.teeth) ? item.teeth : [];
         treatments.push({
-          id: item.id || `${plan.id}-${treatments.length}`,
+          id: item.id || `${release.id}-${treatments.length}`,
           toothNumber: teeth.join(', '),
           procedureType: item.serviceName || item.name || '',
           cost: lineItemTotal(item),
           diagnosis,
           notes: stage.notes || null,
-          clinic: patient?.clinic || null,
-          createdAt: plan.createdAt,
+          clinic,
+          createdAt: release.approvedAt,
         });
       }
     }
@@ -109,30 +103,28 @@ export async function getTreatments(patientId: string) {
  * medical.routes.ts and doctor.agent.ts are.
  */
 export async function getTreatmentPlans(patientId: string) {
-  const plans = await (prisma as any).treatmentPlan.findMany({
-    where: { patientId, status: { in: [...PATIENT_VISIBLE_PLAN_STATUSES] } },
-    select: {
-      id: true, title: true, status: true, items: true, price: true, notes: true,
-      createdAt: true,
-      patient: { select: { clinic: { select: { id: true, name: true } } } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-  });
-  return plans.map((p: any) => {
-    const items = normalizePlanItems(p.items);
+  const releases = await listPublishedReleases(patientId);
+  return releases.map((r: any) => {
+    const items = normalizePlanItems(r.snapshot);
     const stages = enrichStages(items.stages);
-    const computedTotal = planTotal(stages);
     return {
-      id: p.id,
-      title: p.title,
-      status: p.status,
-      diagnosis: items.diagnosis ?? p.notes ?? null,
+      // The release is the thing on screen, so it is the identity here. The
+      // plan id is carried alongside because the clinic side still keys on it.
+      id: r.id,
+      planId: r.planId,
+      version: r.version,
+      title: (items as any).title ?? null,
+      diagnosis: items.diagnosis ?? null,
       teeth: collectPlanTeeth(stages).length ? collectPlanTeeth(stages) : (items.teeth || []),
       stages,
-      totalBudget: computedTotal > 0 ? computedTotal : (p.price ?? items.totalBudget ?? null),
-      createdAt: p.createdAt,
-      clinic: p.patient?.clinic || null,
+      // Frozen at approval, not recomputed: this is the number the patient was
+      // quoted, and it must not drift if the price list changes afterwards.
+      totalBudget: r.totalAmount,
+      approvedAt: r.approvedAt,
+      publishedAt: r.publishedAt,
+      expiresAt: r.expiresAt,
+      createdAt: r.approvedAt,
+      clinic: r.clinic ?? null,
     };
   });
 }

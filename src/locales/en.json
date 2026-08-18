@@ -961,7 +961,11 @@
     "page_title_template": "Treatment Plan — {{name}}",
     "stage_fallback": "Stage {{sortOrder}}",
     "service_fallback": "Service",
-    "clinic_fallback": "Clinic"
+    "clinic_fallback": "Clinic",
+    "approve_and_publish": "Approve & publish",
+    "publishing": "Publishing…",
+    "toast_published": "Plan approved and published to the patient",
+    "toast_publish_failed": "Could not publish the plan"
   },
   "billing": {
     "free": "Free",
