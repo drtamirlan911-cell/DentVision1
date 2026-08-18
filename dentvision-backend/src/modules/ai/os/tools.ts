@@ -13,6 +13,7 @@
 
 import prisma from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
+import { isClinicMember } from '../../../lib/orgContext.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
 import {
@@ -279,6 +280,15 @@ export const TOOLS: Record<string, ToolSpec> = {
       if (!patient) return { ok: false, error: 'Пациент не найден' };
 
       const doctorId = String(args.doctorId || ctx.userId);
+      // `doctorId` comes from the model's tool-call arguments when explicitly
+      // given (the caller may ask to book "with Dr. X"). Unlike patientId
+      // above, nothing here confirms it belongs to this clinic — write it
+      // unchecked and the appointment ends up assigned to a user with no
+      // relationship to the clinic at all. Skipped when it defaulted to
+      // ctx.userId, which the orchestrator already verified.
+      if (args.doctorId && doctorId !== ctx.userId && !(await isClinicMember(doctorId, clinicId))) {
+        return { ok: false, error: 'Указанный врач не найден в этой клинике' };
+      }
       const time = String(args.time);
       const duration = Number(args.duration) || 60;
       const date = String(args.date);
@@ -470,6 +480,9 @@ export const TOOLS: Record<string, ToolSpec> = {
       const date = String(args.date);
       const time = String(args.time);
       const doctorId = String(args.doctorId || existing.doctorId);
+      if (args.doctorId && doctorId !== existing.doctorId && !(await isClinicMember(doctorId, clinicId))) {
+        return { ok: false, error: 'Указанный врач не найден в этой клинике' };
+      }
       const name = existing.patient
         ? `${existing.patient.firstName} ${existing.patient.lastName}`.trim()
         : 'пациента';
