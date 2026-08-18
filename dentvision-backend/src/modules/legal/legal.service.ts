@@ -88,11 +88,6 @@ export async function changeDocumentStatus(documentId: string, newStatus: string
     data: { documentId, version: doc.version + 1, content: doc.content, status: newStatus as any, changelog, createdBy: performedBy },
   });
   await writeAuditLog({ documentId, action: 'STATUS_CHANGED', fromStatus: doc.status, toStatus: newStatus, fromVersion: doc.version, toVersion: doc.version + 1, diff: { status: { from: doc.status, to: newStatus } }, performedBy });
-  if (newStatus === 'PUBLISHED') {
-    const partner = await prisma.legalPartner.findUnique({ where: { id: doc.partnerId } });
-    if (partner && partner.commission && Number(partner.commission) > 0) {
-          }
-  }
   return updated;
 }
 

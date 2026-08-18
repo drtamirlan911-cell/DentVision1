@@ -3,6 +3,7 @@ const MAX_INPUT_LENGTH = 4096;
 export function sanitizeUserInput(text: string): string {
   const sanitized = String(text || '')
     .replace(/\0/g, '')
+    // eslint-disable-next-line no-control-regex -- deliberately stripping control characters from user input before it reaches the prompt template
     .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
     .slice(0, MAX_INPUT_LENGTH);
 

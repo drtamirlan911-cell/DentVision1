@@ -14,6 +14,7 @@ async function ensureTable(): Promise<void> {
       );
     `);
   } catch {
+    // Idempotent: table already exists.
   }
 }
 
@@ -28,6 +29,7 @@ export async function getPlatformSettings(): Promise<Record<string, string>> {
       return { ...PLATFORM_INFO, ...(rows[0].settings as Record<string, string>) };
     }
   } catch {
+    // Table not ready yet or query failed — fall back to defaults below.
   }
   return { ...PLATFORM_INFO };
 }
