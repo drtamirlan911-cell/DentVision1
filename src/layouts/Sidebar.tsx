@@ -107,11 +107,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const NAV_ITEMS: NavItem[] = [
     { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} strokeWidth={1.75} />, path: '/crm/schedule', color: '#C9A96E', section: 'services' },
-    { id: 'diagnostics', label: 'Diagnostics', icon: <Activity size={18} strokeWidth={1.75} />, path: '/diagnostics', color: '#27AE60', section: 'services' },
+    { id: 'diagnostics', label: t('nav.diagnostics'), icon: <Activity size={18} strokeWidth={1.75} />, path: '/diagnostics', color: '#27AE60', section: 'services' },
     { id: 'shop', label: t('nav.shop'), icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop', color: '#A78BFA', section: 'services' },
     { id: 'school', label: 'Academy OS', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school', color: '#2DD4BF', section: 'services' },
     { id: 'analytics', label: t('nav.analytics'), icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/analytics', color: '#FBBF24', section: 'services' },
-    { id: 'bi', label: 'Business Intelligence', icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/bi', color: '#10B981', section: 'services' },
+    { id: 'bi', label: t('nav.bi'), icon: <BarChart3 size={18} strokeWidth={1.75} />, path: '/bi', color: '#10B981', section: 'services' },
     { id: 'jobs', label: t('nav.jobs'), icon: <Briefcase size={18} strokeWidth={1.75} />, path: '/jobs', color: '#FB923C', section: 'services' },
     { id: 'community', label: t('nav.community'), icon: <Users size={18} strokeWidth={1.75} />, path: '/community', color: '#38BDF8', section: 'services' },
     { id: 'supplier', label: t('nav.supplier_cabinet'), icon: <Store size={18} strokeWidth={1.75} />, path: '/supplier', color: '#34D399', section: 'platform' },
@@ -130,11 +130,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const ADMIN_ITEMS: NavItem[] = [
     { id: 'admin', label: t('nav.admin'), icon: <Shield size={18} strokeWidth={1.75} />, path: '/admin', color: '#F87171', section: 'platform' },
-    { id: 'shop-admin', label: 'Shop Admin', icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop/admin', color: '#A78BFA', section: 'platform' },
-    { id: 'school-admin', label: 'School Admin', icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school/admin', color: '#2DD4BF', section: 'platform' },
-    { id: 'security', label: 'Security & Compliance', icon: <ShieldCheck size={18} strokeWidth={1.75} />, path: '/security', color: '#38BDF8', section: 'platform' },
-    { id: 'legal', label: 'Legal', icon: <Scale size={18} strokeWidth={1.75} />, path: '/legal', color: '#C9A96E', section: 'platform' },
-    { id: 'quality', label: 'Quality Center', icon: <Activity size={18} strokeWidth={1.75} />, path: '/admin?tab=quality', color: '#10B981', section: 'platform', badge: 'NEW' },
+    { id: 'shop-admin', label: t('nav.shop_admin'), icon: <ShoppingCart size={18} strokeWidth={1.75} />, path: '/shop/admin', color: '#A78BFA', section: 'platform' },
+    { id: 'school-admin', label: t('nav.school_admin'), icon: <GraduationCap size={18} strokeWidth={1.75} />, path: '/school/admin', color: '#2DD4BF', section: 'platform' },
+    { id: 'security', label: t('nav.security'), icon: <ShieldCheck size={18} strokeWidth={1.75} />, path: '/security', color: '#38BDF8', section: 'platform' },
+    { id: 'legal', label: t('nav.legal'), icon: <Scale size={18} strokeWidth={1.75} />, path: '/legal', color: '#C9A96E', section: 'platform' },
+    { id: 'quality', label: t('nav.quality'), icon: <Activity size={18} strokeWidth={1.75} />, path: '/admin?tab=quality', color: '#10B981', section: 'platform', badge: 'NEW' },
   ];
 
   const GUEST_NAV_ITEMS: NavItem[] = [

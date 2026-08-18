@@ -114,7 +114,13 @@
     "breadcrumb_item": "Элемент",
     "market": "Маркет",
     "network": "Желі",
-    "context_panel": "Мәнмәтін панелі"
+    "context_panel": "Мәнмәтін панелі",
+    "bi": "Бизнес-аналитика",
+    "legal": "Заң орталығы",
+    "security": "Қауіпсіздік және комплаенс",
+    "quality": "Сапа орталығы",
+    "shop_admin": "Маркетплейс әкімшілігі",
+    "school_admin": "Академия әкімшілігі"
   },
   "shop": {
     "title": "Маркетплейс",
@@ -777,7 +783,11 @@
     "scope_marketplace": "Маркетплейс",
     "scope_marketplace_body": "Материалдар сатып алу...",
     "scope_open_seller": "Сатушы кабинеті",
-    "ai_settings": "AI параметрлері"
+    "ai_settings": "AI параметрлері",
+    "clinic_not_selected": "Клиника таңдалмаған — профильде контекстті ауыстырыңыз.",
+    "where_start": "Неден бастаймыз?",
+    "open_profile": "Профильді ашу",
+    "show_schedule": "Кестені көрсету"
   },
   "finance": {
     "title": "Қаржы",

@@ -114,7 +114,13 @@
     "breadcrumb_item": "Элемент",
     "market": "Маркет",
     "network": "Сеть",
-    "context_panel": "Контекстная панель"
+    "context_panel": "Контекстная панель",
+    "bi": "Бизнес-аналитика",
+    "legal": "Юридический центр",
+    "security": "Безопасность и комплаенс",
+    "quality": "Центр качества",
+    "shop_admin": "Админка маркетплейса",
+    "school_admin": "Админка академии"
   },
   "shop": {
     "title": "Маркетплейс",
@@ -773,7 +779,11 @@
     "scope_marketplace": "Маркетплейс",
     "scope_marketplace_body": "Покупка материалов...",
     "scope_open_seller": "Кабинет продавца",
-    "ai_settings": "Настройки AI"
+    "ai_settings": "Настройки AI",
+    "clinic_not_selected": "Клиника не выбрана — переключите контекст в профиле.",
+    "where_start": "С чего начнём?",
+    "open_profile": "Открыть профиль",
+    "show_schedule": "Показать расписание"
   },
   "finance": {
     "title": "Финансы",
