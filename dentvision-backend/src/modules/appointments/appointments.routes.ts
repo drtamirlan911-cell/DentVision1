@@ -14,6 +14,7 @@ import {
 } from '../crm/appointmentMeta.js';
 import { metaFromClosedVisit } from '../crm/payroll.js';
 import { loadClinicAccess, requireClinicWritable } from '../../middleware/planGate.js';
+import { isClinicMember } from '../../lib/orgContext.js';
 
 export const appointmentsRouter = Router();
 
@@ -152,6 +153,13 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
 
     if (!patientId || !doctorId || !date) {
       return res.status(400).json({ ok: false, error: 'Пациент, врач и дата обязательны' } satisfies ApiResponse);
+    }
+    // bodyDoctorId is caller-supplied and was previously written straight into
+    // the appointment with no check that it belongs to this clinic — a valid
+    // user id from anywhere in the system would silently attach the
+    // appointment to a doctor with no relationship to this tenant.
+    if (bodyDoctorId && bodyDoctorId !== existing?.doctorId && !(await isClinicMember(doctorId, clinicId))) {
+      return res.status(400).json({ ok: false, error: 'Указанный врач не найден в этой клинике' } satisfies ApiResponse);
     }
 
     const patient = await prisma.patient.findFirst({

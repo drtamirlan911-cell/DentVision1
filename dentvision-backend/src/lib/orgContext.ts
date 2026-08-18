@@ -191,3 +191,16 @@ export async function assertClinicRole(userId: string, clinicId: string, allowed
   if (!allowedRoles.includes(access.role)) throw Object.assign(new Error('Недостаточно прав'), { status: 403 });
   return access;
 }
+
+/**
+ * Is `userId` currently a member of `clinicId`, in any role? Used to validate
+ * a caller-supplied staff id — e.g. an appointment's `doctorId` — actually
+ * belongs to the clinic it's being assigned within, rather than silently
+ * writing a reference to a user from an entirely different tenant. Distinct
+ * from `assertClinicRole`, which checks the *caller's own* access and throws;
+ * this checks a *third-party* id and returns a plain boolean.
+ */
+export async function isClinicMember(userId: string, clinicId: string): Promise<boolean> {
+  const access = await resolveClinicAccess(userId, clinicId);
+  return access !== null;
+}
