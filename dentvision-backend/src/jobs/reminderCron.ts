@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Reminder cron — scan upcoming appointments and send WhatsApp/SMS.
  * Spec §05: server cron (deep-link UI remains as manual fallback).
@@ -23,6 +22,35 @@ export interface ReminderCronResult {
   details: Array<{ appointmentId: string; reminderKey: string; channel?: string; error?: string }>;
 }
 
+/**
+ * Returns `null` — not an empty array — when the table does not exist yet
+ * (Prisma P2021, a fresh database before migrations). The caller turns that into
+ * an empty result; an empty array would be indistinguishable from "nothing due".
+ *
+ * Kept as its own function so the query's payload type is inferred. Assigning it
+ * to a bare `let` inside a try/catch widened it to `unknown[]`, which then made
+ * `doctorIds` unusable as a Prisma `in` filter.
+ */
+async function findUpcomingAppointments(clinicId: string | undefined, from: Date, to: Date) {
+  try {
+    return await prisma.appointment.findMany({
+      where: {
+        ...(clinicId ? { clinicId } : {}),
+        date: { gte: from, lte: to },
+        status: { notIn: ['cancelled', 'no_show', 'completed'] },
+      },
+      include: {
+        patient: { select: { id: true, firstName: true, lastName: true, phone: true } },
+        clinic: { select: { id: true, name: true } },
+      },
+      take: 500,
+    });
+  } catch (err: any) {
+    if (String(err?.code) === 'P2021') return null;
+    throw err;
+  }
+}
+
 export async function runReminderCron(opts: {
   clinicId?: string;
   hoursWindow?: number;
@@ -35,25 +63,9 @@ export async function runReminderCron(opts: {
   from.setHours(0, 0, 0, 0);
   const to = new Date(now.getTime() + (hoursWindow + 1) * 3600 * 1000);
 
-  let appointments;
-  try {
-    appointments = await prisma.appointment.findMany({
-      where: {
-        ...(opts.clinicId ? { clinicId: opts.clinicId } : {}),
-        date: { gte: from, lte: to },
-        status: { notIn: ['cancelled', 'no_show', 'completed'] },
-      },
-      include: {
-        patient: { select: { id: true, firstName: true, lastName: true, phone: true } },
-        clinic: { select: { id: true, name: true } },
-      },
-      take: 500,
-    });
-  } catch (err: any) {
-    if (String(err?.code) === 'P2021') {
-      return { scanned: 0, sent: 0, skipped: 0, errors: 0, details: [] };
-    }
-    throw err;
+  const appointments = await findUpcomingAppointments(opts.clinicId, from, to);
+  if (!appointments) {
+    return { scanned: 0, sent: 0, skipped: 0, errors: 0, details: [] };
   }
 
   const result: ReminderCronResult = { scanned: appointments.length, sent: 0, skipped: 0, errors: 0, details: [] };
@@ -66,7 +78,9 @@ export async function runReminderCron(opts: {
         select: { id: true, firstName: true, lastName: true },
       }).catch((err: any) => (String(err?.code) === 'P2021' ? [] : Promise.reject(err)))
     : [];
-  const doctorMap = new Map(doctors.map((d) => [d.id, `${d.firstName} ${d.lastName}`.trim()]));
+  const doctorMap = new Map<string, string>(
+    doctors.map((d: { id: string; firstName: string; lastName: string }) => [d.id, `${d.firstName} ${d.lastName}`.trim()]),
+  );
 
   // Batch-fetch already-sent reminder logs once instead of per-appointment.
   const reminderKeys = appointments.map((a) => `appt_${a.id}`);

@@ -97,7 +97,9 @@ export default function DiagnosticsDashboard() {
                     <p className="text-sm font-medium text-txt-primary truncate">{r.patientName}</p>
                     <p className="text-xs text-txt-muted">{r.studyType} · {r.clinic?.name}</p>
                   </div>
-                  <span className="text-xs text-txt-ghost">{new Date(r.createdAt).toLocaleDateString()}</span>
+                  {/* Locale-less toLocaleDateString() rendered US "8/17/2026" while
+                      the referral list beside it already formats as ru-RU. */}
+                  <span className="text-xs text-txt-ghost">{new Date(r.createdAt).toLocaleDateString('ru-RU')}</span>
                 </div>
               ))}
             </div>

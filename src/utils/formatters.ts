@@ -6,7 +6,12 @@ export function today(): string {
 
 export function fd(d: string): string {
   if(!d) return "";
-  const [y,m,day] = d.split("-");
+  // Callers pass both plain dates ("2026-08-17") and full ISO timestamps
+  // ("2026-08-17T09:10:00.000Z"). Splitting the raw string on "-" made the day
+  // part carry the whole time component, rendering "17T09:10:00.000Z.08.2026".
+  // Cut the time off first so both shapes format identically.
+  const [y, m, day] = d.split("T")[0].split("-");
+  if (!y || !m || !day) return d;
   return `${day}.${m}.${y}`;
 }
 

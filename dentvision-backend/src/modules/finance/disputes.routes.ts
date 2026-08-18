@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
@@ -48,7 +47,12 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
     // Trigger refund when dispute is resolved in favour of the buyer
     if (status === 'resolved' && existing.refType && existing.refId) {
       try {
-        await reverseCashback(existing.refType, existing.refId);
+        await reverseCashback({
+          refType: existing.refType,
+          refId: existing.refId,
+          reason: 'dispute_resolved',
+          callerId: req.user?.id ?? null,
+        });
       } catch (e) {
         console.error('Dispute refund failed:', e);
       }

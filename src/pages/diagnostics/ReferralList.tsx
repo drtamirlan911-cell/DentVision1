@@ -46,6 +46,22 @@ const PRIORITY_COLORS: Record<string, string> = {
   EMERGENCY: 'bg-error/10 text-error',
 };
 
+// The badges rendered the raw enum ("COMPLETED", "URGENT") right underneath a
+// filter row showing the very same values in Russian. STATUS_OPTS already holds
+// the labels; the statuses that never appear as a filter option need their own.
+const STATUS_LABELS: Record<string, string> = {
+  ...Object.fromEntries(STATUS_OPTS.filter(o => o.value).map(o => [o.value, o.label])),
+  PATIENT_ARRIVED: 'Пациент прибыл',
+  REVIEWED: 'Просмотрено',
+  CLOSED: 'Закрыто',
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+  NORMAL: 'Обычный',
+  URGENT: 'Срочный',
+  EMERGENCY: 'Экстренный',
+};
+
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } };
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 
@@ -157,8 +173,8 @@ export default function ReferralList() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-txt-primary truncate">{r.patientName}</span>
-                        <Badge className={STATUS_COLORS[r.status] || ''}>{r.status}</Badge>
-                        <Badge className={PRIORITY_COLORS[r.priority] || ''}>{r.priority}</Badge>
+                        <Badge className={STATUS_COLORS[r.status] || ''}>{STATUS_LABELS[r.status] || r.status}</Badge>
+                        <Badge className={PRIORITY_COLORS[r.priority] || ''}>{PRIORITY_LABELS[r.priority] || r.priority}</Badge>
                       </div>
                       <div className="text-xs text-txt-muted space-x-3">
                         <span>{r.studyType}</span>

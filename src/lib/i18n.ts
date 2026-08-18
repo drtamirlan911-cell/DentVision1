@@ -13,8 +13,13 @@ i18n
     resources: { ru: { translation: ru }, kz: { translation: kz }, en: { translation: en } },
     fallbackLng: 'ru',
     interpolation: { escapeValue: false },
+    // Only the explicit switcher decides the language. `navigator` used to be a
+    // fallback, which meant a clinic in Almaty running an English-locale Windows
+    // got an English UI on first load — the product ships ru/kz/en but its users
+    // are Kazakhstani, so the browser locale is a bad proxy for what they want.
+    // No stored choice yet -> fallbackLng ('ru').
     detection: {
-      order: ['localStorage', 'navigator'],
+      order: ['localStorage'],
       caches: ['localStorage'],
       lookupLocalStorage: 'dv_lang',
     },

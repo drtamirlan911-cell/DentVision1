@@ -110,7 +110,13 @@
     "breadcrumb_item": "Item",
     "market": "Market",
     "network": "Network",
-    "context_panel": "Context Panel"
+    "context_panel": "Context Panel",
+    "bi": "Business Intelligence",
+    "legal": "Legal",
+    "security": "Security & Compliance",
+    "quality": "Quality Center",
+    "shop_admin": "Shop Admin",
+    "school_admin": "School Admin"
   },
   "shop": {
     "title": "Marketplace",
@@ -769,7 +775,11 @@
     "scope_marketplace": "Marketplace",
     "scope_marketplace_body": "Purchase materials...",
     "scope_open_seller": "Seller Dashboard",
-    "ai_settings": "AI Settings"
+    "ai_settings": "AI Settings",
+    "clinic_not_selected": "No clinic selected — switch context in your profile.",
+    "where_start": "Where do we start?",
+    "open_profile": "Open profile",
+    "show_schedule": "Show schedule"
   },
   "finance": {
     "title": "Finance",

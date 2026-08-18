@@ -1,5 +1,14 @@
 import * as api from '@/utils/api'
+import i18n from '@/lib/i18n'
 import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
+
+// The greeting word already came from i18n while the rest of the sentence was a
+// Russian literal, so an English UI rendered "Good Evening, Айгерим. Системы на
+// связи." Same wrapper as clinic-timezone.ts: fall back to the literal if the
+// key is missing, so a partial locale file can never blank the greeting out.
+const t = (key: string, fallback: string) => {
+  try { const v = i18n.t(key); return v && v !== key ? v : fallback } catch { return fallback }
+}
 
 export type LiveGreetingResult = {
   reply: string
@@ -79,12 +88,12 @@ export async function buildLiveClinicGreeting(opts: {
   if (!clinicId) {
     return {
       reply: [
-        `${greet}, ${name}. Системы на связи.`,
-        'Клиника не выбрана — переключите контекст в профиле.',
+        `${greet}, ${name}. ${t('ai.systems_online', 'Системы на связи.')}`,
+        t('ai.clinic_not_selected', 'Клиника не выбрана — переключите контекст в профиле.'),
         '',
-        'С чего начнём?',
+        t('ai.where_start', 'С чего начнём?'),
       ].join('\n'),
-      suggestions: ['Открыть профиль', 'Показать расписание'],
+      suggestions: [t('ai.open_profile', 'Открыть профиль'), t('ai.show_schedule', 'Показать расписание')],
       stats: empty,
     }
   }
@@ -120,7 +129,7 @@ export async function buildLiveClinicGreeting(opts: {
   const lowStock = inventory.filter((i) => isLowStock(i)).length
 
   const lines: string[] = [
-    `${greet}, ${name}. Системы на связи.`,
+    `${greet}, ${name}. ${t('ai.systems_online', 'Системы на связи.')}`,
     clinicName ? `**${clinicName}**` : '',
     '',
   ]

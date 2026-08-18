@@ -64,12 +64,12 @@ const SHADOW_DECL = /\bbox-?[Ss]hadow\s*:/
 const ALLOWED_LITERAL_HEADINGS: Array<{ file: string; line: number; why: string }> = [
   {
     file: 'src/pages/shop/Shop.tsx',
-    line: 296,
+    line: 300,
     why: 'Banner previous-slide control: sits on a gradient ancestor and carries its own bg-white/15 fill, so the foreground is intentionally non-theme-bound.',
   },
   {
     file: 'src/pages/shop/Shop.tsx',
-    line: 301,
+    line: 305,
     why: 'Banner next-slide control: sits on the same ancestor gradient as the hero text.',
   },
 ]
