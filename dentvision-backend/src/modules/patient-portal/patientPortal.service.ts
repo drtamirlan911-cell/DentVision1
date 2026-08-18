@@ -15,6 +15,14 @@
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { parseMeta } from '../crm/appointmentMeta.js';
+import {
+  collectPlanTeeth,
+  enrichStages,
+  lineItemTotal,
+  normalizePlanItems,
+  planTotal,
+  PATIENT_VISIBLE_PLAN_STATUSES,
+} from '../../lib/treatmentPlanShape.js';
 
 export async function getAppointments(patientId: string) {
   const appointments = await (prisma as any).appointment.findMany({
@@ -46,6 +54,12 @@ export async function getAppointments(patientId: string) {
  * inside `TreatmentPlan.items.stages[].items[]` (see crm.routes.ts, where a
  * plan is built and serialized). Flatten every stage line item across all of
  * the patient's plans into the flat list the portal displays.
+ *
+ * Scoped to `PATIENT_VISIBLE_PLAN_STATUSES`. Before that filter existed this
+ * query had no status condition at all, so a patient was shown line items and
+ * prices out of drafts — including the plan `odontogram-plan-sync.ts` generates
+ * automatically on every dental-chart save, whose prices are machine estimates
+ * no clinician had reviewed.
  */
 export async function getTreatments(patientId: string) {
   const patient = await (prisma as any).patient.findUnique({
@@ -53,26 +67,23 @@ export async function getTreatments(patientId: string) {
     select: { clinic: { select: { id: true, name: true } } },
   });
   const plans = await (prisma as any).treatmentPlan.findMany({
-    where: { patientId },
+    where: { patientId, status: { in: [...PATIENT_VISIBLE_PLAN_STATUSES] } },
     select: { id: true, items: true, createdAt: true },
     orderBy: { createdAt: 'desc' },
     take: 50,
   });
   const treatments: any[] = [];
   for (const plan of plans) {
-    const items = plan.items || {};
+    const items = normalizePlanItems(plan.items);
     const diagnosis = items.diagnosis ?? null;
-    const stages = Array.isArray(items.stages) ? items.stages : [];
-    for (const stage of stages) {
-      const stageItems = Array.isArray(stage.items) ? stage.items : [];
-      for (const item of stageItems) {
+    for (const stage of items.stages!) {
+      for (const item of stage.items || []) {
         const teeth = Array.isArray(item.teeth) ? item.teeth : [];
-        const units = teeth.length > 0 ? teeth.length : (Number(item.qty) || 1);
         treatments.push({
           id: item.id || `${plan.id}-${treatments.length}`,
           toothNumber: teeth.join(', '),
-          procedureType: item.serviceName || '',
-          cost: Math.round((Number(item.price) || 0) * units),
+          procedureType: item.serviceName || item.name || '',
+          cost: lineItemTotal(item),
           diagnosis,
           notes: stage.notes || null,
           clinic: patient?.clinic || null,
@@ -89,10 +100,17 @@ export async function getTreatments(patientId: string) {
  * `stages`/`teeth` are not columns, they live inside the `items` JSON blob
  * (see crm.routes.ts::serializePlan for the same unpacking). TreatmentPlan
  * also has no direct `clinic` relation; it comes via `patient`.
+ *
+ * Totals are **recomputed** from the stages rather than read off the stored
+ * `price` column. The CRM read has always recomputed (crm.routes.ts), so
+ * trusting the stored value here meant the clinic and the patient could be
+ * looking at two different numbers for the same plan whenever `items` was last
+ * written by a path that does not keep `price` in step — which both
+ * medical.routes.ts and doctor.agent.ts are.
  */
 export async function getTreatmentPlans(patientId: string) {
   const plans = await (prisma as any).treatmentPlan.findMany({
-    where: { patientId },
+    where: { patientId, status: { in: [...PATIENT_VISIBLE_PLAN_STATUSES] } },
     select: {
       id: true, title: true, status: true, items: true, price: true, notes: true,
       createdAt: true,
@@ -102,15 +120,17 @@ export async function getTreatmentPlans(patientId: string) {
     take: 20,
   });
   return plans.map((p: any) => {
-    const items = p.items || {};
+    const items = normalizePlanItems(p.items);
+    const stages = enrichStages(items.stages);
+    const computedTotal = planTotal(stages);
     return {
       id: p.id,
       title: p.title,
       status: p.status,
       diagnosis: items.diagnosis ?? p.notes ?? null,
-      teeth: items.teeth || [],
-      stages: items.stages || [],
-      totalBudget: p.price ?? items.totalBudget ?? null,
+      teeth: collectPlanTeeth(stages).length ? collectPlanTeeth(stages) : (items.teeth || []),
+      stages,
+      totalBudget: computedTotal > 0 ? computedTotal : (p.price ?? items.totalBudget ?? null),
       createdAt: p.createdAt,
       clinic: p.patient?.clinic || null,
     };

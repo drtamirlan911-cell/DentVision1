@@ -3,6 +3,12 @@ import { Agent } from '../core/agent.router.js';
 import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
+import {
+  collectPlanTeeth,
+  enrichStages,
+  normalizePlanItems,
+  planTotal,
+} from '../../../lib/treatmentPlanShape.js';
 
 const SPECIALTY_INSTRUMENTS: Record<string, string[]> = {
   'Терапевт': ['Стоматологическая установка', 'Набор кариес-маркеров', 'Бормашина', 'Эндодонтический мотор', 'Апекс-локатор', 'Рентген-визиограф'],
@@ -500,13 +506,21 @@ export class DoctorAgent implements Agent {
       return { message: 'Пациент не найден', intent: 'CREATE_TREATMENT_PLAN', suggestions: [] };
     }
 
+    // Normalise before writing rather than storing the model's raw argument.
+    // This handler used to persist a flat `[{price}]` array, which every reader
+    // — CRM, the portal, print — unpacks as `items.stages` and therefore read as
+    // zero stages and a total of zero, however much money the plan described.
+    // `status: 'draft'` is deliberate and not negotiable: an agent proposes,
+    // a doctor approves.
+    const normalized = normalizePlanItems(items);
+    const stages = enrichStages(normalized.stages);
     const plan = await prisma.treatmentPlan.create({
       data: {
         id: crypto.randomUUID(),
         patientId: patientId as string,
         title: params.title as string || 'План лечения',
-        items: items as any,
-        price: (items as any[]).reduce((sum, item) => sum + (item.price || 0), 0),
+        items: { ...normalized, stages, teeth: collectPlanTeeth(stages) } as any,
+        price: planTotal(stages),
         status: 'draft',
       },
     });
