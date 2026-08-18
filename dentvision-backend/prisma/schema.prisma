@@ -203,6 +203,7 @@ model User {
   crossClinicGrantsAsPatient     CrossClinicAccessGrant[] @relation("CrossClinicGrantAsPatient")
   crossClinicGrantsRequested     CrossClinicAccessGrant[] @relation("CrossClinicGrantRequestedBy")
   crossClinicAccessLogs          CrossClinicAccessLog[]
+  planReleasesApproved           TreatmentPlanRelease[]       @relation("PlanReleaseApprover")
   patientConversationsAsPatient  PatientConversation[]        @relation("PatientConversationAsPatient")
   patientConversationsAssigned   PatientConversation[]        @relation("PatientConversationAssignee")
   patientConversationMessages    PatientConversationMessage[]
@@ -252,6 +253,7 @@ model Clinic {
   crossClinicGrantsAsSource    CrossClinicAccessGrant[] @relation("CrossClinicGrantAsSource")
   crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantAsReceiving")
   patientConversations         PatientConversation[]
+  treatmentPlanReleases        TreatmentPlanRelease[]
 
   @@map("clinics")
 }
@@ -359,6 +361,7 @@ model Patient {
   diagnosticReferrals Referral[]
   crossClinicGrantsAsSource    CrossClinicAccessGrant[] @relation("CrossClinicGrantSourcePatient")
   crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantReceivingPatient")
+  treatmentPlanReleases        TreatmentPlanRelease[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -559,13 +562,74 @@ model TreatmentPlan {
   notes     String?
   deletedAt DateTime?
 
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient  Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  releases TreatmentPlanRelease[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([patientId])
   @@map("treatment_plans")
+}
+
+enum PlanReleaseStatus {
+  approved
+  superseded
+  withdrawn
+}
+
+/// A treatment plan as a named doctor signed it off: frozen, versioned, quotable.
+///
+/// `TreatmentPlan.items` is a mutable JSON blob with several writers, so it
+/// cannot answer "what was this patient told, and by whom, on what date". A
+/// release can: it holds a snapshot taken at approval time and never changes
+/// afterwards. Nothing the patient sees is read from `TreatmentPlan` — only
+/// from a release that is `approved` and has a `publishedAt`.
+///
+/// `clinicId` is denormalised because `TreatmentPlan` carries no clinic at all
+/// (it is reachable only through `patient`), and every clinic-scoped read here
+/// would otherwise have to join through the patient.
+model TreatmentPlanRelease {
+  id        String            @id @default(uuid())
+  planId    String
+  clinicId  String
+  patientId String
+  version   Int
+  status    PlanReleaseStatus @default(approved)
+
+  /// The canonical `items` shape, post-`enrichStages`, frozen at approval.
+  snapshot     Json
+  /// sha256 of the snapshot — the integrity anchor for "this is what was signed".
+  snapshotHash String
+  /// Recomputed from the snapshot's stages at approval. Never read from
+  /// `TreatmentPlan.price`, which several writers leave stale.
+  totalAmount  Int
+
+  approvedByUserId String
+  approvedAt       DateTime  @default(now())
+  approvalNote     String?
+  /// Patient-visible only once this is set. Separate from `approvedAt` on
+  /// purpose: approving the medicine and publishing the words are two decisions.
+  publishedAt      DateTime?
+  /// A price shown to a patient is an offer, so it has to expire.
+  expiresAt        DateTime?
+
+  withdrawnAt       DateTime?
+  withdrawnByUserId String?
+  withdrawReason    String?
+
+  plan       TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  clinic     Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient    Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  approvedBy User          @relation("PlanReleaseApprover", fields: [approvedByUserId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([planId, version])
+  @@index([clinicId, status, approvedAt])
+  @@index([patientId, status])
+  @@map("treatment_plan_releases")
 }
 
 model PatientImage {

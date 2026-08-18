@@ -29,7 +29,12 @@ const MATRIX: Record<string, RoleMatrixRow> = {
   OWNER: {
     patients:     ['read', 'write', 'delete'],
     appointments: ['read', 'write', 'delete'],
-    medical:      ['read', 'write', 'delete'],
+    // `medical.manage` is the clinical sign-off right: approving a treatment
+    // plan and publishing it to the patient. Held by OWNER and DOCTOR only —
+    // deliberately NOT by ADMIN, who can author and edit a plan but must not
+    // be the one who certifies it clinically. That separation is the whole
+    // point of the approval layer (modules/patient-presentation).
+    medical:      ['read', 'write', 'delete', 'manage'],
     billing:      ['read', 'write', 'delete', 'manage'],
     inventory:    ['read', 'write', 'delete'],
     lab:          ['read', 'write', 'delete'],
@@ -83,7 +88,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
   DOCTOR: {
     patients:     ['read', 'write'],
     appointments: ['read', 'write'],
-    medical:      ['read', 'write'],
+    medical:      ['read', 'write', 'manage'],
     billing:      ['read'],
     inventory:    ['read'],
     lab:          ['read', 'write'],

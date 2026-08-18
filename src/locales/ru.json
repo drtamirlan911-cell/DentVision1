@@ -965,7 +965,11 @@
     "page_title_template": "План лечения — {{name}}",
     "stage_fallback": "Этап {{sortOrder}}",
     "service_fallback": "Услуга",
-    "clinic_fallback": "Клиника"
+    "clinic_fallback": "Клиника",
+    "approve_and_publish": "Утвердить и опубликовать",
+    "publishing": "Публикация…",
+    "toast_published": "План утверждён и опубликован пациенту",
+    "toast_publish_failed": "Не удалось опубликовать план"
   },
   "billing": {
     "free": "Бесплатный",

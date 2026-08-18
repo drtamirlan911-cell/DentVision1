@@ -15,6 +15,7 @@ import {
   stageTotal,
   type TreatmentPlanItems,
 } from '../../lib/treatmentPlanShape.js';
+import * as planRelease from '../patient-presentation/planRelease.service.js';
 
 export const crmRouter = Router();
 
@@ -183,6 +184,114 @@ crmRouter.delete('/treatment-plans/:id', requirePermission('patient.write'), asy
   } catch (error) {
     console.error('[CRM] Delete treatment plan error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось удалить план лечения' } satisfies ApiResponse);
+  }
+});
+
+// ─────────────── Doctor Approval Layer ───────────────
+// `medical.manage` rather than `patient.write`: authoring a plan and certifying
+// it clinically are different rights. OWNER and DOCTOR hold it; ADMIN does not.
+
+/** Freeze the plan as a named clinician signed it, optionally publishing at once. */
+crmRouter.post('/treatment-plans/:id/approve', requirePermission('medical.manage'), async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id);
+    const plan = await prisma.treatmentPlan.findUnique({
+      where: { id },
+      include: { patient: { select: { clinicId: true } } },
+    });
+    if (!plan) {
+      return res.status(404).json({ ok: false, error: 'План не найден' } satisfies ApiResponse);
+    }
+    if (!assertSameClinic(req, res, plan.patient?.clinicId)) return;
+
+    const { note, publish, validityDays } = req.body as {
+      note?: string;
+      publish?: boolean;
+      validityDays?: number;
+    };
+
+    const release = await planRelease.approveAndRelease({
+      planId: id,
+      approvedByUserId: req.user!.id,
+      approvalNote: note ?? null,
+      publish: publish === true,
+      validityDays: Number.isFinite(Number(validityDays)) ? Number(validityDays) : undefined,
+    });
+    return res.json({ ok: true, data: release } satisfies ApiResponse);
+  } catch (error) {
+    if (error instanceof planRelease.PlanReleaseError) {
+      return res
+        .status(error.code === 'NOT_FOUND' ? 404 : error.code === 'CONFLICT' ? 409 : 400)
+        .json({ ok: false, error: error.message } satisfies ApiResponse);
+    }
+    console.error('[CRM] Approve treatment plan error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось утвердить план' } satisfies ApiResponse);
+  }
+});
+
+/** Second gate: the doctor has read the wording and lets the patient see it. */
+crmRouter.post('/plan-releases/:releaseId/publish', requirePermission('medical.manage'), async (req: AuthRequest, res) => {
+  try {
+    const releaseId = String(req.params.releaseId);
+    const existing = await prisma.treatmentPlanRelease.findUnique({ where: { id: releaseId } });
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Публикация не найдена' } satisfies ApiResponse);
+    }
+    if (!assertSameClinic(req, res, existing.clinicId)) return;
+
+    const release = await planRelease.publishRelease(releaseId);
+    return res.json({ ok: true, data: release } satisfies ApiResponse);
+  } catch (error) {
+    if (error instanceof planRelease.PlanReleaseError) {
+      return res
+        .status(error.code === 'NOT_FOUND' ? 404 : 409)
+        .json({ ok: false, error: error.message } satisfies ApiResponse);
+    }
+    console.error('[CRM] Publish plan release error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось опубликовать план' } satisfies ApiResponse);
+  }
+});
+
+/** Pull a plan back — the patient loses access on their very next request. */
+crmRouter.post('/plan-releases/:releaseId/withdraw', requirePermission('medical.manage'), async (req: AuthRequest, res) => {
+  try {
+    const releaseId = String(req.params.releaseId);
+    const existing = await prisma.treatmentPlanRelease.findUnique({ where: { id: releaseId } });
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Публикация не найдена' } satisfies ApiResponse);
+    }
+    if (!assertSameClinic(req, res, existing.clinicId)) return;
+
+    const { reason } = req.body as { reason?: string };
+    const release = await planRelease.withdrawRelease(releaseId, req.user!.id, reason ?? null);
+    return res.json({ ok: true, data: release } satisfies ApiResponse);
+  } catch (error) {
+    if (error instanceof planRelease.PlanReleaseError) {
+      return res.status(404).json({ ok: false, error: error.message } satisfies ApiResponse);
+    }
+    console.error('[CRM] Withdraw plan release error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось отозвать публикацию' } satisfies ApiResponse);
+  }
+});
+
+/** Version history for one plan, superseded and withdrawn versions included. */
+crmRouter.get('/treatment-plans/:id/releases', requirePermission('patient.read'), async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id);
+    const plan = await prisma.treatmentPlan.findUnique({
+      where: { id },
+      include: { patient: { select: { clinicId: true } } },
+    });
+    if (!plan) {
+      return res.status(404).json({ ok: false, error: 'План не найден' } satisfies ApiResponse);
+    }
+    if (!assertSameClinic(req, res, plan.patient?.clinicId)) return;
+
+    const releases = await planRelease.listReleasesForPlan(id);
+    return res.json({ ok: true, data: releases } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[CRM] List plan releases error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить версии плана' } satisfies ApiResponse);
   }
 });
 
