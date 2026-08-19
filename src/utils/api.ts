@@ -1586,6 +1586,19 @@ export async function getPlanReleases(planId: string): Promise<any[]> {
   return apiRequest(`/api/crm/treatment-plans/${planId}/releases`);
 }
 
+// ─── Patient presentation ───
+// The patient's side of the approval layer: only published, unexpired releases
+// are reachable here, and the script is built from the frozen snapshot.
+
+export async function getMyPresentations(): Promise<any[]> {
+  return apiRequest('/api/patient-portal/presentation');
+}
+
+export async function getPresentationScript(releaseId: string, locale?: string): Promise<any> {
+  const qs = locale ? `?locale=${encodeURIComponent(locale)}` : '';
+  return apiRequest(`/api/patient-portal/presentation/${releaseId}${qs}`);
+}
+
 // ─── AI Threads ───
 export async function getAiThreads(): Promise<any> {
   return apiRequest('/api/ai/threads');
