@@ -7,10 +7,12 @@
  * *rephrase* these lines, checked against each beat's `refs`, and when it fails
  * the check these lines are what the patient hears.
  *
- * Scope here is acts 1, 2 and 4 — the plan's own content. Consequences (act 3)
- * need a clinician-written library, options (act 5) need alternatives the doctor
- * marked, and the next step (act 6) needs the funnel. Each arrives with the
- * thing it depends on rather than being faked now.
+ * All six acts, and each of the three that were deferred appears only when the
+ * thing it depends on is really there: consequences (act 3) when the plan
+ * records a finding a clinician has written an entry for, options (act 5) when
+ * the doctor marked alternatives that actually differ in price, financing (in
+ * act 6) when the clinic entered a term. A plan with none of those still plays
+ * — it simply has fewer acts, which is honest rather than degraded.
  *
  * **Where priority comes from.** From the order of the stages the doctor set,
  * not from a rule engine's opinion about a tooth. The clinician's staging *is*
@@ -19,6 +21,7 @@
  */
 
 import {
+  collectPlanFindings,
   enrichStages,
   lineItemTotal,
   normalizePlanItems,
@@ -26,6 +29,9 @@ import {
   type TreatmentPlanItems,
   type TreatmentPlanStage,
 } from '../../lib/treatmentPlanShape.js';
+import { buildPlanOptions, presentableOptions, type PlanOption, type PlanOptionKey } from '../../lib/planOptions.js';
+import { CONSEQUENCE_DISCLAIMER, lookupConsequence } from './consequences.catalog.js';
+import { monthlyFigure, type ConciergeSettings } from './conciergeSettings.js';
 import {
   estimateBeatMs,
   type Beat,
@@ -45,6 +51,8 @@ export interface BuildScriptInput {
   personaName?: string | null;
   locale?: PresentationLocale;
   totalAmount?: number | null;
+  /** The clinic's own concierge configuration; absent means nothing enabled. */
+  concierge?: ConciergeSettings | null;
 }
 
 export const DEFAULT_PERSONA_NAME = 'Aura';
@@ -84,6 +92,21 @@ interface Copy {
   totalLine: (total: string, stages: number) => string;
   closing: (doctor: string | null) => string;
   diagnosisLine: (diagnosis: string) => string;
+  actConsequences: string;
+  actOptions: string;
+  actNextStep: string;
+  consequenceIntro: string;
+  consequenceDisclaimer: string;
+  optionsIntro: string;
+  optionLabel: Record<PlanOptionKey, string>;
+  optionLine: (label: string, total: string) => string;
+  optionRecommended: (label: string) => string;
+  optionsNotConsent: string;
+  financingLine: (monthly: string, months: number) => string;
+  financingCaveat: string;
+  nextStepLine: string;
+  nextStepRequestOnly: string;
+  nextStepPrint: string;
 }
 
 const COPY: Record<PresentationLocale, Copy> = {
@@ -118,6 +141,23 @@ const COPY: Record<PresentationLocale, Copy> = {
         ? `Если что-то осталось непонятным, спросите меня или напишите врачу — ${doctor}.`
         : 'Если что-то осталось непонятным, спросите меня или напишите вашему врачу.',
     diagnosisLine: (diagnosis) => `Врач записал: ${diagnosis}.`,
+    actConsequences: 'Почему это важно',
+    actOptions: 'Варианты',
+    actNextStep: 'Следующий шаг',
+    consequenceIntro: 'Коротко о том, почему врач предлагает не откладывать.',
+    consequenceDisclaimer: CONSEQUENCE_DISCLAIMER.ru,
+    optionsIntro: 'У части работ есть альтернативы из прайса клиники — можно собрать план по-разному.',
+    optionLabel: { essential: 'Базовый', optimal: 'Рекомендованный', premium: 'Расширенный' },
+    optionLine: (label, total) => `${label} — ${total}.`,
+    optionRecommended: (label) => `Врач рекомендует «${label}» — это тот состав, который он собрал для вас.`,
+    optionsNotConsent:
+      'Выбор здесь ни к чему не обязывает: это не согласие на лечение, а способ обсудить план с врачом.',
+    financingLine: (monthly, months) => `Если разбить сумму на ${months} мес., получится около ${monthly} в месяц.`,
+    financingCaveat: 'Это простое деление суммы, без процентов. Точные условия — в клинике.',
+    nextStepLine: 'Если план понятен, можно оставить заявку на приём — удобное время подберём вместе.',
+    nextStepRequestOnly:
+      'Заявка — это ещё не запись: клиника перезвонит и подтвердит время. И это не согласие на лечение.',
+    nextStepPrint: 'План можно сохранить или распечатать, чтобы обсудить дома.',
   },
   kk: {
     actOverview: 'Сіздің емдеу жоспарыңыз',
@@ -148,6 +188,23 @@ const COPY: Record<PresentationLocale, Copy> = {
         ? `Түсініксіз нәрсе қалса, менен сұраңыз немесе дәрігерге — ${doctor} — жазыңыз.`
         : 'Түсініксіз нәрсе қалса, менен сұраңыз немесе дәрігеріңізге жазыңыз.',
     diagnosisLine: (diagnosis) => `Дәрігер жазып қойған: ${diagnosis}.`,
+    actConsequences: 'Бұл неге маңызды',
+    actOptions: 'Нұсқалар',
+    actNextStep: 'Келесі қадам',
+    consequenceIntro: 'Дәрігер неге кейінге қалдырмауды ұсынатыны туралы қысқаша.',
+    consequenceDisclaimer: CONSEQUENCE_DISCLAIMER.kk,
+    optionsIntro: 'Кейбір жұмыстардың клиника прайсында баламасы бар — жоспарды әртүрлі жинауға болады.',
+    optionLabel: { essential: 'Базалық', optimal: 'Ұсынылған', premium: 'Кеңейтілген' },
+    optionLine: (label, total) => `${label} — ${total}.`,
+    optionRecommended: (label) => `Дәрігер «${label}» нұсқасын ұсынады — сізге дәл осы құрамды жинаған.`,
+    optionsNotConsent:
+      'Мұндағы таңдау ешнәрсеге міндеттемейді: бұл емге келісім емес, дәрігермен талқылау тәсілі.',
+    financingLine: (monthly, months) => `Соманы ${months} айға бөлсек, айына шамамен ${monthly} шығады.`,
+    financingCaveat: 'Бұл — пайызсыз қарапайым бөлу. Нақты шарттар клиникада.',
+    nextStepLine: 'Жоспар түсінікті болса, қабылдауға өтінім қалдыруға болады — уақытын бірге таңдаймыз.',
+    nextStepRequestOnly:
+      'Өтінім — әлі жазылу емес: клиника хабарласып, уақытты растайды. Бұл емге келісім де емес.',
+    nextStepPrint: 'Жоспарды сақтап немесе басып шығарып, үйде талқылауға болады.',
   },
   en: {
     actOverview: 'Your treatment plan',
@@ -178,6 +235,23 @@ const COPY: Record<PresentationLocale, Copy> = {
         ? `If anything is unclear, ask me or message your doctor, ${doctor}.`
         : 'If anything is unclear, ask me or message your doctor.',
     diagnosisLine: (diagnosis) => `Your doctor noted: ${diagnosis}.`,
+    actConsequences: 'Why this matters',
+    actOptions: 'Options',
+    actNextStep: 'Next step',
+    consequenceIntro: 'Briefly, why your doctor suggests not putting this off.',
+    consequenceDisclaimer: CONSEQUENCE_DISCLAIMER.en,
+    optionsIntro: 'Some of this work has alternatives in the clinic price list, so the plan can be put together differently.',
+    optionLabel: { essential: 'Essential', optimal: 'Recommended', premium: 'Extended' },
+    optionLine: (label, total) => `${label} — ${total}.`,
+    optionRecommended: (label) => `Your doctor recommends "${label}" — that is the combination they put together for you.`,
+    optionsNotConsent:
+      'Choosing here commits you to nothing: this is not consent to treatment, it is a way to discuss the plan with your doctor.',
+    financingLine: (monthly, months) => `Split across ${months} months, that is roughly ${monthly} a month.`,
+    financingCaveat: 'That is a plain division of the total, with no interest. Exact terms are agreed at the clinic.',
+    nextStepLine: 'If the plan makes sense, you can send a request for an appointment and we will find a time together.',
+    nextStepRequestOnly:
+      'A request is not a booking yet: the clinic will call to confirm the time. It is not consent to treatment either.',
+    nextStepPrint: 'You can save or print the plan to talk it over at home.',
   },
 };
 
@@ -305,6 +379,51 @@ export function buildScriptSkeleton(input: BuildScriptInput): PresentationScript
   }
   acts.push({ id: 'findings', title: copy.actFindings, beats: findings });
 
+  // ── Act 3: consequences — quoted from the library, never authored ────────
+  //
+  // A beat appears only where the plan really records the finding *and* a
+  // clinician has written an entry for it. A plan typed by hand carries no
+  // findings, so it simply has no consequences act — that is the correct
+  // outcome, not a degraded one, because the alternative is inventing a
+  // prognosis for a patient out of a service name.
+  const consequences: Beat[] = [];
+  const findingsInPlan = collectPlanFindings(stages);
+  const quotable = findingsInPlan
+    .map((f) => ({ ...f, entry: lookupConsequence(f.finding.status, f.finding.urgency) }))
+    .filter((f) => f.entry !== null);
+
+  if (quotable.length > 0) {
+    consequences.push(
+      beat('consequences', 1, copy.consequenceIntro, {
+        scene: 'arches',
+        camera: { focus: 'full_arches', zoom: 'wide' },
+      }, []),
+    );
+    quotable.forEach((f, index) => {
+      const entry = f.entry!;
+      consequences.push(
+        beat('consequences', index + 2, entry.text[locale], {
+          scene: f.teeth.length ? 'tooth_focus' : 'arches',
+          highlightTeeth: f.teeth,
+          emphasis: { priority: f.finding.urgency === 'high' ? 'now' : f.finding.urgency === 'medium' ? 'plan' : 'watch' },
+          camera: { focus: f.teeth.length ? 'teeth' : 'full_arches', zoom: f.teeth.length ? 'close' : 'wide' },
+        }, [
+          { kind: 'consequence', libraryKey: entry.key, version: entry.version },
+          ...f.teeth.map((fdi): BeatRef => ({ kind: 'tooth', fdi })),
+        ]),
+      );
+    });
+    // Not optional and not merged into the last line: the patient has to be
+    // told plainly that none of the above was a prediction about them.
+    consequences.push(
+      beat('consequences', quotable.length + 2, copy.consequenceDisclaimer, {
+        scene: 'arches',
+        camera: { focus: 'full_arches', zoom: 'wide' },
+      }, [{ kind: 'clinicPolicy', key: 'disclaimer' }]),
+    );
+    acts.push({ id: 'consequences', title: copy.actConsequences, beats: consequences });
+  }
+
   // ── Act 4: the doctor's stages, and only then the total ──────────────────
   const solution: Beat[] = [];
   stages.forEach((stage, index) => {
@@ -360,6 +479,103 @@ export function buildScriptSkeleton(input: BuildScriptInput): PresentationScript
   );
 
   acts.push({ id: 'solution', title: copy.actSolution, beats: solution });
+
+  // ── Act 5: options — only when there is a real choice to make ────────────
+  //
+  // The three levels come from `buildPlanOptions`, which uses the plan's own
+  // arithmetic, so a level cannot disagree with the plan about a price. When
+  // the doctor marked no alternatives all three levels are identical, and the
+  // act is skipped: three identical prices is a worse screen than one price.
+  const options: PlanOption[] = Array.isArray((items as { options?: PlanOption[] }).options)
+    ? (items as { options?: PlanOption[] }).options!
+    : buildPlanOptions(stages);
+  const shown = presentableOptions(options);
+
+  if (shown.length > 1) {
+    const optionBeats: Beat[] = [
+      beat('options', 1, copy.optionsIntro, {
+        scene: 'options',
+        camera: { focus: 'none' },
+      }, []),
+    ];
+    shown.forEach((option, index) => {
+      optionBeats.push(
+        beat('options', index + 2, copy.optionLine(copy.optionLabel[option.key], formatTenge(option.total, locale)), {
+          scene: 'options',
+          camera: { focus: 'none' },
+          optionKey: option.key,
+        }, [{ kind: 'price', amount: option.total, of: 'option', id: option.key }], {
+          caption: { text: formatTenge(option.total, locale), kind: 'price' },
+        }),
+      );
+    });
+    // Said only because `optimal` *is* the doctor's own composition — this is
+    // a fact about the data, not a sales line.
+    optionBeats.push(
+      beat('options', shown.length + 2, copy.optionRecommended(copy.optionLabel.optimal), {
+        scene: 'options',
+        camera: { focus: 'none' },
+        optionKey: 'optimal',
+      }, [{ kind: 'price', amount: options.find((o) => o.key === 'optimal')?.total ?? total, of: 'option', id: 'optimal' }]),
+    );
+    optionBeats.push(
+      beat('options', shown.length + 3, copy.optionsNotConsent, {
+        scene: 'options',
+        camera: { focus: 'none' },
+      }, [{ kind: 'clinicPolicy', key: 'disclaimer' }]),
+    );
+    acts.push({ id: 'options', title: copy.actOptions, beats: optionBeats });
+  }
+
+  // ── Act 6: the next step — a request, never a booking, never consent ─────
+  const nextStep: Beat[] = [];
+  const months = input.concierge?.financingMonths ?? null;
+  const monthly = months ? monthlyFigure(total, months) : 0;
+
+  if (months && monthly > 0) {
+    // Plain division, no rate, no schedule — and the caveat is a separate beat
+    // so it cannot be dropped by trimming the first one.
+    nextStep.push(
+      beat('next_step', 1, copy.financingLine(formatTenge(monthly, locale), months), {
+        scene: 'closing',
+        camera: { focus: 'none' },
+      }, [
+        { kind: 'price', amount: monthly, of: 'plan' },
+        { kind: 'clinicPolicy', key: 'financing' },
+      ], {
+        caption: { text: formatTenge(monthly, locale), kind: 'price' },
+      }),
+    );
+    nextStep.push(
+      beat('next_step', 2, copy.financingCaveat, {
+        scene: 'closing',
+        camera: { focus: 'none' },
+      }, [{ kind: 'clinicPolicy', key: 'financing' }]),
+    );
+  }
+
+  nextStep.push(
+    beat('next_step', nextStep.length + 1, copy.nextStepLine, {
+      scene: 'closing',
+      camera: { focus: 'full_arches', zoom: 'wide' },
+    }, [{ kind: 'clinicPolicy', key: 'contact' }]),
+  );
+  // Hard-coded, like the "I am not a doctor" line: a patient who watched six
+  // acts and tapped a button has not consented to treatment, and that has to
+  // survive even a total failure of the LLM pass.
+  nextStep.push(
+    beat('next_step', nextStep.length + 1, copy.nextStepRequestOnly, {
+      scene: 'closing',
+      camera: { focus: 'none' },
+    }, [{ kind: 'clinicPolicy', key: 'disclaimer' }]),
+  );
+  nextStep.push(
+    beat('next_step', nextStep.length + 1, copy.nextStepPrint, {
+      scene: 'closing',
+      camera: { focus: 'none' },
+    }, [{ kind: 'clinicPolicy', key: 'contact' }]),
+  );
+  acts.push({ id: 'next_step', title: copy.actNextStep, beats: nextStep });
 
   return {
     version: 1,

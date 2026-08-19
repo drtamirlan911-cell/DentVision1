@@ -55,6 +55,21 @@ export interface ClinicSettingsPayload {
    * Money goes to the clinic merchant — not DentVision platform.
    */
   payments?: ClinicPaymentsConfig | ClinicPaymentsPublic;
+  /**
+   * Treatment-presentation settings.
+   *
+   * Stored as written and validated on *read* by `readConciergeSettings`, not
+   * here: the value that matters is the one about to be shown to a patient, and
+   * validating there means a stale or hand-edited settings row can never put a
+   * financing figure on screen that the clinic did not configure.
+   */
+  concierge?: {
+    /** Interest-free months the clinic offers. Absent → no financing shown. */
+    financingMonths?: number;
+    financingNote?: string;
+    personaName?: string;
+    defaultLocale?: string;
+  };
 }
 
 export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
