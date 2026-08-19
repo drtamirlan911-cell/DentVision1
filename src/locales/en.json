@@ -1502,5 +1502,15 @@
       "next": "Next",
       "back": "Back"
     }
+  },
+  "presentation": {
+    "acts": "Acts",
+    "pause": "Pause",
+    "resume": "Resume",
+    "replay": "Watch again",
+    "valid_until": "This quote is valid until {{date}}",
+    "not_a_consent": "This explains the plan; it is not consent to treatment. Your doctor decides.",
+    "unavailable_title": "Plan unavailable",
+    "unavailable_body": "The quote may have expired, or the clinic withdrew it. Please contact the clinic."
   }
 }

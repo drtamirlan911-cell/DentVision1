@@ -20,6 +20,13 @@ interface AnatomicalToothSvgProps {
   onClick?: () => void
   className?: string
   size?: number
+  /**
+   * FDI number above and root-count below. On by default — the clinical
+   * odontogram needs both. The patient-facing presentation turns them off: a
+   * grid of numbered teeth reads as a medical chart, which is exactly what that
+   * screen must not look like.
+   */
+  showLabels?: boolean
 }
 
 function crownPath(pattern: RootPattern): string {
@@ -236,6 +243,7 @@ export function AnatomicalToothSvg({
   onClick,
   className,
   size = 42,
+  showLabels = true,
 }: AnatomicalToothSvgProps) {
   const { t } = useTranslation()
   const morph = getToothMorphology(toothNumber)
@@ -265,14 +273,16 @@ export function AnatomicalToothSvg({
       )}
       style={{ width: size + 10, minHeight: height + 20 }}
     >
-      <span
-        className={cn(
-          'text-[9px] font-bold tabular-nums leading-none mb-0.5',
-          selected ? 'text-dv-gold' : 'text-txt-muted',
-        )}
-      >
-        {toothNumber}
-      </span>
+      {showLabels && (
+        <span
+          className={cn(
+            'text-[9px] font-bold tabular-nums leading-none mb-0.5',
+            selected ? 'text-dv-gold' : 'text-txt-muted',
+          )}
+        >
+          {toothNumber}
+        </span>
+      )}
       <svg
         width={size}
         height={height}
@@ -366,9 +376,11 @@ export function AnatomicalToothSvg({
           </g>
         )}
       </svg>
-      <span className="text-[8px] text-txt-muted/70 leading-none mt-0.5 tabular-nums">
-        {isImplant ? t('diagnostics.implant_abbr') : isEndoOk ? t('diagnostics.endo_ok') : isEndoFail ? t('diagnostics.endo_fail') : `${morph.roots}к`}
-      </span>
+      {showLabels && (
+        <span className="text-[8px] text-txt-muted/70 leading-none mt-0.5 tabular-nums">
+          {isImplant ? t('diagnostics.implant_abbr') : isEndoOk ? t('diagnostics.endo_ok') : isEndoFail ? t('diagnostics.endo_fail') : `${morph.roots}к`}
+        </span>
+      )}
     </button>
   )
 }

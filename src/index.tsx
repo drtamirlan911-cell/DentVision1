@@ -17,6 +17,7 @@ const Login = lazyWithRetry(() => import('./pages/auth/Login'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));
 const PublicBooking = lazyWithRetry(() => import('./pages/auth/PublicBooking'));
 const DocumentSign = lazyWithRetry(() => import('./pages/auth/DocumentSign'));
+const TreatmentPresentation = lazyWithRetry(() => import('./pages/patient-portal/TreatmentPresentation'));
 const DiagnosticsRegister = lazyWithRetry(() => import('./pages/DiagnosticsRegister'));
 const PatientPortal = lazyWithRetry(() => import('./pages/patient-portal/PatientPortal'));
 import './styles/global.css';
@@ -134,6 +135,9 @@ if (container) {
                 <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
                 <Route path="/book/:clinicId" element={<Suspense fallback={<PageLoader />}><PublicBooking /></Suspense>} />
                 <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><DocumentSign /></Suspense>} />
+                {/* Stands on its own like /sign — no sidebar, no app chrome: the
+                    patient should see one story about themselves, not a CRM. */}
+                <Route path="/plan/:releaseId" element={<Suspense fallback={<PageLoader />}><TreatmentPresentation /></Suspense>} />
                 <Route path="/register-diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsRegister /></Suspense>} />
                 <Route path="/patient-portal" element={<Suspense fallback={<PageLoader />}><PatientPortal /></Suspense>} />
 
