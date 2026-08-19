@@ -21,10 +21,12 @@ import {
   normalizeStages,
   planTotal,
   stageTotal,
+  type TreatmentPlanAlternative,
   type TreatmentPlanDraft,
   type TreatmentPlanLineItem,
   type TreatmentPlanStage,
 } from '@/lib/treatment-plan'
+import { PlanItemAlternatives } from '@/components/crm/PlanItemAlternatives'
 import { printTreatmentPlan } from '@/lib/treatment-plan-print'
 import type { Clinic, Patient } from '@/types'
 import { useTranslation } from 'react-i18next'
@@ -539,7 +541,22 @@ export function TreatmentPlanEditor({
                             <tbody>
                               {stage.items.map((item) => (
                                 <tr key={item.id} className="border-b border-white/5 last:border-0">
-                                  <td className="p-3 text-txt-primary">{item.serviceName}</td>
+                                  <td className="p-3 text-txt-primary">
+                                    <div className="space-y-1.5">
+                                      <span>{item.serviceName}</span>
+                                      {/* The doctor's whole part in the three
+                                          patient-facing levels: mark a cheaper
+                                          or fuller service from the price list.
+                                          Assembly happens at approval. */}
+                                      <PlanItemAlternatives
+                                        item={item}
+                                        services={services}
+                                        onChange={(alternatives: TreatmentPlanAlternative[]) =>
+                                          updateItem(stage.id, item.id, { alternatives })
+                                        }
+                                      />
+                                    </div>
+                                  </td>
                                   <td className="p-3">
                                     <button
                                       type="button"

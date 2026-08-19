@@ -7,6 +7,10 @@ import { useTranslation } from 'react-i18next'
 
 import { PatientSurface } from '@/components/patient/PatientSurface'
 import { CinematicArches2D } from '@/components/patient/presentation/CinematicArches2D'
+import { CostBreakdown } from '@/components/patient/presentation/CostBreakdown'
+import { NextStepActions } from '@/components/patient/presentation/NextStepActions'
+import { OptionsScene } from '@/components/patient/presentation/OptionsScene'
+import { readPresentedOptions } from '@/lib/presentation/planOptions'
 import { Button } from '@/components/ui/ds/Button'
 import * as api from '@/utils/api'
 import { cn } from '@/lib/utils'
@@ -117,6 +121,18 @@ export default function TreatmentPresentation() {
 
   const acts = script?.acts ?? []
   const beat = state?.beat ?? null
+  const snapshot = data?.snapshot ?? null
+
+  /**
+   * The levels were computed and frozen at approval; this only reads them. An
+   * empty list means nothing differs from the doctor's plan, and the screen
+   * shows one price rather than three identical cards.
+   */
+  const options = useMemo(() => readPresentedOptions(snapshot), [snapshot])
+  const showingOptions = beat?.stage.scene === 'options' && options.length > 0
+  // The closing act is where the way out belongs — and once the story is over
+  // it stays on screen rather than vanishing with the last line.
+  const atNextStep = beat?.actId === 'next_step' || state?.status === 'finished'
 
   /**
    * Prefetch the *next* act while the current one plays, so the seam between
@@ -165,7 +181,22 @@ export default function TreatmentPresentation() {
     <PatientSurface width="wide">
       <div className="flex min-h-[85vh] flex-col justify-center gap-8 py-6">
         {/* Act rail — where the patient is in their own story. */}
-        <nav className="flex items-center justify-center gap-2" aria-label={t('presentation.acts')}>
+        {/*
+          Six act titles are wider than a phone. Left as one un-wrapping row they
+          overflowed in both directions: the first act was cut off the left edge
+          and the last off the right, so a patient on a phone could neither see
+          which act was playing nor reach any other — the rail was unusable at
+          exactly the size most patients open the link on.
+
+          Below `sm` the titles give way to their marks, which still show
+          position and still take a tap; the name stays on `aria-label`, so
+          nothing is lost to assistive technology. Above `sm` the titles return
+          and are allowed to wrap, because some locales are much longer.
+        */}
+        <nav
+          className="flex flex-wrap items-end justify-center gap-x-2 gap-y-2"
+          aria-label={t('presentation.acts')}
+        >
           {acts.map((act, index) => {
             const active = index === (state?.actIndex ?? 0)
             return (
@@ -173,14 +204,16 @@ export default function TreatmentPresentation() {
                 key={act.id}
                 type="button"
                 onClick={() => directorRef.current?.seekToAct(index)}
+                aria-label={act.title}
+                aria-current={active ? 'step' : undefined}
                 className={cn(
-                  'group flex flex-col items-center gap-1.5 px-2 py-1 text-2xs uppercase tracking-[0.18em] transition-colors',
+                  'group flex min-h-[2.25rem] flex-col items-center justify-end gap-1.5 px-2 py-1 text-2xs uppercase tracking-[0.18em] transition-colors',
                   active ? 'text-dv-gold' : 'text-txt-muted hover:text-txt-secondary',
                 )}
               >
-                <span>{act.title}</span>
+                <span className="hidden sm:inline">{act.title}</span>
                 <span
-                  className="h-px w-10 transition-opacity"
+                  className="h-px w-8 transition-opacity sm:w-10"
                   style={{
                     background: active
                       ? 'var(--dv-gold)'
@@ -192,7 +225,29 @@ export default function TreatmentPresentation() {
           })}
         </nav>
 
-        <CinematicArches2D onReady={handleSurfaceReady} />
+        {/*
+          The arches stay mounted through the options act rather than being
+          swapped out: unmounting them would drop the surface handle the
+          director is holding, and the next act would play to nothing.
+        */}
+        <div className="relative">
+          <div className={cn('transition-opacity duration-500', showingOptions && 'pointer-events-none opacity-0')}>
+            <CinematicArches2D onReady={handleSurfaceReady} />
+          </div>
+          <AnimatePresence>
+            {showingOptions && (
+              <motion.div
+                className="absolute inset-0 flex items-center justify-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: prefersReducedMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <OptionsScene options={options} activeKey={beat?.stage.optionKey ?? null} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* The line being said. One thing at a time. */}
         <div className="min-h-[8rem] px-2 text-center">
@@ -272,6 +327,23 @@ export default function TreatmentPresentation() {
             )}
             <p className="text-2xs text-txt-muted">{t('presentation.not_a_consent')}</p>
           </div>
+
+          {/* Always available, never narrated: a patient who accepts the number
+              should not have to walk a table to get past it. */}
+          {snapshot && release?.totalAmount != null && (
+            <CostBreakdown snapshot={snapshot} total={release.totalAmount} />
+          )}
+
+          {/*
+            The doctor's own plan title, not an act title: this lands in the
+            clinic's booking list, where "Ваш план лечения" — a line written to
+            address the patient — tells whoever picks it up nothing.
+          */}
+          {atNextStep && (
+            <NextStepActions
+              serviceName={(snapshot as { title?: string } | null)?.title ?? null}
+            />
+          )}
         </div>
       </div>
     </PatientSurface>
