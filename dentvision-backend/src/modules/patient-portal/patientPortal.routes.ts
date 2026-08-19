@@ -281,6 +281,85 @@ patientPortalRouter.post('/appointments/:id/cancel', ensurePatient, async (req: 
   }
 });
 
+// ─────────────── Booking: free times, and filing a request ───────────────
+//
+// Thin wrappers over `portalSvc.getAvailableSlots` / `requestAppointment`,
+// which already existed and were already tested but had no HTTP surface — only
+// the AI assistant could reach them. The treatment presentation's closing step
+// needs the same two calls, and it must use the same service rather than a
+// second booking path.
+//
+// **The clinic is resolved from the patient's own record, never from the body.**
+// Taking it from the request would let a signed-in patient file a booking into a
+// clinic they have no card at.
+
+async function resolvePatientClinicId(patientId: string): Promise<string | null> {
+  const patient = await (prisma as any).patient.findUnique({
+    where: { id: patientId },
+    select: { clinicId: true },
+  });
+  return patient?.clinicId ?? null;
+}
+
+patientPortalRouter.get('/available-slots', ensurePatient, async (req: AuthRequest, res) => {
+  try {
+    const clinicId = await resolvePatientClinicId(resolvePatientId(req)!);
+    if (!clinicId) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+
+    const date = String(req.query.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ ok: false, error: 'Ожидается дата в формате YYYY-MM-DD' });
+    }
+    const doctorId = req.query.doctorId ? String(req.query.doctorId) : null;
+    return res.json({ ok: true, data: await portalSvc.getAvailableSlots(clinicId, date, doctorId) });
+  } catch (e: any) {
+    if (e instanceof portalSvc.PortalActionError) {
+      return res.status(e.code === 'NOT_FOUND' ? 404 : 400).json({ ok: false, error: e.message });
+    }
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/**
+ * Files a **request**, not an appointment.
+ *
+ * It lands as `Booking(status: 'pending')` — the same thing the public booking
+ * widget produces — so a human at the clinic confirms it before it becomes a
+ * commitment on the calendar. Nothing here is consent to treatment, and the
+ * interface says so in words, not only in code.
+ */
+patientPortalRouter.post('/appointments/request', ensurePatient, async (req: AuthRequest, res) => {
+  try {
+    const patientId = resolvePatientId(req)!;
+    const clinicId = await resolvePatientClinicId(patientId);
+    if (!clinicId) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+
+    const body = (req.body || {}) as Record<string, unknown>;
+    const date = String(body.date || '');
+    const time = String(body.time || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ ok: false, error: 'Ожидается дата в формате YYYY-MM-DD' });
+    }
+    if (!time) return res.status(400).json({ ok: false, error: 'Не выбрано время' });
+
+    const result = await portalSvc.requestAppointment({
+      patientId,
+      clinicId,
+      date,
+      time,
+      doctorId: body.doctorId ? String(body.doctorId) : null,
+      serviceName: body.serviceName ? String(body.serviceName).slice(0, 200) : null,
+      notes: body.notes ? String(body.notes).slice(0, 500) : null,
+    });
+    return res.json({ ok: true, data: result });
+  } catch (e: any) {
+    if (e instanceof portalSvc.PortalActionError) {
+      return res.status(e.code === 'NOT_FOUND' ? 404 : 400).json({ ok: false, error: e.message });
+    }
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ─────────────── Cross-clinic access requests (patient consent) ───────────────
 // These operate on req.user!.id directly — the portal *account*, not the
 // per-clinic `_patientId` resolved by `ensurePatient` — because a grant is

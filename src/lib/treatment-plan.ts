@@ -103,6 +103,42 @@ export function createLineItem(
   }
 }
 
+/**
+ * Keep a finding only if it is one the backend would also accept — the two
+ * normalisers have to agree, or a value survives one side and is dropped by the
+ * other. Mirrors `normalizeFinding` in the backend's `treatmentPlanShape.ts`.
+ */
+function normalizeFinding(raw: unknown): TreatmentPlanFinding | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const value = raw as TreatmentPlanFinding
+  const status = String(value.status || '').trim()
+  if (!status) return undefined
+  if (!['high', 'medium', 'low'].includes(String(value.urgency))) return undefined
+  return { status, urgency: value.urgency }
+}
+
+/** Mirrors `normalizeAlternatives` in the backend's `treatmentPlanShape.ts`. */
+function normalizeAlternatives(raw: unknown): TreatmentPlanAlternative[] {
+  if (!Array.isArray(raw)) return []
+  const out: TreatmentPlanAlternative[] = []
+  const seen = new Set<string>()
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue
+    const alt = entry as TreatmentPlanAlternative
+    const tier = String(alt.tier)
+    const serviceName = String(alt.serviceName || '').trim()
+    const price = Number(alt.price)
+    if (tier !== 'essential' && tier !== 'premium') continue
+    if (!serviceName || !Number.isFinite(price) || price <= 0) continue
+    const serviceId = String(alt.serviceId || '').trim()
+    const key = `${tier}:${serviceId || serviceName}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ serviceId, serviceName, price: Math.round(price), tier })
+  }
+  return out
+}
+
 export function normalizeStages(raw: unknown[]): TreatmentPlanStage[] {
   if (!Array.isArray(raw)) return []
   return raw.map((stage, index) => {
@@ -110,6 +146,8 @@ export function normalizeStages(raw: unknown[]): TreatmentPlanStage[] {
     const items = Array.isArray(s.items)
       ? s.items.map((row) => {
           const it = row as Record<string, unknown>
+          const finding = normalizeFinding(it.finding)
+          const alternatives = normalizeAlternatives(it.alternatives)
           return {
             id: String(it.id || crypto.randomUUID()),
             serviceId: String(it.serviceId || ''),
@@ -117,6 +155,14 @@ export function normalizeStages(raw: unknown[]): TreatmentPlanStage[] {
             price: Number(it.price) || 0,
             teeth: Array.isArray(it.teeth) ? (it.teeth as number[]) : [],
             qty: Number(it.qty) || 1,
+            // Carried explicitly. This function rebuilds items from a fixed
+            // field list, so anything not named here is destroyed on the next
+            // save — which would have thrown away the doctor's alternatives and,
+            // worse, the clinical `finding` the odontogram sync recorded, the
+            // first time anyone opened the plan in the CRM. The patient's
+            // consequences act would then have gone quiet with nothing broken.
+            ...(finding ? { finding } : {}),
+            ...(alternatives.length ? { alternatives } : {}),
           }
         })
       : []

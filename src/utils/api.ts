@@ -1608,6 +1608,36 @@ export async function getPresentationVoice(
   return apiRequest(`/api/patient-portal/presentation/${releaseId}/voice?${q.toString()}`);
 }
 
+/**
+ * Free times at the patient's own clinic. The clinic is resolved server-side
+ * from their card — there is deliberately no clinicId parameter here.
+ */
+export async function getPortalAvailableSlots(
+  date: string,
+  doctorId?: string | null,
+): Promise<{ date: string; workingDay: boolean; slots: string[] }> {
+  const q = new URLSearchParams({ date });
+  if (doctorId) q.set('doctorId', doctorId);
+  return apiRequest(`/api/patient-portal/available-slots?${q.toString()}`);
+}
+
+/**
+ * Files a booking **request**, not an appointment: the clinic confirms it
+ * before it becomes a commitment. Not consent to treatment.
+ */
+export async function requestPortalAppointment(input: {
+  date: string;
+  time: string;
+  doctorId?: string | null;
+  serviceName?: string | null;
+  notes?: string | null;
+}): Promise<any> {
+  return apiRequest('/api/patient-portal/appointments/request', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function getPresentationScript(releaseId: string, locale?: string): Promise<any> {
   const qs = locale ? `?locale=${encodeURIComponent(locale)}` : '';
   return apiRequest(`/api/patient-portal/presentation/${releaseId}${qs}`);

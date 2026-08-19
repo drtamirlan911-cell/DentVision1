@@ -965,7 +965,13 @@
     "approve_and_publish": "Approve & publish",
     "publishing": "Publishing…",
     "toast_published": "Plan approved and published to the patient",
-    "toast_publish_failed": "Could not publish the plan"
+    "toast_publish_failed": "Could not publish the plan",
+    "alternatives_add": "Add an alternative",
+    "alternatives_count": "{{count}} alternative(s)",
+    "alternatives_hint": "Mark what else from the price list could stand in for this line. The Essential and Extended levels the patient sees are assembled automatically at approval.",
+    "alternatives_none_available": "No services at a different price in the price list would work as an alternative.",
+    "tier_essential": "cheaper",
+    "tier_premium": "fuller"
   },
   "billing": {
     "free": "Free",
@@ -1511,6 +1517,23 @@
     "valid_until": "This quote is valid until {{date}}",
     "not_a_consent": "This explains the plan; it is not consent to treatment. Your doctor decides.",
     "unavailable_title": "Plan unavailable",
-    "unavailable_body": "The quote may have expired, or the clinic withdrew it. Please contact the clinic."
+    "unavailable_body": "The quote may have expired, or the clinic withdrew it. Please contact the clinic.",
+    "option_essential": "Essential",
+    "option_optimal": "Recommended",
+    "option_premium": "Extended",
+    "option_doctor_choice": "your doctor's choice",
+    "option_changed": "{{count}} item(s) differ",
+    "explain_price": "What the price is made of",
+    "teeth_short": "teeth {{teeth}}",
+    "total": "Total",
+    "request_appointment": "Request an appointment",
+    "request_sending": "Sending…",
+    "request_sent": "Request sent",
+    "request_sent_hint": "The clinic will contact you to confirm a time that suits you. This is not a booking yet, and not consent to treatment.",
+    "request_hint": "This is a request, not a booking: the clinic will call to confirm the time. Consent to treatment is handled separately.",
+    "request_no_slots": "No free times in the next few days — call the clinic and they will find one with you.",
+    "request_failed": "The request could not be sent. Try again later or call the clinic.",
+    "request_note": "Request from the treatment plan presentation",
+    "print": "Save or print"
   }
 }
