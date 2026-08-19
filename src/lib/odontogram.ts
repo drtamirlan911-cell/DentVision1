@@ -107,6 +107,16 @@ export interface PlanRecommendation {
   urgency: 'high' | 'medium' | 'low'
   estimatedPrice: number
   reason: string
+  /**
+   * The odontogram status this recommendation came from.
+   *
+   * Carried through rather than left behind because the patient presentation
+   * may only quote a consequence for a finding the plan actually records — see
+   * `consequences.catalog.ts`. Without it the presentation would have to infer
+   * a condition from a service name, which is exactly the guessing that layer
+   * exists to prevent.
+   */
+  status: string
 }
 
 const SURFACE_RU: Record<SurfaceKey, string> = {
@@ -133,6 +143,7 @@ export function buildPlanFromOdontogram(teeth: PatientTeeth): PlanRecommendation
         urgency: 'low',
         estimatedPrice: 250000,
         reason: 'Зуб отсутствует',
+        status: 'missing',
       })
       continue
     }
@@ -143,6 +154,7 @@ export function buildPlanFromOdontogram(teeth: PatientTeeth): PlanRecommendation
         urgency: 'high',
         estimatedPrice: 85000,
         reason: 'Неуспешная эндодонтия',
+        status: 'endo_fail',
       })
     }
     if (status === 'root') {
@@ -152,6 +164,7 @@ export function buildPlanFromOdontogram(teeth: PatientTeeth): PlanRecommendation
         urgency: 'high',
         estimatedPrice: 45000,
         reason: 'Сохранён корень',
+        status: 'root',
       })
     }
     if (status === 'caries') {
@@ -161,6 +174,7 @@ export function buildPlanFromOdontogram(teeth: PatientTeeth): PlanRecommendation
         urgency: 'medium',
         estimatedPrice: 18000,
         reason: 'Кариес (зуб)',
+        status: 'caries',
       })
     }
 
@@ -172,6 +186,7 @@ export function buildPlanFromOdontogram(teeth: PatientTeeth): PlanRecommendation
         urgency: cariesSurfaces.includes('O') && cariesSurfaces.length >= 2 ? 'high' : 'medium',
         estimatedPrice: 12000 + cariesSurfaces.length * 4000,
         reason: `Кариес поверхностей: ${cariesSurfaces.join(', ')}`,
+        status: 'caries',
       })
     }
 

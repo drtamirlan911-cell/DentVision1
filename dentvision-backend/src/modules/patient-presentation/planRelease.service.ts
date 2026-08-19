@@ -21,6 +21,7 @@ import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 
 import prisma from '../../lib/prisma.js';
+import { buildPlanOptions, type PlanOption } from '../../lib/planOptions.js';
 import {
   collectPlanTeeth,
   enrichStages,
@@ -56,8 +57,18 @@ export function hashSnapshot(snapshot: unknown): string {
   return createHash('sha256').update(canonicalJson(snapshot)).digest('hex');
 }
 
+/**
+ * The frozen document, plus the three option levels resolved into real prices.
+ *
+ * Options are computed here, at freeze time, rather than when the patient looks:
+ * the alternatives the doctor marked point at price-list rows that will move,
+ * and a level whose price changed after approval would contradict the total the
+ * doctor signed.
+ */
+export type FrozenSnapshot = TreatmentPlanItems & { options?: PlanOption[] };
+
 export interface FrozenPlan {
-  snapshot: TreatmentPlanItems;
+  snapshot: FrozenSnapshot;
   snapshotHash: string;
   totalAmount: number;
 }
@@ -70,11 +81,13 @@ export interface FrozenPlan {
 export function freezePlan(items: unknown, opts: { title?: string } = {}): FrozenPlan {
   const normalized = normalizePlanItems(items);
   const stages = enrichStages(normalized.stages);
-  const snapshot: TreatmentPlanItems = {
+  const options = buildPlanOptions(stages);
+  const snapshot: FrozenSnapshot = {
     ...normalized,
     stages,
     teeth: collectPlanTeeth(stages),
     totalBudget: planTotal(stages),
+    options,
   };
   if (opts.title) (snapshot as Record<string, unknown>).title = opts.title;
   return {

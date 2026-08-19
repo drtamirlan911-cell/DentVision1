@@ -1,3 +1,30 @@
+/**
+ * The clinical finding a line item came from.
+ *
+ * Optional because a plan typed by hand in the CRM has none — only the
+ * odontogram sync knows the tooth's status. The patient presentation quotes a
+ * consequence only where this is present, so a hand-typed plan simply gets no
+ * consequences act rather than an invented one.
+ *
+ * Mirrors `TreatmentPlanFinding` in the backend's `treatmentPlanShape.ts`.
+ */
+export interface TreatmentPlanFinding {
+  status: string
+  urgency: 'high' | 'medium' | 'low'
+}
+
+/**
+ * Another service from the clinic's price list that could stand in for this
+ * line. The doctor marks these; Essential / Optimal / Premium are assembled
+ * from them deterministically at approval, never authored.
+ */
+export interface TreatmentPlanAlternative {
+  serviceId: string
+  serviceName: string
+  price: number
+  tier: 'essential' | 'premium'
+}
+
 export interface TreatmentPlanLineItem {
   id: string
   serviceId: string
@@ -5,6 +32,10 @@ export interface TreatmentPlanLineItem {
   price: number
   teeth: number[]
   qty: number
+  finding?: TreatmentPlanFinding
+  alternatives?: TreatmentPlanAlternative[]
+  /** The doctor's own choice for this line — what "Optimal" is made of. */
+  recommended?: boolean
 }
 
 export interface TreatmentPlanStage {

@@ -18,6 +18,7 @@ import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { resolvePatientForUser } from '../patient-portal/patientLink.js';
 import { PRESENTATION_LOCALES, type PresentationLocale } from './beats.js';
+import { readConciergeSettings } from './conciergeSettings.js';
 import { getPublishedRelease, listPublishedReleases } from './planRelease.service.js';
 import { buildScriptSkeleton } from './scriptSkeleton.js';
 import { resolveVoiceLines, voiceConfigured } from './voice.service.js';
@@ -54,12 +55,14 @@ async function requirePatient(req: AuthRequest, res: any): Promise<string | null
 async function buildScriptForRelease(release: any, patientId: string, locale: PresentationLocale) {
   const [patient, clinic, approver] = await Promise.all([
     prisma.patient.findUnique({ where: { id: patientId }, select: { firstName: true } }),
-    prisma.clinic.findUnique({ where: { id: release.clinicId }, select: { name: true } }),
+    prisma.clinic.findUnique({ where: { id: release.clinicId }, select: { name: true, settings: true } }),
     prisma.user.findUnique({
       where: { id: release.approvedByUserId },
       select: { firstName: true, lastName: true },
     }),
   ]);
+
+  const concierge = readConciergeSettings(clinic?.settings);
 
   return buildScriptSkeleton({
     releaseId: release.id,
@@ -67,8 +70,10 @@ async function buildScriptForRelease(release: any, patientId: string, locale: Pr
     patientFirstName: patient?.firstName ?? null,
     clinicName: clinic?.name ?? null,
     doctorName: approver ? `${approver.firstName} ${approver.lastName}`.trim() : null,
+    personaName: concierge.personaName,
     locale,
     totalAmount: release.totalAmount,
+    concierge,
   });
 }
 

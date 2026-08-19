@@ -34,6 +34,9 @@ export function recommendationsToStages(recs: PlanRecommendation[]): TreatmentPl
         price: r.estimatedPrice,
         teeth: [Number(r.tooth)].filter((n) => Number.isFinite(n)),
         qty: 1,
+        // The clinical provenance of this line. The patient presentation may
+        // only quote a consequence for a finding the plan really records.
+        finding: { status: r.status, urgency: r.urgency },
       })),
       notes: group.map((r) => `Зуб ${r.tooth}: ${r.reason}`).join('; '),
     })
