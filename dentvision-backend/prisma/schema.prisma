@@ -572,6 +572,34 @@ model TreatmentPlan {
   @@map("treatment_plans")
 }
 
+/// Content-addressed cache of synthesised narration.
+///
+/// Keyed on the *text*, not on a beat or a plan or a patient: the same opening
+/// sentence is spoken to every patient of every clinic, so it is synthesised
+/// once for the whole platform and re-watching costs nothing. `clinicId` is
+/// deliberately absent — it would fragment the cache and buy nothing.
+///
+/// Not a patient document: this never appears in the Documents tab and is not
+/// reachable through the files routes.
+model VoiceAsset {
+  id       String @id @default(uuid())
+  /// sha256(provider|model|voice|locale|normalised text)
+  cacheKey String @unique
+  locale   String
+  voice    String
+  model    String
+  /// `s3://<key>` — see lib/storage.ts::toStorageUrl.
+  storageUrl String
+  durationMs Int?
+  bytes      Int
+
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([lastUsedAt])
+  @@map("voice_assets")
+}
+
 enum PlanReleaseStatus {
   approved
   superseded

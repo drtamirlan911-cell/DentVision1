@@ -1555,6 +1555,28 @@ async function main() {
     `);
   });
 
+  // Content-addressed cache of synthesised narration.
+  // Mirrors prisma/migrations/20260819_voice_assets/migration.sql.
+  await runOnceMigration('voice_assets', 'VoiceAsset table', async (tx) => {
+    await tx.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "voice_assets" (
+        "id" TEXT NOT NULL,
+        "cacheKey" TEXT NOT NULL,
+        "locale" TEXT NOT NULL,
+        "voice" TEXT NOT NULL,
+        "model" TEXT NOT NULL,
+        "storageUrl" TEXT NOT NULL,
+        "durationMs" INTEGER,
+        "bytes" INTEGER NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "lastUsedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "voice_assets_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await tx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "voice_assets_cacheKey_key" ON "voice_assets"("cacheKey")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "voice_assets_lastUsedAt_idx" ON "voice_assets"("lastUsedAt")`);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();

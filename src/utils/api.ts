@@ -1594,6 +1594,20 @@ export async function getMyPresentations(): Promise<any[]> {
   return apiRequest('/api/patient-portal/presentation');
 }
 
+/**
+ * Narration for one act. `lines` may contain `audioUrl: null` — that is a
+ * normal answer meaning "play this line silently", not a failure.
+ */
+export async function getPresentationVoice(
+  releaseId: string,
+  act: string,
+  locale?: string,
+): Promise<{ configured: boolean; lines: Array<{ beatId: string; audioUrl: string | null }> }> {
+  const q = new URLSearchParams({ act });
+  if (locale) q.set('locale', locale);
+  return apiRequest(`/api/patient-portal/presentation/${releaseId}/voice?${q.toString()}`);
+}
+
 export async function getPresentationScript(releaseId: string, locale?: string): Promise<any> {
   const qs = locale ? `?locale=${encodeURIComponent(locale)}` : '';
   return apiRequest(`/api/patient-portal/presentation/${releaseId}${qs}`);

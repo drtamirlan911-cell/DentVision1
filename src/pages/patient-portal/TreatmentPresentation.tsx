@@ -16,7 +16,7 @@ import {
   type DirectorState,
   type VisualizationSurface,
 } from '@/lib/presentation/director'
-import { SilentPersona } from '@/lib/presentation/silentPersona'
+import { AudioPersona } from '@/lib/presentation/audioPersona'
 
 /**
  * The patient's treatment plan, told rather than tabulated.
@@ -57,6 +57,8 @@ export default function TreatmentPresentation() {
   const release = data?.release ?? null
 
   const directorRef = useRef<PresentationDirector | null>(null)
+  const personaRef = useRef<AudioPersona | null>(null)
+  const fetchedActs = useRef(new Set<string>())
   const surfaceRef = useRef<VisualizationSurface | null>(null)
   const [state, setState] = useState<DirectorState | null>(null)
 
@@ -64,29 +66,71 @@ export default function TreatmentPresentation() {
     surfaceRef.current = surface
   }, [])
 
+  /** Fetch one act's narration once, and hand the URLs to the persona. */
+  const fetchAct = useCallback(
+    async (actId: string | undefined, persona: AudioPersona | null) => {
+      if (!releaseId || !actId || !persona || fetchedActs.current.has(actId)) return
+      fetchedActs.current.add(actId)
+      try {
+        const data = await api.getPresentationVoice(String(releaseId), actId, i18n.language)
+        persona.setUrls(data?.lines ?? [])
+      } catch {
+        // Silent is a supported outcome; nothing to tell the patient.
+      }
+    },
+    [releaseId, i18n.language],
+  )
+
   useEffect(() => {
     if (!script || !surfaceRef.current) return
 
+    const persona = new AudioPersona()
+    personaRef.current = persona
+    fetchedActs.current.clear()
+
     const director = new PresentationDirector(
       script,
-      new SilentPersona(),
+      persona,
       surfaceRef.current,
       { reducedMotion: Boolean(prefersReducedMotion) },
       { onState: setState },
     )
     directorRef.current = director
-    void director.play()
+
+    // Load the first act's narration *before* starting. Fetching on entering an
+    // act would leave the opening line silent every single time — and that is
+    // the one line the whole screen exists to deliver.
+    let cancelled = false
+    void fetchAct(script.acts[0]?.id, persona).finally(() => {
+      if (!cancelled) void director.play()
+    })
 
     return () => {
+      cancelled = true
       director.stop()
       directorRef.current = null
+      personaRef.current = null
     }
-    // `script` identity changes only when the release or locale does, which is
-    // exactly when the presentation should start over.
-  }, [script, prefersReducedMotion])
+    // `script`, and `fetchAct` with it, change identity only when the release or
+    // the locale does — which is exactly when the presentation should start over.
+  }, [script, prefersReducedMotion, fetchAct])
 
   const acts = script?.acts ?? []
   const beat = state?.beat ?? null
+
+  /**
+   * Prefetch the *next* act while the current one plays, so the seam between
+   * acts is not silent either. Per act rather than all six up front: most
+   * patients open the first, and synthesising the rest bills for audio nobody
+   * hears. Failures are swallowed on purpose — the persona already falls back
+   * to reading time, so a silent presentation is the worst case, never a
+   * broken one.
+   */
+  useEffect(() => {
+    const nextActId = script?.acts[(state?.actIndex ?? 0) + 1]?.id
+    if (!nextActId) return
+    void fetchAct(nextActId, personaRef.current)
+  }, [script, state?.actIndex, fetchAct])
   const playing = state?.status === 'playing'
   const finished = state?.status === 'finished'
 
