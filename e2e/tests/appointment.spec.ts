@@ -97,13 +97,20 @@ test.describe('Appointment Workflow', () => {
     });
     const created = await apiPayload(createRes);
 
-    const getRes = await request.get(`${BASE}/api/appointments/${created.id}`, {
+    // There is no GET /appointments/:id — the router only exposes a filtered
+    // list (from/to/doctorId/status), POST as an upsert-by-id, PATCH
+    // /:id/status, POST /:id/close and DELETE /:id. Reading a single
+    // appointment back means listing and finding it, the same way
+    // treatment-plan.spec.ts already had to for treatment plans.
+    const listRes = await request.get(`${BASE}/api/appointments?from=${futureDate(0)}&to=${futureDate(30)}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
-    expect(getRes.status()).toBe(200);
-    const body = await apiPayload(getRes);
-    expect(body.id).toBe(created.id);
-    expect(body.patientId).toBe(patientId);
+    expect(listRes.status()).toBe(200);
+    const listBody = await apiPayload(listRes);
+    const rows = listBody.data || listBody;
+    const found = Array.isArray(rows) ? rows.find((a: any) => a.id === created.id) : null;
+    expect(found).toBeTruthy();
+    expect(found.patientId).toBe(patientId);
 
     await cleanupAppointment(request, ownerToken, created.id);
   });
@@ -115,9 +122,12 @@ test.describe('Appointment Workflow', () => {
     });
     const created = await apiPayload(createRes);
 
-    const updateRes = await request.put(`${BASE}/api/appointments/${created.id}`, {
+    // No PUT /:id — updates go through the same POST the create above used,
+    // with `id` in the body (an upsert, same pattern as /patients and
+    // /crm/treatment-plans).
+    const updateRes = await request.post(`${BASE}/api/appointments`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { notes: 'Updated notes', duration: 60 },
+      data: { id: created.id, patientId, doctorId, date: futureDate(9), time: '09:00', notes: 'Updated notes', duration: 60 },
     });
     expect(updateRes.status()).toBe(200);
     const updated = await apiPayload(updateRes);
@@ -135,9 +145,9 @@ test.describe('Appointment Workflow', () => {
     const created = await apiPayload(createRes);
 
     const newDate = futureDate(15);
-    const rescheduleRes = await request.put(`${BASE}/api/appointments/${created.id}`, {
+    const rescheduleRes = await request.post(`${BASE}/api/appointments`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { date: newDate, time: '16:00' },
+      data: { id: created.id, patientId, doctorId, date: newDate, time: '16:00' },
     });
     expect(rescheduleRes.status()).toBe(200);
     const rescheduled = await apiPayload(rescheduleRes);

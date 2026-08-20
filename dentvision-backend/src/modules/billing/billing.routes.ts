@@ -77,7 +77,11 @@ billingRouter.post('/invoices', requirePermission('finance.manage'), async (req:
         patientId,
         clinicId,
         amount: amountValue,
-        items: items || undefined,
+        // `items` is a required Json column with no schema default — passing
+        // `undefined` when the caller omits it (a lump-sum invoice with no
+        // itemised breakdown is a normal case) fails the create outright and
+        // surfaced as a generic 500 with no hint of why.
+        items: items ?? [],
         notes: [
           req.body?.payMethod ? `[payMethod:${req.body.payMethod}]` : '',
           notes || '',
@@ -100,8 +104,19 @@ billingRouter.patch('/invoices/:id', requirePermission('finance.manage'), async 
     if (!clinicId) { res.status(400).json({ ok: false, error: 'Выберите клинику' }); return; }
     const { status, amount, notes } = req.body;
 
+    // Same tenant-scope pattern GET and POST /:id/pay already use below:
+    // check existence and ownership first, then update by id alone. Folding
+    // clinicId into `update`'s own `where` meant a cross-tenant id matched no
+    // row, and Prisma's update() throws P2025 for that rather than returning
+    // null — the generic catch turned every cross-tenant PATCH into a 500.
+    const existing = await prisma.invoice.findFirst({ where: { id, clinicId } });
+    if (!existing) {
+      res.status(404).json({ ok: false, error: 'Invoice not found' });
+      return;
+    }
+
     const invoice = await prisma.invoice.update({
-      where: { id, clinicId },
+      where: { id },
       data: {
         ...(status !== undefined && { status }),
         ...(amount !== undefined && { amount }),
