@@ -11,10 +11,10 @@
 
 | Измерение | Значение |
 |---|---|
-| Смонтированных роутеров | 58 |
+| Смонтированных роутеров | 63 |
 | Обработчиков маршрутов | 528 |
-| Маршрутов без потребителя на фронте | **77** |
-| Роутеров, объявленных но не смонтированных | 5 |
+| Маршрутов без потребителя на фронте | **96** |
+| Роутеров, объявленных но не смонтированных | 0 |
 | Prisma-моделей | 138 |
 | — без прямых вызовов Prisma-клиента | **13** |
 | — только пишутся, никогда не читаются | **9** |
@@ -89,14 +89,11 @@
 | `/api/patient-portal` | patientPortalRouter | 21 | **6** |
 | `/api/cross-clinic` | crossClinicRouter | 3 | 0 |
 | `/api/patient-inbox` | patientInboxRouter | 7 | 0 |
-
-### Объявлены и импортированы, но не смонтированы
-
-- `dataRouter` — 5 маршрутов недостижимы по HTTP (импортирован в `app.ts`, но нет `app.use`)
-- `developerRouter` — 5 маршрутов недостижимы по HTTP (импортирован в `app.ts`, но нет `app.use`)
-- `v1Router` — 1 маршрутов недостижимы по HTTP (импортирован в `app.ts`, но нет `app.use`)
-- `partnersRouter` — 7 маршрутов недостижимы по HTTP (импортирован в `app.ts`, но нет `app.use`)
-- `workflowRouter` — 5 маршрутов недостижимы по HTTP (импортирован в `app.ts`, но нет `app.use`)
+| `/api/developer` | developerRouter | 5 | **5** |
+| `/api/v1` | v1Router | 1 | **1** |
+| `/api/partners` | partnersRouter | 7 | **5** |
+| `/api/workflows` | workflowRouter | 5 | **3** |
+| `/api/data` | dataRouter | 5 | **5** |
 
 ## Маршруты, которые фронтенд не зовёт
 
@@ -179,6 +176,25 @@
 - `PUT /api/patient-portal/me/profile` — dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts
 - `GET /api/patient-portal/clinics` — dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts
 - `POST /api/patient-portal/appointments/:id/cancel` — dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts
+- `GET /api/developer/apps` — dentvision-backend/src/modules/developer/developer.routes.ts
+- `POST /api/developer/apps` — dentvision-backend/src/modules/developer/developer.routes.ts
+- `POST /api/developer/apps/:id/keys` — dentvision-backend/src/modules/developer/developer.routes.ts
+- `POST /api/developer/webhooks` — dentvision-backend/src/modules/developer/developer.routes.ts
+- `GET /api/developer/webhooks/:id/deliveries` — dentvision-backend/src/modules/developer/developer.routes.ts
+- `GET /api/v1/ping` — dentvision-backend/src/modules/developer/v1.routes.ts
+- `POST /api/partners/tiers` — dentvision-backend/src/modules/partners/partners.routes.ts
+- `POST /api/partners/:id/tier` — dentvision-backend/src/modules/partners/partners.routes.ts
+- `POST /api/partners/:id/kpis` — dentvision-backend/src/modules/partners/partners.routes.ts
+- `POST /api/partners/:id/slas` — dentvision-backend/src/modules/partners/partners.routes.ts
+- `POST /api/partners/:id/campaigns` — dentvision-backend/src/modules/partners/partners.routes.ts
+- `PATCH /api/workflows/:id` — dentvision-backend/src/modules/workflow/workflow.routes.ts
+- `POST /api/workflows/:id/run` — dentvision-backend/src/modules/workflow/workflow.routes.ts
+- `GET /api/workflows/:id/runs` — dentvision-backend/src/modules/workflow/workflow.routes.ts
+- `GET /api/data/metrics` — dentvision-backend/src/modules/data/data.routes.ts
+- `POST /api/data/metrics` — dentvision-backend/src/modules/data/data.routes.ts
+- `GET /api/data/metrics/:key/value` — dentvision-backend/src/modules/data/data.routes.ts
+- `GET /api/data/dashboards` — dentvision-backend/src/modules/data/data.routes.ts
+- `POST /api/data/dashboards` — dentvision-backend/src/modules/data/data.routes.ts
 
 </details>
 
