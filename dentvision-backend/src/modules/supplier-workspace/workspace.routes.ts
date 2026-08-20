@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { uid } from '../../lib/helpers.js';
 import { serializeBigInt, tengeToMinor, parseTengeToMinor } from '../../lib/money.js';
 import { getOrCreateWallet } from '../finance/finance.service.js';
+import { requestPayout, PayoutError } from '../finance/payout.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { buildSupplierDashboard, buildSupplierInsights, getSupplierOrders } from './supplierDashboard.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
@@ -396,12 +397,19 @@ supplierWorkspaceRouter.post('/payouts', requireSupplierWrite, async (req: AuthR
   } catch {
     return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse);
   }
-  const wallet = await getOrCreateWallet('SUPPLIER', req.user!.supplierId!);
-  if (wallet.balance < minor) {
-    return res.status(409).json({ ok: false, error: 'Недостаточно средств' } satisfies ApiResponse);
+  // Through the service, not inline: the balance check that used to live here
+  // compared against the raw wallet balance, so the same funds could be
+  // requested any number of times. `requestPayout` checks what is actually
+  // available — balance minus everything already requested and unresolved.
+  try {
+    const payout = await requestPayout({ ownerType: 'SUPPLIER', ownerId: req.user!.supplierId!, amountMinor: minor });
+    return res.status(201).json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
+  } catch (e: any) {
+    if (e instanceof PayoutError) {
+      return res.status(e.code === 'INSUFFICIENT_FUNDS' ? 409 : 400).json({ ok: false, error: e.message } satisfies ApiResponse);
+    }
+    throw e;
   }
-  const payout = await prisma.payout.create({ data: { walletId: wallet.id, amount: minor, status: 'requested' } });
-  return res.status(201).json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
 });
 
 supplierWorkspaceRouter.get('/analytics', async (req: AuthRequest, res) => {
