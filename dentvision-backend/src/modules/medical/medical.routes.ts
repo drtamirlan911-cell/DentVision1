@@ -211,6 +211,9 @@ medicalRouter.post('/treatment-plan', requirePermission('patient.write'), async 
       data: {
         id: uid(),
         patientId,
+        // requirePatientAccess above has already established that this patient
+        // belongs to the caller's clinic, so this is the patient's clinic.
+        clinicId: req.user!.clinicId,
         title,
         items: { ...normalized, stages, teeth: collectPlanTeeth(stages) } as any,
         price: computedTotal || Number(price) || 0,

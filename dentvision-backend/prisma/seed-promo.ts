@@ -239,6 +239,7 @@ async function enrichCrm(
       data: {
         id: uid(),
         patientId: p0.id,
+        clinicId,
         title: 'План лечения — Петров И.',
         status: 'active',
         price: 275000,

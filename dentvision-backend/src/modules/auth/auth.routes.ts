@@ -858,7 +858,7 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
     await prisma.$transaction([
       prisma.treatmentPlan.create({
         data: {
-          id: uid(), patientId: p1.id, title: 'План лечения — Иванов И.И.', status: 'active', price: 185000,
+          id: uid(), patientId: p1.id, clinicId, title: 'План лечения — Иванов И.И.', status: 'active', price: 185000,
           items: [
             { tooth: 46, treatment: 'Лечение кариеса', price: 25000, status: 'pending' },
             { tooth: 47, treatment: 'Имплантация + коронка', price: 150000, status: 'planned' },
@@ -869,7 +869,7 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
       }),
       prisma.treatmentPlan.create({
         data: {
-          id: uid(), patientId: p2.id, title: 'План лечения — Петрова М.А.', status: 'active', price: 45000,
+          id: uid(), patientId: p2.id, clinicId, title: 'План лечения — Петрова М.А.', status: 'active', price: 45000,
           items: [
             { tooth: 46, treatment: 'Лечение кариеса + пломба', price: 25000, status: 'in_progress' },
             { tooth: 31, treatment: 'Наблюдение после лечения каналов', price: 5000, status: 'completed' },
@@ -880,7 +880,7 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
       }),
       prisma.treatmentPlan.create({
         data: {
-          id: uid(), patientId: p3.id, title: 'План лечения — Сидоров А.В.', status: 'completed', price: 320000,
+          id: uid(), patientId: p3.id, clinicId, title: 'План лечения — Сидоров А.В.', status: 'completed', price: 320000,
           items: [
             { tooth: 26, treatment: 'Имплантация Nobel Biocare', price: 180000, status: 'completed' },
             { tooth: 36, treatment: 'Мостовидный протез', price: 120000, status: 'completed' },
@@ -972,13 +972,13 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
     await prisma.$transaction([
       prisma.labOrder.create({
         data: {
-          id: uid(), clinicId, patientId: p3.id, labName: 'DentalLab Pro', status: 'completed', type: 'Коронка металлокерамическая',
+          id: uid(), clinicId, patientId: p3.id, doctorId: userId, labName: 'DentalLab Pro', status: 'completed', type: 'Коронка металлокерамическая',
           notes: 'Зуб 16, оттенок A2', price: 45000, deadline: new Date(now - 3 * day),
         },
       }),
       prisma.labOrder.create({
         data: {
-          id: uid(), clinicId, patientId: p1.id, labName: 'Волгоградская лаборатория', status: 'in_progress', type: 'Виниры',
+          id: uid(), clinicId, patientId: p1.id, doctorId: userId, labName: 'Волгоградская лаборатория', status: 'in_progress', type: 'Виниры',
           notes: 'Зубы 11, 21 — композитные виниры', price: 80000, deadline: new Date(now + 7 * day),
         },
       }),

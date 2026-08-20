@@ -154,6 +154,7 @@ model User {
   orders                        Order[]
   enrollments                   SchoolEnrollment[]
   appointments                  Appointment[]
+  labOrdersOrdered              LabOrder[]        @relation("LabOrderDoctor")
   academies                     Academy[]
   aiMessages                    AIMessage[]
   communityPosts                CommunityPost[]
@@ -230,6 +231,7 @@ model Clinic {
   patients            Patient[]
   appointments        Appointment[]
   labOrders           LabOrder[]
+  treatmentPlans      TreatmentPlan[]
   invoices            Invoice[]
   inventory           InventoryItem[]
   orders              Order[]
@@ -555,6 +557,15 @@ model Tooth {
 model TreatmentPlan {
   id        String     @id @default(uuid())
   patientId String
+  /// The owning clinic, denormalised from `patient.clinicId`.
+  ///
+  /// Without it a plan is reachable only *through* its patient, so every funnel
+  /// query, report and clinic-scoped guard had to join through `patients` — and
+  /// `TreatmentPlanRelease` had to carry its own copy for exactly that reason.
+  ///
+  /// Nullable because plans already existed when it was added; the migration
+  /// backfills every one of them from the patient. New writers set it.
+  clinicId  String?
   title     String
   status    PlanStatus @default(draft)
   items     Json
@@ -563,12 +574,14 @@ model TreatmentPlan {
   deletedAt DateTime?
 
   patient  Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic   Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   releases TreatmentPlanRelease[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([patientId])
+  @@index([clinicId])
   @@map("treatment_plans")
 }
 
@@ -718,14 +731,25 @@ model LabOrder {
   deadline  DateTime?
   price     Int?
 
+  /// Who ordered the work.
+  ///
+  /// The dental-lab workflow is doctor → patient → tooth → order, and the first
+  /// step was not recorded anywhere: "whose case is this" could not be answered
+  /// without guessing. Nullable, and deliberately **not** backfilled — the
+  /// information does not exist for orders already placed, and inventing an
+  /// attribution for clinical work would be worse than leaving it blank.
+  doctorId  String?
+
   clinic  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@index([patientId])
+  @@index([doctorId])
   @@map("lab_orders")
 }
 

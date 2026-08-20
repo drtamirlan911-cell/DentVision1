@@ -518,6 +518,7 @@ export class DoctorAgent implements Agent {
       data: {
         id: crypto.randomUUID(),
         patientId: patientId as string,
+        clinicId: context.clinicId,
         title: params.title as string || 'План лечения',
         items: { ...normalized, stages, teeth: collectPlanTeeth(stages) } as any,
         price: planTotal(stages),
