@@ -1,4 +1,5 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
+import { payload as apiPayload } from '../helpers/api';
 
 const BASE = 'http://localhost:3001';
 
@@ -10,15 +11,15 @@ let doctorId: string;
 async function login(request: APIRequestContext, email: string, password: string): Promise<string> {
   const res = await request.post(`${BASE}/api/auth/login`, { data: { email, password } });
   expect(res.ok()).toBeTruthy();
-  const body = await res.json();
-  return body.data?.accessToken || body.accessToken;
+  const body = await apiPayload(res);
+  return body.accessToken;
 }
 
 async function getDoctorId(request: APIRequestContext, token: string): Promise<string> {
   const res = await request.get(`${BASE}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  const body = await res.json();
+  const body = await apiPayload(res);
   return body.user?.id || body.id;
 }
 
@@ -27,7 +28,7 @@ async function createPatient(request: APIRequestContext, token: string): Promise
     headers: { Authorization: `Bearer ${token}` },
     data: { firstName: 'Diag', lastName: 'Patient', phone: '+1555200001' },
   });
-  const body = await res.json();
+  const body = await apiPayload(res);
   return body.id;
 }
 
@@ -69,7 +70,7 @@ test.describe('Diagnosis Workflow', () => {
       },
     });
     expect(res.status()).toBe(201);
-    const body = await res.json();
+    const body = await apiPayload(res);
     expect(body).toHaveProperty('id');
     expect(body.diagnosis).toBe('Acute pulpitis');
 
@@ -87,13 +88,13 @@ test.describe('Diagnosis Workflow', () => {
         complaints: 'Bleeding gums',
       },
     });
-    const created = await createRes.json();
+    const created = await apiPayload(createRes);
 
     const getRes = await request.get(`${BASE}/api/medical/visits/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
     expect(getRes.status()).toBe(200);
-    const body = await getRes.json();
+    const body = await apiPayload(getRes);
     expect(body.id).toBe(created.id);
     expect(body.diagnosis).toBe('Gingivitis');
 
@@ -110,14 +111,14 @@ test.describe('Diagnosis Workflow', () => {
         diagnosis: 'Initial diagnosis',
       },
     });
-    const created = await createRes.json();
+    const created = await apiPayload(createRes);
 
     const updateRes = await request.put(`${BASE}/api/medical/visits/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { diagnosis: 'Updated diagnosis', treatment: 'New treatment plan' },
     });
     expect(updateRes.status()).toBe(200);
-    const updated = await updateRes.json();
+    const updated = await apiPayload(updateRes);
     expect(updated.diagnosis).toBe('Updated diagnosis');
 
     await cleanupVisit(request, ownerToken, created.id);
@@ -140,7 +141,7 @@ test.describe('Diagnosis Workflow', () => {
       },
     });
     expect(res.status()).toBe(201);
-    const body = await res.json();
+    const body = await apiPayload(res);
     expect(body.diagnosis).toBe(longDiagnosis);
 
     await cleanupVisit(request, ownerToken, body.id);
@@ -159,7 +160,7 @@ test.describe('Diagnosis Workflow', () => {
       },
     });
     expect(res.status()).toBe(201);
-    const body = await res.json();
+    const body = await apiPayload(res);
     expect(body.diagnosis).toContain('#14');
     expect(body.diagnosis).toContain('™');
 
@@ -184,7 +185,7 @@ test.describe('Diagnosis Workflow', () => {
         diagnosis: 'Visit A',
       },
     });
-    const visit1 = await v1.json();
+    const visit1 = await apiPayload(v1);
 
     const v2 = await request.post(`${BASE}/api/medical/visits`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
@@ -195,13 +196,13 @@ test.describe('Diagnosis Workflow', () => {
         diagnosis: 'Visit B',
       },
     });
-    const visit2 = await v2.json();
+    const visit2 = await apiPayload(v2);
 
     const listRes = await request.get(`${BASE}/api/medical/visits?patientId=${patientId}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
     expect(listRes.status()).toBe(200);
-    const body = await listRes.json();
+    const body = await apiPayload(listRes);
     const visits = body.data || body.visits || body;
     expect(Array.isArray(visits)).toBeTruthy();
     const ids = visits.map((v: any) => v.id);
@@ -226,7 +227,7 @@ test.describe('Diagnosis Workflow', () => {
       data: payload,
     });
     expect(r1.status()).toBe(201);
-    const v1 = await r1.json();
+    const v1 = await apiPayload(r1);
 
     const r2 = await request.post(`${BASE}/api/medical/visits`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
@@ -236,7 +237,7 @@ test.describe('Diagnosis Workflow', () => {
 
     await cleanupVisit(request, ownerToken, v1.id);
     if (r2.status() === 201) {
-      const v2 = await r2.json();
+      const v2 = await apiPayload(r2);
       await cleanupVisit(request, ownerToken, v2.id);
     }
   });
@@ -251,7 +252,7 @@ test.describe('Diagnosis Workflow', () => {
         diagnosis: 'Auth test',
       },
     });
-    const created = await createRes.json();
+    const created = await apiPayload(createRes);
 
     const res = await request.get(`${BASE}/api/medical/visits/${created.id}`);
     expect(res.status()).toBe(401);
@@ -269,12 +270,12 @@ test.describe('Diagnosis Workflow', () => {
         diagnosis: 'Patient link test',
       },
     });
-    const created = await res.json();
+    const created = await apiPayload(res);
 
     const getRes = await request.get(`${BASE}/api/medical/visits/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
-    const body = await getRes.json();
+    const body = await apiPayload(getRes);
     expect(body.patientId).toBe(patientId);
 
     await cleanupVisit(request, ownerToken, created.id);

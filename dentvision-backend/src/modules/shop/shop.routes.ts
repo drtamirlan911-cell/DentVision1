@@ -252,7 +252,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       const qty = Math.max(1, Number(raw.quantity || raw.qty || 1));
       const p = byId.get(pid);
       if (p && (p.stock ?? 0) < qty) {
-        res.status(409).json({ ok: false, error: `Недостаточно товара «{p.name}» на складе (осталось ${p.stock ?? 0}, запрошено ${qty})` });
+        res.status(409).json({ ok: false, error: `Недостаточно товара «${p.name}» на складе (осталось ${p.stock ?? 0}, запрошено ${qty})` });
         return;
       }
     }

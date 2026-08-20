@@ -1,4 +1,5 @@
 import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
+import { payload as apiPayload } from '../helpers/api';
 import { prisma } from '../helpers/db';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
@@ -14,8 +15,8 @@ async function loginAs(api: APIRequestContext, email: string, password: string) 
   const res = await api.post(`${BASE_URL}/api/auth/login`, {
     data: { email, password },
   });
-  const body = await res.json();
-  return body.data?.accessToken || body.accessToken;
+  const body = await apiPayload(res);
+  return body.accessToken;
 }
 
 function auth(token: string) {
@@ -26,7 +27,7 @@ async function getClinicId(api: APIRequestContext, token: string) {
   const res = await api.get(`${BASE_URL}/api/auth/my-clinics`, {
     headers: auth(token),
   });
-  const body = await res.json();
+  const body = await apiPayload(res);
   const clinics = body.data || body;
   return Array.isArray(clinics) ? clinics[0]?.id : clinics.id;
 }

@@ -1,4 +1,5 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
+import { payload as apiPayload } from '../helpers/api';
 
 const BASE = 'http://localhost:3001';
 
@@ -9,8 +10,8 @@ let assistantToken: string;
 async function login(request: APIRequestContext, email: string, password: string): Promise<string> {
   const res = await request.post(`${BASE}/api/auth/login`, { data: { email, password } });
   expect(res.ok()).toBeTruthy();
-  const body = await res.json();
-  return body.data?.accessToken || body.accessToken;
+  const body = await apiPayload(res);
+  return body.accessToken;
 }
 
 async function cleanupPatient(request: APIRequestContext, token: string, id: string) {
@@ -41,7 +42,7 @@ test.describe('Patient Workflow', () => {
       data: payload,
     });
     expect(res.status()).toBe(201);
-    const body = await res.json();
+    const body = await apiPayload(res);
     expect(body).toHaveProperty('id');
     expect(body.firstName).toBe('John');
     expect(body.lastName).toBe('Doe');
@@ -55,13 +56,13 @@ test.describe('Patient Workflow', () => {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { firstName: 'Searchable', lastName: 'Patient', phone: '+1555000002' },
     });
-    const created = await createRes.json();
+    const created = await apiPayload(createRes);
 
     const searchRes = await request.get(`${BASE}/api/patients?search=Searchable`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
     expect(searchRes.status()).toBe(200);
-    const body = await searchRes.json();
+    const body = await apiPayload(searchRes);
     const patients = body.data || body.patients || body;
     expect(Array.isArray(patients)).toBeTruthy();
     const found = patients.some((p: any) => p.id === created.id);
@@ -75,13 +76,13 @@ test.describe('Patient Workflow', () => {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { firstName: 'GetMe', lastName: 'ByID', phone: '+1555000003' },
     });
-    const created = await createRes.json();
+    const created = await apiPayload(createRes);
 
     const getRes = await request.get(`${BASE}/api/patients/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
     expect(getRes.status()).toBe(200);
-    const body = await getRes.json();
+    const body = await apiPayload(getRes);
     expect(body.id).toBe(created.id);
     expect(body.firstName).toBe('GetMe');
     expect(body.lastName).toBe('ByID');
@@ -94,20 +95,20 @@ test.describe('Patient Workflow', () => {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { firstName: 'Original', lastName: 'Name', phone: '+1555000004' },
     });
-    const created = await createRes.json();
+    const created = await apiPayload(createRes);
 
     const updateRes = await request.put(`${BASE}/api/patients/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { firstName: 'Updated', phone: '+1999000004' },
     });
     expect(updateRes.status()).toBe(200);
-    const updated = await updateRes.json();
+    const updated = await apiPayload(updateRes);
     expect(updated.firstName).toBe('Updated');
 
     const refreshRes = await request.get(`${BASE}/api/patients/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
-    const refreshed = await refreshRes.json();
+    const refreshed = await apiPayload(refreshRes);
     expect(refreshed.firstName).toBe('Updated');
     expect(refreshed.phone).toBe('+1999000004');
 
@@ -120,14 +121,14 @@ test.describe('Patient Workflow', () => {
       data: { firstName: 'Dupe', lastName: 'Patient', phone: '+1555000005a' },
     });
     expect(p1.status()).toBe(201);
-    const d1 = await p1.json();
+    const d1 = await apiPayload(p1);
 
     const p2 = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { firstName: 'Dupe', lastName: 'Patient', phone: '+1555000005b' },
     });
     expect(p2.status()).toBe(201);
-    const d2 = await p2.json();
+    const d2 = await apiPayload(p2);
 
     expect(d1.id).not.toBe(d2.id);
 
@@ -153,7 +154,7 @@ test.describe('Patient Workflow', () => {
       },
     });
     expect(res.status()).toBe(201);
-    const body = await res.json();
+    const body = await apiPayload(res);
     expect(body.firstName).toBe("O'Brien-Smith");
     expect(body.lastName).toBe('García-López');
 
@@ -165,7 +166,7 @@ test.describe('Patient Workflow', () => {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { firstName: 'ToDelete', lastName: 'Patient', phone: '+1555000008' },
     });
-    const created = await createRes.json();
+    const created = await apiPayload(createRes);
 
     const delRes = await request.delete(`${BASE}/api/patients/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
@@ -185,7 +186,7 @@ test.describe('Patient Workflow', () => {
         headers: { Authorization: `Bearer ${ownerToken}` },
         data: { firstName: `PageTest${i}`, lastName: 'Patient', phone: `+15550090${i}` },
       });
-      const b = await r.json();
+      const b = await apiPayload(r);
       ids.push(b.id);
     }
 
@@ -193,7 +194,7 @@ test.describe('Patient Workflow', () => {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
     expect(page1.status()).toBe(200);
-    const p1Body = await page1.json();
+    const p1Body = await apiPayload(page1);
     const p1Data = p1Body.data || p1Body.patients || p1Body;
     expect(Array.isArray(p1Data)).toBeTruthy();
     expect(p1Data.length).toBeLessThanOrEqual(2);
@@ -212,7 +213,7 @@ test.describe('Patient Workflow', () => {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { firstName: 'Stable', lastName: 'Data', phone: '+1555000010', email: 'stable@test.com' },
     });
-    const created = await createRes.json();
+    const created = await apiPayload(createRes);
 
     const r1 = await request.get(`${BASE}/api/patients/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
@@ -220,8 +221,8 @@ test.describe('Patient Workflow', () => {
     const r2 = await request.get(`${BASE}/api/patients/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
-    const d1 = await r1.json();
-    const d2 = await r2.json();
+    const d1 = await apiPayload(r1);
+    const d2 = await apiPayload(r2);
 
     expect(d1.firstName).toBe(d2.firstName);
     expect(d1.lastName).toBe(d2.lastName);

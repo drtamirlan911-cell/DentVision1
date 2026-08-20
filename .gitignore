@@ -54,4 +54,5 @@ scratchpad_brand/
 # Playwright output. `outputDir` is inside e2e/, so without this every run
 # leaves a few dozen error-context files staged for commit.
 e2e/test-results/
+test-results/
 playwright-report/

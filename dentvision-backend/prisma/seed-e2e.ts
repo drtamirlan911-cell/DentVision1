@@ -59,6 +59,52 @@ export const E2E_USERS: E2EUser[] = [
   { email: 'regular@test.com', firstName: 'Regular', lastName: 'User', role: 'STUDENT', clinic: null },
 ];
 
+/**
+ * A handful of things to buy.
+ *
+ * `marketplace.spec.ts` and `payment.spec.ts` both open with "find any product",
+ * and on an empty catalogue that assertion fails before either spec reaches its
+ * subject — eighteen tests failing for want of a row. The shop is a platform
+ * catalogue rather than a per-clinic one, so these belong to no clinic.
+ *
+ * Stock is generous on purpose. The specs share one catalogue and run in a
+ * single worker, so orders placed by `marketplace.spec.ts` come out of the same
+ * shelf `payment.spec.ts` reaches for a moment later — a scarce product drains
+ * mid-run and every spec after it fails with 409 for reasons that have nothing
+ * to do with what it was testing.
+ *
+ * Nothing is weakened by that: SHOP-007, the one test that needs to exceed the
+ * stock, reads the current level and asks for a thousand more than it finds.
+ */
+const E2E_PRODUCTS = [
+  { name: 'E2E Композит Filtek Z250', price: 18_000, stock: 10_000, category: 'materials' },
+  { name: 'E2E Боры алмазные, набор', price: 6_500, stock: 10_000, category: 'instruments' },
+  { name: 'E2E Перчатки нитриловые M', price: 4_200, stock: 10_000, category: 'consumables' },
+];
+
+async function upsertProducts() {
+  for (const p of E2E_PRODUCTS) {
+    const existing = await prisma.product.findFirst({ where: { name: p.name } });
+    if (existing) {
+      // Restore stock: a previous run's orders will have eaten into it, and
+      // SHOP-007 needs there to still be a ceiling to exceed.
+      await prisma.product.update({ where: { id: existing.id }, data: { stock: p.stock, price: p.price } });
+      continue;
+    }
+    await prisma.product.create({
+      data: {
+        id: randomUUID(),
+        name: p.name,
+        price: p.price,
+        stock: p.stock,
+        category: p.category,
+        currency: 'KZT',
+        description: 'Тестовая позиция каталога для сквозных сценариев',
+      },
+    });
+  }
+}
+
 async function upsertClinic(name: string) {
   const existing = await prisma.clinic.findFirst({ where: { name } });
   if (existing) return existing;
@@ -86,6 +132,7 @@ export async function seedE2E() {
   const clinicB = await upsertClinic(E2E_CLINIC_B);
   await ensureSubscription(clinicA.id);
   await ensureSubscription(clinicB.id);
+  await upsertProducts();
 
   for (const spec of E2E_USERS) {
     const user = await prisma.user.upsert({
@@ -121,6 +168,7 @@ async function main() {
   console.log(`[SEED:E2E] ${users} users, password ${E2E_PASSWORD}`);
   console.log(`[SEED:E2E] ${E2E_CLINIC_A} = ${clinicA.id}`);
   console.log(`[SEED:E2E] ${E2E_CLINIC_B} = ${clinicB.id}`);
+  console.log(`[SEED:E2E] ${E2E_PRODUCTS.length} products in the catalogue`);
 }
 
 main()
