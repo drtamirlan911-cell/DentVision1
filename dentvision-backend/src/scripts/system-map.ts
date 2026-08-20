@@ -188,9 +188,35 @@ interface ModelUse {
 const WRITE_OPS = ['create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany'];
 const READ_OPS = ['findUnique', 'findFirst', 'findMany', 'count', 'aggregate', 'groupBy'];
 
+/**
+ * Relation field names that point at each model, e.g. `personRoles` → PersonRole.
+ *
+ * Needed because a model is very often reached only through its parent's
+ * `include`/`select`, never by a top-level client call. Counting only
+ * `prisma.x.findMany` said Permission, RolePermission and PersonRole were
+ * untouched, when all three are read through relations in `middleware/rbac.ts`.
+ * Three wrong answers on one axis is enough to fix the measurement.
+ */
+function relationFieldsByModel(schema: string): Map<string, string[]> {
+  const byModel = new Map<string, string[]>();
+  // Deliberately not anchored at the end of the line: an earlier version
+  // required `@relation`, end-of-line or whitespace after the type and matched
+  // nothing at all, which quietly disabled the whole relation count.
+  for (const match of schema.matchAll(/^ {2}(\w+)\s+(\w+)(\[\])?/gm)) {
+    const [, field, type] = match;
+    // Scalars and enums share this shape; only names that are models matter,
+    // and the caller filters against the real model list.
+    const list = byModel.get(type) ?? [];
+    if (!list.includes(field)) list.push(field);
+    byModel.set(type, list);
+  }
+  return byModel;
+}
+
 function readModels(): ModelUse[] {
   const schema = read(join(BACKEND_SRC, '../prisma/schema.prisma'));
   const names = [...schema.matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]);
+  const relations = relationFieldsByModel(schema);
 
   // Seeds and migration helpers live outside `src` but are still real writers —
   // `seed-permissions.ts` is the only thing that populates Permission/Role.
@@ -209,7 +235,15 @@ function readModels(): ModelUse[] {
         const re = new RegExp(`\\.${prop}\\.${op}\\b`, 'g');
         return sum + (sources.match(re)?.length ?? 0);
       }, 0);
-    return { name, reads: count(READ_OPS), writes: count(WRITE_OPS) };
+
+    // A parent's `include: { personRoles: ... }` reads this model just as
+    // surely as a direct call would.
+    const viaRelation = (relations.get(name) ?? []).reduce((sum, field) => {
+      const re = new RegExp(`\\b${field}\\s*:\\s*(true|\\{)`, 'g');
+      return sum + (sources.match(re)?.length ?? 0);
+    }, 0);
+
+    return { name, reads: count(READ_OPS) + viaRelation, writes: count(WRITE_OPS) };
   });
 }
 
@@ -361,10 +395,10 @@ function main(): void {
   if (unusedModels.length > 0) {
     out.push('### Нет ни одного прямого вызова Prisma-клиента');
     out.push('');
-    out.push('**Это не значит «не используется».** Модель, к которой обращаются');
-    out.push('только через `include`/`select` родителя, попадёт в этот список: так,');
-    out.push('`Permission` и `RolePermission` читаются через `role.permissions` в');
-    out.push('`middleware/rbac.ts`. Список — повод посмотреть, а не приговор.');
+    out.push('Учитываются и прямые вызовы клиента, и чтение через `include`/`select`');
+    out.push('родителя — без второго счёт врал: `Permission`, `RolePermission` и');
+    out.push('`PersonRole` читаются именно так, в `middleware/rbac.ts`.');
+    out.push('Всё равно повод посмотреть, а не приговор.');
     out.push('');
     out.push(unusedModels.map((m) => `\`${m.name}\``).join(', '));
     out.push('');
