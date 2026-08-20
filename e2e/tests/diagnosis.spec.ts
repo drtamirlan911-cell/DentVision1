@@ -90,12 +90,18 @@ test.describe('Diagnosis Workflow', () => {
     });
     const created = await apiPayload(createRes);
 
-    const getRes = await request.get(`${BASE}/api/medical/visits/${created.id}`, {
+    // GET /medical/visits/:id doesn't exist — the router only has
+    // GET /visits/:patientId (a list, param genuinely named patientId) and
+    // GET /visits (clinic-wide list). Reading a single visit back means
+    // listing this patient's visits and finding it, the same list-and-find
+    // pattern already needed for appointments and treatment plans.
+    const listRes = await request.get(`${BASE}/api/medical/visits/${patientId}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
-    expect(getRes.status()).toBe(200);
-    const body = await apiPayload(getRes);
-    expect(body.id).toBe(created.id);
+    expect(listRes.status()).toBe(200);
+    const rows = await apiPayload(listRes);
+    const body = Array.isArray(rows) ? rows.find((v: any) => v.id === created.id) : null;
+    expect(body).toBeTruthy();
     expect(body.diagnosis).toBe('Gingivitis');
 
     await cleanupVisit(request, ownerToken, created.id);
@@ -113,7 +119,8 @@ test.describe('Diagnosis Workflow', () => {
     });
     const created = await apiPayload(createRes);
 
-    const updateRes = await request.put(`${BASE}/api/medical/visits/${created.id}`, {
+    // PATCH, not PUT — that's the only update verb the route registers.
+    const updateRes = await request.patch(`${BASE}/api/medical/visits/${created.id}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { diagnosis: 'Updated diagnosis', treatment: 'New treatment plan' },
     });
@@ -162,7 +169,8 @@ test.describe('Diagnosis Workflow', () => {
     expect(res.status()).toBe(201);
     const body = await apiPayload(res);
     expect(body.diagnosis).toContain('#14');
-    expect(body.diagnosis).toContain('™');
+    // '™' is in the treatment field ('3M™ Z250'), not diagnosis.
+    expect(body.treatment).toContain('™');
 
     await cleanupVisit(request, ownerToken, body.id);
   });
@@ -272,10 +280,13 @@ test.describe('Diagnosis Workflow', () => {
     });
     const created = await apiPayload(res);
 
-    const getRes = await request.get(`${BASE}/api/medical/visits/${created.id}`, {
+    // Same list-and-find as DIAG-002: GET /visits/:id isn't a route.
+    const listRes = await request.get(`${BASE}/api/medical/visits/${patientId}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
-    const body = await apiPayload(getRes);
+    const rows = await apiPayload(listRes);
+    const body = Array.isArray(rows) ? rows.find((v: any) => v.id === created.id) : null;
+    expect(body).toBeTruthy();
     expect(body.patientId).toBe(patientId);
 
     await cleanupVisit(request, ownerToken, created.id);
