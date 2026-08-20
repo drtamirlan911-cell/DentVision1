@@ -5,6 +5,7 @@ import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
+import { isClinicMember } from '../../lib/orgContext.js';
 
 export const labRouter = Router();
 
@@ -21,6 +22,11 @@ interface LabOrderMeta {
   remakeOfId?: string;
   appointmentId?: string;
   tryInDate?: string;
+  /**
+   * Legacy home of the ordering doctor, kept only so orders written before
+   * `lab_orders.doctorId` existed still serialize with an attribution. New
+   * writes go to the column; nothing writes this any more.
+   */
   doctorId?: string;
 }
 
@@ -37,6 +43,7 @@ function serializeLabOrder(order: {
   id: string; clinicId: string; patientId: string | null; labName: string | null;
   status: string; type: string | null; notes: string | null; files: unknown;
   deadline: Date | null; price: number | null; createdAt: Date; updatedAt: Date;
+  doctorId?: string | null;
 }) {
   const meta = (order.files as { meta?: LabOrderMeta } | null)?.meta || {};
   return {
@@ -51,7 +58,9 @@ function serializeLabOrder(order: {
     remakeOfId: meta.remakeOfId || null,
     appointmentId: meta.appointmentId || null,
     tryInDate: meta.tryInDate || null,
-    doctorId: meta.doctorId || null,
+    // The column first, `meta` only for orders written before it existed.
+    // The API shape is unchanged either way.
+    doctorId: order.doctorId ?? meta.doctorId ?? null,
     dueDate: order.deadline,
     notes: order.notes,
     status: order.status,
@@ -74,7 +83,6 @@ function buildMeta(
     ...(body.remakeOfId !== undefined ? { remakeOfId: body.remakeOfId } : {}),
     ...(body.appointmentId !== undefined ? { appointmentId: body.appointmentId } : {}),
     ...(body.tryInDate !== undefined ? { tryInDate: body.tryInDate } : {}),
-    ...(body.doctorId !== undefined ? { doctorId: body.doctorId } : {}),
   };
 }
 
@@ -106,19 +114,78 @@ labRouter.get('/', requirePermission('appointment.read'), async (req: AuthReques
   }
 });
 
+export interface LabOrderBody {
+  patientId?: string; patientName?: string; labType?: string; material?: string;
+  toothNumber?: string | number; shade?: string; dueDate?: string; notes?: string; status?: string;
+  price?: number; remakeOfId?: string; appointmentId?: string; tryInDate?: string; doctorId?: string;
+}
+
+export interface PreparedLabOrder {
+  /** Why the write was refused. Set means nothing may be written. */
+  error?: string;
+  /** The row to write. Absent when `error` is set. */
+  data?: Record<string, unknown>;
+}
+
+/**
+ * Turn a request body into the row to write — including the one field that has
+ * to be checked against the database before it can be trusted.
+ *
+ * Exported for tests rather than inlined in the handler, the way
+ * `iam.routes.ts` exports `canManageRolesFor`: the doctor attribution is now a
+ * real foreign key, and the rule about who may hold it is worth asserting
+ * directly instead of through an HTTP round trip.
+ *
+ * Two optional fields rather than a discriminated union on `ok`: this project
+ * compiles without `strictNullChecks`, so a `{ ok: true } | { ok: false }`
+ * union does not narrow and the compiler would reject the caller.
+ */
+export async function prepareLabOrderWrite(
+  clinicId: string,
+  body: LabOrderBody,
+  existingMeta: LabOrderMeta = {},
+): Promise<PreparedLabOrder> {
+  const {
+    patientId, patientName, labType, material, toothNumber, shade,
+    dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId,
+  } = body;
+
+  // `doctorId` used to arrive from the body and go straight into the JSON blob
+  // with no check at all — a valid user id from any clinic in the system would
+  // be recorded as the author of this clinic's clinical work. It is a foreign
+  // key now, so it has to be someone who actually works here. The same guard
+  // the appointments route already applies to the same field.
+  if (doctorId && !(await isClinicMember(doctorId, clinicId))) {
+    return { error: 'Указанный врач не найден в этой клинике' };
+  }
+
+  const meta = buildMeta(
+    { patientName, material, toothNumber, shade, remakeOfId, appointmentId, tryInDate },
+    existingMeta,
+  );
+
+  return {
+    data: {
+      patientId: patientId || null,
+      // Only when supplied: an edit that says nothing about the doctor must not
+      // erase the attribution the order already carries.
+      ...(doctorId ? { doctorId } : {}),
+      type: labType || null,
+      notes: notes || null,
+      status: status || 'pending',
+      deadline: dueDate ? new Date(dueDate) : null,
+      price: price ?? null,
+      files: { meta },
+    },
+  };
+}
+
 labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
 
-    const {
-      id, patientId, patientName, labType, material, toothNumber, shade,
-      dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId,
-    } = req.body as {
-      id?: string; patientId?: string; patientName?: string; labType?: string; material?: string;
-      toothNumber?: string | number; shade?: string; dueDate?: string; notes?: string; status?: string;
-      price?: number; remakeOfId?: string; appointmentId?: string; tryInDate?: string; doctorId?: string;
-    };
+    const { id, ...body } = req.body as LabOrderBody & { id?: string };
 
     let existingMeta: LabOrderMeta = {};
     if (id) {
@@ -128,21 +195,11 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       existingMeta = (existing?.files as { meta?: LabOrderMeta } | null)?.meta || {};
     }
 
-    const meta = buildMeta(
-      { patientName, material, toothNumber, shade, remakeOfId, appointmentId, tryInDate, doctorId },
-      existingMeta,
-    );
-    const files = { meta } as any;
-
-    const data: any = {
-      patientId: patientId || null,
-      type: labType || null,
-      notes: notes || null,
-      status: status || 'pending',
-      deadline: dueDate ? new Date(dueDate) : null,
-      price: price ?? null,
-      files,
-    };
+    const prepared = await prepareLabOrderWrite(clinicId, body, existingMeta);
+    if (prepared.error) {
+      return res.status(400).json({ ok: false, error: prepared.error } satisfies ApiResponse);
+    }
+    const data = prepared.data as any;
 
     const order = id
       ? await prisma.labOrder.update({ where: { id }, data })

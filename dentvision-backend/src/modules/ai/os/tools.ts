@@ -607,6 +607,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         data: {
           id: uid(),
           patientId: patient.id,
+          clinicId,
           title: String(args.title),
           status: 'proposed',
           items: {

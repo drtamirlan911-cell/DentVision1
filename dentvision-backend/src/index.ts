@@ -1577,6 +1577,40 @@ async function main() {
     await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "voice_assets_lastUsedAt_idx" ON "voice_assets"("lastUsedAt")`);
   });
 
+  // Two links the data was missing: a plan's clinic (previously reachable only
+  // through its patient) and a lab order's doctor (recorded nowhere at all).
+  // Mirrors prisma/migrations/20260820_plan_clinic_lab_doctor/migration.sql.
+  await runOnceMigration('plan_clinic_lab_doctor', 'TreatmentPlan.clinicId / LabOrder.doctorId', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "treatment_plans" ADD COLUMN IF NOT EXISTS "clinicId" TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "lab_orders" ADD COLUMN IF NOT EXISTS "doctorId" TEXT`);
+    // Only the plan's clinic is backfilled — it is derivable from the patient.
+    // A lab order's doctor is not derivable from anything, so old rows stay
+    // NULL rather than being given an invented attribution.
+    await tx.$executeRawUnsafe(`
+      UPDATE "treatment_plans" AS tp
+      SET "clinicId" = p."clinicId"
+      FROM "patients" AS p
+      WHERE tp."patientId" = p."id" AND tp."clinicId" IS NULL
+    `);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "treatment_plans_clinicId_idx" ON "treatment_plans"("clinicId")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "lab_orders_doctorId_idx" ON "lab_orders"("doctorId")`);
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'treatment_plans_clinicId_fkey') THEN
+          ALTER TABLE "treatment_plans"
+            ADD CONSTRAINT "treatment_plans_clinicId_fkey"
+            FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lab_orders_doctorId_fkey') THEN
+          ALTER TABLE "lab_orders"
+            ADD CONSTRAINT "lab_orders_doctorId_fkey"
+            FOREIGN KEY ("doctorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      END $$;
+    `);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();

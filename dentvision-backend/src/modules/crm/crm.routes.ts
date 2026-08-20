@@ -144,6 +144,10 @@ crmRouter.post('/treatment-plans', requirePermission('patient.write'), async (re
             items,
             price: resolvedBudget ?? undefined,
             notes: notes ?? diagnosis ?? undefined,
+            // Set on update too, not only on create: a plan written before the
+            // column existed is healed the first time anyone edits it, rather
+            // than staying blank until a backfill nobody runs again.
+            clinicId: patient.clinicId,
           },
           include: { patient: { select: { firstName: true, lastName: true } } },
         })
@@ -151,6 +155,7 @@ crmRouter.post('/treatment-plans', requirePermission('patient.write'), async (re
           data: {
             id: uid(),
             patientId,
+            clinicId: patient.clinicId,
             title: title || 'План лечения',
             status: (status || 'proposed') as any,
             items,

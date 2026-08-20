@@ -12,12 +12,12 @@
 | Измерение | Значение |
 |---|---|
 | Смонтированных роутеров | 63 |
-| Обработчиков маршрутов | 528 |
-| Маршрутов без потребителя на фронте | **96** |
+| Обработчиков маршрутов | 532 |
+| Маршрутов без потребителя на фронте | **99** |
 | Роутеров, объявленных но не смонтированных | 0 |
 | Prisma-моделей | 138 |
 | — без прямых вызовов Prisma-клиента | **10** |
-| — только пишутся, никогда не читаются | **2** |
+| — только пишутся, никогда не читаются | **0** |
 | — только читаются, никогда не пишутся | 7 |
 | Ролей в матрице прав | 10 |
 | Фоновых задач | 4 |
@@ -76,7 +76,7 @@
 | `/api/diagnostics` | diagnosticsRouter | 51 | **7** |
 | `/api/legal` | legalRouter | 0 | 0 |
 | `/api/partner/legal` | legalPartnerRouter | 0 | 0 |
-| `/api/finance` | financeRouter | 8 | **2** |
+| `/api/finance` | financeRouter | 10 | **4** |
 | `/api/disputes` | disputesRouter | 3 | 0 |
 | `/api/ai-admin/webhook` | webhookGatewayRouter | 0 | 0 |
 | `/api/ai-governance` | aiGovernanceRouter | 3 | **1** |
@@ -88,7 +88,7 @@
 | `/api/patient-portal/conversation` | patientConversationRouter | 4 | **1** |
 | `/api/patient-portal` | patientPortalRouter | 21 | **6** |
 | `/api/cross-clinic` | crossClinicRouter | 3 | 0 |
-| `/api/patient-inbox` | patientInboxRouter | 7 | 0 |
+| `/api/patient-inbox` | patientInboxRouter | 9 | **1** |
 | `/api/developer` | developerRouter | 5 | **5** |
 | `/api/v1` | v1Router | 1 | **1** |
 | `/api/partners` | partnersRouter | 7 | **5** |
@@ -166,6 +166,8 @@
 - `POST /api/diagnostics/centers/:id/subscription/activate` — dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts
 - `GET /api/finance/wallets/:ownerType/:ownerId` — dentvision-backend/src/modules/finance/finance.routes.ts
 - `POST /api/finance/sales` — dentvision-backend/src/modules/finance/finance.routes.ts
+- `GET /api/finance/payouts` — dentvision-backend/src/modules/finance/finance.routes.ts
+- `POST /api/finance/payouts/:id/status` — dentvision-backend/src/modules/finance/finance.routes.ts
 - `POST /api/ai-governance/course/outline` — dentvision-backend/src/modules/ai-governance/ai-governance.routes.ts
 - `GET /api/meta/callback` — dentvision-backend/src/modules/meta-oauth/meta.routes.ts
 - `POST /api/meta/refresh` — dentvision-backend/src/modules/meta-oauth/meta.routes.ts
@@ -176,6 +178,7 @@
 - `PUT /api/patient-portal/me/profile` — dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts
 - `GET /api/patient-portal/clinics` — dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts
 - `POST /api/patient-portal/appointments/:id/cancel` — dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts
+- `POST /api/patient-inbox/escalations/:id/resolve` — dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts
 - `GET /api/developer/apps` — dentvision-backend/src/modules/developer/developer.routes.ts
 - `POST /api/developer/apps` — dentvision-backend/src/modules/developer/developer.routes.ts
 - `POST /api/developer/apps/:id/keys` — dentvision-backend/src/modules/developer/developer.routes.ts
@@ -208,16 +211,6 @@
 Всё равно повод посмотреть, а не приговор.
 
 `AIAction`, `AIAlert`, `SpecTemplate`, `BISnapshot`, `FinancialTransaction`, `Revenue`, `PlatformExpense`, `SaaSMetrics`, `CustomerMetrics`, `Schedule`
-
-### Пишутся, но никогда не читаются
-
-Данные копятся и никому не показываются — либо незаконченный workflow,
-либо запись «на будущее».
-
-| Модель | Записей |
-|---|---|
-| `Payout` | 2 |
-| `AiAdminEscalation` | 1 |
 
 ### Читаются, но никогда не пишутся из приложения
 
