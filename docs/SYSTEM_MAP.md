@@ -16,9 +16,9 @@
 | Маршрутов без потребителя на фронте | **96** |
 | Роутеров, объявленных но не смонтированных | 0 |
 | Prisma-моделей | 138 |
-| — без прямых вызовов Prisma-клиента | **13** |
-| — только пишутся, никогда не читаются | **9** |
-| — только читаются, никогда не пишутся | 4 |
+| — без прямых вызовов Prisma-клиента | **10** |
+| — только пишутся, никогда не читаются | **2** |
+| — только читаются, никогда не пишутся | 7 |
 | Ролей в матрице прав | 10 |
 | Фоновых задач | 4 |
 | Инструментов AI | 64 |
@@ -202,12 +202,12 @@
 
 ### Нет ни одного прямого вызова Prisma-клиента
 
-**Это не значит «не используется».** Модель, к которой обращаются
-только через `include`/`select` родителя, попадёт в этот список: так,
-`Permission` и `RolePermission` читаются через `role.permissions` в
-`middleware/rbac.ts`. Список — повод посмотреть, а не приговор.
+Учитываются и прямые вызовы клиента, и чтение через `include`/`select`
+родителя — без второго счёт врал: `Permission`, `RolePermission` и
+`PersonRole` читаются именно так, в `middleware/rbac.ts`.
+Всё равно повод посмотреть, а не приговор.
 
-`AIAction`, `AIAlert`, `SpecTemplate`, `BISnapshot`, `FinancialTransaction`, `Revenue`, `PlatformExpense`, `SaaSMetrics`, `CustomerMetrics`, `Operator`, `Radiologist`, `DiagnosticBooking`, `Schedule`
+`AIAction`, `AIAlert`, `SpecTemplate`, `BISnapshot`, `FinancialTransaction`, `Revenue`, `PlatformExpense`, `SaaSMetrics`, `CustomerMetrics`, `Schedule`
 
 ### Пишутся, но никогда не читаются
 
@@ -216,21 +216,14 @@
 
 | Модель | Записей |
 |---|---|
-| `SupplierDocument` | 2 |
-| `ExpertVerification` | 2 |
 | `Payout` | 2 |
-| `PartnerKPI` | 1 |
-| `PartnerSLA` | 1 |
-| `ReferralComment` | 1 |
 | `AiAdminEscalation` | 1 |
-| `RolePermission` | 2 |
-| `PersonRole` | 8 |
 
 ### Читаются, но никогда не пишутся из приложения
 
 Заполняются миграцией, сидом или вручную.
 
-`ShopBanner`, `ShopPromotion`, `LedgerEntry`, `ServiceAccess`
+`ShopBanner`, `ShopPromotion`, `LedgerEntry`, `ServiceAccess`, `Operator`, `Radiologist`, `DiagnosticBooking`
 
 ## Права по ролям
 
