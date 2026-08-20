@@ -12,6 +12,11 @@ import { requireClinicScope } from '../../lib/clinicAccess.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { issueSseTicket, consumeSseTicket } from '../../lib/sseTicket.js';
 import * as convo from './patientConversation.service.js';
+import {
+  EscalationError,
+  listEscalations,
+  resolveEscalation,
+} from '../ai-admin/conversation/escalation.service.js';
 import { clinicInboxHub, patientConversationHub } from './conversationHub.js';
 import type { AuthRequest } from '../../types/index.js';
 
@@ -143,3 +148,39 @@ patientInboxRouter.get('/stream', async (req, res) => {
   });
 });
 
+// ─── AI escalations ───
+//
+// Lives beside the conversation inbox because it is the same job: a human
+// picking up what the assistant could not handle. `markEscalated` already
+// notified the clinic's owners; what did not exist was any way to see what is
+// still outstanding, or to close it. The schema was ready for both —
+// `resolvedAt`, `resolvedBy` and an index on `[clinicId, resolvedAt]` — and
+// nothing wrote or read them.
+
+/** What is still waiting on a human. Clinic-scoped in the query. */
+patientInboxRouter.get('/escalations', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clinicId = await requireInboxAccess(req, res);
+    if (!clinicId) return;
+    const data = await listEscalations(clinicId, {
+      includeResolved: req.query.includeResolved === 'true',
+      take: req.query.take ? Number(req.query.take) : undefined,
+    });
+    return res.json({ ok: true, data });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/** Close one out, recording who did it — the end state the model always had. */
+patientInboxRouter.post('/escalations/:id/resolve', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clinicId = await requireInboxAccess(req, res);
+    if (!clinicId) return;
+    const data = await resolveEscalation(clinicId, String(req.params.id), req.user!.id);
+    return res.json({ ok: true, data });
+  } catch (e: any) {
+    if (e instanceof EscalationError) return res.status(404).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
