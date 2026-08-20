@@ -4,7 +4,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { publish } from '../../lib/events.js';
-import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
+import { uid, paginate, paginatedResponse, stripHtmlTags } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
 import { loadClinicAccess, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
@@ -19,11 +19,11 @@ patientsRouter.use(loadClinicAccess);
 function splitName(name?: string, firstName?: string, lastName?: string) {
   if (firstName || lastName) {
     return {
-      firstName: (firstName || name || 'Пациент').trim() || 'Пациент',
-      lastName: (lastName || '').trim() || '-',
+      firstName: stripHtmlTags(firstName || name || 'Пациент') || 'Пациент',
+      lastName: stripHtmlTags(lastName || '') || '-',
     };
   }
-  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  const parts = stripHtmlTags(name).split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: 'Пациент', lastName: '-' };
   if (parts.length === 1) return { firstName: parts[0], lastName: '-' };
   return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
