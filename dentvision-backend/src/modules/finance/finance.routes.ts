@@ -5,6 +5,13 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
 import { getOrCreateWallet, recordSale, ledgerNetBalance } from './finance.service.js';
+import {
+  PAYOUT_STATUSES,
+  PayoutError,
+  listPayouts,
+  transitionPayout,
+  type PayoutStatus,
+} from './payout.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // Finance Core (Phase 4, DENTVISION_V2_INTEGRATION_PLAN.md §6). Wallets, ledger,
@@ -222,3 +229,48 @@ financeRouter.post('/transactions/manual', requirePermission('finance.manage'), 
 });
 
 export default financeRouter;
+
+// ─── Payout queue ───
+//
+// The read that did not exist. `Payout` rows were created by the lecturer and
+// supplier workspaces and consumed by nothing: no queue, no decision, no money
+// movement. These two endpoints are the other end of that workflow.
+
+/** The queue itself. Defaults to what is waiting on a human. */
+financeRouter.get('/payouts', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  const status = String(req.query.status || 'requested');
+  const payouts = await listPayouts({
+    status: (PAYOUT_STATUSES as readonly string[]).includes(status)
+      ? (status as PayoutStatus)
+      : undefined,
+    ownerType: req.query.ownerType ? (String(req.query.ownerType) as never) : undefined,
+    take: req.query.take ? Number(req.query.take) : undefined,
+  });
+  return res.json({ ok: true, data: serializeBigInt(payouts) } satisfies ApiResponse);
+});
+
+/**
+ * Move a payout along. The ledger entry is posted on `paid` and nowhere else —
+ * the service owns that rule so a second caller cannot invent its own.
+ */
+financeRouter.post('/payouts/:id/status', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  const next = String((req.body || {}).status || '');
+  if (!(PAYOUT_STATUSES as readonly string[]).includes(next)) {
+    return res.status(400).json({
+      ok: false,
+      error: `Статус должен быть одним из: ${PAYOUT_STATUSES.join(', ')}`,
+    } satisfies ApiResponse);
+  }
+  try {
+    const payout = await transitionPayout(String(req.params.id), next as PayoutStatus, {
+      actorUserId: req.user?.id ?? null,
+    });
+    return res.json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
+  } catch (e: any) {
+    if (e instanceof PayoutError) {
+      const code = e.code === 'NOT_FOUND' ? 404 : e.code === 'INSUFFICIENT_FUNDS' ? 409 : 400;
+      return res.status(code).json({ ok: false, error: e.message } satisfies ApiResponse);
+    }
+    throw e;
+  }
+});
