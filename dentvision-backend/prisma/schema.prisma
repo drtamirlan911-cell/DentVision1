@@ -387,16 +387,27 @@ model Appointment {
   type      String?
   notes     String?
   meta      Json?
+  /// The plan this visit was booked to carry out, if any.
+  ///
+  /// Stage-level linkage already existed, but only inside
+  /// `TreatmentPlan.items.stages[].appointmentId` — a JSON field a `WHERE`
+  /// clause cannot reach. This is the plan-level anchor: not a replacement for
+  /// the per-stage JSON link, but the one a funnel or reporting query can
+  /// actually join on. Nullable and backfilled from that same JSON where it
+  /// was already recorded; not every appointment serves a plan.
+  treatmentPlanId String?
 
-  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  doctor  User    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor        User           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId, date])
   @@index([doctorId, date])
+  @@index([treatmentPlanId])
   @@map("appointments")
 }
 
@@ -573,9 +584,11 @@ model TreatmentPlan {
   notes     String?
   deletedAt DateTime?
 
-  patient  Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  clinic   Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: SetNull)
-  releases TreatmentPlanRelease[]
+  patient      Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic       Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  releases     TreatmentPlanRelease[]
+  appointments Appointment[]
+  invoices     Invoice[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -765,15 +778,21 @@ model Invoice {
   notes     String?
   paidAt    DateTime?
   deletedAt DateTime?
+  /// The plan this invoice bills, if any. Same rationale as
+  /// `Appointment.treatmentPlanId` — the per-stage JSON link
+  /// (`items.stages[].invoiceId`) already existed but isn't queryable.
+  treatmentPlanId String?
 
-  clinic  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient?       @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@index([patientId])
+  @@index([treatmentPlanId])
   @@map("invoices")
 }
 

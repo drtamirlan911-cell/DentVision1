@@ -1611,6 +1611,47 @@ async function main() {
     `);
   });
 
+  // The PATIENT_JOURNEY link that was missing at the plan level: appointments
+  // and invoices carried a plan reference only inside items.stages[] JSON.
+  // Mirrors prisma/migrations/20260821_plan_appointment_invoice_link/migration.sql.
+  await runOnceMigration('plan_appointment_invoice_link', 'Appointment.treatmentPlanId / Invoice.treatmentPlanId', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "appointments" ADD COLUMN IF NOT EXISTS "treatmentPlanId" TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "treatmentPlanId" TEXT`);
+    // Backfilled only from stages that already named the association — nothing
+    // here is invented.
+    await tx.$executeRawUnsafe(`
+      UPDATE "appointments" AS a
+      SET "treatmentPlanId" = tp."id"
+      FROM "treatment_plans" AS tp,
+           LATERAL jsonb_array_elements(COALESCE(tp."items"->'stages', '[]'::jsonb)) AS stage
+      WHERE a."treatmentPlanId" IS NULL AND stage->>'appointmentId' = a."id"
+    `);
+    await tx.$executeRawUnsafe(`
+      UPDATE "invoices" AS i
+      SET "treatmentPlanId" = tp."id"
+      FROM "treatment_plans" AS tp,
+           LATERAL jsonb_array_elements(COALESCE(tp."items"->'stages', '[]'::jsonb)) AS stage
+      WHERE i."treatmentPlanId" IS NULL AND stage->>'invoiceId' = i."id"
+    `);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "appointments_treatmentPlanId_idx" ON "appointments"("treatmentPlanId")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "invoices_treatmentPlanId_idx" ON "invoices"("treatmentPlanId")`);
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'appointments_treatmentPlanId_fkey') THEN
+          ALTER TABLE "appointments"
+            ADD CONSTRAINT "appointments_treatmentPlanId_fkey"
+            FOREIGN KEY ("treatmentPlanId") REFERENCES "treatment_plans"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'invoices_treatmentPlanId_fkey') THEN
+          ALTER TABLE "invoices"
+            ADD CONSTRAINT "invoices_treatmentPlanId_fkey"
+            FOREIGN KEY ("treatmentPlanId") REFERENCES "treatment_plans"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      END $$;
+    `);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();

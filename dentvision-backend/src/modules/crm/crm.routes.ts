@@ -16,6 +16,7 @@ import {
   type TreatmentPlanItems,
 } from '../../lib/treatmentPlanShape.js';
 import * as planRelease from '../patient-presentation/planRelease.service.js';
+import { linkStageReferences } from './planStageLinks.js';
 
 export const crmRouter = Router();
 
@@ -358,6 +359,8 @@ crmRouter.patch('/treatment-plans/:id/stages/:stageId', requirePermission('patie
       },
       include: { patient: { select: { firstName: true, lastName: true } } },
     });
+
+    await linkStageReferences(prisma, { planId: id, clinicId: plan.patient?.clinicId, appointmentId, invoiceId });
 
     return res.json({ ok: true, data: serializePlan(updated) } satisfies ApiResponse);
   } catch (error) {
