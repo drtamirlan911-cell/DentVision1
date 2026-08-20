@@ -139,7 +139,8 @@ test.describe('Marketplace (Shop) API', () => {
     const listBody = await listRes.json();
     expect(listBody.ok).toBe(true);
 
-    const orders = listBody.data?.items || listBody.data || [];
+    // paginatedResponse() nests the array at data.data, not data.items.
+    const orders = listBody.data?.data || listBody.data || [];
     const found = Array.isArray(orders)
       ? orders.find((o: any) => o.id === orderId)
       : null;
@@ -206,7 +207,8 @@ test.describe('Marketplace (Shop) API', () => {
       headers: authHeaders(doctorToken),
     });
     const listBody = await listRes.json();
-    const orders = listBody.data?.items || listBody.data || [];
+    // paginatedResponse() nests the array at data.data, not data.items.
+    const orders = listBody.data?.data || listBody.data || [];
     const ids = Array.isArray(orders) ? orders.map((o: any) => o.id) : [];
     expect(ids).toContain(orderId1);
     expect(ids).toContain(orderId2);
