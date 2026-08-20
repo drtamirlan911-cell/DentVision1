@@ -34,14 +34,26 @@ test.describe('Authentication API', () => {
     });
     expect(res.status()).toBe(201);
     const body = await res.json();
-    expect(body.data?.email || body.email).toBe(testEmail);
+    // Registration returns the same shape login does — `data.user`, not a
+    // flattened `data.email` (see the correct pattern in AUTH-001 below).
+    const user = body.data?.user || body.user;
+    expect(user).toBeDefined();
+    expect(user.email).toBe(testEmail);
   });
 
   test('AUTH-005: Register with existing email → 409', async () => {
-    const res = await api.post(`${BASE_URL}/api/auth/register`, {
-      data: testUser,
-    });
+    // A locally-scoped email rather than the shared `testUser`: this test
+    // must prove the duplicate check on its own, not depend on AUTH-004
+    // having run first in the same process.
+    const dupEmail = `auth-dup-${Date.now()}@test.com`;
+    const dupUser = { email: dupEmail, password: testPassword, firstName: 'Auth', lastName: 'Dup' };
+    const first = await api.post(`${BASE_URL}/api/auth/register`, { data: dupUser });
+    expect(first.status()).toBe(201);
+
+    const res = await api.post(`${BASE_URL}/api/auth/register`, { data: dupUser });
     expect(res.status()).toBe(409);
+
+    await cleanupTestUser(dupEmail);
   });
 
   test('AUTH-001: Valid login with correct credentials → 200 + user object', async () => {

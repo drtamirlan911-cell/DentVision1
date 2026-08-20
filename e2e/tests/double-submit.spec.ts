@@ -1,6 +1,6 @@
 import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
 import { payload as apiPayload } from '../helpers/api';
-import { prisma } from '../helpers/db';
+import { prisma, cleanupTestUser } from '../helpers/db';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -225,5 +225,30 @@ test.describe('Double Submit / Race Condition Tests', () => {
       where: { orderId: order.id, method: 'REFUND' },
     });
     expect(payments.length).toBeLessThanOrEqual(1);
+  });
+
+  test('DOUBLE-007: Double register same email → only 1 user created', async () => {
+    // The `existing` check in /register is check-then-act, not a transaction:
+    // a genuinely concurrent duplicate can pass it twice and race to `create`.
+    // Sequential re-registration already returns 409 (AUTH-005); this proves
+    // the race itself doesn't leave a duplicate user or surface a 500 for the
+    // loser — the unique index on User.email plus the P2002 handler in
+    // auth.routes.ts's catch block are what this test actually exercises.
+    const email = `double-register-${Date.now()}@test.com`;
+    const payload = { email, password: 'Test1234!', firstName: 'Double', lastName: 'Register' };
+
+    const [res1, res2] = await Promise.all([
+      api.post(`${BASE_URL}/api/auth/register`, { data: payload }),
+      api.post(`${BASE_URL}/api/auth/register`, { data: payload }),
+    ]);
+
+    expect([201, 409]).toContain(res1.status());
+    expect([201, 409]).toContain(res2.status());
+    expect(res1.status()).not.toBe(res2.status());
+
+    const count = await prisma.user.count({ where: { email } });
+    expect(count).toBe(1);
+
+    await cleanupTestUser(email);
   });
 });

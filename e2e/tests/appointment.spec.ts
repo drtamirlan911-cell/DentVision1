@@ -165,7 +165,7 @@ test.describe('Appointment Workflow', () => {
     await cleanupAppointment(request, ownerToken, created.id);
   });
 
-  test('APPT-006: Complete appointment → 200 + status=completed', async ({ request }) => {
+  test('APPT-006: Complete appointment → 200 + status=done', async ({ request }) => {
     const createRes = await request.post(`${BASE}/api/appointments`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { patientId, doctorId, date: futureDate(12), time: '11:00' },
@@ -178,7 +178,12 @@ test.describe('Appointment Workflow', () => {
     });
     expect(completeRes.status()).toBe(200);
     const completed = await apiPayload(completeRes);
-    expect(completed.status).toBe('completed');
+    // The API accepts 'completed' as an input alias (appointmentMeta.ts's
+    // TO_DB map) but always reports the terminal state back as 'done' — the
+    // only value used anywhere on the frontend (Schedule.tsx's advanceStatus
+    // chain, the AppointmentStatus type). Round-tripping 'completed' back out
+    // would break that chain's `indexOf` lookup.
+    expect(completed.status).toBe('done');
 
     await cleanupAppointment(request, ownerToken, created.id);
   });

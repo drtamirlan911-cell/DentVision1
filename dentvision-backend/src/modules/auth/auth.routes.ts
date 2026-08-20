@@ -224,6 +224,14 @@ authRouter.post('/register', async (req, res) => {
 
     res.status(201).json(response);
   } catch (error) {
+    // The `existing` check above is check-then-act, not a transaction — a
+    // truly concurrent duplicate registration can both pass it and race to
+    // `create`. The unique index on `User.email` stops the second insert, but
+    // without this branch the loser saw a generic 500 instead of the same 409
+    // the sequential case returns.
+    if ((error as { code?: string })?.code === 'P2002') {
+      return res.status(409).json({ ok: false, error: 'Если указанный email зарегистрирован, вы получите письмо' });
+    }
     res.status(500).json({ ok: false, error: 'Ошибка при регистрации' });
   }
 });

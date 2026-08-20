@@ -1,4 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+// `e2e/` sits at the repo root next to a dead legacy `prisma/schema.prisma`
+// (frontend-era leftover, 130 models, no `AISession`/`AIAction`) whose
+// generated client shadows the real one at the bare specifier `@prisma/client`.
+// The backend this suite actually tests is `dentvision-backend`, so import its
+// generated client directly rather than the one Node resolves by default.
+import { PrismaClient } from '../../dentvision-backend/node_modules/@prisma/client/index.js';
 
 const prisma = new PrismaClient();
 
@@ -10,8 +15,10 @@ export async function cleanupTestUser(email: string): Promise<void> {
 
   await prisma.clinicMember.deleteMany({ where: { userId: user.id } });
   await prisma.notification.deleteMany({ where: { userId: user.id } });
-  await prisma.aiSession.deleteMany({ where: { userId: user.id } });
-  await prisma.aiAction.deleteMany({ where: { userId: user.id } });
+  // Prisma only lowercases the first letter of a model name: `AISession` and
+  // `AIAction` become `aISession`/`aIAction` on the client, not `aiSession`.
+  await prisma.aISession.deleteMany({ where: { userId: user.id } });
+  await prisma.aIAction.deleteMany({ where: { userId: user.id } });
   await prisma.user.delete({ where: { id: user.id } });
 }
 

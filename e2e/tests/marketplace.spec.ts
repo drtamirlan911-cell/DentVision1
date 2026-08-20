@@ -1,5 +1,7 @@
 import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
-import { PrismaClient } from '@prisma/client';
+// See helpers/db.ts for why this isn't the bare `@prisma/client` specifier —
+// it would resolve to a dead legacy schema at the repo root, not this backend.
+import { PrismaClient } from '../../dentvision-backend/node_modules/@prisma/client/index.js';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const prisma = new PrismaClient();

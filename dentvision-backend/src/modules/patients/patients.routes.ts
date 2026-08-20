@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { createHash } from 'node:crypto';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -8,6 +9,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
 import { loadClinicAccess, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
 import { hmacIin } from '../../lib/phi.js';
+import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 
 export const patientsRouter = Router();
 
@@ -171,6 +173,8 @@ patientsRouter.get('/', async (req: AuthRequest, res) => {
 });
 
 patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate, async (req: AuthRequest, res) => {
+  let idempotencyKey: string | undefined;
+  let idempotencyKeyCompleted = false;
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) {
@@ -189,6 +193,39 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
     if (body.allergies) history.allergies = body.allergies;
     if (body.tags) history.tags = body.tags;
     if (body.teeth) history.teeth = body.teeth;
+
+    // Idempotency guard, create path only: `body.id` already makes an edit
+    // idempotent (it upserts by id), but a *new* patient's id is generated
+    // server-side, so a double-click or a retried request submitting the same
+    // form twice had nothing stopping it from creating two patients with
+    // identical data. Same pattern as `payments.routes.ts` — a client-supplied
+    // `Idempotency-Key`, or a deterministic hash of the request when none is
+    // sent, reserved via the unique index on `IdempotencyRecord.key` before
+    // the row is written.
+    if (!body.id) {
+      idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+      if (!idempotencyKey) {
+        const hash = createHash('sha256')
+          .update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`)
+          .digest('hex');
+        idempotencyKey = `server-${hash.slice(0, 32)}`;
+      }
+      const reserved = await reserveIdempotencyKey(idempotencyKey);
+      if (reserved.status === 'in_flight') {
+        return res.status(409).json({ ok: false, error: 'Пациент уже создаётся, повторите позже' } satisfies ApiResponse);
+      }
+      if (reserved.status === 'exists') {
+        const priorPatient = await prisma.patient.findUnique({
+          where: { id: reserved.resultId },
+          include: { teeth: true },
+        });
+        if (priorPatient) {
+          return res.status(200).json({ ok: true, data: serializePatient(priorPatient) } satisfies ApiResponse);
+        }
+        // Stale record pointing at a deleted patient — free the key and continue.
+        await deleteIdempotencyKey(idempotencyKey);
+      }
+    }
 
     const existing = body.id
       ? await prisma.patient.findFirst({ where: { id: body.id, clinicId } })
@@ -249,12 +286,23 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
       });
     }
 
+    if (idempotencyKey) {
+      await completeIdempotencyKey(idempotencyKey, patient.id);
+      idempotencyKeyCompleted = true;
+    }
+
     return res.status(existing ? 200 : 201).json({
       ok: true,
       data: serializePatient(refreshed!),
     } satisfies ApiResponse);
   } catch (error) {
     console.error('Upsert patient error:', error);
+    // A reserved-but-never-completed key must not outlive the failed request —
+    // otherwise a genuine retry after a transient error would be told
+    // "already creating" for up to an hour.
+    if (idempotencyKey && !idempotencyKeyCompleted) {
+      await deleteIdempotencyKey(idempotencyKey);
+    }
     return res.status(500).json({ ok: false, error: 'Ошибка при сохранении пациента' } satisfies ApiResponse);
   }
 });

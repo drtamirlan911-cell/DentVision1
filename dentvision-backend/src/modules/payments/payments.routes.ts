@@ -27,44 +27,7 @@ import {
 } from '../billing/planEntitlements.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
-
-// ── Prisma-backed idempotency (persists across restarts) ─────────────────
-// A key is reserved first (the unique constraint serializes concurrent
-// identical requests) and only linked to its payment once the row exists
-// (audit F-3).
-type IdempotencyReserve =
-  | { status: 'reserved' }
-  | { status: 'exists'; paymentId: string }
-  | { status: 'in_flight' };
-
-async function reserveIdempotencyKey(key: string): Promise<IdempotencyReserve> {
-  try {
-    await prisma.idempotencyRecord.create({
-      data: { key, expiresAt: new Date(Date.now() + 3_600_000) },
-    });
-    return { status: 'reserved' };
-  } catch (err: any) {
-    if (err?.code !== 'P2002') throw err;
-    const record = await prisma.idempotencyRecord.findUnique({
-      where: { key },
-      select: { paymentId: true },
-    });
-    if (record?.paymentId) return { status: 'exists', paymentId: record.paymentId };
-    return { status: 'in_flight' };
-  }
-}
-
-async function completeIdempotencyKey(key: string, paymentId: string): Promise<void> {
-  await prisma.idempotencyRecord.upsert({
-    where: { key },
-    create: { key, paymentId, expiresAt: new Date(Date.now() + 3_600_000) },
-    update: { paymentId, expiresAt: new Date(Date.now() + 3_600_000) },
-  });
-}
-
-async function deleteIdempotencyKey(key: string): Promise<void> {
-  await prisma.idempotencyRecord.deleteMany({ where: { key } }).catch(() => {});
-}
+import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
@@ -444,7 +407,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       } satisfies ApiResponse);
     }
     if (reserved.status === 'exists') {
-      const payment = await prisma.payment.findUnique({ where: { id: reserved.paymentId } });
+      const payment = await prisma.payment.findUnique({ where: { id: reserved.resultId } });
       if (payment) {
         return res.status(200).json({
           ok: true,
