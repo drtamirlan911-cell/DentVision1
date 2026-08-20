@@ -282,6 +282,28 @@ app.use('/api/patient-portal', patientPortalRouter);
 app.use('/api/cross-clinic', crossClinicRouter);
 app.use('/api/patient-inbox', patientInboxRouter);
 
+// ─── Restored after a silent regression in v2.0.0 ───
+//
+// These five were imported and mounted until `1d95e8ec`, a release-prep commit
+// whose own message says it was *restoring* routes so the deploy could boot. In
+// rewriting this file it dropped their `app.use` lines and left the imports, so
+// the Developer Platform, Workflow Studio, Data Intelligence and Partner
+// Program — and the public API-key surface — quietly 404'd for months. Nothing
+// failed: the imports kept it compiling and no test asked.
+//
+// Prefixes are the originals from that diff. Every one of these routers applies
+// `authenticate` at the router level and `requirePermission` on its mutating
+// routes (`v1Router` uses `authenticateApiKey`), so this restores guarded
+// functionality rather than opening a surface.
+//
+// `appMounts.test.ts` now fails if an imported router is ever left unmounted
+// again.
+app.use('/api/developer', developerRouter);
+app.use('/api/v1', v1Router);
+app.use('/api/partners', partnersRouter);
+app.use('/api/workflows', workflowRouter);
+app.use('/api/data', dataRouter);
+
 // ─── Error Handling ───
 app.use(notFound);
 app.use(errorHandler);
