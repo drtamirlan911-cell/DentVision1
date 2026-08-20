@@ -144,7 +144,9 @@ export const FORBIDDEN_FEAR_PATTERNS: readonly RegExp[] = [
 ];
 
 export const FORBIDDEN_PROMISE_PATTERNS: readonly RegExp[] = [
-  /гарантиру\w*/i,
+  // Stem, not one inflection: "гарантированно" is the form a model actually
+  // writes, and `гарантиру` does not match it.
+  /гаранти\w*/i,
   /навсегда/i,
   /полностью\s+вылеч\w*/i,
   /\b100\s*%/,
