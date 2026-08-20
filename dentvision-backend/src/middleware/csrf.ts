@@ -31,6 +31,13 @@ const SKIP_PATHS = [
   '/api/guest/',
   '/api/health',
   '/api/diagnostics/register',
+  // Kaspi calls these server-to-server: no browser, no cookies, no CSRF
+  // token to send — and no Bearer token either, since it isn't one of our
+  // users. Authenticity is verified separately, by HMAC signature
+  // (kaspi.provider.ts's verifyKaspiCallbackAuth), which unsigned callbacks
+  // fail regardless. Without this the route 403s unconditionally and no
+  // Kaspi payment could ever settle via webhook.
+  '/api/payments/callbacks/',
 ];
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
   if (SAFE_METHODS.has(req.method)) return next();

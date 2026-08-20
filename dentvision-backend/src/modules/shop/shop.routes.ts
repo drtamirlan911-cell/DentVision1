@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { createHash } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
@@ -8,6 +9,7 @@ import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import { resolveSupplierCity } from '../../lib/kzCities.js';
 import { assertOrgAccess, resolveAnyClinicMembership } from '../../lib/orgContext.js';
 import { productCreateSchema, productUpdateSchema, productDataFromBody } from './shop.schemas.js';
+import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 
 const shopRouter = Router();
 
@@ -158,6 +160,8 @@ shopRouter.get('/products/:id', async (req, res) => {
 });
 
 shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
+  let idempotencyKey: string | undefined;
+  let idempotencyKeyCompleted = false;
   try {
     if (req.user?.isGuest) {
       res.status(403).json({ ok: false, error: 'Войдите в аккаунт, чтобы оформить заказ' });
@@ -187,6 +191,42 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     if (!items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({ ok: false, error: 'items array is required' });
       return;
+    }
+
+    // Idempotency guard, same pattern as `patients.routes.ts`'s POST / (itself
+    // mirroring `payments.routes.ts`): nothing here stops a double-click or a
+    // retried "Купить" request from creating two separate orders — decrementing
+    // stock twice and, once online payment is wired per order, charging twice.
+    // A client-supplied `Idempotency-Key`, or a deterministic hash of the
+    // request when none is sent, is reserved via the unique index on
+    // `IdempotencyRecord.key` before any order row is written.
+    idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+    if (!idempotencyKey) {
+      const hash = createHash('sha256')
+        .update(`${req.user!.id}:${clinicId}:${JSON.stringify(req.body)}`)
+        .digest('hex');
+      idempotencyKey = `server-${hash.slice(0, 32)}`;
+    }
+    {
+      // A much shorter TTL than payments/patients' default hour: reordering
+      // the exact same single item minutes later is completely ordinary for
+      // a shop, unlike a duplicate payment or patient record. This window
+      // only needs to outlast a double-click or a client's retry-with-backoff,
+      // not stand in for "this exact cart is now permanently unbuyable again".
+      const reserved = await reserveIdempotencyKey(idempotencyKey, 30_000);
+      if (reserved.status === 'in_flight') {
+        res.status(409).json({ ok: false, error: 'Заказ уже оформляется, повторите позже' });
+        return;
+      }
+      if (reserved.status === 'exists') {
+        const priorOrder = await prisma.order.findUnique({ where: { id: reserved.resultId } });
+        if (priorOrder) {
+          res.status(200).json({ ok: true, data: priorOrder });
+          return;
+        }
+        // Stale record pointing at a deleted order — free the key and continue.
+        await deleteIdempotencyKey(idempotencyKey);
+      }
     }
 
     const productIds = items.map((i: any) => String(i.product_id || i.productId || i.id || '')).filter(Boolean);
@@ -411,6 +451,11 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         ? Number(cashbackResult.totalMinor) / 100
         : 0;
 
+    if (idempotencyKey) {
+      await completeIdempotencyKey(idempotencyKey, order.id, 30_000);
+      idempotencyKeyCompleted = true;
+    }
+
     res.status(201).json({
       ok: true,
       data: {
@@ -424,6 +469,12 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     });
   } catch (error: any) {
     console.error('Create shop order error:', error);
+    // A reserved-but-never-completed key must not outlive the failed request —
+    // otherwise a genuine retry after a transient error would be told
+    // "already ordering" for up to an hour.
+    if (idempotencyKey && !idempotencyKeyCompleted) {
+      await deleteIdempotencyKey(idempotencyKey).catch(() => {});
+    }
     const msg = String(error?.message || '');
     if (msg.startsWith('STOCK_UNAVAILABLE:')) {
       return res.status(409).json({ ok: false, error: 'Недостаточно товара на складе' });

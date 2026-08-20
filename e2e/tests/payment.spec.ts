@@ -39,8 +39,14 @@ async function createTestOrder(api: APIRequestContext, token: string): Promise<{
   expect(products.length).toBeGreaterThan(0);
   const product = products[0];
 
+  // A fresh Idempotency-Key per call: this helper is shared across many
+  // tests in this file, each of which wants its own distinct order, but
+  // every call posts byte-identical items — without a key of its own, the
+  // shop's double-submit guard (shop.routes.ts) reasonably reads repeated
+  // identical bodies from the same user as the same double-click, and hands
+  // back the first order instead of creating a new one.
   const res = await api.post(`${BASE_URL}/api/shop/orders`, {
-    headers: authHeaders(token),
+    headers: { ...authHeaders(token), 'Idempotency-Key': `test-order-${Date.now()}-${Math.random().toString(36).slice(2)}` },
     data: {
       items: [{ product_id: product.id, quantity: 1 }],
     },

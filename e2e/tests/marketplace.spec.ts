@@ -30,6 +30,15 @@ function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
+// A fresh key per call. shop.routes.ts dedupes an order POST with no
+// Idempotency-Key of its own by hashing user+body — reasonable for a real
+// double-click, but this file's tests each want their own distinct order
+// from otherwise-identical {product, qty} bodies, faster than a real
+// double-click window would ever repeat by accident.
+function orderHeaders(token: string) {
+  return { ...authHeaders(token), 'Idempotency-Key': `test-order-${Date.now()}-${Math.random().toString(36).slice(2)}` };
+}
+
 async function findExistingProduct(api: APIRequestContext): Promise<{ id: string; price: number; stock: number; name: string }> {
   const res = await api.get(`${BASE_URL}/api/shop/products?limit=1`);
   expect(res.ok()).toBeTruthy();
@@ -104,7 +113,7 @@ test.describe('Marketplace (Shop) API', () => {
   test('SHOP-004: Create order → 201', async () => {
     const product = await findExistingProduct(api);
     const res = await api.post(`${BASE_URL}/api/shop/orders`, {
-      headers: authHeaders(ownerToken),
+      headers: orderHeaders(ownerToken),
       data: {
         items: [{ product_id: product.id, quantity: 1 }],
       },
@@ -122,7 +131,7 @@ test.describe('Marketplace (Shop) API', () => {
 
     // Create an order first
     const createRes = await api.post(`${BASE_URL}/api/shop/orders`, {
-      headers: authHeaders(ownerToken),
+      headers: orderHeaders(ownerToken),
       data: {
         items: [{ product_id: product.id, quantity: 2 }],
       },
@@ -154,7 +163,7 @@ test.describe('Marketplace (Shop) API', () => {
   test('SHOP-006: Order with quantity=0 → 400', async () => {
     const product = await findExistingProduct(api);
     const res = await api.post(`${BASE_URL}/api/shop/orders`, {
-      headers: authHeaders(ownerToken),
+      headers: orderHeaders(ownerToken),
       data: {
         items: [{ product_id: product.id, quantity: 0 }],
       },
@@ -169,7 +178,7 @@ test.describe('Marketplace (Shop) API', () => {
     const product = await findExistingProduct(api);
     const excessiveQty = (product.stock || 0) + 1000;
     const res = await api.post(`${BASE_URL}/api/shop/orders`, {
-      headers: authHeaders(ownerToken),
+      headers: orderHeaders(ownerToken),
       data: {
         items: [{ product_id: product.id, quantity: excessiveQty }],
       },
@@ -220,7 +229,7 @@ test.describe('Marketplace (Shop) API', () => {
     const fakePrice = 1; // Attacker sends 1 tenge
 
     const res = await api.post(`${BASE_URL}/api/shop/orders`, {
-      headers: authHeaders(ownerToken),
+      headers: orderHeaders(ownerToken),
       data: {
         items: [{ product_id: product.id, quantity: 1, price: fakePrice }],
       },
@@ -253,7 +262,7 @@ test.describe('Marketplace (Shop) API', () => {
     // Attempt to create an order with a manipulated negative price
     const product = await findExistingProduct(api);
     const res = await api.post(`${BASE_URL}/api/shop/orders`, {
-      headers: authHeaders(ownerToken),
+      headers: orderHeaders(ownerToken),
       data: {
         items: [{ product_id: product.id, quantity: 1, price: -500 }],
       },
@@ -275,7 +284,7 @@ test.describe('Marketplace (Shop) API', () => {
     const qty = 3;
 
     const res = await api.post(`${BASE_URL}/api/shop/orders`, {
-      headers: authHeaders(ownerToken),
+      headers: orderHeaders(ownerToken),
       data: {
         items: [{ product_id: product.id, quantity: qty }],
       },
@@ -302,7 +311,7 @@ test.describe('Marketplace (Shop) API', () => {
     // Order cancellation is only available via supplier workspace.
     const product = await findExistingProduct(api);
     const createRes = await api.post(`${BASE_URL}/api/shop/orders`, {
-      headers: authHeaders(ownerToken),
+      headers: orderHeaders(ownerToken),
       data: {
         items: [{ product_id: product.id, quantity: 1 }],
       },
