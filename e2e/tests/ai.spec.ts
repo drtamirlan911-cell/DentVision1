@@ -42,9 +42,12 @@ test.describe('AI API', () => {
   });
 
   test('AI-001: AI query returns response → 200', async () => {
+    // The route's Zod schema (querySchema, ai.routes.ts) requires `text`,
+    // not `message` — a request without it never reaches the AI at all,
+    // it 400s on "body.text: Required" before that.
     const res = await api.post(`${BASE_URL}/api/ai/query`, {
       headers: auth(ownerToken),
-      data: { message: 'What are common dental procedures?' },
+      data: { text: 'What are common dental procedures?' },
     });
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -55,7 +58,7 @@ test.describe('AI API', () => {
   test('AI-002: AI query with empty message → 400', async () => {
     const res = await api.post(`${BASE_URL}/api/ai/query`, {
       headers: auth(ownerToken),
-      data: { message: '' },
+      data: { text: '' },
     });
     expect([400, 422]).toContain(res.status());
   });
@@ -63,17 +66,20 @@ test.describe('AI API', () => {
   test('AI-003: AI timeout handling → graceful error (not 500)', async () => {
     const res = await api.post(`${BASE_URL}/api/ai/query`, {
       headers: auth(ownerToken),
-      data: { message: 'x'.repeat(10000) },
+      data: { text: 'x'.repeat(10000) },
       timeout: 5000,
     });
     expect(res.status()).not.toBe(500);
-    expect([200, 400, 408, 422, 502, 504]).toContain(res.status());
+    // 429 is a legitimate outcome here too: aiLimiter (app.ts) is shared
+    // across every test hitting /api/ai/query in this run, including
+    // AI-008's own deliberate flood later in this same file.
+    expect([200, 400, 408, 422, 429, 502, 504]).toContain(res.status());
   });
 
   test('AI-004: AI malformed response → graceful fallback', async () => {
     const res = await api.post(`${BASE_URL}/api/ai/query`, {
       headers: auth(ownerToken),
-      data: { message: '???###invalid###???' },
+      data: { text: '???###invalid###???' },
     });
     expect(res.status()).not.toBe(500);
     const body = await res.json();
@@ -83,7 +89,7 @@ test.describe('AI API', () => {
   test('AI-005: AI failure does not break main workflow → user gets error message', async () => {
     const badRes = await api.post(`${BASE_URL}/api/ai/query`, {
       headers: auth(ownerToken),
-      data: { message: '' },
+      data: { text: '' },
     });
     expect(badRes.status()).not.toBe(500);
 
@@ -96,7 +102,7 @@ test.describe('AI API', () => {
   test('AI-006: AI thread creation → 200', async () => {
     const queryRes = await api.post(`${BASE_URL}/api/ai/query`, {
       headers: auth(ownerToken),
-      data: { message: 'Start a new discussion about orthodontics' },
+      data: { text: 'Start a new discussion about orthodontics' },
     });
     expect(queryRes.status()).toBe(200);
 
@@ -105,40 +111,43 @@ test.describe('AI API', () => {
     });
     expect(threadsRes.status()).toBe(200);
     const body = await threadsRes.json();
-    const threads = body.data || body;
+    // GET /threads answers { ok, data: { threads: [...] } }, not data itself.
+    const threads = body.data?.threads || body.data || body;
     expect(Array.isArray(threads)).toBe(true);
   });
 
   test('AI-007: AI message history → 200 + array', async () => {
     const queryRes = await api.post(`${BASE_URL}/api/ai/query`, {
       headers: auth(ownerToken),
-      data: { message: 'Tell me about dental implants' },
+      data: { text: 'Tell me about dental implants' },
     });
     expect(queryRes.status()).toBe(200);
 
-    const threadsRes = await api.get(`${BASE_URL}/api/ai/threads`, {
+    // There's no GET /threads/:id/messages route — per-thread messages
+    // aren't exposed separately. The actual history endpoint is
+    // GET /api/ai/history: a list of AISession rows, each carrying its own
+    // `messages` array inline.
+    const historyRes = await api.get(`${BASE_URL}/api/ai/history`, {
       headers: auth(ownerToken),
     });
-    const threadsBody = await threadsRes.json();
-    const threads = threadsBody.data || threadsBody;
-
-    if (Array.isArray(threads) && threads.length > 0) {
-      const threadId = threads[0].id;
-      const messagesRes = await api.get(`${BASE_URL}/api/ai/threads/${threadId}/messages`, {
-        headers: auth(ownerToken),
-      });
-      expect(messagesRes.status()).toBe(200);
-      const msgBody = await messagesRes.json();
-      const messages = msgBody.data || msgBody;
-      expect(Array.isArray(messages)).toBe(true);
+    expect(historyRes.status()).toBe(200);
+    const historyBody = await historyRes.json();
+    const sessions = historyBody.data || historyBody;
+    expect(Array.isArray(sessions)).toBe(true);
+    if (sessions.length > 0) {
+      expect(Array.isArray(sessions[0].messages)).toBe(true);
     }
   });
 
   test('AI-008: AI rate limiting → 429 after too many requests', async () => {
-    const requests = Array.from({ length: 15 }, () =>
+    // aiLimiter (app.ts) is max:100 per 15 minutes per IP — 15 requests
+    // never had a chance of tripping it. Comfortably clearing that ceiling
+    // (plus whatever this file's own earlier tests already used from the
+    // same IP/window) is what actually exercises the limiter.
+    const requests = Array.from({ length: 110 }, () =>
       api.post(`${BASE_URL}/api/ai/query`, {
         headers: auth(ownerToken),
-        data: { message: 'Quick question' },
+        data: { text: 'Quick question' },
       }),
     );
     const results = await Promise.all(requests);

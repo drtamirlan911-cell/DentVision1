@@ -64,12 +64,15 @@ test.describe('API Contract Tests', () => {
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('application/json');
     const body = await res.json();
+    // paginatedResponse() nests the array at data.data (with pagination.total
+    // alongside it), not data.patients — same shape as /shop/orders etc.
     const data = body.data || body;
-    const patients = data.patients || (Array.isArray(data) ? data : null);
+    const patients = data.data || data.patients || (Array.isArray(data) ? data : null);
+    const total = data.pagination?.total ?? data.total;
     expect(patients).toBeDefined();
     expect(Array.isArray(patients)).toBe(true);
-    if (data.total !== undefined) {
-      expect(typeof data.total).toBe('number');
+    if (total !== undefined) {
+      expect(typeof total).toBe('number');
     }
   });
 
@@ -127,15 +130,24 @@ test.describe('API Contract Tests', () => {
   });
 
   test('CONTRACT-006: 401 responses have proper error message', async () => {
-    const res = await api.get(`${BASE_URL}/api/auth/me`);
-    expect(res.status()).toBe(401);
-    expect(res.headers()['content-type']).toContain('application/json');
-    const body = await res.json();
-    const hasMessage =
-      typeof body.error === 'string' ||
-      typeof body.message === 'string' ||
-      typeof body.data?.error === 'string';
-    expect(hasMessage).toBe(true);
+    // Not the shared `api` context: `loginOwner` in `beforeAll` logged in on
+    // it, so it's carrying a session cookie `authenticate` accepts exactly
+    // as validly as a Bearer token — "no auth" on the shared context would
+    // silently authenticate anyway. A fresh context has no cookies at all.
+    const anonymous = await apiRequest.newContext();
+    try {
+      const res = await anonymous.get(`${BASE_URL}/api/auth/me`);
+      expect(res.status()).toBe(401);
+      expect(res.headers()['content-type']).toContain('application/json');
+      const body = await res.json();
+      const hasMessage =
+        typeof body.error === 'string' ||
+        typeof body.message === 'string' ||
+        typeof body.data?.error === 'string';
+      expect(hasMessage).toBe(true);
+    } finally {
+      await anonymous.dispose();
+    }
   });
 
   test('CONTRACT-007: 403 responses have proper error message', async () => {
