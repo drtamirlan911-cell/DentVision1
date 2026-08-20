@@ -90,6 +90,25 @@ export function startOnCallInterval(ms = 5 * 60 * 1000, thresholdMs = DEFAULT_TH
     } catch (err) {
       console.error('[OnCallTimer] tick failed', err);
     }
+
+    // AI escalations ride the same timer rather than starting a second one:
+    // they are the same promise to the same person — somebody is waiting and a
+    // human has to arrive — and two timers with two thresholds would drift into
+    // a difference nobody could justify to a patient.
+    //
+    // Its own try/catch: a failure chasing escalations must not stop the
+    // conversation sweep above, or vice versa.
+    try {
+      const { runEscalationReminders } = await import('../modules/ai-admin/conversation/escalation.service.js');
+      const e = await runEscalationReminders(thresholdMs);
+      if (e.renotified) {
+        // `warn`, not `log`: a re-notification means somebody has been waiting
+        // over the threshold with no human response. That is not routine.
+        console.warn(`[OnCallTimer] escalations checked=${e.checked} renotified=${e.renotified}`);
+      }
+    } catch (err) {
+      console.error('[OnCallTimer] escalation sweep failed', err);
+    }
   };
   setTimeout(tick, 30_000);
   timer = setInterval(tick, ms);
