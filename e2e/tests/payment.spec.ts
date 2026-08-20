@@ -242,7 +242,8 @@ test.describe('Payment API', () => {
       headers: authHeaders(ownerToken),
     });
     const orderBody = await orderRes.json();
-    const orders = orderBody.data?.items || orderBody.data || [];
+    // paginatedResponse() nests the array at data.data, not data.items.
+    const orders = orderBody.data?.data || orderBody.data || [];
     const found = Array.isArray(orders) ? orders.find((o: any) => o.id === order.id) : null;
     expect(found).toBeTruthy();
     expect(found.status).toBe('paid');
@@ -443,7 +444,8 @@ test.describe('Payment API', () => {
       headers: authHeaders(ownerToken),
     });
     const listBody = await listRes.json();
-    const orders = listBody.data?.items || listBody.data || [];
+    // paginatedResponse() nests the array at data.data, not data.items.
+    const orders = listBody.data?.data || listBody.data || [];
     const found = Array.isArray(orders) ? orders.find((o: any) => o.id === order.id) : null;
     expect(found).toBeTruthy();
     expect(found.status).toBe('paid');

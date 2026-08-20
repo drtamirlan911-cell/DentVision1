@@ -20,17 +20,29 @@ test.describe('Authentication API', () => {
    */
   test.beforeAll(async () => {
     api = await apiRequest.newContext();
+    // Registered here rather than left to the AUTH-004 test: every test below
+    // that logs in as `testUser` was implicitly depending on AUTH-004 having
+    // already run and succeeded in the same process. That dependency broke
+    // outright in an environment where the test runner recycles its process
+    // between tests — `testUser` would still exist as a value, but the row
+    // behind it wouldn't. Registering it here means it exists before any test
+    // in this file can possibly run, independent of execution order.
+    const res = await api.post(`${BASE_URL}/api/auth/register`, { data: testUser });
+    expect(res.status()).toBe(201);
   });
 
   test.afterAll(async () => {
     await api.dispose();
     await cleanupTestUser(testEmail);
-    await cleanupTestUser(`duplicate-${Date.now()}@test.com`);
   });
 
   test('AUTH-004: Register new user → 201', async () => {
+    // A fresh email of its own: `testUser` is already registered by
+    // `beforeAll`, so reusing it here would legitimately get 409, not prove
+    // the create path.
+    const freshEmail = `auth-fresh-${Date.now()}@test.com`;
     const res = await api.post(`${BASE_URL}/api/auth/register`, {
-      data: testUser,
+      data: { email: freshEmail, password: testPassword, firstName: 'Auth', lastName: 'Fresh' },
     });
     expect(res.status()).toBe(201);
     const body = await res.json();
@@ -38,7 +50,9 @@ test.describe('Authentication API', () => {
     // flattened `data.email` (see the correct pattern in AUTH-001 below).
     const user = body.data?.user || body.user;
     expect(user).toBeDefined();
-    expect(user.email).toBe(testEmail);
+    expect(user.email).toBe(freshEmail);
+
+    await cleanupTestUser(freshEmail);
   });
 
   test('AUTH-005: Register with existing email → 409', async () => {
@@ -86,19 +100,34 @@ test.describe('Authentication API', () => {
       data: { email: testUser.email, password: testUser.password },
     });
     expect(loginRes.status()).toBe(200);
+    const loginBody = await loginRes.json();
+    const accessToken = loginBody.data?.accessToken || loginBody.accessToken;
 
-    const cookies = await loginRes.cookies();
-    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
-
+    // Logout is CSRF-protected (it's a state-changing POST), and Playwright's
+    // request context has no way to mirror the `dv_csrf` cookie into the
+    // `x-csrf-token` header the double-submit check wants — that's the
+    // browser's job. A Bearer token skips that check entirely (see
+    // csrf.ts's own comment: JWT auth is inherently CSRF-safe), which is
+    // exactly what every other authenticated call in this file already does.
     const logoutRes = await api.post(`${BASE_URL}/api/auth/logout`, {
-      headers: { Cookie: cookieHeader },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     expect(logoutRes.status()).toBe(200);
   });
 
   test('AUTH-007: Access /me without token → 401', async () => {
-    const res = await api.get(`${BASE_URL}/api/auth/me`);
-    expect(res.status()).toBe(401);
+    // Not the shared `api` context: by this point in the file it's carrying
+    // the session cookie from earlier logins, and `/me` accepts that cookie
+    // just as validly as a Bearer token — so "without token" on the shared
+    // context would silently authenticate via the cookie instead. A fresh
+    // context genuinely has neither.
+    const anonymous = await apiRequest.newContext();
+    try {
+      const res = await anonymous.get(`${BASE_URL}/api/auth/me`);
+      expect(res.status()).toBe(401);
+    } finally {
+      await anonymous.dispose();
+    }
   });
 
   test('AUTH-008: Access /me with expired token → 401', async () => {
@@ -115,12 +144,17 @@ test.describe('Authentication API', () => {
     });
     expect(loginRes.status()).toBe(200);
 
-    const cookies = await loginRes.cookies();
-    const refreshCookie = cookies.find((c) => c.name === 'refreshToken');
+    // `APIResponse` has no `.cookies()` method — the context's own
+    // `storageState()` is how Playwright exposes the cookies it's holding.
+    const state = await api.storageState();
+    const refreshCookie = state.cookies.find((c) => c.name === 'refreshToken');
     expect(refreshCookie).toBeDefined();
 
+    // `/auth/refresh` reads `refreshToken` from the JSON body, not from the
+    // cookie — the cookie is what a browser client would carry, but this
+    // route never falls back to reading it itself.
     const refreshRes = await api.post(`${BASE_URL}/api/auth/refresh`, {
-      headers: { Cookie: `refreshToken=${refreshCookie!.value}` },
+      data: { refreshToken: refreshCookie!.value },
     });
     expect(refreshRes.status()).toBe(200);
     const body = await refreshRes.json();

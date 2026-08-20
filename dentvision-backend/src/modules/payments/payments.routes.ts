@@ -451,21 +451,23 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     if ((refType === 'order' || refType === 'shop_order') && refId) {
       const ref = await prisma.$transaction(async (tx) => {
         if (refType === 'order') {
-          return tx.order.findUnique({ where: { id: refId }, select: { items: true, status: true } });
+          return tx.order.findUnique({ where: { id: refId }, select: { total: true, status: true } });
         }
         return null;
       });
       if (!ref) {
         return res.status(404).json({ ok: false, error: 'Ссылка на заказ не найдена' } satisfies ApiResponse);
       }
-      const items = Array.isArray(ref.items) ? (ref.items as any[]) : [];
-      let expected = 0;
-      for (const line of items) {
-        const price = Number(line.price || 0);
-        const qty = Number(line.quantity || line.qty || 1);
-        expected += price * qty;
-      }
-      const expectedMinor = tengeToMinor(expected);
+      // Reconcile against `order.total`, not a sum of `order.items` prices.
+      // `shop.routes.ts` sets `total` to goods + delivery, minus any DentCash
+      // spent — `items` only ever held the product lines. Comparing to a
+      // from-items recomputation ignored delivery and DentCash on every order,
+      // so any order under the free-delivery threshold (or with cashback
+      // applied) could never be paid: this check rejected it as tampered every
+      // time. `order.total` is itself server-computed at order creation — the
+      // client never supplied it — so it's exactly the source of truth the
+      // comment above already says this check exists to trust.
+      const expectedMinor = tengeToMinor(ref.total);
       if (expectedMinor !== minor) {
         return res.status(409).json({
           ok: false,
