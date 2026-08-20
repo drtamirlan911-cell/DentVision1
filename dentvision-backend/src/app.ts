@@ -133,9 +133,29 @@ app.use(express.urlencoded({ extended: false }));
 app.use(csrfProtection);
 
 // Rate limiting — never throttle CORS preflight; always keep CORS headers on 429
+
+/**
+ * A ceiling that can be raised for a test stack, but never lowered by accident.
+ *
+ * The defaults below *are* the production values: with no environment variable
+ * set nothing changes. The end-to-end suite is the reason this exists — it logs
+ * in dozens of times from one address within a couple of minutes and trips a
+ * limiter sized for a human being, so every spec after the first fails with 429
+ * and says nothing about the code under test.
+ *
+ * Only the general and auth ceilings are configurable. The AI limiter
+ * deliberately is not: `ai.spec.ts` asserts that it returns 429, and a knob
+ * that could switch that off would let the one rate-limit test in the suite be
+ * disabled from the outside.
+ */
+function limitFromEnv(name: string, fallback: number): number {
+  const raw = Number(process.env[name]);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: limitFromEnv('RATE_LIMIT_API_MAX', 500),
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === 'OPTIONS',
@@ -150,7 +170,7 @@ const apiLimiter = rateLimit({
 });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 40,
+  max: limitFromEnv('RATE_LIMIT_AUTH_MAX', 40),
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === 'OPTIONS',

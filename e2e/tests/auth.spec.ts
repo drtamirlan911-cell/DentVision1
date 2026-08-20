@@ -1,4 +1,4 @@
-import { test, expect, APIRequestContext } from '@playwright/test';
+import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
 import { cleanupTestUser } from '../helpers/db';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
@@ -9,11 +9,21 @@ test.describe('Authentication API', () => {
   const testPassword = 'Test1234!';
   const testUser = { email: testEmail, password: testPassword, firstName: 'Auth', lastName: 'Tester' };
 
-  test.beforeAll(async ({ request }) => {
-    api = request;
+  /**
+   * `api` is a context this file owns, created here and disposed in `afterAll`.
+   *
+   * It used to be Playwright's `request` fixture, captured in `beforeAll` and
+   * reused from the tests — which Playwright refuses outright:
+   * "Fixture { request } from beforeAll cannot be reused in a test." Every test
+   * in this file threw that at its first call. Nothing noticed, because the suite
+   * was never run: `test:e2e` is in package.json and in no CI workflow.
+   */
+  test.beforeAll(async () => {
+    api = await apiRequest.newContext();
   });
 
   test.afterAll(async () => {
+    await api.dispose();
     await cleanupTestUser(testEmail);
     await cleanupTestUser(`duplicate-${Date.now()}@test.com`);
   });

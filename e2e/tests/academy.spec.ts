@@ -1,4 +1,4 @@
-import { test, expect, APIRequestContext } from '@playwright/test';
+import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
 import { prisma } from '../helpers/db';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
@@ -26,12 +26,22 @@ function auth(token: string) {
 test.describe('Academy / Course Workflow', () => {
   let api: APIRequestContext;
 
-  test.beforeAll(async ({ request }) => {
-    api = request;
+  /**
+   * `api` is a context this file owns, created here and disposed in `afterAll`.
+   *
+   * It used to be Playwright's `request` fixture, captured in `beforeAll` and
+   * reused from the tests — which Playwright refuses outright:
+   * "Fixture { request } from beforeAll cannot be reused in a test." Every test
+   * in this file threw that at its first call. Nothing noticed, because the suite
+   * was never run: `test:e2e` is in package.json and in no CI workflow.
+   */
+  test.beforeAll(async () => {
+    api = await apiRequest.newContext();
     await loginOwner(api);
   });
 
   test.afterAll(async () => {
+    await api.dispose();
     if (testEnrollmentId) {
       await prisma.schoolEnrollment.deleteMany({ where: { id: testEnrollmentId } }).catch(() => {});
     }

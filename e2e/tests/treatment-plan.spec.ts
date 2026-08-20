@@ -11,7 +11,7 @@ async function login(request: APIRequestContext, email: string, password: string
   const res = await request.post(`${BASE}/api/auth/login`, { data: { email, password } });
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
-  return body.accessToken;
+  return body.data?.accessToken || body.accessToken;
 }
 
 async function getDoctorId(request: APIRequestContext, token: string): Promise<string> {
@@ -223,7 +223,7 @@ test.describe('Treatment Plan Workflow', () => {
 
     if (loginOther.ok()) {
       const otherBody = await loginOther.json();
-      const otherToken = otherBody.accessToken;
+      const otherToken = otherBody.data?.accessToken || otherBody.accessToken;
 
       const res = await request.get(`${BASE}/api/treatment-plans/${created.id}`, {
         headers: { Authorization: `Bearer ${otherToken}` },

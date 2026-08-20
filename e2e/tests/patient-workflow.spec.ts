@@ -10,7 +10,7 @@ async function login(request: APIRequestContext, email: string, password: string
   const res = await request.post(`${BASE}/api/auth/login`, { data: { email, password } });
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
-  return body.accessToken;
+  return body.data?.accessToken || body.accessToken;
 }
 
 async function cleanupPatient(request: APIRequestContext, token: string, id: string) {
