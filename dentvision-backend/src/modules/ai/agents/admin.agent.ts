@@ -3,6 +3,7 @@ import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { hmacIin } from '../../../lib/phi.js';
+import { assertValidIinFormat, assertUniquePatientIin, IinValidationError } from '../../../lib/patientIin.js';
 
 const PAIN_LOCATIONS = ['Верхняя челюсть', 'Нижняя челюсть', 'Слева', 'Справа', 'Передние зубы', 'Жевательные', 'Не знает'];
 const PAIN_DURATIONS = ['Сегодня', 'Несколько дней', 'Неделю', 'Месяц', 'Больше месяца'];
@@ -108,6 +109,26 @@ export class AdminAgent implements Agent {
     if (field) session.data[field as string] = answer;
     if (params.complaint) session.data.complaints.push(params.complaint);
     if (params.painDetail) Object.assign(session.data.painDetails, params.painDetail);
+
+    // Checked the moment it is given, not at confirmBooking — a caller who
+    // mistypes an IIN should be asked again immediately, not after also
+    // picking a doctor, date and time.
+    if (field === 'iin' && session.data.iin) {
+      try {
+        const normalized = assertValidIinFormat(session.data.iin);
+        await assertUniquePatientIin(context.clinicId, hmacIin(normalized));
+        session.data.iin = normalized;
+      } catch (error) {
+        session.data.iin = undefined;
+        const detail = error instanceof IinValidationError ? error.message : 'Не удалось проверить ИИН';
+        return {
+          message: `${detail}. Введите ИИН ещё раз.`,
+          intent: 'INTAKE_IIN',
+          suggestions: [],
+          action: { type: 'INTAKE_STEP', payload: { step: 'iin', prompt: 'ИИН?' } },
+        };
+      }
+    }
 
     // Step progression
     if (!session.data.name) {

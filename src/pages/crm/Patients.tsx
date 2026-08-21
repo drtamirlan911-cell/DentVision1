@@ -11,6 +11,7 @@ import { useAuth } from '@/store/auth.store'
 import { useDataQuery } from '../../queries/useDataQuery'
 import * as api from '@/utils/api'
 import { getRecallCandidates, findDuplicatePatients } from '@/utils/recall'
+import { isValidIin } from '@/lib/iin'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Textarea, Select } from '../../components/ui/ds/Input'
@@ -105,6 +106,7 @@ export default function Patients() {
   const [activeTab, setActiveTab] = useState('info')
   const [search, setSearch] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
+  const iinError = form.iin && !isValidIin(form.iin) ? 'Неверный формат ИИН' : undefined
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
   const [teethState, setTeethState] = useState<Record<number, any>>({})
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
@@ -284,6 +286,7 @@ export default function Patients() {
     e.preventDefault()
     if (submitting) return
     if (!form.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
+    if (iinError) { showToast(iinError, 'warning'); return }
     setSubmitting(true)
     try {
       await upsertPatient({ ...form, id: editPatient?.id, clinicId: clinic?.id } as Partial<Patient>)
@@ -292,8 +295,8 @@ export default function Patients() {
       if (selected && selected.id === editPatient?.id) {
         setSelected(s => s ? { ...s, ...form } as Patient : null)
       }
-    } catch {
-      showToast('Ошибка сохранения', 'error')
+    } catch (err: any) {
+      showToast(err?.message || 'Ошибка сохранения', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -456,6 +459,7 @@ export default function Patients() {
             onChange={e => setForm({ ...form, iin: e.target.value })}
             placeholder="12 цифр"
             maxLength={12}
+            error={iinError}
           />
           <Input
             label="Email"

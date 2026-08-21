@@ -8,7 +8,7 @@ import { uid, paginate, paginatedResponse, stripHtmlTags } from '../../lib/helpe
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
 import { loadClinicAccess, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
-import { hmacIin } from '../../lib/phi.js';
+import { assertValidPatientIin, IinValidationError } from '../../lib/patientIin.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 
 export const patientsRouter = Router();
@@ -231,6 +231,26 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
       ? await prisma.patient.findFirst({ where: { id: body.id, clinicId } })
       : null;
 
+    // A patient does not have to have an IIN on file (minors, foreign
+    // patients) — validation only runs when one was actually submitted.
+    // An explicit empty string clears a previously-entered IIN rather than
+    // being treated as "no change".
+    let validatedIin: { iin: string; iinHash: string } | undefined;
+    let clearIin = false;
+    if (body.iin !== undefined) {
+      if (String(body.iin).trim() === '') {
+        clearIin = true;
+      } else {
+        validatedIin = await assertValidPatientIin({
+          iin: body.iin,
+          clinicId,
+          excludePatientId: existing?.id,
+          birthDate: (body.dob || body.birthDate) ?? existing?.birthDate ?? null,
+          gender: body.gender ?? existing?.gender ?? null,
+        });
+      }
+    }
+
     const patient = existing
       ? await prisma.patient.update({
           where: { id: existing.id },
@@ -245,8 +265,8 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
             gender: body.gender ?? existing.gender,
             address: body.address ?? existing.address,
             notes: body.notes ?? existing.notes,
-            iin: body.iin ?? (existing as any).iin,
-            iinHash: body.iin !== undefined ? hmacIin(body.iin) : undefined,
+            iin: clearIin ? null : (validatedIin?.iin ?? (existing as any).iin),
+            iinHash: clearIin ? null : (validatedIin?.iinHash ?? undefined),
             medicalHistory: history as Prisma.InputJsonValue,
           },
           include: { teeth: true },
@@ -263,8 +283,8 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
             gender: body.gender || null,
             address: body.address || null,
             notes: body.notes || null,
-            iin: body.iin || null,
-            iinHash: hmacIin(body.iin),
+            iin: validatedIin?.iin ?? null,
+            iinHash: validatedIin?.iinHash ?? null,
             medicalHistory: history as Prisma.InputJsonValue,
           },
           include: { teeth: true },
@@ -296,13 +316,18 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
       data: serializePatient(refreshed!),
     } satisfies ApiResponse);
   } catch (error) {
-    console.error('Upsert patient error:', error);
     // A reserved-but-never-completed key must not outlive the failed request —
     // otherwise a genuine retry after a transient error would be told
     // "already creating" for up to an hour.
     if (idempotencyKey && !idempotencyKeyCompleted) {
       await deleteIdempotencyKey(idempotencyKey);
     }
+    if (error instanceof IinValidationError) {
+      return res
+        .status(error.code === 'DUPLICATE' ? 409 : 400)
+        .json({ ok: false, error: error.message } satisfies ApiResponse);
+    }
+    console.error('Upsert patient error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при сохранении пациента' } satisfies ApiResponse);
   }
 });
