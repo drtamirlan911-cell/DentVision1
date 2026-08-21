@@ -82,8 +82,10 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
 
           let args: Record<string, unknown>
           try { args = JSON.parse(toolCall.arguments) } catch { args = {} }
-          args.clinic_id = clinicId
 
+          // `executeToolCall` resolves `clinic_id` from `session.clinicId`
+          // itself and discards anything supplied here — no need (and no
+          // safe way) to stamp it onto `args` at this call site.
           const toolResult = await executeToolCall(toolName, args, session)
 
           if (toolName === 'escalate_to_human') escalated = true
