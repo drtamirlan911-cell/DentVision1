@@ -1,19 +1,22 @@
-﻿import React, { useState } from 'react'
+﻿import React, { Suspense, lazy, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
   Settings as SettingsIcon, User, Shield, Palette, LayoutGrid,
   Building2, CreditCard, ExternalLink, Store, GraduationCap, Brain,
-  BarChart3, Bell, Save, LogOut, ChevronRight,
+  BarChart3, Bell, Save, LogOut, ChevronRight, Terminal,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Button } from '@/components/ui/ds/Button'
 import { Switch } from '@/components/ui/ds/Misc'
+import { Skeleton } from '@/components/ui/ds/Skeleton'
 import { useAuth } from '@/store/auth.store'
 import { useIam } from '@/iam/useIam'
 import { useUIStore } from '@/store/ui.store'
 import { useToast } from '@/components/ui/ds/Toast'
+
+const DeveloperTab = lazy(() => import('./settings/DeveloperTab'))
 
 const container = {
   hidden: { opacity: 0 },
@@ -30,6 +33,7 @@ const TABS: TabDef[] = [
   { id: 'clinic', label: 'Клиника', icon: <Building2 size={14} /> },
   { id: 'profile', label: 'Профиль', icon: <User size={14} /> },
   { id: 'security', label: 'Безопасность', icon: <Shield size={14} /> },
+  { id: 'developer', label: 'Для разработчиков', icon: <Terminal size={14} /> },
 ]
 
 export default function SettingsPage() {
@@ -272,6 +276,15 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           </motion.div>
+        </motion.div>
+      )}
+
+      {/* ═══ ДЛЯ РАЗРАБОТЧИКОВ ═══ */}
+      {tab === 'developer' && (
+        <motion.div variants={container} initial="hidden" animate="show">
+          <Suspense fallback={<div className="space-y-2"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>}>
+            <DeveloperTab />
+          </Suspense>
         </motion.div>
       )}
     </motion.div>

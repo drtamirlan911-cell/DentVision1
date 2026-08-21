@@ -3000,3 +3000,261 @@ export async function inboxStreamUrl(clinicId: string): Promise<string> {
   const ticket = (res.data ?? res)?.ticket || '';
   return `${API_URL}/api/patient-inbox/stream?ticket=${encodeURIComponent(ticket)}&clinicId=${encodeURIComponent(clinicId)}`;
 }
+
+// ─── Developer Platform ───
+// Self-service (no role gate — dentvision-backend/src/modules/developer/developer.routes.ts
+// only requires `authenticate`, scoped by req.user.id). Any logged-in user may
+// create apps/keys/webhooks for themselves.
+
+export interface DeveloperApp {
+  id: string;
+  name: string;
+  environment: 'sandbox' | 'production';
+  scopes: string[];
+  createdAt: string;
+  _count?: { apiKeys: number; webhooks: number };
+}
+
+export interface DeveloperApiKeyIssued {
+  id: string;
+  key: string; // plaintext secret — returned exactly once
+  createdAt: string;
+}
+
+export interface DeveloperWebhook {
+  id: string;
+  url: string;
+  events: string[];
+  secret: string; // plaintext HMAC secret — returned exactly once
+  createdAt: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  event: string;
+  status: string;
+  statusCode?: number | null;
+  createdAt: string;
+}
+
+export interface DeveloperAppDetail extends DeveloperApp {
+  apiKeys: { id: string; prefix: string; scopes: string[]; rateLimit: number; revokedAt: string | null; createdAt: string }[];
+  webhooks: { id: string; url: string; events: string[]; active: boolean; createdAt: string }[];
+}
+
+export async function listDeveloperApps(): Promise<DeveloperApp[]> {
+  return apiRequest('/api/developer/apps');
+}
+
+export async function getDeveloperApp(id: string): Promise<DeveloperAppDetail> {
+  return apiRequest(`/api/developer/apps/${id}`);
+}
+
+export async function createDeveloperApp(data: { name: string; environment: 'sandbox' | 'production'; scopes?: string[] }): Promise<DeveloperApp> {
+  return apiRequest('/api/developer/apps', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function createDeveloperApiKey(appId: string): Promise<DeveloperApiKeyIssued> {
+  return apiRequest(`/api/developer/apps/${appId}/keys`, { method: 'POST' });
+}
+
+export async function createDeveloperWebhook(data: { appId: string; url: string; events: string[] }): Promise<DeveloperWebhook> {
+  return apiRequest('/api/developer/webhooks', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function listWebhookDeliveries(webhookId: string): Promise<WebhookDelivery[]> {
+  return apiRequest(`/api/developer/webhooks/${webhookId}/deliveries`);
+}
+
+// ─── Workflow Studio ───
+// Clinic-scoped (dentvision-backend/src/modules/workflow/workflow.routes.ts).
+// GET routes need only authentication; POST/PATCH/run require `workflow.manage`
+// (mapped to `settings.manage` — OWNER/ADMIN-tier clinic staff).
+// The step-block union is a closed set defined by workflow.engine.ts, not a
+// free-form graph — see WorkflowStep below.
+
+export type WorkflowTrigger =
+  | 'patient.created' | 'patient.deleted'
+  | 'appointment.created'
+  | 'referral.created' | 'referral.accepted' | 'referral.completed'
+  | 'diagnostics.result_ready';
+
+export type WorkflowStep =
+  | { type: 'condition'; field: string; op: string; value: string }
+  | { type: 'audit'; message: string }
+  | { type: 'notification'; userId?: string; title: string; message: string }
+  | { type: 'log'; message: string };
+
+export interface Workflow {
+  id: string;
+  name: string;
+  trigger: WorkflowTrigger;
+  graph: { steps: WorkflowStep[] };
+  status: 'draft' | 'active' | 'paused';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface WorkflowRun {
+  id: string;
+  workflowId: string;
+  status: string;
+  steps?: unknown;
+  createdAt: string;
+}
+
+export async function listWorkflows(): Promise<Workflow[]> {
+  return apiRequest('/api/workflows');
+}
+
+export async function createWorkflow(data: { name: string; trigger: WorkflowTrigger; graph: { steps: WorkflowStep[] }; status?: string }): Promise<Workflow> {
+  return apiRequest('/api/workflows', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateWorkflow(id: string, data: Partial<{ name: string; trigger: WorkflowTrigger; graph: { steps: WorkflowStep[] }; status: string }>): Promise<Workflow> {
+  return apiRequest(`/api/workflows/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function runWorkflow(id: string): Promise<WorkflowRun> {
+  return apiRequest(`/api/workflows/${id}/run`, { method: 'POST' });
+}
+
+export async function listWorkflowRuns(id: string): Promise<WorkflowRun[]> {
+  return apiRequest(`/api/workflows/${id}/runs`);
+}
+
+// ─── Data Intelligence ───
+// dentvision-backend/src/modules/data/data.routes.ts. Metric registration
+// requires `platform.analytics` (superadmin-tier); reading metrics/dashboards
+// and creating a dashboard needs only authentication.
+
+export type MetricComputationType = 'patient_count' | 'appointment_count' | 'revenue_month' | 'gmv_total' | 'supplier_count';
+
+export interface DataMetric {
+  key: string;
+  label: string;
+  definition: { type: MetricComputationType };
+  createdAt: string;
+}
+
+export interface DataDashboard {
+  id: string;
+  name: string;
+  layout: { tiles: { metricKey: string; label: string }[] };
+  createdAt: string;
+}
+
+export async function listDataMetrics(): Promise<DataMetric[]> {
+  return apiRequest('/api/data/metrics');
+}
+
+export async function registerDataMetric(data: { key: string; label: string; definition: { type: MetricComputationType } }): Promise<DataMetric> {
+  return apiRequest('/api/data/metrics', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function getDataMetricValue(key: string, clinicId?: string): Promise<{ key: string; value: number }> {
+  const qs = clinicId ? `?clinicId=${encodeURIComponent(clinicId)}` : '';
+  return apiRequest(`/api/data/metrics/${encodeURIComponent(key)}/value${qs}`);
+}
+
+export async function listDataDashboards(): Promise<DataDashboard[]> {
+  return apiRequest('/api/data/dashboards');
+}
+
+export async function createDataDashboard(data: { name: string; layout: { tiles: { metricKey: string; label: string }[] } }): Promise<DataDashboard> {
+  return apiRequest('/api/data/dashboards', { method: 'POST', body: JSON.stringify(data) });
+}
+
+// ─── Partner Program ───
+// dentvision-backend/src/modules/partners/partners.routes.ts. All mutating
+// routes require `partner.manage` (mapped to `shop.manage` — platform/
+// marketplace-admin tier, not clinic-level).
+
+export type PartnerType = 'manufacturer' | 'distributor' | 'academy' | 'lab';
+
+export interface PartnerTier {
+  id: string;
+  name: string;
+  commissionBps: number;
+  minKpiJson?: unknown;
+  benefitsJson?: unknown;
+}
+
+export interface Partner {
+  id: string;
+  type: PartnerType;
+  refType: string;
+  refId: string;
+  tierId?: string | null;
+  tier?: PartnerTier | null;
+  _count?: { kpis: number; slas: number; campaigns: number };
+  createdAt: string;
+}
+
+export interface PartnerKpi {
+  id: string;
+  period: string;
+  metricsJson: unknown;
+  score: number;
+  createdAt: string;
+}
+
+export interface PartnerSla {
+  id: string;
+  metric: string;
+  target: number;
+  actual: number | null;
+  breached: boolean;
+  createdAt: string;
+}
+
+export interface PartnerCampaign {
+  id: string;
+  name: string;
+  budget: string; // BigInt minor units, serialized as string
+  splitBps: number;
+  startsAt: string | null;
+  endsAt: string | null;
+}
+
+export interface PartnerDetail extends Partner {
+  kpis: PartnerKpi[];
+  slas: PartnerSla[];
+  campaigns: PartnerCampaign[];
+}
+
+export async function listPartners(): Promise<Partner[]> {
+  return apiRequest('/api/partners');
+}
+
+export async function getPartner(id: string): Promise<PartnerDetail> {
+  return apiRequest(`/api/partners/${id}`);
+}
+
+export async function createPartner(data: { type: PartnerType; refType: string; refId: string }): Promise<Partner> {
+  return apiRequest('/api/partners', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function listPartnerTiers(): Promise<PartnerTier[]> {
+  return apiRequest('/api/partners/tiers');
+}
+
+export async function createPartnerTier(data: { name: string; commissionBps: number; minKpiJson?: unknown; benefitsJson?: unknown }): Promise<PartnerTier> {
+  return apiRequest('/api/partners/tiers', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function assignPartnerTier(partnerId: string, tierId: string): Promise<Partner> {
+  return apiRequest(`/api/partners/${partnerId}/tier`, { method: 'POST', body: JSON.stringify({ tierId }) });
+}
+
+export async function addPartnerKpi(partnerId: string, data: { period: string; metricsJson: unknown; score: number }): Promise<PartnerKpi> {
+  return apiRequest(`/api/partners/${partnerId}/kpis`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function addPartnerSla(partnerId: string, data: { metric: string; target: number; actual?: number; direction?: 'lower_better' | 'higher_better' }): Promise<PartnerSla> {
+  return apiRequest(`/api/partners/${partnerId}/slas`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function addPartnerCampaign(partnerId: string, data: { name: string; budget: number; splitBps?: number; startsAt?: string; endsAt?: string }): Promise<PartnerCampaign> {
+  return apiRequest(`/api/partners/${partnerId}/campaigns`, { method: 'POST', body: JSON.stringify(data) });
+}
