@@ -1101,22 +1101,30 @@ export function toolSchemasFor(toolNames: Set<string>): Array<{
     .map((t) => ({ type: 'function' as const, name: t.name, description: t.description, parameters: t.parameters }));
 }
 
+/**
+ * Thin wrapper over the governance kernel (`os/kernel.ts::runAiAction`).
+ * Signature is unchanged on purpose: both call sites (`orchestrator.ts` and
+ * `POST /api/ai/confirm`) already resolve `ctx`/`allowed` for their own
+ * purposes and must keep working without edits — the kernel re-resolves
+ * identity from the DB itself rather than trusting them, and additionally
+ * records an `AgentActivity` (+ `ActionEvidence`) row for every call,
+ * including denials, which this function never did before.
+ */
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
   ctx: ToolContext,
-  allowed: Set<string>,
+  _allowed: Set<string>,
 ): Promise<ToolResult> {
-  const tool = TOOLS[name];
-  if (!tool) return { ok: false, error: `Инструмент ${name} не существует` };
-  if (!allowed.has(name)) return { ok: false, error: `Инструмент ${name} недоступен для вашей роли` };
-  try {
-    return await tool.execute(args, ctx);
-  } catch (error) {
-    if (error instanceof Error && error.message === 'NO_CLINIC') {
-      return { ok: false, error: 'Нет активной клиники — выберите рабочее пространство' };
-    }
-    console.error(`[AI OS] tool ${name} failed:`, error);
-    return { ok: false, error: 'Ошибка выполнения инструмента' };
-  }
+  const { runAiAction } = await import('./kernel.js');
+  const result = await runAiAction(
+    { surface: 'staff', userId: ctx.userId, requestedClinicId: ctx.clinicId },
+    { tool: name, args },
+  );
+  if (result.status === 'ok') return result.data as ToolResult;
+  if (result.status === 'denied') return { ok: false, error: result.error };
+  return {
+    ok: false,
+    needsConfirmation: { action: result.action, params: result.params, summary: result.summary },
+  };
 }

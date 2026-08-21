@@ -3533,3 +3533,58 @@ model PasswordReset {
   @@index([token])
   @@map("password_resets")
 }
+
+/// Governance kernel (Agentic OS §6/§8/§12): one row per tool invocation the
+/// AI kernel (`ai/os/kernel.ts::runAiAction`) attempts — allowed, denied, or
+/// executed. `actorUserId` deliberately carries no relation to `User`: the
+/// ai-admin surface acts under a synthetic id ('system:ai-admin:<sessionId>')
+/// that has no row in that table, so a hard FK would be wrong for this table.
+model AgentActivity {
+  id             String   @id @default(uuid())
+  traceId        String?
+  surface        String
+  agentId        String?
+  tool           String
+  actorUserId    String
+  actorRole      String
+  clinicId       String?
+  organizationId String?
+  patientId      String?
+  teamKey        String?
+  visibility     String   @default("clinic")
+  sensitivity    String   @default("standard")
+  status         String
+  denyReason     String?
+  argsRedacted   Json?
+  resultSummary  String?
+  durationMs     Int?
+  approvalId     String?
+  createdAt      DateTime @default(now())
+
+  evidence ActionEvidence[]
+
+  @@index([clinicId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([teamKey, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([patientId])
+  @@map("agent_activities")
+}
+
+/// Observable evidence for one `AgentActivity` row — never chain-of-thought,
+/// only what was actually read or written (Agentic OS §6).
+model ActionEvidence {
+  id         String   @id @default(uuid())
+  activityId String
+  sourceType String
+  sourceId   String
+  access     String?
+  clinicId   String?
+  snapshot   Json?
+  createdAt  DateTime @default(now())
+
+  activity AgentActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
+  @@map("action_evidence")
+}
