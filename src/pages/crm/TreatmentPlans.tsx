@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ClipboardList, Plus, Search, ArrowRight, User, Trash2, Pencil, Printer,
+  ClipboardList, Plus, Search, ArrowRight, User, Trash2, Pencil, Printer, Sparkles,
 } from 'lucide-react';
 import { useAuth } from '@/store/auth.store';
 import { useDataQuery } from '@/queries/useDataQuery';
@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
 import { TreatmentPlanEditor } from '@/components/crm/TreatmentPlanEditor';
+import { PresentationPreview } from '@/components/crm/PresentationPreview';
 import { normalizeStages, planTotal } from '@/lib/treatment-plan';
 import { printTreatmentPlan } from '@/lib/treatment-plan-print';
 
@@ -44,6 +45,7 @@ export default function TreatmentPlans() {
   const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
+  const [presentationPlanId, setPresentationPlanId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!clinicId) { setLoading(false); return; }
@@ -314,6 +316,9 @@ export default function TreatmentPlans() {
                           <Button size="sm" variant="secondary" className="min-h-11" onClick={() => handlePrintPlan(p)} icon={<Printer size={14} />}>
                             Печать / PDF
                           </Button>
+                          <Button size="sm" variant="secondary" className="min-h-11" onClick={() => setPresentationPlanId(p.id)} icon={<Sparkles size={14} />}>
+                            Презентация
+                          </Button>
                         </>
                       )}
                       <Button
@@ -366,6 +371,14 @@ export default function TreatmentPlans() {
         plan={editingPlan}
         onSaved={load}
       />
+
+      {presentationPlanId && (
+        <PresentationPreview
+          open={!!presentationPlanId}
+          onClose={() => setPresentationPlanId(null)}
+          planId={presentationPlanId}
+        />
+      )}
     </motion.div>
   );
 }
