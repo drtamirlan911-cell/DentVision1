@@ -1652,6 +1652,16 @@ async function main() {
     `);
   });
 
+  // Mirrors prisma/migrations/20260821_lab_order_status_values/migration.sql.
+  await runOnceMigration('lab_order_status_values', 'LabOrderStatus: sent/try_in/adjustment/ready/remake/delayed', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'sent'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'try_in'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'adjustment'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'ready'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'remake'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'delayed'`);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();

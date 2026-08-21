@@ -83,6 +83,17 @@ enum LabOrderStatus {
   completed
   cancelled
   delivered
+  // Added so the enum matches VALID_STATUSES in lab.routes.ts, which had
+  // accepted these as valid input since the dental-lab workflow (sent to lab,
+  // fabrication, try-in with the patient, adjustment, ready for pickup,
+  // remake, delayed) was written — the DB enum was just never updated to
+  // match, so PATCH /:id/status 500'd on every one of them.
+  sent
+  try_in
+  adjustment
+  ready
+  remake
+  delayed
 }
 
 enum ActionStatus {
