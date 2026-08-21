@@ -10,15 +10,27 @@
  * caller reached the kernel from cannot exceed the tool set that surface owns
  * regardless of what permissions the caller otherwise holds.
  *
- * Fixed 8-step sequence (Agentic OS spec §8):
+ * Fixed 8-step sequence (Agentic OS spec §8), on all three surfaces:
  *   1. surface/tool exists       → NO_TOOL / NOT_ON_SURFACE
  *   2. sanitize args             → strip what a model must never set
- *   3. resolve identity          → resolveAiToolAccess (DB-verified, unchanged)
- *   4. permission check          → NOT_ALLOWED (access.allowed already folds
- *                                   TOOL_PERMISSIONS + permissionsSatisfy in)
+ *   3. resolve identity          → staff: resolveAiToolAccess (DB-verified).
+ *                                   admin/patient: identity is already
+ *                                   verified by the caller before reaching
+ *                                   the kernel (webhook session lookup /
+ *                                   portal session → patientId) — there is no
+ *                                   role/permission model to check for either,
+ *                                   so step 1's surface gate is their full
+ *                                   authorization, exactly as before this stage.
+ *   4. permission check          → staff only; NOT_ALLOWED (access.allowed
+ *                                   already folds TOOL_PERMISSIONS +
+ *                                   permissionsSatisfy in)
  *   5. patient scope             → stub until Stage 6 (AI_PATIENT_SCOPE flag)
- *   6. approval requirement      → HIGH_RISK_TOOLS only (AiApproval table)
- *   7. execute                   → TOOLS[tool].execute(args, ctx)
+ *   6. approval requirement      → HIGH_RISK_TOOLS only (staff tool names,
+ *                                   so this never matches on admin/patient)
+ *   7. execute                   → dispatches to the surface's own registry:
+ *                                   TOOLS (staff) / executePatientTool
+ *                                   (patient) / executeToolCall (admin, the
+ *                                   same function Stage 1 hardened)
  *   8. record activity + evidence → always, including on denial
  */
 
@@ -26,10 +38,20 @@ import prisma from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
 import { resolveAiToolAccess } from './access.js';
-import { TOOLS, type ToolContext, type ToolResult } from './tools.js';
+import { TOOLS, type ToolContext } from './tools.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
-import { SURFACE_TOOLS, HIGH_RISK_TOOLS, sanitizeArgs } from './dataScope.js';
+import { SURFACE_TOOLS, HIGH_RISK_TOOLS, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
+import { executePatientTool } from '../../ai-patient/patientTools.js';
+import { executeToolCall as executeAdminToolCall } from '../../ai-admin/llm/tools/tools.registry.js';
 import type { AiPrincipal, AiInvocation, KernelResult, AiDenyReason } from './kernel.types.js';
+
+/** The three tool registries return different shapes; every surface adapter below normalizes into this one before steps 7-8 look at it. */
+interface ExecResult {
+  ok: boolean;
+  data?: unknown;
+  error?: string;
+  navigate?: string;
+}
 
 const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -67,6 +89,7 @@ async function recordActivity(row: {
   actorRole: string;
   clinicId: string | null;
   organizationId: string | null;
+  patientId?: string | null;
   status: 'ok' | 'tool_error' | 'denied' | 'pending_approval';
   denyReason?: AiDenyReason | null;
   argsRedacted?: Record<string, unknown> | null;
@@ -87,6 +110,7 @@ async function recordActivity(row: {
         actorRole: row.actorRole,
         clinicId: row.clinicId,
         organizationId: row.organizationId,
+        patientId: row.patientId || null,
         visibility: row.clinicId ? 'clinic' : 'platform',
         sensitivity: isPhiTool(row.tool) ? 'phi' : 'standard',
         status: row.status,
@@ -134,10 +158,8 @@ function redactArgs(args: Record<string, unknown>): Record<string, unknown> {
 }
 
 export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<KernelResult> {
-  const tool = TOOLS[inv.tool];
-
   // Step 1 — the tool must exist, and this surface must own it.
-  if (!tool) {
+  if (!toolExistsAnywhere(inv.tool)) {
     const activityId = await recordActivity({
       traceId: inv.traceId,
       surface: p.surface,
@@ -147,6 +169,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       actorRole: p.isGuest ? 'GUEST' : 'unknown',
       clinicId: null,
       organizationId: null,
+      patientId: p.patientId,
       status: 'denied',
       denyReason: 'NO_TOOL',
     });
@@ -162,6 +185,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       actorRole: p.isGuest ? 'GUEST' : 'unknown',
       clinicId: null,
       organizationId: null,
+      patientId: p.patientId,
       status: 'denied',
       denyReason: 'NOT_ON_SURFACE',
     });
@@ -171,30 +195,49 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
   // Step 2 — strip what a model must never set.
   const args = sanitizeArgs(p.surface, inv.args);
 
-  // Step 3 — resolve identity fresh from the DB. `p.requestedClinicId` is a
-  // claim, never used directly below this line.
-  const access = await resolveAiToolAccess({
-    userId: p.userId,
-    clinicId: p.requestedClinicId,
-    isGuest: p.isGuest,
-  });
-  const organizationId = access.clinicId ? await resolveOrganizationIdForClinic(access.clinicId) : null;
+  // Step 3 — resolve identity. Staff: DB-verified role + clinic + permission
+  // via resolveAiToolAccess, exactly as before. Admin/patient: the surface
+  // adapter already verified identity before reaching the kernel (webhook
+  // session lookup / portal session → patientId) — there is no role or
+  // permission model to resolve for either, so `allowedTools` stays null and
+  // step 4 below is skipped, matching their pre-kernel trust boundary exactly.
+  let role: string;
+  let clinicId: string | null;
+  let allowedTools: Set<string> | null = null;
+  if (p.surface === 'staff') {
+    const access = await resolveAiToolAccess({
+      userId: p.userId,
+      clinicId: p.requestedClinicId,
+      isGuest: p.isGuest,
+    });
+    role = access.role;
+    clinicId = access.clinicId;
+    allowedTools = access.allowed;
+  } else if (p.surface === 'patient') {
+    role = 'PATIENT';
+    clinicId = p.requestedClinicId;
+  } else {
+    role = 'SYSTEM';
+    clinicId = p.requestedClinicId;
+  }
+  const organizationId = clinicId ? await resolveOrganizationIdForClinic(clinicId) : null;
 
-  // Step 4 — `access.allowed` already folds the agent registry and
-  // TOOL_PERMISSIONS/permissionsSatisfy together (see access.ts); a second,
-  // independent re-derivation would need the raw permission set access.ts
-  // deliberately keeps internal, so this is the single source of truth for
-  // "may this caller invoke this tool" rather than a duplicate of it.
-  if (!access.allowed.has(inv.tool)) {
+  // Step 4 — staff only. `access.allowed` already folds the agent registry
+  // and TOOL_PERMISSIONS/permissionsSatisfy together (see access.ts); a
+  // second, independent re-derivation would need the raw permission set
+  // access.ts deliberately keeps internal, so this is the single source of
+  // truth for "may this caller invoke this tool" rather than a duplicate of it.
+  if (allowedTools && !allowedTools.has(inv.tool)) {
     const activityId = await recordActivity({
       traceId: inv.traceId,
       surface: p.surface,
       agentId: p.agentId,
       tool: inv.tool,
       actorUserId: p.userId,
-      actorRole: access.role,
-      clinicId: access.clinicId,
+      actorRole: role,
+      clinicId,
       organizationId,
+      patientId: p.patientId,
       status: 'denied',
       denyReason: 'NOT_ALLOWED',
       argsRedacted: redactArgs(args),
@@ -221,7 +264,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         approval &&
         approval.status === 'approved' &&
         approval.tool === inv.tool &&
-        approval.clinicId === access.clinicId;
+        approval.clinicId === clinicId;
       if (!valid) {
         const activityId = await recordActivity({
           traceId: inv.traceId,
@@ -229,9 +272,10 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
           agentId: p.agentId,
           tool: inv.tool,
           actorUserId: p.userId,
-          actorRole: access.role,
-          clinicId: access.clinicId,
+          actorRole: role,
+          clinicId,
           organizationId,
+          patientId: p.patientId,
           status: 'denied',
           denyReason: 'INVALID_APPROVAL',
           argsRedacted: redactArgs(args),
@@ -246,7 +290,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         await prisma.aiApproval.create({
           data: {
             id: approvalId,
-            clinicId: access.clinicId,
+            clinicId,
             organizationId,
             requestedByUserId: p.userId,
             surface: p.surface,
@@ -260,10 +304,10 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
             expiresAt: new Date(Date.now() + APPROVAL_TTL_MS),
           },
         });
-        if (access.clinicId) {
+        if (clinicId) {
           const { createNotificationForClinic } = await import('../../../services/notification.service.js');
           await createNotificationForClinic(
-            access.clinicId,
+            clinicId,
             {
               type: 'ai_approval_requested',
               title: 'Требуется подтверждение действия ИИ',
@@ -282,9 +326,10 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         agentId: p.agentId,
         tool: inv.tool,
         actorUserId: p.userId,
-        actorRole: access.role,
-        clinicId: access.clinicId,
+        actorRole: role,
+        clinicId,
         organizationId,
+        patientId: p.patientId,
         status: 'pending_approval',
         argsRedacted: redactArgs(args),
         resultSummary: summary,
@@ -294,13 +339,32 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     }
   }
 
-  const ctx: ToolContext = { userId: p.userId, clinicId: access.clinicId, role: access.role };
-
-  // Step 7 — execute.
+  // Step 7 — execute, dispatching to the surface's own tool registry. Each
+  // branch normalizes into `ExecResult` before steps 7-8 look at it; only the
+  // staff branch's own `TOOLS[tool].execute` already speaks that shape
+  // natively (it's `ToolResult`, structurally identical).
   const startedAt = Date.now();
-  let toolResult: ToolResult;
+  let toolResult: ExecResult;
   try {
-    toolResult = await tool.execute(args, ctx);
+    if (p.surface === 'staff') {
+      const ctx: ToolContext = { userId: p.userId, clinicId, role };
+      toolResult = await TOOLS[inv.tool].execute(args, ctx);
+    } else if (p.surface === 'patient') {
+      const data = await executePatientTool(inv.tool, args, {
+        userId: p.userId,
+        patientId: p.patientId || '',
+        clinicId,
+      });
+      toolResult = { ok: true, data };
+    } else {
+      // admin: `p.sessionId` is the `AiAdminSession.id` the webhook resolved.
+      // `executeToolCall` is the exact function Stage 1 hardened against a
+      // model-supplied `clinic_id` — reused as-is, not reimplemented here.
+      const session = p.sessionId ? await prisma.aiAdminSession.findUnique({ where: { id: p.sessionId } }) : null;
+      if (!session) throw new Error('NO_CLINIC');
+      const data = await executeAdminToolCall(inv.tool, args, session);
+      toolResult = { ok: true, data };
+    }
   } catch (error) {
     const durationMs = Date.now() - startedAt;
     if (error instanceof Error && error.message === 'NO_CLINIC') {
@@ -310,9 +374,10 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         agentId: p.agentId,
         tool: inv.tool,
         actorUserId: p.userId,
-        actorRole: access.role,
-        clinicId: access.clinicId,
+        actorRole: role,
+        clinicId,
         organizationId,
+        patientId: p.patientId,
         status: 'denied',
         denyReason: 'NO_CLINIC',
         argsRedacted: redactArgs(args),
@@ -327,9 +392,10 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       agentId: p.agentId,
       tool: inv.tool,
       actorUserId: p.userId,
-      actorRole: access.role,
-      clinicId: access.clinicId,
+      actorRole: role,
+      clinicId,
       organizationId,
+      patientId: p.patientId,
       status: 'denied',
       denyReason: 'EXEC_ERROR',
       argsRedacted: redactArgs(args),
@@ -346,9 +412,10 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     agentId: p.agentId,
     tool: inv.tool,
     actorUserId: p.userId,
-    actorRole: access.role,
-    clinicId: access.clinicId,
+    actorRole: role,
+    clinicId,
     organizationId,
+    patientId: p.patientId,
     status: toolResult.ok ? 'ok' : 'tool_error',
     argsRedacted: redactArgs(args),
     resultSummary: toolResult.ok ? undefined : toolResult.error,
@@ -360,7 +427,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       sourceType: 'tool',
       sourceId: inv.tool,
       access: toolResult.ok ? 'verified' : 'rejected',
-      clinicId: access.clinicId,
+      clinicId,
       snapshot: { ok: toolResult.ok, error: toolResult.error, navigate: toolResult.navigate },
     },
   ]);

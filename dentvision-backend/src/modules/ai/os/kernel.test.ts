@@ -18,16 +18,32 @@ const {
   createNotificationForClinic: vi.fn(),
 }));
 
+const { patientExecute, adminExecuteToolCall, aiAdminSessionFindUnique } = vi.hoisted(() => ({
+  patientExecute: vi.fn(),
+  adminExecuteToolCall: vi.fn(),
+  aiAdminSessionFindUnique: vi.fn(),
+}));
+
 vi.mock('../../../lib/prisma.js', () => ({
   default: {
     agentActivity: { create: activityCreate },
     actionEvidence: { createMany: evidenceCreateMany },
     aiApproval: { create: approvalCreate, findUnique: approvalFindUnique },
+    aiAdminSession: { findUnique: aiAdminSessionFindUnique },
   },
 }));
 vi.mock('../../../lib/orgContext.js', () => ({ resolveOrganizationIdForClinic }));
 vi.mock('./access.js', () => ({ resolveAiToolAccess }));
 vi.mock('../../../services/notification.service.js', () => ({ createNotificationForClinic }));
+vi.mock('../../ai-patient/patientTools.js', () => ({
+  executePatientTool: patientExecute,
+  listPatientToolNames: () => ['getMyAppointments', 'cancelMyAppointment'],
+  FORBIDDEN_PARAM_NAMES: ['patientid', 'patient_id', 'patient', 'userid', 'user_id', 'clinicid', 'clinic_id', 'iin', 'phone', 'email'],
+}));
+vi.mock('../../ai-admin/llm/tools/tools.registry.js', () => ({
+  executeToolCall: adminExecuteToolCall,
+  toolsRegistry: [{ name: 'get_available_slots' }, { name: 'book_appointment' }, { name: 'escalate_to_human' }],
+}));
 
 const { okTool, noClinicTool, throwingTool, cancelTool } = vi.hoisted(() => ({
   okTool: vi.fn(async () => ({ ok: true, data: { fine: true } })),
@@ -59,6 +75,9 @@ beforeEach(() => {
   activityCreate.mockResolvedValue({});
   evidenceCreateMany.mockResolvedValue({ count: 1 });
   resolveOrganizationIdForClinic.mockResolvedValue('org-1');
+  patientExecute.mockResolvedValue({ appointments: [] });
+  adminExecuteToolCall.mockResolvedValue({ slots: [] });
+  aiAdminSessionFindUnique.mockResolvedValue({ id: 'session-1', clinicId: 'clinic-1', channel: 'whatsapp' });
   resolveAiToolAccess.mockResolvedValue({
     role: 'DOCTOR',
     clinicId: 'clinic-1',
@@ -225,5 +244,70 @@ describe('runAiAction — high-risk approval gate', () => {
     const result = await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: { confirmed: true } });
     expect(result.status).toBe('ok');
     expect(approvalCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('runAiAction — patient surface', () => {
+  const PATIENT_PRINCIPAL = { surface: 'patient' as const, userId: 'portal-user-1', requestedClinicId: 'clinic-1', patientId: 'patient-1' };
+
+  it('dispatches to executePatientTool with a patient-shaped context, not the staff ToolContext', async () => {
+    const result = await runAiAction(PATIENT_PRINCIPAL, { tool: 'getMyAppointments', args: {} });
+
+    expect(result.status).toBe('ok');
+    expect(patientExecute).toHaveBeenCalledWith(
+      'getMyAppointments',
+      {},
+      { userId: 'portal-user-1', patientId: 'patient-1', clinicId: 'clinic-1' },
+    );
+    // No staff identity/permission resolution for this surface at all.
+    expect(resolveAiToolAccess).not.toHaveBeenCalled();
+    expect(activityCreate.mock.calls[0][0].data).toMatchObject({ actorRole: 'PATIENT', patientId: 'patient-1' });
+  });
+
+  it('refuses a staff-only tool from the patient surface — the surface gate, not a permission check', async () => {
+    const result = await runAiAction(PATIENT_PRINCIPAL, { tool: 'getSchedule', args: {} });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'NOT_ON_SURFACE' });
+    expect(patientExecute).not.toHaveBeenCalled();
+  });
+
+  it('maps a thrown NO_CLINIC from a patient tool the same way as the staff path', async () => {
+    patientExecute.mockRejectedValueOnce(new Error('NO_CLINIC'));
+
+    const result = await runAiAction(PATIENT_PRINCIPAL, { tool: 'cancelMyAppointment', args: { appointmentId: 'a1' } });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'NO_CLINIC' });
+  });
+});
+
+describe('runAiAction — admin surface', () => {
+  const ADMIN_PRINCIPAL = { surface: 'admin' as const, userId: 'system:ai-admin:session-1', requestedClinicId: 'clinic-1', sessionId: 'session-1' };
+
+  it('resolves the AiAdminSession row and reuses executeToolCall as-is (the function Stage 1 hardened)', async () => {
+    const result = await runAiAction(ADMIN_PRINCIPAL, { tool: 'get_available_slots', args: { service_name: 'чистка' } });
+
+    expect(result.status).toBe('ok');
+    expect(aiAdminSessionFindUnique).toHaveBeenCalledWith({ where: { id: 'session-1' } });
+    expect(adminExecuteToolCall).toHaveBeenCalledWith(
+      'get_available_slots',
+      { service_name: 'чистка' },
+      expect.objectContaining({ id: 'session-1' }),
+    );
+    expect(resolveAiToolAccess).not.toHaveBeenCalled();
+  });
+
+  it('denies with NO_CLINIC when the session id does not resolve to a real session', async () => {
+    aiAdminSessionFindUnique.mockResolvedValueOnce(null);
+
+    const result = await runAiAction(ADMIN_PRINCIPAL, { tool: 'book_appointment', args: {} });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'NO_CLINIC' });
+    expect(adminExecuteToolCall).not.toHaveBeenCalled();
+  });
+
+  it('refuses a patient-only tool from the admin surface', async () => {
+    const result = await runAiAction(ADMIN_PRINCIPAL, { tool: 'getMyAppointments', args: {} });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'NOT_ON_SURFACE' });
   });
 });

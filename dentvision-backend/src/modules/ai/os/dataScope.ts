@@ -5,30 +5,36 @@
  * even a caller with every clinic permission in the world must never reach a
  * staff-only tool from the patient surface — the surfaces are different
  * front doors onto different tool registries, not different views of one.
- *
- * Only 'staff' is populated here: `os/tools.ts` is the staff tool registry.
- * 'admin' and 'patient' fill in during Stage 5, when the ai-admin and
- * ai-patient tool surfaces migrate onto this kernel — until then nothing
- * calls `runAiAction` with those surfaces, so an empty set is simply correct
- * (denies everything, which is what "not wired up yet" should do).
+ * Each surface's set is derived from that surface's own registry, so it
+ * cannot silently drift out of sync with what actually exists there.
  */
 
 import { listToolNames } from './tools.js';
-import { FORBIDDEN_PARAM_NAMES } from '../../ai-patient/patientTools.js';
+import { FORBIDDEN_PARAM_NAMES, listPatientToolNames } from '../../ai-patient/patientTools.js';
+import { toolsRegistry as adminToolsRegistry } from '../../ai-admin/llm/tools/tools.registry.js';
 import type { AiSurface } from './kernel.types.js';
 
 export { FORBIDDEN_PARAM_NAMES };
 
 const STAFF_TOOLS = new Set(listToolNames());
+const PATIENT_TOOLS_SET = new Set(listPatientToolNames());
+const ADMIN_TOOLS_SET = new Set(adminToolsRegistry.map((t) => t.name));
 
 export const SURFACE_TOOLS: Record<AiSurface, ReadonlySet<string>> = {
   staff: STAFF_TOOLS,
-  admin: new Set(),
-  patient: new Set(),
+  admin: ADMIN_TOOLS_SET,
+  patient: PATIENT_TOOLS_SET,
 };
+
+const ALL_TOOLS = new Set([...STAFF_TOOLS, ...ADMIN_TOOLS_SET, ...PATIENT_TOOLS_SET]);
 
 export function assertSurfaceTool(surface: AiSurface, tool: string): boolean {
   return SURFACE_TOOLS[surface]?.has(tool) ?? false;
+}
+
+/** Whether a tool exists on *any* surface — distinguishes "no such tool" from "wrong surface". */
+export function toolExistsAnywhere(tool: string): boolean {
+  return ALL_TOOLS.has(tool);
 }
 
 /**
@@ -53,8 +59,8 @@ export const HIGH_RISK_TOOLS: ReadonlySet<string> = new Set(['createInvoice', 'c
  * tool's own `needsConfirmation.params` echo, and stripping it here would
  * mean no mutating tool could ever move past its own proposal stage.
  *
- * On admin/patient (Stage 5) there is no equivalent protected call site yet,
- * so `confirmed` is stripped here, along with any argument name that could
+ * On admin/patient there is no equivalent protected call site upstream, so
+ * `confirmed` is stripped here, along with any argument name that could
  * carry an identity the caller didn't actually verify — clinic id, patient
  * id, contact details.
  */

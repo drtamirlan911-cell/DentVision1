@@ -1,6 +1,7 @@
 import { env } from '../../../config.js'
 import { getRecentMessages, saveMessage } from '../conversation/conversation.manager.js'
-import { toolsRegistry, executeToolCall } from './tools/tools.registry.js'
+import { toolsRegistry } from './tools/tools.registry.js'
+import { runAiAction } from '../../ai/os/kernel.js'
 import type { ClinicContext } from '../context/context.builder.js'
 import type { AiAdminSession } from '@prisma/client'
 
@@ -83,10 +84,13 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
           let args: Record<string, unknown>
           try { args = JSON.parse(toolCall.arguments) } catch { args = {} }
 
-          // `executeToolCall` resolves `clinic_id` from `session.clinicId`
-          // itself and discards anything supplied here — no need (and no
-          // safe way) to stamp it onto `args` at this call site.
-          const toolResult = await executeToolCall(toolName, args, session)
+          // The kernel resolves the session (and therefore clinic_id) from
+          // `session.id` itself — nothing here is trusted from the model.
+          const result = await runAiAction(
+            { surface: 'admin', userId: `system:ai-admin:${session.id}`, requestedClinicId: session.clinicId, sessionId: session.id },
+            { tool: toolName, args },
+          )
+          const toolResult = result.status === 'ok' ? result.data : { error: result.status === 'denied' ? result.error : 'pending' }
 
           if (toolName === 'escalate_to_human') escalated = true
 
