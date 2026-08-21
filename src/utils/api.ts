@@ -3070,27 +3070,35 @@ export async function listWebhookDeliveries(webhookId: string): Promise<WebhookD
 // Clinic-scoped (dentvision-backend/src/modules/workflow/workflow.routes.ts).
 // GET routes need only authentication; POST/PATCH/run require `workflow.manage`
 // (mapped to `settings.manage` — OWNER/ADMIN-tier clinic staff).
-// The step-block union is a closed set defined by workflow.engine.ts, not a
-// free-form graph — see WorkflowStep below.
+// `graph.nodes` and `trigger.event` are closed sets defined by
+// workflow.engine.ts, not a free-form graph — see WorkflowNode below.
 
-export type WorkflowTrigger =
+export type WorkflowTriggerEvent =
   | 'patient.created' | 'patient.deleted'
   | 'appointment.created'
   | 'referral.created' | 'referral.accepted' | 'referral.completed'
   | 'diagnostics.result_ready';
 
-export type WorkflowStep =
-  | { type: 'condition'; field: string; op: string; value: string }
-  | { type: 'audit'; message: string }
+export interface WorkflowTrigger {
+  event: WorkflowTriggerEvent;
+}
+
+export type WorkflowNode =
+  | { type: 'condition'; field: string; op: 'eq' | 'neq' | 'exists' | 'contains'; value: string }
+  | { type: 'audit'; action: string }
   | { type: 'notification'; userId?: string; title: string; message: string }
-  | { type: 'log'; message: string };
+  | { type: 'log' };
+
+export interface WorkflowGraph {
+  nodes: WorkflowNode[];
+}
 
 export interface Workflow {
   id: string;
   name: string;
   trigger: WorkflowTrigger;
-  graph: { steps: WorkflowStep[] };
-  status: 'draft' | 'active' | 'paused';
+  graph: WorkflowGraph;
+  status: 'draft' | 'active';
   createdAt: string;
   updatedAt?: string;
 }
@@ -3099,19 +3107,21 @@ export interface WorkflowRun {
   id: string;
   workflowId: string;
   status: string;
-  steps?: unknown;
-  createdAt: string;
+  triggerData?: unknown;
+  steps?: { type: string; ok: boolean; note?: string }[];
+  startedAt: string;
+  finishedAt: string | null;
 }
 
 export async function listWorkflows(): Promise<Workflow[]> {
   return apiRequest('/api/workflows');
 }
 
-export async function createWorkflow(data: { name: string; trigger: WorkflowTrigger; graph: { steps: WorkflowStep[] }; status?: string }): Promise<Workflow> {
+export async function createWorkflow(data: { name: string; trigger: WorkflowTrigger; graph: WorkflowGraph; status?: 'draft' | 'active' }): Promise<Workflow> {
   return apiRequest('/api/workflows', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function updateWorkflow(id: string, data: Partial<{ name: string; trigger: WorkflowTrigger; graph: { steps: WorkflowStep[] }; status: string }>): Promise<Workflow> {
+export async function updateWorkflow(id: string, data: Partial<{ name: string; trigger: WorkflowTrigger; graph: WorkflowGraph; status: 'draft' | 'active' }>): Promise<Workflow> {
   return apiRequest(`/api/workflows/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
 

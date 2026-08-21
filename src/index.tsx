@@ -70,6 +70,7 @@ const ICD10 = lazyWithRetry(() => import('./pages/crm/ICD10'));
 const Visits = lazyWithRetry(() => import('./pages/crm/Visits'));
 const Documents = lazyWithRetry(() => import('./pages/crm/Documents'));
 const Reminders = lazyWithRetry(() => import('./pages/crm/Reminders'));
+const Workflows = lazyWithRetry(() => import('./pages/crm/Workflows'));
 const DentalChart = lazyWithRetry(() => import('./pages/crm/DentalChart'));
 const TreatmentPlans = lazyWithRetry(() => import('./pages/crm/TreatmentPlans'));
 const ClinicSettings = lazyWithRetry(() => import('./pages/crm/ClinicSettings'));
@@ -181,6 +182,7 @@ if (container) {
                   <Route path="crm/visits" element={guarded('visits', <Visits />)} />
                   <Route path="crm/documents" element={guarded('documents', <Documents />)} />
                   <Route path="crm/reminders" element={guarded('reminders', <Reminders />)} />
+                  <Route path="crm/workflow" element={guarded('workflow', <Workflows />)} />
                   <Route path="crm/dental-chart" element={guarded('dental-chart', <DentalChart />)} />
                   <Route path="crm/treatment-plans" element={guarded('treatment-plans', <TreatmentPlans />)} />
                   <Route path="crm/finance" element={guarded('finance', <Cashier />)} />
