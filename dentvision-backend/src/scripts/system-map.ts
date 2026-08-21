@@ -21,9 +21,9 @@
  * that endpoint is a hidden feature, a webhook or dead code is a human call,
  * and belongs in `docs/SYSTEM_AUDIT.md` next to it.
  *
- * Deliberately a text scan, not a typed AST pass: it has to survive the ten
- * files still under `@ts-nocheck` and must never fail the build. If a pattern
- * stops matching, the count drops visibly rather than the script throwing.
+ * Deliberately a text scan, not a typed AST pass — it must never fail the
+ * build regardless of what the source looks like. If a pattern stops
+ * matching, the count drops visibly rather than the script throwing.
  */
 
 import { readFileSync, readdirSync, writeFileSync, existsSync, type Dirent } from 'node:fs';

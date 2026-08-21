@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Agent } from '../core/agent.router.js';
 import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
@@ -339,8 +338,12 @@ export class AdminAgent implements Agent {
 
     // Find available doctors
     const doctors = await prisma.clinicMember.findMany({
-      where: { clinicId: context.clinicId, role: 'DOCTOR', spec: { contains: specialty, mode: 'insensitive' } },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      where: {
+        clinicId: context.clinicId,
+        role: 'DOCTOR',
+        user: { spec: { contains: specialty, mode: 'insensitive' } },
+      },
+      include: { user: { select: { id: true, firstName: true, lastName: true, spec: true } } },
       take: 5,
     });
 
@@ -361,7 +364,7 @@ export class AdminAgent implements Agent {
           doctors: doctors.map(d => ({
             id: d.user.id,
             name: `${d.user.firstName} ${d.user.lastName}`,
-            spec: d.spec,
+            spec: d.user.spec,
           })),
         },
       },
@@ -385,7 +388,9 @@ export class AdminAgent implements Agent {
         phone: session.data.phone,
         iin: session.data.iin,
         iinHash: hmacIin(session.data.iin),
-        source: session.data.source,
+        // No dedicated column for referral source — folded into notes, same
+        // as everywhere else free-text intake context is kept on Patient.
+        notes: session.data.source ? `Источник: ${session.data.source}` : undefined,
       },
     });
 
@@ -411,11 +416,10 @@ export class AdminAgent implements Agent {
         data: {
           id: uid(),
           userId: doctorId as string,
-          clinicId: context.clinicId,
           type: 'appointment',
           title: 'Новый пациент записан',
           message: `Пациент ${patient.firstName} ${patient.lastName} записан на ${new Date(appointmentDate).toLocaleString('ru-RU')}.\nЖалобы: ${session.data.complaints.join(', ')}\n${session.data.triage?.likelyDiagnosis ? `Предварительный диагноз: ${session.data.triage.likelyDiagnosis}` : ''}`,
-          data: { appointmentId: appointment.id, patientId: patient.id },
+          link: '/crm/schedule',
         },
       });
     } catch { /* non-critical */ }

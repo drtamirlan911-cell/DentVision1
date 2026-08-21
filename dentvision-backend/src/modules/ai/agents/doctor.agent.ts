@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Agent } from '../core/agent.router.js';
 import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
@@ -319,8 +318,8 @@ export class DoctorAgent implements Agent {
     });
     if (!patient) return { message: 'Пациент не найден', intent: 'REFER_DIAGNOSTICS', suggestions: [] };
 
-    const diagnosticCenters = await prisma.clinic.findMany({
-      where: { type: 'diagnostic_center' },
+    const diagnosticCenters = await prisma.diagnosticCenter.findMany({
+      where: { active: true },
       select: { id: true, name: true, city: true },
       take: 10,
     });

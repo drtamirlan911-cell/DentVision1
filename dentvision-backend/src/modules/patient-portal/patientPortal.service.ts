@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * The portal's reads, keyed by a patient id the caller has already proven.
  *

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tool layer — DentVision AI OS.
  *
@@ -11,6 +10,7 @@
  *    as a confirm card (Spec §4.6 action model).
  */
 
+import type { Prisma } from '@prisma/client';
 import prisma from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { isClinicMember } from '../../../lib/orgContext.js';
@@ -616,7 +616,7 @@ export const TOOLS: Record<string, ToolSpec> = {
             teeth: (args.teeth as number[]) || [],
             stages,
             doctorId: ctx.userId,
-          },
+          } as Prisma.InputJsonValue,
           price: (args.totalBudget as number) ?? null,
           notes: (args.diagnosis as string) ?? null,
         },

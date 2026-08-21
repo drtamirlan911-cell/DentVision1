@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * The patient's side of the live-human channel — reading and replying to a
  * thread `askClinicStaff` already opened. There is no "start a live chat"
