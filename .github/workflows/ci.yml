@@ -52,3 +52,84 @@ jobs:
       # larger change. Lower this number as warnings get cleaned up over time.
       - run: npx eslint src/ --max-warnings 70
         working-directory: dentvision-backend
+
+  e2e:
+    runs-on: ubuntu-latest
+    # This suite went from never-run to 165/165 passing (docs/SYSTEM_AUDIT.md,
+    # "E2E-набор был декорацией") only just before this job was added — keep
+    # it here rather than folding it into lint-test, since a flaky/slow E2E
+    # run failing the build shouldn't also block the fast unit-test signal.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dentvision
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dentvision
+      # Sized so a full suite run — hundreds of requests across ~180 tests —
+      # never trips express-rate-limit's in-memory counters and gets 429
+      # instead of the status each test actually means to check. See
+      # docs/SYSTEM_AUDIT.md's note on this: not a problem in CI's fresh
+      # container per run, but the values still have to be raised for the
+      # run to mean anything at all.
+      RATE_LIMIT_API_MAX: '100000'
+      RATE_LIMIT_AUTH_MAX: '100000'
+      JWT_SECRET: e2e-ci-jwt-secret-not-for-production-use-only-000000
+      JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
+      # DOUBLE-005 exercises the real signed Kaspi callback path — without
+      # this it's a no-op skip, not a failure, but a value here is what
+      # makes that test mean something.
+      KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm ci
+        working-directory: dentvision-backend
+      - run: npx prisma generate
+        working-directory: dentvision-backend
+      - run: npx prisma db push --skip-generate --accept-data-loss
+        working-directory: dentvision-backend
+      - run: npm run db:seed:e2e
+        working-directory: dentvision-backend
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Start backend
+        run: nohup npx tsx src/index.ts > /tmp/backend.log 2>&1 &
+        working-directory: dentvision-backend
+      - name: Wait for backend
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3001/api/health && exit 0
+            sleep 2
+          done
+          echo "Backend did not become healthy in time" >&2
+          exit 1
+      # browser-e2e.spec.ts needs a served frontend and its own credential
+      # fixture — a separate, larger piece of infrastructure this job does
+      # not stand up (docs/SYSTEM_AUDIT.md has the details). Every other
+      # spec here is API-level against the backend this job just started.
+      - name: Run E2E suite (excluding the browser-driven spec)
+        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e)
+      - name: Backend log (on failure)
+        if: failure()
+        run: cat /tmp/backend.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
