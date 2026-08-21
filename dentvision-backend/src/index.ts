@@ -7,6 +7,7 @@ import { getEventOrchestrator } from './modules/ai/os/index.js';
 import { startReminderCronInterval } from './jobs/reminderCron.js';
 import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
 import { startSettlementCronInterval } from './jobs/settlementCron.js';
+import { startBiSnapshotCronInterval } from './jobs/biSnapshotCron.js';
 import { startOnCallInterval } from './jobs/patientConversationOnCall.js';
 import { startMessageWorker } from './modules/ai-admin/index.js';
 import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.js';
@@ -1684,6 +1685,8 @@ async function main() {
       // Monthly platform-commission settlements (hourly interval; monthly work is
       // guarded by referral linking, so most runs are cheap no-ops).
       startSettlementCronInterval(60 * 60 * 1000);
+      // Persists today's SaaSMetrics/CustomerMetrics/BISnapshot once a day.
+      startBiSnapshotCronInterval(24 * 60 * 60 * 1000);
       // Re-notifies OWNER/ADMIN when an escalated patient thread sits
       // unclaimed — checked every 5 min, re-notifies past a 15 min silence.
       startOnCallInterval();
