@@ -1721,6 +1721,8 @@ export async function requestPortalAppointment(input: {
   doctorId?: string | null;
   serviceName?: string | null;
   notes?: string | null;
+  /** Set when filed from the presentation screen — the concierge funnel's tracked conversion. */
+  releaseId?: string | null;
 }): Promise<any> {
   return apiRequest('/api/patient-portal/appointments/request', {
     method: 'POST',
@@ -1731,6 +1733,33 @@ export async function requestPortalAppointment(input: {
 export async function getPresentationScript(releaseId: string, locale?: string): Promise<any> {
   const qs = locale ? `?locale=${encodeURIComponent(locale)}` : '';
   return apiRequest(`/api/patient-portal/presentation/${releaseId}${qs}`);
+}
+
+/**
+ * The funnel's two touchpoints on the patient's side: opened it, watched it
+ * through. Fire-and-forget by design — a failed tracking call must never
+ * interrupt the presentation itself, so callers should not await this on
+ * the critical path or surface its errors.
+ */
+export async function trackPresentationMilestone(
+  releaseId: string,
+  event: 'viewed' | 'finished',
+): Promise<void> {
+  await apiRequest(`/api/patient-portal/presentation/${releaseId}/track`, {
+    method: 'POST',
+    body: JSON.stringify({ event }),
+  });
+}
+
+export interface PresentationFunnelStage {
+  stage: 'approved' | 'published' | 'viewed' | 'finished' | 'requested';
+  label: string;
+  count: number;
+}
+
+/** How many of this clinic's approved releases made it through each step of the concierge funnel. */
+export async function getPresentationFunnel(): Promise<PresentationFunnelStage[]> {
+  return apiRequest('/api/crm/presentation-funnel');
 }
 
 // ─── AI Threads ───

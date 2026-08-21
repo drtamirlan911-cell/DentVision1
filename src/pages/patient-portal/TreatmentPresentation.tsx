@@ -150,6 +150,23 @@ export default function TreatmentPresentation() {
   const playing = state?.status === 'playing'
   const finished = state?.status === 'finished'
 
+  // The funnel's two touchpoints: opened it, watched it through. Both are
+  // fire-and-forget and first-touch only — the backend itself is idempotent
+  // (`recordPresentationMilestone`), but tracking here as well avoids firing
+  // the request on every re-render.
+  const trackedViewed = useRef(false)
+  const trackedFinished = useRef(false)
+  useEffect(() => {
+    if (!releaseId || !script || trackedViewed.current) return
+    trackedViewed.current = true
+    void api.trackPresentationMilestone(releaseId, 'viewed').catch(() => {})
+  }, [releaseId, script])
+  useEffect(() => {
+    if (!releaseId || !finished || trackedFinished.current) return
+    trackedFinished.current = true
+    void api.trackPresentationMilestone(releaseId, 'finished').catch(() => {})
+  }, [releaseId, finished])
+
   const expiry = useMemo(() => formatDate(release?.expiresAt), [release?.expiresAt])
 
   if (isLoading) {
@@ -342,6 +359,7 @@ export default function TreatmentPresentation() {
           {atNextStep && (
             <NextStepActions
               serviceName={(snapshot as { title?: string } | null)?.title ?? null}
+              releaseId={releaseId}
             />
           )}
         </div>

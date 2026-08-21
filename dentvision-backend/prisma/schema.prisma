@@ -287,12 +287,19 @@ model Booking {
   status      BookingStatus @default(pending)
   source      String        @default("online")
 
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  /// Set when this request was filed from a patient's presentation screen —
+  /// the concierge funnel's last, and so far only, tracked conversion.
+  /// Optional: the public widget and every other booking path leave it null.
+  releaseId String?
+
+  clinic  Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  release TreatmentPlanRelease? @relation(fields: [releaseId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId, status, date])
+  @@index([releaseId])
   @@map("bookings")
 }
 
@@ -684,12 +691,21 @@ model TreatmentPlanRelease {
   withdrawnByUserId String?
   withdrawReason    String?
 
+  /// The concierge funnel, Phase 6: first-touch timestamps for whether the
+  /// patient actually opened and finished their presentation. Kept here,
+  /// not on `PatientPresentation`, because a patient may watch the plain
+  /// deterministic script with no `PatientPresentation` row ever existing —
+  /// the release is the one anchor that is always there to record against.
+  firstViewedAt DateTime?
+  finishedAt    DateTime?
+
   plan       TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   clinic     Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient    Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
   approvedBy User          @relation("PlanReleaseApprover", fields: [approvedByUserId], references: [id])
 
   presentations PatientPresentation[]
+  bookings      Booking[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt

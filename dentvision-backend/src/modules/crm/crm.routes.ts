@@ -404,6 +404,25 @@ crmRouter.post(
   },
 );
 
+/**
+ * The concierge funnel (Phase 6): how many of this clinic's approved
+ * releases made it through each step, ending in a request actually filed
+ * from the presentation screen.
+ */
+crmRouter.get('/presentation-funnel', requirePermission('patient.read'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    }
+    const stages = await planRelease.getPresentationFunnel(clinicId);
+    return res.json({ ok: true, data: stages } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[CRM] Presentation funnel error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить воронку' } satisfies ApiResponse);
+  }
+});
+
 /** Version history for one plan, superseded and withdrawn versions included. */
 crmRouter.get('/treatment-plans/:id/releases', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {

@@ -10,6 +10,7 @@ const {
   bookingFindFirst,
   bookingCreate,
   patientFindUnique,
+  releaseFindFirst,
 } = vi.hoisted(() => ({
   clinicFindUnique: vi.fn(),
   clinicMemberCount: vi.fn(),
@@ -20,6 +21,7 @@ const {
   bookingFindFirst: vi.fn(),
   bookingCreate: vi.fn(),
   patientFindUnique: vi.fn(),
+  releaseFindFirst: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
@@ -29,6 +31,11 @@ vi.mock('../../lib/prisma.js', () => ({
     appointment: { findMany: appointmentFindMany, findFirst: appointmentFindFirst },
     booking: { findMany: bookingFindMany, findFirst: bookingFindFirst, create: bookingCreate },
     patient: { findUnique: patientFindUnique },
+    // `requestAppointment` verifies a `releaseId` through
+    // `planRelease.service.js::getPublishedRelease`, which is itself a thin
+    // wrapper over this same call — mocked at that level rather than mocking
+    // the whole module, so the real fail-closed logic still runs.
+    treatmentPlanRelease: { findFirst: releaseFindFirst },
   },
 }));
 
@@ -145,6 +152,52 @@ describe('requestAppointment', () => {
 
     await expect(requestAppointment({ ...baseInput, doctorId: 'ghost' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(bookingCreate).not.toHaveBeenCalled();
+  });
+
+  it('stamps the booking with releaseId once confirmed to be this patient\'s own published release — the funnel conversion', async () => {
+    patientFindUnique.mockResolvedValueOnce({ firstName: 'А', lastName: 'Б', phone: '+7', email: null });
+    clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
+    appointmentFindFirst.mockResolvedValueOnce(null);
+    bookingFindFirst.mockResolvedValueOnce(null);
+    releaseFindFirst.mockResolvedValueOnce({ id: 'rel-1' });
+    bookingCreate.mockResolvedValueOnce({ id: 'b1', time: '09:30', status: 'pending' });
+
+    await requestAppointment({ ...baseInput, releaseId: 'rel-1' });
+
+    expect(releaseFindFirst.mock.calls[0][0].where.patientId).toBe('patient-1');
+    expect(bookingCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ releaseId: 'rel-1' }) }),
+    );
+  });
+
+  it('drops a releaseId that does not belong to this patient rather than failing the booking', async () => {
+    patientFindUnique.mockResolvedValueOnce({ firstName: 'А', lastName: 'Б', phone: '+7', email: null });
+    clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
+    appointmentFindFirst.mockResolvedValueOnce(null);
+    bookingFindFirst.mockResolvedValueOnce(null);
+    releaseFindFirst.mockResolvedValueOnce(null); // not this patient's release
+    bookingCreate.mockResolvedValueOnce({ id: 'b1', time: '09:30', status: 'pending' });
+
+    await requestAppointment({ ...baseInput, releaseId: 'someone-elses-release' });
+
+    expect(bookingCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ releaseId: null }) }),
+    );
+  });
+
+  it('leaves releaseId null when none was given, same as every non-presentation booking path', async () => {
+    patientFindUnique.mockResolvedValueOnce({ firstName: 'А', lastName: 'Б', phone: '+7', email: null });
+    clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC);
+    appointmentFindFirst.mockResolvedValueOnce(null);
+    bookingFindFirst.mockResolvedValueOnce(null);
+    bookingCreate.mockResolvedValueOnce({ id: 'b1', time: '09:30', status: 'pending' });
+
+    await requestAppointment(baseInput);
+
+    expect(releaseFindFirst).not.toHaveBeenCalled();
+    expect(bookingCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ releaseId: null }) }),
+    );
   });
 });
 

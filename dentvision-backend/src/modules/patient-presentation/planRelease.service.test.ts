@@ -1,15 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { planFindUnique, releaseCreate, releaseUpdateMany, releaseFindFirst, releaseFindUnique, releaseFindMany, transaction } =
-  vi.hoisted(() => ({
-    planFindUnique: vi.fn(),
-    releaseCreate: vi.fn(),
-    releaseUpdateMany: vi.fn(),
-    releaseFindFirst: vi.fn(),
-    releaseFindUnique: vi.fn(),
-    releaseFindMany: vi.fn(),
-    transaction: vi.fn(),
-  }));
+const {
+  planFindUnique,
+  releaseCreate,
+  releaseUpdateMany,
+  releaseFindFirst,
+  releaseFindUnique,
+  releaseFindMany,
+  releaseCount,
+  bookingCount,
+  transaction,
+} = vi.hoisted(() => ({
+  planFindUnique: vi.fn(),
+  releaseCreate: vi.fn(),
+  releaseUpdateMany: vi.fn(),
+  releaseFindFirst: vi.fn(),
+  releaseFindUnique: vi.fn(),
+  releaseFindMany: vi.fn(),
+  releaseCount: vi.fn(),
+  bookingCount: vi.fn(),
+  transaction: vi.fn(),
+}));
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
@@ -20,7 +31,9 @@ vi.mock('../../lib/prisma.js', () => ({
       findFirst: releaseFindFirst,
       findUnique: releaseFindUnique,
       findMany: releaseFindMany,
+      count: releaseCount,
     },
+    booking: { count: bookingCount },
     $transaction: transaction,
   },
 }));
@@ -29,10 +42,12 @@ import {
   PlanReleaseError,
   approveAndRelease,
   freezePlan,
+  getPresentationFunnel,
   getPublishedRelease,
   hashSnapshot,
   listPublishedReleases,
   publishRelease,
+  recordPresentationMilestone,
   withdrawRelease,
 } from './planRelease.service.js';
 
@@ -240,5 +255,56 @@ describe('the patient-facing reads are fail-closed', () => {
     const where = releaseFindMany.mock.calls[0][0].where;
     expect(where.status).toBe('approved');
     expect(where.publishedAt).toBeTruthy();
+  });
+});
+
+describe('recordPresentationMilestone', () => {
+  it('records a milestone only after confirming the release is this patient\'s own', async () => {
+    releaseFindFirst.mockResolvedValue({ id: 'rel-1' });
+    await recordPresentationMilestone('pat-1', 'rel-1', 'viewed');
+    expect(releaseFindFirst.mock.calls[0][0].where.patientId).toBe('pat-1');
+    expect(releaseUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'rel-1', firstViewedAt: null },
+      data: { firstViewedAt: expect.any(Date) },
+    });
+  });
+
+  it('writes to finishedAt for the finished milestone', async () => {
+    releaseFindFirst.mockResolvedValue({ id: 'rel-1' });
+    await recordPresentationMilestone('pat-1', 'rel-1', 'finished');
+    expect(releaseUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'rel-1', finishedAt: null },
+      data: { finishedAt: expect.any(Date) },
+    });
+  });
+
+  it('records nothing when the release does not belong to this patient', async () => {
+    releaseFindFirst.mockResolvedValue(null);
+    await recordPresentationMilestone('pat-1', 'not-mine', 'viewed');
+    expect(releaseUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('getPresentationFunnel', () => {
+  it('reports every stage scoped to the clinic', async () => {
+    releaseCount.mockResolvedValueOnce(10) // approved
+      .mockResolvedValueOnce(8) // published
+      .mockResolvedValueOnce(6) // viewed
+      .mockResolvedValueOnce(4); // finished
+    bookingCount.mockResolvedValue(2); // requested
+
+    const stages = await getPresentationFunnel('clinic-1');
+
+    expect(stages).toEqual([
+      { stage: 'approved', label: expect.any(String), count: 10 },
+      { stage: 'published', label: expect.any(String), count: 8 },
+      { stage: 'viewed', label: expect.any(String), count: 6 },
+      { stage: 'finished', label: expect.any(String), count: 4 },
+      { stage: 'requested', label: expect.any(String), count: 2 },
+    ]);
+    for (const call of releaseCount.mock.calls) {
+      expect(call[0].where.clinicId).toBe('clinic-1');
+    }
+    expect(bookingCount).toHaveBeenCalledWith({ where: { clinicId: 'clinic-1', releaseId: { not: null } } });
   });
 });

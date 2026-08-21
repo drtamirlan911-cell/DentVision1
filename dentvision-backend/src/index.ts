@@ -1709,6 +1709,24 @@ async function main() {
     `);
   });
 
+  // Concierge Phase 6: the funnel — whether a patient opened/finished their
+  // presentation, and whether the request they filed came from it.
+  // Mirrors prisma/migrations/20260821_presentation_funnel/migration.sql.
+  await runOnceMigration('presentation_funnel', 'Presentation funnel tracking', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "treatment_plan_releases" ADD COLUMN IF NOT EXISTS "firstViewedAt" TIMESTAMP(3)`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "treatment_plan_releases" ADD COLUMN IF NOT EXISTS "finishedAt" TIMESTAMP(3)`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "bookings" ADD COLUMN IF NOT EXISTS "releaseId" TEXT`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "bookings_releaseId_idx" ON "bookings"("releaseId")`);
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'bookings_releaseId_fkey') THEN
+          ALTER TABLE "bookings" ADD CONSTRAINT "bookings_releaseId_fkey" FOREIGN KEY ("releaseId") REFERENCES "treatment_plan_releases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();

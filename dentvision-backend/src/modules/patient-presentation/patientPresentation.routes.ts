@@ -18,7 +18,12 @@ import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { resolvePatientForUser } from '../patient-portal/patientLink.js';
 import { PRESENTATION_LOCALES, type PresentationLocale, type PresentationScript } from './beats.js';
-import { getPublishedRelease, listPublishedReleases } from './planRelease.service.js';
+import {
+  getPublishedRelease,
+  listPublishedReleases,
+  recordPresentationMilestone,
+  type PresentationMilestone,
+} from './planRelease.service.js';
 import { buildScriptForRelease } from './releaseScript.js';
 import { resolveVoiceLines, voiceConfigured } from './voice.service.js';
 
@@ -171,5 +176,31 @@ patientPresentationRouter.get('/:releaseId/voice', async (req: AuthRequest, res)
     console.error('[Presentation] voice error:', error);
     // Even here the patient gets a playable answer rather than a failure.
     return res.json({ ok: true, data: { configured: false, lines: [] } } satisfies ApiResponse);
+  }
+});
+
+/**
+ * The funnel's two touchpoints on the patient's side: opened it, watched it
+ * through. `recordPresentationMilestone` already re-checks that this release
+ * is really this patient's own published release, so a bad or someone
+ * else's `releaseId` here quietly records nothing rather than 404ing — a
+ * tracking call is not worth surfacing an error for.
+ */
+patientPresentationRouter.post('/:releaseId/track', async (req: AuthRequest, res) => {
+  try {
+    const patientId = await requirePatient(req, res);
+    if (!patientId) return;
+
+    const milestone = String((req.body || {}).event ?? '');
+    if (milestone !== 'viewed' && milestone !== 'finished') {
+      return res.status(400).json({ ok: false, error: 'Неизвестное событие' } satisfies ApiResponse);
+    }
+
+    await recordPresentationMilestone(patientId, String(req.params.releaseId), milestone as PresentationMilestone);
+    return res.json({ ok: true, data: null } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[Presentation] track error:', error);
+    // Tracking is best-effort — the patient's experience never depends on it.
+    return res.json({ ok: true, data: null } satisfies ApiResponse);
   }
 });
