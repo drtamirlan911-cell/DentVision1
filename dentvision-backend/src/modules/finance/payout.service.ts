@@ -38,6 +38,7 @@ import type { Prisma, WalletOwnerType } from '@prisma/client';
 
 import prisma from '../../lib/prisma.js';
 import { getOrCreateWallet } from './finance.service.js';
+import { uid } from '../../lib/helpers.js';
 
 export const PAYOUT_STATUSES = ['requested', 'approved', 'paid', 'rejected'] as const;
 export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
@@ -58,6 +59,64 @@ export const PAYOUT_TRANSITIONS: Record<PayoutStatus, readonly PayoutStatus[]> =
 
 /** Statuses that still lay claim to the money. */
 export const PENDING_PAYOUT_STATUSES: readonly PayoutStatus[] = ['requested', 'approved'];
+
+const PAYOUT_STATUS_TITLE: Record<PayoutStatus, string> = {
+  requested: 'Заявка на выплату подана',
+  approved: 'Заявка на выплату одобрена',
+  paid: 'Выплата произведена',
+  rejected: 'Заявка на выплату отклонена',
+};
+
+function payoutStatusMessage(status: PayoutStatus, amountMinor: bigint, currency: string): string {
+  const amount = `${(Number(amountMinor) / 100).toLocaleString('ru-RU')} ${currency}`;
+  switch (status) {
+    case 'approved': return `Ваша заявка на выплату ${amount} одобрена и ожидает перечисления.`;
+    case 'paid': return `Выплата ${amount} произведена.`;
+    case 'rejected': return `Ваша заявка на выплату ${amount} отклонена.`;
+    default: return amount;
+  }
+}
+
+/**
+ * Who filed this payout, as a user id to notify — the wallet only records
+ * `ownerType`/`ownerId`, which is a Lecturer or Supplier id, not a user.
+ * Lecturers have exactly one linked user; a supplier can have several
+ * members, so all of them are notified.
+ */
+async function resolvePayoutRequesterUserIds(
+  ownerType: WalletOwnerType,
+  ownerId: string,
+  db: Db,
+): Promise<string[]> {
+  if (ownerType === 'LECTURER') {
+    const lecturer = await db.lecturer.findUnique({ where: { id: ownerId }, select: { userId: true } });
+    return lecturer ? [lecturer.userId] : [];
+  }
+  if (ownerType === 'SUPPLIER') {
+    const members = await db.supplierMember.findMany({ where: { supplierId: ownerId }, select: { userId: true } });
+    return members.map((m) => m.userId);
+  }
+  return [];
+}
+
+/** Tell the person who asked for the money what happened to their request. */
+async function notifyPayoutRequester(
+  payout: { id: string; amount: bigint; status: PayoutStatus },
+  wallet: { ownerType: WalletOwnerType; ownerId: string; currency: string },
+  db: Db,
+): Promise<void> {
+  const userIds = await resolvePayoutRequesterUserIds(wallet.ownerType, wallet.ownerId, db);
+  if (userIds.length === 0) return;
+  const title = PAYOUT_STATUS_TITLE[payout.status];
+  const message = payoutStatusMessage(payout.status, payout.amount, wallet.currency);
+  await Promise.all(
+    userIds.map((userId) =>
+      db.notification.create({
+        data: { id: uid(), userId, type: 'payout', title, message },
+      }),
+    ),
+  );
+}
 
 export class PayoutError extends Error {
   constructor(
@@ -216,6 +275,14 @@ export async function transitionPayout(
       });
     }
 
-    return tx.payout.update({ where: { id: payoutId }, data: { status: next } });
+    const updated = await tx.payout.update({ where: { id: payoutId }, data: { status: next } });
+    // Amount comes from the row fetched before the update, not from what
+    // `.update()` returns — that call's `data` only carries `{ status }`.
+    await notifyPayoutRequester(
+      { id: payout.id, amount: payout.amount, status: next },
+      { ownerType: payout.wallet.ownerType, ownerId: payout.wallet.ownerId, currency: payout.wallet.currency },
+      tx,
+    );
+    return updated;
   });
 }

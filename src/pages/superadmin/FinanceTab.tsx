@@ -9,7 +9,7 @@ import { AreaChartComponent, DonutChartComponent } from '../../components/charts
 import * as api from '../../utils/api';
 import {
   DollarSign, Wallet, ArrowUpDown, AlertTriangle, Check, X, Search, Plus,
-  RefreshCw, Shield, Activity, TrendingUp, CreditCard, Eye,
+  RefreshCw, Shield, Activity, TrendingUp, CreditCard, Eye, Send,
 } from 'lucide-react';
 
 const fd = (d: string) => {
@@ -80,16 +80,47 @@ const DISPUTE_STATUS_LABEL: Record<string, string> = {
   REJECTED: 'Отклонён',
 };
 
-type SubTab = 'overview' | 'transactions' | 'wallets' | 'commissions' | 'disputes' | 'ledger';
+type SubTab = 'overview' | 'transactions' | 'wallets' | 'commissions' | 'payouts' | 'disputes' | 'ledger';
 
 const SUB_TABS: { id: SubTab; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: 'Обзор', icon: <Activity size={14} /> },
   { id: 'transactions', label: 'Транзакции', icon: <ArrowUpDown size={14} /> },
   { id: 'wallets', label: 'Кошельки', icon: <Wallet size={14} /> },
   { id: 'commissions', label: 'Комиссии', icon: <TrendingUp size={14} /> },
+  { id: 'payouts', label: 'Выплаты', icon: <Send size={14} /> },
   { id: 'disputes', label: 'Споры', icon: <AlertTriangle size={14} /> },
   { id: 'ledger', label: 'Леджер', icon: <Shield size={14} /> },
 ];
+
+const PAYOUT_STATUS_OPTIONS = [
+  { value: 'requested', label: 'Заявлено' },
+  { value: 'approved', label: 'Одобрено' },
+  { value: 'paid', label: 'Выплачено' },
+  { value: 'rejected', label: 'Отклонено' },
+];
+
+const PAYOUT_STATUS_BADGE: Record<string, 'success' | 'error' | 'warning' | 'info'> = {
+  requested: 'warning',
+  approved: 'info',
+  paid: 'success',
+  rejected: 'error',
+};
+
+const PAYOUT_STATUS_LABEL: Record<string, string> = {
+  requested: 'Заявлено',
+  approved: 'Одобрено',
+  paid: 'Выплачено',
+  rejected: 'Отклонено',
+};
+
+const PAYOUT_OWNER_LABEL: Record<string, string> = {
+  LECTURER: 'Лектор',
+  SUPPLIER: 'Поставщик',
+  CLINIC: 'Клиника',
+  PARTNER: 'Партнёр',
+  PLATFORM: 'Платформа',
+  GATEWAY: 'Шлюз',
+};
 
 const WALLET_ICONS: Record<string, typeof DollarSign> = {
   platform: DollarSign,
@@ -117,6 +148,7 @@ export default function FinanceTab() {
   const [commForm, setCommForm] = useState({ name: '', percent: '', targetType: 'PLATFORM', description: '' });
 
   const [disputeDetail, setDisputeDetail] = useState<any>(null);
+  const [payoutStatusFilter, setPayoutStatusFilter] = useState('requested');
 
   const report = useQuery({ queryKey: ['finance', 'report'], queryFn: () => api.getFinanceReport(), staleTime: 30_000 });
 
@@ -148,6 +180,12 @@ export default function FinanceTab() {
   const disputes = useQuery({
     queryKey: ['finance', 'disputes'],
     queryFn: () => apiFetch('/api/disputes'),
+    staleTime: 10_000,
+  });
+
+  const payouts = useQuery({
+    queryKey: ['finance', 'payouts', payoutStatusFilter],
+    queryFn: () => apiFetch('/api/finance/payouts?status=' + payoutStatusFilter),
     staleTime: 10_000,
   });
 
@@ -202,6 +240,16 @@ export default function FinanceTab() {
     onError: (e: any) => toast.error(e.message || 'Ошибка'),
   });
 
+  const updatePayout = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => apiFetch(`/api/finance/payouts/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['finance', 'payouts'] });
+      qc.invalidateQueries({ queryKey: ['finance', 'wallets'] });
+      toast.success('Статус заявки обновлён');
+    },
+    onError: (e: any) => toast.error(e.message || 'Ошибка'),
+  });
+
   const API_URL: string = (import.meta as any).env?.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
 
   async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
@@ -226,6 +274,8 @@ export default function FinanceTab() {
   const commList: any[] = Array.isArray(commRaw) ? commRaw : (commRaw?.data || []);
   const disputeRaw: any = disputes.data;
   const disputeList: any[] = Array.isArray(disputeRaw) ? disputeRaw : (disputeRaw?.data || []);
+  const payoutRaw: any = payouts.data;
+  const payoutList: any[] = Array.isArray(payoutRaw) ? payoutRaw : (payoutRaw?.data || []);
   const ledgerData: any = ledgerHealth.data || {};
 
   const totalTransactions = reportData.totalTransactions ?? txTotal;
@@ -582,6 +632,85 @@ export default function FinanceTab() {
                                   <Check size={14} />
                                 </Button>
                                 <Button size="icon-sm" variant="danger" onClick={() => updateDispute.mutate({ id: d.id, status: 'REJECTED' })} title="Отклонить" loading={updateDispute.isPending}>
+                                  <X size={14} />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {subTab === 'payouts' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Select
+              options={PAYOUT_STATUS_OPTIONS}
+              value={payoutStatusFilter}
+              onChange={(e) => setPayoutStatusFilter(e.target.value)}
+              className="max-w-xs"
+            />
+            <Button size="icon-sm" variant="ghost" onClick={() => payouts.refetch()} title="Обновить">
+              <RefreshCw size={14} />
+            </Button>
+          </div>
+          {payouts.isLoading ? (
+            <Skeleton className="h-64 rounded-xl" />
+          ) : payoutList.length === 0 ? (
+            <EmptyState icon={<Send size={40} />} title="Заявок нет" description="Заявки на выплату от лекторов и поставщиков появятся здесь" />
+          ) : (
+            <Card padding="none">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b border-bdr-subtle">
+                      {['ID', 'Владелец', 'Сумма', 'Статус', 'Дата', 'Действия'].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payoutList.map((p: any) => (
+                      <tr key={p.id} className="border-b border-bdr-subtle/50 hover:bg-white/[0.02] transition-colors">
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-txt-muted font-mono">{(p.id || '').slice(0, 8)}...</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-semibold text-txt-primary">{PAYOUT_OWNER_LABEL[p.wallet?.ownerType] || p.wallet?.ownerType || '—'}</div>
+                          <div className="text-xs text-txt-muted mt-0.5 font-mono">{p.wallet?.ownerId || '—'}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">{fmtKzt(Number(p.amount || 0) / 100)}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant={PAYOUT_STATUS_BADGE[p.status] || 'default'} size="sm" dot>
+                            {PAYOUT_STATUS_LABEL[p.status] || p.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-txt-muted">{fd(p.createdAt)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1">
+                            {p.status === 'requested' && (
+                              <>
+                                <Button size="icon-sm" variant="success" onClick={() => updatePayout.mutate({ id: p.id, status: 'approved' })} title="Одобрить" loading={updatePayout.isPending}>
+                                  <Check size={14} />
+                                </Button>
+                                <Button size="icon-sm" variant="danger" onClick={() => updatePayout.mutate({ id: p.id, status: 'rejected' })} title="Отклонить" loading={updatePayout.isPending}>
+                                  <X size={14} />
+                                </Button>
+                              </>
+                            )}
+                            {p.status === 'approved' && (
+                              <>
+                                <Button size="icon-sm" variant="success" onClick={() => updatePayout.mutate({ id: p.id, status: 'paid' })} title="Отметить выплаченным" loading={updatePayout.isPending}>
+                                  <DollarSign size={14} />
+                                </Button>
+                                <Button size="icon-sm" variant="danger" onClick={() => updatePayout.mutate({ id: p.id, status: 'rejected' })} title="Отклонить" loading={updatePayout.isPending}>
                                   <X size={14} />
                                 </Button>
                               </>
