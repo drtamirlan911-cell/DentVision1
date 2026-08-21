@@ -6,7 +6,7 @@ import {
   Building2, CheckCircle, Ban, AlertTriangle, Users, Banknote, Pencil,
   KeyRound, Trash2, Plus, Shield, UserPlus, Eye, EyeOff, Copy, RefreshCw,
   Search, LifeBuoy, Headphones, UserCheck, Activity, ShoppingCart, GraduationCap,
-  Brain, DollarSign, Microscope, BarChart3, Accessibility, Handshake,
+  Brain, DollarSign, Microscope, BarChart3, Accessibility, Handshake, Gauge,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast';
 import { Button } from '../components/ui/ds/Button';
@@ -31,6 +31,7 @@ const BITab = lazy(() => import('./superadmin/BITab'));
 const OpsTab = lazy(() => import('./superadmin/OpsTab'));
 const QualityCenterTab = lazy(() => import('./superadmin/QualityCenterTab'));
 const PartnersTab = lazy(() => import('./superadmin/PartnersTab'));
+const DataIntelligenceTab = lazy(() => import('./superadmin/DataIntelligenceTab'));
 import OrganizationsPage from './admin/OrganizationsPage';
 import PersonsPage from './admin/PersonsPage';
 
@@ -46,7 +47,7 @@ const PLAN_BADGE: Record<string, string> = {
   enterprise: 'bg-[#9b5de5]/10 text-[#9b5de5] border-[#9b5de5]/20',
 };
 
-type Tab = 'dashboard' | 'clinics' | 'users' | 'diagnostics' | 'marketplace' | 'academy' | 'ai-governance' | 'platform-finance' | 'bi' | 'ops' | 'support' | 'quality' | 'organizations' | 'persons' | 'partners';
+type Tab = 'dashboard' | 'clinics' | 'users' | 'diagnostics' | 'marketplace' | 'academy' | 'ai-governance' | 'platform-finance' | 'bi' | 'data-intelligence' | 'ops' | 'support' | 'quality' | 'organizations' | 'persons' | 'partners';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <Activity size={16} /> },
@@ -59,6 +60,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'ai-governance', label: 'AI Governance', icon: <Brain size={16} /> },
   { id: 'platform-finance', label: 'Финансы', icon: <DollarSign size={16} /> },
   { id: 'bi', label: 'BI Аналитика', icon: <BarChart3 size={16} /> },
+  { id: 'data-intelligence', label: 'Data Intelligence', icon: <Gauge size={16} /> },
   { id: 'ops', label: 'Ops Center', icon: <Shield size={16} /> },
   { id: 'support', label: 'Поддержка', icon: <LifeBuoy size={16} /> },
   { id: 'quality', label: 'Quality', icon: <Accessibility size={16} /> },
@@ -71,7 +73,7 @@ const TAB_GROUPS: { id: string; label: string; tabs: Tab[] }[] = [
   { id: 'overview', label: 'Обзор', tabs: ['dashboard'] },
   { id: 'clients', label: 'Клиенты', tabs: ['clinics', 'users', 'support', 'organizations', 'persons'] },
   { id: 'ecosystem', label: 'Экосистема', tabs: ['marketplace', 'academy', 'diagnostics', 'partners'] },
-  { id: 'finance', label: 'Финансы и BI', tabs: ['platform-finance', 'bi'] },
+  { id: 'finance', label: 'Финансы и BI', tabs: ['platform-finance', 'bi', 'data-intelligence'] },
   { id: 'control', label: 'Контроль', tabs: ['ai-governance', 'ops', 'quality'] },
 ];
 
@@ -211,6 +213,7 @@ export default function SuperAdmin() {
       case 'ai-governance': return <Suspense fallback={<TabLoader />}><AIGovernanceTab /></Suspense>;
       case 'platform-finance': return <Suspense fallback={<TabLoader />}><FinanceTab /></Suspense>;
       case 'bi': return <Suspense fallback={<TabLoader />}><BITab /></Suspense>;
+      case 'data-intelligence': return <Suspense fallback={<TabLoader />}><DataIntelligenceTab /></Suspense>;
       case 'ops': return <Suspense fallback={<TabLoader />}><OpsTab /></Suspense>;
       case 'quality': return <Suspense fallback={<TabLoader />}><QualityCenterTab /></Suspense>;
       case 'organizations': return <OrganizationsPage />;

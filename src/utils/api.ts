@@ -3142,15 +3142,30 @@ export type MetricComputationType = 'patient_count' | 'appointment_count' | 'rev
 
 export interface DataMetric {
   key: string;
-  label: string;
+  domain: string;
+  title: string;
   definition: { type: MetricComputationType };
   createdAt: string;
 }
 
+export interface DataMetricValue {
+  key: string;
+  value: string | number;
+  unit?: string;
+  scope: string;
+}
+
+export interface DashboardTile {
+  metricKey: string;
+  label: string;
+}
+
 export interface DataDashboard {
   id: string;
+  scopeType: string;
+  scopeId: string;
   name: string;
-  layout: { tiles: { metricKey: string; label: string }[] };
+  layout: { tiles: DashboardTile[] };
   createdAt: string;
 }
 
@@ -3158,20 +3173,22 @@ export async function listDataMetrics(): Promise<DataMetric[]> {
   return apiRequest('/api/data/metrics');
 }
 
-export async function registerDataMetric(data: { key: string; label: string; definition: { type: MetricComputationType } }): Promise<DataMetric> {
+export async function registerDataMetric(data: { key: string; domain?: string; title: string; definition: { type: MetricComputationType } }): Promise<DataMetric> {
   return apiRequest('/api/data/metrics', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function getDataMetricValue(key: string, clinicId?: string): Promise<{ key: string; value: number }> {
-  const qs = clinicId ? `?clinicId=${encodeURIComponent(clinicId)}` : '';
+export async function getDataMetricValue(key: string, scopeId?: string): Promise<DataMetricValue> {
+  const qs = scopeId ? `?scopeId=${encodeURIComponent(scopeId)}` : '';
   return apiRequest(`/api/data/metrics/${encodeURIComponent(key)}/value${qs}`);
 }
 
-export async function listDataDashboards(): Promise<DataDashboard[]> {
-  return apiRequest('/api/data/dashboards');
+/** `scopeId` defaults to the caller's own clinic on the backend; superadmin callers pass one explicitly. */
+export async function listDataDashboards(scopeId?: string): Promise<DataDashboard[]> {
+  const qs = scopeId ? `?scopeId=${encodeURIComponent(scopeId)}` : '';
+  return apiRequest(`/api/data/dashboards${qs}`);
 }
 
-export async function createDataDashboard(data: { name: string; layout: { tiles: { metricKey: string; label: string }[] } }): Promise<DataDashboard> {
+export async function createDataDashboard(data: { name: string; layout: { tiles: DashboardTile[] }; scopeId?: string }): Promise<DataDashboard> {
   return apiRequest('/api/data/dashboards', { method: 'POST', body: JSON.stringify(data) });
 }
 
