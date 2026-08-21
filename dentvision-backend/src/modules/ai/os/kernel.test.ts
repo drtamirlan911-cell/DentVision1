@@ -18,11 +18,15 @@ const {
   createNotificationForClinic: vi.fn(),
 }));
 
-const { patientExecute, adminExecuteToolCall, aiAdminSessionFindUnique } = vi.hoisted(() => ({
+const { patientExecute, adminExecuteToolCall, aiAdminSessionFindUnique, patientAssignmentFindFirst, mockEnv } = vi.hoisted(() => ({
   patientExecute: vi.fn(),
   adminExecuteToolCall: vi.fn(),
   aiAdminSessionFindUnique: vi.fn(),
+  patientAssignmentFindFirst: vi.fn(),
+  mockEnv: { AI_PATIENT_SCOPE: 'off' as 'on' | 'off' },
 }));
+
+vi.mock('../../../config.js', () => ({ env: mockEnv }));
 
 vi.mock('../../../lib/prisma.js', () => ({
   default: {
@@ -30,6 +34,7 @@ vi.mock('../../../lib/prisma.js', () => ({
     actionEvidence: { createMany: evidenceCreateMany },
     aiApproval: { create: approvalCreate, findUnique: approvalFindUnique },
     aiAdminSession: { findUnique: aiAdminSessionFindUnique },
+    patientAssignment: { findFirst: patientAssignmentFindFirst },
   },
 }));
 vi.mock('../../../lib/orgContext.js', () => ({ resolveOrganizationIdForClinic }));
@@ -45,7 +50,7 @@ vi.mock('../../ai-admin/llm/tools/tools.registry.js', () => ({
   toolsRegistry: [{ name: 'get_available_slots' }, { name: 'book_appointment' }, { name: 'escalate_to_human' }],
 }));
 
-const { okTool, noClinicTool, throwingTool, cancelTool } = vi.hoisted(() => ({
+const { okTool, noClinicTool, throwingTool, cancelTool, patientCardTool } = vi.hoisted(() => ({
   okTool: vi.fn(async () => ({ ok: true, data: { fine: true } })),
   noClinicTool: vi.fn(async () => {
     throw new Error('NO_CLINIC');
@@ -54,6 +59,7 @@ const { okTool, noClinicTool, throwingTool, cancelTool } = vi.hoisted(() => ({
     throw new Error('boom');
   }),
   cancelTool: vi.fn(async () => ({ ok: true, data: { cancelled: true } })),
+  patientCardTool: vi.fn(async () => ({ ok: true, data: { name: 'Patient' } })),
 }));
 
 vi.mock('./tools.js', () => ({
@@ -62,8 +68,9 @@ vi.mock('./tools.js', () => ({
     createInvoice: { name: 'createInvoice', mutating: true, execute: noClinicTool },
     getDebtors: { name: 'getDebtors', mutating: false, execute: throwingTool },
     cancelAppointment: { name: 'cancelAppointment', mutating: true, execute: cancelTool },
+    getPatientCard: { name: 'getPatientCard', mutating: false, execute: patientCardTool },
   },
-  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment'],
+  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard'],
 }));
 
 import { runAiAction } from './kernel.js';
@@ -81,11 +88,13 @@ beforeEach(() => {
   resolveAiToolAccess.mockResolvedValue({
     role: 'DOCTOR',
     clinicId: 'clinic-1',
-    allowed: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment']),
+    allowed: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment', 'getPatientCard']),
   });
   approvalCreate.mockResolvedValue({});
   approvalFindUnique.mockResolvedValue(null);
   createNotificationForClinic.mockResolvedValue(undefined);
+  patientAssignmentFindFirst.mockResolvedValue(null);
+  mockEnv.AI_PATIENT_SCOPE = 'off';
 });
 
 describe('runAiAction — every outcome is recorded', () => {
@@ -309,5 +318,74 @@ describe('runAiAction — admin surface', () => {
     const result = await runAiAction(ADMIN_PRINCIPAL, { tool: 'getMyAppointments', args: {} });
 
     expect(result).toMatchObject({ status: 'denied', reason: 'NOT_ON_SURFACE' });
+  });
+});
+
+describe('runAiAction — patient scope (env.AI_PATIENT_SCOPE)', () => {
+  it('is a no-op while the flag is off, even for a DOCTOR calling a single-patient tool', async () => {
+    const result = await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: { patientId: 'p-other' } });
+
+    expect(result.status).toBe('ok');
+    expect(patientAssignmentFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('denies OUT_OF_PATIENT_SCOPE when the flag is on and the DOCTOR has no assignment to this patient', async () => {
+    mockEnv.AI_PATIENT_SCOPE = 'on';
+    patientAssignmentFindFirst.mockResolvedValueOnce(null);
+
+    const result = await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: { patientId: 'p-other' } });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE' });
+    expect(patientCardTool).not.toHaveBeenCalled();
+    expect(patientAssignmentFindFirst).toHaveBeenCalledWith({
+      where: { patientId: 'p-other', userId: 'user-1', active: true },
+      select: { id: true },
+    });
+  });
+
+  it('executes when the flag is on and the DOCTOR is actually assigned to this patient', async () => {
+    mockEnv.AI_PATIENT_SCOPE = 'on';
+    patientAssignmentFindFirst.mockResolvedValueOnce({ id: 'pa-1' });
+
+    const result = await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: { patientId: 'p-mine' } });
+
+    expect(result.status).toBe('ok');
+    expect(patientCardTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not gate a tool with an optional patientId (getVisits-style) even when the flag is on — known, documented boundary', async () => {
+    mockEnv.AI_PATIENT_SCOPE = 'on';
+
+    // getSchedule carries no entry in TOOL_PATIENT_ARG at all.
+    const result = await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: {} });
+
+    expect(result.status).toBe('ok');
+    expect(patientAssignmentFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('does not gate roles outside DOCTOR/ASSISTANT even when the flag is on', async () => {
+    mockEnv.AI_PATIENT_SCOPE = 'on';
+    resolveAiToolAccess.mockResolvedValueOnce({
+      role: 'OWNER',
+      clinicId: 'clinic-1',
+      allowed: new Set(['getPatientCard']),
+    });
+
+    const result = await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: { patientId: 'p-any' } });
+
+    expect(result.status).toBe('ok');
+    expect(patientAssignmentFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('never applies to the patient or admin surface (no such role there)', async () => {
+    mockEnv.AI_PATIENT_SCOPE = 'on';
+
+    const result = await runAiAction(
+      { surface: 'patient', userId: 'portal-user-1', requestedClinicId: 'clinic-1', patientId: 'patient-1' },
+      { tool: 'getMyAppointments', args: {} },
+    );
+
+    expect(result.status).toBe('ok');
+    expect(patientAssignmentFindFirst).not.toHaveBeenCalled();
   });
 });

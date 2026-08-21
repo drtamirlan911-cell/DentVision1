@@ -47,6 +47,25 @@ export function toolExistsAnywhere(tool: string): boolean {
 export const HIGH_RISK_TOOLS: ReadonlySet<string> = new Set(['createInvoice', 'createTreatmentPlan', 'cancelAppointment']);
 
 /**
+ * Staff tools whose `patientId` argument is *required* — an unambiguous
+ * single target — mapped to that argument's key. These are what the
+ * kernel's patient-scope check (step 5, `env.AI_PATIENT_SCOPE`) verifies a
+ * DOCTOR/ASSISTANT is actually assigned to.
+ *
+ * Tools where `patientId` is optional (`getVisits`, `getTreatmentPlans` —
+ * omitting it means "the whole clinic") are deliberately excluded: gating
+ * only the single-patient case while leaving the clinic-wide list case wide
+ * open would be a false sense of scope, not real scope. Closing that gap is
+ * future work, not this flag's job.
+ */
+export const TOOL_PATIENT_ARG: Record<string, string> = {
+  getPatientCard: 'patientId',
+  createTreatmentPlan: 'patientId',
+  createAppointment: 'patientId',
+  createInvoice: 'patientId',
+};
+
+/**
  * Strips what a model must never control.
  *
  * On the staff surface this is a deliberate no-op for `confirmed`: the

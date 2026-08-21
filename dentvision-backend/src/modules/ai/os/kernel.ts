@@ -24,7 +24,9 @@
  *   4. permission check          → staff only; NOT_ALLOWED (access.allowed
  *                                   already folds TOOL_PERMISSIONS +
  *                                   permissionsSatisfy in)
- *   5. patient scope             → stub until Stage 6 (AI_PATIENT_SCOPE flag)
+ *   5. patient scope             → staff DOCTOR/ASSISTANT only, and only on
+ *                                   tools with a required patientId, behind
+ *                                   env.AI_PATIENT_SCOPE (default off)
  *   6. approval requirement      → HIGH_RISK_TOOLS only (staff tool names,
  *                                   so this never matches on admin/patient)
  *   7. execute                   → dispatches to the surface's own registry:
@@ -35,12 +37,13 @@
  */
 
 import prisma from '../../../lib/prisma.js';
+import { env } from '../../../config.js';
 import { uid } from '../../../lib/helpers.js';
 import { resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
 import { resolveAiToolAccess } from './access.js';
 import { TOOLS, type ToolContext } from './tools.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
-import { SURFACE_TOOLS, HIGH_RISK_TOOLS, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
+import { SURFACE_TOOLS, HIGH_RISK_TOOLS, TOOL_PATIENT_ARG, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
 import { executePatientTool } from '../../ai-patient/patientTools.js';
 import { executeToolCall as executeAdminToolCall } from '../../ai-admin/llm/tools/tools.registry.js';
 import type { AiPrincipal, AiInvocation, KernelResult, AiDenyReason } from './kernel.types.js';
@@ -245,8 +248,36 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     return { status: 'denied', reason: 'NOT_ALLOWED', error: 'Действие недоступно для вашей роли', activityId };
   }
 
-  // Step 5 — patient scope. Stub: enforced starting Stage 6, behind
-  // env.AI_PATIENT_SCOPE, only for surface === 'staff' and DOCTOR/ASSISTANT.
+  // Step 5 — patient scope. AI-only (human REST/UI is unaffected); off
+  // unless env.AI_PATIENT_SCOPE === 'on', and only for the tools in
+  // TOOL_PATIENT_ARG where the target patient is unambiguous.
+  if (env.AI_PATIENT_SCOPE === 'on' && p.surface === 'staff' && (role === 'DOCTOR' || role === 'ASSISTANT')) {
+    const patientArg = TOOL_PATIENT_ARG[inv.tool];
+    const targetPatientId = patientArg ? args[patientArg] : undefined;
+    if (targetPatientId) {
+      const assignment = await prisma.patientAssignment.findFirst({
+        where: { patientId: String(targetPatientId), userId: p.userId, active: true },
+        select: { id: true },
+      });
+      if (!assignment) {
+        const activityId = await recordActivity({
+          traceId: inv.traceId,
+          surface: p.surface,
+          agentId: p.agentId,
+          tool: inv.tool,
+          actorUserId: p.userId,
+          actorRole: role,
+          clinicId,
+          organizationId,
+          patientId: p.patientId,
+          status: 'denied',
+          denyReason: 'OUT_OF_PATIENT_SCOPE',
+          argsRedacted: redactArgs(args),
+        });
+        return { status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE', error: 'Этот пациент не в вашей зоне ответственности', activityId };
+      }
+    }
+  }
 
   // Step 6 — approval requirement, high-risk tools only.
   //

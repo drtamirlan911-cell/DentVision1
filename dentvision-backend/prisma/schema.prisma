@@ -3618,3 +3618,24 @@ model AiApproval {
   @@index([status, expiresAt])
   @@map("ai_approvals")
 }
+
+/// AI-only patient scope (Stage 6, `env.AI_PATIENT_SCOPE`). Backfilled from
+/// distinct `(clinicId, patientId, doctorId)` triples in `Appointment` —
+/// human REST/UI access to patients is deliberately left unaffected by this
+/// model; only the kernel's patient-scope check (`kernel.ts` step 5) reads it.
+model PatientAssignment {
+  id        String    @id @default(uuid())
+  clinicId  String
+  patientId String
+  userId    String
+  /// 'treating_doctor' | 'assistant' | 'coordinator'
+  role      String
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([patientId, userId, role])
+  @@index([clinicId, userId, active])
+  @@index([patientId, active])
+  @@map("patient_assignments")
+}

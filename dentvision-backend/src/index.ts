@@ -1812,6 +1812,31 @@ async function main() {
     await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ai_approvals_status_expiresAt_idx" ON "ai_approvals"("status", "expiresAt")`);
   });
 
+  await runOnceMigration('patient_assignment', 'PatientAssignment table + backfill from Appointment', async (tx) => {
+    await tx.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "patient_assignments" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "clinicId" TEXT NOT NULL,
+        "patientId" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+        "role" TEXT NOT NULL,
+        "active" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now(),
+        "updatedAt" TIMESTAMP(3),
+        CONSTRAINT "patient_assignments_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await tx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "patient_assignments_patientId_userId_role_key" ON "patient_assignments"("patientId", "userId", "role")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patient_assignments_clinicId_userId_active_idx" ON "patient_assignments"("clinicId", "userId", "active")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patient_assignments_patientId_active_idx" ON "patient_assignments"("patientId", "active")`);
+    await tx.$executeRawUnsafe(`
+      INSERT INTO "patient_assignments" ("id", "clinicId", "patientId", "userId", "role", "active", "createdAt")
+      SELECT gen_random_uuid()::text, a."clinicId", a."patientId", a."doctorId", 'treating_doctor', true, now()
+      FROM (SELECT DISTINCT "clinicId", "patientId", "doctorId" FROM "appointments") a
+      ON CONFLICT ("patientId", "userId", "role") DO NOTHING
+    `);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();
