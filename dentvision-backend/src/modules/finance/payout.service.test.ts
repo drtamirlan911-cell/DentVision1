@@ -21,6 +21,9 @@ const { tx, prismaMock } = vi.hoisted(() => {
     wallet: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     payout: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     transaction: { create: vi.fn() },
+    lecturer: { findUnique: vi.fn() },
+    supplierMember: { findMany: vi.fn() },
+    notification: { create: vi.fn() },
   });
   const tx = delegate();
   const prismaMock = {
@@ -232,5 +235,72 @@ describe('paying out keeps the ledger balanced', () => {
     // Never through the module singleton: a half-applied payout is money lost.
     expect(prismaMock.wallet.update).not.toHaveBeenCalled();
     expect(prismaMock.transaction.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('notifies the requester on every transition', () => {
+  function payoutAt(status: string, ownerType: 'LECTURER' | 'SUPPLIER', ownerId = 'owner-1', balance = 100_000n) {
+    tx.payout.findUnique.mockResolvedValue({
+      id: 'p1',
+      walletId: 'w1',
+      amount: 50_000n,
+      status,
+      wallet: { id: 'w1', balance, currency: 'KZT', ownerType, ownerId },
+    });
+    // getOrCreateWallet('GATEWAY', 'system') for the 'paid' path.
+    tx.wallet.findUnique.mockResolvedValue({ id: 'gw', balance: 0n, currency: 'KZT' });
+  }
+
+  it('notifies a lecturer\'s single linked user on approval', async () => {
+    payoutAt('requested', 'LECTURER', 'lect-1');
+    tx.lecturer.findUnique.mockResolvedValue({ userId: 'user-1' });
+
+    await transitionPayout('p1', 'approved');
+
+    expect(tx.lecturer.findUnique).toHaveBeenCalledWith({ where: { id: 'lect-1' }, select: { userId: true } });
+    expect(tx.notification.create).toHaveBeenCalledTimes(1);
+    expect(tx.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        type: 'payout',
+        title: 'Заявка на выплату одобрена',
+        message: expect.stringContaining('500'), // 50_000 minor = 500 KZT
+      }),
+    });
+  });
+
+  it('notifies every linked member of a supplier, not just one', async () => {
+    payoutAt('requested', 'SUPPLIER', 'sup-1');
+    tx.supplierMember.findMany.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]);
+
+    await transitionPayout('p1', 'rejected');
+
+    expect(tx.supplierMember.findMany).toHaveBeenCalledWith({ where: { supplierId: 'sup-1' }, select: { userId: true } });
+    expect(tx.notification.create).toHaveBeenCalledTimes(2);
+    expect(tx.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'u1', title: 'Заявка на выплату отклонена' }),
+    });
+    expect(tx.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'u2', title: 'Заявка на выплату отклонена' }),
+    });
+  });
+
+  it('sends the paid-out message when money actually leaves', async () => {
+    payoutAt('approved', 'LECTURER', 'lect-1');
+    tx.lecturer.findUnique.mockResolvedValue({ userId: 'user-1' });
+
+    await transitionPayout('p1', 'paid');
+
+    expect(tx.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ title: 'Выплата произведена' }),
+    });
+  });
+
+  it('does not throw or notify when the lecturer has no linked user', async () => {
+    payoutAt('requested', 'LECTURER', 'lect-orphan');
+    tx.lecturer.findUnique.mockResolvedValue(null);
+
+    await expect(transitionPayout('p1', 'approved')).resolves.toBeDefined();
+    expect(tx.notification.create).not.toHaveBeenCalled();
   });
 });

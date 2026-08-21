@@ -350,6 +350,7 @@ patientPortalRouter.post('/appointments/request', ensurePatient, async (req: Aut
       doctorId: body.doctorId ? String(body.doctorId) : null,
       serviceName: body.serviceName ? String(body.serviceName).slice(0, 200) : null,
       notes: body.notes ? String(body.notes).slice(0, 500) : null,
+      releaseId: body.releaseId ? String(body.releaseId) : null,
     });
     return res.json({ ok: true, data: result });
   } catch (e: any) {

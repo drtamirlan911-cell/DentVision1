@@ -176,6 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         items: [
           { id: 'staff', label: t('nav.staff'), path: '/crm/staff' },
           { id: 'reminders', label: t('nav.reminders'), path: '/crm/reminders' },
+          { id: 'workflow', label: t('nav.workflow'), path: '/crm/workflow' },
         ],
       },
       {

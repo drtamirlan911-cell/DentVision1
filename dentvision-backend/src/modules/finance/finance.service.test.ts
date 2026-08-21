@@ -18,6 +18,7 @@ const {
   globalCommissionFindFirst,
   globalTransactionCreate,
   globalWalletUpdate,
+  globalRevenueCreate,
   globalTransactionFn,
 } = vi.hoisted(() => {
   const makeDelegate = () => ({
@@ -33,6 +34,9 @@ const {
     transaction: {
       create: vi.fn(),
     },
+    revenue: {
+      create: vi.fn(),
+    },
   });
   const txDelegate = makeDelegate();
   return {
@@ -43,6 +47,7 @@ const {
     globalCommissionFindFirst: vi.fn(),
     globalTransactionCreate: vi.fn(),
     globalWalletUpdate: vi.fn(),
+    globalRevenueCreate: vi.fn(),
     globalTransactionFn: vi.fn((cb: (tx: unknown) => unknown) => cb(txDelegate)),
   };
 });
@@ -60,6 +65,9 @@ vi.mock('../../lib/prisma.js', () => ({
     },
     transaction: {
       create: globalTransactionCreate,
+    },
+    revenue: {
+      create: globalRevenueCreate,
     },
     $transaction: globalTransactionFn,
   },
@@ -103,12 +111,21 @@ describe('recordSaleTx', () => {
     expect(result).toEqual({ id: 'txn-1', amount: 10_000n });
     expect(txDelegate.transaction.create).toHaveBeenCalledTimes(1);
     expect(txDelegate.wallet.update).toHaveBeenCalledTimes(3);
+    expect(txDelegate.revenue.create).toHaveBeenCalledWith({
+      data: {
+        tenantId: 'platform',
+        source: 'SHOP',
+        amount: 10_000n,
+        meta: { refType: 'order', refId: 'order-1' },
+      },
+    });
 
     // Nothing touched the global prisma client.
     expect(globalWalletFindUnique).not.toHaveBeenCalled();
     expect(globalWalletCreate).not.toHaveBeenCalled();
     expect(globalTransactionCreate).not.toHaveBeenCalled();
     expect(globalWalletUpdate).not.toHaveBeenCalled();
+    expect(globalRevenueCreate).not.toHaveBeenCalled();
     expect(globalTransactionFn).not.toHaveBeenCalled();
   });
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Business Intelligence Engine — unified financial analytics.
  *
@@ -314,11 +313,15 @@ export async function getUnitEconomics(): Promise<UnitEconomics> {
     prisma.aIEvent.count({
       where: { createdAt: { gte: thirtyDaysAgo } },
     }),
-    // Approximate operating costs from expenses if available
-    prisma.payment.aggregate({
+    // Real operating costs, if any have been recorded (see finance.routes.ts's
+    // POST /expenses). Falls back to the 30%-of-revenue heuristic below only
+    // when no PlatformExpense rows exist yet — this used to query
+    // `Payment.domain === 'expense'`, a value nothing ever wrote, so it always
+    // fell through to the heuristic.
+    prisma.platformExpense.aggregate({
       where: {
-        createdAt: { gte: thirtyDaysAgo },
-        domain: 'expense',
+        tenantId: 'platform',
+        date: { gte: thirtyDaysAgo },
       },
       _sum: { amount: true },
     }),
@@ -626,7 +629,7 @@ export async function getClinicBI(clinicId: string): Promise<ClinicBIDashboard> 
     prisma.payment.findMany({
       where: { refType: 'clinic', refId: clinicId, createdAt: { gte: thirtyDaysAgo } },
       select: { amount: true, domain: true, createdAt: true },
-    }).catch(() => []),
+    }).catch(() => [] as { amount: bigint; domain: string | null; createdAt: Date }[]),
     prisma.patient.findMany({
       where: { clinicId },
       select: { id: true, createdAt: true },
@@ -646,7 +649,7 @@ export async function getClinicBI(clinicId: string): Promise<ClinicBIDashboard> 
   ]);
 
   // Revenue
-  const totalRevenue = payments.reduce((s, p) => s + Number(p.amount), 0);
+  const totalRevenue = payments.reduce((s: number, p) => s + Number(p.amount), 0);
   const bySource: Record<string, number> = {};
   payments.forEach((p) => {
     const src = p.domain || 'crm';
@@ -670,8 +673,8 @@ export async function getClinicBI(clinicId: string): Promise<ClinicBIDashboard> 
   const expenses = await prisma.expense.findMany({
     where: { clinicId, date: { gte: thirtyDaysAgo } },
     select: { amount: true, category: true },
-  }).catch(() => []);
-  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  }).catch(() => [] as { amount: number; category: string | null }[]);
+  const totalExpenses = expenses.reduce((s: number, e) => s + Number(e.amount), 0);
   const expByCategory: Record<string, number> = {};
   expenses.forEach((e) => {
     const cat = e.category || 'other';

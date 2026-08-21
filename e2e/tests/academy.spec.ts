@@ -1,4 +1,4 @@
-import { test, expect, APIRequestContext } from '@playwright/test';
+import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
 import { prisma } from '../helpers/db';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
@@ -26,12 +26,22 @@ function auth(token: string) {
 test.describe('Academy / Course Workflow', () => {
   let api: APIRequestContext;
 
-  test.beforeAll(async ({ request }) => {
-    api = request;
+  /**
+   * `api` is a context this file owns, created here and disposed in `afterAll`.
+   *
+   * It used to be Playwright's `request` fixture, captured in `beforeAll` and
+   * reused from the tests — which Playwright refuses outright:
+   * "Fixture { request } from beforeAll cannot be reused in a test." Every test
+   * in this file threw that at its first call. Nothing noticed, because the suite
+   * was never run: `test:e2e` is in package.json and in no CI workflow.
+   */
+  test.beforeAll(async () => {
+    api = await apiRequest.newContext();
     await loginOwner(api);
   });
 
   test.afterAll(async () => {
+    await api.dispose();
     if (testEnrollmentId) {
       await prisma.schoolEnrollment.deleteMany({ where: { id: testEnrollmentId } }).catch(() => {});
     }
@@ -91,6 +101,17 @@ test.describe('Academy / Course Workflow', () => {
     }
   });
 
+  // `/api/academies/*` (academy.routes.ts) is CRUD for academy organizations
+  // themselves — it has no /courses, /enroll, or /enrollments routes at all.
+  // The actual student-facing course catalog and enrollment flow lives under
+  // `/api/school/*` (school.routes.ts: POST/GET /enrollments, PATCH
+  // /enrollments/:id). ACADEMY-001/002 already probe for a 404 on
+  // /api/academies/courses and fall back to /api/school/courses; enrollment
+  // needs the same fallback; parallel to `endpoint` for the course routes.
+  function enrollmentBase(courseEndpoint: string) {
+    return courseEndpoint === '/api/school/courses' ? '/api/school' : '/api/academies';
+  }
+
   test('ACADEMY-003: Enroll in course → 201', async () => {
     const listRes = await api.get(`${BASE_URL}/api/academies/courses`, {
       headers: auth(ownerToken),
@@ -110,7 +131,7 @@ test.describe('Academy / Course Workflow', () => {
     if (Array.isArray(courses) && courses.length > 0) {
       const course = courses[0];
       testCourseId = course.id;
-      const res = await api.post(`${BASE_URL}/api/academies/enroll`, {
+      const res = await api.post(`${BASE_URL}${enrollmentBase(endpoint)}/enrollments`, {
         headers: auth(ownerToken),
         data: { courseId: course.id },
       });
@@ -124,7 +145,11 @@ test.describe('Academy / Course Workflow', () => {
   });
 
   test('ACADEMY-004: Get enrollment → 200 + correct data', async () => {
-    const res = await api.get(`${BASE_URL}/api/academies/enrollments`, {
+    const coursesRes = await api.get(`${BASE_URL}/api/academies/courses`, {
+      headers: auth(ownerToken),
+    });
+    const endpoint = coursesRes.status() === 404 ? '/api/school/courses' : '/api/academies/courses';
+    const res = await api.get(`${BASE_URL}${enrollmentBase(endpoint)}/enrollments`, {
       headers: auth(ownerToken),
     });
     expect(res.status()).toBe(200);
@@ -135,7 +160,12 @@ test.describe('Academy / Course Workflow', () => {
   });
 
   test('ACADEMY-005: Course progress update → 200', async () => {
-    const enrollRes = await api.get(`${BASE_URL}/api/academies/enrollments`, {
+    const coursesRes = await api.get(`${BASE_URL}/api/academies/courses`, {
+      headers: auth(ownerToken),
+    });
+    const endpoint = coursesRes.status() === 404 ? '/api/school/courses' : '/api/academies/courses';
+    const base = enrollmentBase(endpoint);
+    const enrollRes = await api.get(`${BASE_URL}${base}/enrollments`, {
       headers: auth(ownerToken),
     });
     const enrollBody = await enrollRes.json();
@@ -144,11 +174,13 @@ test.describe('Academy / Course Workflow', () => {
 
     if (Array.isArray(enrollments) && enrollments.length > 0) {
       const enrollment = enrollments[0];
+      // PATCH /enrollments/:id, not a /progress sub-route — school.routes.ts
+      // registers no such path, only the plain enrollment update.
       const res = await api.patch(
-        `${BASE_URL}/api/academies/enrollments/${enrollment.id}/progress`,
+        `${BASE_URL}${base}/enrollments/${enrollment.id}`,
         {
           headers: auth(ownerToken),
-          data: { progress: 50, completedLessonId: 'lesson-1' },
+          data: { progress: 50, completedLessons: ['lesson-1'] },
         },
       );
       expect(res.status()).toBe(200);
@@ -156,7 +188,12 @@ test.describe('Academy / Course Workflow', () => {
   });
 
   test('ACADEMY-006: Complete course → 200 + certificate', async () => {
-    const enrollRes = await api.get(`${BASE_URL}/api/academies/enrollments`, {
+    const coursesRes = await api.get(`${BASE_URL}/api/academies/courses`, {
+      headers: auth(ownerToken),
+    });
+    const endpoint = coursesRes.status() === 404 ? '/api/school/courses' : '/api/academies/courses';
+    const base = enrollmentBase(endpoint);
+    const enrollRes = await api.get(`${BASE_URL}${base}/enrollments`, {
       headers: auth(ownerToken),
     });
     const enrollBody = await enrollRes.json();
@@ -165,17 +202,20 @@ test.describe('Academy / Course Workflow', () => {
 
     if (Array.isArray(enrollments) && enrollments.length > 0) {
       const enrollment = enrollments[0];
+      // The route only issues a certificateUrl when `completed: true` is
+      // sent explicitly — it doesn't infer completion from progress
+      // reaching 100 (school.routes.ts's PATCH /enrollments/:id).
       const res = await api.patch(
-        `${BASE_URL}/api/academies/enrollments/${enrollment.id}/progress`,
+        `${BASE_URL}${base}/enrollments/${enrollment.id}`,
         {
           headers: auth(ownerToken),
-          data: { progress: 100 },
+          data: { progress: 100, completed: true },
         },
       );
       expect(res.status()).toBe(200);
       const body = await res.json();
       const data = body.data || body;
-      expect(data.certificate || data.completed || data.progress).toBeDefined();
+      expect(data.certificateUrl || data.completed || data.progress).toBeDefined();
     }
   });
 
@@ -220,11 +260,12 @@ test.describe('Academy / Course Workflow', () => {
 
     if (Array.isArray(courses) && courses.length > 0) {
       const course = courses[0];
-      const res1 = await api.post(`${BASE_URL}/api/academies/enroll`, {
+      const base = enrollmentBase(endpoint);
+      const res1 = await api.post(`${BASE_URL}${base}/enrollments`, {
         headers: auth(ownerToken),
         data: { courseId: course.id },
       });
-      const res2 = await api.post(`${BASE_URL}/api/academies/enroll`, {
+      const res2 = await api.post(`${BASE_URL}${base}/enrollments`, {
         headers: auth(ownerToken),
         data: { courseId: course.id },
       });

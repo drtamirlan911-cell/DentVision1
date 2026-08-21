@@ -7,6 +7,7 @@ import { getEventOrchestrator } from './modules/ai/os/index.js';
 import { startReminderCronInterval } from './jobs/reminderCron.js';
 import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
 import { startSettlementCronInterval } from './jobs/settlementCron.js';
+import { startBiSnapshotCronInterval } from './jobs/biSnapshotCron.js';
 import { startOnCallInterval } from './jobs/patientConversationOnCall.js';
 import { startMessageWorker } from './modules/ai-admin/index.js';
 import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.js';
@@ -1611,6 +1612,121 @@ async function main() {
     `);
   });
 
+  // The PATIENT_JOURNEY link that was missing at the plan level: appointments
+  // and invoices carried a plan reference only inside items.stages[] JSON.
+  // Mirrors prisma/migrations/20260821_plan_appointment_invoice_link/migration.sql.
+  await runOnceMigration('plan_appointment_invoice_link', 'Appointment.treatmentPlanId / Invoice.treatmentPlanId', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "appointments" ADD COLUMN IF NOT EXISTS "treatmentPlanId" TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "treatmentPlanId" TEXT`);
+    // Backfilled only from stages that already named the association — nothing
+    // here is invented.
+    await tx.$executeRawUnsafe(`
+      UPDATE "appointments" AS a
+      SET "treatmentPlanId" = tp."id"
+      FROM "treatment_plans" AS tp,
+           LATERAL jsonb_array_elements(COALESCE(tp."items"->'stages', '[]'::jsonb)) AS stage
+      WHERE a."treatmentPlanId" IS NULL AND stage->>'appointmentId' = a."id"
+    `);
+    await tx.$executeRawUnsafe(`
+      UPDATE "invoices" AS i
+      SET "treatmentPlanId" = tp."id"
+      FROM "treatment_plans" AS tp,
+           LATERAL jsonb_array_elements(COALESCE(tp."items"->'stages', '[]'::jsonb)) AS stage
+      WHERE i."treatmentPlanId" IS NULL AND stage->>'invoiceId' = i."id"
+    `);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "appointments_treatmentPlanId_idx" ON "appointments"("treatmentPlanId")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "invoices_treatmentPlanId_idx" ON "invoices"("treatmentPlanId")`);
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'appointments_treatmentPlanId_fkey') THEN
+          ALTER TABLE "appointments"
+            ADD CONSTRAINT "appointments_treatmentPlanId_fkey"
+            FOREIGN KEY ("treatmentPlanId") REFERENCES "treatment_plans"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'invoices_treatmentPlanId_fkey') THEN
+          ALTER TABLE "invoices"
+            ADD CONSTRAINT "invoices_treatmentPlanId_fkey"
+            FOREIGN KEY ("treatmentPlanId") REFERENCES "treatment_plans"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      END $$;
+    `);
+  });
+
+  // Mirrors prisma/migrations/20260821_lab_order_status_values/migration.sql.
+  await runOnceMigration('lab_order_status_values', 'LabOrderStatus: sent/try_in/adjustment/ready/remake/delayed', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'sent'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'try_in'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'adjustment'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'ready'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'remake'`);
+    await tx.$executeRawUnsafe(`ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'delayed'`);
+  });
+
+  // The LLM-rewritten wording for a release, reviewed by a doctor before a
+  // patient can see it — Phase 5 of the concierge presentation.
+  // Mirrors prisma/migrations/20260821_patient_presentations/migration.sql.
+  await runOnceMigration('patient_presentations', 'PatientPresentation table', async (tx) => {
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PatientPresentationStatus') THEN
+          CREATE TYPE "PatientPresentationStatus" AS ENUM ('draft', 'published');
+        END IF;
+      END $$
+    `);
+    await tx.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "patient_presentations" (
+        "id" TEXT NOT NULL,
+        "releaseId" TEXT NOT NULL,
+        "clinicId" TEXT NOT NULL,
+        "locale" TEXT NOT NULL DEFAULT 'ru',
+        "status" "PatientPresentationStatus" NOT NULL DEFAULT 'draft',
+        "script" JSONB NOT NULL,
+        "generatorByBeat" JSONB NOT NULL,
+        "validationReport" JSONB,
+        "generatedByUserId" TEXT,
+        "generatedAt" TIMESTAMP(3),
+        "publishedByUserId" TEXT,
+        "publishedAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3),
+        CONSTRAINT "patient_presentations_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await tx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "patient_presentations_releaseId_locale_key" ON "patient_presentations"("releaseId", "locale")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patient_presentations_clinicId_status_idx" ON "patient_presentations"("clinicId", "status")`);
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_presentations_releaseId_fkey') THEN
+          ALTER TABLE "patient_presentations" ADD CONSTRAINT "patient_presentations_releaseId_fkey" FOREIGN KEY ("releaseId") REFERENCES "treatment_plan_releases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_presentations_clinicId_fkey') THEN
+          ALTER TABLE "patient_presentations" ADD CONSTRAINT "patient_presentations_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+  });
+
+  // Concierge Phase 6: the funnel — whether a patient opened/finished their
+  // presentation, and whether the request they filed came from it.
+  // Mirrors prisma/migrations/20260821_presentation_funnel/migration.sql.
+  await runOnceMigration('presentation_funnel', 'Presentation funnel tracking', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "treatment_plan_releases" ADD COLUMN IF NOT EXISTS "firstViewedAt" TIMESTAMP(3)`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "treatment_plan_releases" ADD COLUMN IF NOT EXISTS "finishedAt" TIMESTAMP(3)`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "bookings" ADD COLUMN IF NOT EXISTS "releaseId" TEXT`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "bookings_releaseId_idx" ON "bookings"("releaseId")`);
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'bookings_releaseId_fkey') THEN
+          ALTER TABLE "bookings" ADD CONSTRAINT "bookings_releaseId_fkey" FOREIGN KEY ("releaseId") REFERENCES "treatment_plan_releases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();
@@ -1633,6 +1749,8 @@ async function main() {
       // Monthly platform-commission settlements (hourly interval; monthly work is
       // guarded by referral linking, so most runs are cheap no-ops).
       startSettlementCronInterval(60 * 60 * 1000);
+      // Persists today's SaaSMetrics/CustomerMetrics/BISnapshot once a day.
+      startBiSnapshotCronInterval(24 * 60 * 60 * 1000);
       // Re-notifies OWNER/ADMIN when an escalated patient thread sits
       // unclaimed — checked every 5 min, re-notifies past a 15 min silence.
       startOnCallInterval();

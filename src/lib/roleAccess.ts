@@ -65,6 +65,7 @@ export const CRM_NAV_PAGE_IDS = [
   'promotions',
   'icd10',
   'patient-inbox',
+  'workflow',
 ] as const
 
 export function pageIdFromPath(pathname: string): string | null {

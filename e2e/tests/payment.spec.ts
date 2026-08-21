@@ -1,5 +1,7 @@
-import { test, expect, APIRequestContext } from '@playwright/test';
-import { PrismaClient } from '@prisma/client';
+import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
+// See helpers/db.ts for why this isn't the bare `@prisma/client` specifier —
+// it would resolve to a dead legacy schema at the repo root, not this backend.
+import { PrismaClient } from '../../dentvision-backend/node_modules/@prisma/client/index.js';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const prisma = new PrismaClient();
@@ -37,8 +39,14 @@ async function createTestOrder(api: APIRequestContext, token: string): Promise<{
   expect(products.length).toBeGreaterThan(0);
   const product = products[0];
 
+  // A fresh Idempotency-Key per call: this helper is shared across many
+  // tests in this file, each of which wants its own distinct order, but
+  // every call posts byte-identical items — without a key of its own, the
+  // shop's double-submit guard (shop.routes.ts) reasonably reads repeated
+  // identical bodies from the same user as the same double-click, and hands
+  // back the first order instead of creating a new one.
   const res = await api.post(`${BASE_URL}/api/shop/orders`, {
-    headers: authHeaders(token),
+    headers: { ...authHeaders(token), 'Idempotency-Key': `test-order-${Date.now()}-${Math.random().toString(36).slice(2)}` },
     data: {
       items: [{ product_id: product.id, quantity: 1 }],
     },
@@ -53,10 +61,23 @@ test.describe('Payment API', () => {
   let ownerToken: string;
   let doctorToken: string;
 
-  test.beforeAll(async ({ request }) => {
-    api = request;
+  /**
+   * `api` is a context this file owns, created here and disposed in `afterAll`.
+   *
+   * It used to be Playwright's `request` fixture, captured in `beforeAll` and
+   * reused from the tests — which Playwright refuses outright:
+   * "Fixture { request } from beforeAll cannot be reused in a test." Every test
+   * in this file threw that at its first call. Nothing noticed, because the suite
+   * was never run: `test:e2e` is in package.json and in no CI workflow.
+   */
+  test.beforeAll(async () => {
+    api = await apiRequest.newContext();
     ownerToken = await loginAs(api, 'owner');
     doctorToken = await loginAs(api, 'doctor');
+  });
+
+  test.afterAll(async () => {
+    await api.dispose();
   });
 
   // ─── PAY-001: Create payment for order → 201 + payment record ─────────────
@@ -227,7 +248,8 @@ test.describe('Payment API', () => {
       headers: authHeaders(ownerToken),
     });
     const orderBody = await orderRes.json();
-    const orders = orderBody.data?.items || orderBody.data || [];
+    // paginatedResponse() nests the array at data.data, not data.items.
+    const orders = orderBody.data?.data || orderBody.data || [];
     const found = Array.isArray(orders) ? orders.find((o: any) => o.id === order.id) : null;
     expect(found).toBeTruthy();
     expect(found.status).toBe('paid');
@@ -428,7 +450,8 @@ test.describe('Payment API', () => {
       headers: authHeaders(ownerToken),
     });
     const listBody = await listRes.json();
-    const orders = listBody.data?.items || listBody.data || [];
+    // paginatedResponse() nests the array at data.data, not data.items.
+    const orders = listBody.data?.data || listBody.data || [];
     const found = Array.isArray(orders) ? orders.find((o: any) => o.id === order.id) : null;
     expect(found).toBeTruthy();
     expect(found.status).toBe('paid');

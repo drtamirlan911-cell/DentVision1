@@ -22,6 +22,7 @@ import {
 import { useAuth, canAcceptPayment } from '@/store/auth.store'
 import { useIam } from '@/iam/useIam'
 import { cn, today } from '@/lib/utils'
+import { isValidIin } from '@/lib/iin'
 import { Button } from '@/components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card'
 import { Input, Select } from '@/components/ui/ds/Input'
@@ -139,6 +140,7 @@ export default function Schedule() {
   const [editWaitId, setEditWaitId] = useState<string | null>(null)
   const [showNewPatient, setShowNewPatient] = useState(false)
   const [newPatient, setNewPatient] = useState(EMPTY_PATIENT)
+  const newPatientIinError = newPatient.iin && !isValidIin(newPatient.iin) ? 'Неверный формат ИИН' : undefined
   const [searchAppts, setSearchAppts] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
@@ -322,6 +324,7 @@ export default function Schedule() {
 
   const handleCreatePatient = async (): Promise<Patient | null> => {
     if (!newPatient.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return null }
+    if (newPatientIinError) { showToast(newPatientIinError, 'warning'); return null }
     try {
       const patientData = { ...newPatient, id: gid(), clinicId: clinic?.id, category: 'new' as const }
       const created = await upsertPatient(patientData as Partial<Patient>)
@@ -1235,7 +1238,7 @@ export default function Schedule() {
                 <Input label="Телефон" value={newPatient.phone} onChange={e => setNewPatient({ ...newPatient, phone: e.target.value })} placeholder="+7 777 000 00 00" />
                 <Input label="Дата рождения" type="date" value={newPatient.dob} onChange={e => setNewPatient({ ...newPatient, dob: e.target.value })} />
               </div>
-              <Input label="ИИН" value={newPatient.iin} onChange={e => setNewPatient({ ...newPatient, iin: e.target.value })} placeholder="12 цифр" maxLength={12} />
+              <Input label="ИИН" value={newPatient.iin} onChange={e => setNewPatient({ ...newPatient, iin: e.target.value })} placeholder="12 цифр" maxLength={12} error={newPatientIinError} />
             </div>
           )}
 

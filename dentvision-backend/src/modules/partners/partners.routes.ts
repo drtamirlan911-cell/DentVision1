@@ -19,6 +19,13 @@ function domainForRefType(refType: string): string {
 }
 
 // ─── Tiers ───
+// GET was missing: tier creation existed with no way to list what already
+// exists, so a tier-assignment UI had nothing to build a picker from.
+partnersRouter.get('/tiers', async (_req: AuthRequest, res) => {
+  const tiers = await prisma.partnerTier.findMany({ orderBy: { commissionBps: 'desc' } });
+  return res.json({ ok: true, data: tiers } satisfies ApiResponse);
+});
+
 partnersRouter.post('/tiers', requirePermission('partner.manage'), async (req: AuthRequest, res) => {
   try {
     const { name, commissionBps, minKpiJson, benefitsJson } = req.body || {};
@@ -45,6 +52,25 @@ partnersRouter.get('/', async (req: AuthRequest, res) => {
     take: 100,
   });
   return res.json({ ok: true, data: partners } satisfies ApiResponse);
+});
+
+// Detail: the sub-resource creation routes below (kpis/slas/campaigns) had no
+// matching read — a partner's history was write-only from the API. Ordered
+// desc so the most recent entry of each kind reads first.
+partnersRouter.get('/:id', async (req: AuthRequest, res) => {
+  const partner = await prisma.partner.findUnique({
+    where: { id: req.params.id as string },
+    include: {
+      tier: true,
+      kpis: { orderBy: { createdAt: 'desc' }, take: 50 },
+      slas: { orderBy: { createdAt: 'desc' }, take: 50 },
+      campaigns: { orderBy: { createdAt: 'desc' }, take: 50 },
+    },
+  });
+  if (!partner) {
+    return res.status(404).json({ ok: false, error: 'Партнёр не найден' } satisfies ApiResponse);
+  }
+  return res.json({ ok: true, data: serializeBigInt(partner) } satisfies ApiResponse);
 });
 
 partnersRouter.post('/', requirePermission('partner.manage'), async (req: AuthRequest, res) => {

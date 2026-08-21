@@ -1,4 +1,4 @@
-import { test, expect, APIRequestContext } from '@playwright/test';
+import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -39,8 +39,17 @@ function authHeaders(token: string) {
 test.describe('RBAC - Role-Based Access Control', () => {
   let api: APIRequestContext;
 
-  test.beforeAll(async ({ request }) => {
-    api = request;
+  /**
+   * `api` is a context this file owns, created here and disposed in `afterAll`.
+   *
+   * It used to be Playwright's `request` fixture, captured in `beforeAll` and
+   * reused from the tests — which Playwright refuses outright:
+   * "Fixture { request } from beforeAll cannot be reused in a test." Every test
+   * in this file threw that at its first call. Nothing noticed, because the suite
+   * was never run: `test:e2e` is in package.json and in no CI workflow.
+   */
+  test.beforeAll(async () => {
+    api = await apiRequest.newContext();
     for (const role of Object.keys(USERS) as (keyof typeof USERS)[]) {
       try {
         await loginAs(api, role);
@@ -48,6 +57,10 @@ test.describe('RBAC - Role-Based Access Control', () => {
         // Pre-seeded user may not exist in all environments
       }
     }
+  });
+
+  test.afterAll(async () => {
+    await api.dispose();
   });
 
   test('RBAC-001: OWNER can access patients → 200', async () => {
@@ -72,16 +85,36 @@ test.describe('RBAC - Role-Based Access Control', () => {
   });
 
   test('RBAC-004: Unauthenticated access to patients → 401', async () => {
-    const res = await api.get(`${BASE_URL}/api/patients`);
-    expect(res.status()).toBe(401);
+    // Not the shared `api` context: `beforeAll` logged in as every role in
+    // turn on it, so it's carrying whichever login ran last as a session
+    // cookie. `authenticate` accepts that cookie exactly as validly as a
+    // Bearer token, so "unauthenticated" on the shared context would
+    // silently authenticate anyway. A fresh context has no cookies at all.
+    const anonymous = await apiRequest.newContext();
+    try {
+      const res = await anonymous.get(`${BASE_URL}/api/patients`);
+      expect(res.status()).toBe(401);
+    } finally {
+      await anonymous.dispose();
+    }
   });
 
   test('RBAC-005: OWNER can create invoices → 200/201', async () => {
     const token = tokens['owner-a'];
     if (!token) return test.skip();
+    // patientId is required (billing.routes.ts rejects a body without one) —
+    // this test only cares whether OWNER's role is allowed through, so a
+    // fresh patient just to satisfy that requirement is enough.
+    const patientRes = await api.post(`${BASE_URL}/api/patients`, {
+      headers: authHeaders(token),
+      data: { firstName: 'RBAC', lastName: 'InvoiceTarget', phone: '+77000000005' },
+    });
+    const patientBody = await patientRes.json();
+    const patientId = (patientBody.data || patientBody).id;
+
     const res = await api.post(`${BASE_URL}/api/billing/invoices`, {
       headers: authHeaders(token),
-      data: { amount: 10000, description: 'Test invoice' },
+      data: { patientId, amount: 10000, description: 'Test invoice' },
     });
     expect([200, 201]).toContain(res.status());
   });
@@ -112,11 +145,16 @@ test.describe('RBAC - Role-Based Access Control', () => {
     expect(res.status()).toBe(403);
   });
 
-  test('RBAC-009: ADMIN can access admin routes → 200', async () => {
+  test('RBAC-009: ADMIN cannot access superadmin routes → 403', async () => {
+    // /api/admin/* is gated by requireSuperadmin, not by clinic role — the
+    // "ADMIN" here is clinic staff, not the platform superadmin who
+    // administers every clinic. The two are deliberately separate; this is
+    // the same privilege-separation check RBAC-008/011/012 already make for
+    // other clinic roles.
     const token = tokens['admin-a'];
     if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
-    expect(res.status()).toBe(200);
+    expect(res.status()).toBe(403);
   });
 
   test('RBAC-010: MANAGER can access admin routes → 200', async () => {

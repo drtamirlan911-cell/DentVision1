@@ -24,6 +24,8 @@ import {
   getNetworkBI,
   cfoChat,
 } from './bi.service.js';
+import prisma from '../../lib/prisma.js';
+import { serializeBigInt } from '../../lib/money.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 export const biRouter = Router();
@@ -172,6 +174,64 @@ biRouter.get('/clinic/:clinicId', requirePermission('bi.clinic'), async (req: Au
   } catch (error) {
     console.error('[bi/clinic/:id]', error);
     return res.status(500).json({ ok: false, error: 'Ошибка clinic BI' } satisfies ApiResponse);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SNAPSHOT HISTORY — daily persisted numbers (jobs/biSnapshotCron.ts),
+// as opposed to every route above which recomputes live on each request.
+// ═══════════════════════════════════════════════════════════════
+
+biRouter.get('/saas-metrics/history', requirePermission('bi.platform'), async (req: AuthRequest, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '90'), 10) || 90, 1), 365);
+    const rows = await prisma.saaSMetrics.findMany({
+      where: { tenantId: 'platform' },
+      orderBy: { date: 'desc' },
+      take: limit,
+    });
+    return res.json({ ok: true, data: serializeBigInt(rows) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[bi/saas-metrics/history]', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка истории SaaS-метрик' } satisfies ApiResponse);
+  }
+});
+
+biRouter.get('/customer-metrics/:clinicId/history', requirePermission('bi.clinic'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = String(req.params.clinicId);
+    const isSuper = req.user?.role === 'SUPERADMIN';
+    // Same tenant isolation as GET /clinic/:clinicId above: a non-superadmin
+    // may only read their own clinic's history.
+    if (!isSuper && clinicId !== req.user?.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '24'), 10) || 24, 1), 120);
+    const rows = await prisma.customerMetrics.findMany({
+      where: { clinicId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return res.json({ ok: true, data: serializeBigInt(rows) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[bi/customer-metrics/:clinicId/history]', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка истории по клинике' } satisfies ApiResponse);
+  }
+});
+
+biRouter.get('/snapshots', requirePermission('bi.platform'), async (req: AuthRequest, res) => {
+  try {
+    const scopeType = req.query.scopeType ? String(req.query.scopeType) : 'PLATFORM';
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '30'), 10) || 30, 1), 200);
+    const rows = await prisma.bISnapshot.findMany({
+      where: { scopeType },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return res.json({ ok: true, data: rows } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[bi/snapshots]', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка истории снапшотов' } satisfies ApiResponse);
   }
 });
 

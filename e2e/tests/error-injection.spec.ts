@@ -1,4 +1,4 @@
-import { test, expect, APIRequestContext } from '@playwright/test';
+import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -23,9 +23,22 @@ function auth(token: string) {
 test.describe('Error Handling & Injection', () => {
   let api: APIRequestContext;
 
-  test.beforeAll(async ({ request }) => {
-    api = request;
+  /**
+   * `api` is a context this file owns, created here and disposed in `afterAll`.
+   *
+   * It used to be Playwright's `request` fixture, captured in `beforeAll` and
+   * reused from the tests — which Playwright refuses outright:
+   * "Fixture { request } from beforeAll cannot be reused in a test." Every test
+   * in this file threw that at its first call. Nothing noticed, because the suite
+   * was never run: `test:e2e` is in package.json and in no CI workflow.
+   */
+  test.beforeAll(async () => {
+    api = await apiRequest.newContext();
     await loginOwner(api);
+  });
+
+  test.afterAll(async () => {
+    await api.dispose();
   });
 
   test('ERROR-001: Invalid JSON body → 400 (not 500)', async () => {
@@ -47,13 +60,18 @@ test.describe('Error Handling & Injection', () => {
   });
 
   test('ERROR-003: Extremely long input → 400/413 (not crash)', async () => {
+    // querySchema (ai.routes.ts) requires `text`, not `message`.
     const res = await api.post(`${BASE_URL}/api/ai/query`, {
       headers: auth(ownerToken),
-      data: { message: 'x'.repeat(1_000_000) },
+      data: { text: 'x'.repeat(1_000_000) },
       timeout: 10000,
     });
     expect(res.status()).not.toBe(500);
-    expect([200, 400, 413, 422]).toContain(res.status());
+    // 429 belongs here too: aiLimiter is shared across every test in this
+    // run hitting /api/ai/query, so a prior test tripping it here is a
+    // legitimate "handled gracefully, not a crash" outcome, not a failure
+    // of this test's own concern.
+    expect([200, 400, 413, 422, 429]).toContain(res.status());
   });
 
   test('ERROR-004: SQL injection attempt → 400 (not 500)', async () => {

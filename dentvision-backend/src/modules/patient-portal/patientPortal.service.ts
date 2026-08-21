@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * The portal's reads, keyed by a patient id the caller has already proven.
  *
@@ -15,6 +14,7 @@
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { parseMeta } from '../crm/appointmentMeta.js';
+import { getPublishedRelease } from '../patient-presentation/planRelease.service.js';
 import {
   collectPlanTeeth,
   enrichStages,
@@ -337,6 +337,14 @@ export interface RequestAppointmentInput {
   doctorId?: string | null;
   serviceName?: string | null;
   notes?: string | null;
+  /**
+   * Set when the request was filed from the patient's presentation screen —
+   * the concierge funnel's tracked conversion. Verified against this same
+   * patient's own published releases before being trusted; a bad or
+   * someone else's id is silently dropped rather than failing the booking
+   * over it, since the request itself is what actually matters here.
+   */
+  releaseId?: string | null;
 }
 
 /**
@@ -402,6 +410,15 @@ export async function requestAppointment(input: RequestAppointmentInput) {
     doctorName = [member.user.firstName, member.user.lastName].filter(Boolean).join(' ').trim();
   }
 
+  // Only trusted once confirmed to be this same patient's own published
+  // release — a stray or someone else's id is dropped silently rather than
+  // failing the booking, since the request is what actually matters here.
+  let releaseId: string | null = null;
+  if (input.releaseId) {
+    const release = await getPublishedRelease(input.patientId, input.releaseId);
+    releaseId = release?.id ?? null;
+  }
+
   const patientName = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim() || 'Пациент';
   const row = await (prisma as any).booking.create({
     data: {
@@ -417,6 +434,7 @@ export async function requestAppointment(input: RequestAppointmentInput) {
       time: input.time,
       notes: input.notes || null,
       status: 'pending',
+      releaseId,
       // Distinguishes a request the assistant filed from one a patient typed
       // into the public widget themselves — staff-facing, not shown to the patient.
       source: 'ai-assistant',

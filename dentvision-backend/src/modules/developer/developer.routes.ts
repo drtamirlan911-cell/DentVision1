@@ -21,6 +21,30 @@ developerRouter.get('/apps', async (req: AuthRequest, res) => {
   return res.json({ ok: true, data: apps } satisfies ApiResponse);
 });
 
+// Detail: `GET /apps` gives only counts. A user creating a key or webhook
+// has no way to see what they already made afterwards — the plaintext
+// secret shown once at creation is the only trace. This exposes the safe
+// remainder (prefix, not hash; url/events, not the HMAC secret).
+developerRouter.get('/apps/:id', async (req: AuthRequest, res) => {
+  const app = await prisma.developerApp.findFirst({
+    where: { id: req.params.id as string, ownerUserId: req.user!.id },
+    include: {
+      apiKeys: {
+        select: { id: true, prefix: true, scopes: true, rateLimit: true, revokedAt: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      },
+      webhooks: {
+        select: { id: true, url: true, events: true, active: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+  if (!app) {
+    return res.status(404).json({ ok: false, error: 'Приложение не найдено' } satisfies ApiResponse);
+  }
+  return res.json({ ok: true, data: app } satisfies ApiResponse);
+});
+
 developerRouter.post('/apps', async (req: AuthRequest, res) => {
   try {
     const { name, environment, scopes } = req.body || {};

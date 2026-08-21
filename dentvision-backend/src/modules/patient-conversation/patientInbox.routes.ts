@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * The staff side: where a patient's escalated question actually gets
  * answered. Scoped to OWNER/ADMIN — the same pair `notifyClinicOwners` and
@@ -58,7 +57,7 @@ patientInboxRouter.get('/conversations/:id', authenticate, async (req: AuthReque
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
-    const thread = await convo.getThreadForClinic(clinicId, req.params.id);
+    const thread = await convo.getThreadForClinic(clinicId, String(req.params.id));
     return res.json({ ok: true, data: thread });
   } catch (e: any) {
     if (e?.code === 'NOT_FOUND') return res.status(404).json({ ok: false, error: e.message });
@@ -70,7 +69,7 @@ patientInboxRouter.post('/conversations/:id/claim', authenticate, async (req: Au
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
-    const conversation = await convo.claimConversation(clinicId, req.params.id, req.user!.id);
+    const conversation = await convo.claimConversation(clinicId, String(req.params.id), req.user!.id);
     clinicInboxHub.broadcast(clinicId, { type: 'claimed', conversationId: conversation.id, by: req.user!.id });
     return res.json({ ok: true, data: conversation });
   } catch (e: any) {
@@ -87,9 +86,9 @@ patientInboxRouter.post('/conversations/:id/reply', authenticate, async (req: Au
     const text = String(req.body?.text || '').trim();
     if (!text) return res.status(400).json({ ok: false, error: 'Пустое сообщение' });
 
-    const message = await convo.replyAsStaff(clinicId, req.params.id, req.user!.id, text);
-    patientConversationHub.broadcast(req.params.id, { type: 'message', message });
-    clinicInboxHub.broadcast(clinicId, { type: 'reply', conversationId: req.params.id });
+    const message = await convo.replyAsStaff(clinicId, String(req.params.id), req.user!.id, text);
+    patientConversationHub.broadcast(String(req.params.id), { type: 'message', message });
+    clinicInboxHub.broadcast(clinicId, { type: 'reply', conversationId: String(req.params.id) });
     return res.json({ ok: true, data: message });
   } catch (e: any) {
     if (e?.code === 'NOT_FOUND') return res.status(404).json({ ok: false, error: e.message });
@@ -102,7 +101,7 @@ patientInboxRouter.post('/conversations/:id/resolve', authenticate, async (req: 
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
-    const conversation = await convo.resolveConversation(clinicId, req.params.id);
+    const conversation = await convo.resolveConversation(clinicId, String(req.params.id));
     clinicInboxHub.broadcast(clinicId, { type: 'resolved', conversationId: conversation.id });
     return res.json({ ok: true, data: conversation });
   } catch (e: any) {

@@ -9,6 +9,7 @@ import {
   NOTIFICATION_TYPES,
 } from '../../services/notification.service.js';
 import { dispatchNotifications } from '../notifications/dispatch.service.js';
+import { assertValidIinFormat, checkIinCrossFields } from '../../lib/patientIin.js';
 import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 
 // ─── Center Subscription ───
@@ -474,6 +475,15 @@ export async function createReferral(data: {
     if (count >= 5) throw new Error('Daily referral limit reached (5). Upgrade to clinic plan.');
   }
 
+  // A referral is a request, not necessarily tied to a registered `Patient`
+  // row — so this checks format, date and sex only, no clinic-scoped
+  // uniqueness (that rule lives with `Patient`, in `patients.routes.ts`).
+  let patientIin = data.patientIin;
+  if (patientIin && patientIin.trim() !== '') {
+    patientIin = assertValidIinFormat(patientIin);
+    checkIinCrossFields(patientIin, data.patientBirth, data.patientGender);
+  }
+
   // Explicit field-by-field whitelist, not `...data`. The route handler builds
   // `data` as `{ ...req.body, doctorId: userId }` — TS's parameter type above
   // only *documents* the intended shape, it doesn't strip anything at runtime
@@ -486,7 +496,7 @@ export async function createReferral(data: {
     data: {
       id: uid(),
       patientName: data.patientName,
-      patientIin: data.patientIin,
+      patientIin,
       patientBirth: data.patientBirth ? new Date(data.patientBirth) : undefined,
       patientGender: data.patientGender,
       patientPhone: data.patientPhone,

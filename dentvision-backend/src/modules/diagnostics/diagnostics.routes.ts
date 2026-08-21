@@ -8,6 +8,7 @@ import * as svc from './diagnostics.service.js';
 import { uid } from '../../lib/helpers.js';
 import prisma from '../../lib/prisma.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
+import { IinValidationError } from '../../lib/patientIin.js';
 
 // C3: Verify user has clinic membership for the referral's clinic
 /**
@@ -279,6 +280,9 @@ diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => {
     const data = await svc.createReferral({ ...req.body, doctorId: userId }, userId);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
+    if (e instanceof IinValidationError) {
+      return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse);
+    }
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
 });

@@ -4,9 +4,11 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
 const USER_A = { email: 'owner-a@test.com', password: 'Test1234!' };
 const USER_B = { email: 'owner-b@test.com', password: 'Test1234!' };
+const DOCTOR_A = { email: 'doctor-a@test.com', password: 'Test1234!' };
 
 let tokenA: string;
 let tokenB: string;
+let doctorAId: string;
 
 async function login(ctx: APIRequestContext, email: string, password: string): Promise<string> {
   const res = await ctx.post('/api/auth/login', {
@@ -32,12 +34,12 @@ async function createPatient(ctx: APIRequestContext, token: string): Promise<str
   return (body.data || body).id;
 }
 
-async function createAppointment(ctx: APIRequestContext, token: string, patientId: string): Promise<string> {
+async function createAppointment(ctx: APIRequestContext, token: string, patientId: string, doctorId: string): Promise<string> {
   const res = await ctx.post('/api/appointments', {
     headers: await headers(token),
     data: {
       patientId,
-      doctorId: patientId,
+      doctorId,
       date: new Date().toISOString().slice(0, 10),
       time: '14:00',
       duration: 30,
@@ -112,6 +114,10 @@ test.describe('IDOR Protection', () => {
   test.beforeAll(async ({ request }) => {
     tokenA = await login(request, USER_A.email, USER_A.password);
     tokenB = await login(request, USER_B.email, USER_B.password);
+    const doctorToken = await login(request, DOCTOR_A.email, DOCTOR_A.password);
+    const meRes = await request.get('/api/auth/me', { headers: await headers(doctorToken) });
+    const meBody = await meRes.json();
+    doctorAId = (meBody.data || meBody).id || (meBody.data || meBody).user?.id;
   });
 
   test('IDOR-001: Access other clinic patient by ID', async ({ request }) => {
@@ -136,7 +142,7 @@ test.describe('IDOR Protection', () => {
 
   test('IDOR-002: Access other clinic appointment by ID', async ({ request }) => {
     const patientIdA = await createPatient(request, tokenA);
-    const apptId = await createAppointment(request, tokenA, patientIdA);
+    const apptId = await createAppointment(request, tokenA, patientIdA, doctorAId);
 
     const patchRes = await request.patch(`/api/appointments/${apptId}/status`, {
       headers: await headers(tokenB),
@@ -237,9 +243,13 @@ test.describe('IDOR Protection', () => {
   test('IDOR-008: Access other clinic lab order by ID', async ({ request }) => {
     const labOrderId = await createLabOrder(request, tokenA);
 
+    // 'completed' isn't a lab-order status (see lab.routes.ts's VALID_STATUSES
+    // — labs use 'ready'/'delivered'); status validation runs before the
+    // tenant-ownership check, so an invalid status always got 400 regardless
+    // of whose token was used, and this never actually exercised IDOR.
     const patchRes = await request.patch(`/api/lab-orders/${labOrderId}/status`, {
       headers: await headers(tokenB),
-      data: { status: 'completed' },
+      data: { status: 'ready' },
     });
     expect([403, 404]).toContain(patchRes.status());
 

@@ -83,6 +83,17 @@ enum LabOrderStatus {
   completed
   cancelled
   delivered
+  // Added so the enum matches VALID_STATUSES in lab.routes.ts, which had
+  // accepted these as valid input since the dental-lab workflow (sent to lab,
+  // fabrication, try-in with the patient, adjustment, ready for pickup,
+  // remake, delayed) was written — the DB enum was just never updated to
+  // match, so PATCH /:id/status 500'd on every one of them.
+  sent
+  try_in
+  adjustment
+  ready
+  remake
+  delayed
 }
 
 enum ActionStatus {
@@ -256,6 +267,7 @@ model Clinic {
   crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantAsReceiving")
   patientConversations         PatientConversation[]
   treatmentPlanReleases        TreatmentPlanRelease[]
+  patientPresentations         PatientPresentation[]
 
   @@map("clinics")
 }
@@ -275,12 +287,19 @@ model Booking {
   status      BookingStatus @default(pending)
   source      String        @default("online")
 
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  /// Set when this request was filed from a patient's presentation screen —
+  /// the concierge funnel's last, and so far only, tracked conversion.
+  /// Optional: the public widget and every other booking path leave it null.
+  releaseId String?
+
+  clinic  Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  release TreatmentPlanRelease? @relation(fields: [releaseId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId, status, date])
+  @@index([releaseId])
   @@map("bookings")
 }
 
@@ -387,16 +406,27 @@ model Appointment {
   type      String?
   notes     String?
   meta      Json?
+  /// The plan this visit was booked to carry out, if any.
+  ///
+  /// Stage-level linkage already existed, but only inside
+  /// `TreatmentPlan.items.stages[].appointmentId` — a JSON field a `WHERE`
+  /// clause cannot reach. This is the plan-level anchor: not a replacement for
+  /// the per-stage JSON link, but the one a funnel or reporting query can
+  /// actually join on. Nullable and backfilled from that same JSON where it
+  /// was already recorded; not every appointment serves a plan.
+  treatmentPlanId String?
 
-  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  doctor  User    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor        User           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId, date])
   @@index([doctorId, date])
+  @@index([treatmentPlanId])
   @@map("appointments")
 }
 
@@ -573,9 +603,11 @@ model TreatmentPlan {
   notes     String?
   deletedAt DateTime?
 
-  patient  Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  clinic   Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: SetNull)
-  releases TreatmentPlanRelease[]
+  patient      Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic       Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  releases     TreatmentPlanRelease[]
+  appointments Appointment[]
+  invoices     Invoice[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -659,10 +691,21 @@ model TreatmentPlanRelease {
   withdrawnByUserId String?
   withdrawReason    String?
 
+  /// The concierge funnel, Phase 6: first-touch timestamps for whether the
+  /// patient actually opened and finished their presentation. Kept here,
+  /// not on `PatientPresentation`, because a patient may watch the plain
+  /// deterministic script with no `PatientPresentation` row ever existing —
+  /// the release is the one anchor that is always there to record against.
+  firstViewedAt DateTime?
+  finishedAt    DateTime?
+
   plan       TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   clinic     Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient    Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
   approvedBy User          @relation("PlanReleaseApprover", fields: [approvedByUserId], references: [id])
+
+  presentations PatientPresentation[]
+  bookings      Booking[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -671,6 +714,55 @@ model TreatmentPlanRelease {
   @@index([clinicId, status, approvedAt])
   @@index([patientId, status])
   @@map("treatment_plan_releases")
+}
+
+enum PatientPresentationStatus {
+  draft
+  published
+}
+
+/// The LLM-rewritten wording for a release, reviewed by a doctor before a
+/// patient can see it — Phase 5 of the concierge presentation.
+///
+/// `buildScriptSkeleton` never invents a fact; this table is what a model is
+/// allowed to touch, and only after `scriptValidator.ts` accepts each line.
+/// `script` carries the full `PresentationScript`, already merged with
+/// whatever the model's rewrites survived review. `generatorByBeat` records,
+/// per beat id, whether that line is `'template'`, `'llm'`, or `'doctor'` —
+/// kept alongside the script rather than inside each beat, so the shared
+/// `Beat` contract the frontend renders never has to carry a field it has no
+/// use for. `validationReport` is the last `ScriptReview` from
+/// `applyRewrite`, shown to the doctor in the preview screen; null until the
+/// first generation.
+///
+/// Publishing this is a second, separate act from publishing the release: a
+/// clinic that never generates a presentation still shows patients the plain
+/// deterministic wording, unaffected by any of this.
+model PatientPresentation {
+  id        String                     @id @default(uuid())
+  releaseId String
+  clinicId  String
+  locale    String                     @default("ru")
+  status    PatientPresentationStatus  @default(draft)
+
+  script           Json
+  generatorByBeat  Json
+  validationReport Json?
+
+  generatedByUserId String?
+  generatedAt       DateTime?
+  publishedByUserId String?
+  publishedAt       DateTime?
+
+  release TreatmentPlanRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  clinic  Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([releaseId, locale])
+  @@index([clinicId, status])
+  @@map("patient_presentations")
 }
 
 model PatientImage {
@@ -765,15 +857,21 @@ model Invoice {
   notes     String?
   paidAt    DateTime?
   deletedAt DateTime?
+  /// The plan this invoice bills, if any. Same rationale as
+  /// `Appointment.treatmentPlanId` — the per-stage JSON link
+  /// (`items.stages[].invoiceId`) already existed but isn't queryable.
+  treatmentPlanId String?
 
-  clinic  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient?       @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
   @@index([patientId])
+  @@index([treatmentPlanId])
   @@map("invoices")
 }
 

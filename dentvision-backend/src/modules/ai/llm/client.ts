@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * LLM Client — general-purpose OpenAI client for Event OS agents.
  *
@@ -70,7 +69,7 @@ export interface LLMResponse {
   content: string;
   toolCalls: ToolCall[];
   model: string;
-  tier: 'mini' | 'full';
+  tier: 'mini' | 'full' | 'free';
   tokensUsed: number;
   finishReason: string;
 }

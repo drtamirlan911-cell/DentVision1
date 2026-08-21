@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils'
 interface NextStepActionsProps {
   /** Shown to the clinic as the reason for the request. */
   serviceName?: string | null
+  /** Traces the request back to the presentation that generated it — the concierge funnel's tracked conversion. */
+  releaseId?: string | null
   className?: string
 }
 
@@ -35,7 +37,7 @@ function defaultRequestDate(): string {
   return date.toISOString().slice(0, 10)
 }
 
-export function NextStepActions({ serviceName, className }: NextStepActionsProps) {
+export function NextStepActions({ serviceName, releaseId, className }: NextStepActionsProps) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -59,6 +61,7 @@ export function NextStepActions({ serviceName, className }: NextStepActionsProps
         time,
         serviceName: serviceName || null,
         notes: t('presentation.request_note'),
+        releaseId: releaseId || null,
       })
       setStatus('sent')
     } catch (e: any) {

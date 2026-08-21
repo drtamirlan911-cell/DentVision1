@@ -253,3 +253,62 @@ export async function listReleasesForPlan(planId: string) {
     orderBy: { version: 'desc' },
   });
 }
+
+export type PresentationMilestone = 'viewed' | 'finished';
+
+/**
+ * First-touch only: a replay does not move `finishedAt` and a second visit
+ * does not move `firstViewedAt`. Scoped through `getPublishedRelease`, so a
+ * milestone can only ever be recorded against a release that is actually
+ * this patient's own, published, unexpired release — the same fail-closed
+ * check the script read itself uses.
+ */
+export async function recordPresentationMilestone(
+  patientId: string,
+  releaseId: string,
+  milestone: PresentationMilestone,
+): Promise<void> {
+  const release = await getPublishedRelease(patientId, releaseId);
+  if (!release) return;
+
+  const field = milestone === 'viewed' ? 'firstViewedAt' : 'finishedAt';
+  await prisma.treatmentPlanRelease.updateMany({
+    where: { id: releaseId, [field]: null },
+    data: { [field]: new Date() },
+  });
+}
+
+export interface PresentationFunnelStage {
+  stage: 'approved' | 'published' | 'viewed' | 'finished' | 'requested';
+  label: string;
+  count: number;
+}
+
+/**
+ * The concierge funnel for one clinic: how many approved releases made it to
+ * each step, ending in a booking request actually filed from the
+ * presentation screen (`Booking.releaseId`) — not "booked", since a request
+ * still needs a human at the clinic to confirm it becomes an appointment,
+ * and nothing in the schema traces that conversion today.
+ */
+export async function getPresentationFunnel(clinicId: string): Promise<PresentationFunnelStage[]> {
+  const [approved, published, viewed, finished, requested] = await Promise.all([
+    prisma.treatmentPlanRelease.count({ where: { clinicId, status: 'approved' } }),
+    prisma.treatmentPlanRelease.count({ where: { clinicId, status: 'approved', publishedAt: { not: null } } }),
+    prisma.treatmentPlanRelease.count({
+      where: { clinicId, status: 'approved', publishedAt: { not: null }, firstViewedAt: { not: null } },
+    }),
+    prisma.treatmentPlanRelease.count({
+      where: { clinicId, status: 'approved', publishedAt: { not: null }, finishedAt: { not: null } },
+    }),
+    prisma.booking.count({ where: { clinicId, releaseId: { not: null } } }),
+  ]);
+
+  return [
+    { stage: 'approved', label: 'Утверждено врачом', count: approved },
+    { stage: 'published', label: 'Опубликовано пациенту', count: published },
+    { stage: 'viewed', label: 'Открыто пациентом', count: viewed },
+    { stage: 'finished', label: 'Досмотрено до конца', count: finished },
+    { stage: 'requested', label: 'Оставлена заявка', count: requested },
+  ];
+}

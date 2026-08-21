@@ -1,6 +1,7 @@
 import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { commissionMinor } from '../../lib/money.js';
+import { writeRevenue, revenueSourceForDomain } from './revenue.service.js';
 
 const DEFAULT_COMMISSION_BPS = 1000; // 10%
 
@@ -90,6 +91,16 @@ export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClien
   await db.wallet.update({ where: { id: gateway.id }, data: { balance: { decrement: input.amountMinor } } });
   await db.wallet.update({ where: { id: seller.id }, data: { balance: { increment: net } } });
   await db.wallet.update({ where: { id: platform.id }, data: { balance: { increment: commission } } });
+
+  await writeRevenue(
+    {
+      source: revenueSourceForDomain(input.domain),
+      amountMinor: input.amountMinor,
+      refType: input.refType || input.domain,
+      refId: input.refId,
+    },
+    db,
+  );
 
   return transaction;
 }

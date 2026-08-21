@@ -1,4 +1,4 @@
-import { APIRequestContext, request } from '@playwright/test';
+import { APIRequestContext, APIResponse, request } from '@playwright/test';
 
 export const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -76,4 +76,23 @@ export async function makeRequest(
   }
 
   return body?.data ?? body;
+}
+
+/**
+ * The payload, with the envelope taken off.
+ *
+ * Every route answers `{ ok, data }` on success and `{ ok, error }` on failure,
+ * but most specs were written against a bare body — `body.id`, `body.firstName`
+ * — so the id they captured was `undefined` and every request that used it came
+ * back 404. That cascade accounted for most of the suite's failures.
+ *
+ * Only a success envelope is unwrapped. An error response has no `data` and is
+ * returned whole, because the specs assert on `error` and on nothing else.
+ */
+export async function payload(res: APIResponse): Promise<any> {
+  const parsed = await res.json().catch(() => null);
+  if (parsed && typeof parsed === 'object' && 'ok' in parsed && 'data' in parsed) {
+    return (parsed as { data: unknown }).data;
+  }
+  return parsed;
 }

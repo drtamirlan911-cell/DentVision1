@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * The patient assistant's endpoints.
  *

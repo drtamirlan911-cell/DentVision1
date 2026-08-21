@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Agent } from '../core/agent.router.js';
 import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
@@ -181,8 +180,8 @@ export class OwnerAgent implements Agent {
       return { message: 'Склад пуст или не подключён', intent: 'STOCK_ANALYSIS', suggestions: ['Добавить товар', 'Закупка'] };
     }
 
-    const lowStock = inventory.filter(i => i.quantity <= (i.minQuantity || 5));
-    const totalItems = inventory.reduce((sum, i) => sum + (i.quantity * (i.cost || 0)), 0);
+    const lowStock = inventory.filter(i => i.quantity <= (i.minimum || 5));
+    const totalItems = inventory.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
     const money = await resolveClinicCurrency(context.clinicId);
     const fmt = (n: number) => formatClinicMoney(n, money);
 
