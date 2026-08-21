@@ -47,6 +47,8 @@ export const queryKeys = {
   partners: ['partners'] as const,
   partner: (id: string) => ['partner', id] as const,
   partnerTiers: ['partnerTiers'] as const,
+  planPresentation: (releaseId: string) => ['planPresentation', releaseId] as const,
+  planReleases: (planId: string) => ['planReleases', planId] as const,
   diagnostics: {
     dashboard: (clinicId?: string) => ['diagnostics', 'dashboard', clinicId] as const,
     referrals: (params?: Record<string, string>) => ['diagnostics', 'referrals', params] as const,

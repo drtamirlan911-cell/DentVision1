@@ -267,6 +267,7 @@ model Clinic {
   crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantAsReceiving")
   patientConversations         PatientConversation[]
   treatmentPlanReleases        TreatmentPlanRelease[]
+  patientPresentations         PatientPresentation[]
 
   @@map("clinics")
 }
@@ -688,6 +689,8 @@ model TreatmentPlanRelease {
   patient    Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
   approvedBy User          @relation("PlanReleaseApprover", fields: [approvedByUserId], references: [id])
 
+  presentations PatientPresentation[]
+
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
@@ -695,6 +698,55 @@ model TreatmentPlanRelease {
   @@index([clinicId, status, approvedAt])
   @@index([patientId, status])
   @@map("treatment_plan_releases")
+}
+
+enum PatientPresentationStatus {
+  draft
+  published
+}
+
+/// The LLM-rewritten wording for a release, reviewed by a doctor before a
+/// patient can see it — Phase 5 of the concierge presentation.
+///
+/// `buildScriptSkeleton` never invents a fact; this table is what a model is
+/// allowed to touch, and only after `scriptValidator.ts` accepts each line.
+/// `script` carries the full `PresentationScript`, already merged with
+/// whatever the model's rewrites survived review. `generatorByBeat` records,
+/// per beat id, whether that line is `'template'`, `'llm'`, or `'doctor'` —
+/// kept alongside the script rather than inside each beat, so the shared
+/// `Beat` contract the frontend renders never has to carry a field it has no
+/// use for. `validationReport` is the last `ScriptReview` from
+/// `applyRewrite`, shown to the doctor in the preview screen; null until the
+/// first generation.
+///
+/// Publishing this is a second, separate act from publishing the release: a
+/// clinic that never generates a presentation still shows patients the plain
+/// deterministic wording, unaffected by any of this.
+model PatientPresentation {
+  id        String                     @id @default(uuid())
+  releaseId String
+  clinicId  String
+  locale    String                     @default("ru")
+  status    PatientPresentationStatus  @default(draft)
+
+  script           Json
+  generatorByBeat  Json
+  validationReport Json?
+
+  generatedByUserId String?
+  generatedAt       DateTime?
+  publishedByUserId String?
+  publishedAt       DateTime?
+
+  release TreatmentPlanRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  clinic  Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([releaseId, locale])
+  @@index([clinicId, status])
+  @@map("patient_presentations")
 }
 
 model PatientImage {

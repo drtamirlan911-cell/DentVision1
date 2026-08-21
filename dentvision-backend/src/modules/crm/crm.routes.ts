@@ -16,6 +16,7 @@ import {
   type TreatmentPlanItems,
 } from '../../lib/treatmentPlanShape.js';
 import * as planRelease from '../patient-presentation/planRelease.service.js';
+import * as presentation from '../patient-presentation/presentation.service.js';
 import { linkStageReferences } from './planStageLinks.js';
 
 export const crmRouter = Router();
@@ -279,6 +280,129 @@ crmRouter.post('/plan-releases/:releaseId/withdraw', requirePermission('medical.
     return res.status(500).json({ ok: false, error: 'Не удалось отозвать публикацию' } satisfies ApiResponse);
   }
 });
+
+// ─────────────── Presentation Generator (Phase 5) ───────────────
+// The LLM rewrite pass sits between approval and publish: generate a draft,
+// review it here, publish it — or leave it a draft and the patient keeps
+// seeing the plain deterministic wording.
+
+/** Run the LLM pass over a release's skeleton and store the result as a draft. */
+crmRouter.post(
+  '/plan-releases/:releaseId/presentation/generate',
+  requirePermission('medical.manage'),
+  async (req: AuthRequest, res) => {
+    try {
+      const releaseId = String(req.params.releaseId);
+      const existing = await prisma.treatmentPlanRelease.findUnique({ where: { id: releaseId } });
+      if (!existing) {
+        return res.status(404).json({ ok: false, error: 'Публикация не найдена' } satisfies ApiResponse);
+      }
+      if (!assertSameClinic(req, res, existing.clinicId)) return;
+
+      const { locale } = req.body as { locale?: string };
+      const row = await presentation.generatePresentation(
+        releaseId,
+        req.user!.id,
+        locale === 'kk' || locale === 'en' ? locale : 'ru',
+      );
+      return res.json({ ok: true, data: row } satisfies ApiResponse);
+    } catch (error) {
+      if (error instanceof presentation.PresentationError) {
+        return res
+          .status(error.code === 'NOT_FOUND' ? 404 : 409)
+          .json({ ok: false, error: error.message } satisfies ApiResponse);
+      }
+      console.error('[CRM] Generate presentation error:', error);
+      return res.status(500).json({ ok: false, error: 'Не удалось сгенерировать презентацию' } satisfies ApiResponse);
+    }
+  },
+);
+
+/** The doctor's preview: the current draft or published presentation for a release. */
+crmRouter.get(
+  '/plan-releases/:releaseId/presentation',
+  requirePermission('medical.manage'),
+  async (req: AuthRequest, res) => {
+    try {
+      const releaseId = String(req.params.releaseId);
+      const existing = await prisma.treatmentPlanRelease.findUnique({ where: { id: releaseId } });
+      if (!existing) {
+        return res.status(404).json({ ok: false, error: 'Публикация не найдена' } satisfies ApiResponse);
+      }
+      if (!assertSameClinic(req, res, existing.clinicId)) return;
+
+      const locale = req.query.locale === 'kk' || req.query.locale === 'en' ? req.query.locale : 'ru';
+      const row = await presentation.getPresentation(releaseId, locale);
+      if (!row) {
+        return res.status(404).json({ ok: false, error: 'Презентация ещё не сгенерирована' } satisfies ApiResponse);
+      }
+      return res.json({ ok: true, data: row } satisfies ApiResponse);
+    } catch (error) {
+      console.error('[CRM] Get presentation error:', error);
+      return res.status(500).json({ ok: false, error: 'Не удалось загрузить презентацию' } satisfies ApiResponse);
+    }
+  },
+);
+
+/** A doctor's own rewording of one beat — always saved, tagged `generator: 'doctor'`. */
+crmRouter.patch(
+  '/presentations/:id/beats/:beatId',
+  requirePermission('medical.manage'),
+  async (req: AuthRequest, res) => {
+    try {
+      const id = String(req.params.id);
+      const beatId = String(req.params.beatId);
+      const existing = await prisma.patientPresentation.findUnique({ where: { id } });
+      if (!existing) {
+        return res.status(404).json({ ok: false, error: 'Презентация не найдена' } satisfies ApiResponse);
+      }
+      if (!assertSameClinic(req, res, existing.clinicId)) return;
+
+      const { say, saySimple } = req.body as { say?: string; saySimple?: string | null };
+      if (!say || !say.trim()) {
+        return res.status(400).json({ ok: false, error: 'Текст реплики обязателен' } satisfies ApiResponse);
+      }
+
+      const row = await presentation.editBeat(id, beatId, { say, saySimple: saySimple ?? null });
+      return res.json({ ok: true, data: row } satisfies ApiResponse);
+    } catch (error) {
+      if (error instanceof presentation.PresentationError) {
+        return res
+          .status(error.code === 'NOT_FOUND' ? 404 : 409)
+          .json({ ok: false, error: error.message } satisfies ApiResponse);
+      }
+      console.error('[CRM] Edit presentation beat error:', error);
+      return res.status(500).json({ ok: false, error: 'Не удалось сохранить правку' } satisfies ApiResponse);
+    }
+  },
+);
+
+/** Publish the reviewed presentation — the patient sees it from this point on. */
+crmRouter.post(
+  '/presentations/:id/publish',
+  requirePermission('medical.manage'),
+  async (req: AuthRequest, res) => {
+    try {
+      const id = String(req.params.id);
+      const existing = await prisma.patientPresentation.findUnique({ where: { id } });
+      if (!existing) {
+        return res.status(404).json({ ok: false, error: 'Презентация не найдена' } satisfies ApiResponse);
+      }
+      if (!assertSameClinic(req, res, existing.clinicId)) return;
+
+      const row = await presentation.publishPresentation(id, req.user!.id);
+      return res.json({ ok: true, data: row } satisfies ApiResponse);
+    } catch (error) {
+      if (error instanceof presentation.PresentationError) {
+        return res
+          .status(error.code === 'NOT_FOUND' ? 404 : 409)
+          .json({ ok: false, error: error.message } satisfies ApiResponse);
+      }
+      console.error('[CRM] Publish presentation error:', error);
+      return res.status(500).json({ ok: false, error: 'Не удалось опубликовать презентацию' } satisfies ApiResponse);
+    }
+  },
+);
 
 /** Version history for one plan, superseded and withdrawn versions included. */
 crmRouter.get('/treatment-plans/:id/releases', requirePermission('patient.read'), async (req: AuthRequest, res) => {

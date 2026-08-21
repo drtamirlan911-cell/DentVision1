@@ -1586,6 +1586,96 @@ export async function getPlanReleases(planId: string): Promise<any[]> {
   return apiRequest(`/api/crm/treatment-plans/${planId}/releases`);
 }
 
+// ─── Presentation generator (Phase 5) ───
+// The LLM pass on top of the deterministic script, reviewed by a doctor
+// before publishing. A clinic that never calls `generatePresentation` still
+// has the plain wording — nothing here is required by the approval layer.
+
+export interface PatientPresentationBeat {
+  id: string;
+  say: string;
+  saySimple?: string;
+  [key: string]: unknown;
+}
+
+export interface PatientPresentationAct {
+  id: string;
+  title: string;
+  beats: PatientPresentationBeat[];
+}
+
+export interface PatientPresentationScript {
+  version: 1;
+  locale: 'ru' | 'kk' | 'en';
+  releaseId: string;
+  personaName: string;
+  acts: PatientPresentationAct[];
+}
+
+export interface PresentationValidationFailure {
+  rule: string;
+  detail: string;
+}
+
+export interface PresentationValidationReport {
+  beats: { beatId: string; accepted: boolean; failures: PresentationValidationFailure[] }[];
+  acceptedCount: number;
+  rejectedCount: number;
+  fellBackWholesale: boolean;
+}
+
+export interface PatientPresentation {
+  id: string;
+  releaseId: string;
+  clinicId: string;
+  locale: 'ru' | 'kk' | 'en';
+  status: 'draft' | 'published';
+  script: PatientPresentationScript;
+  generatorByBeat: Record<string, 'template' | 'llm' | 'doctor'>;
+  validationReport: PresentationValidationReport | null;
+  generatedByUserId: string | null;
+  generatedAt: string | null;
+  publishedByUserId: string | null;
+  publishedAt: string | null;
+}
+
+export async function generatePlanPresentation(
+  releaseId: string,
+  locale: 'ru' | 'kk' | 'en' = 'ru',
+): Promise<PatientPresentation> {
+  return apiRequest(`/api/crm/plan-releases/${releaseId}/presentation/generate`, {
+    method: 'POST',
+    body: JSON.stringify({ locale }),
+  });
+}
+
+export async function getPlanPresentation(
+  releaseId: string,
+  locale: 'ru' | 'kk' | 'en' = 'ru',
+): Promise<PatientPresentation | null> {
+  try {
+    return await apiRequest(`/api/crm/plan-releases/${releaseId}/presentation?locale=${locale}`);
+  } catch (error: any) {
+    if (error?.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function editPresentationBeat(
+  presentationId: string,
+  beatId: string,
+  candidate: { say: string; saySimple?: string | null },
+): Promise<PatientPresentation> {
+  return apiRequest(`/api/crm/presentations/${presentationId}/beats/${beatId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(candidate),
+  });
+}
+
+export async function publishPresentation(presentationId: string): Promise<PatientPresentation> {
+  return apiRequest(`/api/crm/presentations/${presentationId}/publish`, { method: 'POST' });
+}
+
 // ─── Patient presentation ───
 // The patient's side of the approval layer: only published, unexpired releases
 // are reachable here, and the script is built from the frozen snapshot.

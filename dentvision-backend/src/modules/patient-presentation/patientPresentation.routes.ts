@@ -17,10 +17,9 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { resolvePatientForUser } from '../patient-portal/patientLink.js';
-import { PRESENTATION_LOCALES, type PresentationLocale } from './beats.js';
-import { readConciergeSettings } from './conciergeSettings.js';
+import { PRESENTATION_LOCALES, type PresentationLocale, type PresentationScript } from './beats.js';
 import { getPublishedRelease, listPublishedReleases } from './planRelease.service.js';
-import { buildScriptSkeleton } from './scriptSkeleton.js';
+import { buildScriptForRelease } from './releaseScript.js';
 import { resolveVoiceLines, voiceConfigured } from './voice.service.js';
 
 export const patientPresentationRouter = Router();
@@ -45,36 +44,27 @@ async function requirePatient(req: AuthRequest, res: any): Promise<string | null
 }
 
 /**
- * Build the script for a release, with the same inputs every time.
+ * The script the patient actually sees for one release.
  *
- * Shared by the script route and the voice route on purpose: the narration is
- * synthesised from `beat.say`, so if the two built the script from different
- * context the patient would *hear* one sentence and *read* another — the beat
- * ids would still line up, which is exactly what would make it hard to notice.
+ * Prefers a doctor-published `PatientPresentation` for the requested
+ * locale — the reviewed, LLM-rewritten wording — and falls back to the
+ * plain deterministic skeleton when no presentation was ever generated, or
+ * one exists only as an unpublished draft. A draft is never patient-visible
+ * by construction: this is the only place that reads `PatientPresentation`
+ * on the patient's behalf, and it only ever looks at `status: 'published'`.
  */
-async function buildScriptForRelease(release: any, patientId: string, locale: PresentationLocale) {
-  const [patient, clinic, approver] = await Promise.all([
-    prisma.patient.findUnique({ where: { id: patientId }, select: { firstName: true } }),
-    prisma.clinic.findUnique({ where: { id: release.clinicId }, select: { name: true, settings: true } }),
-    prisma.user.findUnique({
-      where: { id: release.approvedByUserId },
-      select: { firstName: true, lastName: true },
-    }),
-  ]);
-
-  const concierge = readConciergeSettings(clinic?.settings);
-
-  return buildScriptSkeleton({
-    releaseId: release.id,
-    snapshot: release.snapshot,
-    patientFirstName: patient?.firstName ?? null,
-    clinicName: clinic?.name ?? null,
-    doctorName: approver ? `${approver.firstName} ${approver.lastName}`.trim() : null,
-    personaName: concierge.personaName,
-    locale,
-    totalAmount: release.totalAmount,
-    concierge,
+async function resolveScriptForRelease(
+  release: { id: string; clinicId: string; snapshot: unknown; totalAmount: number; approvedByUserId: string },
+  patientId: string,
+  locale: PresentationLocale,
+): Promise<PresentationScript> {
+  const presentation = await prisma.patientPresentation.findUnique({
+    where: { releaseId_locale: { releaseId: release.id, locale } },
   });
+  if (presentation && presentation.status === 'published') {
+    return presentation.script as unknown as PresentationScript;
+  }
+  return buildScriptForRelease(release, patientId, locale);
 }
 
 /** What the patient has to watch — one entry per published, unexpired release. */
@@ -105,11 +95,10 @@ patientPresentationRouter.get('/', async (req: AuthRequest, res) => {
 /**
  * The script itself.
  *
- * Built deterministically from the frozen snapshot on every read rather than
- * stored: with no LLM in the path the output is byte-identical each time, so a
- * cache would buy nothing and add a staleness mode. That changes when the LLM
- * rewrite lands — the generated wording has to be reviewed by the doctor and
- * pinned, and that is when it gets a table of its own.
+ * Resolved fresh on every read, never cached: the deterministic skeleton is
+ * rebuilt from the frozen snapshot each time, and a doctor-reviewed
+ * `PatientPresentation` is looked up by its own primary key. Either way the
+ * read is cheap enough that a cache would only add a staleness mode.
  */
 patientPresentationRouter.get('/:releaseId', async (req: AuthRequest, res) => {
   try {
@@ -124,7 +113,7 @@ patientPresentationRouter.get('/:releaseId', async (req: AuthRequest, res) => {
       return res.status(404).json({ ok: false, error: 'План не найден' } satisfies ApiResponse);
     }
 
-    const script = await buildScriptForRelease(release, patientId, resolveLocale(req.query.locale));
+    const script = await resolveScriptForRelease(release, patientId, resolveLocale(req.query.locale));
 
     return res.json({
       ok: true,
@@ -170,7 +159,7 @@ patientPresentationRouter.get('/:releaseId/voice', async (req: AuthRequest, res)
     }
 
     const locale = resolveLocale(req.query.locale);
-    const script = await buildScriptForRelease(release, patientId, locale);
+    const script = await resolveScriptForRelease(release, patientId, locale);
 
     const actId = req.query.act ? String(req.query.act) : null;
     const acts = actId ? script.acts.filter((a) => a.id === actId) : script.acts;
