@@ -3180,7 +3180,7 @@ export async function createDataDashboard(data: { name: string; layout: { tiles:
 // routes require `partner.manage` (mapped to `shop.manage` — platform/
 // marketplace-admin tier, not clinic-level).
 
-export type PartnerType = 'manufacturer' | 'distributor' | 'academy' | 'lab';
+export type PartnerType = 'MANUFACTURER' | 'DISTRIBUTOR' | 'ACADEMY' | 'LABORATORY' | 'OFFICIAL_PARTNER' | 'CLINIC';
 
 export interface PartnerTier {
   id: string;
@@ -3195,6 +3195,7 @@ export interface Partner {
   type: PartnerType;
   refType: string;
   refId: string;
+  status: string;
   tierId?: string | null;
   tier?: PartnerTier | null;
   _count?: { kpis: number; slas: number; campaigns: number };
