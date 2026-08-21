@@ -4,6 +4,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
+import type { ExpenseCategory } from '@prisma/client';
 import { getOrCreateWallet, recordSale, ledgerNetBalance } from './finance.service.js';
 import {
   PAYOUT_STATUSES,
@@ -272,5 +273,71 @@ financeRouter.post('/payouts/:id/status', requirePermission('finance.manage'), a
       return res.status(code).json({ ok: false, error: e.message } satisfies ApiResponse);
     }
     throw e;
+  }
+});
+
+// ─── Platform operating expenses ───
+//
+// getUnitEconomics() (bi.service.ts) needs real operating costs; before this
+// nothing ever wrote them, so it silently fell back to a `revenue * 0.3`
+// guess. These two endpoints are the write side of that gap.
+
+const EXPENSE_CATEGORIES = ['SERVER', 'AI_API', 'MARKETING', 'SALARY', 'SUPPORT', 'PAYMENT_FEES'];
+
+financeRouter.get('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const { category, from, to } = req.query as Record<string, string | undefined>;
+    const where: Record<string, unknown> = { tenantId: 'platform' };
+    if (category) where.category = category;
+    if (from || to) {
+      where.date = {
+        ...(from ? { gte: new Date(from) } : {}),
+        ...(to ? { lte: new Date(to) } : {}),
+      };
+    }
+    const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 500);
+    const expenses = await prisma.platformExpense.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      take: limit,
+    });
+    return res.json({ ok: true, data: serializeBigInt(expenses) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('List platform expenses error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при получении расходов' } satisfies ApiResponse);
+  }
+});
+
+financeRouter.post('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const { category, amount, date, meta } = req.body || {};
+    if (!category || !EXPENSE_CATEGORIES.includes(String(category))) {
+      return res.status(400).json({
+        ok: false,
+        error: `category должна быть одной из: ${EXPENSE_CATEGORIES.join(', ')}`,
+      } satisfies ApiResponse);
+    }
+    let minor: bigint;
+    try {
+      minor = parseTengeToMinor(amount);
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse);
+    }
+    if (minor <= 0n) {
+      return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
+    }
+    const expense = await prisma.platformExpense.create({
+      data: {
+        tenantId: 'platform',
+        category: category as ExpenseCategory,
+        amount: minor,
+        date: date ? new Date(date) : undefined,
+        meta: meta ?? undefined,
+      },
+    });
+    return res.status(201).json({ ok: true, data: serializeBigInt(expense) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Create platform expense error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при создании расхода' } satisfies ApiResponse);
   }
 });

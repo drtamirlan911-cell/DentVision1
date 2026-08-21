@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { uid } from '../../lib/helpers.js';
 import { serializeBigInt, tengeToMinor, parseTengeToMinor } from '../../lib/money.js';
 import { recordSaleTx } from '../finance/finance.service.js';
+import { writeRevenue } from '../finance/revenue.service.js';
 import { env } from '../../config.js';
 import {
   providers,
@@ -265,6 +266,10 @@ async function settlePaidPayment(
           months: meta.months || 1,
           paymentId: payment.id,
         },
+        db,
+      );
+      await writeRevenue(
+        { source: 'SaaS', amountMinor: payment.amount, refType: 'subscription', refId: payment.refId },
         db,
       );
       if (meta.userId) {

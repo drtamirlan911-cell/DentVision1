@@ -10,17 +10,19 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  * every branch's callee — not the global prisma client, not a new default.
  */
 
-const { recordSaleTx, activateClinicSubscriptionFromPayment, isSaasPlanId, accrueSaasCashback, markSettlementPaid } =
+const { recordSaleTx, activateClinicSubscriptionFromPayment, isSaasPlanId, accrueSaasCashback, markSettlementPaid, writeRevenue } =
   vi.hoisted(() => ({
     recordSaleTx: vi.fn(),
     activateClinicSubscriptionFromPayment: vi.fn(),
     isSaasPlanId: vi.fn(() => true),
     accrueSaasCashback: vi.fn(),
     markSettlementPaid: vi.fn(),
+    writeRevenue: vi.fn(),
   }));
 
 vi.mock('../../lib/prisma.js', () => ({ default: {} }));
 vi.mock('../finance/finance.service.js', () => ({ recordSaleTx }));
+vi.mock('../finance/revenue.service.js', () => ({ writeRevenue }));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   activateClinicSubscriptionFromPayment,
   isSaasPlanId,
@@ -36,6 +38,7 @@ beforeEach(() => {
   activateClinicSubscriptionFromPayment.mockResolvedValue({});
   accrueSaasCashback.mockResolvedValue(undefined);
   markSettlementPaid.mockResolvedValue(true);
+  writeRevenue.mockResolvedValue({});
 });
 
 // A stand-in transaction client, deliberately a different object identity
@@ -78,6 +81,10 @@ describe('settlePaidPayment — db threading', () => {
     );
     expect(activateClinicSubscriptionFromPayment).toHaveBeenCalledWith(
       expect.objectContaining({ clinicId: 'clinic-1' }),
+      fakeTx,
+    );
+    expect(writeRevenue).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'SaaS', amountMinor: 49900n, refId: 'clinic-1' }),
       fakeTx,
     );
   });

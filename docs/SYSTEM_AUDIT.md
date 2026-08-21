@@ -139,20 +139,43 @@ FK отвергает несуществующего пользователя, �
 
 ## HIDDEN / DEAD — схема есть, кода нет
 
-Десять моделей не имеют ни одного обращения — ни прямого вызова клиента, ни
-чтения через `include`/`select` родителя:
+**Решение принято (задача #88, P2): достроить, не удалять.** Удаление схемы —
+разрушающая миграция, а она в списке «спросить сначала»; вместо неё —
+подключение к реальным данным там, где для модели нашлось настоящее
+применение.
 
-`AIAction`, `AIAlert`, `SpecTemplate`, `BISnapshot`, `FinancialTransaction`,
-`Revenue`, `PlatformExpense`, `SaaSMetrics`, `CustomerMetrics`, `Schedule`
+Из исходных десяти моделей без единого обращения:
 
-Пять из них — `FinancialTransaction`, `Revenue`, `PlatformExpense`,
-`SaaSMetrics`, `CustomerMetrics` — это **целая платформенная финансовая
-аналитика**, спроектированная и ни разу не подключённая. Плюс `FinancialTxType`,
-`RevenueSource`, `ExpenseCategory` в enum'ах.
+- **Group A — построено и подключено к живым данным** (коммит `d8f398f8`):
+  `BISnapshot`, `SaaSMetrics`, `CustomerMetrics`. `snapshot.service.ts`
+  ежедневно (`jobs/biSnapshotCron.ts`) считает реальные MRR/ARR/churn/CAC/LTV
+  через уже существующий `bi.service.ts` и пишет их в эти три таблицы;
+  `bi.routes.ts` отдаёт историю через `GET /bi/saas-metrics/history`,
+  `GET /bi/customer-metrics/:clinicId/history`, `GET /bi/snapshots`.
+- **Group B — построено и подключено к живым данным** (эта задача):
+  `Revenue`, `PlatformExpense`. `finance/revenue.service.ts`'s `writeRevenue()`
+  пишет одну строку `Revenue` в каждой точке, где реально проходят деньги:
+  внутри `recordSaleTx` (маркетплейс/академия) и в `settlePaidPayment`'s
+  подписочной ветке (SaaS). `finance.routes.ts`'s `POST/GET /expenses` — первая
+  реальная точка записи `PlatformExpense`. `bi.service.ts`'s
+  `getUnitEconomics()` раньше считал `operatingCosts` из
+  `Payment.domain==='expense'` — значение, которое в коде никто никогда не
+  писал, — и **всегда** проваливался в выдуманную эвристику
+  `monthlyRevenue * 0.3`; теперь это реальный `platformExpense.aggregate(...)`
+  за то же окно, с той же эвристикой как fallback только когда данных
+  действительно ещё нет. Живая проверка на реальном Postgres подтвердила обе
+  стороны: `recordSale` пишет `Revenue`-строку, а `getUnitEconomics()` меняет
+  `operatingCosts` при появлении настоящего расхода.
+- **Group C — не начато**: `FinancialTransaction` (пересекается с уже
+  работающими `Transaction`+`LedgerEntry` — денормализованная аналитическая
+  запись, а не конкурирующая система), `AIAction` (почти всё покрыто уже
+  подключённым `AIActionLog`; единственный настоящий пробел — состояние
+  `pendingConfirmation` ИИ-оркестратора живёт только в памяти процесса и
+  теряется при рестарте), `AIAlert`, `SpecTemplate`, `Schedule`.
 
-**Решение не принимается в этом заходе.** Удаление схемы — разрушающая
-миграция, а она в списке «спросить сначала». Записано как явный выбор:
-достроить или удалить, но не оставлять третьим состоянием.
+Плюс отдельная находка вне исходного списка: `DiagnosticBooking`
+(`schema.prisma`) — вторая мёртвая модель планирования, ни одного обращения
+нигде в коде. Решение по ней (достроить/удалить) ещё не принято.
 
 ---
 

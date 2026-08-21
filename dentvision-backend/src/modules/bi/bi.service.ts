@@ -314,11 +314,15 @@ export async function getUnitEconomics(): Promise<UnitEconomics> {
     prisma.aIEvent.count({
       where: { createdAt: { gte: thirtyDaysAgo } },
     }),
-    // Approximate operating costs from expenses if available
-    prisma.payment.aggregate({
+    // Real operating costs, if any have been recorded (see finance.routes.ts's
+    // POST /expenses). Falls back to the 30%-of-revenue heuristic below only
+    // when no PlatformExpense rows exist yet — this used to query
+    // `Payment.domain === 'expense'`, a value nothing ever wrote, so it always
+    // fell through to the heuristic.
+    prisma.platformExpense.aggregate({
       where: {
-        createdAt: { gte: thirtyDaysAgo },
-        domain: 'expense',
+        tenantId: 'platform',
+        date: { gte: thirtyDaysAgo },
       },
       _sum: { amount: true },
     }),
