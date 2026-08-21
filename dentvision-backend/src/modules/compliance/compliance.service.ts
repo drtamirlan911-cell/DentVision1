@@ -92,7 +92,42 @@ export async function logAIAction(
   });
 }
 
-export async function confirmAIAction(logId: string, confirmedBy: string) {
+/**
+ * `confirmerClinicId: null` means "no clinic scoping" and must only be passed
+ * for SUPERADMIN — every other caller has to pass their own clinicId so a
+ * clinic-less request can never bypass the check by omission.
+ */
+export async function confirmAIAction(
+  logId: string,
+  confirmedBy: string,
+  confirmerClinicId: string | null,
+) {
+  const log = await prisma.aIActionLog.findUnique({
+    where: { id: logId },
+    include: { patient: { select: { clinicId: true } } },
+  });
+  if (!log) {
+    throw Object.assign(new Error('AI action log not found'), { code: 'NOT_FOUND' });
+  }
+
+  if (confirmerClinicId) {
+    // `AIActionLog` carries no clinicId of its own: scope through the
+    // patient it's about, or — for patient-less logs (e.g. staff-assistant
+    // interactions) — through the acting user's clinic membership.
+    const sameClinic = log.patientId
+      ? log.patient?.clinicId === confirmerClinicId
+      : Boolean(
+          log.userId &&
+            (await prisma.clinicMember.findFirst({
+              where: { userId: log.userId, clinicId: confirmerClinicId },
+              select: { id: true },
+            })),
+        );
+    if (!sameClinic) {
+      throw Object.assign(new Error('AI action log belongs to a different clinic'), { code: 'CLINIC_MISMATCH' });
+    }
+  }
+
   return prisma.aIActionLog.update({
     where: { id: logId },
     data: { doctorConfirmed: true, confirmedBy, confirmedAt: new Date() },
@@ -100,12 +135,18 @@ export async function confirmAIAction(logId: string, confirmedBy: string) {
 }
 
 export async function getAIActions(
-  filters: { userId?: string; patientId?: string; agent?: string; limit?: number } = {},
+  filters: { userId?: string; clinicId?: string; patientId?: string; agent?: string; limit?: number } = {},
 ) {
   const where: Record<string, unknown> = {};
   if (filters.userId) where.userId = filters.userId;
   if (filters.patientId) where.patientId = filters.patientId;
   if (filters.agent) where.agent = filters.agent;
+  if (filters.clinicId) {
+    where.OR = [
+      { patient: { clinicId: filters.clinicId } },
+      { patientId: null, user: { memberships: { some: { clinicId: filters.clinicId } } } },
+    ];
+  }
 
   return prisma.aIActionLog.findMany({
     where,

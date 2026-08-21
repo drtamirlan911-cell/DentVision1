@@ -159,19 +159,31 @@ complianceRouter.post('/medical/log', requirePermission('patient.read'), async (
 
 complianceRouter.get('/ai', async (req: AuthRequest, res) => {
   try {
-    const actions = await getAIActions({ userId: req.user!.id, limit: 50 });
+    const isSuper = req.user!.role === 'SUPERADMIN';
+    const actions = await getAIActions({
+      userId: req.user!.id,
+      clinicId: isSuper ? undefined : req.user!.clinicId || undefined,
+      limit: 50,
+    });
     return res.json({ ok: true, data: actions } satisfies ApiResponse);
   } catch (error) {
     return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
   }
 });
 
-complianceRouter.post('/ai/:id/confirm', async (req: AuthRequest, res) => {
+complianceRouter.post('/ai/:id/confirm', requirePermission('medical.write'), async (req: AuthRequest, res) => {
   try {
-    const log = await confirmAIAction(String(req.params.id), req.user!.id);
+    const isSuper = req.user!.role === 'SUPERADMIN';
+    if (!isSuper && !req.user!.clinicId) {
+      return res.status(403).json({ ok: false, error: 'Клиника не определена' } satisfies ApiResponse);
+    }
+    const log = await confirmAIAction(String(req.params.id), req.user!.id, isSuper ? null : req.user!.clinicId!);
     await auditFromReq(req, { action: 'AI_ACTION_CONFIRMED', entity: 'ai_action', entityId: String(req.params.id) });
     return res.json({ ok: true, data: log } satisfies ApiResponse);
   } catch (error) {
+    const code = (error as { code?: string } | undefined)?.code;
+    if (code === 'NOT_FOUND') return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
+    if (code === 'CLINIC_MISMATCH') return res.status(403).json({ ok: false, error: 'Доступ запрещён' } satisfies ApiResponse);
     return res.status(500).json({ ok: false, error: 'Ошибка подтверждения' } satisfies ApiResponse);
   }
 });

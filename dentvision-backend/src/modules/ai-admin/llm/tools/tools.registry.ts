@@ -22,7 +22,6 @@ export const toolsRegistry: ToolDef[] = [
     parameters: {
       type: 'object',
       properties: {
-        clinic_id: { type: 'string', description: 'ID клиники' },
         service_name: { type: 'string', description: 'Название услуги или специальность врача' },
         date: { type: 'string', description: 'Дата YYYY-MM-DD, если не указана — ближайшие дни' },
       },
@@ -36,7 +35,6 @@ export const toolsRegistry: ToolDef[] = [
     parameters: {
       type: 'object',
       properties: {
-        clinic_id: { type: 'string', description: 'ID клиники (подставляется автоматически)' },
         patient_name: { type: 'string', description: 'Имя пациента' },
         patient_phone: { type: 'string', description: 'Номер телефона' },
         slot_datetime: { type: 'string', description: 'Дата и время ISO 8601' },
@@ -65,11 +63,17 @@ export async function executeToolCall(
   args: Record<string, unknown>,
   session: AiAdminSession,
 ): Promise<unknown> {
+  // `clinic_id` is never trusted from the model — it's the DB-verified
+  // clinic the session row was created under. Any `clinic_id` the model
+  // supplied in `args` is discarded here, not merely overridden after use.
+  const { clinic_id: _ignored, ...rest } = args
+  const scopedArgs = { ...rest, clinic_id: session.clinicId }
+
   switch (name) {
     case 'get_available_slots':
-      return getAvailableSlots(args as any)
+      return getAvailableSlots(scopedArgs as any)
     case 'book_appointment':
-      return bookAppointment(args as any, session)
+      return bookAppointment(scopedArgs as any, session)
     case 'escalate_to_human':
       return escalateToHuman(args as any, session)
     default:

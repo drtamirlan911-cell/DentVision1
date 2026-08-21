@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
-import { requireMinRole } from '../../middleware/rbac.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest } from '../../types/index.js';
 import type { ApiResponse } from '../../types/index.js';
@@ -9,7 +9,7 @@ import type { ApiResponse } from '../../types/index.js';
 const auditRouter = Router();
 
 auditRouter.use(authenticate);
-auditRouter.use(requireMinRole('ADMIN'));
+auditRouter.use(requirePermission('audit.read'));
 
 auditRouter.get('/', async (req: AuthRequest, res) => {
   try {
@@ -19,6 +19,12 @@ auditRouter.get('/', async (req: AuthRequest, res) => {
 
     const actionFilter = req.query.action as string | undefined;
     const entityFilter = req.query.entity as string | undefined;
+
+    // Fail-closed: a caller must be scoped to a clinic (or be SUPERADMIN) to
+    // read the audit log. Never fall through to an unscoped, all-tenant read.
+    if (!req.user!.clinicId && req.user!.role !== 'SUPERADMIN') {
+      return res.status(403).json({ ok: false, error: 'Клиника не определена' });
+    }
 
     const where: Record<string, unknown> = {};
     if (req.user!.clinicId) {

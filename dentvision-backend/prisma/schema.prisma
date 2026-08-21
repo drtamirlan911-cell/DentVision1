@@ -3533,3 +3533,109 @@ model PasswordReset {
   @@index([token])
   @@map("password_resets")
 }
+
+/// Governance kernel (Agentic OS §6/§8/§12): one row per tool invocation the
+/// AI kernel (`ai/os/kernel.ts::runAiAction`) attempts — allowed, denied, or
+/// executed. `actorUserId` deliberately carries no relation to `User`: the
+/// ai-admin surface acts under a synthetic id ('system:ai-admin:<sessionId>')
+/// that has no row in that table, so a hard FK would be wrong for this table.
+model AgentActivity {
+  id             String   @id @default(uuid())
+  traceId        String?
+  surface        String
+  agentId        String?
+  tool           String
+  actorUserId    String
+  actorRole      String
+  clinicId       String?
+  organizationId String?
+  patientId      String?
+  teamKey        String?
+  visibility     String   @default("clinic")
+  sensitivity    String   @default("standard")
+  status         String
+  denyReason     String?
+  argsRedacted   Json?
+  resultSummary  String?
+  durationMs     Int?
+  approvalId     String?
+  createdAt      DateTime @default(now())
+
+  evidence ActionEvidence[]
+
+  @@index([clinicId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([teamKey, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([patientId])
+  @@map("agent_activities")
+}
+
+/// Observable evidence for one `AgentActivity` row — never chain-of-thought,
+/// only what was actually read or written (Agentic OS §6).
+model ActionEvidence {
+  id         String   @id @default(uuid())
+  activityId String
+  sourceType String
+  sourceId   String
+  access     String?
+  clinicId   String?
+  snapshot   Json?
+  createdAt  DateTime @default(now())
+
+  activity AgentActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
+  @@map("action_evidence")
+}
+
+/// Human-in-the-loop queue (Agentic OS §7) for high-risk kernel actions
+/// (`ai/os/dataScope.ts::HIGH_RISK_TOOLS`). A row here survives a page
+/// refresh and can be acted on by any authorized colleague, not only the
+/// browser tab that triggered it — unlike the old `needsConfirmation`
+/// round-trip, which lived only in client state.
+model AiApproval {
+  id                 String    @id @default(uuid())
+  clinicId           String?
+  organizationId     String?
+  requestedByUserId  String
+  surface            String
+  agentId            String?
+  tool               String
+  params             Json
+  summary            String
+  requiredPermission String?
+  riskLevel          String    @default("standard")
+  status             String    @default("pending")
+  decidedByUserId    String?
+  decidedAt          DateTime?
+  decisionNote       String?
+  resultActivityId   String?
+  expiresAt          DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([clinicId, status, createdAt])
+  @@index([status, expiresAt])
+  @@map("ai_approvals")
+}
+
+/// AI-only patient scope (Stage 6, `env.AI_PATIENT_SCOPE`). Backfilled from
+/// distinct `(clinicId, patientId, doctorId)` triples in `Appointment` —
+/// human REST/UI access to patients is deliberately left unaffected by this
+/// model; only the kernel's patient-scope check (`kernel.ts` step 5) reads it.
+model PatientAssignment {
+  id        String    @id @default(uuid())
+  clinicId  String
+  patientId String
+  userId    String
+  /// 'treating_doctor' | 'assistant' | 'coordinator'
+  role      String
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([patientId, userId, role])
+  @@index([clinicId, userId, active])
+  @@index([patientId, active])
+  @@map("patient_assignments")
+}
