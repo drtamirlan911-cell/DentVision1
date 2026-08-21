@@ -41,7 +41,9 @@ export type AiDenyReason =
   | 'NO_CLINIC'
   | 'CLINIC_MISMATCH'
   | 'OUT_OF_PATIENT_SCOPE'
-  | 'EXEC_ERROR';
+  | 'EXEC_ERROR'
+  /** `approvalId` didn't resolve to an approved row for this exact tool/clinic. */
+  | 'INVALID_APPROVAL';
 
 export type KernelResult =
   | { status: 'ok'; data: unknown; navigate?: string; activityId: string }

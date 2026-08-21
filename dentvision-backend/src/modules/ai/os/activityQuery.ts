@@ -24,18 +24,35 @@ export interface ActivityVisibility {
   canReadPhi: boolean;
 }
 
-/** Matches nothing — for a caller we cannot identify at all. */
-const DENY_ALL: Prisma.AgentActivityWhereInput = { id: { equals: '__no_such_activity__' } };
+export interface ApprovalVisibility {
+  where: Prisma.AiApprovalWhereInput;
+}
 
-export async function buildActivityFilter(userId: string, clinicId: string | null): Promise<ActivityVisibility> {
-  if (!userId) return { where: DENY_ALL, canReadPhi: false };
+interface VisibilityTier {
+  isPlatform: boolean;
+  resolvedClinicId: string | null;
+  organizationId: string | null;
+  canReadWide: boolean;
+  canReadPhi: boolean;
+}
+
+/** Matches nothing — for a caller we cannot identify at all. */
+const DENY_ALL = { id: { equals: '__no_such_activity__' } };
+
+/**
+ * Shared identity/permission resolution behind both `buildActivityFilter`
+ * and `buildApprovalFilter` — one DB round-trip for role + clinic
+ * membership + permission set, reused to build either model's WHERE clause.
+ * Returns `null` for a caller that cannot be identified at all.
+ */
+async function resolveVisibilityTier(userId: string, clinicId: string | null): Promise<VisibilityTier | null> {
+  if (!userId) return null;
 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  if (!user) return { where: DENY_ALL, canReadPhi: false };
+  if (!user) return null;
 
   if (user.role === 'SUPERADMIN') {
-    // Platform tier: unrestricted, including PHI.
-    return { where: {}, canReadPhi: true };
+    return { isPlatform: true, resolvedClinicId: null, organizationId: null, canReadWide: true, canReadPhi: true };
   }
 
   let role = String(user.role);
@@ -51,16 +68,38 @@ export async function buildActivityFilter(userId: string, clinicId: string | nul
   }
 
   const permissions = new Set(await resolveUserPermissions(userId, organizationId ?? resolvedClinicId, role));
-  const canReadWide = permissionsSatisfy(permissions, 'bi.read');
-
-  const or: Prisma.AgentActivityWhereInput[] = [{ actorUserId: userId }];
-  if (canReadWide && resolvedClinicId) or.push({ clinicId: resolvedClinicId });
-  if (canReadWide && organizationId) or.push({ organizationId });
-
   return {
-    where: { OR: or },
+    isPlatform: false,
+    resolvedClinicId,
+    organizationId,
+    canReadWide: permissionsSatisfy(permissions, 'bi.read'),
     canReadPhi: permissionsSatisfy(permissions, 'medical.read'),
   };
+}
+
+export async function buildActivityFilter(userId: string, clinicId: string | null): Promise<ActivityVisibility> {
+  const tier = await resolveVisibilityTier(userId, clinicId);
+  if (!tier) return { where: DENY_ALL, canReadPhi: false };
+  if (tier.isPlatform) return { where: {}, canReadPhi: true };
+
+  const or: Prisma.AgentActivityWhereInput[] = [{ actorUserId: userId }];
+  if (tier.canReadWide && tier.resolvedClinicId) or.push({ clinicId: tier.resolvedClinicId });
+  if (tier.canReadWide && tier.organizationId) or.push({ organizationId: tier.organizationId });
+
+  return { where: { OR: or }, canReadPhi: tier.canReadPhi };
+}
+
+/** Same visibility ladder as `buildActivityFilter`, keyed to `AiApproval`'s own field names. */
+export async function buildApprovalFilter(userId: string, clinicId: string | null): Promise<ApprovalVisibility> {
+  const tier = await resolveVisibilityTier(userId, clinicId);
+  if (!tier) return { where: DENY_ALL };
+  if (tier.isPlatform) return { where: {} };
+
+  const or: Prisma.AiApprovalWhereInput[] = [{ requestedByUserId: userId }];
+  if (tier.canReadWide && tier.resolvedClinicId) or.push({ clinicId: tier.resolvedClinicId });
+  if (tier.canReadWide && tier.organizationId) or.push({ organizationId: tier.organizationId });
+
+  return { where: { OR: or } };
 }
 
 /** Nulls the payload/result of PHI-sensitivity rows for a caller who cannot read PHI. Visibility (which rows) is separate from this (what those rows reveal). */

@@ -40,7 +40,7 @@ export interface ToolResult {
   data?: unknown;
   error?: string;
   /** Set for mutating tools awaiting user confirmation. */
-  needsConfirmation?: { action: string; params: Record<string, unknown>; summary: string };
+  needsConfirmation?: { action: string; params: Record<string, unknown>; summary: string; approvalId?: string };
   /** Client-side navigation the UI should perform. */
   navigate?: string;
 }
@@ -1125,6 +1125,11 @@ export async function executeTool(
   if (result.status === 'denied') return { ok: false, error: result.error };
   return {
     ok: false,
-    needsConfirmation: { action: result.action, params: result.params, summary: result.summary },
+    needsConfirmation: {
+      action: result.action,
+      params: result.params,
+      summary: result.summary,
+      approvalId: result.approvalId,
+    },
   };
 }

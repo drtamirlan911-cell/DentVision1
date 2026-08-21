@@ -3588,3 +3588,33 @@ model ActionEvidence {
   @@index([activityId])
   @@map("action_evidence")
 }
+
+/// Human-in-the-loop queue (Agentic OS §7) for high-risk kernel actions
+/// (`ai/os/dataScope.ts::HIGH_RISK_TOOLS`). A row here survives a page
+/// refresh and can be acted on by any authorized colleague, not only the
+/// browser tab that triggered it — unlike the old `needsConfirmation`
+/// round-trip, which lived only in client state.
+model AiApproval {
+  id                 String    @id @default(uuid())
+  clinicId           String?
+  organizationId     String?
+  requestedByUserId  String
+  surface            String
+  agentId            String?
+  tool               String
+  params             Json
+  summary            String
+  requiredPermission String?
+  riskLevel          String    @default("standard")
+  status             String    @default("pending")
+  decidedByUserId    String?
+  decidedAt          DateTime?
+  decisionNote       String?
+  resultActivityId   String?
+  expiresAt          DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([clinicId, status, createdAt])
+  @@index([status, expiresAt])
+  @@map("ai_approvals")
+}

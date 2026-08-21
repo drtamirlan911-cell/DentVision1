@@ -1033,6 +1033,10 @@ aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
 import timelineRouter from './ai.timeline.routes.js';
 aiRouter.use('/timeline', authenticate, timelineRouter);
 
+// ─── AI Approvals ───
+import approvalsRouter from './os/approvals.routes.js';
+aiRouter.use('/approvals', authenticate, approvalsRouter);
+
 // ─── AI Notifications (SSE) ───
 import notificationsRouter from './ai.notifications.routes.js';
 aiRouter.use('/notifications', optionalAuth, notificationsRouter);

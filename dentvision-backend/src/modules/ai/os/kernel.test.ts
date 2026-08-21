@@ -1,22 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { activityCreate, evidenceCreateMany, resolveAiToolAccess, resolveOrganizationIdForClinic } = vi.hoisted(() => ({
+const {
+  activityCreate,
+  evidenceCreateMany,
+  resolveAiToolAccess,
+  resolveOrganizationIdForClinic,
+  approvalCreate,
+  approvalFindUnique,
+  createNotificationForClinic,
+} = vi.hoisted(() => ({
   activityCreate: vi.fn(),
   evidenceCreateMany: vi.fn(),
   resolveAiToolAccess: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
+  approvalCreate: vi.fn(),
+  approvalFindUnique: vi.fn(),
+  createNotificationForClinic: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({
   default: {
     agentActivity: { create: activityCreate },
     actionEvidence: { createMany: evidenceCreateMany },
+    aiApproval: { create: approvalCreate, findUnique: approvalFindUnique },
   },
 }));
 vi.mock('../../../lib/orgContext.js', () => ({ resolveOrganizationIdForClinic }));
 vi.mock('./access.js', () => ({ resolveAiToolAccess }));
+vi.mock('../../../services/notification.service.js', () => ({ createNotificationForClinic }));
 
-const { okTool, noClinicTool, throwingTool } = vi.hoisted(() => ({
+const { okTool, noClinicTool, throwingTool, cancelTool } = vi.hoisted(() => ({
   okTool: vi.fn(async () => ({ ok: true, data: { fine: true } })),
   noClinicTool: vi.fn(async () => {
     throw new Error('NO_CLINIC');
@@ -24,6 +37,7 @@ const { okTool, noClinicTool, throwingTool } = vi.hoisted(() => ({
   throwingTool: vi.fn(async () => {
     throw new Error('boom');
   }),
+  cancelTool: vi.fn(async () => ({ ok: true, data: { cancelled: true } })),
 }));
 
 vi.mock('./tools.js', () => ({
@@ -31,8 +45,9 @@ vi.mock('./tools.js', () => ({
     getSchedule: { name: 'getSchedule', mutating: false, execute: okTool },
     createInvoice: { name: 'createInvoice', mutating: true, execute: noClinicTool },
     getDebtors: { name: 'getDebtors', mutating: false, execute: throwingTool },
+    cancelAppointment: { name: 'cancelAppointment', mutating: true, execute: cancelTool },
   },
-  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors'],
+  listToolNames: () => ['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment'],
 }));
 
 import { runAiAction } from './kernel.js';
@@ -47,8 +62,11 @@ beforeEach(() => {
   resolveAiToolAccess.mockResolvedValue({
     role: 'DOCTOR',
     clinicId: 'clinic-1',
-    allowed: new Set(['getSchedule', 'createInvoice', 'getDebtors']),
+    allowed: new Set(['getSchedule', 'createInvoice', 'getDebtors', 'cancelAppointment']),
   });
+  approvalCreate.mockResolvedValue({});
+  approvalFindUnique.mockResolvedValue(null);
+  createNotificationForClinic.mockResolvedValue(undefined);
 });
 
 describe('runAiAction — every outcome is recorded', () => {
@@ -129,5 +147,83 @@ describe('runAiAction — every outcome is recorded', () => {
     const result = await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: {} });
 
     expect(result.status).toBe('ok');
+  });
+
+  it('passes `confirmed: true` through to a staff-surface tool instead of stripping it — orchestrator.ts already stripped it for model proposals at its own call site', async () => {
+    await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: { confirmed: true, foo: 'bar' } });
+
+    expect(okTool).toHaveBeenCalledWith(
+      expect.objectContaining({ confirmed: true, foo: 'bar' }),
+      expect.anything(),
+    );
+  });
+});
+
+describe('runAiAction — high-risk approval gate', () => {
+  it('does not gate a high-risk tool on its first, unconfirmed proposal — the tool returns its own soft preview', async () => {
+    const result = await runAiAction(PRINCIPAL, { tool: 'cancelAppointment', args: { appointmentId: 'a1' } });
+
+    expect(result.status).toBe('ok');
+    expect(cancelTool).toHaveBeenCalledTimes(1);
+    expect(approvalCreate).not.toHaveBeenCalled();
+  });
+
+  it('creates a durable approval instead of executing when a high-risk tool is actually confirmed', async () => {
+    const result = await runAiAction(PRINCIPAL, { tool: 'cancelAppointment', args: { appointmentId: 'a1', confirmed: true } });
+
+    expect(result.status).toBe('pending_approval');
+    expect(cancelTool).not.toHaveBeenCalled();
+    expect(approvalCreate).toHaveBeenCalledTimes(1);
+    expect(approvalCreate.mock.calls[0][0].data).toMatchObject({
+      tool: 'cancelAppointment',
+      requestedByUserId: 'user-1',
+      clinicId: 'clinic-1',
+      riskLevel: 'high',
+      status: 'pending',
+    });
+    expect(createNotificationForClinic).toHaveBeenCalledWith(
+      'clinic-1',
+      expect.objectContaining({ type: 'ai_approval_requested' }),
+      { roles: ['OWNER', 'DIRECTOR', 'ADMIN'] },
+    );
+    // The gate itself is still recorded, distinctly from a denial.
+    expect(activityCreate.mock.calls[0][0].data).toMatchObject({ status: 'pending_approval' });
+  });
+
+  it('executes once re-entered with a reference to a genuinely approved row', async () => {
+    approvalFindUnique.mockResolvedValueOnce({
+      id: 'appr-1', status: 'approved', tool: 'cancelAppointment', clinicId: 'clinic-1',
+    });
+
+    const result = await runAiAction(PRINCIPAL, {
+      tool: 'cancelAppointment',
+      args: { appointmentId: 'a1', confirmed: true },
+      approvalId: 'appr-1',
+    });
+
+    expect(result.status).toBe('ok');
+    expect(cancelTool).toHaveBeenCalledTimes(1);
+    expect(approvalCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses to execute on an approvalId that does not resolve to an approved row for this tool and clinic', async () => {
+    approvalFindUnique.mockResolvedValueOnce({
+      id: 'appr-1', status: 'pending', tool: 'cancelAppointment', clinicId: 'clinic-1',
+    });
+
+    const result = await runAiAction(PRINCIPAL, {
+      tool: 'cancelAppointment',
+      args: { appointmentId: 'a1', confirmed: true },
+      approvalId: 'appr-1',
+    });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'INVALID_APPROVAL' });
+    expect(cancelTool).not.toHaveBeenCalled();
+  });
+
+  it('does not gate a tool outside HIGH_RISK_TOOLS at all — confirm still executes immediately', async () => {
+    const result = await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: { confirmed: true } });
+    expect(result.status).toBe('ok');
+    expect(approvalCreate).not.toHaveBeenCalled();
   });
 });

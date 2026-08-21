@@ -9,6 +9,7 @@ import { startSubscriptionCronInterval } from './jobs/subscriptionCron.js';
 import { startSettlementCronInterval } from './jobs/settlementCron.js';
 import { startBiSnapshotCronInterval } from './jobs/biSnapshotCron.js';
 import { startOnCallInterval } from './jobs/patientConversationOnCall.js';
+import { startAiApprovalSweeperInterval } from './jobs/aiApprovalSweeper.js';
 import { startMessageWorker } from './modules/ai-admin/index.js';
 import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.js';
 import { onboardPartner } from './modules/legal/legal.service.js';
@@ -1783,6 +1784,34 @@ async function main() {
     `);
   });
 
+  await runOnceMigration('ai_approval', 'AI approval queue table', async (tx) => {
+    await tx.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "ai_approvals" (
+        "id" TEXT NOT NULL,
+        "clinicId" TEXT,
+        "organizationId" TEXT,
+        "requestedByUserId" TEXT NOT NULL,
+        "surface" TEXT NOT NULL,
+        "agentId" TEXT,
+        "tool" TEXT NOT NULL,
+        "params" JSONB NOT NULL,
+        "summary" TEXT NOT NULL,
+        "requiredPermission" TEXT,
+        "riskLevel" TEXT NOT NULL DEFAULT 'standard',
+        "status" TEXT NOT NULL DEFAULT 'pending',
+        "decidedByUserId" TEXT,
+        "decidedAt" TIMESTAMP(3),
+        "decisionNote" TEXT,
+        "resultActivityId" TEXT,
+        "expiresAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT now(),
+        CONSTRAINT "ai_approvals_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ai_approvals_clinicId_status_createdAt_idx" ON "ai_approvals"("clinicId", "status", "createdAt")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ai_approvals_status_expiresAt_idx" ON "ai_approvals"("status", "expiresAt")`);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();
@@ -1810,6 +1839,8 @@ async function main() {
       // Re-notifies OWNER/ADMIN when an escalated patient thread sits
       // unclaimed — checked every 5 min, re-notifies past a 15 min silence.
       startOnCallInterval();
+      // Expires AiApproval rows nobody decided on in time.
+      startAiApprovalSweeperInterval();
     }
     // AI admin worker is independent of cron settings.
     try {

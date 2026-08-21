@@ -17,7 +17,7 @@
  *   4. permission check          → NOT_ALLOWED (access.allowed already folds
  *                                   TOOL_PERMISSIONS + permissionsSatisfy in)
  *   5. patient scope             → stub until Stage 6 (AI_PATIENT_SCOPE flag)
- *   6. approval requirement      → stub until Stage 4 (AiApproval table)
+ *   6. approval requirement      → HIGH_RISK_TOOLS only (AiApproval table)
  *   7. execute                   → TOOLS[tool].execute(args, ctx)
  *   8. record activity + evidence → always, including on denial
  */
@@ -28,11 +28,33 @@ import { resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
 import { resolveAiToolAccess } from './access.js';
 import { TOOLS, type ToolContext, type ToolResult } from './tools.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
-import { SURFACE_TOOLS, sanitizeArgs } from './dataScope.js';
+import { SURFACE_TOOLS, HIGH_RISK_TOOLS, sanitizeArgs } from './dataScope.js';
 import type { AiPrincipal, AiInvocation, KernelResult, AiDenyReason } from './kernel.types.js';
+
+const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 
 function isPhiTool(tool: string): boolean {
   return (TOOL_PERMISSIONS[tool] || '').startsWith('medical.');
+}
+
+/**
+ * A tool's own `needsConfirmation.summary` (built with a DB-resolved patient
+ * name) never survives into the confirm round-trip's `params` — only the raw
+ * arguments do. Good enough for an approval to be actioned from without a
+ * second DB round-trip here; the Approval Center can resolve names for
+ * display when it needs to.
+ */
+function buildApprovalSummary(tool: string, args: Record<string, unknown>): string {
+  switch (tool) {
+    case 'createInvoice':
+      return `Счёт на ${args.amount ?? '?'} для пациента ${args.patientId ?? '?'}`;
+    case 'createTreatmentPlan':
+      return `План лечения «${args.title ?? '?'}» для пациента ${args.patientId ?? '?'}`;
+    case 'cancelAppointment':
+      return `Отмена записи ${args.appointmentId ?? '?'}${args.reason ? ` — ${args.reason}` : ''}`;
+    default:
+      return tool;
+  }
 }
 
 /** Best-effort, non-throwing: activity recording must never break the caller's action. */
@@ -45,7 +67,7 @@ async function recordActivity(row: {
   actorRole: string;
   clinicId: string | null;
   organizationId: string | null;
-  status: 'ok' | 'tool_error' | 'denied';
+  status: 'ok' | 'tool_error' | 'denied' | 'pending_approval';
   denyReason?: AiDenyReason | null;
   argsRedacted?: Record<string, unknown> | null;
   resultSummary?: string | null;
@@ -183,11 +205,94 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
   // Step 5 — patient scope. Stub: enforced starting Stage 6, behind
   // env.AI_PATIENT_SCOPE, only for surface === 'staff' and DOCTOR/ASSISTANT.
 
-  // Step 6 — approval requirement. Stub: mutating tools execute immediately
-  // until Stage 4 introduces AiApproval; `inv.approvalId` is accepted here
-  // (typed) so the approvals route can re-enter the kernel without a
-  // signature change once that stage lands.
-  void inv.approvalId;
+  // Step 6 — approval requirement, high-risk tools only.
+  //
+  // A tool call only reaches this point with `args.confirmed === true` on the
+  // *second* leg of its own propose/confirm round-trip (`sanitizeArgs` no
+  // longer strips `confirmed` on the staff surface — see its docstring). The
+  // first leg (`confirmed` absent) still falls straight through to step 7:
+  // the tool itself returns its own soft `needsConfirmation` preview without
+  // this gate ever running, exactly as before this stage. Only the moment a
+  // high-risk tool is about to *actually* mutate does the kernel intercept it.
+  if (HIGH_RISK_TOOLS.has(inv.tool) && args.confirmed === true) {
+    if (inv.approvalId) {
+      const approval = await prisma.aiApproval.findUnique({ where: { id: inv.approvalId } });
+      const valid =
+        approval &&
+        approval.status === 'approved' &&
+        approval.tool === inv.tool &&
+        approval.clinicId === access.clinicId;
+      if (!valid) {
+        const activityId = await recordActivity({
+          traceId: inv.traceId,
+          surface: p.surface,
+          agentId: p.agentId,
+          tool: inv.tool,
+          actorUserId: p.userId,
+          actorRole: access.role,
+          clinicId: access.clinicId,
+          organizationId,
+          status: 'denied',
+          denyReason: 'INVALID_APPROVAL',
+          argsRedacted: redactArgs(args),
+        });
+        return { status: 'denied', reason: 'INVALID_APPROVAL', error: 'Подтверждение недействительно или уже использовано', activityId };
+      }
+      // Valid, approved reference — fall through to step 7.
+    } else {
+      const approvalId = uid();
+      const summary = buildApprovalSummary(inv.tool, args);
+      try {
+        await prisma.aiApproval.create({
+          data: {
+            id: approvalId,
+            clinicId: access.clinicId,
+            organizationId,
+            requestedByUserId: p.userId,
+            surface: p.surface,
+            agentId: p.agentId || null,
+            tool: inv.tool,
+            params: args as never,
+            summary,
+            requiredPermission: TOOL_PERMISSIONS[inv.tool] || null,
+            riskLevel: 'high',
+            status: 'pending',
+            expiresAt: new Date(Date.now() + APPROVAL_TTL_MS),
+          },
+        });
+        if (access.clinicId) {
+          const { createNotificationForClinic } = await import('../../../services/notification.service.js');
+          await createNotificationForClinic(
+            access.clinicId,
+            {
+              type: 'ai_approval_requested',
+              title: 'Требуется подтверждение действия ИИ',
+              message: summary,
+              link: '/agent-activity',
+            },
+            { roles: ['OWNER', 'DIRECTOR', 'ADMIN'] },
+          );
+        }
+      } catch (err) {
+        console.error('[ai kernel] failed to create approval:', err);
+      }
+      const activityId = await recordActivity({
+        traceId: inv.traceId,
+        surface: p.surface,
+        agentId: p.agentId,
+        tool: inv.tool,
+        actorUserId: p.userId,
+        actorRole: access.role,
+        clinicId: access.clinicId,
+        organizationId,
+        status: 'pending_approval',
+        argsRedacted: redactArgs(args),
+        resultSummary: summary,
+        approvalId,
+      });
+      return { status: 'pending_approval', approvalId, summary, action: inv.tool, params: args, activityId };
+    }
+  }
 
   const ctx: ToolContext = { userId: p.userId, clinicId: access.clinicId, role: access.role };
 
