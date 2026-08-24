@@ -13,7 +13,7 @@ vi.mock('../../../lib/prisma.js', () => ({
 vi.mock('../../../lib/orgContext.js', () => ({ resolveClinicAccess, resolveOrganizationIdForClinic }));
 vi.mock('../../../lib/resolvePermissions.js', () => ({ resolveUserPermissions }));
 
-import { buildActivityFilter, redactPhiRows } from './activityQuery.js';
+import { buildActivityFilter, buildApprovalFilter, redactPhiRows } from './activityQuery.js';
 
 const USER_ID = 'user-1';
 const CLINIC_ID = 'clinic-1';
@@ -89,5 +89,69 @@ describe('redactPhiRows', () => {
     const result = redactPhiRows(rows, false);
     expect(result[0]).toMatchObject({ id: 'a1', argsRedacted: null, resultSummary: null });
     expect(result[1]).toEqual(rows[1]);
+  });
+});
+
+/**
+ * Stage 12 performance guard. Neither filter function ever queries
+ * `AgentActivity`/`AiApproval` itself — it only resolves the *caller's*
+ * identity (role, clinic membership, org id, permission set) and returns a
+ * WHERE clause for the route to run once against those tables. "No N+1"
+ * here means exactly that: the round-trip count is fixed per call and
+ * cannot grow with how many activity/approval rows the resulting WHERE
+ * clause will later match — a route showing 5 rows or 5,000 costs the same.
+ * The mocked `prisma` above only exposes `user`, so a future change that
+ * added a per-row lookup (e.g. one query per team the caller belongs to)
+ * would throw here immediately rather than silently regressing.
+ */
+describe('buildActivityFilter / buildApprovalFilter — no N+1 (Stage 12 perf guard)', () => {
+  it('resolves the visibility ladder in a fixed, small number of round trips', async () => {
+    userFindUnique.mockResolvedValueOnce({ role: 'MANAGER' });
+    resolveClinicAccess.mockResolvedValueOnce({ role: 'MANAGER' });
+    resolveUserPermissions.mockResolvedValueOnce(['bi.read']);
+
+    await buildActivityFilter(USER_ID, CLINIC_ID);
+
+    expect(userFindUnique).toHaveBeenCalledTimes(1);
+    expect(resolveClinicAccess).toHaveBeenCalledTimes(1);
+    expect(resolveOrganizationIdForClinic).toHaveBeenCalledTimes(1);
+    expect(resolveUserPermissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('costs the same fixed round trips per call, whether resolved once or a hundred times', async () => {
+    userFindUnique.mockResolvedValue({ role: 'MANAGER' });
+    resolveClinicAccess.mockResolvedValue({ role: 'MANAGER' });
+    resolveUserPermissions.mockResolvedValue(['bi.read']);
+
+    for (let i = 0; i < 100; i += 1) {
+      await buildActivityFilter(USER_ID, CLINIC_ID);
+    }
+
+    // 100 calls × the same fixed 3 dependency round trips each (identity
+    // resolution is shared with buildApprovalFilter) — a straight line, not
+    // a curve that steepens with row count or caller history.
+    expect(userFindUnique).toHaveBeenCalledTimes(100);
+    expect(resolveClinicAccess).toHaveBeenCalledTimes(100);
+    expect(resolveUserPermissions).toHaveBeenCalledTimes(100);
+  });
+
+  it('shares the identical resolution cost with buildApprovalFilter — one visibility ladder, two callers', async () => {
+    userFindUnique.mockResolvedValueOnce({ role: 'MANAGER' });
+    resolveClinicAccess.mockResolvedValueOnce({ role: 'MANAGER' });
+    resolveUserPermissions.mockResolvedValueOnce(['bi.read']);
+
+    const { where } = await buildApprovalFilter(USER_ID, CLINIC_ID);
+
+    expect(where).toEqual({
+      OR: [{ requestedByUserId: USER_ID }, { clinicId: CLINIC_ID }, { organizationId: ORG_ID }],
+    });
+    expect(userFindUnique).toHaveBeenCalledTimes(1);
+    expect(resolveClinicAccess).toHaveBeenCalledTimes(1);
+    expect(resolveUserPermissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('never touches AgentActivity/AiApproval itself — the mock only exposes `user`, so a stray query would throw here first', async () => {
+    userFindUnique.mockResolvedValueOnce({ role: 'SUPERADMIN' });
+    await expect(buildActivityFilter(USER_ID, CLINIC_ID)).resolves.toEqual({ where: {}, canReadPhi: true });
   });
 });
