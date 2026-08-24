@@ -144,4 +144,31 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { type: 'notification', title: 'Результат из диагностического центра', message: 'Поступил результат диагностики от стороннего центра.', roles: ['OWNER', 'ADMIN'] },
     ],
   },
+  {
+    id: 'lab-order-ready-notify-doctors',
+    name: 'Заказ лаборатории готов — уведомить врачей',
+    description: 'Срабатывает только когда статус заказа меняется на «готов» — врачи и ассистенты узнают, что можно забрать готовую работу.',
+    trigger: 'labOrder.status_changed',
+    nodes: [
+      { type: 'condition', field: 'status', op: 'eq', value: 'ready' },
+      { type: 'notification', title: 'Заказ лаборатории готов', message: 'Готовый заказ можно забрать из лаборатории.', roles: ['DOCTOR', 'ASSISTANT'] },
+    ],
+  },
+  {
+    id: 'lab-order-delayed-notify-admin',
+    name: 'Заказ лаборатории задержан — уведомить администрацию',
+    description: 'Срабатывает только когда статус заказа меняется на «задержан» — владелец и администратор узнают о задержке сразу, а не постфактум.',
+    trigger: 'labOrder.status_changed',
+    nodes: [
+      { type: 'condition', field: 'status', op: 'eq', value: 'delayed' },
+      { type: 'notification', title: 'Заказ лаборатории задержан', message: 'Один из заказов лаборатории отмечен как задержанный.', roles: ['OWNER', 'ADMIN'] },
+    ],
+  },
+  {
+    id: 'lab-order-created-audit',
+    name: 'Новый заказ лаборатории — запись в аудит',
+    description: 'Каждый новый заказ лаборатории фиксируется в журнале аудита — удобно для сверки загрузки и истории работы с лабораториями.',
+    trigger: 'labOrder.created',
+    nodes: [{ type: 'audit', action: 'labOrder.created.workflow' }],
+  },
 ]

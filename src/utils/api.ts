@@ -3220,7 +3220,8 @@ export type WorkflowTriggerEvent =
   | 'patient.created' | 'patient.deleted'
   | 'appointment.created'
   | 'referral.created' | 'referral.accepted' | 'referral.completed'
-  | 'diagnostics.result_ready';
+  | 'diagnostics.result_ready'
+  | 'labOrder.created' | 'labOrder.status_changed';
 
 export interface WorkflowTrigger {
   event: WorkflowTriggerEvent;

@@ -36,6 +36,8 @@ const TRIGGER_EVENTS: DomainEventName[] = [
   'referral.accepted',
   'referral.completed',
   'diagnostics.result_ready',
+  'labOrder.created',
+  'labOrder.status_changed',
 ];
 
 function getField(obj: Record<string, unknown>, path?: string): unknown {

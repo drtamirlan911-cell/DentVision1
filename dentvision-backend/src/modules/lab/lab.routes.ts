@@ -6,6 +6,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { isClinicMember } from '../../lib/orgContext.js';
+import { publish } from '../../lib/events.js';
 
 export const labRouter = Router();
 
@@ -205,6 +206,16 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
       ? await prisma.labOrder.update({ where: { id }, data })
       : await prisma.labOrder.create({ data: { id: uid(), clinicId, ...data } });
 
+    if (!id) {
+      publish('labOrder.created', {
+        clinicId,
+        labOrderId: order.id,
+        patientId: order.patientId || undefined,
+        doctorId: order.doctorId || undefined,
+        userId: req.user?.id,
+      });
+    }
+
     return res.status(201).json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
   } catch (error) {
     console.error('[Lab] upsert error:', error);
@@ -225,12 +236,25 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
     }
 
     // Tenant scope: verify ownership before updating.
-    const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId }, select: { id: true } });
+    const owned = await prisma.labOrder.findFirst({
+      where: { id: req.params.id as string, clinicId },
+      select: { id: true, status: true, patientId: true, doctorId: true },
+    });
     if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
 
     const order = await prisma.labOrder.update({
       where: { id: req.params.id as string },
       data: { status: status as any },
+    });
+
+    publish('labOrder.status_changed', {
+      clinicId,
+      labOrderId: order.id,
+      patientId: owned.patientId || undefined,
+      doctorId: owned.doctorId || undefined,
+      status: order.status,
+      previousStatus: owned.status,
+      userId: req.user?.id,
     });
 
     return res.json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);

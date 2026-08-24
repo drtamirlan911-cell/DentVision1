@@ -18,6 +18,8 @@ const TRIGGER_OPTIONS: { value: WorkflowTriggerEvent; label: string }[] = [
   { value: 'referral.accepted', label: 'Направление принято' },
   { value: 'referral.completed', label: 'Направление завершено' },
   { value: 'diagnostics.result_ready', label: 'Результат диагностики готов' },
+  { value: 'labOrder.created', label: 'Заказ лаборатории создан' },
+  { value: 'labOrder.status_changed', label: 'Статус заказа лаборатории изменён' },
 ]
 
 // Only the step types a clinic user actually adds by hand. `condition` is not
@@ -55,6 +57,11 @@ const TRIGGER_CONDITION_PRESETS: Partial<Record<WorkflowTriggerEvent, ConditionP
   ],
   'diagnostics.result_ready': [
     { id: 'from-center', label: 'Результат из стороннего диагностического центра', field: 'centerId', op: 'exists', value: '' },
+  ],
+  'labOrder.status_changed': [
+    { id: 'ready', label: 'Заказ готов', field: 'status', op: 'eq', value: 'ready' },
+    { id: 'delayed', label: 'Заказ задержан', field: 'status', op: 'eq', value: 'delayed' },
+    { id: 'remake', label: 'Требуется переделка', field: 'status', op: 'eq', value: 'remake' },
   ],
 }
 

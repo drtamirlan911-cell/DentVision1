@@ -20,6 +20,8 @@ export interface DomainEventMap {
   'referral.accepted': { referralId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; status: string; userId?: string; cost?: any; platformFee?: any };
   'referral.completed': { referralId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; status: string; userId?: string; cost?: any; platformFee?: any };
   'diagnostics.result_ready': { referralId: string; resultId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; userId?: string };
+  'labOrder.created': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; userId?: string };
+  'labOrder.status_changed': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; status: string; previousStatus?: string; userId?: string };
 }
 
 export type DomainEventName = keyof DomainEventMap;

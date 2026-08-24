@@ -87,5 +87,34 @@ export function registerSubscribers(): void {
     });
   });
 
+  // Unlike referral/diagnostics, lab.routes.ts never wrote its own audit row —
+  // lab order lifecycle had no audit trail at all until these two.
+  subscribe('labOrder.created', async ({ clinicId, labOrderId, userId }) => {
+    await prisma.auditLog.create({
+      data: {
+        id: uid(),
+        userId: userId || null,
+        clinicId: clinicId || null,
+        action: 'labOrder.created',
+        entity: 'labOrder',
+        entityId: labOrderId,
+      },
+    });
+  });
+
+  subscribe('labOrder.status_changed', async ({ clinicId, labOrderId, status, previousStatus, userId }) => {
+    await prisma.auditLog.create({
+      data: {
+        id: uid(),
+        userId: userId || null,
+        clinicId: clinicId || null,
+        action: 'labOrder.status_changed',
+        entity: 'labOrder',
+        entityId: labOrderId,
+        details: { from: previousStatus || null, to: status },
+      },
+    });
+  });
+
   console.log('[events] subscribers registered');
 }
