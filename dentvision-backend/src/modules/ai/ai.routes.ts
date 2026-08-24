@@ -11,6 +11,7 @@ import { prisma } from '../../lib/prisma.js';
 import { logAIInteraction } from './lib/auditLogger.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
 import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
+import { buildAiContext } from './os/context.js';
 
 const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
 
@@ -288,6 +289,10 @@ async function processQuery(
   const userId = req.user?.id || 'guest';
   const clinicId = isGuest ? null : (req.user!.clinicId || null);
 
+  // The verified entity focus (Stage 10 context engine) — kernel.ts substitutes
+  // a missing patientId argument from this. Guests have no clinic-scoped entity.
+  const aiContext = !isGuest && req.user ? await buildAiContext(req, { pathname, focusType, focusId }) : null;
+
   // Learn preferences from this utterance BEFORE the model runs (so «запомни» applies now).
   let learnedLabels: string[] = [];
   let learnedHint: string | undefined;
@@ -339,6 +344,7 @@ async function processQuery(
         pathname,
         focusType,
         focusId,
+        entity: aiContext?.entity ?? null,
       });
 
       if (!isGuest && result.toolsUsed?.length) {

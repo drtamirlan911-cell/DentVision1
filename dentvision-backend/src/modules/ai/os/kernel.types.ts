@@ -23,6 +23,8 @@ export interface AiPrincipal {
   agentId?: string;
   sessionId?: string | null;
   ip?: string | null;
+  /** What's open in the caller's workspace (os/context.ts::buildAiContext) — verified server-side, never a raw model claim. The kernel may fill a missing `patientId` tool argument from this when `entity.type === 'patient'`. */
+  entity?: { type: string; id: string } | null;
 }
 
 export interface AiInvocation {

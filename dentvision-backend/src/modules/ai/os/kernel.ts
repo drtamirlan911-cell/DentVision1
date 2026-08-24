@@ -154,11 +154,17 @@ async function recordEvidence(
   }
 }
 
-/** Redacts nothing structurally sensitive yet (Stage 10 tags context-sourced args) — caps size so a huge payload never bloats the ledger. */
-function redactArgs(args: Record<string, unknown>): Record<string, unknown> {
+/**
+ * Caps size so a huge payload never bloats the ledger. `contextFields` names
+ * any argument step 4c substituted from `p.entity` rather than the model —
+ * tagged `_source` so the Activity Center can show the id did not come from
+ * the model, exactly as Stage 10 requires.
+ */
+function redactArgs(args: Record<string, unknown>, contextFields: string[] = []): Record<string, unknown> {
   const json = JSON.stringify(args ?? {});
-  if (json.length <= 2000) return args;
-  return { _truncated: true, preview: json.slice(0, 2000) };
+  const base = json.length <= 2000 ? args : { _truncated: true, preview: json.slice(0, 2000) };
+  if (contextFields.length === 0) return base;
+  return { ...base, _source: Object.fromEntries(contextFields.map((f) => [f, 'context'])) };
 }
 
 export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<KernelResult> {
@@ -279,6 +285,21 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     }
   }
 
+  // Step 4c — context substitution (Stage 10). The model must not have to
+  // ask for context the system already has: if this tool's TOOL_PATIENT_ARG
+  // expects a patient id and the caller omitted it, and the caller's
+  // workspace has a patient card open (`p.entity`, verified server-side —
+  // never a model claim), fill it in from there. The substituted id still
+  // runs the patient-scope check in step 5 below like any other id would.
+  const contextFields: string[] = [];
+  if (p.entity?.type === 'patient') {
+    const patientArg = TOOL_PATIENT_ARG[inv.tool];
+    if (patientArg && !args[patientArg]) {
+      args[patientArg] = p.entity.id;
+      contextFields.push(patientArg);
+    }
+  }
+
   // Step 5 — patient scope. AI-only (human REST/UI is unaffected); off
   // unless env.AI_PATIENT_SCOPE === 'on', and only for the tools in
   // TOOL_PATIENT_ARG where the target patient is unambiguous.
@@ -303,7 +324,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
           patientId: p.patientId,
           status: 'denied',
           denyReason: 'OUT_OF_PATIENT_SCOPE',
-          argsRedacted: redactArgs(args),
+          argsRedacted: redactArgs(args, contextFields),
         });
         return { status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE', error: 'Этот пациент не в вашей зоне ответственности', activityId };
       }
@@ -340,7 +361,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
           patientId: p.patientId,
           status: 'denied',
           denyReason: 'INVALID_APPROVAL',
-          argsRedacted: redactArgs(args),
+          argsRedacted: redactArgs(args, contextFields),
         });
         return { status: 'denied', reason: 'INVALID_APPROVAL', error: 'Подтверждение недействительно или уже использовано', activityId };
       }
@@ -393,7 +414,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         organizationId,
         patientId: p.patientId,
         status: 'pending_approval',
-        argsRedacted: redactArgs(args),
+        argsRedacted: redactArgs(args, contextFields),
         resultSummary: summary,
         approvalId,
       });
@@ -442,7 +463,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         patientId: p.patientId,
         status: 'denied',
         denyReason: 'NO_CLINIC',
-        argsRedacted: redactArgs(args),
+        argsRedacted: redactArgs(args, contextFields),
         durationMs,
       });
       return { status: 'denied', reason: 'NO_CLINIC', error: 'Нет активной клиники — выберите рабочее пространство', activityId };
@@ -460,7 +481,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       patientId: p.patientId,
       status: 'denied',
       denyReason: 'EXEC_ERROR',
-      argsRedacted: redactArgs(args),
+      argsRedacted: redactArgs(args, contextFields),
       durationMs,
     });
     return { status: 'denied', reason: 'EXEC_ERROR', error: 'Ошибка выполнения инструмента', activityId };
@@ -479,7 +500,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     organizationId,
     patientId: p.patientId,
     status: toolResult.ok ? 'ok' : 'tool_error',
-    argsRedacted: redactArgs(args),
+    argsRedacted: redactArgs(args, contextFields),
     resultSummary: toolResult.ok ? undefined : toolResult.error,
     durationMs,
     approvalId: inv.approvalId || undefined,

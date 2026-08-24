@@ -14,6 +14,7 @@ import { PageHeader } from '../../components/ui/ds/StatCard';
 import { Tabs } from '../../components/ui/ds/Misc';
 import type { Patient, MedicalCard as MedicalCardType, Visit, Clinic, User as UserType, RoleInfo } from '../../types';
 import { usePatientStore } from '@/store/patient.store';
+import { useWorkspaceStore } from '@/store/workspace.store';
 import * as api from '@/utils/api';
 
 const CARD_SECTIONS = [
@@ -63,6 +64,13 @@ export default function MedicalCard() {
       void usePatientStore.getState().openPatient(pid);
     }
   }, [params]);
+
+  // Context engine (Stage 10): the AI kernel fills a missing patientId
+  // argument from this instead of asking the model to guess or re-ask.
+  useEffect(() => {
+    useWorkspaceStore.getState().setContextFocus(selectedPatientId ? 'patient' : 'workspace', selectedPatientId);
+    return () => useWorkspaceStore.getState().clearContext();
+  }, [selectedPatientId]);
 
   useEffect(() => {
     if (selectedPatientId) void usePatientStore.getState().openPatient(selectedPatientId);

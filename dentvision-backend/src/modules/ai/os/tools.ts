@@ -34,6 +34,8 @@ export interface ToolContext {
   userId: string;
   clinicId: string | null;
   role: string;
+  /** What's open in the caller's workspace (os/context.ts) — the kernel may use it to fill a missing patientId, never a tool directly. */
+  entity?: { type: string; id: string } | null;
 }
 
 export interface ToolResult {
@@ -1266,7 +1268,7 @@ export async function executeTool(
 ): Promise<ToolResult> {
   const { runAiAction } = await import('./kernel.js');
   const result = await runAiAction(
-    { surface: 'staff', userId: ctx.userId, requestedClinicId: ctx.clinicId },
+    { surface: 'staff', userId: ctx.userId, requestedClinicId: ctx.clinicId, entity: ctx.entity },
     { tool: name, args },
   );
   if (result.status === 'ok') return result.data as ToolResult;

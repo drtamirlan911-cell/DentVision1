@@ -436,3 +436,67 @@ describe('runAiAction — skill boundary (inv.skillId)', () => {
     expect(result.status).toBe('ok');
   });
 });
+
+describe('runAiAction — context substitution (Stage 10, p.entity)', () => {
+  it('fills a missing patientId from p.entity when the tool has a TOOL_PATIENT_ARG entry', async () => {
+    const principal = { ...PRINCIPAL, entity: { type: 'patient', id: 'p-from-context' } };
+
+    const result = await runAiAction(principal, { tool: 'getPatientCard', args: {} });
+
+    expect(result.status).toBe('ok');
+    expect(patientCardTool).toHaveBeenCalledWith({ patientId: 'p-from-context' }, expect.anything());
+  });
+
+  it('tags the substituted argument as context-sourced in the recorded activity', async () => {
+    const principal = { ...PRINCIPAL, entity: { type: 'patient', id: 'p-from-context' } };
+
+    await runAiAction(principal, { tool: 'getPatientCard', args: {} });
+
+    expect(activityCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          argsRedacted: expect.objectContaining({ _source: { patientId: 'context' } }),
+        }),
+      }),
+    );
+  });
+
+  it('never overrides a patientId the caller already supplied', async () => {
+    const principal = { ...PRINCIPAL, entity: { type: 'patient', id: 'p-from-context' } };
+
+    await runAiAction(principal, { tool: 'getPatientCard', args: { patientId: 'p-explicit' } });
+
+    expect(patientCardTool).toHaveBeenCalledWith({ patientId: 'p-explicit' }, expect.anything());
+  });
+
+  it('does not substitute when the open entity is not a patient', async () => {
+    const principal = { ...PRINCIPAL, entity: { type: 'appointment', id: 'a-1' } };
+
+    await runAiAction(principal, { tool: 'getPatientCard', args: {} });
+
+    expect(patientCardTool).toHaveBeenCalledWith({}, expect.anything());
+  });
+
+  it('does not substitute for a tool with no TOOL_PATIENT_ARG entry', async () => {
+    const principal = { ...PRINCIPAL, entity: { type: 'patient', id: 'p-from-context' } };
+
+    await runAiAction(principal, { tool: 'getSchedule', args: {} });
+
+    expect(okTool).toHaveBeenCalledWith({}, expect.anything());
+  });
+
+  it('still runs the substituted id through the patient-scope check when AI_PATIENT_SCOPE is on', async () => {
+    mockEnv.AI_PATIENT_SCOPE = 'on';
+    patientAssignmentFindFirst.mockResolvedValueOnce(null);
+    const principal = { ...PRINCIPAL, entity: { type: 'patient', id: 'p-not-mine' } };
+
+    const result = await runAiAction(principal, { tool: 'getPatientCard', args: {} });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE' });
+    expect(patientAssignmentFindFirst).toHaveBeenCalledWith({
+      where: { patientId: 'p-not-mine', userId: 'user-1', active: true },
+      select: { id: true },
+    });
+    expect(patientCardTool).not.toHaveBeenCalled();
+  });
+});

@@ -97,6 +97,8 @@ export interface OrchestratorInput {
   /** Context focus from workspace (patient / product / …). */
   focusType?: string | null;
   focusId?: string | null;
+  /** Verified entity focus (os/context.ts::buildAiContext) — what the kernel substitutes a missing patientId from, never trusted from focusType/focusId directly. */
+  entity?: { type: string; id: string } | null;
 }
 
 export interface OrchestratorResult {
@@ -483,7 +485,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   // UNDERSTAND — the concrete tool surface, resolved from the DB above.
   const allowedTools = access.allowed;
   const toolSchemas = toolSchemasFor(allowedTools);
-  const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role };
+  const toolCtx: ToolContext = { userId: input.userId, clinicId: input.clinicId, role: input.role, entity: input.entity };
   const currencyCode = await resolveClinicCurrency(input.clinicId);
   const instructions = buildSafeInstructions(systemPrompt(input, currencyCode, activePersona), input.text);
 
