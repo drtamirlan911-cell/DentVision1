@@ -389,3 +389,50 @@ describe('runAiAction — patient scope (env.AI_PATIENT_SCOPE)', () => {
     expect(patientAssignmentFindFirst).not.toHaveBeenCalled();
   });
 });
+
+describe('runAiAction — skill boundary (inv.skillId)', () => {
+  it('executes when the tool belongs to the named skill and the caller satisfies its requiredPermission', async () => {
+    // 'patient-summary' = { tools: [getPatientCard, getVisits], requiredPermission: 'medical.read' }.
+    // getPatientCard maps to medical.read in the real TOOL_PERMISSIONS, and it's in the mocked allowed set.
+    const result = await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: {}, skillId: 'patient-summary' });
+
+    expect(result.status).toBe('ok');
+    expect(patientCardTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('denies NOT_IN_SKILL when the tool is not part of the named skill', async () => {
+    // 'patient-summary' does not include getSchedule.
+    const result = await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: {}, skillId: 'patient-summary' });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'NOT_IN_SKILL' });
+    expect(okTool).not.toHaveBeenCalled();
+  });
+
+  it('denies NOT_IN_SKILL for an unknown skillId', async () => {
+    const result = await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: {}, skillId: 'no-such-skill' });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'NOT_IN_SKILL' });
+    expect(patientCardTool).not.toHaveBeenCalled();
+  });
+
+  it('denies NOT_IN_SKILL when the caller does not satisfy the skill requiredPermission, even though the tool itself is allowed', async () => {
+    // Caller may call getSchedule directly (appointments.read), but 'appointment-booking'
+    // requires appointments.write across the whole skill — no allowed tool carries that permission here.
+    resolveAiToolAccess.mockResolvedValueOnce({
+      role: 'ASSISTANT',
+      clinicId: 'clinic-1',
+      allowed: new Set(['getSchedule']),
+    });
+
+    const result = await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: {}, skillId: 'appointment-booking' });
+
+    expect(result).toMatchObject({ status: 'denied', reason: 'NOT_IN_SKILL' });
+    expect(okTool).not.toHaveBeenCalled();
+  });
+
+  it('is unaffected when no skillId is set (existing per-tool gate alone decides)', async () => {
+    const result = await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: {} });
+
+    expect(result.status).toBe('ok');
+  });
+});

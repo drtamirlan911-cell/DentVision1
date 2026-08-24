@@ -31,6 +31,8 @@ export interface AiInvocation {
   /** Set only by the approvals route re-entering the kernel after a human approved. */
   approvalId?: string | null;
   traceId?: string;
+  /** Named skill (`os/skills.ts::SKILLS`) this call claims to compose. When set, `tool` must belong to it and the caller must satisfy its `requiredPermission`. */
+  skillId?: string | null;
 }
 
 export type AiDenyReason =
@@ -43,7 +45,9 @@ export type AiDenyReason =
   | 'OUT_OF_PATIENT_SCOPE'
   | 'EXEC_ERROR'
   /** `approvalId` didn't resolve to an approved row for this exact tool/clinic. */
-  | 'INVALID_APPROVAL';
+  | 'INVALID_APPROVAL'
+  /** `skillId` didn't resolve, doesn't cover this tool/surface, or the caller lacks its requiredPermission. */
+  | 'NOT_IN_SKILL';
 
 export type KernelResult =
   | { status: 'ok'; data: unknown; navigate?: string; activityId: string }

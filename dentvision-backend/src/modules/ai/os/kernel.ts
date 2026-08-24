@@ -44,6 +44,7 @@ import { resolveAiToolAccess } from './access.js';
 import { TOOLS, type ToolContext } from './tools.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
 import { SURFACE_TOOLS, HIGH_RISK_TOOLS, TOOL_PATIENT_ARG, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
+import { SKILLS, skillPermissionSatisfied } from './skills.js';
 import { executePatientTool } from '../../ai-patient/patientTools.js';
 import { executeToolCall as executeAdminToolCall } from '../../ai-admin/llm/tools/tools.registry.js';
 import type { AiPrincipal, AiInvocation, KernelResult, AiDenyReason } from './kernel.types.js';
@@ -246,6 +247,36 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       argsRedacted: redactArgs(args),
     });
     return { status: 'denied', reason: 'NOT_ALLOWED', error: 'Действие недоступно для вашей роли', activityId };
+  }
+
+  // Step 4b — named skill boundary (optional). A narrower gate on top of the
+  // per-tool check above, not instead of it: `inv.skillId` restricts this
+  // call to one named composition of tools (os/skills.ts) and that skill's
+  // own declared permission — real authorization, not prompt-level framing.
+  if (inv.skillId) {
+    const skill = SKILLS[inv.skillId];
+    const skillOk =
+      !!skill &&
+      skill.surfaces.includes(p.surface) &&
+      skill.tools.includes(inv.tool) &&
+      skillPermissionSatisfied(allowedTools, skill.requiredPermission);
+    if (!skillOk) {
+      const activityId = await recordActivity({
+        traceId: inv.traceId,
+        surface: p.surface,
+        agentId: p.agentId,
+        tool: inv.tool,
+        actorUserId: p.userId,
+        actorRole: role,
+        clinicId,
+        organizationId,
+        patientId: p.patientId,
+        status: 'denied',
+        denyReason: 'NOT_IN_SKILL',
+        argsRedacted: redactArgs(args),
+      });
+      return { status: 'denied', reason: 'NOT_IN_SKILL', error: 'Действие недоступно в рамках этого skill', activityId };
+    }
   }
 
   // Step 5 — patient scope. AI-only (human REST/UI is unaffected); off

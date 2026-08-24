@@ -30,7 +30,7 @@ interface LabOrderMeta {
   doctorId?: string;
 }
 
-const VALID_STATUSES = [
+export const VALID_STATUSES = [
   'pending', 'sent', 'in_progress', 'try_in', 'adjustment',
   'ready', 'delivered', 'remake', 'delayed', 'cancelled',
 ] as const;

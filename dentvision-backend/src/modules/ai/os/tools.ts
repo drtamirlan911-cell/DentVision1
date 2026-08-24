@@ -10,12 +10,14 @@
  *    as a confirm card (Spec §4.6 action model).
  */
 
-import type { Prisma } from '@prisma/client';
+import type { Prisma, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 import prisma from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { isClinicMember } from '../../../lib/orgContext.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
+import { createReferral } from '../../diagnostics/diagnostics.service.js';
+import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -853,6 +855,152 @@ export const TOOLS: Record<string, ToolSpec> = {
         take: 30,
       });
       return { ok: true, data: orders };
+    },
+  },
+
+  createDiagnosticReferral: {
+    name: 'createDiagnosticReferral',
+    description:
+      'Создать направление на диагностику (КТ, ОПТГ, гистология и т.д.) в диагностический центр или лабораторию. ТРЕБУЕТ подтверждения пользователем: без confirmed=true возвращает черновик.',
+    parameters: {
+      type: 'object',
+      properties: {
+        patientId: { type: 'string', description: 'ID зарегистрированного пациента (опционально)' },
+        patientName: { type: 'string', description: 'ФИО пациента' },
+        category: {
+          type: 'string',
+          description: 'CBCT, OPG, TRG, TMJ, STL, FACE_SCAN, DICOM, ALLERGY, HISTOLOGY, PCR, MICROBIOLOGY, BLOOD, GENETICS, BIOPSY, SALIVA',
+        },
+        studyType: { type: 'string', description: 'Конкретное исследование, например «КТ верхней челюсти»' },
+        centerId: { type: 'string', description: 'ID диагностического центра (опционально)' },
+        labId: { type: 'string', description: 'ID лаборатории (опционально)' },
+        complaints: { type: 'string' },
+        preliminaryDx: { type: 'string', description: 'Предварительный диагноз' },
+        priority: { type: 'string', description: 'NORMAL | URGENT | EMERGENCY' },
+        confirmed: { type: 'boolean', description: 'true только после явного подтверждения пользователем' },
+      },
+      required: ['patientName', 'category', 'studyType'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const patientName = String(args.patientName || '').trim();
+      const category = String(args.category || '').trim() as DiagnosticCategory;
+      const studyType = String(args.studyType || '').trim();
+      if (!patientName || !category || !studyType) {
+        return { ok: false, error: 'patientName, category и studyType обязательны' };
+      }
+
+      if (!args.confirmed) {
+        return {
+          ok: true,
+          needsConfirmation: {
+            action: 'createDiagnosticReferral',
+            params: { ...args, confirmed: true },
+            summary: `Направить ${patientName} на ${studyType} (${category})`,
+          },
+        };
+      }
+
+      try {
+        const referral = await createReferral(
+          {
+            patientName,
+            patientId: args.patientId ? String(args.patientId) : undefined,
+            clinicId,
+            doctorId: ctx.userId,
+            category,
+            studyType,
+            centerId: args.centerId ? String(args.centerId) : undefined,
+            labId: args.labId ? String(args.labId) : undefined,
+            complaints: args.complaints ? String(args.complaints) : undefined,
+            preliminaryDx: args.preliminaryDx ? String(args.preliminaryDx) : undefined,
+            priority: args.priority ? (String(args.priority) as ReferralPriority) : undefined,
+          },
+          ctx.userId,
+        );
+        return { ok: true, data: referral, navigate: '/diagnostics/referrals' };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Не удалось создать направление' };
+      }
+    },
+  },
+
+  createLabOrder: {
+    name: 'createLabOrder',
+    description:
+      'Создать заказ-наряд в зуботехническую лабораторию. ТРЕБУЕТ подтверждения пользователем: без confirmed=true возвращает черновик.',
+    parameters: {
+      type: 'object',
+      properties: {
+        patientId: { type: 'string', description: 'ID пациента (опционально)' },
+        patientName: { type: 'string', description: 'ФИО пациента, если пациент не зарегистрирован в системе' },
+        labType: { type: 'string', description: 'Тип работы, например «Коронка E-max»' },
+        material: { type: 'string' },
+        toothNumber: { type: 'string', description: 'Номер зуба по FDI' },
+        shade: { type: 'string', description: 'Оттенок' },
+        dueDate: { type: 'string', description: 'YYYY-MM-DD, срок готовности' },
+        notes: { type: 'string' },
+        price: { type: 'number' },
+        confirmed: { type: 'boolean', description: 'true только после явного подтверждения пользователем' },
+      },
+      required: ['labType'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const labType = String(args.labType || '').trim();
+      if (!labType) return { ok: false, error: 'labType обязателен' };
+
+      if (!args.confirmed) {
+        return {
+          ok: true,
+          needsConfirmation: {
+            action: 'createLabOrder',
+            params: { ...args, confirmed: true },
+            summary: `Заказ в лабораторию: ${labType}${args.patientName ? ` для ${args.patientName}` : ''}`,
+          },
+        };
+      }
+
+      const prepared = await prepareLabOrderWrite(clinicId, { ...args, labType, doctorId: ctx.userId });
+      if (prepared.error) return { ok: false, error: prepared.error };
+
+      const order = await prisma.labOrder.create({
+        data: { id: uid(), clinicId, ...(prepared.data as object) },
+      });
+      return { ok: true, data: order, navigate: '/crm/lab' };
+    },
+  },
+
+  updateLabOrderStatus: {
+    name: 'updateLabOrderStatus',
+    description: `Изменить статус заказа лаборатории. Допустимые статусы: ${VALID_LAB_STATUSES.join(', ')}.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        status: { type: 'string' },
+      },
+      required: ['id', 'status'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const id = String(args.id || '');
+      const status = String(args.status || '');
+      if (!id || !(VALID_LAB_STATUSES as readonly string[]).includes(status)) {
+        return { ok: false, error: `Недопустимый статус. Допустимые: ${VALID_LAB_STATUSES.join(', ')}` };
+      }
+
+      const owned = await prisma.labOrder.findFirst({ where: { id, clinicId }, select: { id: true } });
+      if (!owned) return { ok: false, error: 'Заказ лаборатории не найден' };
+
+      const order = await prisma.labOrder.update({
+        where: { id },
+        data: { status: status as any },
+      });
+      return { ok: true, data: order, navigate: '/crm/lab' };
     },
   },
 
