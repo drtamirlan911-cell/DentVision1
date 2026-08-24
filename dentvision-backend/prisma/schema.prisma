@@ -96,13 +96,6 @@ enum LabOrderStatus {
   delayed
 }
 
-enum ActionStatus {
-  pending
-  completed
-  failed
-  cancelled
-}
-
 enum NotificationType {
   info
   warning
@@ -160,8 +153,6 @@ model User {
   memberships                   ClinicMember[]
   aiSessions                    AISession[]
   notifications                 Notification[]
-  aiActions                     AIAction[]
-  aiAlerts                      AIAlert[]
   orders                        Order[]
   enrollments                   SchoolEnrollment[]
   appointments                  Appointment[]
@@ -915,40 +906,6 @@ model AISession {
 
   @@index([userId])
   @@map("ai_sessions")
-}
-
-model AIAction {
-  id      String       @id @default(uuid())
-  userId  String
-  intent  String
-  payload Json
-  status  ActionStatus @default(pending)
-  result  Json?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
-
-  @@index([userId])
-  @@map("ai_actions")
-}
-
-model AIAlert {
-  id       String  @id @default(uuid())
-  userId   String
-  type     String
-  priority String  @default("low")
-  message  String
-  resolved Boolean @default(false)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
-
-  @@index([userId, resolved])
-  @@map("ai_alerts")
 }
 
 // --- MARKETPLACE ---

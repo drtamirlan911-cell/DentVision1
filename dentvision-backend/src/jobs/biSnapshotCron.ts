@@ -4,6 +4,7 @@
  * modules/bi/snapshot.service.ts for why: these tables existed, unused,
  * because bi.service.ts's numbers were only ever computed live.
  */
+import { withJobLock } from '../lib/jobLock.js';
 import { runDailyBiSnapshots } from '../modules/bi/snapshot.service.js';
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -16,9 +17,9 @@ export function startBiSnapshotCronInterval(ms = 24 * 60 * 60 * 1000): void {
   // second run same-day makes a second row, which is intended for anything
   // triggered more than once (a restart), not a defect to guard against.
   setTimeout(() => {
-    runDailyBiSnapshots().catch((e) => console.error('[biSnapshotCron] boot run failed', e));
+    withJobLock('bi_snapshot_cron', runDailyBiSnapshots).catch((e) => console.error('[biSnapshotCron] boot run failed', e));
   }, 45_000);
   timer = setInterval(() => {
-    runDailyBiSnapshots().catch((e) => console.error('[biSnapshotCron] interval failed', e));
+    withJobLock('bi_snapshot_cron', runDailyBiSnapshots).catch((e) => console.error('[biSnapshotCron] interval failed', e));
   }, ms);
 }

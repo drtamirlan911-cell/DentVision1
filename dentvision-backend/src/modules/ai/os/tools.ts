@@ -62,6 +62,20 @@ function requireClinic(ctx: ToolContext): string {
   return ctx.clinicId;
 }
 
+/**
+ * `{ id, clinicId }` for a single-record by-id lookup scoped to the caller's
+ * clinic. Every tool that fetches "the patient/appointment/order with this
+ * id" needs exactly this shape — composing it inline as `{ id: ..., clinicId }`
+ * at each call site means a future tool can drop `clinicId` and silently
+ * reach across tenants (the row still resolves, just for the wrong clinic).
+ * Routing every by-id lookup through one function makes that omission a
+ * one-line diff to notice instead of a buried object literal; the regression
+ * guard in `tools.test.ts` checks the file never reverts to the inline form.
+ */
+function scopedId(clinicId: string, id: string): { id: string; clinicId: string } {
+  return { id, clinicId };
+}
+
 function availableSectionKeys(guestFriendly = false): string[] {
   return mapAvailableSectionKeys(guestFriendly ? 'GUEST' : 'OWNER', guestFriendly);
 }
@@ -152,7 +166,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: { id: String(args.patientId), clinicId },
+        where: scopedId(clinicId, String(args.patientId)),
         include: {
           visits: { orderBy: { date: 'desc' }, take: 5 },
           teeth: { orderBy: { number: 'asc' } },
@@ -278,7 +292,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { findScheduleConflicts, buildMeta } = await import('../../crm/appointmentMeta.js');
       const patient = await prisma.patient.findFirst({
-        where: { id: String(args.patientId), clinicId },
+        where: scopedId(clinicId, String(args.patientId)),
         select: { id: true, firstName: true, lastName: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
@@ -375,7 +389,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { buildMeta, parseMeta, serializeAppointment, toDbStatus } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: { id: String(args.appointmentId), clinicId },
+        where: scopedId(clinicId, String(args.appointmentId)),
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -423,7 +437,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { serializeAppointment } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: { id: String(args.appointmentId), clinicId },
+        where: scopedId(clinicId, String(args.appointmentId)),
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -476,7 +490,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { findScheduleConflicts, parseMeta, serializeAppointment } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: { id: String(args.appointmentId), clinicId },
+        where: scopedId(clinicId, String(args.appointmentId)),
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -585,7 +599,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: { id: String(args.patientId), clinicId },
+        where: scopedId(clinicId, String(args.patientId)),
         select: { id: true, firstName: true, lastName: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
@@ -710,7 +724,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: { id: String(args.patientId), clinicId },
+        where: scopedId(clinicId, String(args.patientId)),
         select: { id: true, firstName: true, lastName: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
@@ -995,7 +1009,7 @@ export const TOOLS: Record<string, ToolSpec> = {
         return { ok: false, error: `Недопустимый статус. Допустимые: ${VALID_LAB_STATUSES.join(', ')}` };
       }
 
-      const owned = await prisma.labOrder.findFirst({ where: { id, clinicId }, select: { id: true } });
+      const owned = await prisma.labOrder.findFirst({ where: scopedId(clinicId, id), select: { id: true } });
       if (!owned) return { ok: false, error: 'Заказ лаборатории не найден' };
 
       const order = await prisma.labOrder.update({

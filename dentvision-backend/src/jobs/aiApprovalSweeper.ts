@@ -8,6 +8,7 @@
  */
 
 import prisma from '../lib/prisma.js';
+import { withJobLock } from '../lib/jobLock.js';
 
 export interface ApprovalSweepResult {
   expired: number;
@@ -34,8 +35,8 @@ export function startAiApprovalSweeperInterval(ms = 15 * 60 * 1000): void {
   if (timer) return;
   const tick = async () => {
     try {
-      const r = await sweepExpiredApprovals();
-      if (r.expired) {
+      const r = await withJobLock('ai_approval_sweeper', sweepExpiredApprovals);
+      if (r?.expired) {
         // `warn`, not `log`: an expired approval means a high-risk action sat
         // unanswered past its window — not routine.
         console.warn(`[AiApprovalSweeper] expired=${r.expired}`);

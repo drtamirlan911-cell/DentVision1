@@ -3,6 +3,7 @@
  * mark expired subscriptions, soft-suspend clinics.
  */
 import prisma from '../lib/prisma.js';
+import { withJobLock } from '../lib/jobLock.js';
 import { uid } from '../lib/helpers.js';
 import { tengeToMinor } from '../lib/money.js';
 import { notifyClinicOwners, CLINIC_SAAS_PLANS } from '../modules/billing/clinicSubscription.service.js';
@@ -234,10 +235,10 @@ export function startSubscriptionCronInterval(ms = 15 * 60 * 1000): void {
   console.log(`[subscriptionCron] started, interval=${ms}ms`);
   // Run once shortly after boot, then on interval
   setTimeout(() => {
-    runSubscriptionCron().catch((e) => console.error('[subscriptionCron] boot run failed', e));
+    withJobLock('subscription_cron', runSubscriptionCron).catch((e) => console.error('[subscriptionCron] boot run failed', e));
   }, 20_000);
   timer = setInterval(() => {
-    runSubscriptionCron().catch((e) => console.error('[subscriptionCron] interval failed', e));
+    withJobLock('subscription_cron', runSubscriptionCron).catch((e) => console.error('[subscriptionCron] interval failed', e));
   }, ms);
 }
 

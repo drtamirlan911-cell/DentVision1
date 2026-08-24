@@ -1844,6 +1844,12 @@ async function main() {
     await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "workflow_runs_status_attempts_idx" ON "workflow_runs"("status", "attempts")`);
   });
 
+  await runOnceMigration('drop_dead_ai_event_models', 'AIAction/AIAlert dropped (dead, see docs/SYSTEM_MAP.md)', async (tx) => {
+    await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "ai_actions"`);
+    await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "ai_alerts"`);
+    await tx.$executeRawUnsafe(`DROP TYPE IF EXISTS "ActionStatus"`);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();

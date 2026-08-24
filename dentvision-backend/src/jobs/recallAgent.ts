@@ -13,6 +13,7 @@
 
 import { UserRole } from '@prisma/client';
 import prisma from '../lib/prisma.js';
+import { withJobLock } from '../lib/jobLock.js';
 import { uid } from '../lib/helpers.js';
 import { buildClinicLoadPlan } from '../modules/ai/core/clinicLoadPlan.js';
 import { TOOL_PERMISSIONS } from '../modules/ai/os/toolPermissions.js';
@@ -99,8 +100,8 @@ export function startRecallAgentInterval(ms = 24 * 60 * 60 * 1000): void {
   if (timer) return;
   const tick = async () => {
     try {
-      const r = await sweepOverdueRecalls();
-      if (r.proposed) {
+      const r = await withJobLock('recall_agent', sweepOverdueRecalls);
+      if (r?.proposed) {
         console.warn(`[RecallAgent] proposed=${r.proposed}`);
       }
     } catch (err) {

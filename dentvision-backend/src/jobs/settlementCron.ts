@@ -8,6 +8,7 @@
  * (and therefore notify no one) once the prior month has been swept.
  */
 import prisma from '../lib/prisma.js';
+import { withJobLock } from '../lib/jobLock.js';
 import { minorToTenge } from '../lib/money.js';
 import {
   generateSettlements,
@@ -99,9 +100,9 @@ export function startSettlementCronInterval(ms = 60 * 60 * 1000): void {
   // Boot run shortly after start, then on interval. Monthly generation is
   // guarded by referral linking, so a frequent interval is a cheap no-op.
   setTimeout(() => {
-    runSettlementCron().catch((e) => console.error('[settlementCron] boot run failed', e));
+    withJobLock('settlement_cron', runSettlementCron).catch((e) => console.error('[settlementCron] boot run failed', e));
   }, 30_000);
   timer = setInterval(() => {
-    runSettlementCron().catch((e) => console.error('[settlementCron] interval failed', e));
+    withJobLock('settlement_cron', runSettlementCron).catch((e) => console.error('[settlementCron] interval failed', e));
   }, ms);
 }

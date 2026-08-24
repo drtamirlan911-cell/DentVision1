@@ -4,6 +4,7 @@
  */
 
 import prisma from '../lib/prisma.js';
+import { withJobLock } from '../lib/jobLock.js';
 import { uid } from '../lib/helpers.js';
 import { sendReminderMessage } from '../services/messaging.js';
 import {
@@ -180,11 +181,14 @@ export function startReminderCronInterval(ms = 15 * 60 * 1000): void {
   if (timer) return;
   const tick = async () => {
     try {
-      const r = await runReminderCron({ hoursWindow: 24, hoursMin: 0 });
-      if (r.sent || r.errors) {
+      const r = await withJobLock('reminder_cron', async () => {
+        const result = await runReminderCron({ hoursWindow: 24, hoursMin: 0 });
+        await cleanupAbandonedOrders();
+        return result;
+      });
+      if (r && (r.sent || r.errors)) {
         console.log(`[ReminderCron] scanned=${r.scanned} sent=${r.sent} skipped=${r.skipped} errors=${r.errors}`);
       }
-      await cleanupAbandonedOrders();
     } catch (err) {
       console.error('[ReminderCron] tick failed', err);
     }

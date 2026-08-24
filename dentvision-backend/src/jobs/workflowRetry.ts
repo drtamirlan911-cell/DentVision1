@@ -9,6 +9,7 @@
  */
 
 import prisma from '../lib/prisma.js';
+import { withJobLock } from '../lib/jobLock.js';
 import { retryWorkflowRun } from '../modules/workflow/workflow.engine.js';
 
 export interface WorkflowRetrySweepResult {
@@ -41,8 +42,8 @@ export function startWorkflowRetryInterval(ms = 15 * 60 * 1000): void {
   if (timer) return;
   const tick = async () => {
     try {
-      const r = await sweepFailedWorkflowRuns();
-      if (r.retried) {
+      const r = await withJobLock('workflow_retry', sweepFailedWorkflowRuns);
+      if (r?.retried) {
         console.warn(`[WorkflowRetry] retried=${r.retried}`);
       }
     } catch (err) {

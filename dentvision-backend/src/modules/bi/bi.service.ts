@@ -310,7 +310,11 @@ export async function getUnitEconomics(): Promise<UnitEconomics> {
       _count: true,
     }),
     prisma.patient.count(),
-    prisma.aIEvent.count({
+    // Platform-wide AI activity over the window — was `prisma.aIEvent.count`,
+    // a table nothing ever wrote to (its only writer, the old EventBus, has
+    // zero callers), which silently made `revenuePerAiRequest` always equal
+    // `monthlyRevenue` (dividing by the `|| 1` fallback below).
+    prisma.agentActivity.count({
       where: { createdAt: { gte: thirtyDaysAgo } },
     }),
     // Real operating costs, if any have been recorded (see finance.routes.ts's
@@ -642,7 +646,8 @@ export async function getClinicBI(clinicId: string): Promise<ClinicBIDashboard> 
       where: { clinicId, role: 'DOCTOR' },
       select: { userId: true, user: { select: { firstName: true, lastName: true } } },
     }).catch(() => []),
-    prisma.aIEvent.findMany({
+    // See the platform-wide count above — same dead-table swap, clinic-scoped.
+    prisma.agentActivity.findMany({
       where: { clinicId, createdAt: { gte: thirtyDaysAgo } },
       select: { id: true },
     }).catch(() => []),
