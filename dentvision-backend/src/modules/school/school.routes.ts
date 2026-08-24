@@ -7,8 +7,9 @@ import { uid } from '../../lib/helpers.js';
 import {
   CLINICAL_CASES,
   DEFAULT_EXAM,
+  getTutorReply,
   LIBRARY_ITEMS,
-  reviewHomework,
+  reviewHomeworkWithAI,
   upcomingOfficeCourses,
   upcomingWebinars,
 } from './academyContent.js';
@@ -880,26 +881,8 @@ schoolRouter.post('/tutor', authenticate, async (req: AuthRequest, res) => {
       return;
     }
 
-    const lower = message.toLowerCase();
-    let reply =
-      'Я AI Tutor Academy OS. Задайте вопрос по уроку, протоколу или разбору ошибки в тесте.';
-    if (lower.includes('эндо') || lower.includes('канал')) {
-      reply = 'Для эндодонтии под микроскопом: изоляция → рабочая длина → ирригация → обтурация. Хотите чек-лист ревизии?';
-    } else if (lower.includes('имплант')) {
-      reply = 'В эстетической зоне оцените биотип, объём кости и мягких тканей до установки. Могу разобрать ваш кейс по шагам.';
-    } else if (lower.includes('экзамен') || lower.includes('тест')) {
-      reply = 'Перед экзаменом повторите ключевые протоколы модуля. Проходной балл — 70%. После сдачи сертификат попадёт в портфолио.';
-    } else if (lower.includes('домашн') || lower.includes('homework')) {
-      reply = 'Загрузите описание кейса и фото — я проверю полноту протокола, диагноз и фотопротокол.';
-    }
-
-    res.json({
-      ok: true,
-      data: {
-        reply,
-        suggestions: ['Разобрать ошибку в тесте', 'Составить learning path', 'Проверить домашнее задание'],
-      },
-    });
+    const { reply, suggestions } = await getTutorReply(message);
+    res.json({ ok: true, data: { reply, suggestions } });
   } catch {
     res.status(500).json({ ok: false, error: 'Tutor unavailable' });
   }
@@ -907,7 +890,7 @@ schoolRouter.post('/tutor', authenticate, async (req: AuthRequest, res) => {
 
 schoolRouter.post('/homework/review', authenticate, async (req: AuthRequest, res) => {
   try {
-    const result = reviewHomework({
+    const result = await reviewHomeworkWithAI({
       title: req.body?.title,
       notes: req.body?.notes,
       category: req.body?.category,

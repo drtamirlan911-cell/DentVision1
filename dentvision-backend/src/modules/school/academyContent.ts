@@ -1,5 +1,7 @@
 /** Curated Academy OS commerce content — webinars & office courses first. */
 
+import { simpleChat } from '../ai/llm/client.js';
+
 export const CLINICAL_CASES = [
   {
     id: 'case-endo-01',
@@ -314,4 +316,90 @@ export function reviewHomework(input: {
     feedback: feedback.length ? feedback : ['Работа получена. Добавьте детали для более точной оценки.'],
     suggestions,
   };
+}
+
+const HOMEWORK_REVIEW_PROMPT = `Ты — опытный врач-стоматолог, проверяющий домашнее задание слушателя курса Academy OS.
+Оцени полноту клинического описания (диагноз, протокол, использованные материалы) и фотопротокол.
+Верни СТРОГО JSON без markdown и пояснений вокруг, ровно такой формы:
+{"score": <целое число 0-100>, "verdict": "<короткий вердикт на русском>", "feedback": ["<что сделано хорошо>", ...], "suggestions": ["<что улучшить>", ...]}
+Никогда не запрашивай, не выдумывай и не пересказывай персональные данные пациента (ФИО, ИИН, телефон, дату рождения) — оценивай только клиническое содержание присланного текста.`;
+
+function parseHomeworkReviewJson(raw: string): { score: number; verdict: string; feedback: string[]; suggestions: string[] } | null {
+  try {
+    // Models sometimes wrap JSON in a ```json fence despite instructions not to.
+    const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
+    const parsed = JSON.parse(cleaned);
+    const score = Number(parsed.score);
+    if (!Number.isFinite(score) || score < 0 || score > 100) return null;
+    if (typeof parsed.verdict !== 'string' || !parsed.verdict.trim()) return null;
+    const feedback = Array.isArray(parsed.feedback) ? parsed.feedback.filter((s: unknown) => typeof s === 'string') : [];
+    const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions.filter((s: unknown) => typeof s === 'string') : [];
+    return { score: Math.round(score), verdict: parsed.verdict, feedback, suggestions };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Real model call, with the deterministic `reviewHomework` heuristic above as
+ * the fallback — not a preference, a requirement: no API key configured, a
+ * network failure, or a model reply that doesn't parse as the expected JSON
+ * must never turn "review my homework" into a 500. A learner submitting a
+ * case for certification review needs *a* verdict every time, not "try again
+ * later" from a feature that's supposed to unblock a course lesson.
+ */
+export async function reviewHomeworkWithAI(input: {
+  title?: string;
+  notes?: string;
+  category?: string;
+  imageCount?: number;
+}): Promise<{ score: number; verdict: string; feedback: string[]; suggestions: string[]; source: 'ai' | 'heuristic' }> {
+  const userMessage = [
+    input.title ? `Название кейса: ${input.title}` : null,
+    input.category ? `Категория: ${input.category}` : null,
+    `Приложено фото: ${input.imageCount || 0}`,
+    `Клинические заметки: ${input.notes || '(не указаны)'}`,
+  ].filter(Boolean).join('\n');
+
+  try {
+    const raw = await simpleChat(HOMEWORK_REVIEW_PROMPT, userMessage, { maxTokens: 500 });
+    const parsed = raw ? parseHomeworkReviewJson(raw) : null;
+    if (parsed) return { ...parsed, source: 'ai' };
+  } catch (err) {
+    console.error('[academy] AI homework review failed, falling back to heuristic:', err);
+  }
+  return { ...reviewHomework(input), source: 'heuristic' };
+}
+
+const TUTOR_SYSTEM_PROMPT = `Ты — AI Tutor платформы Academy OS для стоматологов. Отвечай кратко (2-4 предложения), по существу, на русском языке.
+Помогай с клиническими протоколами, разбором ошибок в тестах курса, планированием обучения.
+Никогда не запрашивай, не выдумывай и не воспроизводи персональные данные пациентов (ФИО, ИИН, телефон, адрес) — если они появились в сообщении пользователя, не повторяй их в ответе.`;
+
+function tutorFallbackReply(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes('эндо') || lower.includes('канал')) {
+    return 'Для эндодонтии под микроскопом: изоляция → рабочая длина → ирригация → обтурация. Хотите чек-лист ревизии?';
+  }
+  if (lower.includes('имплант')) {
+    return 'В эстетической зоне оцените биотип, объём кости и мягких тканей до установки. Могу разобрать ваш кейс по шагам.';
+  }
+  if (lower.includes('экзамен') || lower.includes('тест')) {
+    return 'Перед экзаменом повторите ключевые протоколы модуля. Проходной балл — 70%. После сдачи сертификат попадёт в портфолио.';
+  }
+  if (lower.includes('домашн') || lower.includes('homework')) {
+    return 'Загрузите описание кейса и фото — я проверю полноту протокола, диагноз и фотопротокол.';
+  }
+  return 'Я AI Tutor Academy OS. Задайте вопрос по уроку, протоколу или разбору ошибки в тесте.';
+}
+
+/** Same fallback contract as reviewHomeworkWithAI — a tutor that goes silent when unconfigured is worse than a canned reply. */
+export async function getTutorReply(message: string): Promise<{ reply: string; suggestions: string[] }> {
+  const suggestions = ['Разобрать ошибку в тесте', 'Составить learning path', 'Проверить домашнее задание'];
+  try {
+    const reply = await simpleChat(TUTOR_SYSTEM_PROMPT, message, { maxTokens: 300 });
+    if (reply.trim()) return { reply: reply.trim(), suggestions };
+  } catch (err) {
+    console.error('[academy] AI tutor failed, falling back to canned reply:', err);
+  }
+  return { reply: tutorFallbackReply(message), suggestions };
 }
