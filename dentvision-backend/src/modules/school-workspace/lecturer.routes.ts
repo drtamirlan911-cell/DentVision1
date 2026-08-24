@@ -56,6 +56,27 @@ function requireLecturerContext(req: AuthRequest, res: Response, next: NextFunct
 
 lecturerRouter.use(requireLecturerContext);
 
+/**
+ * `/register` above creates every lecturer at `level: 'new'` with zero
+ * vetting — self-serve is the point. But nothing downstream checked level
+ * before letting a brand-new profile sell paid courses or pull money out of
+ * its wallet, so "self-serve signup" quietly doubled as "self-serve payout
+ * eligibility." The only thing that moves a lecturer off `new` is platform
+ * staff calling `POST /academies/lecturers/:id/level` (academy.manage,
+ * SUPERADMIN-only after the earlier permission fix) — that promotion is the
+ * moderation step; this just makes money-affecting routes actually wait for it.
+ */
+async function requireVerifiedLecturer(req: AuthRequest, res: Response, next: NextFunction) {
+  const lecturer = await prisma.lecturer.findUnique({ where: { id: req.user!.lecturerId! }, select: { level: true } });
+  if (!lecturer || lecturer.level === 'new') {
+    return res.status(403).json({
+      ok: false,
+      error: 'Профиль лектора ожидает подтверждения администрацией — платные продукты и выплаты станут доступны после проверки',
+    } satisfies ApiResponse);
+  }
+  next();
+}
+
 // ─── Profile ───
 lecturerRouter.get('/me', async (req: AuthRequest, res) => {
   const lecturer = await prisma.lecturer.findUnique({
@@ -98,7 +119,7 @@ lecturerRouter.get('/courses', async (req: AuthRequest, res) => {
   } satisfies ApiResponse);
 });
 
-lecturerRouter.post('/courses', async (req: AuthRequest, res) => {
+lecturerRouter.post('/courses', requireVerifiedLecturer, async (req: AuthRequest, res) => {
   try {
     const b = req.body || {};
     if (!b.title) {
@@ -213,7 +234,7 @@ lecturerRouter.get('/wallet', async (req: AuthRequest, res) => {
   return res.json({ ok: true, data: serializeBigInt(wallet) } satisfies ApiResponse);
 });
 
-lecturerRouter.post('/payouts', async (req: AuthRequest, res) => {
+lecturerRouter.post('/payouts', requireVerifiedLecturer, async (req: AuthRequest, res) => {
   const { amount, amountMinor } = req.body || {};
   if (amount === undefined && amountMinor === undefined) {
     return res.status(400).json({ ok: false, error: 'amount обязателен' } satisfies ApiResponse);
