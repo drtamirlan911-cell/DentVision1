@@ -3229,8 +3229,21 @@ export interface WorkflowTrigger {
 export type WorkflowNode =
   | { type: 'condition'; field: string; op: 'eq' | 'neq' | 'exists' | 'contains'; value: string }
   | { type: 'audit'; action: string }
-  | { type: 'notification'; userId?: string; title: string; message: string }
+  // `roles` fans the notification out to every clinic member holding one of
+  // these roles — the only recipient a reusable automation can name, since it
+  // is authored before any specific staff member is known. `userId` is a
+  // narrower single-recipient option for a workflow edited by hand.
+  | { type: 'notification'; userId?: string; roles?: string[]; title: string; message: string }
   | { type: 'log' };
+
+export const WORKFLOW_NOTIFICATION_ROLES: { value: string; label: string }[] = [
+  { value: 'OWNER', label: 'Владелец' },
+  { value: 'ADMIN', label: 'Администратор' },
+  { value: 'MANAGER', label: 'Менеджер' },
+  { value: 'DOCTOR', label: 'Врач' },
+  { value: 'ASSISTANT', label: 'Ассистент' },
+  { value: 'CASHIER', label: 'Кассир' },
+];
 
 export interface WorkflowGraph {
   nodes: WorkflowNode[];

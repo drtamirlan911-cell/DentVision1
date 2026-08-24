@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { Workflow as WorkflowIcon, Plus, Play, Trash2, GripVertical } from 'lucide-react'
+import { Workflow as WorkflowIcon, Plus, Play, Trash2, GripVertical, Sparkles } from 'lucide-react'
 import {
   Card, CardHeader, CardTitle, CardContent, Button, Badge, Modal, Input, Select,
   DataTable, EmptyState, Drawer, Skeleton,
 } from '@/components/ui/ds'
 import { useToast } from '@/components/ui/ds/Toast'
 import type { Column } from '@/components/ui/ds/DataTable'
-import type { Workflow, WorkflowNode, WorkflowTriggerEvent } from '@/utils/api'
+import { WORKFLOW_NOTIFICATION_ROLES, type Workflow, type WorkflowNode, type WorkflowTriggerEvent } from '@/utils/api'
 import { useWorkflows, useCreateWorkflow, useUpdateWorkflow, useRunWorkflow, useWorkflowRuns } from '@/queries/workflow.query'
+import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from './workflowTemplates'
 
 const TRIGGER_OPTIONS: { value: WorkflowTriggerEvent; label: string }[] = [
   { value: 'patient.created', label: 'Пациент создан' },
@@ -46,7 +47,10 @@ function nodeSummary(node: WorkflowNode): string {
   switch (node.type) {
     case 'condition': return `если ${node.field} ${node.op} ${node.value}`
     case 'audit': return `аудит: ${node.action}`
-    case 'notification': return `уведомление: ${node.title}`
+    case 'notification': {
+      const roleLabels = (node.roles || []).map((r) => WORKFLOW_NOTIFICATION_ROLES.find((o) => o.value === r)?.label || r)
+      return `уведомление (${roleLabels.length ? roleLabels.join(', ') : 'получатель не выбран'}): ${node.title}`
+    }
     case 'log': return 'лог'
     default: return String((node as any).type)
   }
@@ -56,7 +60,7 @@ function emptyNode(type: WorkflowNode['type']): WorkflowNode {
   switch (type) {
     case 'condition': return { type: 'condition', field: '', op: 'eq', value: '' }
     case 'audit': return { type: 'audit', action: '' }
-    case 'notification': return { type: 'notification', title: '', message: '' }
+    case 'notification': return { type: 'notification', title: '', message: '', roles: ['OWNER', 'ADMIN'] }
     case 'log': return { type: 'log' }
   }
 }
@@ -75,10 +79,32 @@ function StepEditor({ node, onChange }: { node: WorkflowNode; onChange: (n: Work
     return <Input size="sm" placeholder="действие (например, patient.flagged)" value={node.action} onChange={(e) => onChange({ ...node, action: e.target.value })} />
   }
   if (node.type === 'notification') {
+    const roles = node.roles || []
+    const toggleRole = (role: string) => {
+      const next = roles.includes(role) ? roles.filter((r) => r !== role) : [...roles, role]
+      onChange({ ...node, roles: next })
+    }
     return (
-      <div className="grid grid-cols-2 gap-2">
-        <Input size="sm" placeholder="заголовок" value={node.title} onChange={(e) => onChange({ ...node, title: e.target.value })} />
-        <Input size="sm" placeholder="сообщение" value={node.message} onChange={(e) => onChange({ ...node, message: e.target.value })} />
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <Input size="sm" placeholder="заголовок" value={node.title} onChange={(e) => onChange({ ...node, title: e.target.value })} />
+          <Input size="sm" placeholder="сообщение" value={node.message} onChange={(e) => onChange({ ...node, message: e.target.value })} />
+        </div>
+        <div>
+          <p className="text-2xs text-txt-muted mb-1">Кому (по роли в клинике)</p>
+          <div className="flex flex-wrap gap-1">
+            {WORKFLOW_NOTIFICATION_ROLES.map((r) => (
+              <Button
+                key={r.value} type="button" size="xs"
+                variant={roles.includes(r.value) ? 'primary' : 'ghost'}
+                onClick={() => toggleRole(r.value)}
+              >
+                {r.label}
+              </Button>
+            ))}
+          </div>
+          {roles.length === 0 && <p className="text-2xs text-error mt-1">Выберите хотя бы одну роль — иначе уведомление никому не отправится.</p>}
+        </div>
       </div>
     )
   }
@@ -210,6 +236,54 @@ function WorkflowDetail({ workflow, onClose, onRun, running }: { workflow: Workf
   )
 }
 
+function WorkflowTemplates({ existingNames, onAdd, addingId }: { existingNames: Set<string>; onAdd: (t: WorkflowTemplate) => void; addingId: string | null }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles size={16} className="text-dv-gold" />
+          Шаблоны автоматизаций
+        </CardTitle>
+        <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>
+          {open ? 'Скрыть' : `Показать все (${WORKFLOW_TEMPLATES.length})`}
+        </Button>
+      </CardHeader>
+      {open && (
+        <CardContent>
+          <p className="text-xs text-txt-muted mb-3">
+            Готовые правила — нажмите «Добавить», чтобы создать автоматизацию как черновик, затем откройте её и активируйте.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {WORKFLOW_TEMPLATES.map((t) => {
+              const already = existingNames.has(t.name)
+              return (
+                <div key={t.id} className="flex flex-col gap-2 rounded-lg border border-bdr-subtle p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-txt-primary">{t.name}</p>
+                    <Badge variant="outline" size="xs" className="shrink-0">{triggerLabel(t.trigger)}</Badge>
+                  </div>
+                  <p className="text-xs text-txt-muted flex-1">{t.description}</p>
+                  <Button
+                    size="xs"
+                    variant={already ? 'secondary' : 'primary'}
+                    disabled={already}
+                    loading={addingId === t.id}
+                    onClick={() => onAdd(t)}
+                  >
+                    {already ? 'Уже добавлено' : 'Добавить'}
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  )
+}
+
 export default function Workflows() {
   const toast = useToast()
   const { data: workflows, isLoading } = useWorkflows()
@@ -219,6 +293,7 @@ export default function Workflows() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Workflow | null>(null)
   const [selected, setSelected] = useState<Workflow | null>(null)
+  const [addingTemplateId, setAddingTemplateId] = useState<string | null>(null)
 
   const runWorkflow = useRunWorkflow(selected?.id)
 
@@ -235,6 +310,18 @@ export default function Workflows() {
       setEditing(null)
     } catch (e: any) {
       toast.error(e.message || 'Не удалось сохранить')
+    }
+  }
+
+  const addTemplate = async (t: WorkflowTemplate) => {
+    setAddingTemplateId(t.id)
+    try {
+      await createWorkflow.mutateAsync({ name: t.name, trigger: { event: t.trigger }, graph: { nodes: t.nodes }, status: 'draft' })
+      toast.success('Автоматизация добавлена как черновик — откройте её, чтобы активировать')
+    } catch (e: any) {
+      toast.error(e.message || 'Не удалось добавить шаблон')
+    } finally {
+      setAddingTemplateId(null)
     }
   }
 
@@ -285,6 +372,12 @@ export default function Workflows() {
           )}
         </CardContent>
       </Card>
+
+      <WorkflowTemplates
+        existingNames={new Set((workflows || []).map((w) => w.name))}
+        onAdd={addTemplate}
+        addingId={addingTemplateId}
+      />
 
       <WorkflowFormModal
         open={formOpen}
