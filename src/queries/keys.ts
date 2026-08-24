@@ -30,6 +30,7 @@ export const queryKeys = {
   photos: ['photos'] as const,
   subscriptions: ['subscriptions'] as const,
   treatments: ['treatments'] as const,
+  aiInsights: (entityType: string, entityId: string) => ['aiInsights', entityType, entityId] as const,
   admin: {
     stats: ['admin', 'stats'] as const,
     clinics: ['admin', 'clinics'] as const,

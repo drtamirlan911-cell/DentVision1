@@ -30,6 +30,7 @@ import { isOnlineQrMethod } from '@/utils/payMethod'
 import { extractPaymentQrUrl } from '@/utils/paymentQr'
 import type { Patient, Appointment, Clinic, User as UserType, RoleInfo } from '../../types'
 import { usePatientStore } from '@/store/patient.store'
+import { AiInsightCard } from '@/components/patient/AiInsightCard'
 
 const CAT_CFG = PATIENT_CATEGORY
 
@@ -898,6 +899,8 @@ export default function Patients() {
               ))}
             </div>
           </Card>
+
+          <AiInsightCard patientId={selected.id} />
         </div>
 
         {/* Right panel */}

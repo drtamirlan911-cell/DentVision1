@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest } from '../../types/index.js';
 import { validate } from '../../middleware/validate.js';
 import { z } from 'zod';
@@ -1032,6 +1033,54 @@ aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('[AI Memory clear]', error);
     return res.status(500).json({ ok: false, error: 'Memory clear failed' });
+  }
+});
+
+// ─── AI Insights (Stage 11) — deterministic, no-LLM contextual hints ───
+import { computePatientInsights, listDismissedInsightIds, dismissInsight } from './os/insights.js';
+
+aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async (req: AuthRequest, res) => {
+  try {
+    const entityType = String(req.query.entityType || '');
+    const entityId = String(req.query.entityId || '');
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: 'Клиника не указана' });
+    }
+    if (!entityId) {
+      return res.status(400).json({ ok: false, error: 'entityId обязателен' });
+    }
+    // Only the patient workspace has insights so far — an honest gap, not a
+    // silent 200 pretending other entity types are supported.
+    if (entityType !== 'patient') {
+      return res.json({ ok: true, data: [] });
+    }
+    const patient = await prisma.patient.findFirst({ where: { id: entityId, clinicId }, select: { id: true } });
+    if (!patient) {
+      return res.status(404).json({ ok: false, error: 'Пациент не найден' });
+    }
+    const [insights, dismissed] = await Promise.all([
+      computePatientInsights(entityId, clinicId),
+      listDismissedInsightIds(req.user!.id, clinicId),
+    ]);
+    return res.json({ ok: true, data: insights.filter((i) => !dismissed.has(i.id)) });
+  } catch (error) {
+    console.error('[AI Insights] list failed:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить подсказки' });
+  }
+});
+
+aiRouter.post('/insights/:id/dismiss', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: 'Клиника не указана' });
+    }
+    await dismissInsight(String(req.params.id), req.user!.id, clinicId);
+    return res.json({ ok: true, data: { dismissed: true } });
+  } catch (error) {
+    console.error('[AI Insights] dismiss failed:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось скрыть подсказку' });
   }
 });
 

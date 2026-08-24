@@ -2486,6 +2486,30 @@ export async function aiProactive(): Promise<{ alerts: Array<{ type: string; cat
   }));
   return { alerts };
 }
+export interface AiInsight {
+  id: string
+  severity: 'info' | 'attention' | 'urgent'
+  title: string
+  evidence: Array<{ sourceType: string; sourceId: string; label: string }>
+  actions: Array<{ label: string; tool: string; params: Record<string, unknown>; requiresApproval: boolean }>
+}
+
+/** Deterministic, no-LLM contextual hints for one entity (patient card etc). */
+export async function getAiInsights(entityType: string, entityId: string): Promise<AiInsight[]> {
+  if (!entityId) return []
+  const res = await apiRequest(
+    `/api/ai/insights?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`,
+  )
+  if (Array.isArray(res)) return res
+  const raw = res?.data || res?.insights || []
+  return Array.isArray(raw) ? raw : []
+}
+
+export async function dismissAiInsight(id: string): Promise<{ dismissed: boolean }> {
+  const res = await apiRequest(`/api/ai/insights/${encodeURIComponent(id)}/dismiss`, { method: 'POST' })
+  return { dismissed: !!(res?.data?.dismissed ?? res?.dismissed) }
+}
+
 export async function aiAction(action: string, params: Record<string, unknown> = {}): Promise<any> {
   return apiRequest('/api/ai/action', {
     method: 'POST',

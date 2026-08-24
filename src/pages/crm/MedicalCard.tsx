@@ -15,6 +15,7 @@ import { Tabs } from '../../components/ui/ds/Misc';
 import type { Patient, MedicalCard as MedicalCardType, Visit, Clinic, User as UserType, RoleInfo } from '../../types';
 import { usePatientStore } from '@/store/patient.store';
 import { useWorkspaceStore } from '@/store/workspace.store';
+import { AiInsightCard } from '@/components/patient/AiInsightCard';
 import * as api from '@/utils/api';
 
 const CARD_SECTIONS = [
@@ -221,6 +222,8 @@ export default function MedicalCard() {
                   </div>
                 </div>
               </Card>
+
+              <AiInsightCard patientId={selectedPatientId} />
 
               {/* Section Tabs */}
               <Tabs
