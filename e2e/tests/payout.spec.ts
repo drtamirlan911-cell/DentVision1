@@ -63,6 +63,14 @@ test.describe('Payout Workflow', () => {
     expect([200, 201]).toContain(lecRes.status());
     lecturerId = (await lecRes.json()).data.id;
 
+    // POST /lecturer/payouts is gated behind a verified lecturer profile
+    // (requireVerifiedLecturer in lecturer.routes.ts) — a freshly self-
+    // registered lecturer starts at level:'new' and would get 403 before
+    // ever reaching the balance check this file exists to test. Promote
+    // directly via Prisma, same as setWalletBalance below: this file tests
+    // the payout state machine, not the moderation pipeline.
+    await prisma.lecturer.update({ where: { id: lecturerId }, data: { level: 'verified' } });
+
     // POST /lecturer/payouts reads req.user.lecturerId from the JWT — that
     // only appears after switching context (iam.routes.ts's switch-context).
     const switchRes = await api.post(`${BASE_URL}/api/iam/switch-context`, {
