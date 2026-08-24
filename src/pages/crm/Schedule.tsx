@@ -792,7 +792,7 @@ export default function Schedule() {
           subtitle="Управление записями и лист ожидания"
           icon={<Calendar size={20} />}
           actions={
-            <div className="flex flex-wrap gap-2 items-center justify-end">
+            <div className="flex flex-wrap gap-2 items-center justify-start sm:justify-end">
               <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
                 <span className="hidden sm:inline">Печать дня</span>
               </Button>
