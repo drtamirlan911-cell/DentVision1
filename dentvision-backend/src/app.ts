@@ -76,9 +76,12 @@ import { patientInboxRouter } from './modules/patient-conversation/patientInbox.
 import { crossClinicRouter } from './modules/cross-clinic/cross-clinic.routes.js';
 import compatRouter from './compat/compatRouter.js';
 import { registerSubscribers } from './events/subscribers.js';
+import { registerWorkflowEngine } from './modules/workflow/workflow.engine.js';
 
 // Wire up domain-event subscribers (audit, etc.) once at import time.
 registerSubscribers();
+// Wire up clinic Workflow Studio automations to the same event bus.
+registerWorkflowEngine();
 
 const app = express();
 

@@ -1,6 +1,12 @@
 /**
  * Digital Twin Event OS Extension — enriches the digital twin
  * with real-time Event OS data (recent AI actions, agent status).
+ *
+ * Reads `AgentActivity` (the governance kernel's ledger, `ai/os/kernel.ts`),
+ * not the legacy `AIEvent` table. `AIEvent`'s only writer was
+ * `modules/events/EventBus.ts`, which nothing in the app ever calls — every
+ * field read here was silently, permanently zero/empty in production. See
+ * `ai.timeline.routes.ts` for the same redirection done earlier.
  */
 
 import prisma from '../../../lib/prisma.js';
@@ -31,8 +37,8 @@ export async function getTwinEventOSData(
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  // Fetch recent AI events
-  const recentEvents = await prisma.aIEvent.findMany({
+  // Fetch recent AI activity
+  const recentEvents = await prisma.agentActivity.findMany({
     where: { clinicId },
     orderBy: { createdAt: 'desc' },
     take: 20,
@@ -40,10 +46,10 @@ export async function getTwinEventOSData(
 
   // Build recent actions
   const recentActions = recentEvents.map((e) => ({
-    agent: e.source,
-    action: e.type,
+    agent: e.agentId || e.surface,
+    action: e.tool,
     timestamp: e.createdAt,
-    success: e.status === 'completed',
+    success: e.status === 'ok',
   }));
 
   // Build agent status
@@ -54,7 +60,7 @@ export async function getTwinEventOSData(
   }> = {};
 
   for (const event of recentEvents) {
-    const agent = event.source;
+    const agent = event.agentId || event.surface;
     if (!agentStatus[agent]) {
       agentStatus[agent] = {
         lastActive: event.createdAt,
@@ -67,15 +73,15 @@ export async function getTwinEventOSData(
     }
   }
 
-  // Count pending alerts
-  const pendingAlerts = await prisma.aIEvent.count({
+  // Count pending alerts — an action awaiting human approval (Stage 4, AiApproval).
+  const pendingAlerts = await prisma.agentActivity.count({
     where: {
       clinicId,
-      status: 'pending',
+      status: 'pending_approval',
     },
   });
 
-  const timelineSize = await prisma.aIEvent.count({
+  const timelineSize = await prisma.agentActivity.count({
     where: { clinicId },
   });
 

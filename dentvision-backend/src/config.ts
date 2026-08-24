@@ -91,6 +91,15 @@ const envSchema = z.object({
   META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
   /** Max conversation history messages sent to LLM. */
   AI_ADMIN_MAX_HISTORY: z.coerce.number().default(20),
+  /**
+   * Enforces the AI kernel's patient-scope check (`ai/os/kernel.ts` step 5):
+   * a DOCTOR/ASSISTANT may only use a single-patient tool (getPatientCard,
+   * createTreatmentPlan, createAppointment, createInvoice) on a patient
+   * `PatientAssignment` links them to. Off by default — flipping it on
+   * before the backfill migration has run would blind a doctor to their own
+   * patients. AI-only: human REST/UI access is unaffected either way.
+   */
+  AI_PATIENT_SCOPE: z.enum(['on', 'off']).default('off'),
 });
 
 export const env = envSchema.parse(process.env);

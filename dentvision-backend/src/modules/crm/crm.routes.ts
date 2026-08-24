@@ -18,6 +18,7 @@ import {
 import * as planRelease from '../patient-presentation/planRelease.service.js';
 import * as presentation from '../patient-presentation/presentation.service.js';
 import { linkStageReferences } from './planStageLinks.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 export const crmRouter = Router();
 
@@ -167,6 +168,13 @@ crmRouter.post('/treatment-plans', requirePermission('patient.write'), async (re
           include: { patient: { select: { firstName: true, lastName: true } } },
         });
 
+    await auditFromReq(req, {
+      action: id ? 'treatment_plan.updated' : 'treatment_plan.created',
+      entity: 'treatment_plan',
+      entityId: plan.id,
+      details: { patientId },
+    });
+
     return res.status(201).json({ ok: true, data: serializePlan(plan) } satisfies ApiResponse);
   } catch (error) {
     console.error('[CRM] Upsert treatment plan error:', error);
@@ -187,6 +195,11 @@ crmRouter.delete('/treatment-plans/:id', requirePermission('patient.write'), asy
     if (!assertSameClinic(req, res, plan.patient?.clinicId)) return;
 
     await prisma.treatmentPlan.delete({ where: { id } });
+    await auditFromReq(req, {
+      action: 'treatment_plan.deleted',
+      entity: 'treatment_plan',
+      entityId: id,
+    });
     return res.json({ ok: true, data: { deleted: true } } satisfies ApiResponse);
   } catch (error) {
     console.error('[CRM] Delete treatment plan error:', error);
@@ -224,6 +237,12 @@ crmRouter.post('/treatment-plans/:id/approve', requirePermission('medical.manage
       publish: publish === true,
       validityDays: Number.isFinite(Number(validityDays)) ? Number(validityDays) : undefined,
     });
+    await auditFromReq(req, {
+      action: 'treatment_plan.approved',
+      entity: 'treatment_plan',
+      entityId: id,
+      details: { releaseId: release.id, published: publish === true },
+    });
     return res.json({ ok: true, data: release } satisfies ApiResponse);
   } catch (error) {
     if (error instanceof planRelease.PlanReleaseError) {
@@ -247,6 +266,11 @@ crmRouter.post('/plan-releases/:releaseId/publish', requirePermission('medical.m
     if (!assertSameClinic(req, res, existing.clinicId)) return;
 
     const release = await planRelease.publishRelease(releaseId);
+    await auditFromReq(req, {
+      action: 'treatment_plan.published',
+      entity: 'treatment_plan_release',
+      entityId: releaseId,
+    });
     return res.json({ ok: true, data: release } satisfies ApiResponse);
   } catch (error) {
     if (error instanceof planRelease.PlanReleaseError) {
@@ -271,6 +295,12 @@ crmRouter.post('/plan-releases/:releaseId/withdraw', requirePermission('medical.
 
     const { reason } = req.body as { reason?: string };
     const release = await planRelease.withdrawRelease(releaseId, req.user!.id, reason ?? null);
+    await auditFromReq(req, {
+      action: 'treatment_plan.withdrawn',
+      entity: 'treatment_plan_release',
+      entityId: releaseId,
+      details: { reason: reason ?? null },
+    });
     return res.json({ ok: true, data: release } satisfies ApiResponse);
   } catch (error) {
     if (error instanceof planRelease.PlanReleaseError) {
@@ -504,6 +534,13 @@ crmRouter.patch('/treatment-plans/:id/stages/:stageId', requirePermission('patie
     });
 
     await linkStageReferences(prisma, { planId: id, clinicId: plan.patient?.clinicId, appointmentId, invoiceId });
+
+    await auditFromReq(req, {
+      action: 'treatment_plan.stage_updated',
+      entity: 'treatment_plan',
+      entityId: id,
+      details: { stageId, status: status ?? undefined, cost: cost ?? undefined },
+    });
 
     return res.json({ ok: true, data: serializePlan(updated) } satisfies ApiResponse);
   } catch (error) {

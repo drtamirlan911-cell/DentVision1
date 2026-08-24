@@ -9,7 +9,8 @@
  */
 
 import { chatWithTools, type ChatMessage, type ToolDefinition } from '../ai/llm/client.js';
-import { PATIENT_TOOLS, executePatientTool, type PatientToolContext } from './patientTools.js';
+import { PATIENT_TOOLS, type PatientToolContext } from './patientTools.js';
+import { runAiAction } from '../ai/os/kernel.js';
 
 /**
  * Two rounds, not more. Each round is one model call plus its tool results,
@@ -110,7 +111,11 @@ export async function runPatientTurn(
         } catch {
           args = {};
         }
-        payload = await executePatientTool(name, args, ctx);
+        const result = await runAiAction(
+          { surface: 'patient', userId: ctx.userId, requestedClinicId: ctx.clinicId, patientId: ctx.patientId },
+          { tool: name, args },
+        );
+        payload = result.status === 'ok' ? result.data : { error: result.status === 'denied' ? result.error : 'pending' };
         toolsUsed.push(name);
         data[name] = payload;
       } catch (e: any) {

@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { DENTAL_ICD10_SEED, mapIcd10Row, searchDentalCatalog } from './icd10.catalog.js';
 import {
@@ -101,6 +102,13 @@ medicalRouter.post('/visits', requirePermission('patient.write'), async (req: Au
       },
     });
 
+    await auditFromReq(req, {
+      action: 'visit.created',
+      entity: 'visit',
+      entityId: visit.id,
+      details: { patientId, doctorId },
+    });
+
     res.status(201).json({ ok: true, data: visit });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to create visit' });
@@ -124,6 +132,12 @@ medicalRouter.patch('/visits/:id', requirePermission('patient.write'), async (re
         ...(treatment !== undefined && { treatment }),
         ...(notes !== undefined && { notes: notes || null }),
       },
+    });
+
+    await auditFromReq(req, {
+      action: 'visit.updated',
+      entity: 'visit',
+      entityId: visit.id,
     });
 
     res.json({ ok: true, data: visit });
@@ -220,6 +234,13 @@ medicalRouter.post('/treatment-plan', requirePermission('patient.write'), async 
       },
     });
 
+    await auditFromReq(req, {
+      action: 'treatment_plan.created',
+      entity: 'treatment_plan',
+      entityId: plan.id,
+      details: { patientId, title },
+    });
+
     res.status(201).json({ ok: true, data: plan });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to create treatment plan' });
@@ -254,6 +275,12 @@ medicalRouter.patch('/treatment-plan/:id', requirePermission('patient.write'), a
         ...((derivedPrice ?? price) !== undefined && { price: derivedPrice ?? Number(price) }),
         ...(status !== undefined && { status }),
       },
+    });
+
+    await auditFromReq(req, {
+      action: 'treatment_plan.updated',
+      entity: 'treatment_plan',
+      entityId: plan.id,
     });
 
     res.json({ ok: true, data: plan });
@@ -308,6 +335,13 @@ medicalRouter.post('/teeth', requirePermission('patient.write'), async (req: Aut
       },
     });
 
+    await auditFromReq(req, {
+      action: 'tooth.upserted',
+      entity: 'tooth',
+      entityId: tooth.id,
+      details: { patientId, number },
+    });
+
     res.status(201).json({ ok: true, data: tooth });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to upsert tooth record' });
@@ -357,6 +391,13 @@ medicalRouter.post('/images', requirePermission('patient.write'), async (req: Au
       },
     });
 
+    await auditFromReq(req, {
+      action: 'patient_image.created',
+      entity: 'patient_image',
+      entityId: image.id,
+      details: { patientId, type },
+    });
+
     res.status(201).json({ ok: true, data: image });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to record patient image' });
@@ -394,6 +435,11 @@ medicalRouter.delete('/images/:id', requirePermission('patient.write'), async (r
       return res.status(403).json({ ok: false, error: 'Доступ запрещён' });
     }
     await prisma.patientImage.delete({ where: { id } });
+    await auditFromReq(req, {
+      action: 'patient_image.deleted',
+      entity: 'patient_image',
+      entityId: id,
+    });
     return res.json({ ok: true, data: { deleted: true, id } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to delete patient image';

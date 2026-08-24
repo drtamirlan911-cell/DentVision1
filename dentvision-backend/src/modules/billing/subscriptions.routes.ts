@@ -6,6 +6,7 @@ import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { assertClinicBillingAccess } from './clinicSubscription.service.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 // Subscriptions (Phase 5). SaaS plans per owner.
 // Writes are restricted — use /api/clinic-billing checkout for clinics.
@@ -104,6 +105,12 @@ subscriptionsRouter.post('/', requirePermission('finance.manage'), async (req: A
         },
       });
     }
+    await auditFromReq(req, {
+      action: 'subscription.upserted',
+      entity: 'subscription',
+      entityId: sub.id,
+      details: { ownerType: ot, ownerId, plan: plan || null, status: status || null },
+    });
     return res.status(201).json({ ok: true, data: sub } satisfies ApiResponse);
   } catch (error: any) {
     console.error('Upsert subscription error:', error);

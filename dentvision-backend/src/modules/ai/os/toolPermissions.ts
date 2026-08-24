@@ -49,6 +49,12 @@ export const TOOL_PERMISSIONS: Record<string, string> = {
   getInventory: 'inventory.read',
   getLabOrders: 'lab.read',
   getPromotions: 'shop.read',
+
+  // Lab orders — mirrors `lab.routes.ts`, whose write routes are gated by
+  // `appointment.write` (not a lab-specific key; the REST route was never
+  // given one, and this map cannot grant wider than that route does).
+  createLabOrder: 'appointment.write',
+  updateLabOrderStatus: 'appointment.write',
 };
 
 /**
@@ -62,6 +68,10 @@ export const UNGATED_TOOLS: readonly string[] = [
   'searchProducts', // marketplace catalog (platform-wide)
   'searchCourses', // academy catalog (platform-wide)
   'draftPromoCopy', // pure LLM text drafting, reads nothing
+  // `diagnostics.routes.ts`'s POST /referrals checks clinic membership
+  // (`assertOrgAccess`) and nothing more specific — no permission key to
+  // mirror here without granting narrower than the REST route itself does.
+  'createDiagnosticReferral',
 ];
 
 // The action ladder lives in lib/permissions.ts — the AI intent router needs

@@ -276,6 +276,131 @@ function readAiTools(): string[] {
   return [...tools].sort();
 }
 
+// ── Self-audit (Stage 12) ───────────────────────────────────────────────────
+//
+// Everything above describes what the system contains; this section checks
+// four completeness invariants the AI OS's own unit tests already enforce
+// (`toolPermissions.test.ts`, `skills.test.ts`) — restated here as a text
+// scan so a human running `npm run system-map` sees the same gaps a failing
+// test would report, without having to know which test file to open. A
+// fifth ("routes without a negative test") has no dedicated unit test; it's
+// a coarse, file-level heuristic in the same spirit as the rest of this
+// generator — a signal to look, not a verdict.
+
+function readStaffToolNames(): string[] {
+  const source = read(join(BACKEND_SRC, 'modules/ai/os/tools.ts'));
+  return [...source.matchAll(/^\s*name:\s*'(\w+)'/gm)].map((m) => m[1]);
+}
+
+function readToolPermissionKeys(): { gated: string[]; ungated: string[] } {
+  const source = read(join(BACKEND_SRC, 'modules/ai/os/toolPermissions.ts'));
+  const permBlock = source.match(/TOOL_PERMISSIONS[^{]*\{([\s\S]*?)\n\};/);
+  const gated = permBlock ? [...permBlock[1].matchAll(/^\s*(\w+):\s*'/gm)].map((m) => m[1]) : [];
+  const ungatedBlock = source.match(/UNGATED_TOOLS[^[]*\[([\s\S]*?)\n\];/);
+  const ungated = ungatedBlock ? [...ungatedBlock[1].matchAll(/'(\w+)'/g)].map((m) => m[1]) : [];
+  return { gated, ungated };
+}
+
+interface SkillDef {
+  key: string;
+  id: string;
+  tools: string[];
+}
+
+/** Windowed rather than a full object-literal parse — each skill's `tools:` line sits within a few lines of its `'key': {` line, and this generator never AST-parses (see file header). */
+function readSkills(): SkillDef[] {
+  const source = read(join(BACKEND_SRC, 'modules/ai/os/skills.ts'));
+  const lines = source.split('\n');
+  const skills: SkillDef[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const keyMatch = lines[i].match(/^ {2}'([\w.-]+)':\s*\{/);
+    if (!keyMatch) continue;
+    const window = lines.slice(i, i + 14).join('\n');
+    const idMatch = window.match(/id:\s*'([^']+)'/);
+    const toolsMatch = window.match(/tools:\s*\[([^\]]*)\]/);
+    if (!idMatch || !toolsMatch) continue;
+    const tools = [...toolsMatch[1].matchAll(/'(\w+)'/g)].map((t) => t[1]);
+    skills.push({ key: keyMatch[1], id: idMatch[1], tools });
+  }
+  return skills;
+}
+
+interface AgentDef {
+  id: string;
+  requiredPermissions: string[];
+}
+
+function readAgentDefs(): AgentDef[] {
+  const source = read(join(BACKEND_SRC, 'modules/ai/os/registry.ts'));
+  const lines = source.split('\n');
+  const agents: AgentDef[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const idMatch = lines[i].match(/^\s*id:\s*'(agent\.[\w.-]+)'/);
+    if (!idMatch) continue;
+    const window = lines.slice(i, i + 10).join('\n');
+    const permsMatch = window.match(/requiredPermissions:\s*\[([^\]]*)\]/);
+    const requiredPermissions = permsMatch ? [...permsMatch[1].matchAll(/'([^']+)'/g)].map((m) => m[1]) : [];
+    agents.push({ id: idMatch[1], requiredPermissions });
+  }
+  return agents;
+}
+
+/** An agent only a role that does not exist could ever be routed to (`registry.ts::agentsForRole`) — dead by construction, not by usage count. */
+function unreachableAgents(agents: AgentDef[], roles: string[]): string[] {
+  const roleSet = new Set(roles.map((r) => r.toUpperCase()));
+  return agents
+    .filter((a) => !a.requiredPermissions.includes('*') && !a.requiredPermissions.some((p) => roleSet.has(p.toUpperCase())))
+    .map((a) => a.id);
+}
+
+const NEGATIVE_STATUS = /\b(400|401|403|404|405|409|410|422)\b/;
+
+/**
+ * File-level, not assertion-level: a route counts as "negative-tested" if
+ * some `e2e/tests/*.spec.ts` file whose string literals segment-match its
+ * URL shape *also* contains a 4xx status literal anywhere in that file. That
+ * over-credits a file that tests one route's 403 and another's happy path
+ * only — deliberately coarse, matching this generator's "report, don't
+ * judge" rule; a route flagged here is worth a human look, not a verdict.
+ */
+function routesWithoutNegativeTest(
+  routes: RouteDef[],
+  mounts: Mount[],
+): { total: number; uncovered: Array<{ url: string; method: string }> } {
+  const specFiles = walk(join(REPO_ROOT, 'e2e/tests'), (p) => p.endsWith('.spec.ts'));
+  const specs = specFiles.map((f) => read(f));
+
+  const byRouter = new Map<string, RouteDef[]>();
+  for (const route of routes) {
+    const list = byRouter.get(route.routerVar) ?? [];
+    list.push(route);
+    byRouter.set(route.routerVar, list);
+  }
+
+  const uncovered: Array<{ url: string; method: string }> = [];
+  let total = 0;
+
+  for (const mount of mounts) {
+    for (const route of byRouter.get(mount.router) ?? []) {
+      total += 1;
+      const url = routeShape(mount.prefix, route.path);
+      const routeParts = url.split('/').filter(Boolean);
+
+      const coveredWithNegative = specs.some((source) => {
+        if (!NEGATIVE_STATUS.test(source)) return false;
+        const paths = [...source.matchAll(/\/api\/[^'"`\s]+/g)].map((m) => m[0]);
+        return paths.some((p) => {
+          const cParts = p.split('?')[0].split('/').filter(Boolean);
+          if (cParts.length !== routeParts.length) return false;
+          return routeParts.every((r, i) => r.startsWith(':') || cParts[i] === r || cParts[i]?.includes('${'));
+        });
+      });
+      if (!coveredWithNegative) uncovered.push({ url, method: route.method });
+    }
+  }
+  return { total, uncovered };
+}
+
 // ── Report ─────────────────────────────────────────────────────────────────
 
 function table(header: string[], rows: string[][]): string {
@@ -292,6 +417,27 @@ function main(): void {
   const { rows: roleRows } = readRoleMatrix();
   const jobs = readJobs();
   const aiTools = readAiTools();
+
+  const staffTools = readStaffToolNames();
+  const { gated: gatedTools, ungated: ungatedTools } = readToolPermissionKeys();
+  const unclassifiedTools = staffTools.filter((t) => !gatedTools.includes(t) && !ungatedTools.includes(t));
+
+  const skills = readSkills();
+  const skillsWithDanglingTools = skills.filter((s) => s.tools.some((t) => !staffTools.includes(t)));
+
+  // `ROLE_PERMISSIONS` only covers Clinic roles. `agentsForRole` also gets
+  // called with a handful of non-clinic actor-type strings from elsewhere in
+  // the AI OS (`os/access.ts`, `orchestrator.ts`, `ai.routes.ts`) — SUPERADMIN
+  // bypasses the matrix entirely (same exception the "Права по ролям" section
+  // below already documents), and GUEST/SUPPLIER/LECTURER are separate actor
+  // types with their own auth path, not Clinic roles. Excluding them here
+  // would flag every non-clinic agent as "unreachable" for a reason that has
+  // nothing to do with whether it's actually reachable.
+  const NON_CLINIC_REACHABLE_ROLES = ['SUPERADMIN', 'GUEST', 'SUPPLIER', 'LECTURER'];
+  const agentDefs = readAgentDefs();
+  const unreachable = unreachableAgents(agentDefs, [...Object.keys(roleRows), ...NON_CLINIC_REACHABLE_ROLES]);
+
+  const negativeTestCoverage = routesWithoutNegativeTest(routes, mounts);
 
   const byRouter = new Map<string, RouteDef[]>();
   for (const route of routes) {
@@ -355,6 +501,12 @@ function main(): void {
         ['Ролей в матрице прав', String(Object.keys(roleRows).length)],
         ['Фоновых задач', String(jobs.length)],
         ['Инструментов AI', String(aiTools.length)],
+        ['— без записи в TOOL_PERMISSIONS/UNGATED_TOOLS', `**${unclassifiedTools.length}**`],
+        ['Skills', String(skills.length)],
+        ['— ссылаются на несуществующий инструмент', `**${skillsWithDanglingTools.length}**`],
+        ['Агентов в реестре', String(agentDefs.length)],
+        ['— недостижимы ни из одной роли', `**${unreachable.length}**`],
+        ['Маршрутов без негативного теста в e2e/', `**${negativeTestCoverage.uncovered.length}** из ${negativeTestCoverage.total}`],
       ],
     ),
   );
@@ -447,6 +599,68 @@ function main(): void {
   out.push('## Инструменты AI');
   out.push('');
   out.push(aiTools.map((t) => `\`${t}\``).join(', ') || '_нет_');
+  out.push('');
+
+  out.push('## Самоаудит слоя AI OS (Stage 12)');
+  out.push('');
+  out.push('Четыре проверки полноты, которые уже отдельно проверяют');
+  out.push('`toolPermissions.test.ts` и `skills.test.ts` — здесь тот же факт в');
+  out.push('человекочитаемом виде, плюс пятая (`e2e`-покрытие), у которой своего');
+  out.push('юнит-теста нет. Пустой список = проверка проходит.');
+  out.push('');
+
+  out.push('### Инструменты без записи в TOOL_PERMISSIONS/UNGATED_TOOLS');
+  out.push('');
+  out.push(
+    unclassifiedTools.length > 0
+      ? unclassifiedTools.map((t) => `\`${t}\``).join(', ')
+      : '_нет — каждый инструмент staff-поверхности классифицирован._',
+  );
+  out.push('');
+
+  out.push('### Skills, ссылающиеся на несуществующий инструмент');
+  out.push('');
+  if (skillsWithDanglingTools.length > 0) {
+    for (const s of skillsWithDanglingTools) {
+      const dangling = s.tools.filter((t) => !staffTools.includes(t));
+      out.push(`- \`${s.id}\` → ${dangling.map((t) => `\`${t}\``).join(', ')}`);
+    }
+  } else {
+    out.push('_нет — каждый skill ссылается только на существующие инструменты._');
+  }
+  out.push('');
+
+  out.push('### Агенты, недостижимые ни из одной роли');
+  out.push('');
+  out.push('Реестр (`registry.ts::agentsForRole`) выдаёт агента только когда его');
+  out.push('`requiredPermissions` пересекается с реальной ролью из матрицы прав —');
+  out.push('«недостижим» здесь означает именно это, а не низкое использование.');
+  out.push('SUPERADMIN/GUEST/SUPPLIER/LECTURER — не клиничные роли и не входят');
+  out.push('в матрицу выше, но реально используются в AI OS (`os/access.ts`,');
+  out.push('`orchestrator.ts`), поэтому засчитаны как достижимые отдельно.');
+  out.push('');
+  out.push(
+    unreachable.length > 0
+      ? unreachable.map((id) => `\`${id}\``).join(', ')
+      : '_нет — каждый агент достижим хотя бы одной ролью._',
+  );
+  out.push('');
+
+  out.push('### Маршруты без негативного теста в e2e/');
+  out.push('');
+  out.push('Грубая, файловая эвристика (см. комментарий в `routesWithoutNegativeTest`):');
+  out.push('маршрут считается «покрытым», если какой-то `e2e/tests/*.spec.ts`,');
+  out.push('чьи строковые литералы посегментно совпадают с его URL, где-то в том');
+  out.push('же файле содержит код 4xx. Это переоценивает покрытие, а не занижает —');
+  out.push('пункт списка стоит посмотреть глазами, а не считать доказанным разрывом.');
+  out.push('');
+  out.push('<details><summary>Развернуть список</summary>');
+  out.push('');
+  for (const route of negativeTestCoverage.uncovered) {
+    out.push(`- \`${route.method} ${route.url}\``);
+  }
+  out.push('');
+  out.push('</details>');
   out.push('');
 
   const target = join(REPO_ROOT, 'docs/SYSTEM_MAP.md');

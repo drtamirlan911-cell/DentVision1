@@ -15,10 +15,11 @@ export async function cleanupTestUser(email: string): Promise<void> {
 
   await prisma.clinicMember.deleteMany({ where: { userId: user.id } });
   await prisma.notification.deleteMany({ where: { userId: user.id } });
-  // Prisma only lowercases the first letter of a model name: `AISession` and
-  // `AIAction` become `aISession`/`aIAction` on the client, not `aiSession`.
+  // Prisma only lowercases the first letter of a model name: `AISession`
+  // becomes `aISession` on the client, not `aiSession`. `AIAction` (its
+  // sibling here) was a genuinely dead model — zero references anywhere,
+  // confirmed by docs/SYSTEM_MAP.md's self-audit — dropped in Stage 12.
   await prisma.aISession.deleteMany({ where: { userId: user.id } });
-  await prisma.aIAction.deleteMany({ where: { userId: user.id } });
   await prisma.user.delete({ where: { id: user.id } });
 }
 

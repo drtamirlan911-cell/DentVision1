@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Stethoscope, ChevronLeft, ChevronRight, LogOut, Brain,
   ShoppingCart, GraduationCap, Briefcase, BarChart3, Users, User,
-  Shield, ShieldCheck, FileText, Database, Settings, FlaskConical, Star, LogIn, Store, Activity, Scale,
+  Shield, ShieldCheck, FileText, Database, Settings, FlaskConical, Star, LogIn, Store, Activity, Scale, Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/ds/Avatar';
@@ -124,6 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'profile', label: t('nav.profile'), icon: <User size={18} strokeWidth={1.75} />, path: '/profile', color: '#60A5FA', section: 'platform' },
     { id: 'partner-legal', label: t('nav.partner_legal'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/partner-legal', color: '#C9A96E', section: 'platform' },
     { id: 'audit', label: t('nav.audit'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/audit', color: '#FBBF24', section: 'platform' },
+    { id: 'agent-activity', label: t('nav.agent_activity'), icon: <Bot size={18} strokeWidth={1.75} />, path: '/agent-activity', color: '#C9A96E', section: 'platform' },
     { id: 'backup', label: t('nav.backup'), icon: <Database size={18} strokeWidth={1.75} />, path: '/backup', color: '#38BDF8', section: 'platform' },
     { id: 'settings', label: t('nav.settings'), icon: <Settings size={18} strokeWidth={1.75} />, path: '/settings', color: '#94A3B8', section: 'platform' },
   ];

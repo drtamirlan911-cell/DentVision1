@@ -10,12 +10,14 @@
  *    as a confirm card (Spec §4.6 action model).
  */
 
-import type { Prisma } from '@prisma/client';
+import type { Prisma, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 import prisma from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { isClinicMember } from '../../../lib/orgContext.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
+import { createReferral } from '../../diagnostics/diagnostics.service.js';
+import { prepareLabOrderWrite, VALID_STATUSES as VALID_LAB_STATUSES } from '../../lab/lab.routes.js';
 import {
   NAV_PATHS,
   NAV_SECTION_LABELS,
@@ -32,6 +34,8 @@ export interface ToolContext {
   userId: string;
   clinicId: string | null;
   role: string;
+  /** What's open in the caller's workspace (os/context.ts) — the kernel may use it to fill a missing patientId, never a tool directly. */
+  entity?: { type: string; id: string } | null;
 }
 
 export interface ToolResult {
@@ -40,7 +44,7 @@ export interface ToolResult {
   data?: unknown;
   error?: string;
   /** Set for mutating tools awaiting user confirmation. */
-  needsConfirmation?: { action: string; params: Record<string, unknown>; summary: string };
+  needsConfirmation?: { action: string; params: Record<string, unknown>; summary: string; approvalId?: string };
   /** Client-side navigation the UI should perform. */
   navigate?: string;
 }
@@ -56,6 +60,20 @@ interface ToolSpec {
 function requireClinic(ctx: ToolContext): string {
   if (!ctx.clinicId) throw new Error('NO_CLINIC');
   return ctx.clinicId;
+}
+
+/**
+ * `{ id, clinicId }` for a single-record by-id lookup scoped to the caller's
+ * clinic. Every tool that fetches "the patient/appointment/order with this
+ * id" needs exactly this shape — composing it inline as `{ id: ..., clinicId }`
+ * at each call site means a future tool can drop `clinicId` and silently
+ * reach across tenants (the row still resolves, just for the wrong clinic).
+ * Routing every by-id lookup through one function makes that omission a
+ * one-line diff to notice instead of a buried object literal; the regression
+ * guard in `tools.test.ts` checks the file never reverts to the inline form.
+ */
+function scopedId(clinicId: string, id: string): { id: string; clinicId: string } {
+  return { id, clinicId };
 }
 
 function availableSectionKeys(guestFriendly = false): string[] {
@@ -148,7 +166,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: { id: String(args.patientId), clinicId },
+        where: scopedId(clinicId, String(args.patientId)),
         include: {
           visits: { orderBy: { date: 'desc' }, take: 5 },
           teeth: { orderBy: { number: 'asc' } },
@@ -274,7 +292,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { findScheduleConflicts, buildMeta } = await import('../../crm/appointmentMeta.js');
       const patient = await prisma.patient.findFirst({
-        where: { id: String(args.patientId), clinicId },
+        where: scopedId(clinicId, String(args.patientId)),
         select: { id: true, firstName: true, lastName: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
@@ -371,7 +389,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { buildMeta, parseMeta, serializeAppointment, toDbStatus } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: { id: String(args.appointmentId), clinicId },
+        where: scopedId(clinicId, String(args.appointmentId)),
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -419,7 +437,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { serializeAppointment } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: { id: String(args.appointmentId), clinicId },
+        where: scopedId(clinicId, String(args.appointmentId)),
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -472,7 +490,7 @@ export const TOOLS: Record<string, ToolSpec> = {
       const clinicId = requireClinic(ctx);
       const { findScheduleConflicts, parseMeta, serializeAppointment } = await import('../../crm/appointmentMeta.js');
       const existing = await prisma.appointment.findFirst({
-        where: { id: String(args.appointmentId), clinicId },
+        where: scopedId(clinicId, String(args.appointmentId)),
         include: { patient: { select: { firstName: true, lastName: true } } },
       });
       if (!existing) return { ok: false, error: 'Запись не найдена' };
@@ -581,7 +599,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: { id: String(args.patientId), clinicId },
+        where: scopedId(clinicId, String(args.patientId)),
         select: { id: true, firstName: true, lastName: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
@@ -706,7 +724,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     async execute(args, ctx) {
       const clinicId = requireClinic(ctx);
       const patient = await prisma.patient.findFirst({
-        where: { id: String(args.patientId), clinicId },
+        where: scopedId(clinicId, String(args.patientId)),
         select: { id: true, firstName: true, lastName: true },
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
@@ -853,6 +871,152 @@ export const TOOLS: Record<string, ToolSpec> = {
         take: 30,
       });
       return { ok: true, data: orders };
+    },
+  },
+
+  createDiagnosticReferral: {
+    name: 'createDiagnosticReferral',
+    description:
+      'Создать направление на диагностику (КТ, ОПТГ, гистология и т.д.) в диагностический центр или лабораторию. ТРЕБУЕТ подтверждения пользователем: без confirmed=true возвращает черновик.',
+    parameters: {
+      type: 'object',
+      properties: {
+        patientId: { type: 'string', description: 'ID зарегистрированного пациента (опционально)' },
+        patientName: { type: 'string', description: 'ФИО пациента' },
+        category: {
+          type: 'string',
+          description: 'CBCT, OPG, TRG, TMJ, STL, FACE_SCAN, DICOM, ALLERGY, HISTOLOGY, PCR, MICROBIOLOGY, BLOOD, GENETICS, BIOPSY, SALIVA',
+        },
+        studyType: { type: 'string', description: 'Конкретное исследование, например «КТ верхней челюсти»' },
+        centerId: { type: 'string', description: 'ID диагностического центра (опционально)' },
+        labId: { type: 'string', description: 'ID лаборатории (опционально)' },
+        complaints: { type: 'string' },
+        preliminaryDx: { type: 'string', description: 'Предварительный диагноз' },
+        priority: { type: 'string', description: 'NORMAL | URGENT | EMERGENCY' },
+        confirmed: { type: 'boolean', description: 'true только после явного подтверждения пользователем' },
+      },
+      required: ['patientName', 'category', 'studyType'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const patientName = String(args.patientName || '').trim();
+      const category = String(args.category || '').trim() as DiagnosticCategory;
+      const studyType = String(args.studyType || '').trim();
+      if (!patientName || !category || !studyType) {
+        return { ok: false, error: 'patientName, category и studyType обязательны' };
+      }
+
+      if (!args.confirmed) {
+        return {
+          ok: true,
+          needsConfirmation: {
+            action: 'createDiagnosticReferral',
+            params: { ...args, confirmed: true },
+            summary: `Направить ${patientName} на ${studyType} (${category})`,
+          },
+        };
+      }
+
+      try {
+        const referral = await createReferral(
+          {
+            patientName,
+            patientId: args.patientId ? String(args.patientId) : undefined,
+            clinicId,
+            doctorId: ctx.userId,
+            category,
+            studyType,
+            centerId: args.centerId ? String(args.centerId) : undefined,
+            labId: args.labId ? String(args.labId) : undefined,
+            complaints: args.complaints ? String(args.complaints) : undefined,
+            preliminaryDx: args.preliminaryDx ? String(args.preliminaryDx) : undefined,
+            priority: args.priority ? (String(args.priority) as ReferralPriority) : undefined,
+          },
+          ctx.userId,
+        );
+        return { ok: true, data: referral, navigate: '/diagnostics/referrals' };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Не удалось создать направление' };
+      }
+    },
+  },
+
+  createLabOrder: {
+    name: 'createLabOrder',
+    description:
+      'Создать заказ-наряд в зуботехническую лабораторию. ТРЕБУЕТ подтверждения пользователем: без confirmed=true возвращает черновик.',
+    parameters: {
+      type: 'object',
+      properties: {
+        patientId: { type: 'string', description: 'ID пациента (опционально)' },
+        patientName: { type: 'string', description: 'ФИО пациента, если пациент не зарегистрирован в системе' },
+        labType: { type: 'string', description: 'Тип работы, например «Коронка E-max»' },
+        material: { type: 'string' },
+        toothNumber: { type: 'string', description: 'Номер зуба по FDI' },
+        shade: { type: 'string', description: 'Оттенок' },
+        dueDate: { type: 'string', description: 'YYYY-MM-DD, срок готовности' },
+        notes: { type: 'string' },
+        price: { type: 'number' },
+        confirmed: { type: 'boolean', description: 'true только после явного подтверждения пользователем' },
+      },
+      required: ['labType'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const labType = String(args.labType || '').trim();
+      if (!labType) return { ok: false, error: 'labType обязателен' };
+
+      if (!args.confirmed) {
+        return {
+          ok: true,
+          needsConfirmation: {
+            action: 'createLabOrder',
+            params: { ...args, confirmed: true },
+            summary: `Заказ в лабораторию: ${labType}${args.patientName ? ` для ${args.patientName}` : ''}`,
+          },
+        };
+      }
+
+      const prepared = await prepareLabOrderWrite(clinicId, { ...args, labType, doctorId: ctx.userId });
+      if (prepared.error) return { ok: false, error: prepared.error };
+
+      const order = await prisma.labOrder.create({
+        data: { id: uid(), clinicId, ...(prepared.data as object) },
+      });
+      return { ok: true, data: order, navigate: '/crm/lab' };
+    },
+  },
+
+  updateLabOrderStatus: {
+    name: 'updateLabOrderStatus',
+    description: `Изменить статус заказа лаборатории. Допустимые статусы: ${VALID_LAB_STATUSES.join(', ')}.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        status: { type: 'string' },
+      },
+      required: ['id', 'status'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const id = String(args.id || '');
+      const status = String(args.status || '');
+      if (!id || !(VALID_LAB_STATUSES as readonly string[]).includes(status)) {
+        return { ok: false, error: `Недопустимый статус. Допустимые: ${VALID_LAB_STATUSES.join(', ')}` };
+      }
+
+      const owned = await prisma.labOrder.findFirst({ where: scopedId(clinicId, id), select: { id: true } });
+      if (!owned) return { ok: false, error: 'Заказ лаборатории не найден' };
+
+      const order = await prisma.labOrder.update({
+        where: { id },
+        data: { status: status as any },
+      });
+      return { ok: true, data: order, navigate: '/crm/lab' };
     },
   },
 
@@ -1101,22 +1265,35 @@ export function toolSchemasFor(toolNames: Set<string>): Array<{
     .map((t) => ({ type: 'function' as const, name: t.name, description: t.description, parameters: t.parameters }));
 }
 
+/**
+ * Thin wrapper over the governance kernel (`os/kernel.ts::runAiAction`).
+ * Signature is unchanged on purpose: both call sites (`orchestrator.ts` and
+ * `POST /api/ai/confirm`) already resolve `ctx`/`allowed` for their own
+ * purposes and must keep working without edits — the kernel re-resolves
+ * identity from the DB itself rather than trusting them, and additionally
+ * records an `AgentActivity` (+ `ActionEvidence`) row for every call,
+ * including denials, which this function never did before.
+ */
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
   ctx: ToolContext,
-  allowed: Set<string>,
+  _allowed: Set<string>,
 ): Promise<ToolResult> {
-  const tool = TOOLS[name];
-  if (!tool) return { ok: false, error: `Инструмент ${name} не существует` };
-  if (!allowed.has(name)) return { ok: false, error: `Инструмент ${name} недоступен для вашей роли` };
-  try {
-    return await tool.execute(args, ctx);
-  } catch (error) {
-    if (error instanceof Error && error.message === 'NO_CLINIC') {
-      return { ok: false, error: 'Нет активной клиники — выберите рабочее пространство' };
-    }
-    console.error(`[AI OS] tool ${name} failed:`, error);
-    return { ok: false, error: 'Ошибка выполнения инструмента' };
-  }
+  const { runAiAction } = await import('./kernel.js');
+  const result = await runAiAction(
+    { surface: 'staff', userId: ctx.userId, requestedClinicId: ctx.clinicId, entity: ctx.entity },
+    { tool: name, args },
+  );
+  if (result.status === 'ok') return result.data as ToolResult;
+  if (result.status === 'denied') return { ok: false, error: result.error };
+  return {
+    ok: false,
+    needsConfirmation: {
+      action: result.action,
+      params: result.params,
+      summary: result.summary,
+      approvalId: result.approvalId,
+    },
+  };
 }

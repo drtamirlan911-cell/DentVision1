@@ -213,11 +213,13 @@ const AGENTS: AgentDefinition[] = [
     domain: 'clinical',
     version: '1.0.0',
     requiredPermissions: ['OWNER', 'ADMIN', 'DOCTOR', 'LAB', 'SUPPORT'],
-    allowedTools: ['getLabOrders', 'navigate'],
+    allowedTools: ['getLabOrders', 'createLabOrder', 'updateLabOrderStatus', 'createDiagnosticReferral', 'navigate'],
     owner: 'clinical-team',
     status: 'active',
     persona: 'doctor',
-    mandate: 'Ты следишь за лабораторными заказами: статусы, сроки, просрочки.',
+    mandate:
+      'Ты следишь за лабораторными заказами и направлениями на диагностику: статусы, сроки, просрочки. ' +
+      'Новый заказ или направление — сначала createLabOrder/createDiagnosticReferral (confirmed=false), это черновик для подтверждения врачом.',
   },
   {
     id: 'agent.marketplace.buyer',

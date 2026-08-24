@@ -9,6 +9,7 @@ import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.j
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { listClinicStaff } from '../../lib/clinicStaff.js';
 import { resolveStaffCompensation } from '../../lib/staffCompensation.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 const billingRouter = Router();
 
@@ -90,6 +91,13 @@ billingRouter.post('/invoices', requirePermission('finance.manage'), async (req:
       },
     });
 
+    await auditFromReq(req, {
+      action: 'invoice.created',
+      entity: 'invoice',
+      entityId: invoice.id,
+      details: { patientId, amount: amountValue },
+    });
+
     res.status(201).json({ ok: true, data: invoice });
   } catch (error) {
     console.error('[billing] create invoice', error);
@@ -122,6 +130,13 @@ billingRouter.patch('/invoices/:id', requirePermission('finance.manage'), async 
         ...(amount !== undefined && { amount }),
         ...(notes !== undefined && { notes }),
       },
+    });
+
+    await auditFromReq(req, {
+      action: 'invoice.updated',
+      entity: 'invoice',
+      entityId: invoice.id,
+      details: { from: existing.status, to: invoice.status },
     });
 
     res.json({ ok: true, data: invoice });
@@ -177,6 +192,13 @@ billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), asy
       },
     });
 
+    await auditFromReq(req, {
+      action: 'invoice.paid',
+      entity: 'invoice',
+      entityId: invoice.id,
+      details: { amount: invoice.amount },
+    });
+
     res.json({ ok: true, data: invoice });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to mark invoice as paid' });
@@ -195,6 +217,12 @@ billingRouter.delete('/invoices/:id', requirePermission('finance.manage'), async
       return res.status(403).json({ ok: false, error: 'Нет доступа к этому счёту' });
     }
     await prisma.invoice.delete({ where: { id } });
+    await auditFromReq(req, {
+      action: 'invoice.deleted',
+      entity: 'invoice',
+      entityId: id,
+      details: { amount: existing.amount },
+    });
     return res.json({ ok: true, data: { id } });
   } catch (error) {
     return res.status(500).json({ ok: false, error: 'Failed to delete invoice' });

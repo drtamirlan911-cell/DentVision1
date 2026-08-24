@@ -6,34 +6,16 @@ export interface TimelineEvent {
   id: string
   type: string
   source: string
+  agentId?: string | null
+  actorRole?: string
   timestamp: string
   clinicId: string
   userId?: string
-  payload?: Record<string, unknown>
+  payload?: Record<string, unknown> | null
   status: string
-  result?: Record<string, unknown>
-  error?: string
+  result?: Record<string, unknown> | null
+  error?: string | null
   durationMs?: number
-  processedAt: string
-}
-
-export interface TimelineEntry {
-  id: string
-  event: TimelineEvent
-  rules: Array<{
-    id: string
-    name: string
-    event: string
-    priority: string
-  }>
-  results: Array<{
-    action: string
-    agent: string
-    success: boolean
-    message?: string
-    timelineEntry?: { action: string; result: string }
-  }>
-  durationMs: number
   processedAt: string
 }
 
@@ -46,7 +28,7 @@ export interface TimelineStats {
 }
 
 interface TimelineResponse {
-  entries: TimelineEntry[]
+  entries: TimelineEvent[]
   total: number
   limit: number
   offset: number
@@ -83,6 +65,12 @@ export function useAITimeline(options?: {
   limit?: number
   offset?: number
   eventType?: string
+  agent?: string
+  role?: string
+  user?: string
+  status?: string
+  dateFrom?: string
+  dateTo?: string
 }) {
   return useQuery<TimelineResponse>({
     queryKey: ['ai', 'timeline', options],
@@ -92,6 +80,12 @@ export function useAITimeline(options?: {
       if (options?.limit) params.set('limit', String(options.limit))
       if (options?.offset) params.set('offset', String(options.offset))
       if (options?.eventType) params.set('eventType', options.eventType)
+      if (options?.agent) params.set('agent', options.agent)
+      if (options?.role) params.set('role', options.role)
+      if (options?.user) params.set('user', options.user)
+      if (options?.status) params.set('status', options.status)
+      if (options?.dateFrom) params.set('dateFrom', options.dateFrom)
+      if (options?.dateTo) params.set('dateTo', options.dateTo)
 
       return apiFetch<TimelineResponse>(`/ai/timeline?${params.toString()}`)
     },

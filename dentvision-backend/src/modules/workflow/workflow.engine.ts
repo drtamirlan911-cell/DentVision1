@@ -89,6 +89,25 @@ async function runNode(
   }
 }
 
+async function executeNodes(
+  nodes: WorkflowNode[],
+  ctx: { clinicId: string; workflowId: string; data: Record<string, unknown> },
+): Promise<{ status: string; steps: unknown[] }> {
+  const steps: unknown[] = [];
+  let status = 'success';
+  try {
+    for (const node of nodes) {
+      const result = await runNode(node, ctx);
+      steps.push(result);
+      if (result.stop) break; // a failed condition halts the flow
+    }
+  } catch (err) {
+    status = 'failed';
+    steps.push({ type: 'error', ok: false, note: (err as Error).message });
+  }
+  return { status, steps };
+}
+
 export async function runWorkflow(
   workflow: { id: string; scopeId: string; graph: unknown },
   triggerData: Record<string, unknown>,
@@ -98,23 +117,30 @@ export async function runWorkflow(
   });
 
   const nodes: WorkflowNode[] = Array.isArray((workflow.graph as any)?.nodes) ? (workflow.graph as any).nodes : [];
-  const steps: unknown[] = [];
-  let status = 'success';
-
-  try {
-    for (const node of nodes) {
-      const result = await runNode(node, { clinicId: workflow.scopeId, workflowId: workflow.id, data: triggerData });
-      steps.push(result);
-      if (result.stop) break; // a failed condition halts the flow
-    }
-  } catch (err) {
-    status = 'failed';
-    steps.push({ type: 'error', ok: false, note: (err as Error).message });
-  }
+  const { status, steps } = await executeNodes(nodes, { clinicId: workflow.scopeId, workflowId: workflow.id, data: triggerData });
 
   return prisma.workflowRun.update({
     where: { id: run.id },
-    data: { status, steps: steps as object, finishedAt: new Date() },
+    data: { status, steps: steps as object, finishedAt: new Date(), attempts: { increment: 1 } },
+  });
+}
+
+/**
+ * Re-executes a previously failed run in place (same row, same trigger data)
+ * instead of creating a new one — `attempts` is what `workflowRetry.ts` polls
+ * to stop retrying a workflow that keeps failing.
+ */
+export async function retryWorkflowRun(runId: string): Promise<void> {
+  const run = await prisma.workflowRun.findUnique({ where: { id: runId }, include: { workflow: true } });
+  if (!run || run.status !== 'failed') return;
+
+  const nodes: WorkflowNode[] = Array.isArray((run.workflow.graph as any)?.nodes) ? (run.workflow.graph as any).nodes : [];
+  const triggerData = (run.triggerData as Record<string, unknown>) || {};
+  const { status, steps } = await executeNodes(nodes, { clinicId: run.workflow.scopeId, workflowId: run.workflow.id, data: triggerData });
+
+  await prisma.workflowRun.update({
+    where: { id: run.id },
+    data: { status, steps: steps as object, finishedAt: new Date(), attempts: { increment: 1 } },
   });
 }
 

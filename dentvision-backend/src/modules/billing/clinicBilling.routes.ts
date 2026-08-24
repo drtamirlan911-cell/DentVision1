@@ -15,6 +15,7 @@ import {
   isSaasPlanId,
   CLINIC_SAAS_PLANS,
 } from './clinicSubscription.service.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 /**
  * Clinic self-serve billing — tariff selection + Kaspi checkout.
@@ -99,6 +100,12 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
         saasPlan: planId,
         months: 0,
       });
+      await auditFromReq(req, {
+        action: 'clinic_subscription.activated',
+        entity: 'clinic',
+        entityId: clinicId,
+        details: { plan: planId, months: 0 },
+      });
       return res.json({
         ok: true,
         data: { activated: true, payment: null, subscription: result.subscription, clinic: result.clinic },
@@ -126,6 +133,13 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
           userId: req.user!.id,
         },
       },
+    });
+
+    await auditFromReq(req, {
+      action: 'clinic_subscription.checkout_started',
+      entity: 'payment',
+      entityId: payment.id,
+      details: { clinicId, plan: planId, months, amountMinor: String(amountMinor) },
     });
 
     return res.status(201).json({

@@ -28,6 +28,7 @@ import {
 } from '../billing/planEntitlements.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
+import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
@@ -545,6 +546,13 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       await completeIdempotencyKey(idempotencyKey, payment.id);
       keyCompleted = true;
 
+      await auditFromReq(req, {
+        action: 'payment.created',
+        entity: 'payment',
+        entityId: payment.id,
+        details: { clinicId, refType: refType || 'crm_invoice', amountMinor: String(minor) },
+      });
+
       return res.status(201).json({
         ok: true,
         data: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
@@ -580,6 +588,13 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 
     await completeIdempotencyKey(idempotencyKey, payment.id);
     keyCompleted = true;
+
+    await auditFromReq(req, {
+      action: 'payment.created',
+      entity: 'payment',
+      entityId: payment.id,
+      details: { domain: domain || null, refType: refType || null, amountMinor: String(minor) },
+    });
 
     return res.status(201).json({
       ok: true,
@@ -721,6 +736,15 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
 
     const qrMeta = (result.updated.meta || {}) as { qr?: string };
 
+    if (result.settled) {
+      await auditFromReq(req, {
+        action: 'payment.confirmed',
+        entity: 'payment',
+        entityId: payment.id,
+        details: { amountMinor: String(payment.amount) },
+      });
+    }
+
     return res.json({
       ok: true,
       data: {
@@ -792,6 +816,13 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
         data: { status: newStatus },
       });
     }
+
+    await writeAuditLog({
+      action: 'payment.callback_kaspi',
+      entity: 'payment',
+      entityId: payment.id,
+      details: { newStatus, settled },
+    });
 
     return res.json({ ok: true, data: { id: payment.id, status: newStatus, settled } } satisfies ApiResponse);
   } catch (error) {
@@ -867,6 +898,14 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
         data: { status: newStatus },
       });
     }
+
+    await writeAuditLog({
+      clinicId,
+      action: 'payment.callback_kaspi_clinic',
+      entity: 'payment',
+      entityId: payment.id,
+      details: { newStatus, settled },
+    });
 
     return res.json({ ok: true, data: { id: updated.id, status: updated.status, settled } } satisfies ApiResponse);
   } catch (error: any) {

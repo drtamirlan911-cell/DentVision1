@@ -52,5 +52,40 @@ export function registerSubscribers(): void {
     });
   });
 
+  // Platform-level (not clinic-scoped) — no audit trail existed for either
+  // until now. `referral.*` / `diagnostics.result_ready` deliberately have no
+  // subscriber here: `diagnostics.service.ts` already writes its own
+  // `writeAuditLog` row and sends its own notification at the call site for
+  // each of those; a second write here would just duplicate the log entry.
+  // What those four *were* missing is `registerWorkflowEngine()` being
+  // called at all (see app.ts) — this file was never the gap for them.
+  subscribe('supplier.status_changed', async ({ supplierId, from, to, userId }) => {
+    await prisma.auditLog.create({
+      data: {
+        id: uid(),
+        userId: userId || null,
+        clinicId: null,
+        action: 'supplier.status_changed',
+        entity: 'supplier',
+        entityId: supplierId,
+        details: { from: from || null, to: to || null },
+      },
+    });
+  });
+
+  subscribe('lecturer.level_changed', async ({ lecturerId, from, to, userId }) => {
+    await prisma.auditLog.create({
+      data: {
+        id: uid(),
+        userId: userId || null,
+        clinicId: null,
+        action: 'lecturer.level_changed',
+        entity: 'lecturer',
+        entityId: lecturerId,
+        details: { from: from || null, to: to || null },
+      },
+    });
+  });
+
   console.log('[events] subscribers registered');
 }

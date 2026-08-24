@@ -14,6 +14,7 @@ import {
   type PayoutStatus,
 } from './payout.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 // Finance Core (Phase 4, DENTVISION_V2_INTEGRATION_PLAN.md §6). Wallets, ledger,
 // transactions and commission rules. Amounts are minor units (тиын) and returned
@@ -127,6 +128,12 @@ financeRouter.post('/commission-rules', requirePermission('finance.manage'), asy
       create: { domain, scopeId: scopeId || null, percentBps, splitJson: splitJson ?? undefined },
       update: { percentBps, splitJson: splitJson ?? undefined },
     });
+    await auditFromReq(req, {
+      action: 'commission_rule.upserted',
+      entity: 'commission_rule',
+      entityId: rule.id,
+      details: { domain, scopeId: scopeId || null, percentBps },
+    });
     return res.status(201).json({ ok: true, data: rule } satisfies ApiResponse);
   } catch (error) {
     console.error('Commission rule error:', error);
@@ -164,6 +171,12 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
       amountMinor: minor,
       refType,
       refId,
+    });
+    await auditFromReq(req, {
+      action: 'finance.sale_recorded',
+      entity: 'transaction',
+      entityId: transaction.id,
+      details: { domain, sellerType, sellerId, amountMinor: String(minor) },
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(transaction) } satisfies ApiResponse);
   } catch (error) {
@@ -222,6 +235,12 @@ financeRouter.post('/transactions/manual', requirePermission('finance.manage'), 
 
       return txn;
     });
+    await auditFromReq(req, {
+      action: 'finance.manual_transaction',
+      entity: 'transaction',
+      entityId: transaction.id,
+      details: { walletId, type, amountMinor: String(minor), description },
+    });
     return res.status(201).json({ ok: true, data: serializeBigInt(transaction) } satisfies ApiResponse);
   } catch (error) {
     console.error('Manual transaction error:', error);
@@ -265,6 +284,12 @@ financeRouter.post('/payouts/:id/status', requirePermission('finance.manage'), a
   try {
     const payout = await transitionPayout(String(req.params.id), next as PayoutStatus, {
       actorUserId: req.user?.id ?? null,
+    });
+    await auditFromReq(req, {
+      action: 'payout.status_changed',
+      entity: 'payout',
+      entityId: String(req.params.id),
+      details: { to: next },
     });
     return res.json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
   } catch (e: any) {
@@ -334,6 +359,12 @@ financeRouter.post('/expenses', requirePermission('finance.manage'), async (req:
         date: date ? new Date(date) : undefined,
         meta: meta ?? undefined,
       },
+    });
+    await auditFromReq(req, {
+      action: 'platform_expense.created',
+      entity: 'platform_expense',
+      entityId: expense.id,
+      details: { category, amountMinor: String(minor) },
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(expense) } satisfies ApiResponse);
   } catch (error) {

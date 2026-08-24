@@ -29,7 +29,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   owner: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-results', 'profile', 'bi', 'patient-inbox', 'workflow'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'agent-activity', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-results', 'profile', 'bi', 'patient-inbox', 'workflow'],
     canSeeSalary: true,
     canSeeSuperAdmin: true,
     canAddStaff: true,
@@ -41,7 +41,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   director: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-results', 'profile', 'bi', 'patient-inbox', 'workflow'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'agent-activity', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-results', 'profile', 'bi', 'patient-inbox', 'workflow'],
     canSeeSalary: true,
     canSeeReports: true,
     canAddStaff: true,
@@ -77,7 +77,7 @@ export const PLATFORM_ROLES: Record<string, RoleConfig> = {
   superadmin: {
     label: 'Super Admin',
     icon: '⚙️',
-    pages: ['admin', 'audit', 'backup', 'analytics', 'settings', 'security', 'quality',
+    pages: ['admin', 'audit', 'agent-activity', 'backup', 'analytics', 'settings', 'security', 'quality',
       'diagnostics', 'diagnostics-centers', 'diagnostics-labs',
       'platform-finance', 'ai-governance', 'support', 'profile', 'bi', 'supplier'],
     canSeeSalary: false,
@@ -89,7 +89,7 @@ export const PLATFORM_ROLES: Record<string, RoleConfig> = {
     canManageFinance: true,
   },
   support: { label: 'Поддержка', icon: '🛟', pages: ['admin', 'analytics', 'settings', 'profile'] },
-  developer: { label: 'Разработчик', icon: '🛠️', pages: ['admin', 'quality', 'analytics', 'settings', 'audit', 'backup', 'profile', 'security'] },
+  developer: { label: 'Разработчик', icon: '🛠️', pages: ['admin', 'quality', 'analytics', 'settings', 'audit', 'agent-activity', 'backup', 'profile', 'security'] },
   user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },
   verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },
 }

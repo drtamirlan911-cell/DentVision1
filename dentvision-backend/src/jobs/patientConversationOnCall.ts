@@ -10,6 +10,7 @@
  */
 
 import prisma from '../lib/prisma.js';
+import { withJobLock } from '../lib/jobLock.js';
 
 export interface OnCallCheckResult {
   scanned: number;
@@ -83,8 +84,8 @@ export function startOnCallInterval(ms = 5 * 60 * 1000, thresholdMs = DEFAULT_TH
   if (timer) return;
   const tick = async () => {
     try {
-      const r = await runOnCallCheck(thresholdMs);
-      if (r.renotified) {
+      const r = await withJobLock('on_call_timer', () => runOnCallCheck(thresholdMs));
+      if (r?.renotified) {
         console.log(`[OnCallTimer] scanned=${r.scanned} renotified=${r.renotified}`);
       }
     } catch (err) {
@@ -100,8 +101,8 @@ export function startOnCallInterval(ms = 5 * 60 * 1000, thresholdMs = DEFAULT_TH
     // conversation sweep above, or vice versa.
     try {
       const { runEscalationReminders } = await import('../modules/ai-admin/conversation/escalation.service.js');
-      const e = await runEscalationReminders(thresholdMs);
-      if (e.renotified) {
+      const e = await withJobLock('escalation_reminders', () => runEscalationReminders(thresholdMs));
+      if (e?.renotified) {
         // `warn`, not `log`: a re-notification means somebody has been waiting
         // over the threshold with no human response. That is not routine.
         console.warn(`[OnCallTimer] escalations checked=${e.checked} renotified=${e.renotified}`);
