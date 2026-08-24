@@ -57,6 +57,25 @@ const AUTH_REQUIRED_ROUTES = [
   '/profile',
   '/my-clinics',
   '/supplier',
+  '/dashboard',
+  '/bi',
+  '/security',
+  '/agent-activity',
+  '/legal',
+  // `/shop` and `/school` are public marketplaces on purpose — a guest may
+  // browse them — but their `/admin` sub-routes are staff-only content
+  // management (`ShopAdmin`, `SchoolAdmin`, both `guarded('admin', ...)` in
+  // index.tsx). Listed explicitly here because `RequirePage`'s `isGuest`
+  // bypass skips its own page-permission check entirely (see its comment:
+  // "Guests are left to IntelligenceLayout") — without an entry here, this
+  // layout's guest-blocking overlay below never triggers either, and the
+  // only thing stopping a guest from reaching the real admin component is
+  // that component's own client-side `user?.role !== 'superadmin'` redirect.
+  // That happened to work, but as an accident of two independently-written
+  // checks agreeing, not a guarantee — a route added later without its own
+  // internal check would have no protection at all.
+  '/shop/admin',
+  '/school/admin',
 ];
 
 function isJwtExpired(token: string): boolean {

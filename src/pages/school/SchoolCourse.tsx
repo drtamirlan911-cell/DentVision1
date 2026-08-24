@@ -584,15 +584,25 @@ export default function SchoolCourse() {
                 ← Предыдущий
               </button>
               {enrolled ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className="min-h-11"
-                  onClick={() => markComplete(activeLesson.id)}
-                  disabled={completedLessons.includes(activeLesson.id)}
-                >
-                  {completedLessons.includes(activeLesson.id) ? 'Пройдено ✓' : 'Отметить пройденным'}
-                </Button>
+                ['test', 'exam', 'quiz'].includes(String(activeLesson.type || '').toLowerCase()) ? (
+                  // Exam-type lessons are only completed by actually passing the
+                  // exam (the quiz UI above, via submitExam) — this generic button
+                  // let a student click straight to a 100% progress bar without
+                  // ever answering a question. `completedLessons`/progress do get
+                  // persisted for real (api.updateEnrollment), so this wasn't just
+                  // a cosmetic no-op — it really did inflate the progress bar.
+                  <p className="text-xs text-txt-muted">Сдайте экзамен выше, чтобы отметить урок пройденным.</p>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="min-h-11"
+                    onClick={() => markComplete(activeLesson.id)}
+                    disabled={completedLessons.includes(activeLesson.id)}
+                  >
+                    {completedLessons.includes(activeLesson.id) ? 'Пройдено ✓' : 'Отметить пройденным'}
+                  </Button>
+                )
               ) : (
                 <Button variant="outline" size="sm" onClick={handleEnroll}>Записаться, чтобы отмечать</Button>
               )}

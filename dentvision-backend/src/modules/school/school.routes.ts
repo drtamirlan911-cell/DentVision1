@@ -811,6 +811,17 @@ schoolRouter.post('/lessons/:lessonId/exam/submit', authenticate, async (req: Au
       res.status(404).json({ ok: false, error: 'Урок не найден' });
       return;
     }
+    // Same rule as GET /exam above: without this, a signed-in user who never
+    // bought the course could still probe question ids and submit answers —
+    // no certificate would be issued (that already checked enrollment below),
+    // but they'd get a real pass/fail score for content they never paid for.
+    const enrollment = await prisma.schoolEnrollment.findFirst({
+      where: { userId: req.user!.id, courseId: lesson.courseId },
+    });
+    if (!enrollment) {
+      res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
+      return;
+    }
 
     const answers = (req.body?.answers || {}) as Record<string, number>;
     let correct = 0;
@@ -822,29 +833,23 @@ schoolRouter.post('/lessons/:lessonId/exam/submit', authenticate, async (req: Au
 
     let certificate = null;
     if (passed) {
-      const enrollment = await prisma.schoolEnrollment.findUnique({
-        where: {
-          userId_courseId: { userId: req.user!.id, courseId: lesson.courseId },
+      // Enrollment is already confirmed above — no need to re-fetch it.
+      const updated = await prisma.schoolEnrollment.update({
+        where: { id: enrollment.id },
+        data: {
+          progress: Math.max(enrollment.progress, 100),
+          completed: true,
+          certificateUrl: enrollment.certificateUrl || `academy-cert://${enrollment.id}`,
         },
+        include: { course: true },
       });
-      if (enrollment) {
-        const updated = await prisma.schoolEnrollment.update({
-          where: { id: enrollment.id },
-          data: {
-            progress: Math.max(enrollment.progress, 100),
-            completed: true,
-            certificateUrl: enrollment.certificateUrl || `academy-cert://${enrollment.id}`,
-          },
-          include: { course: true },
-        });
-        certificate = {
-          id: updated.id,
-          courseTitle: updated.course.title,
-          certificateUrl: updated.certificateUrl,
-          certificateNumber: `AOS-${updated.id.slice(0, 8).toUpperCase()}`,
-          score,
-        };
-      }
+      certificate = {
+        id: updated.id,
+        courseTitle: updated.course.title,
+        certificateUrl: updated.certificateUrl,
+        certificateNumber: `AOS-${updated.id.slice(0, 8).toUpperCase()}`,
+        score,
+      };
     }
 
     res.json({
