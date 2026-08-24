@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { reverseCashback } from '../dentcash/refund.service.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 // Disputes (Phase 5). Buyers/clinics open disputes on orders/enrollments;
 // platform resolves them. Financial resolution (refunds) plugs into Finance Core.
@@ -20,6 +21,12 @@ disputesRouter.post('/', async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'refType, refId и reason обязательны' } satisfies ApiResponse);
     }
     const dispute = await prisma.dispute.create({ data: { refType, refId, reason } });
+    await auditFromReq(req, {
+      action: 'dispute.created',
+      entity: 'dispute',
+      entityId: dispute.id,
+      details: { refType, refId, reason },
+    });
     return res.status(201).json({ ok: true, data: dispute } satisfies ApiResponse);
   } catch (error) {
     console.error('Create dispute error:', error);
@@ -57,6 +64,13 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
         console.error('Dispute refund failed:', e);
       }
     }
+
+    await auditFromReq(req, {
+      action: 'dispute.status_changed',
+      entity: 'dispute',
+      entityId: dispute.id,
+      details: { from: existing.status, to: status },
+    });
 
     return res.json({ ok: true, data: dispute } satisfies ApiResponse);
   } catch (error) {

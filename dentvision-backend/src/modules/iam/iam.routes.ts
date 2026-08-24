@@ -13,6 +13,7 @@ import {
   rejectInvitation,
 } from './invitations.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 
 /** Roles allowed to manage clinic staff, mirroring MEMBER_MANAGER_ROLES for the other org types. */
 const CLINIC_MANAGER_ROLES = ['OWNER', 'ADMIN', 'DIRECTOR'];
@@ -206,6 +207,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           // handed every clinic-scoped query an id that resolves to nothing.
           ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}),
         });
+        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'organization', entityId: org.id, details: { scopeType: org.type } });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
       console.warn(`[IAM] switch-context: org ${scopeId} (${org.type}) found but no Person link for user ${user.id}`);
@@ -218,6 +220,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
       });
       if (membership) {
         const tokens = generateTokens({ ...base, role: membership.role, clinicId: scopeId });
+        await writeAuditLog({ userId: user.id, clinicId: scopeId, action: 'auth.switch_context', entity: 'clinic', entityId: scopeId });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
     }
@@ -229,6 +232,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
       });
       if (member) {
         const tokens = generateTokens({ ...base, supplierId: scopeId, supplierRole: member.role });
+        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'supplier', entityId: scopeId });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
     }
@@ -240,6 +244,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
       });
       if (lecturer) {
         const tokens = generateTokens({ ...base, lecturerId: scopeId });
+        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
     }
@@ -420,6 +425,13 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
       create: { id: uid(), personId, roleId, scopeType, scopeId },
     });
 
+    await auditFromReq(req, {
+      action: 'person_role.assigned',
+      entity: 'person_role',
+      entityId: assignment.id,
+      details: { personId, roleId, roleName: role.name, scopeType: scopeType || null, scopeId: scopeId || null },
+    });
+
     return res.status(201).json({ ok: true, data: assignment } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM assign role error:', error);
@@ -445,6 +457,13 @@ iamRouter.delete('/persons/:personId/roles/:roleId', async (req: AuthRequest, re
 
     await prisma.personRole.deleteMany({
       where: { personId, roleId },
+    });
+
+    await auditFromReq(req, {
+      action: 'person_role.removed',
+      entity: 'person_role',
+      entityId: `${personId}:${roleId}`,
+      details: { personId, roleId },
     });
 
     return res.json({ ok: true, data: null } satisfies ApiResponse);

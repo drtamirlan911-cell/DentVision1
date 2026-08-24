@@ -13,6 +13,7 @@ import {
 import { guardUserCreate } from '../../middleware/planGate.js';
 import { upsertStaffCompensation } from '../../lib/staffCompensation.js';
 import { syncPersonFromClinicMember, removePersonFromClinicMember } from '../../lib/syncMembership.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 export const clinicsRouter = Router();
 
@@ -559,6 +560,13 @@ clinicsRouter.post('/:id/staff', authenticate, guardUserCreate, async (req: Auth
       payType,
     });
 
+    await auditFromReq(req, {
+      action: 'clinic_staff.added',
+      entity: 'clinic_member',
+      entityId: member.id,
+      details: { userId: user.id, clinicId, role },
+    });
+
     return res.status(201).json({ ok: true, data: member });
   } catch (error) {
     console.error('[Clinics] create staff', error);
@@ -639,6 +647,22 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest,
       }
     }
 
+    if (memberData.role !== undefined && memberData.role !== member.role) {
+      await auditFromReq(req, {
+        action: 'clinic_staff.role_changed',
+        entity: 'clinic_member',
+        entityId: member.id,
+        details: { userId, clinicId, from: member.role, to: memberData.role },
+      });
+    } else if (Object.keys(memberData).length || Object.keys(userData).length) {
+      await auditFromReq(req, {
+        action: 'clinic_staff.updated',
+        entity: 'clinic_member',
+        entityId: member.id,
+        details: { userId, clinicId },
+      });
+    }
+
     return res.json({ ok: true, data: updated });
   } catch (error) {
     console.error('[Clinics] update staff', error);
@@ -705,6 +729,13 @@ clinicsRouter.delete('/:id/staff/:userId', authenticate, async (req: AuthRequest
     await removePersonFromClinicMember(clinicId, resolvedUserId);
     await prisma.clinicMember.delete({
       where: { userId_clinicId: { userId: resolvedUserId, clinicId } },
+    });
+
+    await auditFromReq(req, {
+      action: 'clinic_staff.removed',
+      entity: 'clinic_member',
+      entityId: member.id,
+      details: { userId: resolvedUserId, clinicId, role: member.role },
     });
 
     return res.json({

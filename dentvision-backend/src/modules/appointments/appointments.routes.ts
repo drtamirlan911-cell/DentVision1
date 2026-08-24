@@ -3,6 +3,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { publish } from '../../lib/events.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import {
@@ -262,6 +263,12 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
         appointmentId: appointment.id,
         userId: req.user?.id,
       });
+    } else {
+      await auditFromReq(req, {
+        action: 'appointment.updated',
+        entity: 'appointment',
+        entityId: appointment.id,
+      });
     }
 
     return res.status(existing ? 200 : 201).json({
@@ -299,6 +306,13 @@ appointmentsRouter.patch('/:id/status', requirePermission('appointment.write'), 
         meta: meta as any,
       },
       include: { patient: { select: patientSelect } },
+    });
+
+    await auditFromReq(req, {
+      action: 'appointment.status_changed',
+      entity: 'appointment',
+      entityId: appointment.id,
+      details: { from: existing.status, to: appointment.status },
     });
 
     return res.json({ ok: true, data: serializeAppointment(appointment) } satisfies ApiResponse);
@@ -381,6 +395,13 @@ appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthReq
       include: { patient: { select: patientSelect } },
     });
 
+    await auditFromReq(req, {
+      action: 'appointment.closed',
+      entity: 'appointment',
+      entityId: appointment.id,
+      details: { deducted },
+    });
+
     return res.json({
       ok: true,
       data: {
@@ -412,6 +433,12 @@ appointmentsRouter.delete('/:id', requirePermission('appointment.write'), requir
       where: { id: existing.id },
       data: { status: 'cancelled' },
       include: { patient: { select: patientSelect } },
+    });
+
+    await auditFromReq(req, {
+      action: 'appointment.cancelled',
+      entity: 'appointment',
+      entityId: appointment.id,
     });
 
     return res.json({ ok: true, data: serializeAppointment(appointment) } satisfies ApiResponse);

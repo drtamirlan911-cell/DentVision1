@@ -20,6 +20,7 @@ import {
   namesFromProfile,
   verifyGoogleIdToken,
 } from './googleAuth.js';
+import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 
 async function ensureOrgAndPerson(clinicId: string, userId: string, role: string) {
   const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { name: true, city: true } });
@@ -305,6 +306,7 @@ authRouter.post('/login', async (req, res) => {
     await resetAttempts(email, ip);
 
     const response: ApiResponse = { ok: true, data: await buildSignInPayload(user, req, res) };
+    await writeAuditLog({ userId: user.id, action: 'auth.login', entity: 'user', entityId: user.id, ip: String(ip) });
     res.json(response);
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Ошибка при входе' });
@@ -364,6 +366,7 @@ authRouter.post('/google', async (req, res) => {
     } as const;
 
     let user = await prisma.user.findUnique({ where: { email: profile.email }, select: membershipSelect });
+    const isNewAccount = !user;
 
     if (user) {
       // Link on first Google sign-in. Safe because Google verified the address,
@@ -415,6 +418,14 @@ authRouter.post('/google', async (req, res) => {
       return res.status(500).json({ ok: false, error: 'Не удалось создать аккаунт' });
     }
 
+    await writeAuditLog({
+      userId: user.id,
+      action: isNewAccount ? 'auth.google_signup' : 'auth.google_login',
+      entity: 'user',
+      entityId: user.id,
+      ip: req.ip || req.socket?.remoteAddress,
+    });
+
     return res.json({ ok: true, data: await buildSignInPayload(user, req, res) });
   } catch (error) {
     const status = (error as GoogleAuthError)?.status;
@@ -433,6 +444,7 @@ authRouter.post('/logout', authenticate, async (req: AuthRequest, res) => {
       where: { userId: req.user!.id, expiredAt: { gt: new Date() } },
       data: { expiredAt: new Date() },
     }).catch(() => { /* table may not exist */ });
+    await auditFromReq(req, { action: 'auth.logout', entity: 'user', entityId: req.user!.id });
     clearAuthCookies(res);
     res.json({ ok: true, data: { message: 'Logged out' } });
   } catch {
@@ -650,6 +662,15 @@ authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) =>
     };
 
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
+    await writeAuditLog({
+      userId: req.user!.id,
+      clinicId,
+      action: 'auth.switch_clinic',
+      entity: 'clinic',
+      entityId: clinicId,
+      details: { role: membership.role },
+    });
 
     const response: ApiResponse = {
       ok: true,
@@ -1255,6 +1276,8 @@ authRouter.post('/forgot-password', async (req, res) => {
         console.error('[Password Reset] Failed to send letter:', (mailError as Error).message);
       }
 
+      await writeAuditLog({ userId: user.id, action: 'auth.password_reset_requested', entity: 'user', entityId: user.id });
+
       if (process.env.NODE_ENV === 'development' && !process.env.CI) {
         console.warn(`[Password Reset] Token for ${normalizedEmail}: ${token}`);
         devToken = token;
@@ -1316,6 +1339,8 @@ authRouter.post('/reset-password', async (req, res) => {
     // Now that the password has actually changed: anyone holding a session on
     // the old credentials loses it.
     try { await expireAllSessions(entry.user.id); } catch { /* non-fatal */ }
+
+    await writeAuditLog({ userId: entry.user.id, action: 'auth.password_reset_completed', entity: 'user', entityId: entry.user.id });
 
     const response: ApiResponse = {
       ok: true,

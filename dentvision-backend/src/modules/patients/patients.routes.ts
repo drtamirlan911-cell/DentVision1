@@ -4,6 +4,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { publish } from '../../lib/events.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 import { uid, paginate, paginatedResponse, stripHtmlTags } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
@@ -304,6 +305,13 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
         userId: req.user?.id,
         name: `${firstName} ${lastName}`.trim(),
       });
+    } else {
+      await auditFromReq(req, {
+        action: 'patient.updated',
+        entity: 'patient',
+        entityId: patient.id,
+        details: { name: `${firstName} ${lastName}`.trim() },
+      });
     }
 
     if (idempotencyKey) {
@@ -488,6 +496,12 @@ patientsRouter.patch('/:id', requirePermission('patient.write'), requireClinicWr
       include: { teeth: true },
     });
 
+    await auditFromReq(req, {
+      action: 'patient.updated',
+      entity: 'patient',
+      entityId: patient.id,
+    });
+
     return res.json({ ok: true, data: serializePatient(refreshed!) } satisfies ApiResponse);
   } catch (error) {
     console.error('Update patient error:', error);
@@ -624,6 +638,12 @@ patientsRouter.post('/:id/deposit', requireClinicWritable, async (req: AuthReque
       where: { id: patient.id },
       data: { prepaidBalance: next },
       include: { teeth: true },
+    });
+    await auditFromReq(req, {
+      action: 'patient.deposit',
+      entity: 'patient',
+      entityId: patient.id,
+      details: { amount, previousBalance: patient.prepaidBalance, newBalance: next },
     });
     return res.json({ ok: true, data: serializePatient(updated) } satisfies ApiResponse);
   } catch (error) {
