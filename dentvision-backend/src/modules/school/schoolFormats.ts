@@ -72,6 +72,8 @@ export function mapCourseToEventCard(course: {
     pages: meta.pages ?? null,
     includes: Array.isArray(meta.includes) ? meta.includes : undefined,
     venue: (meta.venue as string) || null,
+    city: (meta.city as string) || null,
+    durationDays: meta.durationDays != null ? Number(meta.durationDays) || null : null,
     certificate: meta.certificate !== false,
     lecturerId: course.lecturerId,
     instructor: course.author || course.academy?.name || 'Лектор',

@@ -10,8 +10,6 @@ import {
   getTutorReply,
   LIBRARY_ITEMS,
   reviewHomeworkWithAI,
-  upcomingOfficeCourses,
-  upcomingWebinars,
 } from './academyContent.js';
 import {
   mapCourseToEventCard,
@@ -193,14 +191,8 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
       loadDbOfferings('textbook'),
       loadDbOfferings('office'),
     ]);
-    const webinars = [
-      ...dbWebinars.map(mapCourseToEventCard),
-      ...upcomingWebinars(),
-    ];
-    const officeCourses = [
-      ...dbOffice.map(mapCourseToEventCard),
-      ...upcomingOfficeCourses(),
-    ];
+    const webinars = dbWebinars.map(mapCourseToEventCard);
+    const officeCourses = dbOffice.map(mapCourseToEventCard);
     const textbooks = dbTextbooks.map(mapCourseToEventCard);
     const trackCourses = courses.filter((c) => normalizeSchoolFormat((c as any).format) === 'course');
 
@@ -587,17 +579,17 @@ schoolRouter.get('/library', async (req, res) => {
 
 schoolRouter.get('/live', async (_req, res) => {
   const db = await loadDbOfferings('webinar');
-  res.json({ ok: true, data: [...db.map(mapCourseToEventCard), ...upcomingWebinars()] });
+  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
 
 schoolRouter.get('/webinars', async (_req, res) => {
   const db = await loadDbOfferings('webinar');
-  res.json({ ok: true, data: [...db.map(mapCourseToEventCard), ...upcomingWebinars()] });
+  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
 
 schoolRouter.get('/office-courses', async (_req, res) => {
   const db = await loadDbOfferings('office');
-  res.json({ ok: true, data: [...db.map(mapCourseToEventCard), ...upcomingOfficeCourses()] });
+  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
 
 schoolRouter.get('/textbooks', async (_req, res) => {
@@ -615,7 +607,8 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
     }
     const format = normalizeSchoolFormat(formatRaw);
 
-    // Prefer lecturer-owned DB product (course row with matching format).
+    // Every sellable product — platform-curated or lecturer-owned — is a real
+    // `Course` row (see the `seed_academy_platform_catalog` migration).
     const dbProduct = await prisma.course.findUnique({
       where: { id: String(productId) },
       include: { _count: { select: { enrollments: true } } },
@@ -631,14 +624,6 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
         sellerType = 'LECTURER';
         sellerId = dbProduct.lecturerId;
       }
-    } else {
-      const catalog =
-        format === 'office'
-          ? upcomingOfficeCourses()
-          : format === 'webinar'
-            ? upcomingWebinars()
-            : [];
-      product = catalog.find((p) => p.id === productId) || null;
     }
 
     if (!product) {
