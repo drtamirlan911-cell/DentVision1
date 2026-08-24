@@ -1,10 +1,11 @@
 /**
  * Approval Center API — human-in-the-loop for high-risk kernel actions
- * (`ai/os/dataScope.ts::HIGH_RISK_TOOLS`).
+ * (`ai/os/dataScope.ts::HIGH_RISK_TOOLS`) and for durable agents that
+ * propose rather than act (`jobs/recallAgent.ts`). Either way this router
+ * only ever reads/decides existing rows — it never creates one.
  *
- * A row here is created by the kernel itself (`kernel.ts` step 6) the moment
- * a high-risk tool call is actually confirmed, not proposed. This router only
- * ever reads/decides existing rows — it never creates one.
+ * Most rows come from the kernel itself (`kernel.ts` step 6) the moment a
+ * high-risk tool call is actually confirmed, not proposed.
  */
 
 import { Router } from 'express';

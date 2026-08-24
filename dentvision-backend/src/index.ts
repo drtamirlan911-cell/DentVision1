@@ -10,6 +10,8 @@ import { startSettlementCronInterval } from './jobs/settlementCron.js';
 import { startBiSnapshotCronInterval } from './jobs/biSnapshotCron.js';
 import { startOnCallInterval } from './jobs/patientConversationOnCall.js';
 import { startAiApprovalSweeperInterval } from './jobs/aiApprovalSweeper.js';
+import { startWorkflowRetryInterval } from './jobs/workflowRetry.js';
+import { startRecallAgentInterval } from './jobs/recallAgent.js';
 import { startMessageWorker } from './modules/ai-admin/index.js';
 import { CLINICAL_CASES, LIBRARY_ITEMS } from './modules/school/academyContent.js';
 import { onboardPartner } from './modules/legal/legal.service.js';
@@ -1837,6 +1839,11 @@ async function main() {
     `);
   });
 
+  await runOnceMigration('workflow_run_attempts', 'WorkflowRun.attempts column', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE IF EXISTS "workflow_runs" ADD COLUMN IF NOT EXISTS "attempts" INTEGER NOT NULL DEFAULT 0`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "workflow_runs_status_attempts_idx" ON "workflow_runs"("status", "attempts")`);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();
@@ -1866,6 +1873,10 @@ async function main() {
       startOnCallInterval();
       // Expires AiApproval rows nobody decided on in time.
       startAiApprovalSweeperInterval();
+      // Retries failed Workflow Studio runs, capped at 3 attempts each.
+      startWorkflowRetryInterval();
+      // Proposes (never books) a recall review when a clinic has overdue patients.
+      startRecallAgentInterval();
     }
     // AI admin worker is independent of cron settings.
     try {

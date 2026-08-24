@@ -2098,12 +2098,14 @@ model WorkflowRun {
   status      String    @default("running")
   triggerData Json?
   steps       Json?
+  attempts    Int       @default(0)
   startedAt   DateTime  @default(now())
   finishedAt  DateTime?
 
   workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   @@index([workflowId, status])
+  @@index([status, attempts])
   @@map("workflow_runs")
 }
 
