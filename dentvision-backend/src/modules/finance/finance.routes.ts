@@ -132,16 +132,25 @@ financeRouter.post('/commission-rules', requirePermission('finance.manage'), asy
     if (!domain || percentBps === undefined) {
       return res.status(400).json({ ok: false, error: 'domain и percentBps обязательны' } satisfies ApiResponse);
     }
-    const rule = await prisma.commissionRule.upsert({
-      where: { domain_scopeId: { domain, scopeId: scopeId || null } },
-      create: { domain, scopeId: scopeId || null, percentBps, splitJson: splitJson ?? undefined },
-      update: { percentBps, splitJson: splitJson ?? undefined },
-    });
+    // Prisma's compound-unique lookup (domain_scopeId) rejects `null` for the
+    // platform-wide "no scope" case — same limitation resolveCommissionBps()
+    // already works around in finance.service.ts. findFirst + create/update
+    // instead of upsert() so scopeId: null works for the default-per-domain rule.
+    const normalizedScopeId = scopeId || null;
+    const existing = await prisma.commissionRule.findFirst({ where: { domain, scopeId: normalizedScopeId } });
+    const rule = existing
+      ? await prisma.commissionRule.update({
+          where: { id: existing.id },
+          data: { percentBps, splitJson: splitJson ?? undefined },
+        })
+      : await prisma.commissionRule.create({
+          data: { domain, scopeId: normalizedScopeId, percentBps, splitJson: splitJson ?? undefined },
+        });
     await auditFromReq(req, {
       action: 'commission_rule.upserted',
       entity: 'commission_rule',
       entityId: rule.id,
-      details: { domain, scopeId: scopeId || null, percentBps },
+      details: { domain, scopeId: normalizedScopeId, percentBps },
     });
     return res.status(201).json({ ok: true, data: rule } satisfies ApiResponse);
   } catch (error) {
