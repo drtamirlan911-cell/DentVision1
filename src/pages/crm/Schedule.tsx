@@ -1277,66 +1277,74 @@ export default function Schedule() {
             onChange={e => { const svc = ALL_SERVICES.find(s => s.id === e.target.value); setForm({ ...form, service: e.target.value }); if (svc) { setForm(f => ({ ...f, serviceName: svc.name, servicePrice: svc.price })); } }}
             options={serviceOptions} required />
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className={cn('grid grid-cols-1 gap-2', editAppt ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
             <Select label="Время" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} options={HOURS.map(h => ({ value: h, label: h }))} required />
             <Select label="Длительность" value={String(form.duration)} onChange={e => setForm({ ...form, duration: Number(e.target.value) })} options={[{ value: '30', label: '30 мин' }, { value: '45', label: '45 мин' }, { value: '60', label: '1 час' }, { value: '90', label: '1.5 ч' }, { value: '120', label: '2 часа' }]} />
-            <Select label="Статус" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
+            {editAppt && (
+              <Select label="Статус" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
+            )}
           </div>
 
-          {/* Diagnosis ICD-10 */}
-          <div className="space-y-1">
-            <label className="text-2xs font-semibold text-txt-muted uppercase">Диагноз (МКБ-10)</label>
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-              <input
-                placeholder="Введите код или название диагноза..."
-                value={form.diagnosis}
-                onChange={e => setForm({ ...form, diagnosis: e.target.value })}
-                className="w-full pl-9"
-                list="icd10-suggestions"
-              />
-              <datalist id="icd10-suggestions">
-                {DENTAL_ICD10.filter(d =>
-                  d.code.toLowerCase().includes(form.diagnosis.toLowerCase()) ||
-                  d.name.toLowerCase().includes(form.diagnosis.toLowerCase())
-                ).map(d => (
-                  <option key={d.code} value={`${d.code} — ${d.name}`} />
-                ))}
-              </datalist>
-            </div>
-          </div>
+          {/* Diagnosis/tooth belong to the visit itself, not the booking —
+              asking for them while just reserving a slot means guessing before
+              the patient has even been seen. Shown only once there's an
+              appointment on record to attach findings to. */}
+          {editAppt && (
+            <>
+              <div className="space-y-1">
+                <label className="text-2xs font-semibold text-txt-muted uppercase">Диагноз (МКБ-10)</label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
+                  <input
+                    placeholder="Введите код или название диагноза..."
+                    value={form.diagnosis}
+                    onChange={e => setForm({ ...form, diagnosis: e.target.value })}
+                    className="w-full pl-9"
+                    list="icd10-suggestions"
+                  />
+                  <datalist id="icd10-suggestions">
+                    {DENTAL_ICD10.filter(d =>
+                      d.code.toLowerCase().includes(form.diagnosis.toLowerCase()) ||
+                      d.name.toLowerCase().includes(form.diagnosis.toLowerCase())
+                    ).map(d => (
+                      <option key={d.code} value={`${d.code} — ${d.name}`} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
 
-          {/* Tooth Number */}
-          <div className="space-y-1">
-            <label className="text-2xs font-semibold text-txt-muted uppercase">Зуб (номер по FDI)</label>
-            <select
-              className="dv-select"
-              value={form.toothNumber}
-              onChange={e => setForm({ ...form, toothNumber: e.target.value })}
-            >
-              <option value="">— Выберите зуб —</option>
-              <optgroup label="Верхняя челюсть (правая)">
-                {[18,17,16,15,14,13,12,11].map(n => (
-                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Верхняя челюсть (левая)">
-                {[21,22,23,24,25,26,27,28].map(n => (
-                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Нижняя челюсть (левая)">
-                {[31,32,33,34,35,36,37,38].map(n => (
-                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Нижняя челюсть (правая)">
-                {[41,42,43,44,45,46,47,48].map(n => (
-                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
-                ))}
-              </optgroup>
-            </select>
-          </div>
+              <div className="space-y-1">
+                <label className="text-2xs font-semibold text-txt-muted uppercase">Зуб (номер по FDI)</label>
+                <select
+                  className="dv-select"
+                  value={form.toothNumber}
+                  onChange={e => setForm({ ...form, toothNumber: e.target.value })}
+                >
+                  <option value="">— Выберите зуб —</option>
+                  <optgroup label="Верхняя челюсть (правая)">
+                    {[18,17,16,15,14,13,12,11].map(n => (
+                      <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Верхняя челюсть (левая)">
+                    {[21,22,23,24,25,26,27,28].map(n => (
+                      <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Нижняя челюсть (левая)">
+                    {[31,32,33,34,35,36,37,38].map(n => (
+                      <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Нижняя челюсть (правая)">
+                    {[41,42,43,44,45,46,47,48].map(n => (
+                      <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+            </>
+          )}
 
           <Input label="Заметки" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Дополнительная информация" />
 
