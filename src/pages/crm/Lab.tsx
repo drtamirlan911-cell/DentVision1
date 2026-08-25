@@ -133,8 +133,8 @@ const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { stag
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }
 
 export default function Lab() {
-  const { clinic } = useOutletContext<OutletContext>()
-  const { labOrders, upsertLabOrder, patients } = useDataQuery(clinic?.id)
+  const { clinic, user } = useOutletContext<OutletContext>()
+  const { labOrders, upsertLabOrder, patients, doctors } = useDataQuery(clinic?.id)
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState('active')
@@ -155,8 +155,12 @@ export default function Lab() {
     { value: '', label: '— Выберите пациента —' },
     ...patients.map(p => ({ value: p.id, label: p.name })),
   ]
+  const doctorOptions = [
+    { value: '', label: '— Выберите врача —' },
+    ...doctors.map(d => ({ value: d.id, label: d.name })),
+  ]
 
-  const openNew = () => { setEditOrder(null); setForm(EMPTY_FORM); setModalOpen(true) }
+  const openNew = () => { setEditOrder(null); setForm({ ...EMPTY_FORM, doctorId: user?.id || '' }); setModalOpen(true) }
   const openEdit = (o: LabOrder) => {
     setEditOrder(o)
     setForm({
@@ -389,18 +393,29 @@ export default function Lab() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Select
-            label="Пациент из базы"
+            label="Пациент"
             className="min-h-11"
             value={form.patientId}
             onChange={e => handlePatientSelect(e.target.value)}
             options={patientOptions}
           />
-          <Input
-            label="Пациент (свободный ввод)"
+          {form.patientId ? (
+            <p className="text-xs text-txt-muted -mt-2">{form.patientName}</p>
+          ) : (
+            <Input
+              label="Пациента нет в базе — впишите ФИО"
+              className="min-h-11"
+              value={form.patientName}
+              onChange={e => setForm({ ...form, patientName: e.target.value })}
+              placeholder="ФИО пациента"
+            />
+          )}
+          <Select
+            label="Врач"
             className="min-h-11"
-            value={form.patientName}
-            onChange={e => setForm({ ...form, patientName: e.target.value })}
-            placeholder="ФИО пациента (если не выбран из базы)"
+            value={form.doctorId}
+            onChange={e => setForm({ ...form, doctorId: e.target.value })}
+            options={doctorOptions}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select label="Тип работы" value={form.labType} className="min-h-11"
