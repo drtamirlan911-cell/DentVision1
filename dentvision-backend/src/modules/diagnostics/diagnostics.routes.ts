@@ -439,7 +439,10 @@ async function canAccessCenter(user: any, centerId: string): Promise<boolean> {
 
 diagnosticsRouter.get('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
-    const centerId = req.params.id;
+    const centerId = req.params.id as string;
+    if (!(await canAccessCenter(req.user, centerId))) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
+    }
     const studies = await (prisma as any).diagnosticStudy.findMany({
       where: { centerId },
       select: { id: true, name: true, category: true, price: true, active: true },
