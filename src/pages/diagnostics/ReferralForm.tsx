@@ -173,6 +173,7 @@ export default function ReferralForm() {
     if (!form.studyType) { toast.warn('Выберите тип исследования'); return; }
 
     const payload = {
+      patientId: initialPatientId || undefined,
       patientName: form.patientName,
       patientIin: form.patientIin || undefined,
       patientBirth: form.patientBirth || undefined,

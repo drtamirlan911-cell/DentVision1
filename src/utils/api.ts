@@ -2689,9 +2689,13 @@ export async function confirmAIAction(id: string): Promise<any> {
 
 // ─── Diagnostics API ───
 
-export async function getDiagnosticsDashboard(clinicId?: string): Promise<any> {
-  const q = clinicId ? `?clinicId=${clinicId}` : '';
-  return apiRequest(`/api/diagnostics/dashboard${q}`);
+export async function getDiagnosticsDashboard(scope: { clinicId?: string; centerId?: string; labId?: string } = {}): Promise<any> {
+  const q = new URLSearchParams();
+  if (scope.clinicId) q.set('clinicId', scope.clinicId);
+  if (scope.centerId) q.set('centerId', scope.centerId);
+  if (scope.labId) q.set('labId', scope.labId);
+  const qs = q.toString();
+  return apiRequest(`/api/diagnostics/dashboard${qs ? `?${qs}` : ''}`);
 }
 
 export async function markDiagnosticReferralPaid(id: string): Promise<any> {

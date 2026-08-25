@@ -10,19 +10,23 @@ import { PageHeader, StatCard, type StatTone } from '@/components/ui/ds/StatCard
 import { useAuth } from '@/store/auth.store';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
+import { useDiagnosticsOrgScope } from './orgScope';
 
 export default function DiagnosticsDashboard() {
-  const { clinic, role } = useAuth();
+  const { role } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const clinicId = clinic?.id;
+  const { clinicId, orgKind, orgId } = useDiagnosticsOrgScope();
   const [seeding, setSeeding] = useState(false);
 
   const isSuperAdmin = role === 'superadmin';
+  const scope = orgKind === 'LAB' ? { labId: orgId } : orgKind === 'CENTER' ? { centerId: orgId } : { clinicId };
+  const scopeReady = orgKind ? !!orgId : !!clinicId;
 
   const { data, isLoading } = useQuery({
-    queryKey: queryKeys.diagnostics.dashboard(clinicId),
-    queryFn: () => api.getDiagnosticsDashboard(clinicId),
+    queryKey: queryKeys.diagnostics.dashboard(orgId || clinicId),
+    queryFn: () => api.getDiagnosticsDashboard(scope),
+    enabled: scopeReady,
   });
 
   // Tones, not five arbitrary hexes (#C9A96E was the brand gold used as a

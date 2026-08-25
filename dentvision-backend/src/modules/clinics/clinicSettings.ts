@@ -70,6 +70,13 @@ export interface ClinicSettingsPayload {
     personaName?: string;
     defaultLocale?: string;
   };
+  /** Defaults applied when clinic staff create a new diagnostic referral. */
+  diagnostics?: {
+    defaultCategory?: '3D' | 'LABORATORY';
+    notifyOnStatusChange?: boolean;
+    autoAssignCenter?: boolean;
+    requirePriority?: boolean;
+  };
 }
 
 export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
@@ -97,6 +104,12 @@ export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
   bookingLink: '',
   onlineBookingEnabled: true,
   payments: { ...DEFAULT_CLINIC_PAYMENTS },
+  diagnostics: {
+    defaultCategory: '3D',
+    notifyOnStatusChange: true,
+    autoAssignCenter: false,
+    requirePriority: true,
+  },
 };
 
 export function mergeClinicSettings(

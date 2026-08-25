@@ -69,6 +69,11 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   lab: { label: 'Лаборатория', icon: '🔬', pages: ['lab', 'shop', 'diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'profile'] },
   manager: { label: 'Менеджер', icon: '🧭', pages: ['dashboard', 'schedule', 'patients', 'analytics', 'staff', 'promotions', 'shop', 'profile'], canSeeReports: true, canAddStaff: true },
   intern: { label: 'Стажёр', icon: '🌱', pages: ['schedule', 'patients', 'visits', 'documents', 'school', 'profile'], ownDataOnly: true, readOnly: true },
+  // External learner, not clinic staff — maps to the backend's zero-permission
+  // STUDENT role (roleMatrix.ts). Without this entry, resolveRoleInfo() below
+  // fell through to ORG_ROLES.doctor for any STUDENT with a clinic membership,
+  // handing full patient-record access to someone the server grants nothing.
+  student: { label: 'Студент', icon: '🎓', pages: ['school', 'profile'], ownDataOnly: true, readOnly: true },
   diagnostic_center: { label: 'Диагностический центр', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
   lab_diagnostic: { label: 'Лаборатория', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
 }

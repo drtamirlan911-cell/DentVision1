@@ -124,6 +124,13 @@ export interface ClinicSettings {
     webhookSecretSet?: boolean
     webhookUrl?: string
   }
+  /** Defaults applied when clinic staff create a new diagnostic referral. */
+  diagnostics?: {
+    defaultCategory?: '3D' | 'LABORATORY'
+    notifyOnStatusChange?: boolean
+    autoAssignCenter?: boolean
+    requirePriority?: boolean
+  }
 }
 
 // ─── Patients ───────────────────────────────────────────────────

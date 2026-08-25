@@ -6,18 +6,17 @@ import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
 import { PageHeader } from '@/components/ui/ds/StatCard';
-import { useAuth } from '@/store/auth.store';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { cn } from '@/lib/utils';
+import { useDiagnosticsOrgScope } from './orgScope';
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const DAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
 export default function DiagnosticCalendar() {
   const navigate = useNavigate();
-  const { clinic, activeMembership } = useAuth();
-  const clinicId = clinic?.id || activeMembership?.clinicId || '';
+  const { clinicId, orgKind, orgId } = useDiagnosticsOrgScope();
   const [date, setDate] = useState(new Date());
 
   const year = date.getFullYear();
@@ -39,10 +38,12 @@ export default function DiagnosticCalendar() {
   const monthStart = new Date(year, month, 1).toISOString().slice(0, 10);
   const monthEnd = new Date(year, month + 1, 0).toISOString().slice(0, 10);
 
+  const scopeParams: Record<string, string> = orgKind === 'LAB' ? { labId: orgId } : orgKind === 'CENTER' ? { centerId: orgId } : { clinicId };
+  const scopeReady = orgKind ? !!orgId : !!clinicId;
   const { data, isLoading } = useQuery({
-    queryKey: queryKeys.diagnostics.referrals({ clinicId, limit: '200' }),
-    queryFn: () => api.getDiagnosticReferrals({ clinicId, limit: '200' }),
-    enabled: !!clinicId,
+    queryKey: queryKeys.diagnostics.referrals({ ...scopeParams, limit: '200' }),
+    queryFn: () => api.getDiagnosticReferrals({ ...scopeParams, limit: '200' }),
+    enabled: scopeReady,
   });
 
   const referralsByDate = useMemo(() => {
