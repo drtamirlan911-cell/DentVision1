@@ -240,6 +240,11 @@ diagnosticsRouter.get('/referrals', loadClinicAccess, async (req: AuthRequest, r
     const authz = await authorizeReferralListScope(req.user, { clinicId, centerId, labId });
     if (authz.ok !== true) return res.status(authz.status).json({ ok: false, error: authz.error } satisfies ApiResponse);
 
+    const limit = Number(req.query.limit) || 50;
+    // Superadmin tab paginates by `page` (never sends `offset`); other
+    // callers may still pass `offset` directly — keep both working.
+    const page = Number(req.query.page) || 1;
+    const offset = req.query.offset !== undefined ? Number(req.query.offset) : (page - 1) * limit;
     const data = await svc.listReferrals({
       clinicId,
       doctorId: req.query.doctorId as string,
@@ -248,8 +253,8 @@ diagnosticsRouter.get('/referrals', loadClinicAccess, async (req: AuthRequest, r
       status: req.query.status as string,
       patientId: req.query.patientId as string,
       search: req.query.search as string,
-      limit: Number(req.query.limit) || 50,
-      offset: Number(req.query.offset) || 0,
+      limit,
+      offset,
     });
     return res.json({ ok: true, ...data } satisfies ApiResponse);
   } catch (e: any) {

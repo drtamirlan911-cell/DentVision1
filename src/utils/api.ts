@@ -2030,11 +2030,12 @@ async function opsRequest(path: string, options: RequestInit = {}): Promise<any>
   return data;
 }
 
-export async function opsListSuppliers(params: { status?: string; search?: string; page?: number } = {}): Promise<any> {
+export async function opsListSuppliers(params: { status?: string; search?: string; page?: number; limit?: number } = {}): Promise<any> {
   const q = new URLSearchParams();
   if (params.status) q.set('status', params.status);
   if (params.search) q.set('search', params.search);
   if (params.page) q.set('page', String(params.page));
+  if (params.limit) q.set('limit', String(params.limit));
   const qs = q.toString();
   return opsRequest(`/api/ops/suppliers${qs ? `?${qs}` : ''}`);
 }
