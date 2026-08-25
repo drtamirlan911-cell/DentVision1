@@ -15,13 +15,15 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 // `academy.manage` (platform / SUPERADMIN today).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Expert verification pipeline (linear).
-const LEVEL_TRANSITIONS: Record<ExpertLevel, ExpertLevel[]> = {
-  new: ['verified'],
-  verified: ['expert'],
-  expert: ['international_speaker'],
-  international_speaker: [],
-};
+// Expert verification pipeline: single-step moves either direction (advance
+// on new evidence, rollback to correct a mistake or revoke on malpractice —
+// no arbitrary jumps).
+const LEVEL_ORDER: ExpertLevel[] = ['new', 'verified', 'expert', 'international_speaker'];
+function isAdjacentLevel(from: ExpertLevel, to: ExpertLevel): boolean {
+  const i = LEVEL_ORDER.indexOf(from);
+  const j = LEVEL_ORDER.indexOf(to);
+  return i !== -1 && j !== -1 && Math.abs(i - j) === 1;
+}
 
 // ─── Academies ───
 export const academiesRouter = Router();
@@ -130,7 +132,12 @@ lecturersRouter.get('/', async (req: AuthRequest, res) => {
         skip,
         take,
         orderBy: { createdAt: 'desc' },
-        include: { academy: { select: { id: true, name: true } }, _count: { select: { courses: true } } },
+        include: {
+          academy: { select: { id: true, name: true } },
+          user: { select: { firstName: true, lastName: true, email: true } },
+          verifications: true,
+          _count: { select: { courses: true } },
+        },
       }),
       prisma.lecturer.count({ where }),
     ]);
@@ -145,7 +152,11 @@ lecturersRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
     const lecturer = await prisma.lecturer.findUnique({
       where: { id: req.params.id as string },
-      include: { verifications: true, academy: { select: { id: true, name: true } } },
+      include: {
+        verifications: true,
+        academy: { select: { id: true, name: true } },
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
     });
     if (!lecturer) {
       return res.status(404).json({ ok: false, error: 'Лектор не найден' } satisfies ApiResponse);
@@ -159,7 +170,7 @@ lecturersRouter.get('/:id', async (req: AuthRequest, res) => {
 
 lecturersRouter.post('/', requirePermission('academy.manage'), async (req: AuthRequest, res) => {
   try {
-    const { userId, bio, academyId } = req.body || {};
+    const { userId, bio, academyId, speciality } = req.body || {};
     if (!userId) {
       return res.status(400).json({ ok: false, error: 'userId обязателен' } satisfies ApiResponse);
     }
@@ -172,7 +183,7 @@ lecturersRouter.post('/', requirePermission('academy.manage'), async (req: AuthR
       return res.status(409).json({ ok: false, error: 'Профиль лектора уже существует' } satisfies ApiResponse);
     }
     const lecturer = await prisma.lecturer.create({
-      data: { userId, bio: bio || null, academyId: academyId || null },
+      data: { userId, bio: bio || null, academyId: academyId || null, speciality: speciality || null },
     });
     await syncPersonFromLecturer(lecturer.id, userId, academyId || null);
     return res.status(201).json({ ok: true, data: lecturer } satisfies ApiResponse);
@@ -186,7 +197,7 @@ lecturersRouter.post('/', requirePermission('academy.manage'), async (req: AuthR
 lecturersRouter.post('/:id/level', requirePermission('academy.manage'), async (req: AuthRequest, res) => {
   try {
     const target = req.body?.level as ExpertLevel | undefined;
-    if (!target || !(target in LEVEL_TRANSITIONS)) {
+    if (!target || !LEVEL_ORDER.includes(target)) {
       return res.status(400).json({ ok: false, error: 'Некорректный уровень' } satisfies ApiResponse);
     }
     const existing = await prisma.lecturer.findUnique({ where: { id: req.params.id as string } });
@@ -196,7 +207,7 @@ lecturersRouter.post('/:id/level', requirePermission('academy.manage'), async (r
     if (existing.level === target) {
       return res.json({ ok: true, data: existing } satisfies ApiResponse);
     }
-    if (!(LEVEL_TRANSITIONS[existing.level] || []).includes(target)) {
+    if (!isAdjacentLevel(existing.level, target)) {
       return res.status(409).json({
         ok: false,
         error: `Недопустимый переход: ${existing.level} → ${target}`,
@@ -238,5 +249,28 @@ lecturersRouter.post('/:id/verifications', requirePermission('academy.manage'), 
   } catch (error) {
     console.error('Lecturer verification error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при добавлении верификации' } satisfies ApiResponse);
+  }
+});
+
+// Approve/reject one verification document (the real per-lecturer "pending
+// verification" state is derived from these, not a status field on Lecturer).
+lecturersRouter.patch('/:id/verifications/:verificationId', requirePermission('academy.manage'), async (req: AuthRequest, res) => {
+  try {
+    const { verified } = req.body || {};
+    if (typeof verified !== 'boolean') {
+      return res.status(400).json({ ok: false, error: 'verified (boolean) обязателен' } satisfies ApiResponse);
+    }
+    const doc = await prisma.expertVerification.findUnique({ where: { id: req.params.verificationId as string } });
+    if (!doc || doc.lecturerId !== req.params.id) {
+      return res.status(404).json({ ok: false, error: 'Документ не найден' } satisfies ApiResponse);
+    }
+    const updated = await prisma.expertVerification.update({
+      where: { id: doc.id },
+      data: { verified },
+    });
+    return res.json({ ok: true, data: updated } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Verify document error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при верификации документа' } satisfies ApiResponse);
   }
 });

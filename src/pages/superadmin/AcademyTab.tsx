@@ -115,10 +115,10 @@ export default function AcademyTab() {
   const [academyForm, setAcademyForm] = useState({ name: '', description: '' });
   const [lecturerModal, setLecturerModal] = useState(false);
   const [lecturerForm, setLecturerForm] = useState({ userId: '', academyId: '', speciality: '' });
-  const [selectedLecturer, setSelectedLecturer] = useState<any>(null);
+  const [selectedLecturerId, setSelectedLecturerId] = useState<string | null>(null);
   const [selectedAcademy, setSelectedAcademy] = useState<any>(null);
   const [editingAcademy, setEditingAcademy] = useState<any>(null);
-  const [verifyDetail, setVerifyDetail] = useState<any>(null);
+  const [verifyDetailId, setVerifyDetailId] = useState<string | null>(null);
 
   const academiesQuery = useQuery({
     queryKey: ['academies'],
@@ -140,11 +140,13 @@ export default function AcademyTab() {
     ? lecturersQuery.data
     : (lecturersQuery.data?.data || []);
 
+  const lecturerName = (l: any) => l.user ? `${l.user.firstName || ''} ${l.user.lastName || ''}`.trim() || '—' : (l.name || '—');
+
   const filteredLecturers = lecturerList.filter((l: any) => {
     if (levelFilter && l.level !== levelFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      const name = (l.user?.name || l.name || '').toLowerCase();
+      const name = lecturerName(l).toLowerCase();
       const spec = (l.speciality || '').toLowerCase();
       const academy = (l.academy?.name || '').toLowerCase();
       if (!name.includes(q) && !spec.includes(q) && !academy.includes(q)) return false;
@@ -152,9 +154,18 @@ export default function AcademyTab() {
     return true;
   });
 
+  // A lecturer is "pending verification" when they have at least one
+  // ExpertVerification document that hasn't been approved yet — Lecturer
+  // itself carries no status field, the real state lives per-document.
   const pendingVerifications = lecturerList.filter(
-    (l: any) => l.verificationStatus === 'pending' || (!l.verified && l.documents?.length > 0)
+    (l: any) => Array.isArray(l.verifications) && l.verifications.some((v: any) => !v.verified)
   );
+
+  // Derived from lecturerList (not a stored snapshot) so both modals reflect
+  // the latest data right after a mutation invalidates the query — a stored
+  // snapshot would keep showing pre-mutation state until the modal reopens.
+  const selectedLecturer = selectedLecturerId ? lecturerList.find((l: any) => l.id === selectedLecturerId) : null;
+  const verifyDetail = verifyDetailId ? lecturerList.find((l: any) => l.id === verifyDetailId) : null;
 
   const totalCourses = academyList.reduce((acc: number, a: any) => acc + (a.coursesCount || a.courses?.length || 0), 0);
 
@@ -206,33 +217,24 @@ export default function AcademyTab() {
     onError: (e: any) => toast.error(e.message || 'Ошибка добавления лектора'),
   });
 
-  const advanceLevel = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest(`/api/lecturers/${id}/level`, { method: 'POST', body: JSON.stringify({ action: 'advance' }) }),
+  const changeLevel = useMutation({
+    mutationFn: ({ id, level }: { id: string; level: string }) =>
+      apiRequest(`/api/lecturers/${id}/level`, { method: 'POST', body: JSON.stringify({ level }) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lecturers'] });
-      toast.success('Уровень повышен');
+      toast.success('Уровень обновлён');
     },
-    onError: (e: any) => toast.error(e.message || 'Ошибка повышения уровня'),
+    onError: (e: any) => toast.error(e.message || 'Ошибка смены уровня'),
   });
 
-  const rollbackLevel = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest(`/api/lecturers/${id}/level`, { method: 'POST', body: JSON.stringify({ action: 'rollback' }) }),
+  // Verification acts on one document at a time (ExpertVerification.verified),
+  // not on the lecturer as a whole — there is no lecturer-level status field.
+  const verifyDocument = useMutation({
+    mutationFn: ({ lecturerId, verificationId, verified }: { lecturerId: string; verificationId: string; verified: boolean }) =>
+      apiRequest(`/api/lecturers/${lecturerId}/verifications/${verificationId}`, { method: 'PATCH', body: JSON.stringify({ verified }) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lecturers'] });
-      toast.success('Уровень понижен');
-    },
-    onError: (e: any) => toast.error(e.message || 'Ошибка понижения уровня'),
-  });
-
-  const verifyLecturer = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
-      apiRequest(`/api/lecturers/${id}/verify`, { method: 'POST', body: JSON.stringify({ action }) }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['lecturers'] });
-      toast.success('Статус верификации обновлён');
-      setVerifyDetail(null);
+      toast.success('Документ обновлён');
     },
     onError: (e: any) => toast.error(e.message || 'Ошибка верификации'),
   });
@@ -316,10 +318,10 @@ export default function AcademyTab() {
                     <div key={l.id} className="flex items-center justify-between p-2 rounded-lg bg-surface-2 border border-bdr-subtle">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-dv-gold/10 text-dv-gold flex items-center justify-center text-xs font-bold">
-                          {(l.user?.name || l.name || '?')[0]?.toUpperCase()}
+                          {lecturerName(l)[0]?.toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm text-txt-primary">{l.user?.name || l.name || '—'}</p>
+                          <p className="text-sm text-txt-primary">{lecturerName(l)}</p>
                           <p className="text-xs text-txt-muted">{l.speciality || '—'}</p>
                         </div>
                       </div>
@@ -511,10 +513,10 @@ export default function AcademyTab() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-full bg-dv-gold/10 text-dv-gold flex items-center justify-center text-xs font-bold shrink-0">
-                              {(l.user?.name || l.name || '?')[0]?.toUpperCase()}
+                              {lecturerName(l)[0]?.toUpperCase()}
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-txt-primary">{l.user?.name || l.name || '—'}</p>
+                              <p className="text-sm font-semibold text-txt-primary">{lecturerName(l)}</p>
                               {l.user?.email && <p className="text-xs text-txt-muted">{l.user.email}</p>}
                             </div>
                           </div>
@@ -530,7 +532,7 @@ export default function AcademyTab() {
                         <td className="px-4 py-3 text-xs text-txt-muted">{fd(l.createdAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
-                            <Button size="icon-sm" variant="ghost" onClick={() => setSelectedLecturer(l)} title="Подробнее">
+                            <Button size="icon-sm" variant="ghost" onClick={() => setSelectedLecturerId(l.id)} title="Подробнее">
                               <ChevronRight size={14} />
                             </Button>
                           </div>
@@ -543,7 +545,7 @@ export default function AcademyTab() {
             </Card>
           )}
 
-          <Modal open={!!selectedLecturer} onClose={() => setSelectedLecturer(null)} title="Лектор" size="lg">
+          <Modal open={!!selectedLecturer} onClose={() => setSelectedLecturerId(null)} title="Лектор" size="lg">
             {selectedLecturer && (() => {
               const l = selectedLecturer;
               const currentIdx = EXPERT_LEVELS.indexOf(l.level as any);
@@ -553,10 +555,10 @@ export default function AcademyTab() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-full bg-dv-gold/10 text-dv-gold flex items-center justify-center text-xl font-bold shrink-0">
-                      {(l.user?.name || l.name || '?')[0]?.toUpperCase()}
+                      {lecturerName(l)[0]?.toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-base font-bold text-txt-primary">{l.user?.name || l.name || '—'}</p>
+                      <p className="text-base font-bold text-txt-primary">{lecturerName(l)}</p>
                       {l.user?.email && <p className="text-sm text-txt-muted">{l.user.email}</p>}
                       <Badge variant={LEVEL_BADGE[l.level] || 'default'} size="sm" className="mt-1">{LEVEL_LABEL[l.level] || l.level}</Badge>
                     </div>
@@ -589,21 +591,19 @@ export default function AcademyTab() {
                   <div className="flex flex-wrap gap-2 pt-2">
                     {canAdvance && (
                       <Button icon={<Star size={16} />} onClick={() => {
-                        advanceLevel.mutate(l.id);
-                        setSelectedLecturer({ ...l, level: EXPERT_LEVELS[currentIdx + 1] });
-                      }} loading={advanceLevel.isPending}>
+                        changeLevel.mutate({ id: l.id, level: EXPERT_LEVELS[currentIdx + 1] });
+                      }} loading={changeLevel.isPending}>
                         Повысить уровень
                       </Button>
                     )}
                     {canRollback && (
                       <Button icon={<RefreshCw size={16} />} variant="outline" onClick={() => {
-                        rollbackLevel.mutate(l.id);
-                        setSelectedLecturer({ ...l, level: EXPERT_LEVELS[currentIdx - 1] });
-                      }} loading={rollbackLevel.isPending}>
+                        changeLevel.mutate({ id: l.id, level: EXPERT_LEVELS[currentIdx - 1] });
+                      }} loading={changeLevel.isPending}>
                         Понизить уровень
                       </Button>
                     )}
-                    <Button variant="ghost" onClick={() => setSelectedLecturer(null)}>Закрыть</Button>
+                    <Button variant="ghost" onClick={() => setSelectedLecturerId(null)}>Закрыть</Button>
                   </div>
                 </div>
               );
@@ -643,8 +643,10 @@ export default function AcademyTab() {
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-[#22C55E]/10 text-success"><CheckCircle size={18} /></div>
                     <div>
-                      <p className="text-lg font-bold text-txt-primary">{lecturerList.filter((l: any) => l.verificationStatus === 'approved' || l.verified).length}</p>
-                      <p className="text-xs text-txt-muted">Верифицированы</p>
+                      <p className="text-lg font-bold text-txt-primary">
+                        {lecturerList.filter((l: any) => Array.isArray(l.verifications) && l.verifications.length > 0 && l.verifications.every((v: any) => v.verified)).length}
+                      </p>
+                      <p className="text-xs text-txt-muted">Полностью верифицированы</p>
                     </div>
                   </div>
                 </GlassCard>
@@ -652,8 +654,10 @@ export default function AcademyTab() {
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-[#EF4444]/10 text-[#EF4444]"><XCircle size={18} /></div>
                     <div>
-                      <p className="text-lg font-bold text-txt-primary">{lecturerList.filter((l: any) => l.verificationStatus === 'rejected').length}</p>
-                      <p className="text-xs text-txt-muted">Отклонены</p>
+                      <p className="text-lg font-bold text-txt-primary">
+                        {lecturerList.reduce((acc: number, l: any) => acc + (Array.isArray(l.verifications) ? l.verifications.filter((v: any) => !v.verified).length : 0), 0)}
+                      </p>
+                      <p className="text-xs text-txt-muted">Документов без подтверждения</p>
                     </div>
                   </div>
                 </GlassCard>
@@ -686,35 +690,27 @@ export default function AcademyTab() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
                                 <div className="w-7 h-7 rounded-full bg-dv-gold/10 text-dv-gold flex items-center justify-center text-xs font-bold shrink-0">
-                                  {(l.user?.name || l.name || '?')[0]?.toUpperCase()}
+                                  {lecturerName(l)[0]?.toUpperCase()}
                                 </div>
-                                <span className="text-sm font-semibold text-txt-primary">{l.user?.name || l.name || '—'}</span>
+                                <span className="text-sm font-semibold text-txt-primary">{lecturerName(l)}</span>
                               </div>
                             </td>
                             <td className="px-4 py-3 text-sm text-txt-secondary">{l.academy?.name || '—'}</td>
                             <td className="px-4 py-3 text-sm text-txt-secondary">{l.speciality || '—'}</td>
                             <td className="px-4 py-3">
-                              {Array.isArray(l.documents) && l.documents.length > 0 ? (
-                                <Badge variant="info" size="sm">{l.documents.length} файл(ов)</Badge>
+                              {Array.isArray(l.verifications) && l.verifications.length > 0 ? (
+                                <Badge variant="info" size="sm">
+                                  {l.verifications.filter((v: any) => !v.verified).length} из {l.verifications.length} на проверке
+                                </Badge>
                               ) : (
-                                <span className="text-xs text-txt-muted">Нет</span>
+                                <span className="text-xs text-txt-muted">Нет документов</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-xs text-txt-muted">{fd(l.createdAt)}</td>
                             <td className="px-4 py-3">
-                              <div className="flex gap-1">
-                                <Button size="icon-sm" variant="ghost" onClick={() => setVerifyDetail(l)} title="Просмотреть">
-                                  <FileText size={14} />
-                                </Button>
-                                <Button size="icon-sm" variant="success" onClick={() => verifyLecturer.mutate({ id: l.id, action: 'approve' })} title="Одобрить"
-                                  loading={verifyLecturer.isPending}>
-                                  <CheckCircle size={14} />
-                                </Button>
-                                <Button size="icon-sm" variant="danger" onClick={() => verifyLecturer.mutate({ id: l.id, action: 'reject' })} title="Отклонить"
-                                  loading={verifyLecturer.isPending}>
-                                  <XCircle size={14} />
-                                </Button>
-                              </div>
+                              <Button size="icon-sm" variant="ghost" onClick={() => setVerifyDetailId(l.id)} title="Просмотреть документы">
+                                <FileText size={14} />
+                              </Button>
                             </td>
                           </tr>
                         ))}
@@ -726,15 +722,15 @@ export default function AcademyTab() {
             </>
           )}
 
-          <Modal open={!!verifyDetail} onClose={() => setVerifyDetail(null)} title="Верификация лектора" size="lg">
+          <Modal open={!!verifyDetail} onClose={() => setVerifyDetailId(null)} title="Верификация лектора" size="lg">
             {verifyDetail && (
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-dv-gold/10 text-dv-gold flex items-center justify-center text-lg font-bold shrink-0">
-                    {(verifyDetail.user?.name || verifyDetail.name || '?')[0]?.toUpperCase()}
+                    {lecturerName(verifyDetail)[0]?.toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-base font-bold text-txt-primary">{verifyDetail.user?.name || verifyDetail.name || '—'}</p>
+                    <p className="text-base font-bold text-txt-primary">{lecturerName(verifyDetail)}</p>
                     <p className="text-sm text-txt-muted">{verifyDetail.speciality || '—'}</p>
                   </div>
                 </div>
@@ -750,20 +746,32 @@ export default function AcademyTab() {
                   </div>
                 </div>
 
-                {Array.isArray(verifyDetail.documents) && verifyDetail.documents.length > 0 ? (
+                {Array.isArray(verifyDetail.verifications) && verifyDetail.verifications.length > 0 ? (
                   <div>
                     <p className="text-xs text-txt-muted mb-2">Документы для проверки</p>
                     <div className="space-y-2">
-                      {verifyDetail.documents.map((doc: any, idx: number) => (
-                        <div key={idx} className="flex items-center gap-3 p-3 rounded-lg bg-surface-2 border border-bdr-subtle">
+                      {verifyDetail.verifications.map((doc: any) => (
+                        <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg bg-surface-2 border border-bdr-subtle">
                           <FileText size={16} className="text-dv-gold shrink-0" />
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm text-txt-primary truncate">{doc.name || doc.filename || `Документ ${idx + 1}`}</p>
-                            {doc.type && <p className="text-xs text-txt-muted">{doc.type}</p>}
+                            <p className="text-sm text-txt-primary truncate">{doc.type || 'Документ'}</p>
+                            {doc.url && (
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-xs text-dv-gold hover:underline">Открыть</a>
+                            )}
                           </div>
-                          {doc.url && (
-                            <a href={doc.url} target="_blank" rel="noopener noreferrer"
-                              className="text-xs text-dv-gold hover:underline shrink-0">Открыть</a>
+                          {doc.verified ? (
+                            <Badge variant="success" size="sm">Одобрен</Badge>
+                          ) : (
+                            <div className="flex gap-1 shrink-0">
+                              <Button size="icon-sm" variant="success" title="Одобрить" loading={verifyDocument.isPending}
+                                onClick={() => verifyDocument.mutate({ lecturerId: verifyDetail.id, verificationId: doc.id, verified: true })}>
+                                <CheckCircle size={14} />
+                              </Button>
+                              <Button size="icon-sm" variant="danger" title="Отклонить" loading={verifyDocument.isPending}
+                                onClick={() => verifyDocument.mutate({ lecturerId: verifyDetail.id, verificationId: doc.id, verified: false })}>
+                                <XCircle size={14} />
+                              </Button>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -777,15 +785,7 @@ export default function AcademyTab() {
                 )}
 
                 <div className="flex flex-wrap gap-2 pt-2">
-                  <Button icon={<CheckCircle size={16} />} variant="success" onClick={() => verifyLecturer.mutate({ id: verifyDetail.id, action: 'approve' })}
-                    loading={verifyLecturer.isPending}>
-                    Одобрить
-                  </Button>
-                  <Button icon={<XCircle size={16} />} variant="danger" onClick={() => verifyLecturer.mutate({ id: verifyDetail.id, action: 'reject' })}
-                    loading={verifyLecturer.isPending}>
-                    Отклонить
-                  </Button>
-                  <Button variant="ghost" onClick={() => setVerifyDetail(null)}>Закрыть</Button>
+                  <Button variant="ghost" onClick={() => setVerifyDetailId(null)}>Закрыть</Button>
                 </div>
               </div>
             )}
