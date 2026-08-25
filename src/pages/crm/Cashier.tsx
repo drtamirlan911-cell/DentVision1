@@ -17,7 +17,7 @@ import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Select } from '../../components/ui/ds/Input'
 import { Badge } from '../../components/ui/ds/Badge'
-import { Modal } from '../../components/ui/ds/Modal'
+import { Modal, ConfirmModal } from '../../components/ui/ds/Modal'
 import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
 import { Tabs } from '../../components/ui/ds/Misc'
@@ -99,8 +99,8 @@ export default function Cashier() {
   const { showToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
 
+  const [voidReceiptId, setVoidReceiptId] = useState<string | null>(null)
   const voidReceipt = async (id: string) => {
-    if (!window.confirm('Удалить эту операцию из кассы?')) return
     try {
       await api.deleteReceipt(id)
       await queryClient.invalidateQueries({ queryKey: [...queryKeys.receipts, clinicId] })
@@ -662,7 +662,7 @@ export default function Cashier() {
                                 size="icon-sm"
                                 icon={<Trash2 size={14} />}
                                 className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 text-error/60 hover:text-error"
-                                onClick={() => voidReceipt(r.id)}
+                                onClick={() => setVoidReceiptId(r.id)}
                                 aria-label="Удалить операцию"
                               />
                             </td>
@@ -971,6 +971,15 @@ export default function Cashier() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        open={!!voidReceiptId}
+        onClose={() => setVoidReceiptId(null)}
+        onConfirm={() => { if (voidReceiptId) voidReceipt(voidReceiptId) }}
+        title="Удалить операцию?"
+        message="Удалить эту операцию из кассы?"
+        confirmLabel="Удалить"
+      />
     </div>
   )
 }

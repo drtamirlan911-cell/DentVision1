@@ -14,7 +14,7 @@ import { Button } from '../../components/ui/ds/Button'
 import { Card } from '../../components/ui/ds/Card'
 import { Input, Select } from '../../components/ui/ds/Input'
 import { Badge } from '../../components/ui/ds/Badge'
-import { Modal } from '../../components/ui/ds/Modal'
+import { Modal, ConfirmModal } from '../../components/ui/ds/Modal'
 import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { PageHeader } from '../../components/ui/ds/StatCard'
 import { Tabs } from '../../components/ui/ds/Misc'
@@ -142,6 +142,7 @@ export default function Lab() {
   const [editOrder, setEditOrder] = useState<LabOrder | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
+  const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null)
 
   const byStatus = (statuses: string[]) => labOrders.filter(o => statuses.includes(o.status))
   const active = byStatus(ACTIVE_STATUSES)
@@ -286,16 +287,7 @@ export default function Lab() {
                 size="sm"
                 className="text-error/70 hover:text-error"
                 icon={<Trash2 size={14} />}
-                onClick={async () => {
-                  if (!window.confirm('Удалить заказ лаборатории?')) return
-                  try {
-                    await api.deleteLabOrder(order.id)
-                     await queryClient.invalidateQueries({ queryKey: [...queryKeys.labOrders, clinic?.id] })
-                    showToast('Заказ удалён', 'success')
-                  } catch {
-                    showToast('Не удалось удалить', 'error')
-                  }
-                }}
+                onClick={() => setDeleteOrderId(order.id)}
               >
                 Удалить
               </Button>
@@ -442,6 +434,24 @@ export default function Lab() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        open={!!deleteOrderId}
+        onClose={() => setDeleteOrderId(null)}
+        onConfirm={async () => {
+          if (!deleteOrderId) return
+          try {
+            await api.deleteLabOrder(deleteOrderId)
+            await queryClient.invalidateQueries({ queryKey: [...queryKeys.labOrders, clinic?.id] })
+            showToast('Заказ удалён', 'success')
+          } catch {
+            showToast('Не удалось удалить', 'error')
+          }
+        }}
+        title="Удалить заказ лаборатории?"
+        message="Это действие необратимо."
+        confirmLabel="Удалить"
+      />
     </div>
   )
 }

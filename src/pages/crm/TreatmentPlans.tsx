@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/ds/Badge';
 import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
+import { ConfirmModal } from '@/components/ui/ds/Modal';
 import { TreatmentPlanEditor } from '@/components/crm/TreatmentPlanEditor';
 import { PresentationPreview } from '@/components/crm/PresentationPreview';
 import { normalizeStages, planTotal } from '@/lib/treatment-plan';
@@ -46,6 +47,7 @@ export default function TreatmentPlans() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
   const [presentationPlanId, setPresentationPlanId] = useState<string | null>(null);
+  const [deletePlanId, setDeletePlanId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!clinicId) { setLoading(false); return; }
@@ -336,16 +338,7 @@ export default function TreatmentPlans() {
                           variant="ghost"
                           className="min-h-11 text-error/80 hover:text-error"
                           icon={<Trash2 size={14} />}
-                          onClick={async () => {
-                            if (!window.confirm('Удалить план лечения?')) return;
-                            try {
-                              await api.deleteTreatmentPlan(p.id);
-                              showToast('План удалён', 'success');
-                              load();
-                            } catch {
-                              showToast('Не удалось удалить план', 'error');
-                            }
-                          }}
+                          onClick={() => setDeletePlanId(p.id)}
                         >
                           Удалить
                         </Button>
@@ -379,6 +372,24 @@ export default function TreatmentPlans() {
           planId={presentationPlanId}
         />
       )}
+
+      <ConfirmModal
+        open={!!deletePlanId}
+        onClose={() => setDeletePlanId(null)}
+        onConfirm={async () => {
+          if (!deletePlanId) return;
+          try {
+            await api.deleteTreatmentPlan(deletePlanId);
+            showToast('План удалён', 'success');
+            load();
+          } catch {
+            showToast('Не удалось удалить план', 'error');
+          }
+        }}
+        title="Удалить план лечения?"
+        message="Это действие необратимо."
+        confirmLabel="Удалить"
+      />
     </motion.div>
   );
 }

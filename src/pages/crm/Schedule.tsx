@@ -28,7 +28,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Car
 import { Input, Select } from '@/components/ui/ds/Input'
 import { DatePicker } from '@/components/ui/ds/DatePicker'
 import { Badge, StatusBadge } from '@/components/ui/ds/Badge'
-import { Modal } from '@/components/ui/ds/Modal'
+import { Modal, ConfirmModal } from '@/components/ui/ds/Modal'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import type { Clinic, User as UserType, RoleInfo } from '@/types'
@@ -119,6 +119,7 @@ export default function Schedule() {
   const [editAppt, setEditAppt] = useState<Appointment | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [dragged, setDragged] = useState<Appointment | null>(null)
+  const [overbookConfirm, setOverbookConfirm] = useState<{ message: string; retry: () => Promise<void> } | null>(null)
   const [viewMode, setViewMode] = useState<'doctors' | 'single' | 'chairs'>('doctors')
   const [periodMode, setPeriodMode] = useState<'day' | 'week'>('day')
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all')
@@ -368,15 +369,18 @@ export default function Schedule() {
     } catch (err: any) {
       const msg = String(err?.message || '')
       if (msg.includes('Конфликт') || msg.includes('конфликт')) {
-        const force = window.confirm(`${msg}\n\nСохранить запись всё равно (овербукинг)?`)
-        if (!force) return
-        try {
-          await upsertAppointment({ ...payload, force: true } as any)
-          showToast('Запись сохранена с овербукингом', 'warning')
-          setModalOpen(false)
-        } catch {
-          showToast('Ошибка сохранения', 'error')
-        }
+        setOverbookConfirm({
+          message: `${msg}\n\nСохранить запись всё равно (овербукинг)?`,
+          retry: async () => {
+            try {
+              await upsertAppointment({ ...payload, force: true } as any)
+              showToast('Запись сохранена с овербукингом', 'warning')
+              setModalOpen(false)
+            } catch {
+              showToast('Ошибка сохранения', 'error')
+            }
+          },
+        })
         return
       }
       showToast(msg || 'Ошибка сохранения', 'error')
@@ -394,11 +398,14 @@ export default function Schedule() {
     } catch (err: any) {
       const msg = String(err?.message || '')
       if (msg.includes('Конфликт') || msg.includes('конфликт')) {
-        const force = window.confirm(`${msg}\n\nПеренести всё равно?`)
-        if (force) {
-          await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId, force: true })
-          showToast('Перенесено с овербукингом', 'warning')
-        }
+        const d = dragged
+        setOverbookConfirm({
+          message: `${msg}\n\nПеренести всё равно?`,
+          retry: async () => {
+            await upsertAppointment({ ...d, time: timeSlot, date: selDate, doctorId: doctorId || d.doctorId, force: true })
+            showToast('Перенесено с овербукингом', 'warning')
+          },
+        })
       } else {
         showToast(msg || 'Не удалось перенести', 'error')
       }
@@ -998,11 +1005,14 @@ export default function Schedule() {
                                       } catch (err: any) {
                                         const msg = String(err?.message || '')
                                         if (msg.includes('Конфликт') || msg.includes('конфликт')) {
-                                          const force = window.confirm(`${msg}\n\nПеренести всё равно?`)
-                                          if (force) {
-                                            await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
-                                            showToast('Перенесено с овербукингом', 'warning')
-                                          }
+                                          const d = dragged
+                                          setOverbookConfirm({
+                                            message: `${msg}\n\nПеренести всё равно?`,
+                                            retry: async () => {
+                                              await upsertAppointment({ ...d, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
+                                              showToast('Перенесено с овербукингом', 'warning')
+                                            },
+                                          })
                                         } else {
                                           showToast(msg || 'Не удалось перенести', 'error')
                                         }
@@ -1512,6 +1522,16 @@ export default function Schedule() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={!!overbookConfirm}
+        onClose={() => setOverbookConfirm(null)}
+        onConfirm={() => { const c = overbookConfirm; setOverbookConfirm(null); c?.retry() }}
+        title="Конфликт расписания"
+        message={overbookConfirm?.message || ''}
+        confirmLabel="Всё равно"
+        variant="warning"
+      />
     </motion.div>
   )
 }
