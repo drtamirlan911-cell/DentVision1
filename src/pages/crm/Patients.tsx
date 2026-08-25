@@ -889,7 +889,7 @@ export default function Patients() {
             <div className="space-y-2">
               {[
                 { label: 'Визитов всего', value: patientAppts.length },
-                { label: 'Завершено', value: patientAppts.filter(a => a.status === 'done' || (a as any).status === 'completed').length },
+                { label: 'Завершено', value: patientAppts.filter(a => a.status === 'done').length },
                 { label: 'Отменено', value: patientAppts.filter(a => a.status === 'cancelled').length },
               ].map((s, i) => (
                 <div key={i} className="flex justify-between items-center py-1.5 border-b border-bdr-subtle last:border-b-0">
@@ -978,7 +978,7 @@ export default function Patients() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
                     {[
-                      { label: 'Всего оплачено', value: patientAppts.filter(a => a.status === 'done' || (a as any).status === 'completed').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-success' },
+                      { label: 'Всего оплачено', value: patientAppts.filter(a => a.status === 'done').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-success' },
                       { label: 'Ожидает оплаты', value: patientAppts.filter(a => a.status === 'confirmed' || a.status === 'scheduled').reduce((sum, a) => sum + (a.price || 0), 0), color: 'text-warning' },
                       { label: 'Скидки', value: catKey === 'vip' ? '15%' : catKey === 'regular' ? '5%' : '0%', color: 'text-info' },
                     ].map((s, i) => (
@@ -1247,7 +1247,7 @@ export default function Patients() {
                           className={cn(
                             'flex items-center justify-between p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]',
                             'border-l-3',
-                            (a.status === 'done' || (a as any).status === 'completed') && 'border-l-success',
+                            a.status === 'done' && 'border-l-success',
                             a.status === 'scheduled' && 'border-l-info',
                             a.status === 'confirmed' && 'border-l-success',
                             a.status === 'cancelled' && 'border-l-error',

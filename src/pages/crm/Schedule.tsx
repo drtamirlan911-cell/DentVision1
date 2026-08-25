@@ -545,7 +545,7 @@ export default function Schedule() {
         })
       }
 
-      if (payload.closeVisit && !['done', 'completed', 'cancelled'].includes(String(payAppt.status))) {
+      if (payload.closeVisit && !['done', 'cancelled'].includes(String(payAppt.status))) {
         const services = closeServices.length
           ? closeServices
           : [{ name: serviceName, price: payload.amount, matCost: 0 }]
@@ -612,7 +612,7 @@ export default function Schedule() {
         total += Number(r.total || r.amount || 0)
       }
     }
-    const doneAppts = dayAppts.filter((a) => ['done', 'completed'].includes(a.status))
+    const doneAppts = dayAppts.filter((a) => a.status === 'done')
     const unpaid = doneAppts.filter((a) => a.paymentStatus !== 'paid')
     const methodRows = Object.entries(byMethod).map(([m, v]) => `<tr><td>${m}</td><td style="text-align:right">${v.toLocaleString('ru-RU')} ₸</td></tr>`).join('')
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Z-отчёт ${selDate}</title>
@@ -638,7 +638,7 @@ export default function Schedule() {
     confirmed: dayAppts.filter(a => ['confirmed', 'reminderSent'].includes(a.status)).length,
     arrived: dayAppts.filter(a => a.status === 'arrived').length,
     inChair: dayAppts.filter(a => a.status === 'in_chair').length,
-    done: dayAppts.filter(a => ['done', 'completed'].includes(a.status)).length,
+    done: dayAppts.filter(a => a.status === 'done').length,
     cancelled: dayAppts.filter(a => ['cancelled', 'noShow'].includes(a.status)).length,
   }), [dayAppts])
 
@@ -1374,9 +1374,9 @@ export default function Schedule() {
                   type="button"
                   size="sm"
                   icon={<Wallet size={14} />}
-                  onClick={() => openAcceptPayment(editAppt, { closeVisit: !['done', 'completed', 'cancelled'].includes(String(editAppt.status)) })}
+                  onClick={() => openAcceptPayment(editAppt, { closeVisit: !['done', 'cancelled'].includes(String(editAppt.status)) })}
                 >
-                  {['done', 'completed', 'cancelled'].includes(String(editAppt.status)) ? 'Принять оплату' : 'Оплатить и закрыть приём'}
+                  {['done', 'cancelled'].includes(String(editAppt.status)) ? 'Принять оплату' : 'Оплатить и закрыть приём'}
                 </Button>
               ) : (
                 <Badge variant="warning" size="sm">Не оплачено</Badge>
@@ -1386,7 +1386,7 @@ export default function Schedule() {
 
           <div className="flex gap-2 pt-2 flex-wrap">
             <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? 'Сохранение…' : (editAppt ? 'Сохранить' : 'Создать запись')}</Button>
-            {editAppt && !['done', 'completed', 'cancelled'].includes(editAppt.status) && (
+            {editAppt && !['done', 'cancelled'].includes(editAppt.status) && (
               <Button type="button" variant="secondary" icon={<ClipboardCheck size={14} />} onClick={() => openCloseVisit(editAppt)}>
                 Закрыть приём
               </Button>
@@ -1502,7 +1502,7 @@ export default function Schedule() {
         toothNumber={payAppt?.toothNumber || ''}
         suggestedAmount={suggestedPayAmount(payAppt, payDefaultClose ? closeServices : undefined)}
         defaultMethod={PAY_METHODS[1] || PAY_METHODS[0]}
-        allowCloseVisit={payDefaultClose || !!(payAppt && !['done', 'completed', 'cancelled'].includes(String(payAppt.status)))}
+        allowCloseVisit={payDefaultClose || !!(payAppt && !['done', 'cancelled'].includes(String(payAppt.status)))}
         defaultCloseVisit={payDefaultClose}
         saving={paySaving}
         clinicId={clinicId}
