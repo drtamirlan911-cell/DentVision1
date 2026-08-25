@@ -14,7 +14,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 // Shop Governance — Suppliers (Phase 2, DENTVISION_V2_INTEGRATION_PLAN.md §5.1).
 // Platform-managed supplier registry + verification pipeline. Reads are open to
 // any authenticated user (marketplace); writes require `supplier.manage` AND
-// PLATFORM_OPS_SECRET via X-Platform-Ops-Key (hidden ops surface).
+// the SUPERADMIN role (see requirePlatformOps — no request header is checked).
 // Prefer /api/ops/suppliers for governance. Self-serve register stays open.
 // ─────────────────────────────────────────────────────────────────────────────
 export const suppliersRouter = Router();

@@ -4,6 +4,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import prisma from './lib/prisma.js';
+import { getRedis } from './lib/redis.js';
+import { sseManager } from './modules/ai/ai.notifications.routes.js';
 import { csrfProtection } from './middleware/csrf.js';
 import {
   applyCorsHeaders,
@@ -58,6 +61,7 @@ import { opsHubRouter } from './modules/ops/ops.hub.routes.js';
 import { suppliersRouter } from './modules/suppliers/suppliers.routes.js';
 import { ecosystemRouter } from './modules/analytics/ecosystem.routes.js';
 import { complianceRouter } from './modules/compliance/compliance.routes.js';
+import { qualityRouter } from './modules/quality/quality.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
 import { dentcashRouter } from './modules/dentcash/dentcash.routes.js';
 import { biRouter } from './modules/bi/bi.routes.js';
@@ -228,8 +232,38 @@ const webhookLimiter = rateLimit({
 app.use('/api/payments/callbacks', webhookLimiter);
 
 // ─── Health ───
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString() });
+app.get('/api/health', async (_req, res) => {
+  const database = await (async () => {
+    const start = Date.now();
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return { status: 'ok' as const, latencyMs: Date.now() - start };
+    } catch (err) {
+      return { status: 'error' as const, error: err instanceof Error ? err.message : 'Query failed' };
+    }
+  })();
+
+  const redis = await (async () => {
+    const client = getRedis();
+    if (!client) return { status: 'not_configured' as const };
+    const start = Date.now();
+    try {
+      await client.ping();
+      return { status: 'ok' as const, latencyMs: Date.now() - start };
+    } catch (err) {
+      return { status: 'error' as const, error: err instanceof Error ? err.message : 'Ping failed' };
+    }
+  })();
+
+  const realtime = { status: 'ok' as const, activeConnections: sseManager.getTotalClients() };
+
+  res.json({
+    ok: true,
+    service: 'dentvision-backend',
+    version: '2.0.0',
+    timestamp: new Date().toISOString(),
+    checks: { database, redis, realtime },
+  });
 });
 
 // ─── Legacy Compatibility (service-access/public) ───
@@ -274,9 +308,10 @@ app.use('/api/community', communityRouter);
 app.use('/api/public', publicRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/jobs', jobsRouter);
-// Hidden platform ops (no UI nav). SUPERADMIN + X-Platform-Ops-Key required; else 404.
+// Hidden platform ops (no UI nav). SUPERADMIN role required (requirePlatformOps); else 404.
 app.use('/api/ops/suppliers', opsSuppliersRouter);
 app.use('/api/ops', opsHubRouter);
+app.use('/api/quality', qualityRouter);
 app.use('/api/bi', biRouter);
 app.use('/api/diagnostics', diagnosticsRouter);
 app.use('/api/legal', legalRouter);

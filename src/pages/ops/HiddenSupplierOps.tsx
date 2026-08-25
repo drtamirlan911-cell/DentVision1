@@ -51,7 +51,7 @@ function fmtDate(d: string | Date | null | undefined): string {
 
 /**
  * Platform Ops Command Center — inbox + domain control.
- * Hidden URL /x-ops/sg · SUPERADMIN + PLATFORM_OPS_SECRET
+ * Hidden URL /x-ops/sg · gated by SUPERADMIN role only (server ignores the ops key today)
  */
 export default function PlatformOpsCommandCenter() {
   const { user } = useAuth()

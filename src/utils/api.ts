@@ -1979,7 +1979,7 @@ export async function addSupplierMember(supplierId: string, body: { email?: stri
   return apiRequest(`/api/suppliers/${supplierId}/members`, { method: 'POST', body: JSON.stringify(body) });
 }
 
-// ─── Hidden platform ops (SUPERADMIN + X-Platform-Ops-Key) ───
+// ─── Hidden platform ops (SUPERADMIN role only; X-Platform-Ops-Key is sent but not checked server-side) ───
 const OPS_KEY_SESSION = 'dv_ops_key';
 
 function getOpsKey(): string {
@@ -3443,4 +3443,39 @@ export async function addPartnerSla(partnerId: string, data: { metric: string; t
 
 export async function addPartnerCampaign(partnerId: string, data: { name: string; budget: number; splitBps?: number; startsAt?: string; endsAt?: string }): Promise<PartnerCampaign> {
   return apiRequest(`/api/partners/${partnerId}/campaigns`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+// ─── Quality Center ───
+export interface QualityHealthCheck {
+  checks: {
+    database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
+    redis: { status: 'ok' | 'error' | 'not_configured'; latencyMs?: number; error?: string };
+    realtime: { status: 'ok'; activeConnections: number };
+  };
+  timestamp: string;
+}
+
+export interface QualityIssue {
+  id: string;
+  label: string;
+  severity: 'critical' | 'serious' | 'moderate' | 'minor';
+  category: 'Accessibility' | 'Code Quality';
+  file: string;
+  line?: number;
+  description: string;
+}
+
+export interface QualityScanResult {
+  scannedAt: string;
+  filesScanned: number;
+  items: QualityIssue[];
+  bundleSizeBytes: number | null;
+}
+
+export async function getSystemHealth(): Promise<QualityHealthCheck> {
+  return apiRequest('/api/health');
+}
+
+export async function runQualityScan(): Promise<QualityScanResult> {
+  return apiRequest('/api/quality/scan', { method: 'POST' });
 }
