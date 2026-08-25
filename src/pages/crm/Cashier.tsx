@@ -883,18 +883,9 @@ export default function Cashier() {
               required
             />
           </div>
-          <Input
-            label="Пациент (ФИО)"
-            value={form.patientName}
-            onChange={e => setForm({ ...form, patientName: e.target.value })}
-            placeholder="Иванов Иван Иванович"
-          />
-          <Input
-            label="Услуга"
-            value={form.service}
-            onChange={e => setForm({ ...form, service: e.target.value })}
-            placeholder="Название услуги"
-          />
+          {/* Same order as AcceptPaymentModal (Schedule.tsx): amount, then
+              method, then type — reads as the same action from both places
+              instead of two differently-shaped forms. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="Способ оплаты"
@@ -914,6 +905,18 @@ export default function Cashier() {
               Для QR сначала создаётся счёт с кодом — пациент оплачивает, затем вы подтверждаете.
             </p>
           )}
+          <Input
+            label="Пациент (ФИО)"
+            value={form.patientName}
+            onChange={e => setForm({ ...form, patientName: e.target.value })}
+            placeholder="Иванов Иван Иванович"
+          />
+          <Input
+            label="Услуга"
+            value={form.service}
+            onChange={e => setForm({ ...form, service: e.target.value })}
+            placeholder="Название услуги"
+          />
           <Input
             label="Комментарий"
             value={form.notes}

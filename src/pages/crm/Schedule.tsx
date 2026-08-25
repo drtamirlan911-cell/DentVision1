@@ -1374,9 +1374,9 @@ export default function Schedule() {
                   type="button"
                   size="sm"
                   icon={<Wallet size={14} />}
-                  onClick={() => openAcceptPayment(editAppt, { closeVisit: false })}
+                  onClick={() => openAcceptPayment(editAppt, { closeVisit: !['done', 'completed', 'cancelled'].includes(String(editAppt.status)) })}
                 >
-                  Принять оплату
+                  {['done', 'completed', 'cancelled'].includes(String(editAppt.status)) ? 'Принять оплату' : 'Оплатить и закрыть приём'}
                 </Button>
               ) : (
                 <Badge variant="warning" size="sm">Не оплачено</Badge>
