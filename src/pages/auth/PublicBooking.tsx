@@ -306,20 +306,7 @@ export default function PublicBooking() {
 
   return (
     <div className="relative min-h-screen bg-surface-0 overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <motion.div
-          className="absolute -top-48 -right-48 w-[600px] h-[600px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(201,169,110,0.12) 0%, transparent 70%)' }}
-          animate={{ x: [0, 40, -20, 60, 0], y: [0, -30, 50, -10, 0] }}
-          transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(41,128,185,0.08) 0%, transparent 70%)' }}
-          animate={{ x: [0, -50, 30, -20, 0], y: [0, 40, -30, 20, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-        />
-      </div>
+      <div className="absolute inset-0 pointer-events-none overflow-hidden bg-gradient-to-br from-dv-gold/5 via-transparent to-transparent" />
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 py-8 sm:py-10">
         {/* Header */}

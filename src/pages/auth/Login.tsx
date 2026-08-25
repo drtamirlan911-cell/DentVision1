@@ -121,26 +121,7 @@ export default function Login() {
 
   return (
     <div className="relative min-h-screen min-h-[100dvh] max-w-full overflow-x-hidden bg-surface-0 flex items-center justify-center p-4 sm:p-5 overflow-hidden" style={{ paddingTop: 'max(1rem, var(--dv-safe-top, 0px))', paddingBottom: 'max(1rem, var(--dv-safe-bottom, 0px))' }}>
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          className="absolute -top-48 -right-48 w-[600px] h-[600px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(201,169,110,0.12) 0%, transparent 70%)' }}
-          animate={{ x: [0, 40, -20, 60, 0], y: [0, -30, 50, -10, 0] }}
-          transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(41,128,185,0.08) 0%, transparent 70%)' }}
-          animate={{ x: [0, -50, 30, -20, 0], y: [0, 40, -30, 20, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(201,169,110,0.06) 0%, transparent 70%)' }}
-          animate={{ scale: [1, 1.15, 0.95, 1.1, 1], opacity: [0.4, 0.7, 0.3, 0.6, 0.4] }}
-          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-        />
-      </div>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none bg-gradient-to-br from-dv-gold/5 via-transparent to-transparent" />
 
       <motion.div
         variants={cardVariants}

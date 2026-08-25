@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
-import { PageHeader } from '@/components/ui/ds/StatCard'
+import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { Skeleton } from '@/components/ui/ds/Skeleton'
 import { useAuth } from '@/store/auth.store'
@@ -83,21 +83,13 @@ export default function Analytics() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {[
-              { label: 'Всего пациентов', value: patients.length, icon: <Users size={18} />, color: '#C9A96E' },
-              { label: 'Записей', value: appointments.length, icon: <Calendar size={18} />, color: '#2980B9' },
-              { label: 'Доход за месяц', value: `${(monthRevenue / 1000).toFixed(0)}K ₸`, icon: <DollarSign size={18} />, color: '#27AE60' },
-              { label: 'Общий доход', value: `${(totalRevenue / 1000).toFixed(0)}K ₸`, icon: <TrendingUp size={18} />, color: '#8E44AD' },
+              { label: 'Всего пациентов', value: patients.length, icon: <Users size={18} /> },
+              { label: 'Записей', value: appointments.length, icon: <Calendar size={18} /> },
+              { label: 'Доход за месяц', value: `${(monthRevenue / 1000).toFixed(0)}K ₸`, icon: <DollarSign size={18} /> },
+              { label: 'Общий доход', value: `${(totalRevenue / 1000).toFixed(0)}K ₸`, icon: <TrendingUp size={18} /> },
             ].map((stat) => (
               <motion.div key={stat.label} variants={item}>
-                <Card className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: `${stat.color}15`, color: stat.color }}>
-                      {stat.icon}
-                    </div>
-                  </div>
-                  <p className="text-2xl font-bold text-txt-primary">{stat.value}</p>
-                  <p className="text-xs text-txt-muted mt-1">{stat.label}</p>
-                </Card>
+                <StatCard label={stat.label} value={stat.value} icon={stat.icon} />
               </motion.div>
             ))}
           </div>

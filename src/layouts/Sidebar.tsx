@@ -470,12 +470,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
         <div
-          className="absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full opacity-30 blur-3xl"
+          className="absolute -top-16 left-1/2 h-20 w-20 -translate-x-1/2 rounded-full opacity-30 blur-3xl"
           style={{ background: 'radial-gradient(circle, var(--dv-sidebar-glow-gold) 0%, transparent 70%)' }}
-        />
-        <div
-          className="absolute bottom-24 -left-10 h-32 w-32 rounded-full opacity-20 blur-3xl"
-          style={{ background: 'radial-gradient(circle, var(--dv-sidebar-glow-blue) 0%, transparent 70%)' }}
         />
       </div>
 

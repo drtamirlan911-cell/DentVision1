@@ -19,26 +19,22 @@ const DEMO_STEPS = [
   {
     icon: Calendar,
     title: 'Расписание',
-    desc: 'Умное расписание с drag&drop, автоматическими напоминаниями и AI-планированием',
-    color: '#C9A96E',
+    desc: 'Расписание с drag&drop и автоматическими напоминаниями пациентам',
   },
   {
     icon: Users,
     title: 'Пациенты',
     desc: 'Картотека пациентов с историей визитов, медкартами и фотофиксацией',
-    color: '#8E44AD',
   },
   {
     icon: Stethoscope,
     title: 'CRM & Клиника',
     desc: 'Полный контроль: касса, склад, аналитика, документы и ICД-10',
-    color: '#16A085',
   },
   {
     icon: Sparkles,
     title: 'AI Ассистент',
-    desc: 'Ваш персональный AI-ассистент для анализа данных, генерации отчётов и помощи с решениями',
-    color: '#E67E22',
+    desc: 'Разбирает загрузку клиники и подсказывает врачу по ходу приёма',
   },
 ];
 
@@ -141,11 +137,8 @@ export default function Demo() {
                 }`}
               >
                 <div className="flex items-start gap-4">
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: `${step.color}15` }}
-                  >
-                    <Icon size={20} style={{ color: step.color }} />
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-dv-gold/10 text-dv-gold">
+                    <Icon size={20} />
                   </div>
                   <div>
                     <h3 className="text-base font-semibold text-txt-primary mb-1">{step.title}</h3>

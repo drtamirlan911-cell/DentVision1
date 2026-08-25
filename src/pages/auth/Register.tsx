@@ -60,8 +60,7 @@ export default function Register({ onBack }: RegisterProps) {
 
   return (
     <div className="min-h-screen max-w-full overflow-x-hidden bg-surface-0 flex items-center justify-center p-5 relative overflow-hidden">
-      <div className="absolute w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,rgba(201,169,110,0.06)_0%,transparent_70%)] -top-24 -right-24 pointer-events-none" />
-      <div className="absolute w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,rgba(39,174,96,0.05)_0%,transparent_70%)] -bottom-20 -left-20 pointer-events-none" />
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-dv-gold/5 via-transparent to-transparent" />
 
       <div className="w-full max-w-md sm:max-w-lg bg-surface-1 border border-dv-gold/15 rounded-[18px] py-9 px-8 shadow-[0_40px_80px_rgba(0,0,0,0.5)] relative z-10">
         <div className="text-center mb-7">

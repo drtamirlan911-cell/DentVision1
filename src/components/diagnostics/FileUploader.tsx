@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Upload, X, FileIcon, Loader2 } from 'lucide-react';
+import { Upload, X, Loader2, Image as ImageIcon, FileText, Bone, Box, Paperclip } from 'lucide-react';
 import { useToast } from '@/components/ui/ds/Toast';
 import { fileToDataUrl } from '@/lib/image-upload';
 
@@ -49,11 +49,11 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
   }, [onUpload, toast]);
 
   const getIcon = (type: string) => {
-    if (type.startsWith('image/')) return '🖼️';
-    if (type.includes('pdf')) return '📄';
-    if (type.includes('dicom') || type.includes('dcm')) return '🩻';
-    if (type.includes('stl') || type.includes('obj')) return '🧊';
-    return '📎';
+    if (type.startsWith('image/')) return ImageIcon;
+    if (type.includes('pdf')) return FileText;
+    if (type.includes('dicom') || type.includes('dcm')) return Bone;
+    if (type.includes('stl') || type.includes('obj')) return Box;
+    return Paperclip;
   };
 
   return (
@@ -71,29 +71,35 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
 
       {uploading.length > 0 && (
         <div className="space-y-1">
-          {uploading.map(f => (
-            <div key={f.id} className="flex items-center gap-2 p-2 bg-surface-1 rounded-lg">
-              {f.preview ? <img src={f.preview} className="w-8 h-8 rounded object-cover" alt="" /> : <span>{getIcon(f.type)}</span>}
-              <span className="text-xs text-txt-primary flex-1 truncate">{f.name}</span>
-              <Loader2 size={14} className="animate-spin text-dv-gold" />
-            </div>
-          ))}
+          {uploading.map(f => {
+            const Icon = getIcon(f.type);
+            return (
+              <div key={f.id} className="flex items-center gap-2 p-2 bg-surface-1 rounded-lg">
+                {f.preview ? <img src={f.preview} className="w-8 h-8 rounded object-cover" alt="" /> : <Icon size={16} className="text-txt-muted" />}
+                <span className="text-xs text-txt-primary flex-1 truncate">{f.name}</span>
+                <Loader2 size={14} className="animate-spin text-dv-gold" />
+              </div>
+            );
+          })}
         </div>
       )}
 
       {files && files.length > 0 && (
         <div className="space-y-1">
-          {files.map(f => (
-            <div key={f.id} className="flex items-center gap-2 p-2 bg-surface-1 rounded-lg group">
-              <span>{getIcon(f.fileType)}</span>
-              <span className="text-xs text-txt-primary flex-1 truncate">{f.fileName}</span>
-              {onDelete && (
-                <button aria-label="Delete file" onClick={() => onDelete(f.id)} className="opacity-0 group-hover:opacity-100 text-error transition-opacity">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          ))}
+          {files.map(f => {
+            const Icon = getIcon(f.fileType);
+            return (
+              <div key={f.id} className="flex items-center gap-2 p-2 bg-surface-1 rounded-lg group">
+                <Icon size={16} className="text-txt-muted" />
+                <span className="text-xs text-txt-primary flex-1 truncate">{f.fileName}</span>
+                {onDelete && (
+                  <button aria-label="Delete file" onClick={() => onDelete(f.id)} className="opacity-0 group-hover:opacity-100 text-error transition-opacity">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
