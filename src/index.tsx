@@ -39,6 +39,8 @@ const Jobs = lazyWithRetry(() => import('./pages/Jobs'));
 const Community = lazyWithRetry(() => import('./pages/Community'));
 const Demo = lazyWithRetry(() => import('./pages/Demo'));
 const Pricing = lazyWithRetry(() => import('./pages/Pricing'));
+const Terms = lazyWithRetry(() => import('./pages/legal-public/Terms'));
+const Privacy = lazyWithRetry(() => import('./pages/legal-public/Privacy'));
 
 // Diagnostics pages
 const DiagnosticsLayout = lazyWithRetry(() => import('./pages/diagnostics/DiagnosticsLayout'));
@@ -169,6 +171,8 @@ if (container) {
                   <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
                   <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />
                   <Route path="pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
+                  <Route path="terms" element={<Suspense fallback={<PageLoader />}><Terms /></Suspense>} />
+                  <Route path="privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
 
                   {/* CRM sub-app — under IntelligenceLayout sidebar */}
                   <Route path="crm/schedule" element={guarded('schedule', <Schedule />)} />

@@ -165,6 +165,17 @@ export default function Pricing() {
             </button>
           </p>
         </motion.div>
+
+        <p className="text-center text-xs text-txt-ghost mt-6">
+          Регистрируясь, вы соглашаетесь с{' '}
+          <button onClick={() => navigate('/terms')} className="text-dv-gold hover:underline">
+            Условиями использования
+          </button>{' '}
+          и{' '}
+          <button onClick={() => navigate('/privacy')} className="text-dv-gold hover:underline">
+            Политикой конфиденциальности
+          </button>
+        </p>
       </div>
     </div>
   );

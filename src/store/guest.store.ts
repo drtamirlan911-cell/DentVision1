@@ -45,6 +45,8 @@ const PUBLIC_ROUTES = [
   '/community',
   '/demo',
   '/pricing',
+  '/terms',
+  '/privacy',
 ];
 
 const AUTH_REQUIRED_ROUTES = [

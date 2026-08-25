@@ -15,6 +15,7 @@ export default function RegistrationModal() {
   const [loginData, setLoginData] = useState({ login: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [registerData, setRegisterData] = useState({ name: '', login: '', password: '', confirmPassword: '' });
+  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -32,6 +33,7 @@ export default function RegistrationModal() {
     setLoginData({ login: '', password: '' });
     setShowPassword(false);
     setRegisterData({ name: '', login: '', password: '', confirmPassword: '' });
+    setAgreed(false);
     setError('');
     setSuccess(false);
   };
@@ -71,6 +73,7 @@ export default function RegistrationModal() {
       return;
     }
     if (registerData.password !== registerData.confirmPassword) { setError(t('auth.passwords_mismatch')); return; }
+    if (!agreed) { setError(t('auth.must_agree_to_terms')); return; }
 
     setLoading(true);
     try {
@@ -259,9 +262,28 @@ export default function RegistrationModal() {
               />
             </div>
 
+            <label className="flex items-start gap-2.5 text-xs text-txt-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-bdr-subtle accent-dv-gold cursor-pointer"
+              />
+              <span>
+                {t('auth.agree_prefix')}{' '}
+                <button type="button" onClick={() => window.open('/terms', '_blank')} className="text-dv-gold hover:underline">
+                  {t('auth.terms_of_service')}
+                </button>{' '}
+                {t('auth.agree_and')}{' '}
+                <button type="button" onClick={() => window.open('/privacy', '_blank')} className="text-dv-gold hover:underline">
+                  {t('auth.privacy_policy')}
+                </button>
+              </span>
+            </label>
+
             <button
               onClick={handleConvertAndRegister}
-              disabled={loading}
+              disabled={loading || !agreed}
               className="w-full min-h-11 py-2.5 rounded-xl bg-dv-gold text-dv-gold-on font-semibold text-sm hover:bg-dv-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
