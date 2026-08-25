@@ -1,89 +1,25 @@
 import { useState } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import {
-  Accessibility, Gauge, Shield, Code, Database, Search, Brain,
-  FileText, DollarSign, Microscope, ShoppingCart, GraduationCap,
-  CheckCircle, XCircle, AlertTriangle, RefreshCw, ExternalLink,
-  Eye, EyeOff,
+  Accessibility, Gauge, Code, Database, Search,
+  XCircle, AlertTriangle, RefreshCw,
 } from 'lucide-react'
 import { Card } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
 import { Badge } from '@/components/ui/ds/Badge'
-import { StatCard, PageHeader } from '@/components/ui/ds/StatCard'
-import { GlassCard } from '@/components/ui/ds/GlassCard'
-import { Skeleton } from '@/components/ui/ds/Skeleton'
+import { StatCard } from '@/components/ui/ds/StatCard'
 import { Modal } from '@/components/ui/ds/Modal'
-import { Tabs, Separator, Switch } from '@/components/ui/ds/Misc'
+import { getSystemHealth, runQualityScan, type QualityIssue } from '@/utils/api'
 
-type QCTab = 'accessibility' | 'performance' | 'security' | 'code-quality' | 'architecture' | 'diagnostics'
+type QCTab = 'accessibility' | 'performance' | 'code-quality' | 'architecture' | 'diagnostics'
 
-interface AuditItem {
-  id: string
-  label: string
-  severity: 'critical' | 'serious' | 'moderate' | 'minor' | 'pass'
-  category: string
-  file?: string
-  line?: number
-  description: string
-  fix?: string
-}
-
-const MOCK_AUDIT: AuditItem[] = [
-  { id: 'a1', label: 'Missing aria-label on icon buttons', severity: 'critical', category: 'Accessibility', file: 'src/components/ui/ds/Modal.tsx', line: 127, description: 'Close button in Modal lacks aria-label', fix: 'Add aria-label="Закрыть" to the close button' },
-  { id: 'a2', label: 'Missing role="navigation" on sidebar', severity: 'serious', category: 'Accessibility', file: 'src/layouts/Sidebar.tsx', line: 500, description: 'Sidebar nav element missing explicit aria-label', fix: 'Add aria-label="Главная навигация" to <motion.nav>' },
-  { id: 'a3', label: 'Missing aria-current on active nav items', severity: 'serious', category: 'Accessibility', file: 'src/layouts/Sidebar.tsx', line: 200, description: 'Active nav item lacks aria-current="page"', fix: 'Add aria-current="page" to active items' },
-  { id: 'a4', label: 'Dialogs missing aria-modal', severity: 'serious', category: 'Accessibility', file: 'src/components/ui/ds/Modal.tsx', line: 95, description: 'Modal dialog missing role="dialog" and aria-modal', fix: 'Add role="dialog" aria-modal="true"' },
-  { id: 'a5', label: 'Bottom nav missing nav label', severity: 'moderate', category: 'Accessibility', file: 'src/layouts/BottomNav.tsx', line: 48, description: 'Bottom navigation has no distinguishing aria-label', fix: 'Add aria-label="Навигация по разделам"' },
-  { id: 'a6', label: 'Drawer missing aria attributes', severity: 'moderate', category: 'Accessibility', file: 'src/components/ui/ds/Drawer.tsx', line: 76, description: 'Drawer close button has no aria-label', fix: 'Add aria-label="Закрыть"' },
-  { id: 'a7', label: 'Color contrast: text-muted on surface-3', severity: 'serious', category: 'Accessibility', file: 'src/styles/global.css', line: 1, description: 'txt-muted on surface-3 may fail 4.5:1 contrast', fix: 'Darken txt-muted or lighten surface-3' },
-  { id: 'a8', label: 'No focus trap in AlertDropdown', severity: 'moderate', category: 'Accessibility', file: 'src/layouts/AlertDropdown.tsx', line: 100, description: 'Open dropdown has no focus trapping', fix: 'Implement focus trapping with tab key listener' },
-  { id: 'a9', label: 'Missing 404 page', severity: 'moderate', category: 'UX', file: 'src/index.tsx', line: 215, description: 'Unknown routes silently redirect to /', fix: 'Create a proper 404 page with navigation' },
-  { id: 'p1', label: 'No lazy loading for login page', severity: 'minor', category: 'Performance', file: 'src/index.tsx', line: 13, description: 'Login and public pages are eagerly loaded', fix: 'Use React.lazy for all pages' },
-  { id: 'c1', label: 'Unused import: Scale in Sidebar', severity: 'minor', category: 'Code Quality', file: 'src/layouts/Sidebar.tsx', line: 9, description: 'Scale icon imported but not used', fix: 'Remove unused import' },
-  { id: 's1', label: 'Routes missing role guard', severity: 'critical', category: 'Security', file: 'src/index.tsx', line: 143, description: '/dashboard, /settings, /profile, /bi not wrapped in guarded()', fix: 'Wrap unprotected routes in RequirePage' },
-]
-
-const MOCK_PERFORMANCE = {
-  lighthouse: { performance: 72, accessibility: 68, bestPractices: 81, seo: 89 },
-  lastRun: '2026-07-29T10:30:00Z',
-  bundleSize: '1.8 MB',
-  firstPaint: '1.8s',
-  interactivity: '3.2s',
-}
-
-const MOCK_SECURITY = {
-  jwt: { status: 'pass', detail: 'JWT with refresh rotation' },
-  rbac: { status: 'pass', detail: 'Role-based access control active' },
-  xss: { status: 'warning', detail: 'Some inputs not sanitized' },
-  rateLimit: { status: 'fail', detail: 'No rate limiting on auth endpoints' },
-  csp: { status: 'pass', detail: 'Content-Security-Policy header set' },
-  auditLog: { status: 'pass', detail: 'Audit logging active' },
-}
-
-const MOCK_CODE_QUALITY = {
-  eslint: { errors: 3, warnings: 12 },
-  typescript: { errors: 0, warnings: 5 },
-  unusedImports: 8,
-  largeComponents: ['IntelligenceLayout (575 lines)', 'Sidebar (561 lines)', 'SuperAdmin (533 lines)'],
-  cyclomaticComplexity: ['Sidebar.renderNavSection: 8', 'App.renderTab: separate into components'],
-}
-
-function ScoreCircle({ value, max = 100, label, color }: { value: number; max?: number; label: string; color: string }) {
-  const pct = Math.round((value / max) * 100)
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="relative flex items-center justify-center w-16 h-16">
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 64 64">
-          <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4" className="text-txt-primary/5" />
-          <circle cx="32" cy="32" r="28" fill="none" stroke={color} strokeWidth="4" strokeDasharray={`${pct * 1.76} 176`} strokeLinecap="round" transform="rotate(-90 32 32)" />
-        </svg>
-        <span className="text-lg font-bold" style={{ color }}>{pct}</span>
-      </div>
-      <span className="text-2xs text-txt-muted font-medium uppercase tracking-wider">{label}</span>
-    </div>
-  )
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -92,52 +28,83 @@ function SeverityBadge({ severity }: { severity: string }) {
     serious: { label: 'Serious', cls: 'bg-warning/15 text-warning border border-warning/20' },
     moderate: { label: 'Moderate', cls: 'bg-dv-gold/15 text-dv-gold border border-dv-gold/20' },
     minor: { label: 'Minor', cls: 'bg-[#4e8cff]/15 text-[#4e8cff] border border-[#4e8cff]/20' },
-    pass: { label: 'Pass', cls: 'bg-success/15 text-success border border-success/20' },
   }
   const s = map[severity] || map.minor
   return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-bold', s.cls)}>{s.label}</span>
 }
 
+function StatusBadge({ status, okLabel, errorLabel, notConfiguredLabel }: { status: 'ok' | 'error' | 'not_configured'; okLabel: string; errorLabel: string; notConfiguredLabel?: string }) {
+  if (status === 'ok') return <Badge variant="success" dot>{okLabel}</Badge>
+  if (status === 'not_configured') return <Badge variant="warning" dot>{notConfiguredLabel || 'Не настроен'}</Badge>
+  return <Badge variant="error" dot>{errorLabel}</Badge>
+}
+
+function IssueTable({ items, filter, onSelect }: { items: QualityIssue[]; filter: string; onSelect: (i: QualityIssue) => void }) {
+  const filtered = items.filter(i => !filter || i.label.toLowerCase().includes(filter.toLowerCase()) || i.file.toLowerCase().includes(filter.toLowerCase()))
+  return (
+    <Card padding="none">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b border-bdr-subtle">
+              {['Проблема', 'Severity', 'Файл'].map(h => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(item => (
+              <tr key={item.id} className="border-b border-bdr-subtle/50 cursor-pointer hover:bg-surface-1" onClick={() => onSelect(item)}>
+                <td className="px-4 py-3">
+                  <div className="text-sm font-medium text-txt-primary">{item.label}</div>
+                  <div className="text-xs text-txt-muted mt-0.5">{item.description}</div>
+                </td>
+                <td className="px-4 py-3"><SeverityBadge severity={item.severity} /></td>
+                <td className="px-4 py-3 text-xs font-mono text-txt-muted">{item.file}{item.line ? `:${item.line}` : ''}</td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={3} className="px-4 py-12 text-center text-txt-muted text-sm">Ничего не найдено</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  )
+}
+
 export default function QualityCenterTab() {
   const [tab, setTab] = useState<QCTab>('accessibility')
   const [filter, setFilter] = useState('')
-  const [selectedItem, setSelectedItem] = useState<AuditItem | null>(null)
-  const [scanning, setScanning] = useState(false)
-  const [lastRun, setLastRun] = useState<Date | null>(null)
+  const [selectedItem, setSelectedItem] = useState<QualityIssue | null>(null)
 
-  const runScan = () => {
-    if (scanning) return
-    setScanning(true)
-    // Client-side quality panel: surface a real running state and completion time.
-    window.setTimeout(() => {
-      setScanning(false)
-      setLastRun(new Date())
-    }, 1200)
-  }
+  const scan = useMutation({ mutationFn: () => runQualityScan() })
+  const health = useQuery({
+    queryKey: ['quality', 'health'],
+    queryFn: () => getSystemHealth(),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
 
-  const filteredItems = MOCK_AUDIT.filter(i => !filter || i.label.toLowerCase().includes(filter.toLowerCase()) || i.category.toLowerCase().includes(filter.toLowerCase()))
+  const items = scan.data?.items || []
+  const a11yItems = items.filter(i => i.category === 'Accessibility')
+  const codeItems = items.filter(i => i.category === 'Code Quality')
 
-  const critical = MOCK_AUDIT.filter(i => i.severity === 'critical').length
-  const serious = MOCK_AUDIT.filter(i => i.severity === 'serious').length
-  const moderate = MOCK_AUDIT.filter(i => i.severity === 'moderate').length
-  const minor = MOCK_AUDIT.filter(i => i.severity === 'minor').length
-  const passes = MOCK_AUDIT.filter(i => i.severity === 'pass').length
-
-  const totalIssues = critical + serious + moderate + minor
+  const countBy = (list: QualityIssue[], sev: string) => list.filter(i => i.severity === sev).length
 
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-txt-primary">Quality Center</h2>
-          <p className="text-sm text-txt-muted">Автоматический контроль качества, безопасности и производительности</p>
+          <p className="text-sm text-txt-muted">Контроль качества, доступности и состояния системы на реальных данных</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {lastRun && (
-            <span className="text-xs text-txt-muted">Проверено: {lastRun.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+          {scan.data && (
+            <span className="text-xs text-txt-muted">Проверено: {new Date(scan.data.scannedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
           )}
-          <Button icon={<RefreshCw size={16} className={scanning ? 'animate-spin' : undefined} />} variant="secondary" loading={scanning} onClick={runScan} className="min-h-11">
-            {scanning ? 'Проверка…' : 'Запустить проверку'}
+          <Button icon={<RefreshCw size={16} className={scan.isPending ? 'animate-spin' : undefined} />} variant="secondary" loading={scan.isPending} onClick={() => scan.mutate()} className="min-h-11">
+            {scan.isPending ? 'Проверка…' : 'Запустить проверку'}
           </Button>
         </div>
       </div>
@@ -145,7 +112,6 @@ export default function QualityCenterTab() {
       <div className="flex gap-1 bg-surface-2 rounded-lg p-1 overflow-x-auto">
         {([{ id: 'accessibility', label: 'Accessibility', icon: <Accessibility size={15} /> },
           { id: 'performance', label: 'Performance', icon: <Gauge size={15} /> },
-          { id: 'security', label: 'Security', icon: <Shield size={15} /> },
           { id: 'code-quality', label: 'Code Quality', icon: <Code size={15} /> },
           { id: 'architecture', label: 'Architecture', icon: <Database size={15} /> },
           { id: 'diagnostics', label: 'Diagnostics', icon: <Search size={15} /> },
@@ -160,68 +126,30 @@ export default function QualityCenterTab() {
       <AnimatePresence mode="wait">
         {tab === 'accessibility' && (
           <motion.div key="a11y" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <GlassCard padding="md" className="flex items-center justify-center">
-                <ScoreCircle value={70} label="Accessibility" color="#C9A96E" />
-              </GlassCard>
-              <StatCard label="Critical" value={critical} icon={<XCircle size={18} />} />
-              <StatCard label="Serious" value={serious} icon={<AlertTriangle size={18} />} />
-              <StatCard label="Moderate" value={moderate} icon={<AlertTriangle size={18} />} />
-            </div>
-            <div className="flex flex-wrap justify-between items-center gap-2">
-              <p className="text-xs text-txt-muted">Всего проблем: {totalIssues} · Исправлено: {passes}</p>
-              <Input placeholder="Поиск..." value={filter} onChange={e => setFilter(e.target.value)} className="w-full sm:max-w-xs min-h-11" clearable />
-            </div>
-            <Card padding="none">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b border-bdr-subtle">
-                      {['Проблема', 'Категория', 'Severity', 'Файл', 'Статус'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredItems.map(item => (
-                      <tr key={item.id} className="border-b border-bdr-subtle/50 cursor-pointer hover:bg-surface-1" onClick={() => setSelectedItem(item)}>
-                        <td className="px-4 py-3">
-                          <div className="text-sm font-medium text-txt-primary">{item.label}</div>
-                          <div className="text-xs text-txt-muted mt-0.5">{item.description}</div>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-txt-muted">{item.category}</td>
-                        <td className="px-4 py-3"><SeverityBadge severity={item.severity} /></td>
-                        <td className="px-4 py-3 text-xs font-mono text-txt-muted">{item.file}{item.line ? `:${item.line}` : ''}</td>
-                        <td className="px-4 py-3">
-                          {item.severity === 'pass'
-                            ? <CheckCircle size={16} className="text-success" />
-                            : <XCircle size={16} className="text-error/60" />}
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredItems.length === 0 && (
-                      <tr><td colSpan={5} className="px-4 py-12 text-center text-txt-muted text-sm">Ничего не найдено</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+            {!scan.data && !scan.isPending ? (
+              <Card><p className="text-sm text-txt-muted text-center py-8">Нажмите «Запустить проверку», чтобы просканировать доступность интерфейса</p></Card>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <StatCard label="Critical" value={countBy(a11yItems, 'critical')} icon={<XCircle size={18} />} />
+                  <StatCard label="Serious" value={countBy(a11yItems, 'serious')} icon={<AlertTriangle size={18} />} />
+                  <StatCard label="Moderate" value={countBy(a11yItems, 'moderate')} icon={<AlertTriangle size={18} />} />
+                </div>
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <p className="text-xs text-txt-muted">Найдено проблем: {a11yItems.length}</p>
+                  <Input placeholder="Поиск..." value={filter} onChange={e => setFilter(e.target.value)} className="w-full sm:max-w-xs min-h-11" clearable />
+                </div>
+                <IssueTable items={a11yItems} filter={filter} onSelect={setSelectedItem} />
+              </>
+            )}
             <Modal open={!!selectedItem} onClose={() => setSelectedItem(null)} title={selectedItem?.label || ''} size="lg">
               {selectedItem && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2"><SeverityBadge severity={selectedItem.severity} /><Badge>{selectedItem.category}</Badge></div>
                   <p className="text-sm text-txt-secondary">{selectedItem.description}</p>
-                  {selectedItem.file && (
-                    <div className="bg-surface-2 rounded-lg p-3 text-xs font-mono text-txt-muted">
-                      {selectedItem.file}{selectedItem.line ? `:${selectedItem.line}` : ''}
-                    </div>
-                  )}
-                  {selectedItem.fix && (
-                    <div className="bg-success/5 border border-success/20 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-success mb-1">Рекомендация по исправлению</p>
-                      <p className="text-sm text-txt-primary">{selectedItem.fix}</p>
-                    </div>
-                  )}
+                  <div className="bg-surface-2 rounded-lg p-3 text-xs font-mono text-txt-muted">
+                    {selectedItem.file}{selectedItem.line ? `:${selectedItem.line}` : ''}
+                  </div>
                 </div>
               )}
             </Modal>
@@ -230,62 +158,40 @@ export default function QualityCenterTab() {
 
         {tab === 'performance' && (
           <motion.div key="perf" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <GlassCard padding="md" className="flex items-center justify-center">
-                <ScoreCircle value={72} label="Performance" color="#4e8cff" />
-              </GlassCard>
-              <GlassCard padding="md" className="flex items-center justify-center">
-                <ScoreCircle value={68} label="Accessibility" color="#C9A96E" />
-              </GlassCard>
-              <GlassCard padding="md" className="flex items-center justify-center">
-                <ScoreCircle value={81} label="Best Practices" color="#10B981" />
-              </GlassCard>
-              <GlassCard padding="md" className="flex items-center justify-center">
-                <ScoreCircle value={89} label="SEO" color="#A78BFA" />
-              </GlassCard>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <StatCard
+                label="Размер сборки (dist/)"
+                value={scan.data ? (scan.data.bundleSizeBytes !== null ? formatBytes(scan.data.bundleSizeBytes) : 'Нет сборки') : '—'}
+                icon={<Code size={18} />}
+              />
+              <StatCard label="Последняя проверка" value={scan.data ? new Date(scan.data.scannedAt).toLocaleString('ru-RU') : '—'} icon={<RefreshCw size={18} />} />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Bundle Size" value="1.8 MB" icon={<Code size={18} />} />
-              <StatCard label="First Paint" value="1.8s" icon={<Gauge size={18} />} />
-              <StatCard label="TTI" value="3.2s" icon={<Gauge size={18} />} />
-              <StatCard label="Last Check" value="29.07.2026" icon={<RefreshCw size={18} />} />
-            </div>
-          </motion.div>
-        )}
-
-        {tab === 'security' && (
-          <motion.div key="sec" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-            <Card>
-              <div className="space-y-4">
-                {Object.entries(MOCK_SECURITY).map(([key, val]) => (
-                  <div key={key} className="flex items-center justify-between py-2 border-b border-bdr-subtle/50 last:border-0">
-                    <div>
-                      <span className="text-sm font-medium text-txt-primary capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                      <p className="text-xs text-txt-muted mt-0.5">{val.detail}</p>
-                    </div>
-                    <SeverityBadge severity={val.status} />
-                  </div>
-                ))}
-              </div>
+            <Card title="Lighthouse-метрики">
+              <p className="text-sm text-txt-muted">
+                Недоступно — требуется настройка Lighthouse CI в пайплайне сборки. Показатели Performance/Accessibility/Best Practices/SEO,
+                First Paint и Time to Interactive не измеряются на бэкенде и не могут быть честно посчитаны без реального прогона.
+              </p>
             </Card>
           </motion.div>
         )}
 
         {tab === 'code-quality' && (
           <motion.div key="cq" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="ESLint Errors" value={MOCK_CODE_QUALITY.eslint.errors} icon={<XCircle size={18} />} />
-              <StatCard label="ESLint Warnings" value={MOCK_CODE_QUALITY.eslint.warnings} icon={<AlertTriangle size={18} />} />
-              <StatCard label="TS Errors" value={MOCK_CODE_QUALITY.typescript.errors} icon={<XCircle size={18} />} />
-              <StatCard label="Unused Imports" value={MOCK_CODE_QUALITY.unusedImports} icon={<Code size={18} />} />
-            </div>
-            <Card title="Крупные компоненты (>300 строк)">
-              <ul className="space-y-2">
-                {MOCK_CODE_QUALITY.largeComponents.map((c, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm text-txt-muted"><AlertTriangle size={14} className="text-warning shrink-0" />{c}</li>
-                ))}
-              </ul>
-            </Card>
+            {!scan.data && !scan.isPending ? (
+              <Card><p className="text-sm text-txt-muted text-center py-8">Нажмите «Запустить проверку», чтобы просканировать код</p></Card>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <StatCard label="Critical" value={countBy(codeItems, 'critical')} icon={<XCircle size={18} />} />
+                  <StatCard label="Крупные компоненты" value={codeItems.filter(i => i.id.startsWith('size:')).length} icon={<Code size={18} />} />
+                  <StatCard label="console.log в коде" value={codeItems.filter(i => i.id.startsWith('console:')).length} icon={<AlertTriangle size={18} />} />
+                </div>
+                <p className="text-xs text-txt-muted">
+                  Быстрая файловая проверка (крупные компоненты, отладочный вывод). TypeScript/ESLint-проверки не запускаются здесь — они слишком медленные для запроса из UI; используйте `npx tsc --noEmit` / `npx eslint` в CI.
+                </p>
+                <IssueTable items={codeItems} filter={filter} onSelect={setSelectedItem} />
+              </>
+            )}
           </motion.div>
         )}
 
@@ -321,28 +227,28 @@ export default function QualityCenterTab() {
         {tab === 'diagnostics' && (
           <motion.div key="diag" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <Card title="Диагностика системы">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-txt-primary">Подключение к БД</span>
-                  <Badge variant="success" dot>Connected</Badge>
+              {health.isLoading && <p className="text-sm text-txt-muted">Проверка...</p>}
+              {health.isError && <p className="text-sm text-error">Не удалось получить статус сервера</p>}
+              {health.data && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-txt-primary">Подключение к БД{health.data.checks.database.latencyMs !== undefined ? ` (${health.data.checks.database.latencyMs} мс)` : ''}</span>
+                    <StatusBadge status={health.data.checks.database.status} okLabel="Connected" errorLabel="Error" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-txt-primary">API сервер</span>
+                    <Badge variant="success" dot>Online</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-txt-primary">Realtime (SSE), активных подключений: {health.data.checks.realtime.activeConnections}</span>
+                    <Badge variant="success" dot>Active</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-txt-primary">Redis кэш{health.data.checks.redis.latencyMs !== undefined ? ` (${health.data.checks.redis.latencyMs} мс)` : ''}</span>
+                    <StatusBadge status={health.data.checks.redis.status} okLabel="Connected" errorLabel="Error" notConfiguredLabel="Не настроен" />
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-txt-primary">API сервер</span>
-                  <Badge variant="success" dot>Online</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-txt-primary">WebSocket</span>
-                  <Badge variant="success" dot>Active</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-txt-primary">Redis кэш</span>
-                  <Badge variant="warning" dot>Not configured</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-txt-primary">CDN</span>
-                  <Badge variant="success" dot>Active</Badge>
-                </div>
-              </div>
+              )}
             </Card>
           </motion.div>
         )}

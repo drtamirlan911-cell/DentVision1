@@ -3,6 +3,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { computeMetricByKey, computationExists } from './data.service.js';
+import { assertSameClinic } from '../../lib/clinicAccess.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // Data Intelligence API (Phase 10): metric registry, metric values, dashboards.
@@ -42,6 +43,7 @@ dataRouter.post('/metrics', requirePermission('platform.analytics'), async (req:
 dataRouter.get('/metrics/:key/value', async (req: AuthRequest, res) => {
   try {
     const scopeId = (req.query.scopeId as string) || req.user?.clinicId || undefined;
+    if (scopeId && !assertSameClinic(req, res, scopeId)) return;
     const value = await computeMetricByKey(req.params.key as string, scopeId);
     return res.json({ ok: true, data: { key: req.params.key, ...value } } satisfies ApiResponse);
   } catch (error) {
@@ -54,6 +56,7 @@ dataRouter.get('/metrics/:key/value', async (req: AuthRequest, res) => {
 // ─── Dashboards ───
 dataRouter.get('/dashboards', async (req: AuthRequest, res) => {
   const scopeId = (req.query.scopeId as string) || req.user?.clinicId;
+  if (scopeId && !assertSameClinic(req, res, scopeId)) return;
   const dashboards = await prisma.dashboard.findMany({
     where: { scopeType: 'CLINIC', scopeId: scopeId || '' },
     orderBy: { createdAt: 'desc' },
@@ -68,6 +71,7 @@ dataRouter.post('/dashboards', async (req: AuthRequest, res) => {
     if (!name || !layout || !clinicId) {
       return res.status(400).json({ ok: false, error: 'name, layout и clinic обязательны' } satisfies ApiResponse);
     }
+    if (!assertSameClinic(req, res, clinicId)) return;
     const dashboard = await prisma.dashboard.create({
       data: { scopeType: 'CLINIC', scopeId: clinicId, name, layout, createdBy: req.user?.id || null },
     });

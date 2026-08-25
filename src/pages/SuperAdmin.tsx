@@ -107,7 +107,7 @@ export default function SuperAdmin() {
 
   const [clinicModal, setClinicModal] = useState<false | 'create' | 'edit'>(false);
   const [editClinic, setEditClinic] = useState<any>(null);
-  const [clinicForm, setClinicForm] = useState({ name: '', city: '', phone: '', email: '', address: '', plan: 'starter' });
+  const [clinicForm, setClinicForm] = useState({ name: '', city: '', phone: '', address: '', plan: 'starter' });
   const [deleteModal, setDeleteModal] = useState<any>(null);
   const [pwModal, setPwModal] = useState<any>(null);
   const [pw, setPw] = useState('');
@@ -321,7 +321,7 @@ export default function SuperAdmin() {
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..."
                   className="pl-8 pr-3 py-1.5 min-h-11 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:ring-1 focus:ring-dv-gold/50 w-56" />
               </div>
-              <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => { setEditClinic(null); setClinicForm({ name: '', city: '', phone: '', email: '', address: '', plan: 'starter' }); setClinicModal('create'); }}>Клиника</Button>
+              <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => { setEditClinic(null); setClinicForm({ name: '', city: '', phone: '', address: '', plan: 'starter' }); setClinicModal('create'); }}>Клиника</Button>
             </div>
           </div>
           <Card padding="none">
@@ -349,7 +349,7 @@ export default function SuperAdmin() {
                             <div className="text-xs text-txt-muted">{c.city || '—'} · {c._count?.memberships ?? 0} сотр. · {c._count?.patients ?? 0} пациен.</div>
                           </td>
                           <td className="px-4 py-3 text-sm text-txt-secondary">
-                            <div>{c.phone || '—'}</div><div className="text-xs text-txt-muted">{c.email || '—'}</div>
+                            <div>{c.phone || '—'}</div>
                           </td>
                           <td className="px-4 py-3">
                             <Badge size="sm" className={PLAN_BADGE[c.plan || '']}>{PLANS[c.plan]?.name || c.plan}</Badge>
@@ -377,7 +377,7 @@ export default function SuperAdmin() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
-                              <Button size="icon-sm" variant="ghost" className="min-h-11" aria-label="Редактировать" onClick={() => { setEditClinic(c); setClinicForm({ name: c.name, city: c.city || '', phone: c.phone || '', email: c.email || '', address: c.address || '', plan: c.plan || 'starter' }); setClinicModal('edit'); }}><Pencil size={14} /></Button>
+                              <Button size="icon-sm" variant="ghost" className="min-h-11" aria-label="Редактировать" onClick={() => { setEditClinic(c); setClinicForm({ name: c.name, city: c.city || '', phone: c.phone || '', address: c.address || '', plan: c.plan || 'starter' }); setClinicModal('edit'); }}><Pencil size={14} /></Button>
                               <Button size="icon-sm" variant="ghost" className="min-h-11" aria-label={c.active ? 'Заблокировать' : 'Активировать'} onClick={() => toggleClinic.mutate(c.id)}>{c.active ? <Ban size={14} /> : <CheckCircle size={14} />}</Button>
                               <Button size="icon-sm" variant="danger" className="min-h-11" aria-label="Удалить" onClick={() => setDeleteModal(c)}><Trash2 size={14} /></Button>
                             </div>
@@ -543,7 +543,6 @@ export default function SuperAdmin() {
             <Input label="Город" value={clinicForm.city} onChange={e => setClinicForm({ ...clinicForm, city: e.target.value })} />
             <Input label="Телефон" value={clinicForm.phone} onChange={e => setClinicForm({ ...clinicForm, phone: e.target.value })} />
           </div>
-          <Input label="Email" value={clinicForm.email} onChange={e => setClinicForm({ ...clinicForm, email: e.target.value })} type="email" />
           <Input label="Адрес" value={clinicForm.address} onChange={e => setClinicForm({ ...clinicForm, address: e.target.value })} />
           {clinicModal === 'create' && (
             <Select label="Тариф" value={clinicForm.plan} onChange={e => setClinicForm({ ...clinicForm, plan: e.target.value })}

@@ -1979,7 +1979,7 @@ export async function addSupplierMember(supplierId: string, body: { email?: stri
   return apiRequest(`/api/suppliers/${supplierId}/members`, { method: 'POST', body: JSON.stringify(body) });
 }
 
-// ─── Hidden platform ops (SUPERADMIN + X-Platform-Ops-Key) ───
+// ─── Hidden platform ops (SUPERADMIN role only; X-Platform-Ops-Key is sent but not checked server-side) ───
 const OPS_KEY_SESSION = 'dv_ops_key';
 
 function getOpsKey(): string {
@@ -2030,11 +2030,12 @@ async function opsRequest(path: string, options: RequestInit = {}): Promise<any>
   return data;
 }
 
-export async function opsListSuppliers(params: { status?: string; search?: string; page?: number } = {}): Promise<any> {
+export async function opsListSuppliers(params: { status?: string; search?: string; page?: number; limit?: number } = {}): Promise<any> {
   const q = new URLSearchParams();
   if (params.status) q.set('status', params.status);
   if (params.search) q.set('search', params.search);
   if (params.page) q.set('page', String(params.page));
+  if (params.limit) q.set('limit', String(params.limit));
   const qs = q.toString();
   return opsRequest(`/api/ops/suppliers${qs ? `?${qs}` : ''}`);
 }
@@ -3220,7 +3221,8 @@ export type WorkflowTriggerEvent =
   | 'patient.created' | 'patient.deleted'
   | 'appointment.created'
   | 'referral.created' | 'referral.accepted' | 'referral.completed'
-  | 'diagnostics.result_ready';
+  | 'diagnostics.result_ready'
+  | 'labOrder.created' | 'labOrder.status_changed';
 
 export interface WorkflowTrigger {
   event: WorkflowTriggerEvent;
@@ -3229,8 +3231,21 @@ export interface WorkflowTrigger {
 export type WorkflowNode =
   | { type: 'condition'; field: string; op: 'eq' | 'neq' | 'exists' | 'contains'; value: string }
   | { type: 'audit'; action: string }
-  | { type: 'notification'; userId?: string; title: string; message: string }
+  // `roles` fans the notification out to every clinic member holding one of
+  // these roles — the only recipient a reusable automation can name, since it
+  // is authored before any specific staff member is known. `userId` is a
+  // narrower single-recipient option for a workflow edited by hand.
+  | { type: 'notification'; userId?: string; roles?: string[]; title: string; message: string }
   | { type: 'log' };
+
+export const WORKFLOW_NOTIFICATION_ROLES: { value: string; label: string }[] = [
+  { value: 'OWNER', label: 'Владелец' },
+  { value: 'ADMIN', label: 'Администратор' },
+  { value: 'MANAGER', label: 'Менеджер' },
+  { value: 'DOCTOR', label: 'Врач' },
+  { value: 'ASSISTANT', label: 'Ассистент' },
+  { value: 'CASHIER', label: 'Кассир' },
+];
 
 export interface WorkflowGraph {
   nodes: WorkflowNode[];
@@ -3428,4 +3443,39 @@ export async function addPartnerSla(partnerId: string, data: { metric: string; t
 
 export async function addPartnerCampaign(partnerId: string, data: { name: string; budget: number; splitBps?: number; startsAt?: string; endsAt?: string }): Promise<PartnerCampaign> {
   return apiRequest(`/api/partners/${partnerId}/campaigns`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+// ─── Quality Center ───
+export interface QualityHealthCheck {
+  checks: {
+    database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
+    redis: { status: 'ok' | 'error' | 'not_configured'; latencyMs?: number; error?: string };
+    realtime: { status: 'ok'; activeConnections: number };
+  };
+  timestamp: string;
+}
+
+export interface QualityIssue {
+  id: string;
+  label: string;
+  severity: 'critical' | 'serious' | 'moderate' | 'minor';
+  category: 'Accessibility' | 'Code Quality';
+  file: string;
+  line?: number;
+  description: string;
+}
+
+export interface QualityScanResult {
+  scannedAt: string;
+  filesScanned: number;
+  items: QualityIssue[];
+  bundleSizeBytes: number | null;
+}
+
+export async function getSystemHealth(): Promise<QualityHealthCheck> {
+  return apiRequest('/api/health');
+}
+
+export async function runQualityScan(): Promise<QualityScanResult> {
+  return apiRequest('/api/quality/scan', { method: 'POST' });
 }

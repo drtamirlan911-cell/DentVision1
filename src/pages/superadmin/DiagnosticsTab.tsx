@@ -159,13 +159,32 @@ export default function DiagnosticsTab() {
   }, [pricingModal]);
 
   const sData: any = stats.data || {};
+  // GET /diagnostics/stats returns { total, todayCount, byStatus, ... } —
+  // no todayReferrals/pendingReferrals/completedReferrals keys ever existed;
+  // pending/completed are derived from byStatus, mirroring the same status
+  // sets the backend itself uses (diagnostics.routes.ts).
+  const COMPLETED_STATUSES = ['COMPLETED', 'REVIEWED', 'DELIVERED', 'CLOSED'];
+  const byStatus: Record<string, number> = sData.byStatus || {};
+  const completedCount = COMPLETED_STATUSES.reduce((acc, s) => acc + (byStatus[s] || 0), 0);
+  const pendingCount = Object.entries(byStatus)
+    .filter(([s]) => !COMPLETED_STATUSES.includes(s) && s !== 'CANCELLED')
+    .reduce((acc, [, c]) => acc + c, 0);
   const centerList: any[] = Array.isArray(centers.data) ? centers.data : [];
   const labList: any[] = Array.isArray(labs.data) ? labs.data : [];
   const regList: any[] = Array.isArray(registrations.data) ? registrations.data : [];
   const commList: any[] = Array.isArray(commissionRules.data) ? commissionRules.data : [];
 
   const refData: any = referrals.data || {};
-  const refList: any[] = Array.isArray(refData.data) ? refData.data : (Array.isArray(refData) ? refData : []);
+  // GET /diagnostics/referrals responds { ok, items, total } (not { ok, data })
+  // — apiRequest only auto-unwraps a `.data` envelope, so this always fell
+  // through to `[]` before, independent of the page/offset bug above.
+  const refList: any[] = Array.isArray(refData.items)
+    ? refData.items
+    : Array.isArray(refData.data)
+      ? refData.data
+      : Array.isArray(refData)
+        ? refData
+        : [];
   const refTotal: number = refData.total || refList.length;
   const refTotalPages = Math.max(1, Math.ceil(refTotal / REFERRAL_PAGE_SIZE));
 
@@ -204,10 +223,10 @@ export default function DiagnosticsTab() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-              <StatCard label="Всего направлений" value={sData.totalReferrals ?? sData.total ?? 0} icon={<FileCheck size={18} />} />
-              <StatCard label="Сегодня" value={sData.todayReferrals ?? sData.today ?? 0} icon={<Clock size={18} />} />
-              <StatCard label="Ожидают" value={sData.pendingReferrals ?? sData.pending ?? 0} icon={<AlertTriangle size={18} />} />
-              <StatCard label="Завершены" value={sData.completedReferrals ?? sData.completed ?? 0} icon={<Check size={18} />} />
+              <StatCard label="Всего направлений" value={sData.total ?? 0} icon={<FileCheck size={18} />} />
+              <StatCard label="Сегодня" value={sData.todayCount ?? 0} icon={<Clock size={18} />} />
+              <StatCard label="Ожидают" value={pendingCount} icon={<AlertTriangle size={18} />} />
+              <StatCard label="Завершены" value={completedCount} icon={<Check size={18} />} />
               <StatCard label="Центры" value={sData.totalCenters ?? centerList.length} icon={<Building2 size={18} />} />
               <StatCard label="Лаборатории" value={sData.totalLabs ?? labList.length} icon={<FlaskConical size={18} />} />
             </div>
@@ -555,21 +574,25 @@ export default function DiagnosticsTab() {
                   </thead>
                   <tbody>
                     {commList.map((rule: any) => {
-                      const centerName = centerList.find((c: any) => c.id === rule.centerId)?.name;
-                      const labName = labList.find((l: any) => l.id === rule.labId)?.name;
+                      // CommissionRule has only `scopeId` (no separate centerId/labId
+                      // columns) — cross-reference it against the loaded center/lab
+                      // lists to find which one the rule actually applies to.
+                      const center = centerList.find((c: any) => c.id === rule.scopeId);
+                      const lab = labList.find((l: any) => l.id === rule.scopeId);
+                      const description = rule.splitJson?.description;
                       return (
                         <tr key={rule.id} className="border-b border-bdr-subtle/50 hover:bg-white/[0.02] transition-colors">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              {rule.centerId && <Building2 size={14} className="text-txt-muted" />}
-                              {rule.labId && <FlaskConical size={14} className="text-txt-muted" />}
-                              <span className="text-sm text-txt-primary">{centerName || labName || '—'}</span>
+                              {center && <Building2 size={14} className="text-txt-muted" />}
+                              {lab && <FlaskConical size={14} className="text-txt-muted" />}
+                              <span className="text-sm text-txt-primary">{center?.name || lab?.name || (rule.scopeId ? '—' : 'Все центры и лаборатории')}</span>
                             </div>
                           </td>
                           <td className="px-4 py-3">
                             <Badge variant="gold" size="sm">{(rule.percentBps / 100).toFixed(2)}%</Badge>
                           </td>
-                          <td className="px-4 py-3 text-sm text-txt-secondary max-w-[240px] truncate">{rule.description || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-txt-secondary max-w-[240px] truncate">{description || '—'}</td>
                           <td className="px-4 py-3 text-xs text-txt-muted">{fd(rule.createdAt)}</td>
                         </tr>
                       );

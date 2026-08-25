@@ -62,9 +62,20 @@ export default function MarketplaceTab() {
   const [page, setPage] = useState(1);
   const [detail, setDetail] = useState<any>(null);
 
+  // Table: real server-side pagination + search — was previously slicing an
+  // unpaginated 50-row fetch client-side, silently hiding suppliers past #50.
   const suppliers = useQuery({
-    queryKey: ['marketplace', 'suppliers', statusFilter],
-    queryFn: () => api.opsListSuppliers({ status: statusFilter || undefined }),
+    queryKey: ['marketplace', 'suppliers', statusFilter, search, page],
+    queryFn: () => api.opsListSuppliers({ status: statusFilter || undefined, search: search || undefined, page }),
+    staleTime: 15_000,
+  });
+
+  // Pipeline overview stat cards need counts across ALL suppliers (matching
+  // statusFilter only, not the table's page/search) — kept as a separate,
+  // generously-limited fetch so paginating the table doesn't zero them out.
+  const suppliersForStats = useQuery({
+    queryKey: ['marketplace', 'suppliers-stats', statusFilter],
+    queryFn: () => api.opsListSuppliers({ status: statusFilter || undefined, limit: 200 }),
     staleTime: 15_000,
   });
 
@@ -104,42 +115,30 @@ export default function MarketplaceTab() {
     onError: (e: any) => toast.error(e.message || 'Ошибка'),
   });
 
-  const allList: any[] = Array.isArray(suppliers.data)
-    ? suppliers.data
-    : Array.isArray(suppliers.data?.data)
-      ? suppliers.data.data
-      : Array.isArray(suppliers.data?.items)
-        ? suppliers.data.items
-        : [];
+  const statsList: any[] = Array.isArray(suppliersForStats.data)
+    ? suppliersForStats.data
+    : Array.isArray(suppliersForStats.data?.data)
+      ? suppliersForStats.data.data
+      : [];
 
   const pipelineCount: Record<string, number> = {};
   PIPELINE_STATUSES.forEach(s => { pipelineCount[s] = 0; });
-  allList.forEach((s: any) => {
+  statsList.forEach((s: any) => {
     const st = String(s.status || 'pending').toLowerCase();
     if (pipelineCount[st] !== undefined) pipelineCount[st]++;
   });
 
-  const totalCount = allList.length;
+  const totalCount = suppliersForStats.data?.pagination?.total ?? statsList.length;
   const pendingCount = pipelineCount['pending'] || 0;
   const verifiedCount = pipelineCount['verified'] || 0;
   const officialCount = pipelineCount['official_partner'] || 0;
 
-  const filtered = allList.filter((s: any) => {
-    if (statusFilter && s.status?.toLowerCase() !== statusFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        String(s.name || '').toLowerCase().includes(q) ||
-        String(s.email || '').toLowerCase().includes(q) ||
-        String(s.city || '').toLowerCase().includes(q) ||
-        String(s.phone || '').toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paged: any[] = Array.isArray(suppliers.data)
+    ? suppliers.data
+    : Array.isArray(suppliers.data?.data)
+      ? suppliers.data.data
+      : [];
+  const totalPages = Math.max(1, suppliers.data?.pagination?.pages ?? Math.ceil(paged.length / PAGE_SIZE));
 
   const detailData: any = detailQuery.data || detail;
   const detailMembers: any[] = Array.isArray(detailData?.members)
@@ -183,7 +182,7 @@ export default function MarketplaceTab() {
         </div>
       )}
 
-      {suppliers.isLoading ? (
+      {suppliersForStats.isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
@@ -198,7 +197,7 @@ export default function MarketplaceTab() {
 
       <GlassCard padding="md">
         <p className="text-xs font-semibold text-txt-muted uppercase tracking-wider mb-4">Pipeline поставщиков</p>
-        {suppliers.isLoading ? (
+        {suppliersForStats.isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
           </div>

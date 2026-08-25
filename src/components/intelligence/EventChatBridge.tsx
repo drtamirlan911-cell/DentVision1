@@ -16,9 +16,20 @@ import {
   Clock,
   Zap,
   ChevronRight,
+  Stethoscope,
+  FlaskConical,
+  ScanLine,
+  FileText,
+  ShoppingCart,
+  CreditCard,
+  Settings,
+  PhoneCall,
+  User,
+  BarChart3,
+  CalendarClock,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Card } from '@/components/ui/ds/Card'
 
 // ─── Types ───
 
@@ -42,32 +53,24 @@ interface EventChatBridgeProps {
 
 // ─── Helpers ───
 
-const AGENT_ICONS: Record<string, string> = {
-  doctor: '🩺',
-  clinical: '🔬',
-  radiology: '📷',
-  documentation: '📋',
-  shop: '📦',
-  finance: '💰',
-  admin: '⚙️',
-  followup: '📞',
-  patient: '👤',
-  ceo: '📊',
-  reception: '📅',
-}
-
-const AGENT_COLORS: Record<string, string> = {
-  doctor: 'border-blue-400/30 bg-blue-400/5',
-  clinical: 'border-emerald-400/30 bg-emerald-400/5',
-  radiology: 'border-purple-400/30 bg-purple-400/5',
-  documentation: 'border-cyan-400/30 bg-cyan-400/5',
-  shop: 'border-amber-400/30 bg-amber-400/5',
-  finance: 'border-green-400/30 bg-green-400/5',
-  admin: 'border-orange-400/30 bg-orange-400/5',
-  followup: 'border-pink-400/30 bg-pink-400/5',
-  patient: 'border-sky-400/30 bg-sky-400/5',
-  ceo: 'border-red-400/30 bg-red-400/5',
-  reception: 'border-indigo-400/30 bg-indigo-400/5',
+/**
+ * One icon per agent identity — for recognition, not decoration. Colour is
+ * not part of this: a card's border/background follows outcome
+ * (success/critical), the same doctrine as StatCard — differentiating N
+ * agents by N hues would be a legend that decodes to nothing.
+ */
+const AGENT_ICONS: Record<string, LucideIcon> = {
+  doctor: Stethoscope,
+  clinical: FlaskConical,
+  radiology: ScanLine,
+  documentation: FileText,
+  shop: ShoppingCart,
+  finance: CreditCard,
+  admin: Settings,
+  followup: PhoneCall,
+  patient: User,
+  ceo: BarChart3,
+  reception: CalendarClock,
 }
 
 // ─── Subcomponents ───
@@ -80,31 +83,27 @@ function AgentActionMessage({
   onClick?: () => void
 }) {
   const agent = message.agent || 'ai'
-  const icon = AGENT_ICONS[agent] || '🤖'
-  const colorClass = AGENT_COLORS[agent] || 'border-gray-400/30 bg-gray-400/5'
+  const Icon = AGENT_ICONS[agent] || Bot
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cn(
-        'flex gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/30 transition-colors',
-        colorClass
-      )}
+      className="flex gap-3 p-3 rounded-lg border border-bdr-subtle bg-surface-1 cursor-pointer hover:bg-surface-2 transition-colors"
       onClick={onClick}
     >
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-background flex items-center justify-center text-sm">
-        {icon}
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-dv-gold/10 text-dv-gold flex items-center justify-center">
+        <Icon size={16} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">
+          <span className="text-xs font-medium text-txt-muted">
             {agent}
           </span>
           {message.action && (
             <>
-              <ChevronRight size={10} className="text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
+              <ChevronRight size={10} className="text-txt-muted" />
+              <span className="text-xs text-txt-muted">
                 {message.action}
               </span>
             </>
@@ -112,13 +111,13 @@ function AgentActionMessage({
           <div className="ml-auto flex items-center gap-1">
             {message.success !== undefined && (
               message.success ? (
-                <CheckCircle size={12} className="text-green-400" />
+                <CheckCircle size={12} className="text-success" />
               ) : (
-                <AlertTriangle size={12} className="text-red-400" />
+                <AlertTriangle size={12} className="text-error" />
               )
             )}
-            <Clock size={10} className="text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">
+            <Clock size={10} className="text-txt-muted" />
+            <span className="text-[10px] text-txt-muted">
               {message.timestamp.toLocaleTimeString('ru-RU', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -126,7 +125,7 @@ function AgentActionMessage({
             </span>
           </div>
         </div>
-        <p className="text-sm mt-1 text-foreground/90">{message.message}</p>
+        <p className="text-sm mt-1 text-txt-secondary">{message.message}</p>
       </div>
     </motion.div>
   )
@@ -146,33 +145,33 @@ function AlertMessage({
       className={cn(
         'p-3 rounded-lg border cursor-pointer transition-colors',
         message.critical
-          ? 'border-red-400/50 bg-red-400/10'
-          : 'border-amber-400/30 bg-amber-400/5'
+          ? 'border-error/50 bg-error/10'
+          : 'border-warning/30 bg-warning/5'
       )}
       onClick={onClick}
     >
       <div className="flex items-center gap-2">
         {message.critical ? (
-          <AlertTriangle size={14} className="text-red-400" />
+          <AlertTriangle size={14} className="text-error" />
         ) : (
-          <Zap size={14} className="text-amber-400" />
+          <Zap size={14} className="text-warning" />
         )}
-        <span className="text-xs font-medium">
+        <span className="text-xs font-medium text-txt-primary">
           {message.critical ? 'Критическое' : 'Уведомление'}
         </span>
-        <span className="text-[10px] text-muted-foreground ml-auto">
+        <span className="text-[10px] text-txt-muted ml-auto">
           {message.timestamp.toLocaleTimeString('ru-RU')}
         </span>
       </div>
-      <p className="text-sm mt-1">{message.message}</p>
+      <p className="text-sm mt-1 text-txt-secondary">{message.message}</p>
     </motion.div>
   )
 }
 
 function StatusMessage({ message }: { message: EventChatMessage }) {
   return (
-    <div className="flex items-center gap-2 py-1 px-2 text-xs text-muted-foreground">
-      <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+    <div className="flex items-center gap-2 py-1 px-2 text-xs text-txt-muted">
+      <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
       <span>{message.message}</span>
       <span className="ml-auto text-[10px]">
         {message.timestamp.toLocaleTimeString('ru-RU')}
@@ -225,37 +224,4 @@ export function EventChatBridge({
       </AnimatePresence>
     </div>
   )
-}
-
-// ─── Helper: convert timeline entry to chat messages ───
-
-export function timelineToChatMessages(
-  entry: {
-    id: string
-    event: { type: string; source: string }
-    results: Array<{
-      action: string
-      agent: string
-      success: boolean
-      message?: string
-    }>
-    processedAt: string | Date
-  }
-): EventChatMessage[] {
-  const messages: EventChatMessage[] = []
-
-  for (const result of entry.results) {
-    messages.push({
-      id: `${entry.id}-${result.action}`,
-      type: 'agent_action',
-      agent: result.agent,
-      action: result.action,
-      message: result.message || `${result.action} completed`,
-      success: result.success,
-      critical: !result.success,
-      timestamp: new Date(entry.processedAt),
-    })
-  }
-
-  return messages
 }

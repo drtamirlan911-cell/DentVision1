@@ -14,7 +14,7 @@ const PLANS = [
     price: '0',
     period: 'навсегда',
     icon: Star,
-    color: '#64748B',
+    ctaLabel: 'Начать бесплатно',
     features: [
       { text: 'До 100 пациентов', included: true },
       { text: 'Базовое расписание', included: true },
@@ -30,8 +30,8 @@ const PLANS = [
     price: '49 900',
     period: '/месяц',
     icon: Zap,
-    color: '#C9A96E',
     popular: true,
+    ctaLabel: 'Попробовать 30 дней бесплатно',
     features: [
       { text: 'Безлимит пациентов', included: true },
       { text: 'До 10 пользователей', included: true },
@@ -47,7 +47,7 @@ const PLANS = [
     price: '149 900',
     period: '/месяц',
     icon: Crown,
-    color: '#8E44AD',
+    ctaLabel: 'Обсудить с нами',
     features: [
       { text: 'Всё из Professional', included: true },
       { text: 'Безлимит пользователей и AI', included: true },
@@ -98,19 +98,22 @@ export default function Pricing() {
                     : 'bg-surface-1/50 border-bdr-subtle hover:border-dv-gold/20'
                 }`}
               >
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-dv-gold text-dv-gold-on text-[10px] font-bold uppercase tracking-wider">
-                    Популярный
-                  </div>
-                )}
                 <div className="text-center mb-6 pt-2">
                   <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3"
-                    style={{ backgroundColor: `${plan.color}15` }}
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 ${
+                      plan.popular ? 'bg-dv-gold/10 text-dv-gold' : 'bg-surface-2 text-txt-secondary'
+                    }`}
                   >
-                    <Icon size={22} style={{ color: plan.color }} />
+                    <Icon size={22} />
                   </div>
-                  <h3 className="text-lg font-bold text-txt-primary">{plan.name}</h3>
+                  <h3 className="text-lg font-bold text-txt-primary flex items-center justify-center gap-1.5">
+                    {plan.name}
+                    {plan.popular && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-dv-gold">
+                        · рекомендуем
+                      </span>
+                    )}
+                  </h3>
                   <div className="mt-2">
                     <span className="text-3xl font-bold text-txt-primary">{plan.price}</span>
                     <span className="text-sm text-txt-muted"> ₸{plan.period}</span>
@@ -121,7 +124,7 @@ export default function Pricing() {
                   {plan.features.map((f) => (
                     <li key={f.text} className="flex items-start gap-2.5">
                       {f.included ? (
-                        <Check size={14} className="text-green-400 mt-0.5 shrink-0" />
+                        <Check size={14} className="text-success mt-0.5 shrink-0" />
                       ) : (
                         <X size={14} className="text-txt-ghost mt-0.5 shrink-0" />
                       )}
@@ -141,7 +144,7 @@ export default function Pricing() {
                       : 'bg-surface-2 text-txt-primary border border-bdr-subtle hover:bg-surface-3'
                   }`}
                 >
-                  Начать бесплатно
+                  {plan.ctaLabel}
                 </motion.button>
               </motion.div>
             );
@@ -162,6 +165,17 @@ export default function Pricing() {
             </button>
           </p>
         </motion.div>
+
+        <p className="text-center text-xs text-txt-ghost mt-6">
+          Регистрируясь, вы соглашаетесь с{' '}
+          <button onClick={() => navigate('/terms')} className="text-dv-gold hover:underline">
+            Условиями использования
+          </button>{' '}
+          и{' '}
+          <button onClick={() => navigate('/privacy')} className="text-dv-gold hover:underline">
+            Политикой конфиденциальности
+          </button>
+        </p>
       </div>
     </div>
   );

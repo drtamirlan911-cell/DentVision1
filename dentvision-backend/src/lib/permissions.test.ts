@@ -16,6 +16,22 @@ describe('permissionsForRole', () => {
     expect(p).toContain('staff.manage');
   });
 
+  it('OWNER/ADMIN can browse the academy marketplace but not govern the platform-wide Academy/Lecturer registry', () => {
+    // `academy.manage` gates academy.routes.ts, which creates/edits/deletes
+    // Academy records and runs the lecturer expert-verification pipeline with
+    // no clinic scoping anywhere in that router — it's platform governance,
+    // not a clinic-level admin action. Granting it to every clinic's OWNER/ADMIN
+    // let any clinic touch any other academy's registry (found live in an audit).
+    // The DB-seeded Person/Role graph already scopes it to a dedicated
+    // `lecturer` role only (prisma/seed-permissions.ts) — this hardcoded
+    // fallback matrix must agree, not re-grant it through the back door.
+    for (const role of ['OWNER', 'ADMIN'] as const) {
+      const p = permissionsForRole(role);
+      expect(p).toContain('academy.read');
+      expect(p).not.toContain('academy.manage');
+    }
+  });
+
   it('DIRECTOR is OWNER-equivalent', () => {
     expect(permissionsForRole('DIRECTOR')).toEqual(permissionsForRole('OWNER'));
   });

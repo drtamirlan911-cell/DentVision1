@@ -48,8 +48,6 @@ const SERVICE_TILES = [
     subtitle: 'Пациенты и расписание',
     icon: <Stethoscope size={22} />,
     path: '/crm/schedule',
-    color: '#C9A96E',
-    gradient: 'from-dv-gold/15 to-dv-gold/5',
   },
   {
     id: 'shop',
@@ -57,8 +55,6 @@ const SERVICE_TILES = [
     subtitle: 'Маркетплейс товаров',
     icon: <ShoppingCart size={22} />,
     path: '/shop',
-    color: '#27AE60',
-    gradient: 'from-[#27AE60]/15 to-[#27AE60]/5',
   },
   {
     id: 'school',
@@ -66,8 +62,6 @@ const SERVICE_TILES = [
     subtitle: 'Образовательная платформа',
     icon: <GraduationCap size={22} />,
     path: '/school',
-    color: '#2980B9',
-    gradient: 'from-[#2980B9]/15 to-[#2980B9]/5',
   },
   {
     id: 'ai',
@@ -75,8 +69,6 @@ const SERVICE_TILES = [
     subtitle: 'ИИ-помощник врача',
     icon: <Bot size={22} />,
     path: '/',
-    color: '#8E44AD',
-    gradient: 'from-[#8E44AD]/15 to-[#8E44AD]/5',
   },
   {
     id: 'analytics',
@@ -84,8 +76,6 @@ const SERVICE_TILES = [
     subtitle: 'Отчёты и метрики',
     icon: <BarChart3 size={22} />,
     path: '/analytics',
-    color: '#F39C12',
-    gradient: 'from-[#F39C12]/15 to-[#F39C12]/5',
   },
   {
     id: 'lab',
@@ -93,8 +83,6 @@ const SERVICE_TILES = [
     subtitle: 'Лабораторные заказы',
     icon: <FlaskConical size={22} />,
     path: '/crm/lab',
-    color: '#00BCD4',
-    gradient: 'from-[#00BCD4]/15 to-[#00BCD4]/5',
   },
   {
     id: 'cashier',
@@ -102,8 +90,6 @@ const SERVICE_TILES = [
     subtitle: 'Доходы и расходы',
     icon: <CreditCard size={22} />,
     path: '/crm/cashier',
-    color: '#27AE60',
-    gradient: 'from-[#27AE60]/15 to-[#27AE60]/5',
   },
   {
     id: 'settings',
@@ -111,8 +97,6 @@ const SERVICE_TILES = [
     subtitle: 'Конфигурация системы',
     icon: <Settings size={22} />,
     path: '/settings',
-    color: '#64748B',
-    gradient: 'from-[#64748B]/15 to-[#64748B]/5',
   },
 ]
 
@@ -171,16 +155,12 @@ function ServiceGrid() {
             onClick={() => navigate(tile.path)}
             className={cn(
               'relative overflow-hidden rounded-xl border border-bdr-subtle p-4 text-left min-h-11',
-              'bg-gradient-to-br',
-              tile.gradient,
+              'bg-gradient-to-br from-dv-gold/10 to-transparent',
               'hover:border-bdr/50 transition-all duration-200 group'
             )}
           >
             {/* Icon */}
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-xl mb-3 transition-transform duration-200 group-hover:scale-110"
-              style={{ background: `${tile.color}20`, color: tile.color }}
-            >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl mb-3 bg-dv-gold/10 text-dv-gold transition-transform duration-200 group-hover:scale-110">
               {tile.icon}
             </div>
 
@@ -191,8 +171,7 @@ function ServiceGrid() {
             {/* Arrow */}
             <ArrowRight
               size={14}
-              className="absolute right-3 top-3 text-txt-ghost opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-0.5"
-              style={{ color: tile.color }}
+              className="absolute right-3 top-3 text-dv-gold opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-0.5"
             />
           </motion.button>
         ))}

@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, User, Brain, Bell } from 'lucide-react'
+import { X, User, Brain, Bell, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ContextTab } from '@/components/ai/ContextTab'
 import { DigitalTwin } from '@/components/ai/DigitalTwin'
 import { AlertsTab } from '@/components/ai/AlertsTab'
+import { AgentActivityTab } from '@/components/ai/AgentActivityTab'
 import { useAIStore } from '@/store/ai.store'
 import { useAuth } from '@/store/auth.store'
 import { useGuestStore } from '@/store/guest.store'
 
-type TabId = 'context' | 'digital-twin' | 'alerts'
+type TabId = 'context' | 'digital-twin' | 'alerts' | 'activity'
 
 interface ContextPanelProps {
   onClose?: () => void
@@ -43,6 +44,9 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
       hint: isGuest ? 'Подсказки для гостя' : 'AI-сигналы клиники',
       icon: Bell,
     },
+    // Requires an authenticated clinic member — GET /api/ai/timeline 401s for
+    // guests, and there is nothing clinic-scoped to show them anyway.
+    ...(isGuest ? [] : [{ id: 'activity' as TabId, label: 'Активность', hint: 'Что делал ИИ', icon: Bot }]),
   ]
 
   return (
@@ -135,6 +139,18 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
               className="p-3"
             >
               <AlertsTab />
+            </motion.div>
+          )}
+          {activeTab === 'activity' && (
+            <motion.div
+              key="activity"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="p-3"
+            >
+              <AgentActivityTab />
             </motion.div>
           )}
         </AnimatePresence>

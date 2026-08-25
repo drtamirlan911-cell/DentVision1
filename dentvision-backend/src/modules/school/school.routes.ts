@@ -7,10 +7,9 @@ import { uid } from '../../lib/helpers.js';
 import {
   CLINICAL_CASES,
   DEFAULT_EXAM,
+  getTutorReply,
   LIBRARY_ITEMS,
-  reviewHomework,
-  upcomingOfficeCourses,
-  upcomingWebinars,
+  reviewHomeworkWithAI,
 } from './academyContent.js';
 import {
   mapCourseToEventCard,
@@ -192,14 +191,8 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
       loadDbOfferings('textbook'),
       loadDbOfferings('office'),
     ]);
-    const webinars = [
-      ...dbWebinars.map(mapCourseToEventCard),
-      ...upcomingWebinars(),
-    ];
-    const officeCourses = [
-      ...dbOffice.map(mapCourseToEventCard),
-      ...upcomingOfficeCourses(),
-    ];
+    const webinars = dbWebinars.map(mapCourseToEventCard);
+    const officeCourses = dbOffice.map(mapCourseToEventCard);
     const textbooks = dbTextbooks.map(mapCourseToEventCard);
     const trackCourses = courses.filter((c) => normalizeSchoolFormat((c as any).format) === 'course');
 
@@ -586,17 +579,17 @@ schoolRouter.get('/library', async (req, res) => {
 
 schoolRouter.get('/live', async (_req, res) => {
   const db = await loadDbOfferings('webinar');
-  res.json({ ok: true, data: [...db.map(mapCourseToEventCard), ...upcomingWebinars()] });
+  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
 
 schoolRouter.get('/webinars', async (_req, res) => {
   const db = await loadDbOfferings('webinar');
-  res.json({ ok: true, data: [...db.map(mapCourseToEventCard), ...upcomingWebinars()] });
+  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
 
 schoolRouter.get('/office-courses', async (_req, res) => {
   const db = await loadDbOfferings('office');
-  res.json({ ok: true, data: [...db.map(mapCourseToEventCard), ...upcomingOfficeCourses()] });
+  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
 
 schoolRouter.get('/textbooks', async (_req, res) => {
@@ -614,7 +607,8 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
     }
     const format = normalizeSchoolFormat(formatRaw);
 
-    // Prefer lecturer-owned DB product (course row with matching format).
+    // Every sellable product — platform-curated or lecturer-owned — is a real
+    // `Course` row (see the `seed_academy_platform_catalog` migration).
     const dbProduct = await prisma.course.findUnique({
       where: { id: String(productId) },
       include: { _count: { select: { enrollments: true } } },
@@ -630,14 +624,6 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
         sellerType = 'LECTURER';
         sellerId = dbProduct.lecturerId;
       }
-    } else {
-      const catalog =
-        format === 'office'
-          ? upcomingOfficeCourses()
-          : format === 'webinar'
-            ? upcomingWebinars()
-            : [];
-      product = catalog.find((p) => p.id === productId) || null;
     }
 
     if (!product) {
@@ -811,6 +797,17 @@ schoolRouter.post('/lessons/:lessonId/exam/submit', authenticate, async (req: Au
       res.status(404).json({ ok: false, error: 'Урок не найден' });
       return;
     }
+    // Same rule as GET /exam above: without this, a signed-in user who never
+    // bought the course could still probe question ids and submit answers —
+    // no certificate would be issued (that already checked enrollment below),
+    // but they'd get a real pass/fail score for content they never paid for.
+    const enrollment = await prisma.schoolEnrollment.findFirst({
+      where: { userId: req.user!.id, courseId: lesson.courseId },
+    });
+    if (!enrollment) {
+      res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
+      return;
+    }
 
     const answers = (req.body?.answers || {}) as Record<string, number>;
     let correct = 0;
@@ -822,29 +819,23 @@ schoolRouter.post('/lessons/:lessonId/exam/submit', authenticate, async (req: Au
 
     let certificate = null;
     if (passed) {
-      const enrollment = await prisma.schoolEnrollment.findUnique({
-        where: {
-          userId_courseId: { userId: req.user!.id, courseId: lesson.courseId },
+      // Enrollment is already confirmed above — no need to re-fetch it.
+      const updated = await prisma.schoolEnrollment.update({
+        where: { id: enrollment.id },
+        data: {
+          progress: Math.max(enrollment.progress, 100),
+          completed: true,
+          certificateUrl: enrollment.certificateUrl || `academy-cert://${enrollment.id}`,
         },
+        include: { course: true },
       });
-      if (enrollment) {
-        const updated = await prisma.schoolEnrollment.update({
-          where: { id: enrollment.id },
-          data: {
-            progress: Math.max(enrollment.progress, 100),
-            completed: true,
-            certificateUrl: enrollment.certificateUrl || `academy-cert://${enrollment.id}`,
-          },
-          include: { course: true },
-        });
-        certificate = {
-          id: updated.id,
-          courseTitle: updated.course.title,
-          certificateUrl: updated.certificateUrl,
-          certificateNumber: `AOS-${updated.id.slice(0, 8).toUpperCase()}`,
-          score,
-        };
-      }
+      certificate = {
+        id: updated.id,
+        courseTitle: updated.course.title,
+        certificateUrl: updated.certificateUrl,
+        certificateNumber: `AOS-${updated.id.slice(0, 8).toUpperCase()}`,
+        score,
+      };
     }
 
     res.json({
@@ -875,26 +866,8 @@ schoolRouter.post('/tutor', authenticate, async (req: AuthRequest, res) => {
       return;
     }
 
-    const lower = message.toLowerCase();
-    let reply =
-      'Я AI Tutor Academy OS. Задайте вопрос по уроку, протоколу или разбору ошибки в тесте.';
-    if (lower.includes('эндо') || lower.includes('канал')) {
-      reply = 'Для эндодонтии под микроскопом: изоляция → рабочая длина → ирригация → обтурация. Хотите чек-лист ревизии?';
-    } else if (lower.includes('имплант')) {
-      reply = 'В эстетической зоне оцените биотип, объём кости и мягких тканей до установки. Могу разобрать ваш кейс по шагам.';
-    } else if (lower.includes('экзамен') || lower.includes('тест')) {
-      reply = 'Перед экзаменом повторите ключевые протоколы модуля. Проходной балл — 70%. После сдачи сертификат попадёт в портфолио.';
-    } else if (lower.includes('домашн') || lower.includes('homework')) {
-      reply = 'Загрузите описание кейса и фото — я проверю полноту протокола, диагноз и фотопротокол.';
-    }
-
-    res.json({
-      ok: true,
-      data: {
-        reply,
-        suggestions: ['Разобрать ошибку в тесте', 'Составить learning path', 'Проверить домашнее задание'],
-      },
-    });
+    const { reply, suggestions } = await getTutorReply(message);
+    res.json({ ok: true, data: { reply, suggestions } });
   } catch {
     res.status(500).json({ ok: false, error: 'Tutor unavailable' });
   }
@@ -902,7 +875,7 @@ schoolRouter.post('/tutor', authenticate, async (req: AuthRequest, res) => {
 
 schoolRouter.post('/homework/review', authenticate, async (req: AuthRequest, res) => {
   try {
-    const result = reviewHomework({
+    const result = await reviewHomeworkWithAI({
       title: req.body?.title,
       notes: req.body?.notes,
       category: req.body?.category,

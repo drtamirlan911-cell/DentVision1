@@ -1,5 +1,7 @@
 /** Curated Academy OS commerce content — webinars & office courses first. */
 
+import { simpleChat } from '../ai/llm/client.js';
+
 export const CLINICAL_CASES = [
   {
     id: 'case-endo-01',
@@ -62,178 +64,16 @@ export const LIBRARY_ITEMS = [
   { id: 'lib-6', title: 'Шаблоны плана лечения для пациента', type: 'Шаблон', category: 'Менеджмент', author: 'Academy OS', pages: 4 },
 ];
 
-/** Paid webinars — primary online commerce format. */
-export function upcomingWebinars() {
-  const now = Date.now();
-  const day = 24 * 60 * 60 * 1000;
-  return [
-    {
-      id: 'wb-1',
-      format: 'webinar' as const,
-      title: 'Ревизия каналов под микроскопом — live demo',
-      lecturer: 'Dr. Айгерим Нурланова',
-      academy: 'EndoLab Academy',
-      category: 'Эндодонтия',
-      startsAt: new Date(now + 2 * day).toISOString(),
-      durationMin: 90,
-      seats: 120,
-      enrolled: 86,
-      price: 25000,
-      currency: 'KZT',
-      includes: ['Запись 30 дней', 'PDF-протокол', 'Q&A'],
-      certificate: false,
-      status: 'scheduled',
-    },
-    {
-      id: 'wb-2',
-      format: 'webinar' as const,
-      title: 'Цифровой Wax-Up и коммуникация с лабораторией',
-      lecturer: 'Dr. Алексей Петров',
-      academy: 'Prostho Hub',
-      category: 'Ортопедия',
-      startsAt: new Date(now + 5 * day).toISOString(),
-      durationMin: 60,
-      seats: 80,
-      enrolled: 41,
-      price: 18000,
-      currency: 'KZT',
-      includes: ['Чек-лист лаборатории', 'Шаблоны ТЗ', 'Запись'],
-      certificate: false,
-      status: 'scheduled',
-    },
-    {
-      id: 'wb-3',
-      format: 'webinar' as const,
-      title: 'Soft tissue around implants (International)',
-      lecturer: 'Dr. Sara Kim',
-      academy: 'Global Implant Forum',
-      category: 'Имплантация',
-      startsAt: new Date(now + 9 * day).toISOString(),
-      durationMin: 75,
-      seats: 200,
-      enrolled: 153,
-      price: 35000,
-      currency: 'KZT',
-      includes: ['EN + RU субтитры', 'Case pack', 'Запись 60 дней'],
-      certificate: true,
-      status: 'scheduled',
-    },
-    {
-      id: 'wb-4',
-      format: 'webinar' as const,
-      title: 'Фотопротокол улыбки за 45 минут',
-      lecturer: 'Dr. Ольга Смирнова',
-      academy: 'Smile Media Lab',
-      category: 'Фотография',
-      startsAt: new Date(now + 12 * day).toISOString(),
-      durationMin: 45,
-      seats: 150,
-      enrolled: 62,
-      price: 12000,
-      currency: 'KZT',
-      includes: ['12 ракурсов', 'Пресеты', 'Запись'],
-      certificate: false,
-      status: 'scheduled',
-    },
-  ];
-}
-
-/** @deprecated use upcomingWebinars — kept for hub/live alias */
-export function upcomingLiveSessions() {
-  return upcomingWebinars();
-}
-
-/** Hands-on office courses — primary offline commerce format. */
-export function upcomingOfficeCourses() {
-  const now = Date.now();
-  const day = 24 * 60 * 60 * 1000;
-  return [
-    {
-      id: 'off-1',
-      format: 'office' as const,
-      title: 'Hands-on: эндодонтия под микроскопом (2 дня)',
-      lecturer: 'Dr. Айгерим Нурланова',
-      academy: 'EndoLab Academy',
-      category: 'Эндодонтия',
-      city: 'Алматы',
-      venue: 'Учебный центр EndoLab, пр. Достык 89',
-      startsAt: new Date(now + 14 * day).toISOString(),
-      endsAt: new Date(now + 15 * day).toISOString(),
-      durationDays: 2,
-      seats: 12,
-      enrolled: 9,
-      price: 280000,
-      currency: 'KZT',
-      includes: ['Материалы и расходники', 'Микроскоп 1:1', 'Сертификат', 'Обед'],
-      certificate: true,
-      level: 'advanced',
-      status: 'open',
-    },
-    {
-      id: 'off-2',
-      format: 'office' as const,
-      title: 'Офис-курс: имплантация в эстетической зоне',
-      lecturer: 'Dr. Timur Bek',
-      academy: 'Implant Pro',
-      category: 'Имплантация',
-      city: 'Астана',
-      venue: 'Clinic Campus, ул. Сыганак 17',
-      startsAt: new Date(now + 21 * day).toISOString(),
-      endsAt: new Date(now + 22 * day).toISOString(),
-      durationDays: 2,
-      seats: 10,
-      enrolled: 7,
-      price: 450000,
-      currency: 'KZT',
-      includes: ['Модели и импланты для практики', 'Хирургический сет', 'Сертификат', 'Networking dinner'],
-      certificate: true,
-      level: 'advanced',
-      status: 'open',
-    },
-    {
-      id: 'off-3',
-      format: 'office' as const,
-      title: 'Очный воркшоп: циркониевые реставрации',
-      lecturer: 'Dr. Алексей Петров',
-      academy: 'Prostho Hub',
-      category: 'Ортопедия',
-      city: 'Алматы',
-      venue: 'Digital Lab Studio, ул. Жандосова 54',
-      startsAt: new Date(now + 28 * day).toISOString(),
-      endsAt: new Date(now + 28 * day).toISOString(),
-      durationDays: 1,
-      seats: 16,
-      enrolled: 11,
-      price: 195000,
-      currency: 'KZT',
-      includes: ['Wax-up практика', 'Временные коронки', 'Сертификат'],
-      certificate: true,
-      level: 'intermediate',
-      status: 'open',
-    },
-    {
-      id: 'off-4',
-      format: 'office' as const,
-      title: 'Office course: soft tissue grafting around implants',
-      lecturer: 'Dr. Sara Kim',
-      academy: 'Global Implant Forum',
-      category: 'Имплантация',
-      city: 'Алматы',
-      venue: 'Rixos Conference Hall B',
-      startsAt: new Date(now + 40 * day).toISOString(),
-      endsAt: new Date(now + 41 * day).toISOString(),
-      durationDays: 2,
-      seats: 20,
-      enrolled: 14,
-      price: 520000,
-      currency: 'KZT',
-      includes: ['Pig-head hands-on', 'EN/RU', 'International certificate', 'Coffee breaks'],
-      certificate: true,
-      level: 'expert',
-      status: 'open',
-    },
-  ];
-}
+// `upcomingWebinars()`/`upcomingOfficeCourses()`/`upcomingLiveSessions()` used
+// to live here as hardcoded arrays spliced into the marketplace response —
+// `seats`/`enrolled` were literal numbers that never moved regardless of real
+// purchases, because nothing tied a purchase back to those ids. The same
+// curated content is now seeded as real `Course` rows (see the
+// `seed_academy_platform_catalog` migration in `index.ts`), which already
+// compute `enrolled` live from `_count.enrollments` via `mapCourseToEventCard`
+// — the correct inventory system already existed for lecturer-created
+// courses, so this stopped maintaining a second, fake one instead of building
+// a third.
 
 export const DEFAULT_EXAM = {
   title: 'Итоговый экзамен модуля',
@@ -314,4 +154,90 @@ export function reviewHomework(input: {
     feedback: feedback.length ? feedback : ['Работа получена. Добавьте детали для более точной оценки.'],
     suggestions,
   };
+}
+
+const HOMEWORK_REVIEW_PROMPT = `Ты — опытный врач-стоматолог, проверяющий домашнее задание слушателя курса Academy OS.
+Оцени полноту клинического описания (диагноз, протокол, использованные материалы) и фотопротокол.
+Верни СТРОГО JSON без markdown и пояснений вокруг, ровно такой формы:
+{"score": <целое число 0-100>, "verdict": "<короткий вердикт на русском>", "feedback": ["<что сделано хорошо>", ...], "suggestions": ["<что улучшить>", ...]}
+Никогда не запрашивай, не выдумывай и не пересказывай персональные данные пациента (ФИО, ИИН, телефон, дату рождения) — оценивай только клиническое содержание присланного текста.`;
+
+function parseHomeworkReviewJson(raw: string): { score: number; verdict: string; feedback: string[]; suggestions: string[] } | null {
+  try {
+    // Models sometimes wrap JSON in a ```json fence despite instructions not to.
+    const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
+    const parsed = JSON.parse(cleaned);
+    const score = Number(parsed.score);
+    if (!Number.isFinite(score) || score < 0 || score > 100) return null;
+    if (typeof parsed.verdict !== 'string' || !parsed.verdict.trim()) return null;
+    const feedback = Array.isArray(parsed.feedback) ? parsed.feedback.filter((s: unknown) => typeof s === 'string') : [];
+    const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions.filter((s: unknown) => typeof s === 'string') : [];
+    return { score: Math.round(score), verdict: parsed.verdict, feedback, suggestions };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Real model call, with the deterministic `reviewHomework` heuristic above as
+ * the fallback — not a preference, a requirement: no API key configured, a
+ * network failure, or a model reply that doesn't parse as the expected JSON
+ * must never turn "review my homework" into a 500. A learner submitting a
+ * case for certification review needs *a* verdict every time, not "try again
+ * later" from a feature that's supposed to unblock a course lesson.
+ */
+export async function reviewHomeworkWithAI(input: {
+  title?: string;
+  notes?: string;
+  category?: string;
+  imageCount?: number;
+}): Promise<{ score: number; verdict: string; feedback: string[]; suggestions: string[]; source: 'ai' | 'heuristic' }> {
+  const userMessage = [
+    input.title ? `Название кейса: ${input.title}` : null,
+    input.category ? `Категория: ${input.category}` : null,
+    `Приложено фото: ${input.imageCount || 0}`,
+    `Клинические заметки: ${input.notes || '(не указаны)'}`,
+  ].filter(Boolean).join('\n');
+
+  try {
+    const raw = await simpleChat(HOMEWORK_REVIEW_PROMPT, userMessage, { maxTokens: 500 });
+    const parsed = raw ? parseHomeworkReviewJson(raw) : null;
+    if (parsed) return { ...parsed, source: 'ai' };
+  } catch (err) {
+    console.error('[academy] AI homework review failed, falling back to heuristic:', err);
+  }
+  return { ...reviewHomework(input), source: 'heuristic' };
+}
+
+const TUTOR_SYSTEM_PROMPT = `Ты — AI Tutor платформы Academy OS для стоматологов. Отвечай кратко (2-4 предложения), по существу, на русском языке.
+Помогай с клиническими протоколами, разбором ошибок в тестах курса, планированием обучения.
+Никогда не запрашивай, не выдумывай и не воспроизводи персональные данные пациентов (ФИО, ИИН, телефон, адрес) — если они появились в сообщении пользователя, не повторяй их в ответе.`;
+
+function tutorFallbackReply(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes('эндо') || lower.includes('канал')) {
+    return 'Для эндодонтии под микроскопом: изоляция → рабочая длина → ирригация → обтурация. Хотите чек-лист ревизии?';
+  }
+  if (lower.includes('имплант')) {
+    return 'В эстетической зоне оцените биотип, объём кости и мягких тканей до установки. Могу разобрать ваш кейс по шагам.';
+  }
+  if (lower.includes('экзамен') || lower.includes('тест')) {
+    return 'Перед экзаменом повторите ключевые протоколы модуля. Проходной балл — 70%. После сдачи сертификат попадёт в портфолио.';
+  }
+  if (lower.includes('домашн') || lower.includes('homework')) {
+    return 'Загрузите описание кейса и фото — я проверю полноту протокола, диагноз и фотопротокол.';
+  }
+  return 'Я AI Tutor Academy OS. Задайте вопрос по уроку, протоколу или разбору ошибки в тесте.';
+}
+
+/** Same fallback contract as reviewHomeworkWithAI — a tutor that goes silent when unconfigured is worse than a canned reply. */
+export async function getTutorReply(message: string): Promise<{ reply: string; suggestions: string[] }> {
+  const suggestions = ['Разобрать ошибку в тесте', 'Составить learning path', 'Проверить домашнее задание'];
+  try {
+    const reply = await simpleChat(TUTOR_SYSTEM_PROMPT, message, { maxTokens: 300 });
+    if (reply.trim()) return { reply: reply.trim(), suggestions };
+  } catch (err) {
+    console.error('[academy] AI tutor failed, falling back to canned reply:', err);
+  }
+  return { reply: tutorFallbackReply(message), suggestions };
 }

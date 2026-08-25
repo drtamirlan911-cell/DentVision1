@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { subscribe, type DomainEventName } from '../../lib/events.js';
 import { uid } from '../../lib/helpers.js';
+import { createNotificationForClinic } from '../../services/notification.service.js';
 
 // Workflow Studio engine (Phase 9). Executes clinic automations built from a
 // node graph, triggered by Event Bus events or manual runs. Node actions reuse
@@ -14,8 +15,13 @@ interface WorkflowNode {
   field?: string;
   op?: 'eq' | 'neq' | 'exists' | 'contains';
   value?: unknown;
-  // notification
+  // notification — `roles` fans out to every clinic member holding one of
+  // these roles (the only targeting a reusable automation template can mean
+  // anything by, since it's authored before any specific clinic member is
+  // known); `userId` stays as a narrower, single-recipient option for a
+  // workflow edited by hand for one person.
   userId?: string;
+  roles?: string[];
   title?: string;
   message?: string;
   // audit / log
@@ -30,6 +36,8 @@ const TRIGGER_EVENTS: DomainEventName[] = [
   'referral.accepted',
   'referral.completed',
   'diagnostics.result_ready',
+  'labOrder.created',
+  'labOrder.status_changed',
 ];
 
 function getField(obj: Record<string, unknown>, path?: string): unknown {
@@ -70,6 +78,14 @@ async function runNode(
       });
       return { type: 'audit', ok: true };
     case 'notification':
+      if (node.roles?.length) {
+        await createNotificationForClinic(
+          ctx.clinicId,
+          { type: 'workflow', title: node.title || 'Автоматизация', message: node.message || '' },
+          { roles: node.roles },
+        );
+        return { type: 'notification', ok: true };
+      }
       if (node.userId) {
         await prisma.notification.create({
           data: {
@@ -82,7 +98,7 @@ async function runNode(
         });
         return { type: 'notification', ok: true };
       }
-      return { type: 'notification', ok: false, note: 'no userId' };
+      return { type: 'notification', ok: false, note: 'no recipient (userId or roles)' };
     case 'log':
     default:
       return { type: node.type || 'log', ok: true };

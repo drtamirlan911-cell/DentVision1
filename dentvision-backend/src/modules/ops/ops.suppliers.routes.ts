@@ -11,7 +11,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 /**
  * Hidden platform ops — supplier governance.
  * Mounted at /api/ops/suppliers. Not linked from any public UI.
- * Requires SUPERADMIN + X-Platform-Ops-Key (see requirePlatformOps).
+ * Requires the SUPERADMIN role (see requirePlatformOps — no request header is checked).
  */
 export const opsSuppliersRouter = Router();
 

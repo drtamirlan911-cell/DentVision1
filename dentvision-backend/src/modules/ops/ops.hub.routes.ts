@@ -444,10 +444,11 @@ opsHubRouter.post('/automations/verify-new-lecturers', async (req: AuthRequest, 
 opsHubRouter.post('/automations/extend-expiring-clinics', async (req: AuthRequest, res) => {
   try {
     const months = Math.min(Math.max(parseInt(String(req.body?.months || 1), 10) || 1, 1), 12);
+    const daysAhead = Math.min(Math.max(parseInt(String(req.body?.daysAhead || 14), 10) || 14, 1), 90);
     const now = new Date();
-    const in14d = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const cutoff = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
     const expiring = await prisma.subscription.findMany({
-      where: { ownerType: 'CLINIC', status: 'active', periodEnd: { gte: now, lte: in14d } },
+      where: { ownerType: 'CLINIC', status: 'active', periodEnd: { gte: now, lte: cutoff } },
     });
     let extended = 0;
     for (const s of expiring) {
@@ -461,7 +462,7 @@ opsHubRouter.post('/automations/extend-expiring-clinics', async (req: AuthReques
       await prisma.clinic.updateMany({ where: { id: s.ownerId }, data: { active: true } });
       extended += 1;
     }
-    return res.json({ ok: true, data: { extended, months } } satisfies ApiResponse);
+    return res.json({ ok: true, data: { extended, months, daysAhead } } satisfies ApiResponse);
   } catch (error) {
     console.error('[ops/automations extend]', error);
     return res.status(500).json({ ok: false, error: 'Ошибка автоматизации' } satisfies ApiResponse);

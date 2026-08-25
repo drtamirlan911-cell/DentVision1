@@ -47,8 +47,11 @@ const EMPTY_FORM = {
   venue: '',
 }
 
+// Keys match the real `ExpertLevel` Prisma enum values (lowercase) as the
+// backend actually serializes them — this used to be uppercase and never
+// matched, silently falling back to the raw enum string everywhere below.
 const LEVEL_LABEL: Record<string, string> = {
-  NEW: 'Новый лектор', VERIFIED: 'Проверенный', EXPERT: 'Эксперт', INTERNATIONAL_SPEAKER: 'Международный спикер',
+  new: 'Новый лектор', verified: 'Проверенный', expert: 'Эксперт', international_speaker: 'Международный спикер',
 };
 
 function fmtMoney(minor: string | number | undefined): string {
@@ -118,7 +121,7 @@ export default function SchoolWorkspace() {
       const created = await api.lecturerWs.register({});
       const scopeId = created?.id || created?.lecturer?.id;
       if (!scopeId) throw new Error('Профиль создан, но id не получен');
-      setContexts([{ scopeId, level: created.level || 'NEW', academy: created.academy || null }]);
+      setContexts([{ scopeId, level: created.level || 'new', academy: created.academy || null }]);
       await enter(scopeId);
       toast.success('Профиль лектора создан');
     } catch (e: any) {
@@ -265,7 +268,7 @@ export default function SchoolWorkspace() {
         subtitle={me?.academy?.name ? `Академия: ${me.academy.name} · курсы · вебинары · учебники` : 'Курсы · вебинары · учебники · независимый преподаватель'}
         icon={<GraduationCap size={22} />}
         actions={me && (
-          <Badge variant={me.level === 'EXPERT' || me.level === 'INTERNATIONAL_SPEAKER' ? 'success' : 'gold'}>
+          <Badge variant={me.level === 'expert' || me.level === 'international_speaker' ? 'success' : 'gold'}>
             <Award size={12} className="inline mr-1" />{LEVEL_LABEL[me.level] || me.level}
           </Badge>
         )}
@@ -285,6 +288,11 @@ export default function SchoolWorkspace() {
 
       {tab === 'courses' && (
         <div>
+          {me?.level === 'new' && (
+            <div className="mb-4 rounded-lg border border-dv-gold/30 bg-dv-gold/10 px-3 py-2.5 text-sm text-txt-secondary">
+              Профиль лектора ожидает подтверждения администрацией — платные продукты и выплаты станут доступны после проверки.
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="flex flex-wrap gap-1.5">
               {([{ id: 'all', label: 'Все' }, ...FORMAT_OPTIONS.map((f) => ({ id: f.value, label: f.label }))] as Array<{ id: string; label: string }>).map((f) => (

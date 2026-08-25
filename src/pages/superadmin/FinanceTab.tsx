@@ -39,10 +39,10 @@ const TX_STATUS_OPTIONS = [
 
 const DISPUTE_STATUS_OPTIONS = [
   { value: '', label: 'Все' },
-  { value: 'OPEN', label: 'Открыт' },
-  { value: 'REVIEW', label: 'На рассмотрении' },
-  { value: 'RESOLVED', label: 'Решён' },
-  { value: 'REJECTED', label: 'Отклонён' },
+  { value: 'open', label: 'Открыт' },
+  { value: 'review', label: 'На рассмотрении' },
+  { value: 'resolved', label: 'Решён' },
+  { value: 'rejected', label: 'Отклонён' },
 ];
 
 const TX_STATUS_BADGE: Record<string, 'success' | 'error' | 'warning' | 'info' | 'default'> = {
@@ -67,17 +67,17 @@ const TX_TYPE_LABEL: Record<string, string> = {
 };
 
 const DISPUTE_STATUS_BADGE: Record<string, 'success' | 'error' | 'warning' | 'gold'> = {
-  OPEN: 'warning',
-  REVIEW: 'gold',
-  RESOLVED: 'success',
-  REJECTED: 'error',
+  open: 'warning',
+  review: 'gold',
+  resolved: 'success',
+  rejected: 'error',
 };
 
 const DISPUTE_STATUS_LABEL: Record<string, string> = {
-  OPEN: 'Открыт',
-  REVIEW: 'На рассмотрении',
-  RESOLVED: 'Решён',
-  REJECTED: 'Отклонён',
+  open: 'Открыт',
+  review: 'На рассмотрении',
+  resolved: 'Решён',
+  rejected: 'Отклонён',
 };
 
 type SubTab = 'overview' | 'transactions' | 'wallets' | 'commissions' | 'payouts' | 'disputes' | 'ledger';
@@ -145,7 +145,10 @@ export default function FinanceTab() {
 
   const [commModal, setCommModal] = useState(false);
   const [commEdit, setCommEdit] = useState<any>(null);
-  const [commForm, setCommForm] = useState({ name: '', percent: '', targetType: 'PLATFORM', description: '' });
+  // CommissionRule (schema) only has domain/scopeId/percentBps — no name,
+  // targetType, or description. `percent` here is a UI convenience
+  // (0-100) converted to/from the real percentBps (basis points) at the API boundary.
+  const [commForm, setCommForm] = useState({ domain: '', scopeId: '', percent: '' });
 
   const [disputeDetail, setDisputeDetail] = useState<any>(null);
   const [payoutStatusFilter, setPayoutStatusFilter] = useState('requested');
@@ -207,31 +210,23 @@ export default function FinanceTab() {
     onError: (e: any) => toast.error(e.message || 'Ошибка создания транзакции'),
   });
 
-  const createCommRule = useMutation({
-    mutationFn: (data: any) => apiFetch('/api/finance/commission-rules', { method: 'POST', body: JSON.stringify(data) }),
+  // POST /commission-rules upserts by (domain, scopeId) — there is no
+  // separate edit-by-id route, so create and edit both go through here.
+  const saveCommRule = useMutation({
+    mutationFn: (data: { domain: string; scopeId?: string; percentBps: number }) =>
+      apiFetch('/api/finance/commission-rules', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['finance', 'commission-rules'] });
-      toast.success('Правило создано');
-      setCommModal(false);
-      setCommForm({ name: '', percent: '', targetType: 'PLATFORM', description: '' });
-    },
-    onError: (e: any) => toast.error(e.message || 'Ошибка'),
-  });
-
-  const updateCommRule = useMutation({
-    mutationFn: ({ id, ...rest }: any) => apiFetch(`/api/finance/commission-rules/${id}`, { method: 'PUT', body: JSON.stringify(rest) }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['finance', 'commission-rules'] });
-      toast.success('Правило обновлено');
+      toast.success(commEdit ? 'Правило обновлено' : 'Правило создано');
       setCommModal(false);
       setCommEdit(null);
-      setCommForm({ name: '', percent: '', targetType: 'PLATFORM', description: '' });
+      setCommForm({ domain: '', scopeId: '', percent: '' });
     },
     onError: (e: any) => toast.error(e.message || 'Ошибка'),
   });
 
   const updateDispute = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => apiFetch(`/api/disputes/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    mutationFn: ({ id, status }: { id: string; status: string }) => apiFetch(`/api/disputes/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['finance', 'disputes'] });
       toast.success('Статус спора обновлён');
@@ -281,7 +276,7 @@ export default function FinanceTab() {
   const totalTransactions = reportData.totalTransactions ?? txTotal;
   const platformBalance = reportData.platformBalance ?? walletList.find((w: any) => (w.type || '').toLowerCase() === 'platform')?.balance ?? 0;
   const totalCommissions = reportData.totalCommissions ?? 0;
-  const disputesCount = reportData.disputesCount ?? disputeList.filter((d: any) => d.status === 'OPEN' || d.status === 'REVIEW').length;
+  const disputesCount = reportData.disputesCount ?? disputeList.filter((d: any) => d.status === 'open' || d.status === 'review').length;
 
   const chartData = (reportData.dailyTransactions || []).map((d: any) => ({
     date: fd(d.date || d.createdAt),
@@ -533,20 +528,20 @@ export default function FinanceTab() {
       {subTab === 'commissions' && (
         <div className="space-y-4">
           <div className="flex flex-wrap justify-end gap-2">
-            <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => { setCommEdit(null); setCommForm({ name: '', percent: '', targetType: 'PLATFORM', description: '' }); setCommModal(true); }}>Правило</Button>
+            <Button icon={<Plus size={16} />} className="min-h-11" onClick={() => { setCommEdit(null); setCommForm({ domain: '', scopeId: '', percent: '' }); setCommModal(true); }}>Правило</Button>
           </div>
 
           {commissionRules.isLoading ? (
             <Skeleton className="h-48 rounded-xl" />
           ) : commList.length === 0 ? (
-            <EmptyState icon={<TrendingUp size={40} />} title="Нет правил комиссий" description="Создайте первое правило комиссии" action={<Button icon={<Plus size={16} />} onClick={() => { setCommEdit(null); setCommForm({ name: '', percent: '', targetType: 'PLATFORM', description: '' }); setCommModal(true); }}>Создать правило</Button>} />
+            <EmptyState icon={<TrendingUp size={40} />} title="Нет правил комиссий" description="Создайте первое правило комиссии" action={<Button icon={<Plus size={16} />} onClick={() => { setCommEdit(null); setCommForm({ domain: '', scopeId: '', percent: '' }); setCommModal(true); }}>Создать правило</Button>} />
           ) : (
             <Card padding="none">
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b border-bdr-subtle">
-                      {['Название', 'Процент', 'Тип', 'Описание', 'Действия'].map(h => (
+                      {['Домен', 'Область (scope)', 'Процент', 'Обновлено', 'Действия'].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-bold text-txt-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -557,20 +552,24 @@ export default function FinanceTab() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <TrendingUp size={14} className="text-dv-gold" />
-                            <span className="text-sm font-semibold text-txt-primary">{rule.name || '—'}</span>
+                            <span className="text-sm font-semibold text-txt-primary">{rule.domain || '—'}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant="gold" size="sm">{rule.percent ?? rule.rate ?? '—'}%</Badge>
+                          {rule.scopeId ? (
+                            <span className="text-xs text-txt-secondary font-mono">{String(rule.scopeId).slice(0, 12)}…</span>
+                          ) : (
+                            <Badge variant="info" size="sm">По умолчанию для домена</Badge>
+                          )}
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant="info" size="sm">{rule.targetType || rule.type || 'PLATFORM'}</Badge>
+                          <Badge variant="gold" size="sm">{(rule.percentBps / 100).toFixed(2)}%</Badge>
                         </td>
-                        <td className="px-4 py-3 text-sm text-txt-secondary max-w-[200px] truncate">{rule.description || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-txt-muted">{fd(rule.updatedAt)}</td>
                         <td className="px-4 py-3">
                           <Button size="icon-sm" variant="ghost" onClick={() => {
                             setCommEdit(rule);
-                            setCommForm({ name: rule.name || '', percent: String(rule.percent ?? rule.rate ?? ''), targetType: rule.targetType || 'PLATFORM', description: rule.description || '' });
+                            setCommForm({ domain: rule.domain || '', scopeId: rule.scopeId || '', percent: String((rule.percentBps ?? 0) / 100) });
                             setCommModal(true);
                           }} title="Редактировать"><Eye size={14} /></Button>
                         </td>
@@ -621,17 +620,17 @@ export default function FinanceTab() {
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
                             <Button size="icon-sm" variant="ghost" onClick={() => setDisputeDetail(d)} title="Подробнее"><Eye size={14} /></Button>
-                            {d.status === 'OPEN' && (
-                              <Button size="icon-sm" variant="outline" onClick={() => updateDispute.mutate({ id: d.id, status: 'REVIEW' })} title="На рассмотрение" loading={updateDispute.isPending}>
+                            {d.status === 'open' && (
+                              <Button size="icon-sm" variant="outline" onClick={() => updateDispute.mutate({ id: d.id, status: 'review' })} title="На рассмотрение" loading={updateDispute.isPending}>
                                 <RefreshCw size={14} />
                               </Button>
                             )}
-                            {d.status === 'REVIEW' && (
+                            {d.status === 'review' && (
                               <>
-                                <Button size="icon-sm" variant="success" onClick={() => updateDispute.mutate({ id: d.id, status: 'RESOLVED' })} title="Решить" loading={updateDispute.isPending}>
+                                <Button size="icon-sm" variant="success" onClick={() => updateDispute.mutate({ id: d.id, status: 'resolved' })} title="Решить" loading={updateDispute.isPending}>
                                   <Check size={14} />
                                 </Button>
-                                <Button size="icon-sm" variant="danger" onClick={() => updateDispute.mutate({ id: d.id, status: 'REJECTED' })} title="Отклонить" loading={updateDispute.isPending}>
+                                <Button size="icon-sm" variant="danger" onClick={() => updateDispute.mutate({ id: d.id, status: 'rejected' })} title="Отклонить" loading={updateDispute.isPending}>
                                   <X size={14} />
                                 </Button>
                               </>
@@ -847,21 +846,19 @@ export default function FinanceTab() {
       <Modal open={!!commModal} onClose={() => { setCommModal(false); setCommEdit(null); }} title={commEdit ? 'Редактировать правило' : 'Новое правило комиссии'}>
         <form onSubmit={e => {
           e.preventDefault();
-          if (!commForm.name.trim()) { toast.warn('Укажите название'); return; }
+          if (!commForm.domain.trim()) { toast.warn('Укажите домен'); return; }
           if (!commForm.percent || Number(commForm.percent) <= 0) { toast.warn('Укажите процент'); return; }
-          const payload = { name: commForm.name, percent: Number(commForm.percent), targetType: commForm.targetType, description: commForm.description };
-          if (commEdit) updateCommRule.mutate({ id: commEdit.id, ...payload });
-          else createCommRule.mutate(payload);
+          saveCommRule.mutate({
+            domain: commForm.domain.trim(),
+            scopeId: commForm.scopeId.trim() || undefined,
+            percentBps: Math.round(Number(commForm.percent) * 100),
+          });
         }} className="space-y-4">
-          <Input label="Название *" className="min-h-11" value={commForm.name} onChange={e => setCommForm({ ...commForm, name: e.target.value })} placeholder="Название правила" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Процент (%) *" className="min-h-11" type="number" step="0.01" min="0" max="100" value={commForm.percent} onChange={e => setCommForm({ ...commForm, percent: e.target.value })} placeholder="5.00" />
-            <Select label="Тип" className="min-h-11" value={commForm.targetType} onChange={e => setCommForm({ ...commForm, targetType: e.target.value })}
-              options={[{ value: 'PLATFORM', label: 'Платформа' }, { value: 'SELLER', label: 'Продавец' }, { value: 'CATEGORY', label: 'Категория' }]} />
-          </div>
-          <Input label="Описание" className="min-h-11" value={commForm.description} onChange={e => setCommForm({ ...commForm, description: e.target.value })} placeholder="Описание правила" />
+          <Input label="Домен *" className="min-h-11" value={commForm.domain} onChange={e => setCommForm({ ...commForm, domain: e.target.value })} placeholder="diagnostics, shop, academy…" />
+          <Input label="Область (scope ID)" className="min-h-11" value={commForm.scopeId} onChange={e => setCommForm({ ...commForm, scopeId: e.target.value })} placeholder="Пусто — правило по умолчанию для всего домена" />
+          <Input label="Процент (%) *" className="min-h-11" type="number" step="0.01" min="0" max="100" value={commForm.percent} onChange={e => setCommForm({ ...commForm, percent: e.target.value })} placeholder="5.00" />
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button type="submit" className="min-h-11" loading={createCommRule.isPending || updateCommRule.isPending}>{commEdit ? 'Сохранить' : 'Создать'}</Button>
+            <Button type="submit" className="min-h-11" loading={saveCommRule.isPending}>{commEdit ? 'Сохранить' : 'Создать'}</Button>
             <Button type="button" variant="ghost" onClick={() => { setCommModal(false); setCommEdit(null); }}>Отмена</Button>
           </div>
         </form>

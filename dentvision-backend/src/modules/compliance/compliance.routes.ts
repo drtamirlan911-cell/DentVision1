@@ -190,10 +190,23 @@ complianceRouter.post('/ai/:id/confirm', requirePermission('medical.write'), asy
 
 complianceRouter.get('/ai/stats', async (req: AuthRequest, res) => {
   try {
+    const isSuper = req.user!.role === 'SUPERADMIN';
+    // AIActionLog carries no clinicId of its own — scope through the patient
+    // it's about, or (for patient-less logs) through the acting user's clinic
+    // membership. Same OR-filter shape as getAIActions() in compliance.service.ts.
+    const clinicId = isSuper ? undefined : req.user!.clinicId || undefined;
+    const scope = clinicId
+      ? {
+          OR: [
+            { patient: { clinicId } },
+            { patientId: null, user: { memberships: { some: { clinicId } } } },
+          ],
+        }
+      : {};
     const [total, todayCount, pendingConfirm] = await Promise.all([
-      prisma.aIActionLog.count(),
-      prisma.aIActionLog.count({ where: { createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } } }),
-      prisma.aIActionLog.count({ where: { doctorConfirmed: false } }),
+      prisma.aIActionLog.count({ where: scope }),
+      prisma.aIActionLog.count({ where: { ...scope, createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } } }),
+      prisma.aIActionLog.count({ where: { ...scope, doctorConfirmed: false } }),
     ]);
     return res.json({ ok: true, data: { total, todayCount, pendingConfirm } } satisfies ApiResponse);
   } catch (error) {

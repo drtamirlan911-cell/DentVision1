@@ -26,6 +26,7 @@ export default function Register({ onBack }: RegisterProps) {
     name: '', firstName: '', lastName: '', login: '', email: '', phone: '', spec: '', city: '', password: '', confirmPassword: '',
   });
   const [localError, setLocalError] = useState('');
+  const [agreed, setAgreed] = useState(false);
 
   const set = (k: keyof RegisterForm, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -39,6 +40,7 @@ export default function Register({ onBack }: RegisterProps) {
       return;
     }
     if (form.password !== form.confirmPassword) { setLocalError('Пароли не совпадают'); return; }
+    if (!agreed) { setLocalError('Нужно согласиться с условиями использования'); return; }
     const ok = await register({
       name: form.name,
       firstName: form.firstName,
@@ -60,8 +62,7 @@ export default function Register({ onBack }: RegisterProps) {
 
   return (
     <div className="min-h-screen max-w-full overflow-x-hidden bg-surface-0 flex items-center justify-center p-5 relative overflow-hidden">
-      <div className="absolute w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,rgba(201,169,110,0.06)_0%,transparent_70%)] -top-24 -right-24 pointer-events-none" />
-      <div className="absolute w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,rgba(39,174,96,0.05)_0%,transparent_70%)] -bottom-20 -left-20 pointer-events-none" />
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-dv-gold/5 via-transparent to-transparent" />
 
       <div className="w-full max-w-md sm:max-w-lg bg-surface-1 border border-dv-gold/15 rounded-[18px] py-9 px-8 shadow-[0_40px_80px_rgba(0,0,0,0.5)] relative z-10">
         <div className="text-center mb-7">
@@ -103,6 +104,25 @@ export default function Register({ onBack }: RegisterProps) {
             После регистрации вы сразу получаете доступ к <span className="text-dv-gold">Магазину</span>, <span className="text-dv-gold">Академии</span> и <span className="text-dv-gold">AI-ассистенту</span>. Клинику можно создать или присоединиться к ней позже.
           </div>
 
+          <label className="mt-4 flex items-start gap-2.5 text-xs text-txt-secondary cursor-pointer">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-bdr-subtle accent-dv-gold cursor-pointer"
+            />
+            <span>
+              Я согласен с{' '}
+              <button type="button" onClick={() => window.open('/terms', '_blank')} className="text-dv-gold hover:underline">
+                Условиями использования
+              </button>{' '}
+              и{' '}
+              <button type="button" onClick={() => window.open('/privacy', '_blank')} className="text-dv-gold hover:underline">
+                Политикой конфиденциальности
+              </button>
+            </span>
+          </label>
+
           <div className="mt-6 flex flex-col sm:flex-row gap-2.5">
             <button type="button" onClick={onBack} className="w-full sm:w-auto min-h-11 px-[18px] py-[11px] bg-surface-2 border border-bdr-subtle rounded-lg text-txt-muted text-sm cursor-pointer">
               ← Назад
@@ -110,9 +130,9 @@ export default function Register({ onBack }: RegisterProps) {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || !agreed}
               className={`w-full sm:w-auto sm:flex-1 min-h-11 py-[11px] border-none rounded-lg text-surface-0 text-sm font-bold flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(201,169,110,0.3)] ${
-                loading ? 'bg-dv-gold/60 cursor-not-allowed' : 'bg-gradient-to-r from-dv-gold to-dv-gold-dim cursor-pointer'
+                loading || !agreed ? 'bg-dv-gold/60 cursor-not-allowed' : 'bg-gradient-to-r from-dv-gold to-dv-gold-dim cursor-pointer'
               }`}
             >
               {loading ? <><Loader2 size={16} className="animate-spin" /> Создаём аккаунт…</> : 'Создать аккаунт'}

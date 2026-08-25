@@ -25,6 +25,20 @@ financeRouter.use(authenticate);
 
 const OWNER_TYPES = ['CLINIC', 'SUPPLIER', 'ACADEMY', 'LECTURER', 'PARTNER', 'PLATFORM', 'GATEWAY'];
 
+/**
+ * Wallet reads are intentionally NOT gated by `requirePermission('finance.manage')`:
+ * a clinic/supplier needs to read its own balance without holding that platform
+ * permission. This is the actual authorization boundary for /wallets/:ownerType/:ownerId
+ * — kept as a named guard (rather than inline in the handler) so it can't be
+ * silently dropped in a future refactor.
+ */
+function walletOwnershipGuard(req: AuthRequest, ownerType: string, ownerId: string): boolean {
+  if (req.user?.role === 'SUPERADMIN') return true;
+  return (ownerType === 'CLINIC' && req.user?.clinicId === ownerId)
+    || req.user?.supplierId === ownerId
+    || req.user?.organizationId === ownerId;
+}
+
 // Wallet list for current user context
 financeRouter.get('/wallets', async (req: AuthRequest, res) => {
   try {
@@ -51,12 +65,7 @@ financeRouter.get('/wallets/:ownerType/:ownerId', async (req: AuthRequest, res) 
       return res.status(400).json({ ok: false, error: 'Некорректный тип владельца' } satisfies ApiResponse);
     }
     const ownerId = req.params.ownerId as string;
-    // Only the wallet owner or a superadmin may read the balance.
-    const isSuper = req.user?.role === 'SUPERADMIN';
-    const owns = ownerType === 'CLINIC' && req.user?.clinicId === ownerId
-      || req.user?.supplierId === ownerId
-      || req.user?.organizationId === ownerId;
-    if (!isSuper && !owns) {
+    if (!walletOwnershipGuard(req, ownerType, ownerId)) {
       return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
     }
     const wallet = await getOrCreateWallet(ownerType as WalletOwnerType, ownerId);
@@ -123,16 +132,25 @@ financeRouter.post('/commission-rules', requirePermission('finance.manage'), asy
     if (!domain || percentBps === undefined) {
       return res.status(400).json({ ok: false, error: 'domain и percentBps обязательны' } satisfies ApiResponse);
     }
-    const rule = await prisma.commissionRule.upsert({
-      where: { domain_scopeId: { domain, scopeId: scopeId || null } },
-      create: { domain, scopeId: scopeId || null, percentBps, splitJson: splitJson ?? undefined },
-      update: { percentBps, splitJson: splitJson ?? undefined },
-    });
+    // Prisma's compound-unique lookup (domain_scopeId) rejects `null` for the
+    // platform-wide "no scope" case — same limitation resolveCommissionBps()
+    // already works around in finance.service.ts. findFirst + create/update
+    // instead of upsert() so scopeId: null works for the default-per-domain rule.
+    const normalizedScopeId = scopeId || null;
+    const existing = await prisma.commissionRule.findFirst({ where: { domain, scopeId: normalizedScopeId } });
+    const rule = existing
+      ? await prisma.commissionRule.update({
+          where: { id: existing.id },
+          data: { percentBps, splitJson: splitJson ?? undefined },
+        })
+      : await prisma.commissionRule.create({
+          data: { domain, scopeId: normalizedScopeId, percentBps, splitJson: splitJson ?? undefined },
+        });
     await auditFromReq(req, {
       action: 'commission_rule.upserted',
       entity: 'commission_rule',
       entityId: rule.id,
-      details: { domain, scopeId: scopeId || null, percentBps },
+      details: { domain, scopeId: normalizedScopeId, percentBps },
     });
     return res.status(201).json({ ok: true, data: rule } satisfies ApiResponse);
   } catch (error) {

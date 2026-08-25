@@ -42,7 +42,17 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     settings:     ['manage'],
     analytics:    ['read'],
     diagnostics:  ['read', 'write'],
-    academy:      ['manage'],
+    // `academy.manage` is platform-wide governance over the Academy/Lecturer
+    // registry (academy.routes.ts creates/edits/deletes Academy records and
+    // runs the lecturer expert-verification pipeline with no clinic scoping
+    // anywhere in that router — its own file comment says this permission is
+    // meant to mean "platform / SUPERADMIN today"). A clinic OWNER has no
+    // legitimate reason to touch another academy's registry; the DB-seeded
+    // Person/Role graph already scopes `academy.manage` to a dedicated
+    // `lecturer` role only (prisma/seed-permissions.ts), never to OWNER/ADMIN
+    // — this hardcoded fallback matrix was the one place still over-granting
+    // it. `academy.read` (browsing/buying in the marketplace) is unaffected.
+    academy:      ['read'],
     shop:         ['manage'],
     community:    ['read', 'write'],
     audit:        ['read'],
@@ -62,7 +72,8 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     settings:     ['manage'],
     analytics:    ['read'],
     diagnostics:  ['read', 'write'],
-    academy:      ['manage'],
+    // See OWNER above — same platform-scope reasoning applies to ADMIN.
+    academy:      ['read'],
     shop:         ['manage'],
     community:    ['read', 'write'],
     bi:           ['read'],

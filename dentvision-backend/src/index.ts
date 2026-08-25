@@ -1850,6 +1850,87 @@ async function main() {
     await tx.$executeRawUnsafe(`DROP TYPE IF EXISTS "ActionStatus"`);
   });
 
+  // `upcomingWebinars()`/`upcomingOfficeCourses()` (academyContent.ts) used to be
+  // hardcoded JS arrays spliced into the marketplace response alongside real
+  // `Course` rows — `seats`/`enrolled` were literal numbers that never moved no
+  // matter how many people actually registered, because nothing about a
+  // purchase was ever tied back to those ids. Real `Course` rows already do
+  // this correctly (`mapCourseToEventCard` computes `enrolled` from a live
+  // `_count.enrollments`), so the fix is to stop maintaining a second, fake
+  // inventory system and seed this same curated content as real rows instead.
+  // `lecturerId: null` keeps these platform-curated (not attributed to an
+  // actual lecturer) — `commerce/register`'s existing `sellerType: 'PLATFORM'`
+  // fallback already handles a course with no lecturer correctly.
+  await runOnceMigration('seed_academy_platform_catalog', 'Academy OS: платформенный каталог вебинаров/офис-курсов переведён в реальные записи Course', async (tx) => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    async function findOrCreateAcademy(name: string, city: string | null): Promise<string> {
+      const existing = await tx.academy.findFirst({ where: { name } });
+      if (existing) return existing.id;
+      const created = await tx.academy.create({ data: { id: uid(), name, city } });
+      return created.id;
+    }
+
+    const webinars: Array<{
+      title: string; author: string; academy: string; category: string; startsInDays: number;
+      durationMin: number; seats: number; price: number; includes: string[]; certificate: boolean;
+    }> = [
+      { title: 'Ревизия каналов под микроскопом — live demo', author: 'Dr. Айгерим Нурланова', academy: 'EndoLab Academy', category: 'Эндодонтия', startsInDays: 2, durationMin: 90, seats: 120, price: 25000, includes: ['Запись 30 дней', 'PDF-протокол', 'Q&A'], certificate: false },
+      { title: 'Цифровой Wax-Up и коммуникация с лабораторией', author: 'Dr. Алексей Петров', academy: 'Prostho Hub', category: 'Ортопедия', startsInDays: 5, durationMin: 60, seats: 80, price: 18000, includes: ['Чек-лист лаборатории', 'Шаблоны ТЗ', 'Запись'], certificate: false },
+      { title: 'Soft tissue around implants (International)', author: 'Dr. Sara Kim', academy: 'Global Implant Forum', category: 'Имплантация', startsInDays: 9, durationMin: 75, seats: 200, price: 35000, includes: ['EN + RU субтитры', 'Case pack', 'Запись 60 дней'], certificate: true },
+      { title: 'Фотопротокол улыбки за 45 минут', author: 'Dr. Ольга Смирнова', academy: 'Smile Media Lab', category: 'Фотография', startsInDays: 12, durationMin: 45, seats: 150, price: 12000, includes: ['12 ракурсов', 'Пресеты', 'Запись'], certificate: false },
+    ];
+
+    const officeCourses: Array<{
+      title: string; author: string; academy: string; category: string; city: string; venue: string;
+      startsInDays: number; durationDays: number; seats: number; price: number; includes: string[];
+    }> = [
+      { title: 'Hands-on: эндодонтия под микроскопом (2 дня)', author: 'Dr. Айгерим Нурланова', academy: 'EndoLab Academy', category: 'Эндодонтия', city: 'Алматы', venue: 'Учебный центр EndoLab, пр. Достык 89', startsInDays: 14, durationDays: 2, seats: 12, price: 280000, includes: ['Материалы и расходники', 'Микроскоп 1:1', 'Сертификат', 'Обед'] },
+      { title: 'Офис-курс: имплантация в эстетической зоне', author: 'Dr. Timur Bek', academy: 'Implant Pro', category: 'Имплантация', city: 'Астана', venue: 'Clinic Campus, ул. Сыганак 17', startsInDays: 21, durationDays: 2, seats: 10, price: 450000, includes: ['Модели и импланты для практики', 'Хирургический сет', 'Сертификат', 'Networking dinner'] },
+      { title: 'Очный воркшоп: циркониевые реставрации', author: 'Dr. Алексей Петров', academy: 'Prostho Hub', category: 'Ортопедия', city: 'Алматы', venue: 'Digital Lab Studio, ул. Жандосова 54', startsInDays: 28, durationDays: 1, seats: 16, price: 195000, includes: ['Wax-up практика', 'Временные коронки', 'Сертификат'] },
+      { title: 'Office course: soft tissue grafting around implants', author: 'Dr. Sara Kim', academy: 'Global Implant Forum', category: 'Имплантация', city: 'Алматы', venue: 'Rixos Conference Hall B', startsInDays: 40, durationDays: 2, seats: 20, price: 520000, includes: ['Pig-head hands-on', 'EN/RU', 'International certificate', 'Coffee breaks'] },
+    ];
+
+    for (const w of webinars) {
+      const academyId = await findOrCreateAcademy(w.academy, null);
+      await tx.course.create({
+        data: {
+          id: uid(),
+          title: w.title,
+          author: w.author,
+          category: w.category,
+          format: 'webinar',
+          startsAt: new Date(now + w.startsInDays * day),
+          duration: `${w.durationMin} мин`,
+          seats: w.seats,
+          price: w.price,
+          academyId,
+          meta: { includes: w.includes, certificate: w.certificate },
+        },
+      });
+    }
+
+    for (const o of officeCourses) {
+      const academyId = await findOrCreateAcademy(o.academy, o.city);
+      await tx.course.create({
+        data: {
+          id: uid(),
+          title: o.title,
+          author: o.author,
+          category: o.category,
+          format: 'office',
+          startsAt: new Date(now + o.startsInDays * day),
+          duration: `${o.durationDays} дн.`,
+          seats: o.seats,
+          price: o.price,
+          academyId,
+          meta: { includes: o.includes, certificate: true, venue: o.venue, city: o.city, durationDays: o.durationDays },
+        },
+      });
+    }
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();
