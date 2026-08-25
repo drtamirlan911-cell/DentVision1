@@ -207,7 +207,7 @@ export default function Reminders() {
       {/* Header */}
       <PageHeader
         title="Напоминания"
-        subtitle={`WhatsApp / SMS cron + ручные deep-link · ${clinic?.name}`}
+        subtitle={`Автонапоминания по WhatsApp (с резервным SMS) и отправка вручную · ${clinic?.name}`}
         icon={<Bell size={20} />}
         actions={
           <div className="flex items-center gap-2 flex-wrap justify-end">
