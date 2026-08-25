@@ -36,11 +36,15 @@ export const TOOTH_16: ToothDefinition = {
     ],
 
     grooves: [
-      { name: 'central_developmental_groove', path: [[0, 3.0], [0, 0.5], [0.2, -2.0]], depthMm: 0.55, widthMm: 0.9 },
-      { name: 'buccal_developmental_groove', path: [[0, 0.5], [2.0, 0.3], [3.3, 0.2]], depthMm: 0.4, widthMm: 0.7 },
-      { name: 'lingual_developmental_groove', path: [[0, -1.0], [-1.8, -1.2], [-3.0, -1.4]], depthMm: 0.4, widthMm: 0.7 },
-      { name: 'mesial_triangular_groove', path: [[0, 3.0], [-1.0, 3.3]], depthMm: 0.3, widthMm: 0.6 },
-      { name: 'distal_triangular_groove', path: [[0.2, -2.0], [1.0, -2.6]], depthMm: 0.3, widthMm: 0.6 },
+      // Depths increased relative to the ridges they cross (see roots/knownLimitations
+      // history): the central groove and the two triangular ridges converge on almost
+      // the same spot near true center, and a groove has to out-depth what it crosses
+      // there or the crossing reads as a bump instead of a valley.
+      { name: 'central_developmental_groove', path: [[0, 3.0], [0, 0.5], [0.2, -2.0]], depthMm: 0.85, widthMm: 0.7 },
+      { name: 'buccal_developmental_groove', path: [[0, 0.5], [2.0, 0.3], [3.3, 0.2]], depthMm: 0.6, widthMm: 0.6 },
+      { name: 'lingual_developmental_groove', path: [[0, -1.0], [-1.8, -1.2], [-3.0, -1.4]], depthMm: 0.6, widthMm: 0.6 },
+      { name: 'mesial_triangular_groove', path: [[0, 3.0], [-1.0, 3.3]], depthMm: 0.4, widthMm: 0.5 },
+      { name: 'distal_triangular_groove', path: [[0.2, -2.0], [1.0, -2.6]], depthMm: 0.4, widthMm: 0.5 },
     ],
 
     ridges: [
@@ -50,16 +54,24 @@ export const TOOTH_16: ToothDefinition = {
       // cusp's triangular ridge to the mesiolingual cusp's distal ridge — the majority/
       // standard reference relationship, not the mesiobuccal-distolingual pairing one
       // secondary source implied. See references / docs for the resolved conflict.
-      { name: 'oblique_ridge', kind: 'oblique', connects: ['distobuccal', 'mesiolingual'], path: [[2.85, -2.6], [0, 0.3], [-2.97, 3.25]], heightMm: 0.7, widthMm: 1.3 },
-      { name: 'mesiobuccal_triangular_ridge', kind: 'triangular', connects: ['mesiobuccal', 'central_developmental_groove'], path: [[3.0, 2.1], [0.6, 0.5]], heightMm: 0.35, widthMm: 0.8 },
-      { name: 'mesiolingual_triangular_ridge', kind: 'triangular', connects: ['mesiolingual', 'central_developmental_groove'], path: [[-2.97, 3.25], [-0.5, 0.3]], heightMm: 0.35, widthMm: 0.8 },
+      // Height/width reduced from the first pass: at full height/width the ridge's own
+      // path midpoint sits almost on top of the central fossa and out-competed its
+      // depth (see docs/DENTAL_3D_ENGINE.md validation log) — real oblique ridges are a
+      // lower, narrower connecting rise, not a second cusp-height spine.
+      { name: 'oblique_ridge', kind: 'oblique', connects: ['distobuccal', 'mesiolingual'], path: [[2.85, -2.6], [0, 0.3], [-2.97, 3.25]], heightMm: 0.45, widthMm: 0.95 },
+      { name: 'mesiobuccal_triangular_ridge', kind: 'triangular', connects: ['mesiobuccal', 'central_developmental_groove'], path: [[3.0, 2.1], [0.6, 0.5]], heightMm: 0.22, widthMm: 0.6 },
+      { name: 'mesiolingual_triangular_ridge', kind: 'triangular', connects: ['mesiolingual', 'central_developmental_groove'], path: [[-2.97, 3.25], [-0.5, 0.3]], heightMm: 0.22, widthMm: 0.6 },
     ],
 
     fossae: [
-      { name: 'central_fossa', center: [0, 0.8], depthMm: 0.6, radiusMm: 1.3 },
-      { name: 'distal_fossa', center: [0.4, -2.3], depthMm: 0.45, radiusMm: 1.0 },
-      { name: 'mesial_triangular_fossa', center: [-0.3, 3.2], depthMm: 0.3, radiusMm: 0.7 },
-      { name: 'distal_triangular_fossa', center: [0.5, -3.0], depthMm: 0.25, radiusMm: 0.6 },
+      // Depth/radius increased from the first pass: the oblique ridge and both
+      // triangular ridges converge right where this pit belongs, and the fossa
+      // needs to out-depth that crossing (not just the cusps) to read as a true
+      // pit instead of a raised "knot" at the tooth's geometric center.
+      { name: 'central_fossa', center: [0, 0.8], depthMm: 1.15, radiusMm: 1.5 },
+      { name: 'distal_fossa', center: [0.4, -2.3], depthMm: 0.55, radiusMm: 1.0 },
+      { name: 'mesial_triangular_fossa', center: [-0.3, 3.2], depthMm: 0.4, radiusMm: 0.7 },
+      { name: 'distal_triangular_fossa', center: [0.5, -3.0], depthMm: 0.35, radiusMm: 0.6 },
     ],
   },
 
@@ -152,8 +164,8 @@ export const TOOTH_16: ToothDefinition = {
 
   knownLimitations: [
     "crown.outline is set to 'rhomboid' but crownGeometry.ts does not yet read it — the wall/table footprint is currently always a plain ellipse, not the characteristic rhomboidal occlusal outline of a maxillary molar. Known dead field, not yet wired up.",
-    'Occlusal surface reads more like 4 grooves radiating from a center point ("pinwheel") than 4 clearly separate rounded cusp domes when viewed straight down — cusp/groove radii need further tuning so grooves carve valleys between domes rather than dominating the silhouette. Found via live WebGL render, not yet fixed.',
-    'Mesial marginal ridge appears as a visible notch between the mesiobuccal and mesiolingual cusps rather than the fairly continuous, gently undulating ridge line real molars show from the mesial view — the ridge height/width likely needs increasing relative to the adjacent groove depth. Found via live WebGL render, not yet fixed.',
+    'Occlusal surface still reads as "crumpled/faceted" rather than smoothly rounded when viewed straight down or from the buccal aspect — a real, user-reported defect, only partially addressed. Root cause identified: the height field is authored as a stack of many independently-centered compact-support radial bumps (cusps, ridges, grooves, fossae combined via max()/subtraction); each bump is individually smooth, but several closely-spaced bumps combined create local curvature changes too complex for mesh-level blurring or added tessellation to fully smooth out. A prior version had a worse defect where the oblique ridge and both triangular ridges converged near true center and out-competed the central fossa depth, producing a raised "knot" where the deepest pit should be — that specific bug is fixed (fossa depth/radius increased, ridge height/width reduced, blur upgraded from a 4-tap axis-aligned to an 8-tap radial kernel) and confirmed both by direct height-field sampling and live render. The remaining "crumpled" character was NOT fixed by widening the blur radius (tried 0.35mm through 0.75mm) or by doubling mesh resolution (tried 96 angular segments / 30 table rings, reverted — no visible improvement, not worth the extra triangle count) — a genuinely smooth, natural result likely needs a different height-field authoring technique (e.g. fewer/broader primary landmarks with lower-amplitude secondary detail, or a properly G2-continuous blended surface) rather than further parameter tuning of the current approach.',
+    'Mesial marginal ridge still appears as a visible V-shaped notch between the mesiobuccal and mesiolingual cusps from the mesial view, rather than the fairly continuous, gently undulating ridge line real molars show — not addressed in this pass (effort went to the higher-priority central-fossa bug and the general faceting issue above). Found via live WebGL render.',
     'Crown and roots are separate manifold meshes sharing one local origin, not a single boolean-unioned watertight body — see docs/DENTAL_3D_ENGINE.md.',
     'Root cross-section rings are axis-aligned in the crown-local XZ plane rather than fully perpendicular to the (mildly curving) centerline tangent — negligible at these tilt/curvature magnitudes but not physically exact.',
     'Root divergence angles were tuned to approximate the literature mean (DB-palatal ≈44.9°) rather than reproducing one measured specimen.',

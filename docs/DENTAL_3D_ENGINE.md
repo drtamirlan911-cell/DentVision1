@@ -106,9 +106,17 @@ intentional limitation (see below), not an oversight.
 
 Deliberately two different `THREE.MeshPhysicalMaterial`s (`dentalMaterials.ts`),
 not one uniform "plastic tooth" material:
-- **Enamel**: `#f2ede2`, roughness 0.3, slight clearcoat, slight transmission
-  (translucency), `ior 1.63` (enamel's real refractive index, vs. ~1.49 for
-  the acrylic that generic tooth assets often default to), faint sheen.
+- **Enamel**: `#f2ede2`, roughness 0.32, slight clearcoat, `ior 1.63` (enamel's
+  real refractive index, vs. ~1.49 for the acrylic generic tooth assets often
+  default to), faint sheen. **No `transmission`** — an earlier version set
+  `transmission: 0.06` for subtle translucency, but with no environment/
+  background scene for the renderer to sample, transmission reads the dark
+  canvas behind the mesh, so the crown looked partially see-through/glass
+  instead of opaque enamel (reported directly by a human reviewer, confirmed
+  by inspecting the material params — this was a real defect, not a rendering
+  illusion). Real enamel translucency needs an IBL probe to look right, which
+  this app doesn't have; an opaque-but-glossy material is the honest choice
+  until one is added.
 - **Root/cementum surface**: `#e0c9a0`, roughness 0.58, no clearcoat — duller,
   warmer, matte, matching how real root surfaces read next to enamel.
 
@@ -129,7 +137,7 @@ Current numbers (via `printReport.mjs`):
 
 | mesh | vertices | triangles | boundary loops | bbox (mm, X×Y×Z) | topology errors |
 |---|---|---|---|---|---|
-| crown | 2521 | 4968 | 1 | 11.77 × 7.28 × 10.64 | 0 |
+| crown | 2521 | 4968 | 1 | 11.77 × 7.23 × 10.64 | 0 |
 | root — mesiobuccal | 381 | 740 | 1 | 4.48 × 11.70 × 3.47 | 0 |
 | root — distobuccal | 381 | 740 | 1 | 4.28 × 10.26 × 2.91 | 0 |
 | root — palatal | 381 | 740 | 1 | 9.29 × 11.90 × 4.50 | 0 |
@@ -193,6 +201,35 @@ next to the `oblique_ridge` definition.
 Both were found via live WebGL screenshots + numeric/geometric reasoning,
 not guessed at.
 
+3. **Crown material read as transparent.** A human reviewer looking at the
+   live render reported the crown looked glassy/see-through. Cause:
+   `createEnamelMaterial()` set `transmission: 0.06` for subtle translucency,
+   but the scene has no environment/background map for the renderer to
+   sample during transmission — against the dark canvas this reads as
+   "seeing through to black," i.e. looks like glass. Fixed by removing
+   `transmission` entirely (see "Materials" above). Confirmed by live
+   re-render: the crown now reads as solid opaque enamel.
+
+4. **Central fossa read as a raised "knot" instead of a pit.** Same reviewer
+   flagged the cusps as generally "unnatural." Sampling the actual height
+   field (not just eyeballing the render) showed why: the oblique ridge and
+   both triangular ridges converge right where the central fossa — the
+   deepest pit on a real molar — belongs, and their combined height there
+   (~0.95mm) exceeded the fossa's depth (0.6mm), leaving a net +0.35mm bump
+   at the tooth's geometric center instead of a dip. This produced the
+   pinwheel/"knot" pattern visible in a wireframe capture. Fixed by
+   increasing `central_fossa` depth/radius (0.6→1.15mm / 1.3→1.5mm),
+   reducing `oblique_ridge` and both triangular ridges' height/width so they
+   no longer out-compete the fossa, and increasing all groove depths
+   proportionally. Confirmed two ways: direct height-field sampling (center
+   now dips to −0.99mm, a genuine pit) and live re-render (wireframe capture
+   after the fix shows a real depression, not a knot, at center).
+
+Both new bugs were found from a live human review of the rendered model —
+exactly the kind of check this phase's `honesty_requirement` and validation
+gate exist for — not from the automated test suite, which only checks
+topology and metadata and has no way to catch "looks unnatural."
+
 ## Known limitations (honest, unresolved)
 
 These are recorded verbatim in `TOOTH_16.knownLimitations` as well, so the
@@ -202,16 +239,28 @@ data and the documentation cannot drift apart:
    not yet read it; the wall/table footprint is currently always a plain
    ellipse, not the characteristic rhomboidal occlusal outline of a
    maxillary molar.
-2. **"Pinwheel" occlusal pattern.** Viewed straight down, the occlusal
-   surface reads more like 4 grooves radiating from a center point than 4
-   clearly separate rounded cusp domes. Cusp/groove radii need further
-   tuning so grooves carve valleys *between* domes rather than dominating
-   the silhouette. Found via live render; not yet fixed.
-3. **Mesial marginal ridge notch.** From the mesial view, the ridge between
-   the mesiobuccal and mesiolingual cusps reads as a visible notch rather
-   than the fairly continuous, gently undulating line real molars show —
-   ridge height/width likely needs increasing relative to adjacent groove
-   depth. Found via live render; not yet fixed.
+2. **Occlusal surface still reads as "crumpled/faceted," not smoothly
+   natural — the main unresolved item.** The central-fossa bug above (bug 4)
+   is fixed and confirmed, but the broader complaint it was found alongside
+   — that the cusps don't look naturally rounded — is only partially
+   addressed. Root cause: the height field stacks many independently
+   centered compact-support radial bumps (cusps/ridges/grooves/fossae
+   combined via `max()`/subtraction); each bump alone is smooth, but several
+   closely-spaced bumps together create local curvature too complex for
+   mesh-level blurring or added tessellation to fully iron out. Tried and
+   confirmed *not* to fix it: widening the blur radius from 0.35mm to
+   0.75mm (helped a little, plateaued), and doubling mesh resolution to 96
+   angular segments / 30 table rings (no visible difference, reverted — not
+   worth the extra ~1800 triangles). A genuinely smooth, natural result
+   likely needs a different height-field authoring technique — fewer/
+   broader primary landmarks with lower-amplitude secondary detail, or a
+   properly curvature-continuous blended surface — rather than more
+   parameter tuning of the current approach.
+3. **Mesial marginal ridge notch**, unchanged by this pass: from the mesial
+   view, the ridge between the mesiobuccal and mesiolingual cusps still
+   reads as a visible V-shaped notch rather than the fairly continuous,
+   gently undulating line real molars show. Not addressed this round —
+   effort went to the higher-priority central-fossa bug and item 2 above.
 4. Crown and roots are separate manifold meshes sharing one local origin,
    not a single boolean-unioned watertight body.
 5. Root cross-section rings are axis-aligned in the crown-local XZ plane
@@ -229,17 +278,20 @@ data and the documentation cannot drift apart:
    prevalence) — callers should default it off unless explicitly enabling
    the variant.
 
-Items 2 and 3 are the ones most likely to matter for the "does this look
-anatomically natural, not generic-AI" bar the spec set — they should be
-resolved (or a conscious decision made to accept them) before treating this
-phase's gate as passed.
+Item 2 is the one most likely to matter for the "does this look anatomically
+natural, not generic-AI" bar the spec set — it should be resolved (via a
+different height-field technique, not more tuning of this one) or a
+conscious decision made to accept it before treating this phase's gate as
+passed.
 
 ## Next steps (blocked on the gate)
 
 Per the agreed `next_phase_gate`, do not scale to the remaining 31 teeth, an
 LOD pipeline, the full arch, or odontogram integration until:
 1. A human has reviewed the live render against the 6 standard views, and
-2. Limitations #2 and #3 above are either fixed or explicitly accepted.
+2. Limitation #2 above (the general "crumpled" cusp character) is either
+   fixed — likely requiring a different height-field technique, see above —
+   or explicitly accepted as good enough for this phase.
 
 If accepted, the next phase should build out the remaining tooth classes
 (incisor, canine, premolar per FDI numbering) reusing this same engine, wire

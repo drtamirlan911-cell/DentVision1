@@ -9,14 +9,17 @@ import * as THREE from 'three'
 export function createEnamelMaterial(): THREE.MeshPhysicalMaterial {
   return new THREE.MeshPhysicalMaterial({
     color: new THREE.Color('#f2ede2'),
-    roughness: 0.3,
+    roughness: 0.32,
     metalness: 0,
-    clearcoat: 0.18,
-    clearcoatRoughness: 0.25,
-    transmission: 0.06,
-    thickness: 1.2,
+    clearcoat: 0.12,
+    clearcoatRoughness: 0.3,
+    // No `transmission` — with no environment/background scene to sample,
+    // even a small transmission value reads as "seeing through to black"
+    // against a dark canvas, i.e. looks like glass instead of opaque enamel.
+    // Real enamel translucency needs an IBL probe to look right; this app
+    // doesn't have one, so an opaque-but-glossy material is the honest choice.
     ior: 1.63, // enamel refractive index is close to this, unlike acrylic (~1.49)
-    sheen: 0.15,
+    sheen: 0.12,
     sheenColor: new THREE.Color('#e8e2d4'),
   })
 }

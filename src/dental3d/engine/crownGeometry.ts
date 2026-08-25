@@ -22,8 +22,11 @@ const WALL_RINGS = 16
 const TABLE_RINGS = 20
 /** Radius (mm) for the small-kernel blur applied to the occlusal height field —
  *  smooths the faceted, spiky look narrow Gaussian falloffs produce at this mesh
- *  density into rounder cusp domes, without erasing the landmark positions. */
-const RELIEF_SMOOTH_RADIUS_MM = 0.55
+ *  density into rounder cusp domes, without erasing the landmark positions.
+ *  Kept small and low-weight (see `smoothedOcclusalRelief`) — an earlier, wider
+ *  pass smoothed the crossing ridges/fossa at the tooth's center into a single
+ *  raised "knot" instead of a pit, flattening it into a hard-to-read swirl. */
+const RELIEF_SMOOTH_RADIUS_MM = 0.75
 
 function deg2rad(d: number): number {
   return (d * Math.PI) / 180
@@ -92,18 +95,26 @@ function occlusalRelief(x: number, z: number, crown: CrownDefinition): number {
   return y
 }
 
-/** 5-tap blur (center + 4 offsets) over `occlusalRelief`. Landmark bumps and
- *  troughs are built from smooth analytic falloffs already, but at this mesh
- *  density adjacent bumps/troughs read as faceted and angular rather than
- *  rounded — this softens that without moving or erasing any landmark. */
+const BLUR_RING_SAMPLES = 8
+
+/** 9-tap blur (center + 8 ring samples) over `occlusalRelief`. Landmark bumps
+ *  and troughs are built from smooth analytic falloffs already, but at this
+ *  mesh density adjacent bumps/troughs read as faceted and angular rather
+ *  than rounded. An earlier 4-tap N/S/E/W version only samples along the
+ *  axes, which reads fine along X/Z but leaves visible diagonal facets — a
+ *  full 8-direction ring removes that directional bias without widening the
+ *  kernel enough to blur the central fossa pit back into a bump (see
+ *  docs/DENTAL_3D_ENGINE.md validation log). */
 function smoothedOcclusalRelief(x: number, z: number, crown: CrownDefinition): number {
   const r = RELIEF_SMOOTH_RADIUS_MM
   const center = occlusalRelief(x, z, crown)
-  const n = occlusalRelief(x, z + r, crown)
-  const s = occlusalRelief(x, z - r, crown)
-  const e = occlusalRelief(x + r, z, crown)
-  const w = occlusalRelief(x - r, z, crown)
-  return center * 0.4 + (n + s + e + w) * 0.15
+  let ringSum = 0
+  for (let i = 0; i < BLUR_RING_SAMPLES; i++) {
+    const angle = (i / BLUR_RING_SAMPLES) * Math.PI * 2
+    ringSum += occlusalRelief(x + Math.cos(angle) * r, z + Math.sin(angle) * r, crown)
+  }
+  const centerWeight = 0.55
+  return center * centerWeight + (ringSum / BLUR_RING_SAMPLES) * (1 - centerWeight)
 }
 
 export interface CrownGeometryResult {
