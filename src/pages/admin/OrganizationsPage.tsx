@@ -32,6 +32,14 @@ const ORG_TYPE_OPTIONS = [
   { value: 'PARTNER', label: 'Партнёр' },
 ];
 
+// Клиники и поставщики создаются через собственные экраны (вкладка «Клиники»,
+// маркетплейс), которые заодно заводят Clinic/Supplier — этот общий раздел
+// «Организации» создаёт только голую запись Organization. Разрешать здесь
+// создание CLINIC/SUPPLIER_COMPANY означало бы плодить осиротевшие записи,
+// не связанные с реальной клиникой/поставщиком.
+const CREATE_EXCLUDED_TYPES = new Set(['CLINIC', 'SUPPLIER_COMPANY']);
+const CREATE_TYPE_OPTIONS = ORG_TYPE_OPTIONS.filter(o => o.value && !CREATE_EXCLUDED_TYPES.has(o.value));
+
 export default function OrganizationsPage() {
   const { showToast: toast } = useToast();
   const queryClient = useQueryClient();
@@ -40,7 +48,7 @@ export default function OrganizationsPage() {
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', type: 'CLINIC', taxId: '', address: '', phone: '', email: '' });
+  const [form, setForm] = useState({ name: '', type: 'ACADEMY', taxId: '', address: '', phone: '', email: '' });
 
   const { data, isLoading } = useQuery({
     queryKey: ['organizations', typeFilter, search, page],
@@ -58,7 +66,7 @@ export default function OrganizationsPage() {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
       setShowModal(false);
       setEditId(null);
-      setForm({ name: '', type: 'CLINIC', taxId: '', address: '', phone: '', email: '' });
+      setForm({ name: '', type: 'ACADEMY', taxId: '', address: '', phone: '', email: '' });
       toast('Организация сохранена', 'success');
     },
     onError: () => toast('Ошибка при сохранении', 'error'),
@@ -84,7 +92,7 @@ export default function OrganizationsPage() {
 
   function openCreate() {
     setEditId(null);
-    setForm({ name: '', type: 'CLINIC', taxId: '', address: '', phone: '', email: '' });
+    setForm({ name: '', type: 'ACADEMY', taxId: '', address: '', phone: '', email: '' });
     setShowModal(true);
   }
 
@@ -186,7 +194,11 @@ export default function OrganizationsPage() {
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? 'Редактировать организацию' : 'Создать организацию'} size="lg">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Название *" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} required className="min-h-11" />
-          <Select label="Тип *" value={form.type} onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))} options={ORG_TYPE_OPTIONS.filter(o => o.value)} className="min-h-11" />
+          <Select label="Тип *" value={form.type} onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))}
+            options={editId && CREATE_EXCLUDED_TYPES.has(form.type)
+              ? ORG_TYPE_OPTIONS.filter(o => o.value)
+              : CREATE_TYPE_OPTIONS}
+            className="min-h-11" />
           <Input label="БИН/ИНН" value={form.taxId} onChange={(e) => setForm(f => ({ ...f, taxId: e.target.value }))} className="min-h-11" />
           <Input label="Адрес" value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} className="min-h-11" />
           <Input label="Телефон" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} className="min-h-11" />
