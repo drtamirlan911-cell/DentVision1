@@ -47,6 +47,7 @@ export default function TreatmentPlans() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
   const [presentationPlanId, setPresentationPlanId] = useState<string | null>(null);
+  const [initialPatientId, setInitialPatientId] = useState('');
   const [deletePlanId, setDeletePlanId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -76,6 +77,11 @@ export default function TreatmentPlans() {
       }
     } else if (patientId && !editorOpen) {
       setEditingPlan(null);
+      // Captured into state, not read live from `params` — setParams below
+      // clears the query string in the same batch, and a value derived
+      // straight from `params.get('patient')` would already be gone by the
+      // time the editor re-renders with it.
+      setInitialPatientId(patientId);
       setEditorOpen(true);
       setParams({}, { replace: true });
     }
@@ -114,10 +120,10 @@ export default function TreatmentPlans() {
   }, [plans, legacyPlans, search]);
 
   const patientOptions = Array.isArray(patients) ? patients : [];
-  const initialPatientId = params.get('patient') || '';
 
   const openNew = () => {
     setEditingPlan(null);
+    setInitialPatientId('');
     setEditorOpen(true);
   };
 

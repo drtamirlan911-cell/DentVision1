@@ -62,7 +62,9 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
     canManageFinance: true,
   },
   doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'reminders', 'school', 'treatment-plans', 'dental-chart', 'diagnostics-referrals', 'diagnostics-results', 'profile'], canSeeSalary: false, canSeeOwnSalary: true, ownDataOnly: true },
-  assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school', 'diagnostics-referrals', 'profile'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
+  // Can create referrals (diagnostics-referrals) — needs diagnostics-results too,
+  // otherwise there's no way to see the outcome of a referral they made.
+  assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school', 'diagnostics-referrals', 'diagnostics-results', 'profile'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
   reception: { label: 'Регистратор', icon: '📋', pages: ['schedule', 'patients', 'documents', 'reminders', 'shop', 'profile'], canAddStaff: false, readOnly: true },
   accountant: { label: 'Бухгалтер', icon: '📊', pages: ['analytics', 'finance', 'cashier', 'pricelist', 'dashboard', 'profile'], canSeeSalary: true, canSeeExpenses: true, canManageFinance: true },
   laboratory: { label: 'Лаборатория', icon: '🔬', pages: ['lab', 'shop', 'diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'profile'] },

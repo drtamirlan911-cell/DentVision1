@@ -37,7 +37,7 @@ const LEGACY_ORG_PAGES: Record<string, { backendRole: string; pages: string[] }>
   assistant: {
     backendRole: 'ASSISTANT',
     pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school',
-      'diagnostics-referrals', 'profile'],
+      'diagnostics-referrals', 'diagnostics-results', 'profile'],
   },
   lab: {
     backendRole: 'LAB',

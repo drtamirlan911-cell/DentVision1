@@ -144,6 +144,7 @@ export default function Schedule() {
   const newPatientIinError = newPatient.iin && !isValidIin(newPatient.iin) ? 'Неверный формат ИИН' : undefined
   const [searchAppts, setSearchAppts] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
+  const [nextActionPrompt, setNextActionPrompt] = useState<{ patientId: string; patientName: string; doctorId: string } | null>(null)
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
   const [pendingSync, setPendingSync] = useState(0)
 
@@ -322,6 +323,13 @@ export default function Schedule() {
     setShowNewPatient(false)
     setModalOpen(true)
   }
+  const openFollowUp = (patientId: string, doctorId: string): void => {
+    setEditAppt(null)
+    setForm({ ...EMPTY_FORM, patientId, doctorId: doctorId || '' })
+    setShowNewPatient(false)
+    setNewPatient(EMPTY_PATIENT)
+    setModalOpen(true)
+  }
 
   const handleCreatePatient = async (): Promise<Patient | null> => {
     if (!newPatient.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return null }
@@ -453,8 +461,14 @@ export default function Schedule() {
           : 'Приём закрыт',
         'success',
       )
+      const closedPatientId = closeAppt.patientId
+      const closedDoctorId = closeAppt.doctorId
       setCloseOpen(false)
       setCloseAppt(null)
+      if (closedPatientId) {
+        const patient = patients.find((p) => p.id === closedPatientId)
+        setNextActionPrompt({ patientId: closedPatientId, patientName: patient?.name || 'пациента', doctorId: closedDoctorId || '' })
+      }
     } catch (err: any) {
       showToast(err?.message || 'Не удалось закрыть приём', 'error')
     } finally {
@@ -1532,6 +1546,38 @@ export default function Schedule() {
         confirmLabel="Всё равно"
         variant="warning"
       />
+
+      <Modal open={!!nextActionPrompt} onClose={() => setNextActionPrompt(null)} title="Приём закрыт">
+        <div className="space-y-3">
+          <p className="text-sm text-txt-secondary">
+            Что дальше для пациента {nextActionPrompt?.patientName}?
+          </p>
+          <div className="flex flex-col gap-2">
+            <Button
+              className="w-full justify-center"
+              onClick={() => {
+                if (nextActionPrompt) navigate(`/crm/treatment-plans?patient=${nextActionPrompt.patientId}`)
+                setNextActionPrompt(null)
+              }}
+            >
+              Создать план лечения
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full justify-center"
+              onClick={() => {
+                if (nextActionPrompt) openFollowUp(nextActionPrompt.patientId, nextActionPrompt.doctorId)
+                setNextActionPrompt(null)
+              }}
+            >
+              Запланировать повтор
+            </Button>
+            <Button variant="ghost" className="w-full justify-center" onClick={() => setNextActionPrompt(null)}>
+              Не сейчас
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   )
 }
