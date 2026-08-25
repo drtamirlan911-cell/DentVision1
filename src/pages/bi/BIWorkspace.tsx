@@ -205,6 +205,13 @@ export default function BIWorkspace() {
   // ─── Render ───
 
   const d = dashboard
+  // Clinic-mode dashboards borrow SaaS terminology (MRR/ARR/LTV-CAC) from
+  // the platform view and fabricate constants where a single clinic has no
+  // real analogue (activeClinics/payingUsers/conversionRate are always
+  // 1/1/100 — see bi.service.ts getBIDashboard's clinic branch). Relabel
+  // the metrics that do map onto real clinic numbers and hide the ones that
+  // don't, instead of showing a clinic owner platform jargon and fake data.
+  const isClinicMode = d?.mode === 'clinic'
   const stats = overview?.stats || {}
   const queues = overview?.queues || {}
 
@@ -274,21 +281,23 @@ export default function BIWorkspace() {
                 <p className="text-xs text-txt-muted mt-0.5">Сегодня:</p>
                 <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2">
                   <div className="text-xs">
-                    <span className="text-txt-muted">Revenue: </span>
+                    <span className="text-txt-muted">{isClinicMode ? 'Выручка за 30 дней: ' : 'Revenue: '}</span>
                     <span className="font-semibold text-green-400">{d ? fmtMoney(d.mrr?.mrr) : '—'}</span>
                   </div>
                   <div className="text-xs">
-                    <span className="text-txt-muted">Churn: </span>
+                    <span className="text-txt-muted">{isClinicMode ? 'Отмены визитов: ' : 'Churn: '}</span>
                     <span className={`font-semibold ${(d?.churn?.churnRate || 0) > 5 ? 'text-red-400' : 'text-green-400'}`}>
                       {d ? `${d.churn?.churnRate?.toFixed(1) || 0}%` : '—'}
                     </span>
                   </div>
-                  <div className="text-xs">
-                    <span className="text-txt-muted">LTV/CAC: </span>
-                    <span className={`font-semibold ${(d?.ltv?.ltvCacRatio || 0) < 3 ? 'text-yellow-400' : 'text-green-400'}`}>
-                      {d ? `${d.ltv?.ltvCacRatio?.toFixed(1) || 0}x` : '—'}
-                    </span>
-                  </div>
+                  {!isClinicMode && (
+                    <div className="text-xs">
+                      <span className="text-txt-muted">LTV/CAC: </span>
+                      <span className={`font-semibold ${(d?.ltv?.ltvCacRatio || 0) < 3 ? 'text-yellow-400' : 'text-green-400'}`}>
+                        {d ? `${d.ltv?.ltvCacRatio?.toFixed(1) || 0}x` : '—'}
+                      </span>
+                    </div>
+                  )}
                   <div className="text-xs">
                     <span className="text-txt-muted">Маржа: </span>
                     <span className={`font-semibold ${(d?.unitEconomics?.netMargin || 0) < 20 ? 'text-yellow-400' : 'text-green-400'}`}>
@@ -296,12 +305,12 @@ export default function BIWorkspace() {
                     </span>
                   </div>
                 </div>
-                {d && (d.churn?.churnRate > 5 || d.ltv?.ltvCacRatio < 3 || d.unitEconomics?.netMargin < 20) && (
+                {d && (d.churn?.churnRate > 5 || (!isClinicMode && d.ltv?.ltvCacRatio < 3) || d.unitEconomics?.netMargin < 20) && (
                   <div className="mt-2 flex items-center gap-1.5 text-xs text-yellow-400">
                     <AlertTriangle size={13} />
                     <span>
-                      {d.churn?.churnRate > 5 && 'Churn выше нормы · '}
-                      {d.ltv?.ltvCacRatio < 3 && 'LTV/CAC ниже 3x · '}
+                      {d.churn?.churnRate > 5 && (isClinicMode ? 'Много отменённых визитов · ' : 'Churn выше нормы · ')}
+                      {!isClinicMode && d.ltv?.ltvCacRatio < 3 && 'LTV/CAC ниже 3x · '}
                       {d.unitEconomics?.netMargin < 20 && 'Маржа ниже 20%'}
                     </span>
                   </div>
@@ -321,14 +330,20 @@ export default function BIWorkspace() {
             <p className="text-sm text-txt-muted py-16 text-center">Загрузка…</p>
           ) : d ? (
             <>
-              {/* SaaS Metrics */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatCard label="MRR" value={fmtMoney(d.mrr?.mrr)} icon={<DollarSign size={18} />}
+              {/* SaaS Metrics — ARR and LTV/CAC only make sense at the platform
+                  level (naive 12x revenue projection; CAC computed from clinic
+                  profit has no acquisition-cost meaning for a single clinic) */}
+              <div className={`grid grid-cols-1 sm:grid-cols-2 ${isClinicMode ? '' : 'lg:grid-cols-4'} gap-3`}>
+                <StatCard label={isClinicMode ? 'Выручка за 30 дней' : 'MRR'} value={fmtMoney(d.mrr?.mrr)} icon={<DollarSign size={18} />}
                   change={d.mrr?.mrrGrowthPct ? { value: d.mrr.mrrGrowthPct, positive: d.mrr.mrrGrowthPct > 0 } : undefined} />
-                <StatCard label="ARR" value={fmtMoney(d.mrr?.arr)} icon={<TrendingUp size={18} />} />
-                <StatCard label="Churn Rate" value={`${d.churn?.churnRate?.toFixed(1) || 0}%`} icon={<Activity size={18} />}
+                {!isClinicMode && (
+                  <StatCard label="ARR" value={fmtMoney(d.mrr?.arr)} icon={<TrendingUp size={18} />} />
+                )}
+                <StatCard label={isClinicMode ? 'Отмены визитов' : 'Churn Rate'} value={`${d.churn?.churnRate?.toFixed(1) || 0}%`} icon={<Activity size={18} />}
                   change={d.churn?.netGrowth !== undefined ? { value: d.churn.netGrowth, positive: d.churn.netGrowth > 0 } : undefined} />
-                <StatCard label="LTV / CAC" value={`${d.ltv?.ltvCacRatio?.toFixed(1) || 0}x`} icon={<Target size={18} />} />
+                {!isClinicMode && (
+                  <StatCard label="LTV / CAC" value={`${d.ltv?.ltvCacRatio?.toFixed(1) || 0}x`} icon={<Target size={18} />} />
+                )}
               </div>
 
               {/* Unit Economics */}
@@ -369,35 +384,46 @@ export default function BIWorkspace() {
                 </CardContent>
               </Card>
 
-              {/* SaaS Overview */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <Card>
-                  <CardContent className="p-3 text-center">
-                    <p className="text-xl font-bold text-txt-primary">{d.mrr?.activeClinics || 0}</p>
-                    <p className="text-[10px] text-txt-muted">Активные клиники</p>
-                  </CardContent>
-                </Card>
+              {/* SaaS Overview — activeClinics/payingUsers/conversionRate are
+                  always 1/1/100% in clinic mode (a clinic isn't its own
+                  customer base), so only the real per-clinic count is shown */}
+              <div className={`grid grid-cols-1 sm:grid-cols-2 ${isClinicMode ? '' : 'lg:grid-cols-4'} gap-3`}>
+                {!isClinicMode && (
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <p className="text-xl font-bold text-txt-primary">{d.mrr?.activeClinics || 0}</p>
+                      <p className="text-[10px] text-txt-muted">Активные клиники</p>
+                    </CardContent>
+                  </Card>
+                )}
                 <Card>
                   <CardContent className="p-3 text-center">
                     <p className="text-xl font-bold text-txt-primary">{d.mrr?.activeDoctors || 0}</p>
                     <p className="text-[10px] text-txt-muted">Доктора</p>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardContent className="p-3 text-center">
-                    <p className="text-xl font-bold text-txt-primary">{d.mrr?.payingUsers || 0}</p>
-                    <p className="text-[10px] text-txt-muted">Платящие</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-3 text-center">
-                    <p className="text-xl font-bold text-txt-primary">{d.mrr?.conversionRate?.toFixed(1) || 0}%</p>
-                    <p className="text-[10px] text-txt-muted">Конверсия</p>
-                  </CardContent>
-                </Card>
+                {!isClinicMode && (
+                  <>
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <p className="text-xl font-bold text-txt-primary">{d.mrr?.payingUsers || 0}</p>
+                        <p className="text-[10px] text-txt-muted">Платящие</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <p className="text-xl font-bold text-txt-primary">{d.mrr?.conversionRate?.toFixed(1) || 0}%</p>
+                        <p className="text-[10px] text-txt-muted">Конверсия</p>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
               </div>
 
-              {/* Cash Flow */}
+              {/* Cash Flow — populated only in platform mode (bi.service.ts
+                  getBIDashboard clinic branch never sets it), so hide the
+                  card in clinic mode instead of rendering fake "0 ₸" */}
+              {d.cashFlow && (
               <Card>
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-txt-primary mb-3">Cash Flow — 12 месяцев</h3>
@@ -424,8 +450,10 @@ export default function BIWorkspace() {
                   )}
                 </CardContent>
               </Card>
+              )}
 
-              {/* Scenarios */}
+              {/* Scenarios — same platform-only availability as Cash Flow */}
+              {d.scenarios && (
               <Card>
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-txt-primary mb-3">Прогноз — 3 сценария</h3>
@@ -446,6 +474,7 @@ export default function BIWorkspace() {
                   </div>
                 </CardContent>
               </Card>
+              )}
 
               {/* Partner ROI */}
               {d.partnerROI && d.partnerROI.length > 0 && (
