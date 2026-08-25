@@ -10,6 +10,12 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import * as api from '@/utils/api';
 
+// Orgs that receive referrals (lab/center) don't author them — these items are
+// the clinic's own outbound tooling (send a referral, browse the platform's
+// directory of centres/labs to pick where to send it, apply as a new partner)
+// and were previously shown to every role including the receiving side.
+const CLINIC_ONLY_ITEMS = new Set(['referrals', 'centers', 'laboratories', 'register']);
+
 const DIAG_SUBNAV = [
   { id: 'dashboard', label: 'Обзор', path: '/diagnostics', icon: <LayoutDashboard size={16} /> },
   { id: 'referrals', label: 'Мои направления', path: '/diagnostics/referrals', icon: <FileText size={16} /> },
@@ -81,13 +87,15 @@ export default function DiagnosticsLayout() {
     return location.pathname.startsWith(path);
   };
 
+  const isReceivingOrg = orgType === 'DIAGNOSTIC_CENTER' || orgType === 'LABORATORY';
   const visibleItems = useMemo(() =>
     DIAG_SUBNAV.filter(item => {
       if (item.platformRole) return item.platformRole === platformRole;
       if (item.orgType) return item.orgType === orgType;
+      if (isReceivingOrg && CLINIC_ONLY_ITEMS.has(item.id)) return false;
       return true;
     }),
-  [platformRole, orgType]);
+  [platformRole, orgType, isReceivingOrg]);
 
   return (
     <div className="flex h-full gap-0 max-w-full overflow-x-hidden">
