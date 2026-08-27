@@ -5,7 +5,10 @@
 // (no seam, no weld step needed):
 //   1. a revolved "wall" from the cervical line up to the occlusal edge,
 //      whose radius varies with height (cervical taper → anatomical
-//      equator bulge → convergence toward the occlusal table), plus small
+//      equator bulge → convergence toward the occlusal table) AND with
+//      direction — the equator's height differs per surface (buccal low,
+//      lingual mid, mesial/distal higher still, see `equatorHeightFrac`),
+//      not one uniform bulge height all the way around — plus small
 //      per-direction convexity lobes so it isn't a perfect ellipse at
 //      every height;
 //   2. a disc-shaped occlusal table capping the wall, whose height field
@@ -44,22 +47,62 @@ function deg2rad(d: number): number {
   return (d * Math.PI) / 180
 }
 
-/** Cervical→occlusal-edge taper: narrower at the neck, widest at the anatomical
- *  equator (~35% up the crown), narrowing again as the wall approaches the
- *  occlusal table — the classic posterior-tooth crown silhouette. */
-function wallTaper(hFrac: number): number {
-  if (hFrac < 0.35) return lerp(0.86, 1.0, smoothstep(0, 0.35, hFrac))
-  return lerp(1.0, 0.8, smoothstep(0.35, 1.0, hFrac))
+/** Height (0 = cervical line, 1 = occlusal edge) of the wall's widest point
+ *  ("height of contour" / crown equator), per direction. This is NOT the
+ *  same all the way around a real crown: the buccal height of contour sits
+ *  low, in the cervical third, close to the gumline (it helps deflect food
+ *  and shelters the gingiva); the palatal/lingual height of contour sits
+ *  higher, in the middle third; and the two proximal contact areas sit
+ *  higher still and at DIFFERENT heights from each other — mesial at the
+ *  junction of the middle and occlusal thirds, distal at the middle of the
+ *  middle third (see references). A single uniform equator height (the
+ *  previous version of this function) put the bulge in the same place on
+ *  every surface — anatomically wrong on 3 of its 4 cardinal directions,
+ *  which is exactly what a straight-on side view shows as "the equator
+ *  isn't there" once you know what to look for. */
+const BUCCAL_EQUATOR_FRAC = 0.16
+const LINGUAL_EQUATOR_FRAC = 0.5
+const MESIAL_EQUATOR_FRAC = 0.67
+const DISTAL_EQUATOR_FRAC = 0.5
+
+/** Blends the 4 cardinal equator heights above by angular proximity
+ *  (squared-cosine lobe per direction, clamped to 0 on the far side, then
+ *  normalized) so the height-of-contour locus sweeps smoothly around the
+ *  crown instead of snapping at the mesiobuccal/distobuccal/etc. seams. */
+function equatorHeightFrac(angleRad: number): number {
+  const wBuccal = Math.max(0, Math.cos(angleRad - Math.PI / 2)) ** 2
+  const wLingual = Math.max(0, Math.cos(angleRad - (3 * Math.PI) / 2)) ** 2
+  const wMesial = Math.max(0, Math.cos(angleRad)) ** 2
+  const wDistal = Math.max(0, Math.cos(angleRad - Math.PI)) ** 2
+  const sum = wBuccal + wLingual + wMesial + wDistal || 1
+  return (
+    (wBuccal * BUCCAL_EQUATOR_FRAC + wLingual * LINGUAL_EQUATOR_FRAC + wMesial * MESIAL_EQUATOR_FRAC + wDistal * DISTAL_EQUATOR_FRAC) / sum
+  )
+}
+
+/** Cervical→occlusal-edge taper: narrower at the neck, widest at the
+ *  direction-dependent anatomical equator (see `equatorHeightFrac`),
+ *  narrowing again as the wall approaches the occlusal table — the classic
+ *  posterior-tooth crown silhouette, per surface. */
+function wallTaper(hFrac: number, angleRad: number): number {
+  const equator = equatorHeightFrac(angleRad)
+  if (hFrac < equator) return lerp(0.86, 1.0, smoothstep(0, equator, hFrac))
+  return lerp(1.0, 0.8, smoothstep(equator, 1, hFrac))
 }
 
 /** Small asymmetric bulges (buccal slightly more convex than lingual, a mild
  *  mesial contact bulge) so the wall isn't a mathematically perfect ellipse
- *  of revolution at every height — real crowns aren't. Magnitude is a
- *  fraction of the local radius, applied additively in mm. */
+ *  of revolution at every height — real crowns aren't. Peaks at the same
+ *  per-direction equator height as `wallTaper` (not a fixed mid-height) so
+ *  it reinforces the one true bulge on each surface instead of adding a
+ *  second, mislocated one. Magnitude is a fraction of the local radius,
+ *  applied additively in mm. */
 function convexityLobeMm(angleRad: number, hFrac: number, mdHalf: number, blHalf: number): number {
   const buccalLobe = Math.max(0, Math.cos(angleRad - Math.PI / 2))
   const mesialLobe = Math.max(0, Math.cos(angleRad)) * 0.5
-  const heightWeight = Math.sin(Math.PI * THREE.MathUtils.clamp(hFrac, 0, 1))
+  const equator = equatorHeightFrac(angleRad)
+  const remapped = hFrac < equator ? (hFrac / equator) * 0.5 : 0.5 + ((hFrac - equator) / (1 - equator)) * 0.5
+  const heightWeight = Math.sin(Math.PI * THREE.MathUtils.clamp(remapped, 0, 1))
   const scale = Math.min(mdHalf, blHalf) * 0.06
   return (buccalLobe + mesialLobe) * heightWeight * scale
 }
@@ -184,9 +227,9 @@ export function buildCrownGeometry(crown: CrownDefinition): CrownGeometryResult 
   for (let r = 0; r < WALL_RINGS; r++) {
     const hFrac = r / (WALL_RINGS - 1)
     const y = hFrac * occlusalBaseY
-    const taper = wallTaper(hFrac)
     for (let i = 0; i < ANGULAR_SEGMENTS; i++) {
       const angle = (i / ANGULAR_SEGMENTS) * Math.PI * 2
+      const taper = wallTaper(hFrac, angle)
       const [bx, bz] = footprintXZ(angle, mdHalf * taper, blHalf * taper)
       const lobe = convexityLobeMm(angle, hFrac, mdHalf, blHalf)
       const [lx, lz] = footprintXZ(angle, 1, 1)
@@ -214,7 +257,9 @@ export function buildCrownGeometry(crown: CrownDefinition): CrownGeometryResult 
     tableRingStart.push(positions.length / 3)
     for (let i = 0; i < ANGULAR_SEGMENTS; i++) {
       const angle = (i / ANGULAR_SEGMENTS) * Math.PI * 2
-      const [bx, bz] = footprintXZ(angle, mdHalf * wallTaper(1) * rFrac, blHalf * wallTaper(1) * rFrac)
+      // wallTaper(1, angle) is angle-independent — hFrac=1 is always past every
+      // direction's equator (max 0.67), so it always lands on the flat 0.8 tail.
+      const [bx, bz] = footprintXZ(angle, mdHalf * wallTaper(1, 0) * rFrac, blHalf * wallTaper(1, 0) * rFrac)
       const relief = smoothedOcclusalRelief(bx, bz, crown)
       positions.push(bx, occlusalBaseY + relief, bz)
     }

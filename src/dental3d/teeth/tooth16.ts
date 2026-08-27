@@ -263,6 +263,37 @@ export const TOOTH_16: ToothDefinition = {
       type: 'glossary_crossref',
       confirmedFeatures: ['each cusp has 4 named slopes (mesial, distal, facial/buccal, lingual cuspal ridges) meeting at an apex — corroborates the pyramidal, not isotropic, cusp shape from the IntechOpen source above'],
     },
+    // Added while fixing the crown wall's "height of contour" (equator): the
+    // previous wallTaper() put the crown's widest point at one uniform
+    // height on every surface, which is wrong — a real crown's equator
+    // height differs by surface. Direct full-text fetch of the primary
+    // textbook sources (eCampusOntario Oral Facial Anatomy Online, IntechOpen
+    // ch.86255, University of Babylon dental-anatomy course PDF, grokipedia)
+    // each failed (HTTP 403/503, or a PDF with no extractable text) — the
+    // same class of access failure already flagged snippetOnly elsewhere in
+    // this file. What's below is standard Wheeler's-Dental-Anatomy-level
+    // material, corroborated across several independent course/flashcard
+    // aggregations (Quizlet, Brainscape, Coconote) rather than confirmed
+    // against one fully-read primary source — flagged snippetOnly for that
+    // reason, not because the underlying fact is in doubt.
+    {
+      source: 'Height of contour (crown equator) position by surface — aggregated dental-anatomy course/flashcard material (Wheeler\'s Dental Anatomy content)',
+      type: 'glossary_crossref',
+      snippetOnly: true,
+      confirmedFeatures: [
+        'facial/buccal height of contour is in the cervical third on every tooth, anterior and posterior',
+        'lingual/palatal height of contour is in the cervical third on anterior teeth but the middle third on posterior teeth (premolars and molars)',
+      ],
+    },
+    {
+      source: 'Maxillary molar mesial vs. distal contact-area height — aggregated dental-anatomy course material',
+      type: 'glossary_crossref',
+      snippetOnly: true,
+      confirmedFeatures: [
+        'mesial contact area sits at the junction of the middle and occlusal thirds',
+        'distal contact area sits more cervically, at the middle of the middle third',
+      ],
+    },
   ],
 
   knownLimitations: [
@@ -278,5 +309,6 @@ export const TOOTH_16: ToothDefinition = {
     'Internal anatomy (pulp chamber, root canals, dentin) is not modelled — exterior surface only.',
     'One representative instance derived from published ranges, not a segmentation of an actual CT/intraoral scan — real teeth show more individual variation than any single model can capture.',
     'Cusp of Carabelli is included but marked optional (~52-68% population prevalence, not universal) — callers should default it off unless explicitly enabling the variant. It also has no `slopeRadiiMm` — deliberately left on the old isotropic bump in this pass (smaller diff, and it is a minor accessory cusp, not one of the 4 primary cusps the anisotropic redesign targeted).',
+    'A live-render review found the crown itself — not the root transition — had a second real defect: the wall\'s "height of contour" (crown equator, its widest point) was at one uniform height on every surface (`wallTaper`, engine/crownGeometry.ts, previously a single hFrac=0.35 for buccal/lingual/mesial/distal alike). Real crowns don\'t bulge at the same height all the way around: the buccal height of contour sits low, in the cervical third; the palatal height of contour sits higher, in the middle third; and the mesial contact area sits higher still than the distal contact area (see references). Fixed with `equatorHeightFrac(angleRad)`, which blends 4 per-direction target heights (buccal 0.16, lingual 0.5, mesial 0.67, distal 0.5) by angular proximity, and re-peaked the smaller `convexityLobeMm` bulge at the same per-direction height so it reinforces rather than adds a second, mislocated bump. Confirmed numerically (sampling the actual wall vertices per direction: the widest ring is now at hFrac≈0.20 buccally, ≈0.47 both lingually and distally, ≈0.67 mesially — matching the cited thirds, and the bounding box stays within the existing validation tolerance) and visually (all 4 side-profile renders re-checked). The 4 target hFrac values are a reasonable point-estimate placed within each cited "third," not themselves individually measured/cited numbers, and the squared-cosine angular blend is an engineering choice for a smooth sweep between them, not a cited technique.',
   ],
 }

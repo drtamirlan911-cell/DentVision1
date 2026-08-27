@@ -219,7 +219,7 @@ pass is still worth having for mobile targets.
 
 ## Reference sources (Tooth 16)
 
-18 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
+20 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
 (proportions/prevalence-focused): 2 peer-reviewed papers, 2 CBCT studies, 1
 systematic review, 1 open university course text, and 2 encyclopedic
 cross-references (used only to corroborate, never as a primary source). One
@@ -254,6 +254,16 @@ extends from the cervical line to the furcation entrance — i.e. roots stay
 fused below the crown rather than separating right at the CEJ — and 1 CBCT
 study with actual maxillary-first-molar root-trunk length measurements per
 aspect (buccal/mesial/distal), used to size `rootTrunkFraction` per root.
+
+2 more were added for the crown-equator work (see "Bugs found and fixed" #10
+below): the buccal-vs-lingual height-of-contour thirds and the mesial-vs-
+distal contact-area thirds. Both are honestly flagged `snippetOnly: true` —
+direct full-text fetch of the primary textbook sources (eCampusOntario,
+IntechOpen ch.86255, a University of Babylon course PDF, grokipedia) each
+failed (HTTP 403/503, or a PDF with no extractable text), so what's recorded
+is standard Wheeler's-Dental-Anatomy-level material corroborated across
+several independent course/flashcard aggregations, not one fully-read
+primary source.
 
 ## Bugs found and fixed (this phase)
 
@@ -410,6 +420,37 @@ overshoot before it reached a screenshot.
    one ring further down — an eased start, not an instant full-steepness
    taper — with cervical-ring radii and topology unchanged.
 
+10. **The crown wall's height of contour (equator) was at one uniform
+    height on every surface.** Following direct feedback that the crown
+    shape itself was wrong and the equator wasn't in the right place, a
+    review of `wallTaper()` in `crownGeometry.ts` confirmed it: the wall's
+    widest point was a single `hFrac=0.35` (35% up from the cervical line)
+    applied identically to every angle — buccal, lingual/palatal, mesial,
+    distal alike. Real crowns don't bulge at the same height all the way
+    around: the buccal height of contour sits low, in the cervical third
+    (it deflects food and shelters the gingiva); the palatal/lingual height
+    of contour sits higher, in the middle third; and the two proximal
+    contact areas sit higher still and at *different* heights from each
+    other — mesial at the junction of the middle and occlusal thirds,
+    distal at the middle of the middle third (see references — direct
+    full-text fetch of the primary textbook sources failed with
+    HTTP 403/503 or no extractable text, so this is flagged `snippetOnly`,
+    corroborated across several independent course/flashcard aggregations
+    of standard Wheeler's-Dental-Anatomy material rather than one fully-read
+    primary source). Fixed with `equatorHeightFrac(angleRad)`, which blends
+    4 per-direction target heights (buccal 0.16, lingual 0.5, mesial 0.67,
+    distal 0.5) by angular proximity (squared-cosine lobe per cardinal
+    direction, normalized), and re-peaked the smaller secondary
+    `convexityLobeMm` bulge at the same per-direction height instead of a
+    fixed mid-height, so it reinforces the one true bulge on each surface
+    rather than adding a second, mislocated one. Confirmed numerically
+    (sampling the actual wall vertices along each cardinal direction: the
+    widest ring lands at hFrac≈0.20 buccally, ≈0.47 both lingually and
+    distally, ≈0.67 mesially — matching the cited thirds; bounding box
+    stays within the existing `[0.6x, 1.05x]` validation tolerance) and
+    visually (all 4 side-profile views re-rendered and show clearly
+    differentiated silhouettes per surface instead of one uniform bulge).
+
 ## Known limitations (honest, unresolved)
 
 These are recorded verbatim in `TOOTH_16.knownLimitations` as well, so the
@@ -483,6 +524,16 @@ data and the documentation cannot drift apart:
    isotropic bump in the anisotropic-cusp redesign (smaller diff, and it's a
    minor accessory cusp, not one of the 4 primary cusps that redesign
    targeted).
+11. The crown wall's per-direction height-of-contour fix (see "Bugs found
+   and fixed" #10) placed the buccal/lingual/mesial/distal equator heights
+   at one reasonable point-estimate inside each cited "third," not at an
+   individually measured/cited number for this specific tooth — and blends
+   between the 4 cardinal directions with a squared-cosine angular lobe,
+   an engineering choice for a smooth sweep, not itself a cited technique.
+   The secondary `convexityLobeMm` bulge was re-peaked to the same per-
+   direction height so it no longer creates a second, mislocated bump, but
+   its magnitude (a fixed 6% of the local half-width) is unchanged and is
+   still a visual approximation, not a cited value.
 
 Item 2 is the one most likely to matter for the "does this look anatomically
 natural, not generic-AI" bar the spec set. The anisotropic-cusp redesign
