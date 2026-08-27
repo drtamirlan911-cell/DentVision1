@@ -140,6 +140,16 @@ below) — the widening makes neighboring roots' bases overlap generously
 under the crown, reading as a merged trunk without actually merging the
 meshes.
 
+The widened trunk phase itself (`trunkTaperedHalfWidth`) is tangent-matched
+to the crown at the seam, not just width-matched: the crown's cervical
+taper is a `smoothstep`, whose slope is exactly zero right at the cervical
+edge, so a root taper with a plain constant slope starting immediately at
+t=0 still shows a visible crease at the seam even when the two widths
+happen to line up — a real geometric tangent mismatch, confirmed by
+sampling both curves' derivatives, not a rendering illusion. The widened
+start eases in with that same zero-derivative shape before blending into
+the normal linear taper by the trunk-fraction point.
+
 Crown and the 3 roots are separate manifold meshes sharing one local origin —
 not boolean-unioned into a single watertight body. This is a documented,
 intentional limitation (see below), not an oversight.
@@ -382,6 +392,24 @@ overshoot before it reached a screenshot.
    step, and the two buccal roots now read as diverging from one merged
    mass rather than as two separate cylinders that happen to touch).
 
+9. **The widened trunk from #8 still creased at the seam.** A follow-up
+   live-render check — direct feedback that the side-view neck still didn't
+   transition naturally — showed the fix above wasn't enough on its own.
+   Sampled both curves' derivatives instead of re-guessing from a
+   screenshot: the crown's cervical wall taper is a `smoothstep`, whose
+   slope is exactly zero right at the cervical edge (a rounded,
+   flattening-out silhouette), while the root's width there was
+   `lerp(base, apex, t) * widen` — a constant, widen-amplified slope
+   starting immediately at t=0. The two widths could line up at the seam
+   and it would still show a visible crease, because matching *position*
+   isn't the same as matching *tangent*. Fixed by easing the widened
+   trunk phase in with the same zero-derivative shape the crown uses
+   (`trunkTaperedHalfWidth` in `rootGeometry.ts`), blending into the normal
+   linear taper by the trunk-fraction point. Confirmed by re-sampling: the
+   width-vs-length slope right at the seam is now roughly half the slope
+   one ring further down — an eased start, not an instant full-steepness
+   taper — with cervical-ring radii and topology unchanged.
+
 ## Known limitations (honest, unresolved)
 
 These are recorded verbatim in `TOOTH_16.knownLimitations` as well, so the
@@ -426,16 +454,19 @@ data and the documentation cannot drift apart:
    exact.
 6. Root divergence angles approximate the literature mean (DB–palatal
    ≈44.9°), not a measured specimen.
-7. Roots now have a furcation-facing surface concavity and a widened
-   cervical-line "root trunk" (see "Bugs found and fixed" #7-#8) instead of
-   a perfectly smooth cone starting abruptly at the crown, but: the
-   concavity/widening direction is a fixed approximation (the cervical-line
-   origin offset, negated) rather than recomputed per ring along the true
-   centerline; root taper is still strictly linear rather than the
-   non-linear profile real roots often show; the trunk *widen* multiplier
-   is a reasonable visual tuning, not itself a cited measurement (the trunk
-   *length* fraction is cited); and — most importantly — the "trunk" is
-   still 3 independent, non-boolean-unioned meshes with overlapping widened
+7. Roots now have a furcation-facing surface concavity and a tangent-
+   matched, widened cervical-line "root trunk" (see "Bugs found and fixed"
+   #7-#9) instead of a perfectly smooth cone starting abruptly at the
+   crown, but: the concavity/widening direction is a fixed approximation
+   (the cervical-line origin offset, negated) rather than recomputed per
+   ring along the true centerline; root taper past the trunk zone is still
+   strictly linear rather than the non-linear profile real roots often
+   show; the trunk *widen* multiplier is a reasonable visual tuning, not
+   itself a cited measurement (the trunk *length* fraction is cited); the
+   eased trunk-to-normal-taper blend is only tangent-matched at the t=0
+   seam, not at the t=trunkFraction handoff further down (a much less
+   visually prominent spot); and — most importantly — the "trunk" is still
+   3 independent, non-boolean-unioned meshes with overlapping widened
    bases, not one actually-merged trunk mesh, so it's a strong visual
    approximation of the real anatomy, not a geometrically exact
    reconstruction of it. The palatal root's separately documented

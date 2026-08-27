@@ -43,6 +43,30 @@ function furcationDent(angle: number, inwardAngle: number, depthMm: number, leng
   return depthMm * facing * facing * lengthFadeWeight
 }
 
+/**
+ * Root-trunk cross-section half-width at length fraction `t`, tangent-
+ * matched to the crown wall at the seam (t=0) instead of just
+ * width-matched. The crown's cervical taper (`wallTaper` in
+ * crownGeometry.ts) is built from `smoothstep`, which has zero slope
+ * exactly at the cervical edge — a rounded, flattening-out silhouette
+ * right where the crown ends. A plain `lerp(base0, base1, t) * widen`
+ * root taper has a large, constant, widen-amplified NEGATIVE slope right
+ * from t=0, so even when the two meshes' widths happen to line up at the
+ * seam, the silhouette still shows a visible crease there — a real
+ * geometric tangent mismatch, not a rendering artifact (confirmed by
+ * sampling both curves' derivatives, not just eyeballing a screenshot).
+ * This eases the widened trunk phase in with the same zero-derivative-at-0
+ * smoothstep shape the crown uses, then blends into the normal linear taper
+ * by `trunkFraction`. */
+function trunkTaperedHalfWidth(base0: number, base1: number, trunkWiden: number, trunkFraction: number, t: number): number {
+  const normalWidth = lerp(base0, base1, t)
+  if (trunkWiden <= 1 || trunkFraction <= 0 || t >= trunkFraction) return normalWidth
+  const widenedStart = base0 * trunkWiden
+  const widthAtFractionEnd = lerp(base0, base1, trunkFraction)
+  const easedT = smoothstep(0, trunkFraction, t)
+  return lerp(widenedStart, widthAtFractionEnd, easedT)
+}
+
 const ANGULAR_SEGMENTS = 20
 const LENGTH_SEGMENTS = 18
 const X_AXIS = new THREE.Vector3(1, 0, 0)
@@ -99,9 +123,8 @@ export function buildRootGeometry(root: RootDefinition): RootGeometryResult {
   for (let i = 0; i <= LENGTH_SEGMENTS; i++) {
     const t = i / LENGTH_SEGMENTS
     const lengthFadeWeight = 1 - smoothstep(0, trunkFraction, t)
-    const widen = 1 + (trunkWiden - 1) * lengthFadeWeight
-    const blHalf = lerp(blHalf0, blHalf1, t) * widen
-    const mdHalf = lerp(mdHalf0, mdHalf1, t) * widen
+    const blHalf = trunkTaperedHalfWidth(blHalf0, blHalf1, trunkWiden, trunkFraction, t)
+    const mdHalf = trunkTaperedHalfWidth(mdHalf0, mdHalf1, trunkWiden, trunkFraction, t)
     const c = centerline[i]
     for (let j = 0; j < ANGULAR_SEGMENTS; j++) {
       const angle = (j / ANGULAR_SEGMENTS) * Math.PI * 2
