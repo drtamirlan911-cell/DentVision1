@@ -111,14 +111,29 @@ export interface RootDefinition {
    *  tooth's roots concave toward the shared furcation area, not away from
    *  it). A real root surface isn't a smooth cone; the concavity is what
    *  breaks that "smooth plastic peg" look. Strongest near the cervical
-   *  line (furcation entrances sit ~3-5mm apical to the CEJ) and fades out
-   *  by mid-root — see `furcationFadeFraction` and references. Omit or 0 for
-   *  a plain smooth taper. */
+   *  line and fades out by `rootTrunkFraction` — see references. Omit or 0
+   *  for a plain smooth taper. */
   furcationConcavityMm?: number
-  /** Fraction of the root's length (0-1) over which the furcation concavity
-   *  fades from full depth at the cervical line to 0. Defaults to 0.45 if
-   *  `furcationConcavityMm` is set but this is omitted. */
-  furcationFadeFraction?: number
+  /** How much wider (as a multiplier, e.g. 1.5 = +50%) this root's
+   *  cross-section is at the cervical line versus its own `baseDiameterMm`,
+   *  fading back to 1× (i.e. exactly `baseDiameterMm`) by `rootTrunkFraction`.
+   *  Real multi-rooted teeth don't have individual roots starting right at
+   *  the cervical line — below the crown, the roots stay fused as one
+   *  wider "root trunk" down to the furcation entrance, then separate (see
+   *  references). Each root here is still its own independent, non-unioned
+   *  mesh (see docs/DENTAL_3D_ENGINE.md) — this widens each root's own base
+   *  so neighboring roots' widened bases overlap under the crown, reading
+   *  as a merged trunk rather than the crown ending in an abrupt step down
+   *  to 3 already-separated, already-narrow tubes. Omit or 1 for no
+   *  widening (a plain, immediately-separated root). */
+  rootTrunkWidenFactor?: number
+  /** Fraction of the root's length (0-1) over which BOTH the furcation
+   *  concavity and the root-trunk widening fade from full strength at the
+   *  cervical line to 0/1× — the same zone, since anatomically a root is
+   *  "still part of the trunk" and "furcation-concave" together, then
+   *  becomes a fully separated, plainly round root at the same point.
+   *  Defaults to 0.45 if either of the above is set but this is omitted. */
+  rootTrunkFraction?: number
 }
 
 export type ReferenceType =

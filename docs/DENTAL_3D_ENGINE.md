@@ -115,17 +115,30 @@ flattening, e.g. the mesiobuccal root is "broad buccopalatally, narrow
 mesiodistally" per the CBCT literature cited in `tooth16.ts`.
 
 Each cross-section ring is also dented inward on the side facing the
-furcation (`furcationDent`, driven by `furcationConcavityMm`/
-`furcationFadeFraction` on `RootDefinition`) — strongest at the cervical
-line and fading out by mid-root. Without this a root is a perfectly smooth
-cone, which reads as an artificial "hot dog finger," not a real root
-surface — real molar roots have a documented concavity leading into the
-furcation, most pronounced on the mesiobuccal and palatal roots (see
-`references` in `tooth16.ts`). The "inward" direction is approximated as
-fixed per root (the negated cervical-line origin offset) rather than
-recomputed per ring along the true centerline — reasonable since the
-concavity's fade zone is concentrated near the cervical line, where the
-roots have barely diverged from that direction yet.
+furcation (`furcationDent`, driven by `furcationConcavityMm`) — strongest at
+the cervical line and fading out over `rootTrunkFraction`. Without this a
+root is a perfectly smooth cone, which reads as an artificial "hot dog
+finger," not a real root surface — real molar roots have a documented
+concavity leading into the furcation, most pronounced on the mesiobuccal
+and palatal roots (see `references` in `tooth16.ts`). The "inward"
+direction is approximated as fixed per root (the negated cervical-line
+origin offset) rather than recomputed per ring along the true centerline —
+reasonable since the fade zone is concentrated near the cervical line,
+where the roots have barely diverged from that direction yet.
+
+Over that same `rootTrunkFraction` zone, each root's cross-section is also
+*widened* (`rootTrunkWidenFactor`) rather than starting at its full-length
+taper's base diameter right at the cervical line. This approximates the
+real **root trunk**: below the crown, a multi-rooted tooth's roots stay
+fused as one wider mass down to the furcation entrance (documented as
+~3-6mm for a maxillary first molar, varying by aspect — buccal shortest,
+distal longest) before actually separating — they don't begin as 3 already-
+separated, already-narrow tubes right at the CEJ. Without this widening,
+the crown's wide cervical wall met 3 narrow root tubes in an abrupt step;
+each root here is still an independent, non-boolean-unioned mesh (see
+below) — the widening makes neighboring roots' bases overlap generously
+under the crown, reading as a merged trunk without actually merging the
+meshes.
 
 Crown and the 3 roots are separate manifold meshes sharing one local origin —
 not boolean-unioned into a single watertight body. This is a documented,
@@ -196,7 +209,7 @@ pass is still worth having for mobile targets.
 
 ## Reference sources (Tooth 16)
 
-16 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
+18 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
 (proportions/prevalence-focused): 2 peer-reviewed papers, 2 CBCT studies, 1
 systematic review, 1 open university course text, and 2 encyclopedic
 cross-references (used only to corroborate, never as a primary source). One
@@ -224,6 +237,13 @@ as equally solid as the fully-fetched sources.
 below): both clinical CE-course sources on root concavity/furcation
 anatomy — which root surfaces concave and how deep, and furcation entrance
 distances from the CEJ, used to size where the concavity fades out.
+
+2 more were added for the root-trunk work (see "Bugs found and fixed" #8
+below): 1 more clinical CE-course source establishing that the root trunk
+extends from the cervical line to the furcation entrance — i.e. roots stay
+fused below the crown rather than separating right at the CEJ — and 1 CBCT
+study with actual maxillary-first-molar root-trunk length measurements per
+aspect (buccal/mesial/distal), used to size `rootTrunkFraction` per root.
 
 ## Bugs found and fixed (this phase)
 
@@ -340,6 +360,28 @@ overshoot before it reached a screenshot.
    root) and visually (a zoomed live render shows a real groove between the
    two buccal roots instead of two touching plain cylinders).
 
+8. **Crown met the roots in an abrupt step, not a smooth transition.**
+   Following a direct question — why do the roots start abruptly instead of
+   transitioning smoothly — researched the cementoenamel junction / root
+   trunk literature rather than guessing. Finding: below the crown, a
+   multi-rooted tooth's roots stay fused as one wider "root trunk" all the
+   way down to the furcation entrance (documented ~3-6mm for a maxillary
+   first molar, varying by aspect) — they don't separate right at the
+   cervical line. Our model had each of the 3 roots starting as its own
+   already-separated, already-narrow tube at the cervical line, directly
+   under the much wider crown wall — an anatomically real gap, not a
+   rendering artifact. Fixed by widening each root's own cross-section near
+   the cervical line (`rootTrunkWidenFactor`, same fade zone as the
+   furcation concavity, renamed `rootTrunkFraction`), so neighboring roots'
+   widened bases overlap generously under the crown — an approximation
+   (each root stays its own independent mesh, not a true boolean-merged
+   trunk) but a materially better one: confirmed both numerically (cervical
+   radius increased as intended, topology still 0 errors / 1 boundary loop
+   per root) and visually (a zoomed live render shows a continuous,
+   gradually-narrowing transition from crown to root instead of a visible
+   step, and the two buccal roots now read as diverging from one merged
+   mass rather than as two separate cylinders that happen to touch).
+
 ## Known limitations (honest, unresolved)
 
 These are recorded verbatim in `TOOTH_16.knownLimitations` as well, so the
@@ -384,14 +426,21 @@ data and the documentation cannot drift apart:
    exact.
 6. Root divergence angles approximate the literature mean (DB–palatal
    ≈44.9°), not a measured specimen.
-7. Roots now have a furcation-facing surface concavity (see "Bugs found and
-   fixed" #7) instead of a perfectly smooth cone, but its direction is a
-   fixed approximation (the cervical-line origin offset, negated) rather
-   than recomputed per ring along the true centerline, and root taper is
-   still strictly linear rather than the non-linear profile real roots
-   often show. The palatal root's separately documented full-length
-   longitudinal groove (distinct from the furcation concavity) is not
-   modelled.
+7. Roots now have a furcation-facing surface concavity and a widened
+   cervical-line "root trunk" (see "Bugs found and fixed" #7-#8) instead of
+   a perfectly smooth cone starting abruptly at the crown, but: the
+   concavity/widening direction is a fixed approximation (the cervical-line
+   origin offset, negated) rather than recomputed per ring along the true
+   centerline; root taper is still strictly linear rather than the
+   non-linear profile real roots often show; the trunk *widen* multiplier
+   is a reasonable visual tuning, not itself a cited measurement (the trunk
+   *length* fraction is cited); and — most importantly — the "trunk" is
+   still 3 independent, non-boolean-unioned meshes with overlapping widened
+   bases, not one actually-merged trunk mesh, so it's a strong visual
+   approximation of the real anatomy, not a geometrically exact
+   reconstruction of it. The palatal root's separately documented
+   full-length longitudinal groove (distinct from the furcation concavity)
+   is not modelled.
 8. Internal anatomy (pulp chamber, root canals, dentin) is not modelled —
    exterior surface only.
 9. One representative instance derived from published ranges, not a

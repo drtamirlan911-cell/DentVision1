@@ -93,7 +93,12 @@ export const TOOTH_16: ToothDefinition = {
       apicalCurvatureDeg: 14, // distal apical curvature — literature-confirmed as the majority pattern
       crossSectionAspect: 1.35, // broad buccopalatally, narrow mesiodistally
       furcationConcavityMm: 0.45, // "prominent concavities" on the MB root, per references
-      furcationFadeFraction: 0.35,
+      // Root trunk (buccal aspect) documented as ~3-4mm for a maxillary first
+      // molar — 0.35 * 12mm length = 4.2mm, in that range. Widen factor
+      // (how much wider at the cervical line) is a reasonable visual
+      // approximation, not itself a cited measurement — see knownLimitations.
+      rootTrunkFraction: 0.35,
+      rootTrunkWidenFactor: 1.6,
     },
     {
       name: 'distobuccal',
@@ -106,7 +111,9 @@ export const TOOTH_16: ToothDefinition = {
       apicalCurvatureDeg: 8,
       crossSectionAspect: 1.1,
       furcationConcavityMm: 0.3, // shallower than MB/palatal, still present
-      furcationFadeFraction: 0.3,
+      // Root trunk (buccal aspect) ~3-4mm — 0.3 * 10.5mm = 3.15mm, in range.
+      rootTrunkFraction: 0.3,
+      rootTrunkWidenFactor: 1.4,
     },
     {
       name: 'palatal',
@@ -119,7 +126,10 @@ export const TOOTH_16: ToothDefinition = {
       apicalCurvatureDeg: 5,
       crossSectionAspect: 1.0,
       furcationConcavityMm: 0.4, // "more frequently" the deeper of the two concave roots, per references
-      furcationFadeFraction: 0.4,
+      // Root trunk (mesial/distal aspects, the ones facing the palatal
+      // root) documented as ~4-6mm — 0.4 * 13.5mm = 5.4mm, in range.
+      rootTrunkFraction: 0.4,
+      rootTrunkWidenFactor: 1.5,
     },
   ],
 
@@ -159,6 +169,21 @@ export const TOOTH_16: ToothDefinition = {
         'mesial surface concavity leading into the furcation',
         'distobuccal root concavity present but shallower/less prominent than mesiobuccal or palatal',
         'a groove can exist within the concavity, and a longitudinal groove runs the length of the palatal root',
+      ],
+    },
+    {
+      source: 'Furcation Anatomy (Dimensions of Dental Hygiene)',
+      url: 'https://dimensionsofdentalhygiene.com/article/furcation-anatomy/',
+      type: 'clinical_ce_course',
+      confirmedFeatures: ['the root trunk extends from the cervical line to the entrance of the furca — roots stay fused below the crown, not separated right at the CEJ'],
+    },
+    {
+      source: 'Assessing peculiarity of molar root trunk dimensions in a sample of Saudi population — A radiographic analysis',
+      url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6445526/',
+      type: 'cbct_study',
+      confirmedFeatures: [
+        'maxillary first molar root trunk length: ~3-4mm buccal, ~4-5mm mesial, ~5-6mm distal — used to size rootTrunkFraction per root',
+        'as mean root trunk length increases, mean root length decreases (used only qualitatively here)',
       ],
     },
     {
@@ -247,7 +272,8 @@ export const TOOTH_16: ToothDefinition = {
     'Crown and roots are separate manifold meshes sharing one local origin, not a single boolean-unioned watertight body — see docs/DENTAL_3D_ENGINE.md.',
     'Root cross-section rings are axis-aligned in the crown-local XZ plane rather than fully perpendicular to the (mildly curving) centerline tangent — negligible at these tilt/curvature magnitudes but not physically exact.',
     'Root divergence angles were tuned to approximate the literature mean (DB-palatal ≈44.9°) rather than reproducing one measured specimen.',
-    'Roots now carve a furcation-facing surface concavity (`furcationConcavityMm`/`furcationFadeFraction`, engine/rootGeometry.ts `furcationDent`) instead of being a perfectly smooth tapered cone — the earlier version had none, which read as artificial "hot dog" fingers, confirmed by live render and fixed by adding this. The concavity direction is approximated as fixed (the root\'s cervical-line origin offset, negated) rather than recomputed per ring along the true centerline — reasonable given the fade zone is concentrated near the cervical line where the roots have barely diverged, but not exact for the (small) remaining length where it\'s still partially active. The palatal root\'s separately-documented longitudinal groove (distinct from the furcation concavity, running the root\'s full length) is not modelled — only the furcation-facing concavity is. Root taper remains strictly linear (base diameter to apex diameter) rather than the non-linear, faster-tapering-in-the-apical-third profile real roots often show; not addressed this pass.',
+    'Roots now carve a furcation-facing surface concavity (`furcationConcavityMm`, engine/rootGeometry.ts `furcationDent`) instead of being a perfectly smooth tapered cone — the earlier version had none, which read as artificial "hot dog" fingers, confirmed by live render and fixed by adding this. The concavity direction is approximated as fixed (the root\'s cervical-line origin offset, negated) rather than recomputed per ring along the true centerline — reasonable given the fade zone is concentrated near the cervical line where the roots have barely diverged, but not exact for the (small) remaining length where it\'s still partially active. The palatal root\'s separately-documented longitudinal groove (distinct from the furcation concavity, running the root\'s full length) is not modelled — only the furcation-facing concavity is. Root taper remains strictly linear (base diameter to apex diameter) rather than the non-linear, faster-tapering-in-the-apical-third profile real roots often show; not addressed this pass.',
+    'Each root also widens near the cervical line (`rootTrunkWidenFactor`, same file) to approximate the real "root trunk" — below the crown, molar roots stay fused as one wider mass down to the furcation entrance (documented as ~3-6mm for a maxillary first molar) rather than starting separated right at the CEJ. Fixed after a live-render review showed an abrupt step where the crown wall met 3 already-narrow, already-separated root tubes — confirmed both numerically (cervical-ring radius, topology unchanged: 0 errors, 1 boundary loop per root) and visually (a zoomed render shows a continuous, gradually-narrowing transition, not a step). The trunk *length* fraction per root is grounded in cited buccal/mesial/distal root-trunk measurements; the trunk *widen* multiplier (how much wider, not how long) is a reasonable visual approximation tuned to overlap neighboring roots\' bases under the crown, not itself a measured/cited value — each root is still a separate, non-boolean-unioned mesh (see below), so this widens each root\'s own base rather than actually merging them into one shared trunk mesh.',
     'Internal anatomy (pulp chamber, root canals, dentin) is not modelled — exterior surface only.',
     'One representative instance derived from published ranges, not a segmentation of an actual CT/intraoral scan — real teeth show more individual variation than any single model can capture.',
     'Cusp of Carabelli is included but marked optional (~52-68% population prevalence, not universal) — callers should default it off unless explicitly enabling the variant. It also has no `slopeRadiiMm` — deliberately left on the old isotropic bump in this pass (smaller diff, and it is a minor accessory cusp, not one of the 4 primary cusps the anisotropic redesign targeted).',
