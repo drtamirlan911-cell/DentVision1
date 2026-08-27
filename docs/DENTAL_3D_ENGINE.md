@@ -114,6 +114,19 @@ elliptical, not circular (`crossSectionAspect`), to capture real root
 flattening, e.g. the mesiobuccal root is "broad buccopalatally, narrow
 mesiodistally" per the CBCT literature cited in `tooth16.ts`.
 
+Each cross-section ring is also dented inward on the side facing the
+furcation (`furcationDent`, driven by `furcationConcavityMm`/
+`furcationFadeFraction` on `RootDefinition`) — strongest at the cervical
+line and fading out by mid-root. Without this a root is a perfectly smooth
+cone, which reads as an artificial "hot dog finger," not a real root
+surface — real molar roots have a documented concavity leading into the
+furcation, most pronounced on the mesiobuccal and palatal roots (see
+`references` in `tooth16.ts`). The "inward" direction is approximated as
+fixed per root (the negated cervical-line origin offset) rather than
+recomputed per ring along the true centerline — reasonable since the
+concavity's fade zone is concentrated near the cervical line, where the
+roots have barely diverged from that direction yet.
+
 Crown and the 3 roots are separate manifold meshes sharing one local origin —
 not boolean-unioned into a single watertight body. This is a documented,
 intentional limitation (see below), not an oversight.
@@ -183,7 +196,7 @@ pass is still worth having for mobile targets.
 
 ## Reference sources (Tooth 16)
 
-14 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
+16 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
 (proportions/prevalence-focused): 2 peer-reviewed papers, 2 CBCT studies, 1
 systematic review, 1 open university course text, and 2 encyclopedic
 cross-references (used only to corroborate, never as a primary source). One
@@ -206,6 +219,11 @@ source honestly flagged `snippetOnly: true` — its page returned HTTP 403 on
 direct fetch, so it's known only from search-result snippets, not verified
 full text, and is documented with that caveat rather than silently treated
 as equally solid as the fully-fetched sources.
+
+2 more were added for the root-surface work (see "Bugs found and fixed" #7
+below): both clinical CE-course sources on root concavity/furcation
+anatomy — which root surfaces concave and how deep, and furcation entrance
+distances from the CEJ, used to size where the concavity fades out.
 
 ## Bugs found and fixed (this phase)
 
@@ -299,6 +317,29 @@ actual height field numerically after every change, not trusting that new
 math "looks right" from the formula alone — exactly what caught the
 overshoot before it reached a screenshot.
 
+7. **Roots read as smooth "hot dog" cones, and side views cropped them out
+   of frame entirely.** Following a direct request to keep improving
+   naturalism and specifically make the roots look natural, live screenshots
+   showed two separate problems: (a) `VIEW_PRESETS` in `cameraPresets.ts`
+   shared one target/distance across all 6 views, tuned for the crown —
+   the 4 side-profile views (buccal/palatal/mesial/distal) cropped out
+   everything below the cervical line, so the roots weren't even visible to
+   evaluate; (b) once the camera framing was fixed (side views now use a
+   lower target and greater distance sized to fit the full crown-to-apex
+   span, occlusal/apical keep the original crown-tight framing), the roots
+   were visibly perfect smooth tapered ellipses with no surface detail —
+   real root surfaces aren't. Fixed by adding a furcation-facing surface
+   concavity (`furcationDent` in `rootGeometry.ts`, driven by new
+   `furcationConcavityMm`/`furcationFadeFraction` fields), grounded in
+   documented root-concavity anatomy (deepest on the mesiobuccal and
+   palatal roots, present but shallower on distobuccal, concentrated within
+   the coronal ~30-40% of root length near the furcation entrance — see the
+   2 new references). Confirmed two ways: numerically (sampling the
+   cervical-ring cross-section shows the expected radius reduction on the
+   furcation-facing side, topology still 0 errors / 1 boundary loop per
+   root) and visually (a zoomed live render shows a real groove between the
+   two buccal roots instead of two touching plain cylinders).
+
 ## Known limitations (honest, unresolved)
 
 These are recorded verbatim in `TOOTH_16.knownLimitations` as well, so the
@@ -343,12 +384,20 @@ data and the documentation cannot drift apart:
    exact.
 6. Root divergence angles approximate the literature mean (DB–palatal
    ≈44.9°), not a measured specimen.
-7. Internal anatomy (pulp chamber, root canals, dentin) is not modelled —
+7. Roots now have a furcation-facing surface concavity (see "Bugs found and
+   fixed" #7) instead of a perfectly smooth cone, but its direction is a
+   fixed approximation (the cervical-line origin offset, negated) rather
+   than recomputed per ring along the true centerline, and root taper is
+   still strictly linear rather than the non-linear profile real roots
+   often show. The palatal root's separately documented full-length
+   longitudinal groove (distinct from the furcation concavity) is not
+   modelled.
+8. Internal anatomy (pulp chamber, root canals, dentin) is not modelled —
    exterior surface only.
-8. One representative instance derived from published ranges, not a
+9. One representative instance derived from published ranges, not a
    segmentation of an actual CT/intraoral scan — real teeth vary more than
    any single model can capture.
-9. Cusp of Carabelli is included but marked `optional` (~52–68% population
+10. Cusp of Carabelli is included but marked `optional` (~52–68% population
    prevalence) — callers should default it off unless explicitly enabling
    the variant. It also has no `slopeRadiiMm` — deliberately left on the old
    isotropic bump in the anisotropic-cusp redesign (smaller diff, and it's a

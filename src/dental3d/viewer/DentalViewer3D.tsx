@@ -5,7 +5,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import * as THREE from 'three'
 import type { ToothDefinition } from '../anatomy/types'
 import { ToothMesh } from './ToothMesh'
-import { VIEW_PRESETS, VIEW_TARGET, type ViewPreset } from './cameraPresets'
+import { VIEW_PRESETS, type ViewPreset } from './cameraPresets'
 
 function Lights() {
   return (
@@ -32,7 +32,7 @@ function Scene({ tooth, wireframe, showCarabelli, controlsRef }: SceneProps) {
       <group position={[0, -3, 0]}>
         <ToothMesh tooth={tooth} wireframe={wireframe} showCarabelli={showCarabelli} />
       </group>
-      <OrbitControls ref={controlsRef} target={VIEW_TARGET} minDistance={8} maxDistance={60} />
+      <OrbitControls ref={controlsRef} target={VIEW_PRESETS.buccal.target} minDistance={8} maxDistance={60} />
     </>
   )
 }
@@ -54,12 +54,12 @@ export function DentalViewer3D({ tooth, className }: DentalViewer3DProps) {
   const goToPreset = useCallback((preset: ViewPreset) => {
     const controls = controlsRef.current
     if (!controls) return
-    const { position, up } = VIEW_PRESETS[preset]
+    const { position, up, target } = VIEW_PRESETS[preset]
     const camera = controls.object as THREE.PerspectiveCamera
     camera.position.set(...position)
     camera.up.set(...up)
-    controls.target.set(...VIEW_TARGET)
-    camera.lookAt(new THREE.Vector3(...VIEW_TARGET))
+    controls.target.set(...target)
+    camera.lookAt(new THREE.Vector3(...target))
     controls.update()
     setActivePreset(preset)
   }, [])

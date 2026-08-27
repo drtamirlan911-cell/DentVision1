@@ -106,6 +106,19 @@ export interface RootDefinition {
    *  roots are flattened mesiodistally (e.g. the mesiobuccal root of a maxillary molar
    *  is broad buccopalatally, narrow mesiodistally) — see references. */
   crossSectionAspect: number
+  /** Depth (mm) of the longitudinal surface concavity/fluting facing the
+   *  furcation (i.e. facing the tooth's central axis — every multi-rooted
+   *  tooth's roots concave toward the shared furcation area, not away from
+   *  it). A real root surface isn't a smooth cone; the concavity is what
+   *  breaks that "smooth plastic peg" look. Strongest near the cervical
+   *  line (furcation entrances sit ~3-5mm apical to the CEJ) and fades out
+   *  by mid-root — see `furcationFadeFraction` and references. Omit or 0 for
+   *  a plain smooth taper. */
+  furcationConcavityMm?: number
+  /** Fraction of the root's length (0-1) over which the furcation concavity
+   *  fades from full depth at the cervical line to 0. Defaults to 0.45 if
+   *  `furcationConcavityMm` is set but this is omitted. */
+  furcationFadeFraction?: number
 }
 
 export type ReferenceType =

@@ -92,6 +92,8 @@ export const TOOTH_16: ToothDefinition = {
       mesiodistalTiltDeg: 4,
       apicalCurvatureDeg: 14, // distal apical curvature — literature-confirmed as the majority pattern
       crossSectionAspect: 1.35, // broad buccopalatally, narrow mesiodistally
+      furcationConcavityMm: 0.45, // "prominent concavities" on the MB root, per references
+      furcationFadeFraction: 0.35,
     },
     {
       name: 'distobuccal',
@@ -103,6 +105,8 @@ export const TOOTH_16: ToothDefinition = {
       mesiodistalTiltDeg: -3,
       apicalCurvatureDeg: 8,
       crossSectionAspect: 1.1,
+      furcationConcavityMm: 0.3, // shallower than MB/palatal, still present
+      furcationFadeFraction: 0.3,
     },
     {
       name: 'palatal',
@@ -114,6 +118,8 @@ export const TOOTH_16: ToothDefinition = {
       mesiodistalTiltDeg: 1,
       apicalCurvatureDeg: 5,
       crossSectionAspect: 1.0,
+      furcationConcavityMm: 0.4, // "more frequently" the deeper of the two concave roots, per references
+      furcationFadeFraction: 0.4,
     },
   ],
 
@@ -135,6 +141,25 @@ export const TOOTH_16: ToothDefinition = {
       url: 'https://www.jendodon.com/article/S0099-2399(06)00412-2/abstract',
       type: 'systematic_review',
       confirmedFeatures: ['3 separate roots (MB/DB/palatal) in ~96% of teeth', 'MB root distal curvature ~52% of cases'],
+    },
+    {
+      source: 'Remembering Your Roots (Dimensions of Dental Hygiene)',
+      url: 'https://dimensionsofdentalhygiene.com/article/remembering-your-roots/',
+      type: 'clinical_ce_course',
+      confirmedFeatures: [
+        'deeper root-surface concavities on the mesiobuccal and (more frequently) the palatal root',
+        'furcation entrance distances from the CEJ: ~3mm mesial, ~4mm buccal, ~5mm distal — used to size the furcation-concavity fade-out zone',
+      ],
+    },
+    {
+      source: 'Hand Instrumentation of First Molar Teeth (Dimensions of Dental Hygiene)',
+      url: 'https://dimensionsofdentalhygiene.com/article/hand-instrumentation-of-first-molar-teeth/',
+      type: 'clinical_ce_course',
+      confirmedFeatures: [
+        'mesial surface concavity leading into the furcation',
+        'distobuccal root concavity present but shallower/less prominent than mesiobuccal or palatal',
+        'a groove can exist within the concavity, and a longitudinal groove runs the length of the palatal root',
+      ],
     },
     {
       source: 'Root Morphology of First Permanent Molars, Dar-Es-Salaam population study',
@@ -222,6 +247,7 @@ export const TOOTH_16: ToothDefinition = {
     'Crown and roots are separate manifold meshes sharing one local origin, not a single boolean-unioned watertight body — see docs/DENTAL_3D_ENGINE.md.',
     'Root cross-section rings are axis-aligned in the crown-local XZ plane rather than fully perpendicular to the (mildly curving) centerline tangent — negligible at these tilt/curvature magnitudes but not physically exact.',
     'Root divergence angles were tuned to approximate the literature mean (DB-palatal ≈44.9°) rather than reproducing one measured specimen.',
+    'Roots now carve a furcation-facing surface concavity (`furcationConcavityMm`/`furcationFadeFraction`, engine/rootGeometry.ts `furcationDent`) instead of being a perfectly smooth tapered cone — the earlier version had none, which read as artificial "hot dog" fingers, confirmed by live render and fixed by adding this. The concavity direction is approximated as fixed (the root\'s cervical-line origin offset, negated) rather than recomputed per ring along the true centerline — reasonable given the fade zone is concentrated near the cervical line where the roots have barely diverged, but not exact for the (small) remaining length where it\'s still partially active. The palatal root\'s separately-documented longitudinal groove (distinct from the furcation concavity, running the root\'s full length) is not modelled — only the furcation-facing concavity is. Root taper remains strictly linear (base diameter to apex diameter) rather than the non-linear, faster-tapering-in-the-apical-third profile real roots often show; not addressed this pass.',
     'Internal anatomy (pulp chamber, root canals, dentin) is not modelled — exterior surface only.',
     'One representative instance derived from published ranges, not a segmentation of an actual CT/intraoral scan — real teeth show more individual variation than any single model can capture.',
     'Cusp of Carabelli is included but marked optional (~52-68% population prevalence, not universal) — callers should default it off unless explicitly enabling the variant. It also has no `slopeRadiiMm` — deliberately left on the old isotropic bump in this pass (smaller diff, and it is a minor accessory cusp, not one of the 4 primary cusps the anisotropic redesign targeted).',

@@ -6,6 +6,12 @@
 // into extra apical-third curvature (most maxillary molar roots curve
 // distally near the apex — see docs/DENTAL_3D_ENGINE.md references).
 //
+// The cross-section is also dented inward on the side facing the furcation
+// (the tooth's central axis) — `furcationConcavityMm` — strongest near the
+// cervical line and fading out by mid-root, per documented furcation-groove
+// anatomy. Without this a root reads as a perfectly smooth cone, which is
+// not what a real root surface looks like (see references).
+//
 // Known simplification: cross-section rings stay axis-aligned in the
 // crown-local XZ plane rather than fully perpendicular to the (slightly
 // curving) tangent. For the tilt/curvature magnitudes real roots have this
@@ -16,6 +22,20 @@
 import * as THREE from 'three'
 import type { RootDefinition } from '../anatomy/types'
 import { lerp, smoothstep } from './mathUtils'
+
+const DEFAULT_FURCATION_FADE_FRACTION = 0.45
+
+/** Inward radial dent (mm) at a given cross-section angle, strongest when
+ *  the angle faces the furcation direction and fading to 0 at +-90 degrees
+ *  from it, so it only carves the one side of the tube that's anatomically
+ *  concave — not the whole circumference. */
+function furcationDent(angle: number, inwardAngle: number, depthMm: number, lengthFadeWeight: number): number {
+  if (depthMm <= 0 || lengthFadeWeight <= 0) return 0
+  const diff = angle - inwardAngle
+  const wrapped = Math.atan2(Math.sin(diff), Math.cos(diff))
+  const facing = Math.max(0, Math.cos(wrapped))
+  return depthMm * facing * facing * lengthFadeWeight
+}
 
 const ANGULAR_SEGMENTS = 20
 const LENGTH_SEGMENTS = 18
@@ -57,14 +77,29 @@ export function buildRootGeometry(root: RootDefinition): RootGeometryResult {
   const blHalf1 = root.apexDiameterMm / 2
   const mdHalf1 = blHalf1 / root.crossSectionAspect
 
+  // Furcation-facing concavity: dents the cross-section on the side facing
+  // the tooth's central axis (the root's own origin offset, negated, is
+  // that direction at the cervical line — a reasonable fixed approximation
+  // rather than re-deriving it per ring, since the roots' XZ divergence
+  // over their length is modest relative to the fade zone near the cervical
+  // line where the dent actually applies — see file header).
+  const concavityDepth = root.furcationConcavityMm ?? 0
+  const concavityFade = root.furcationFadeFraction ?? DEFAULT_FURCATION_FADE_FRACTION
+  const originLen = Math.hypot(root.originOffsetMm[0], root.originOffsetMm[1]) || 1
+  const inwardAngle = Math.atan2(-root.originOffsetMm[0] / originLen, -root.originOffsetMm[1] / originLen)
+
   for (let i = 0; i <= LENGTH_SEGMENTS; i++) {
     const t = i / LENGTH_SEGMENTS
     const blHalf = lerp(blHalf0, blHalf1, t)
     const mdHalf = lerp(mdHalf0, mdHalf1, t)
+    const lengthFadeWeight = 1 - smoothstep(0, concavityFade, t)
     const c = centerline[i]
     for (let j = 0; j < ANGULAR_SEGMENTS; j++) {
       const angle = (j / ANGULAR_SEGMENTS) * Math.PI * 2
-      positions.push(c.x + Math.sin(angle) * blHalf, c.y, c.z + Math.cos(angle) * mdHalf)
+      const dent = furcationDent(angle, inwardAngle, concavityDepth, lengthFadeWeight)
+      const rx = Math.sin(angle) * (blHalf - dent)
+      const rz = Math.cos(angle) * (mdHalf - dent)
+      positions.push(c.x + rx, c.y, c.z + rz)
     }
   }
   for (let i = 0; i < LENGTH_SEGMENTS; i++) {
