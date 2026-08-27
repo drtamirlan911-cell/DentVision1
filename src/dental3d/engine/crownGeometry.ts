@@ -138,6 +138,35 @@ function convexityLobeMm(angleRad: number, hFrac: number, mdHalf: number, blHalf
   return (buccalLobe + mesialLobe) * heightWeight * scale
 }
 
+/** Line-angle sharpness (mm-scale-independent multiplier on the ellipse
+ *  baseline) at the 4 diagonal cusp directions (45°=mesiobuccal,
+ *  135°=distobuccal, 225°=distolingual, 315°=mesiolingual, per the file
+ *  header's angle convention) for the `'rhomboid'` outline family. Real
+ *  maxillary molars aren't round in occlusal view — the outline is
+ *  rhomboidal: the mesiobuccal and distolingual line angles are ACUTE
+ *  (sharper, more prominent corners), the mesiolingual and distobuccal
+ *  line angles are OBTUSE (flatter, less prominent corners), and the 4
+ *  sides between those corners (running through the buccal/lingual/
+ *  mesial/distal cardinal directions) are relatively flat compared to a
+ *  smooth ellipse (see references — corroborated across several
+ *  independent aggregated dental-anatomy course sources, flagged
+ *  `snippetOnly` since direct fetch of the primary textbook pages failed).
+ *  Built from two cosine harmonics: `cos(4θ)` alone would give 4 EQUAL
+ *  corners (a symmetric 4-pointed star) — adding `cos(2θ)` (same phase,
+ *  half the frequency) breaks that symmetry, boosting the 45°/225° pair
+ *  over the 135°/315° pair, which is exactly the acute-vs-obtuse
+ *  distinction. Modest magnitudes (kept well under the bbox validation
+ *  tolerance — see `references`/knownLimitations) since this modulates the
+ *  wall's full-height silhouette, not just the occlusal table edge. */
+const RHOMBOID_CORNER_STRENGTH = 0.13
+const RHOMBOID_ACUTE_OBTUSE_SPLIT = 0.09
+
+function outlineFactor(angleRad: number, outline: CrownDefinition['outline']): number {
+  if (outline !== 'rhomboid') return 1
+  const phase = angleRad - Math.PI / 4
+  return 1 + RHOMBOID_CORNER_STRENGTH * Math.cos(4 * phase) + RHOMBOID_ACUTE_OBTUSE_SPLIT * Math.cos(2 * phase)
+}
+
 function maxCuspHeightMm(crown: CrownDefinition): number {
   let max = 0
   for (const c of crown.cusps) if (!c.optional && c.heightMm > max) max = c.heightMm
@@ -260,7 +289,7 @@ export function buildCrownGeometry(crown: CrownDefinition): CrownGeometryResult 
     const y = hFrac * occlusalBaseY
     for (let i = 0; i < ANGULAR_SEGMENTS; i++) {
       const angle = (i / ANGULAR_SEGMENTS) * Math.PI * 2
-      const taper = wallTaper(hFrac, angle)
+      const taper = wallTaper(hFrac, angle) * outlineFactor(angle, crown.outline)
       const [bx, bz] = footprintXZ(angle, mdHalf * taper, blHalf * taper)
       const lobe = convexityLobeMm(angle, hFrac, mdHalf, blHalf)
       const [lx, lz] = footprintXZ(angle, 1, 1)
@@ -289,8 +318,11 @@ export function buildCrownGeometry(crown: CrownDefinition): CrownGeometryResult 
     for (let i = 0; i < ANGULAR_SEGMENTS; i++) {
       const angle = (i / ANGULAR_SEGMENTS) * Math.PI * 2
       // wallTaper(1, angle) is angle-independent — hFrac=1 is always past every
-      // direction's equator (max 0.67), so it always lands on the flat 0.8 tail.
-      const [bx, bz] = footprintXZ(angle, mdHalf * wallTaper(1, 0) * rFrac, blHalf * wallTaper(1, 0) * rFrac)
+      // direction's equator (max 0.67), so it always lands on the flat 0.8 tail;
+      // outlineFactor still varies by angle so the table shares the wall's
+      // rhomboidal edge instead of reverting to a circular table rim.
+      const edgeRadius = wallTaper(1, 0) * outlineFactor(angle, crown.outline) * rFrac
+      const [bx, bz] = footprintXZ(angle, mdHalf * edgeRadius, blHalf * edgeRadius)
       const relief = smoothedOcclusalRelief(bx, bz, crown)
       positions.push(bx, occlusalBaseY + relief, bz)
     }

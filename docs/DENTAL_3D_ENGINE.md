@@ -221,7 +221,7 @@ mobile targets.
 
 ## Reference sources (Tooth 16)
 
-20 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
+21 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
 (proportions/prevalence-focused): 2 peer-reviewed papers, 2 CBCT studies, 1
 systematic review, 1 open university course text, and 2 encyclopedic
 cross-references (used only to corroborate, never as a primary source). One
@@ -266,6 +266,14 @@ failed (HTTP 403/503, or a PDF with no extractable text), so what's recorded
 is standard Wheeler's-Dental-Anatomy-level material corroborated across
 several independent course/flashcard aggregations, not one fully-read
 primary source.
+
+1 more was added for the rhomboidal-outline fix (see "Bugs found and fixed"
+#12 below): which line angles are acute (mesiobuccal, distolingual) vs
+obtuse (mesiolingual, distobuccal) on a maxillary first molar's occlusal
+outline. Also `snippetOnly: true` — direct fetch of the ScienceDirect Topics
+page returned HTTP 403, so this is corroborated across aggregated sources
+rather than one fully-read primary source, the same honesty caveat as the
+crown-equator sources above.
 
 ## Bugs found and fixed (this phase)
 
@@ -502,15 +510,57 @@ overshoot before it reached a screenshot.
     (134 files / 1316 tests), and `eslint --max-warnings 13` all stayed
     clean.
 
+12. **Occlusal outline read as a near-perfect circle, not the characteristic
+    rhomboid of a maxillary molar — and a stale, already-inaccurate
+    known-limitation entry was found in the same pass.** The reviewer
+    supplied a standard 6-view dental-atlas reference plate (buccal/
+    lingual/mesial/distal/occlusal + arch position) and asked for a direct
+    comparison. The occlusal panel was the starkest mismatch: a clear
+    diamond/kite shape in the reference against a circle in the render —
+    `crown.outline: 'rhomboid'` had been a documented **dead field** since
+    the first pass (present in the data, never read by `crownGeometry.ts`).
+    Fixed by adding `outlineFactor(angleRad, outline)`: two cosine
+    harmonics — `cos(4θ)` for the corner-vs-flat-side contrast, `cos(2θ)`
+    (same phase, half the frequency) to break the symmetry between the
+    acute mesiobuccal/distolingual corners and the obtuse mesiolingual/
+    distobuccal corners (see references) — applied to both the wall's
+    radius and the occlusal table's outer edge so they share one outline.
+    Modulation strength was tuned empirically against the bbox validation
+    tolerance (tried 0.06/0.045, 0.12/0.08, 0.16/0.11 — the last was
+    closest to the `1.05x` ceiling with too little margin; settled on
+    0.13/0.09, leaving a comfortable buffer). Confirmed numerically
+    (occlusal-edge ring radius: acute corners ≈5.37mm, obtuse corners
+    ≈4.58mm, flat sides ≈3.65-4.00mm — a real, ordered contrast) and
+    visually (re-rendered occlusal view clearly reads as a rounded rhomboid
+    now, not a circle). While comparing root divergence against the same
+    reference plate's mesial/distal panels (which show a visibly wider
+    root splay than our render), a second, unrelated bug surfaced: the
+    existing knownLimitations text already *claimed* the palatal root's
+    tilt was "tuned to approximate the literature mean (DB-palatal
+    ≈44.9°)" — but the actual data (`buccolingualTiltDeg: -28` on the
+    palatal root vs `12` on the distobuccal root) computes to 40°, not
+    44.9°. Fixed the data to match the citation exactly (`-28°→-32.9°`,
+    making `12 - (-32.9) = 44.9°`) rather than leaving the documentation
+    ahead of the code. Did not chase the reference plate's full visual
+    root-splay beyond that cited figure — generic atlas illustrations can
+    stylize/exaggerate for clarity beyond a CBCT-measured mean, and no
+    further citation was found to justify a wider angle.
+
 ## Known limitations (honest, unresolved)
 
 These are recorded verbatim in `TOOTH_16.knownLimitations` as well, so the
 data and the documentation cannot drift apart:
 
-1. `crown.outline: 'rhomboid'` is a **dead field** — `crownGeometry.ts` does
-   not yet read it; the wall/table footprint is currently always a plain
-   ellipse, not the characteristic rhomboidal occlusal outline of a
-   maxillary molar.
+1. `crown.outline: 'rhomboid'` is now read by `crownGeometry.ts`
+   (`outlineFactor`, see "Bugs found and fixed" #12) — the wall/table
+   footprint pulls toward a rhomboid instead of a plain ellipse. Two honest
+   gaps versus the reference plate that prompted the fix: the modulation
+   strength was tuned to stay safely inside the bbox validation tolerance,
+   not to match the reference's corner sharpness exactly (this model's
+   corners read as a rounded square more than a crisp diamond); and the
+   same angle-only factor applies uniformly at every height, whereas a real
+   cross-section is probably more rhomboidal near the occlusal table and
+   more rounded near the cervical line — not modelled.
 2. **Occlusal surface, viewed straight down, still reads as one dome
    dominated by the central developmental groove rather than 4 clearly
    separate mounds — improved, not resolved; the main remaining item.**
@@ -545,7 +595,14 @@ data and the documentation cannot drift apart:
    tangent — negligible at these tilt/curvature magnitudes, not physically
    exact.
 6. Root divergence angles approximate the literature mean (DB–palatal
-   ≈44.9°), not a measured specimen.
+   ≈44.9°), not a measured specimen — this text was itself briefly wrong
+   (the data computed to 40°, not 44.9°, until "Bugs found and fixed" #12
+   corrected the palatal root's tilt to match). MB–palatal divergence
+   (≈41.9° after that correction) is not individually cited, only the
+   general "MB/DB↔palatal are the widest divergences" relationship — a
+   reference plate's mesial/distal panels can show a visibly wider splay
+   than this, but matching that wasn't attempted without a specific
+   citation to ground it.
 7. Roots now have a furcation-facing surface concavity and a tangent-
    matched, widened cervical-line "root trunk" (see "Bugs found and fixed"
    #7-#9) instead of a perfectly smooth cone starting abruptly at the
