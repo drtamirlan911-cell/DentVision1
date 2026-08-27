@@ -7,7 +7,7 @@
 //      whose radius varies with height (cervical taper → anatomical
 //      equator bulge → convergence toward the occlusal table) AND with
 //      direction — the equator's height differs per surface (buccal low,
-//      lingual mid, mesial/distal higher still, see `equatorHeightFrac`),
+//      lingual mid, mesial/distal higher still, see `blendByDirection`),
 //      not one uniform bulge height all the way around — plus small
 //      per-direction convexity lobes so it isn't a perfect ellipse at
 //      every height;
@@ -21,7 +21,23 @@ import type { CrownDefinition } from '../anatomy/types'
 import { anisotropicCuspBump, distanceToPolyline, footprintXZ, lerp, radialBump, smoothMaxCompact, smoothstep } from './mathUtils'
 
 const ANGULAR_SEGMENTS = 72
-const WALL_RINGS = 16
+/** Raised from 16 to 24: with a single uniform equator height, 16 rings was
+ *  enough — the taper curve was identical (and gently curved) at every
+ *  angle. Once the equator height became direction-dependent (buccal peaks
+ *  early, mesial peaks late — a real difference spanning over half the
+ *  crown's height), the wall's radius profile genuinely varies faster with
+ *  height in the transition zone between two differing cardinal targets.
+ *  `wallTaper` itself is provably C¹-continuous in both hFrac and angle (see
+ *  `blendByDirection`), so this was never a math discontinuity — but 16
+ *  linearly-interpolated samples were too coarse to render that curvier,
+ *  still-smooth transition without visible faceting (a real, confirmed
+ *  regression: "не плавно" after the per-direction equator fix). Confirmed
+ *  by re-rendering at 16/24/40 rings — 16 showed a visible kink on the
+ *  mesial-facing silhouette around 60-70% crown height, 24 and 40 did not;
+ *  24 was kept as the smaller sufficient bump (triangle budget has large
+ *  headroom regardless — see "Performance baseline" in
+ *  docs/DENTAL_3D_ENGINE.md). */
+const WALL_RINGS = 24
 const TABLE_RINGS = 20
 /** Radius (mm) for the small-kernel blur applied to the occlusal height field —
  *  smooths the faceted, spiky look narrow Gaussian falloffs produce at this mesh
@@ -55,39 +71,56 @@ function deg2rad(d: number): number {
  *  higher, in the middle third; and the two proximal contact areas sit
  *  higher still and at DIFFERENT heights from each other — mesial at the
  *  junction of the middle and occlusal thirds, distal at the middle of the
- *  middle third (see references). A single uniform equator height (the
- *  previous version of this function) put the bulge in the same place on
- *  every surface — anatomically wrong on 3 of its 4 cardinal directions,
- *  which is exactly what a straight-on side view shows as "the equator
- *  isn't there" once you know what to look for. */
+ *  middle third (see references). A single uniform equator height put the
+ *  bulge in the same place on every surface — anatomically wrong on 3 of
+ *  its 4 cardinal directions. */
 const BUCCAL_EQUATOR_FRAC = 0.16
 const LINGUAL_EQUATOR_FRAC = 0.5
 const MESIAL_EQUATOR_FRAC = 0.67
 const DISTAL_EQUATOR_FRAC = 0.5
 
-/** Blends the 4 cardinal equator heights above by angular proximity
- *  (squared-cosine lobe per direction, clamped to 0 on the far side, then
- *  normalized) so the height-of-contour locus sweeps smoothly around the
- *  crown instead of snapping at the mesiobuccal/distobuccal/etc. seams. */
-function equatorHeightFrac(angleRad: number): number {
+/** Blends a per-direction curve's OUTPUT — not the target height parameter
+ *  it branches on — across the 4 cardinal directions, weighted by angular
+ *  proximity (squared-cosine lobe per direction, clamped to 0 on the far
+ *  side, normalized). An earlier version blended the target HEIGHT itself
+ *  and fed that single blended number into one piecewise curve — that
+ *  creates a spurious exact-peak wherever the blended height crosses a
+ *  ring's own hFrac (confirmed regression: extra ripples sweeping across
+ *  the wall, reported as "не плавно"). Within any 90° quadrant only the two
+ *  flanking directions have nonzero weight, and those weights are
+ *  cos²θ/sin²θ (they sum to 1 exactly), so this reduces to a 2-term convex
+ *  combination of two FIXED curve values there — provably monotonic between
+ *  the two directions, no interior extremum. */
+function blendByDirection(angleRad: number, curve: (target: number) => number): number {
   const wBuccal = Math.max(0, Math.cos(angleRad - Math.PI / 2)) ** 2
   const wLingual = Math.max(0, Math.cos(angleRad - (3 * Math.PI) / 2)) ** 2
   const wMesial = Math.max(0, Math.cos(angleRad)) ** 2
   const wDistal = Math.max(0, Math.cos(angleRad - Math.PI)) ** 2
   const sum = wBuccal + wLingual + wMesial + wDistal || 1
   return (
-    (wBuccal * BUCCAL_EQUATOR_FRAC + wLingual * LINGUAL_EQUATOR_FRAC + wMesial * MESIAL_EQUATOR_FRAC + wDistal * DISTAL_EQUATOR_FRAC) / sum
+    (wBuccal * curve(BUCCAL_EQUATOR_FRAC) + wLingual * curve(LINGUAL_EQUATOR_FRAC) + wMesial * curve(MESIAL_EQUATOR_FRAC) + wDistal * curve(DISTAL_EQUATOR_FRAC)) / sum
   )
 }
 
-/** Cervical→occlusal-edge taper: narrower at the neck, widest at the
- *  direction-dependent anatomical equator (see `equatorHeightFrac`),
- *  narrowing again as the wall approaches the occlusal table — the classic
- *  posterior-tooth crown silhouette, per surface. */
-function wallTaper(hFrac: number, angleRad: number): number {
-  const equator = equatorHeightFrac(angleRad)
+/** Cervical→occlusal-edge taper curve for one fixed equator height: narrower
+ *  at the neck, widest at `equator`, narrowing again toward the occlusal
+ *  table — the classic posterior-tooth crown silhouette. */
+function taperAtEquator(hFrac: number, equator: number): number {
   if (hFrac < equator) return lerp(0.86, 1.0, smoothstep(0, equator, hFrac))
   return lerp(1.0, 0.8, smoothstep(equator, 1, hFrac))
+}
+
+/** Direction-dependent equivalent of `taperAtEquator`, per surface (see
+ *  `blendByDirection`). */
+function wallTaper(hFrac: number, angleRad: number): number {
+  return blendByDirection(angleRad, (equator) => taperAtEquator(hFrac, equator))
+}
+
+/** Height-weight curve for `convexityLobeMm`, for one fixed equator height:
+ *  0 at the cervical line and occlusal edge, 1 at `equator`. */
+function heightWeightAtEquator(hFrac: number, equator: number): number {
+  const remapped = hFrac < equator ? (hFrac / equator) * 0.5 : 0.5 + ((hFrac - equator) / (1 - equator)) * 0.5
+  return Math.sin(Math.PI * THREE.MathUtils.clamp(remapped, 0, 1))
 }
 
 /** Small asymmetric bulges (buccal slightly more convex than lingual, a mild
@@ -100,9 +133,7 @@ function wallTaper(hFrac: number, angleRad: number): number {
 function convexityLobeMm(angleRad: number, hFrac: number, mdHalf: number, blHalf: number): number {
   const buccalLobe = Math.max(0, Math.cos(angleRad - Math.PI / 2))
   const mesialLobe = Math.max(0, Math.cos(angleRad)) * 0.5
-  const equator = equatorHeightFrac(angleRad)
-  const remapped = hFrac < equator ? (hFrac / equator) * 0.5 : 0.5 + ((hFrac - equator) / (1 - equator)) * 0.5
-  const heightWeight = Math.sin(Math.PI * THREE.MathUtils.clamp(remapped, 0, 1))
+  const heightWeight = blendByDirection(angleRad, (equator) => heightWeightAtEquator(hFrac, equator))
   const scale = Math.min(mdHalf, blHalf) * 0.06
   return (buccalLobe + mesialLobe) * heightWeight * scale
 }

@@ -208,14 +208,16 @@ documented limitations — 0 anatomy errors.
 
 ## Performance baseline
 
-One tooth (crown + 3 roots): 3664 vertices / 7188 triangles. Linearly scaled
-to a full 32-tooth arch (this phase does not build that, but the estimate is
-worth recording for the next phase's LOD-pipeline planning): **≈117k
-vertices / ≈230k triangles**, well within a real-time WebGL budget (typical
-budgets run from several hundred thousand to a few million triangles) even
-with zero LOD reduction. This suggests the next phase should prioritize
-correctness/naturalism per-tooth over an aggressive LOD scheme, though an LOD
-pass is still worth having for mobile targets.
+One tooth (crown + 3 roots): 4240 vertices / 8340 triangles (`WALL_RINGS`
+raised 16→24 to fix a real tessellation-faceting bug — see "Bugs found and
+fixed" below). Linearly scaled to a full 32-tooth arch (this phase does not
+build that, but the estimate is worth recording for the next phase's
+LOD-pipeline planning): **≈136k vertices / ≈267k triangles**, still well
+within a real-time WebGL budget (typical budgets run from several hundred
+thousand to a few million triangles) even with zero LOD reduction. This
+suggests the next phase should prioritize correctness/naturalism per-tooth
+over an aggressive LOD scheme, though an LOD pass is still worth having for
+mobile targets.
 
 ## Reference sources (Tooth 16)
 
@@ -437,19 +439,68 @@ overshoot before it reached a screenshot.
     HTTP 403/503 or no extractable text, so this is flagged `snippetOnly`,
     corroborated across several independent course/flashcard aggregations
     of standard Wheeler's-Dental-Anatomy material rather than one fully-read
-    primary source). Fixed with `equatorHeightFrac(angleRad)`, which blends
-    4 per-direction target heights (buccal 0.16, lingual 0.5, mesial 0.67,
-    distal 0.5) by angular proximity (squared-cosine lobe per cardinal
-    direction, normalized), and re-peaked the smaller secondary
-    `convexityLobeMm` bulge at the same per-direction height instead of a
-    fixed mid-height, so it reinforces the one true bulge on each surface
-    rather than adding a second, mislocated one. Confirmed numerically
-    (sampling the actual wall vertices along each cardinal direction: the
-    widest ring lands at hFrac≈0.20 buccally, ≈0.47 both lingually and
-    distally, ≈0.67 mesially — matching the cited thirds; bounding box
-    stays within the existing `[0.6x, 1.05x]` validation tolerance) and
-    visually (all 4 side-profile views re-rendered and show clearly
-    differentiated silhouettes per surface instead of one uniform bulge).
+    primary source). Fixed by blending 4 per-direction target heights
+    (buccal 0.16, lingual 0.5, mesial 0.67, distal 0.5) by angular proximity
+    (squared-cosine lobe per cardinal direction, normalized), and re-peaking
+    the smaller secondary `convexityLobeMm` bulge at the same per-direction
+    height instead of a fixed mid-height, so it reinforces the one true
+    bulge on each surface rather than adding a second, mislocated one
+    (the blending function was `equatorHeightFrac(angleRad)` in this first
+    pass — renamed/refactored in bug #11 below, same 4 target heights).
+    Confirmed numerically (sampling the actual wall vertices along each
+    cardinal direction: the widest ring lands at hFrac≈0.20 buccally, ≈0.47
+    both lingually and distally, ≈0.67 mesially — matching the cited
+    thirds; bounding box stays within the existing `[0.6x, 1.05x]`
+    validation tolerance) and visually (all 4 side-profile views re-rendered
+    and show clearly differentiated silhouettes per surface instead of one
+    uniform bulge).
+
+11. **The equator fix (#10) introduced its own regression: spurious ripples
+    across the wall, and — separately — visible faceting.** Direct user
+    feedback landed immediately after #10 shipped: "но теперь все не плавно"
+    ("but now nothing is smooth"). Two distinct, independently-confirmed
+    causes, not one:
+    - **A real math bug.** `equatorHeightFrac` blended the 4 target
+      heights' *position*, then fed that single blended position into the
+      original two-branch taper curve as its branch boundary. Since the 4
+      targets aren't monotonic around the crown (mesial 0.67 → buccal
+      0.16 → distal 0.5 → lingual 0.5 → back to mesial 0.67), any ring
+      whose own height fell between two differing targets had the blended
+      position cross that ring's height at some interior angle — and a
+      branch boundary is always the curve's local max, so every such
+      crossing became a spurious exact-peak with no anatomical basis.
+      Confirmed analytically (within any 90° quadrant the two flanking
+      weights reduce to cos²θ/sin²θ, which sum to exactly 1 — blending the
+      *position* is mathematically guaranteed to hit the peak value at the
+      crossing) and visually (a zoomed live render showed a visible
+      kink/step on the mesial-facing silhouette, confirmed as real geometry
+      via a wireframe capture, not a shading artifact). Fixed by replacing
+      `equatorHeightFrac` with `blendByDirection`, which blends the curve's
+      *output* across the 4 directions instead of the position parameter —
+      provably monotonic between any two adjacent directions (a weighted
+      average of two fixed values can't create an interior extremum).
+      Confirmed by sampling `wallTaper` directly at 720-angle resolution
+      across every ring: every local maximum lands exactly at a cardinal
+      direction, none in between. `convexityLobeMm`'s smaller height-weight
+      bulge had the same class of bug and was fixed the same way.
+    - **A separate tessellation-resolution issue**, found while confirming
+      the math fix above resolved the visible kink — it didn't, fully, on
+      its own. `wallTaper` is provably C¹-continuous in both height and
+      angle (proven above), so the remaining artifact wasn't a math
+      discontinuity — but `WALL_RINGS` at its old value of 16 was too
+      coarse to linearly interpolate the now-curvier (still perfectly
+      smooth) per-direction transition without visible faceting, something
+      16 rings never had to resolve when every ring shared one identical,
+      gently-curved taper. Confirmed by re-rendering at 16/24/40 rings: 16
+      showed the kink, 24 and 40 did not — kept 24 as the smaller
+      sufficient bump (triangle budget has large headroom regardless — see
+      "Performance baseline" above; one tooth went from 3664/7188 to
+      4240/8340 vertices/triangles).
+    Both fixes were verified together: full re-render of all 4 side-profile
+    views (zoomed, to make faceting visible) shows a clean, smooth
+    silhouette on every surface; `npx tsc --noEmit`, full `vitest run`
+    (134 files / 1316 tests), and `eslint --max-warnings 13` all stayed
+    clean.
 
 ## Known limitations (honest, unresolved)
 
@@ -528,12 +579,19 @@ data and the documentation cannot drift apart:
    and fixed" #10) placed the buccal/lingual/mesial/distal equator heights
    at one reasonable point-estimate inside each cited "third," not at an
    individually measured/cited number for this specific tooth — and blends
-   between the 4 cardinal directions with a squared-cosine angular lobe,
-   an engineering choice for a smooth sweep, not itself a cited technique.
-   The secondary `convexityLobeMm` bulge was re-peaked to the same per-
-   direction height so it no longer creates a second, mislocated bump, but
-   its magnitude (a fixed 6% of the local half-width) is unchanged and is
-   still a visual approximation, not a cited value.
+   between the 4 cardinal directions with a squared-cosine angular lobe
+   (`blendByDirection`, applied to the curve's output — see #11 above for
+   why not the raw position), an engineering choice for a smooth sweep,
+   not itself a cited technique. The secondary `convexityLobeMm` bulge is
+   blended the same way so it no longer creates a second, mislocated bump,
+   but its magnitude (a fixed 6% of the local half-width) is unchanged and
+   is still a visual approximation, not a cited value.
+12. `WALL_RINGS` was raised 16→24 (see "Bugs found and fixed" #11) purely to
+   resolve visible faceting once the taper became direction-dependent — the
+   exact ring count needed is empirical (confirmed by re-rendering at a few
+   values), not derived from any anatomical or perceptual-smoothness metric;
+   a future pass could pursue a principled criterion (e.g. max angular
+   change in radius per ring) instead of eyeballed re-renders.
 
 Item 2 is the one most likely to matter for the "does this look anatomically
 natural, not generic-AI" bar the spec set. The anisotropic-cusp redesign
