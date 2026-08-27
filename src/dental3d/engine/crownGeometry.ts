@@ -15,7 +15,7 @@
 
 import * as THREE from 'three'
 import type { CrownDefinition } from '../anatomy/types'
-import { distanceToPolyline, footprintXZ, lerp, radialBump, smoothstep } from './mathUtils'
+import { anisotropicCuspBump, distanceToPolyline, footprintXZ, lerp, radialBump, smoothMaxCompact, smoothstep } from './mathUtils'
 
 const ANGULAR_SEGMENTS = 72
 const WALL_RINGS = 16
@@ -27,6 +27,18 @@ const TABLE_RINGS = 20
  *  pass smoothed the crossing ridges/fossa at the tooth's center into a single
  *  raised "knot" instead of a pit, flattening it into a hard-to-read swirl. */
 const RELIEF_SMOOTH_RADIUS_MM = 0.75
+/** Blend radius (mm) for smoothMax between adjacent cusps — see occlusalRelief.
+ *  Wide enough to remove the visible C0 seam a bare Math.max() leaves where two
+ *  cusps meet, narrow enough not to wash out the saddle line itself. */
+const CUSP_BLEND_MM = 0.45
+/** Blend radius (mm) for smoothMax between ridges, and between the ridge nudge
+ *  and the primary cusp shape — narrower than CUSP_BLEND_MM since ridges are a
+ *  thinner secondary feature, not a second primary mass. */
+const RIDGE_BLEND_MM = 0.25
+/** Hard ceiling (mm) on how much the ridge network may add on top of the
+ *  cusp-driven primary shape — ridges are a small crispening refinement now,
+ *  not a competing height source (see occlusalRelief). */
+const RIDGE_NUDGE_CAP_MM = 0.22
 
 function deg2rad(d: number): number {
   return (d * Math.PI) / 180
@@ -59,14 +71,23 @@ function maxCuspHeightMm(crown: CrownDefinition): number {
 }
 
 /** Combined anatomical relief at a point on the occlusal table, in mm above
- *  the table's base plane. Cusps raise it, grooves/fossae lower it, ridges
- *  raise connecting strips between cusps. */
+ *  the table's base plane.
+ *
+ *  Cusps are the primary shape: each is an anisotropic bump when
+ *  `slopeRadiiMm` is set (stretched toward the crown center so it reaches
+ *  its neighbors and forms a natural saddle line where they meet — real
+ *  ridges/grooves emerge from that meeting, they aren't independently
+ *  authored bumps stitched into the gap), isotropic otherwise. Cusps combine
+ *  with `smoothMax`, not a bare Math.max() — once cusps are wide enough to
+ *  actually reach each other, a bare max() leaves a visible C0 seam exactly
+ *  where two cusps are equal in height, right where they meet.
+ *
+ *  Ridges are now a secondary refinement layered on top of that primary
+ *  shape (also via smoothMax, then hard-capped) rather than an equal
+ *  competitor via Math.max(cuspRelief, ridgeRelief) — see
+ *  docs/DENTAL_3D_ENGINE.md for why the old equal-competitor design produced
+ *  a "crumpled" look. Grooves/fossae subtract afterward, unchanged. */
 function occlusalRelief(x: number, z: number, crown: CrownDefinition): number {
-  // Cusps and ridges both raise the surface, but a ridge is the extended
-  // slope of the cusp(s) it connects, not an independent second bump — where
-  // a ridge path runs through a cusp's own footprint (as oblique/triangular
-  // ridges do, by definition, at their endpoints) it must not stack on top
-  // of the cusp's peak. Combine same-sign contributions with max(), not sum.
   let cuspRelief = 0
   for (const cusp of crown.cusps) {
     if (cusp.optional) continue
@@ -75,15 +96,40 @@ function occlusalRelief(x: number, z: number, crown: CrownDefinition): number {
       (crown.mesiodistalWidthMm / 2) * cusp.radialPosition,
       (crown.buccolingualWidthMm / 2) * cusp.radialPosition,
     )
-    const d = Math.hypot(x - cx, z - cz)
-    cuspRelief += radialBump(d, cusp.radiusMm) * cusp.heightMm
+    const dx = x - cx
+    const dz = z - cz
+    let bump: number
+    if (cusp.slopeRadiiMm) {
+      const cLen = Math.hypot(cx, cz) || 1
+      bump = anisotropicCuspBump(
+        dx,
+        dz,
+        -cx / cLen,
+        -cz / cLen,
+        cusp.slopeRadiiMm.radialInwardMm,
+        cusp.slopeRadiiMm.radialOutwardMm,
+        cusp.slopeRadiiMm.tangentialMm,
+      )
+    } else {
+      bump = radialBump(Math.hypot(dx, dz), cusp.radiusMm)
+    }
+    cuspRelief = smoothMaxCompact(cuspRelief, bump * cusp.heightMm, CUSP_BLEND_MM)
   }
-  let ridgeRelief = 0
+  // Combined via max (smoothMaxCompact), not addition: a ridge path is
+  // anatomically anchored at its connected cusps' own tips (by definition —
+  // ridges run FROM cusp tips), so at a cusp's own apex the ridge nudge would
+  // otherwise add on top of the cusp's already-maximal height, inflating the
+  // peak past crown.heightMm — the same class of bug found and fixed for the
+  // pre-anisotropic formula last session. Capping the ridge nudge to a small
+  // ceiling and combining via max means it only shows up as a small raised
+  // saddle in the valley between cusps (where cuspRelief is near 0), never
+  // stacks on top of a peak (where cuspRelief already dominates the cap).
+  let ridgeNudge = 0
   for (const ridge of crown.ridges) {
     const d = distanceToPolyline(x, z, ridge.path)
-    ridgeRelief += radialBump(d, ridge.widthMm) * ridge.heightMm
+    ridgeNudge = smoothMaxCompact(ridgeNudge, radialBump(d, ridge.widthMm) * ridge.heightMm, RIDGE_BLEND_MM)
   }
-  let y = Math.max(cuspRelief, ridgeRelief)
+  let y = smoothMaxCompact(cuspRelief, Math.min(ridgeNudge, RIDGE_NUDGE_CAP_MM), RIDGE_BLEND_MM)
   for (const groove of crown.grooves) {
     const d = distanceToPolyline(x, z, groove.path)
     y -= radialBump(d, groove.widthMm) * groove.depthMm

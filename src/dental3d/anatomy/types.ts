@@ -29,8 +29,20 @@ export interface CuspDefinition {
   radialPosition: number
   /** Cusp tip height above the occlusal reference plane, mm */
   heightMm: number
-  /** Gaussian falloff radius controlling cusp footprint width, mm */
+  /** Gaussian falloff radius controlling cusp footprint width, mm. Isotropic
+   *  fallback used whenever `slopeRadiiMm` is absent — e.g. for the optional
+   *  Cusp of Carabelli, deliberately left isotropic in Phase 1. */
   radiusMm: number
+  /** Anisotropic falloff radii (mm), replacing the isotropic `radiusMm` when
+   *  present. A real cusp's shape is closer to a pyramid with 4 inclined
+   *  planes than an isotropic dome (see references) — `radialInwardMm` lets
+   *  the cusp's slope reach far enough toward the crown center to meet its
+   *  neighbors and form a natural saddle line there (the ridge/groove
+   *  emerges from where two cusp masses meet, not from a separately-authored
+   *  connecting bump), `radialOutwardMm` keeps the outer silhouette crisp,
+   *  `tangentialMm` controls the reach sideways along the arch toward
+   *  adjacent cusps. See engine/mathUtils.ts `anisotropicCuspBump`. */
+  slopeRadiiMm?: { radialInwardMm: number; radialOutwardMm: number; tangentialMm: number }
   /** 0–1 relative prominence, for documentation/validation only (not fed into geometry) */
   prominence: number
   /** True for accessory/non-obligate cusps (e.g. Cusp of Carabelli) absent in some individuals */
@@ -102,11 +114,23 @@ export type ReferenceType =
   | 'systematic_review'
   | 'encyclopedic_crossref'
   | 'cbct_study'
+  /** A dental-technology / lab-technique text (wax-carving, CAD modeling) —
+   *  describes HOW real cusps/ridges are built, not just their proportions. */
+  | 'technique_description'
+  /** Continuing-education course material for practicing clinicians. */
+  | 'clinical_ce_course'
+  /** Glossary/terminology cross-reference — corroborating only, not primary;
+   *  never the sole source for a claim. */
+  | 'glossary_crossref'
 
 export interface AnatomicalReference {
   source: string
   url?: string
   type: ReferenceType
+  /** True when this source's content is known only from a search-result
+   *  snippet, not a fully fetched/read page (e.g. the page blocked direct
+   *  fetching) — flagged so the confidence gap is visible, not hidden. */
+  snippetOnly?: boolean
   /** Which features this source was used to confirm/derive */
   confirmedFeatures: string[]
 }

@@ -75,20 +75,36 @@ convexity lobes (buccal more convex than lingual, a mild mesial contact
 bulge) so the wall isn't a perfect ellipse of revolution at every height.
 
 The table's height field combines, per point:
-- **cusps** — radial bumps (`radialBump`, compact-support falloff) at each
-  cusp's polar position, scaled by its own height/radius/prominence;
-- **ridges** — bumps along a path (`distanceToPolyline`) connecting two
-  cusps or a cusp and the central groove;
-- **grooves** — troughs along a path;
+- **cusps** — the primary shape. Each cusp is an **anisotropic** compact-
+  support bump (`anisotropicCuspBump`) when it defines `slopeRadiiMm`
+  (all 4 non-optional cusps of tooth 16 do; the optional Cusp of Carabelli
+  doesn't, see "Known limitations"), falling back to the older isotropic
+  `radialBump` otherwise. The bump is stretched toward the crown center
+  (`radialInwardMm`) so a cusp's slope reaches far enough to meet its
+  neighbors and form a natural saddle line where they meet, and compressed
+  toward the crown's outer wall (`radialOutwardMm`) so the silhouette stays
+  inside the bbox-proportion test's tolerance. This is grounded in real
+  dental technique, not invented: a cusp's true shape is closer to a
+  4-inclined-plane pyramid than an isotropic dome, and wax-carving technique
+  builds cusps as broad masses moved toward each other until their slopes
+  meet — the meeting point *is* the ridge/groove line, not a separately
+  authored connecting bump (see `references` in `tooth16.ts` for the
+  sources). Cusps combine with **`smoothMaxCompact`**, a compact-support-
+  aware wrapper around the standard quadratic smooth-max (Inigo Quilez,
+  "Smooth Minimum Function") — see "Bugs found and fixed" for why a bare
+  `Math.max()`, and even a naive `smoothMax` fold from a `0` baseline, both
+  produce real, measured defects here.
+- **ridges** — now a small, capped secondary refinement layered on top of
+  the cusp-driven primary shape (also via `smoothMaxCompact`, combined with
+  the primary shape via max so it can never stack additively on top of a
+  cusp's own peak), not an equal competitor to cusps as in the first pass.
+- **grooves** — troughs along a path (`distanceToPolyline`);
 - **fossae** — circular troughs at a point.
 
-Cusp and ridge contributions are combined with `Math.max()`, not summed —
-ridge paths intentionally terminate at their connected cusps' own peak
-positions, so summing would double-count height there (this was a real bug,
-see "Bugs found and fixed"). Groove/fossa troughs subtract afterward. A
-5-tap blur (`smoothedOcclusalRelief`) softens the faceted look the analytic
-falloffs produce at this mesh density, without moving or erasing landmark
-positions.
+Groove/fossa troughs subtract afterward, unchanged by the anisotropic
+redesign. A 9-tap blur (`smoothedOcclusalRelief`, center + 8-direction ring)
+softens residual faceting from the analytic falloffs at this mesh density,
+without moving or erasing landmark positions.
 
 **Root** (`rootGeometry.ts`): a tapered tube swept along a centerline that
 blends a straight cervical tilt (buccolingual + mesiodistal) into extra
@@ -167,15 +183,29 @@ pass is still worth having for mobile targets.
 
 ## Reference sources (Tooth 16)
 
-8 sources cross-checked in `tooth16.ts`'s `references` field: 2 peer-reviewed
-papers, 2 CBCT studies, 1 systematic review, 1 open university course text,
-and 2 encyclopedic cross-references (used only to corroborate, never as a
-primary source). One genuine cross-source conflict was found and resolved:
-one secondary source implied the oblique ridge connects the mesiobuccal and
+14 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
+(proportions/prevalence-focused): 2 peer-reviewed papers, 2 CBCT studies, 1
+systematic review, 1 open university course text, and 2 encyclopedic
+cross-references (used only to corroborate, never as a primary source). One
+genuine cross-source conflict was found and resolved among these: one
+secondary source implied the oblique ridge connects the mesiobuccal and
 distolingual cusps; every majority/standard source (including the systematic
 review) has it connecting **distobuccal → mesiolingual**. The model uses the
 majority relationship; the resolution is documented inline in `tooth16.ts`
 next to the `oblique_ridge` definition.
+
+6 more were added for the anisotropic-cusp redesign (see "Bugs found and
+fixed" #6 below) — these are about *technique* (how cusps/ridges are
+actually shaped and built), not proportions: 1 more peer-reviewed source
+(cusp described as a pyramidal, 4-inclined-plane form), 2 dental-technique/
+CE-course sources on wax-carving and CAD-modeling order (primary masses
+first, secondary fissures after), 1 restoration-technique framing source
+(primary/secondary/tertiary anatomy), 1 terminology cross-reference
+(corroborating the 4-inclined-plane cusp shape), and 1 wax-carving technique
+source honestly flagged `snippetOnly: true` — its page returned HTTP 403 on
+direct fetch, so it's known only from search-result snippets, not verified
+full text, and is documented with that caveat rather than silently treated
+as equally solid as the fully-fetched sources.
 
 ## Bugs found and fixed (this phase)
 
@@ -230,6 +260,45 @@ exactly the kind of check this phase's `honesty_requirement` and validation
 gate exist for — not from the automated test suite, which only checks
 topology and metadata and has no way to catch "looks unnatural."
 
+5. **`smoothMax` inflated apex heights when folded from a `0` baseline.**
+   While redesigning the occlusal relief (see #6), an initial implementation
+   replaced `Math.max()` across cusps with a naive running fold of the
+   textbook `smoothMax(a, b, k)` (Inigo Quilez's quadratic smooth-max),
+   starting the accumulator at `0`. Sampling the height field directly (not
+   just eyeballing the render) showed cusp apexes overshooting their defined
+   `heightMm` by up to +0.29mm. Cause: `smoothMax(0, 0, k)` is **not** `0` —
+   it's `k/4` — because the formula has no notion of "this side doesn't
+   apply here"; it always blends two competing surfaces, even when both are
+   the "nothing contributes here" placeholder. Folding that across every
+   cusp compounds the artifact. Fixed by adding `smoothMaxCompact(a, b, k)`,
+   which falls back to a plain `Math.max` whenever either side is below a
+   small epsilon, restoring an exact `0` baseline far from every cusp while
+   still smoothing the real overlap region between two genuinely non-zero
+   bumps. Confirmed by re-sampling: every cusp apex now returns exactly its
+   defined `heightMm`.
+
+6. **Ridge nudge stacked additively on top of a cusp's own peak.** After
+   fixing #5, apex sampling still showed two cusps (mesiolingual,
+   distobuccal) overshooting their height by exactly `RIDGE_NUDGE_CAP_MM`
+   (0.22mm). Cause: ridge paths are anatomically anchored at their connected
+   cusps' own tips (ridges run *from* cusp tips, by definition), so at a
+   cusp's own apex the ridge's contribution is near its own maximum too —
+   and the relief was computed as `cuspRelief + min(ridgeNudge, cap)`,
+   i.e. addition, so the ridge nudge stacked on top of the cusp's own peak
+   exactly where they anatomically coincide. This is the same class of bug
+   as #1 above (ridge/cusp height stacking), reappearing in the new
+   formula. Fixed by combining via `smoothMaxCompact(cuspRelief,
+   min(ridgeNudge, cap), k)` — max, not addition — so the ridge nudge only
+   shows up as a small raised saddle in the valley between cusps (where
+   `cuspRelief` is near 0), never stacks on top of a peak (where
+   `cuspRelief` already exceeds the small ridge cap). Confirmed by
+   re-sampling: all 4 apexes now match their defined heights exactly.
+
+Bugs #5 and #6 were found by the same discipline as #3 and #4: sampling the
+actual height field numerically after every change, not trusting that new
+math "looks right" from the formula alone — exactly what caught the
+overshoot before it reached a screenshot.
+
 ## Known limitations (honest, unresolved)
 
 These are recorded verbatim in `TOOTH_16.knownLimitations` as well, so the
@@ -239,28 +308,33 @@ data and the documentation cannot drift apart:
    not yet read it; the wall/table footprint is currently always a plain
    ellipse, not the characteristic rhomboidal occlusal outline of a
    maxillary molar.
-2. **Occlusal surface still reads as "crumpled/faceted," not smoothly
-   natural — the main unresolved item.** The central-fossa bug above (bug 4)
-   is fixed and confirmed, but the broader complaint it was found alongside
-   — that the cusps don't look naturally rounded — is only partially
-   addressed. Root cause: the height field stacks many independently
-   centered compact-support radial bumps (cusps/ridges/grooves/fossae
-   combined via `max()`/subtraction); each bump alone is smooth, but several
-   closely-spaced bumps together create local curvature too complex for
-   mesh-level blurring or added tessellation to fully iron out. Tried and
-   confirmed *not* to fix it: widening the blur radius from 0.35mm to
-   0.75mm (helped a little, plateaued), and doubling mesh resolution to 96
-   angular segments / 30 table rings (no visible difference, reverted — not
-   worth the extra ~1800 triangles). A genuinely smooth, natural result
-   likely needs a different height-field authoring technique — fewer/
-   broader primary landmarks with lower-amplitude secondary detail, or a
-   properly curvature-continuous blended surface — rather than more
-   parameter tuning of the current approach.
-3. **Mesial marginal ridge notch**, unchanged by this pass: from the mesial
-   view, the ridge between the mesiobuccal and mesiolingual cusps still
-   reads as a visible V-shaped notch rather than the fairly continuous,
-   gently undulating line real molars show. Not addressed this round —
-   effort went to the higher-priority central-fossa bug and item 2 above.
+2. **Occlusal surface, viewed straight down, still reads as one dome
+   dominated by the central developmental groove rather than 4 clearly
+   separate mounds — improved, not resolved; the main remaining item.**
+   The first pass's height-field technique (many small isotropic compact-
+   support bumps summed/maxed together, with a separate ridge feature
+   patching the gaps between them) has been replaced with an anisotropic-
+   cusp + smooth-blend technique grounded in real dental wax-carving/
+   modeling references (see "Bugs found and fixed" #5/#6 and `references`
+   in `tooth16.ts`). That fixed two confirmed, measured problems: cusp apex
+   heights no longer overshoot their defined value, and the **buccal-view**
+   silhouette now shows two clearly separate, smoothly rounded cusp domes
+   instead of several small jagged spikes (confirmed by live render — this
+   was a real, visible improvement, not just a numeric one). The **top-down
+   occlusal** view is measurably smoother in the underlying height field
+   (no more flat near-zero gap between adjacent cusps, verified by
+   sampling) but still doesn't clearly read as 4 separate mounds when
+   viewed exactly from above — the central developmental groove's own
+   width/depth visually dominates that particular viewing angle. Not
+   pursued further this pass; would need either widening the cusps'
+   tangential reach further or reworking the central-groove parameters
+   specifically for the top-down read.
+3. **Mesial marginal ridge notch**, unchanged by the anisotropic-cusp
+   redesign: from the mesial view, the ridge between the mesiobuccal and
+   mesiolingual cusps still reads as a visible V-shaped notch rather than
+   the fairly continuous, gently undulating line real molars show. Not
+   addressed this round — effort went to the primary occlusal-table shape
+   (item 2), not this specific ridge.
 4. Crown and roots are separate manifold meshes sharing one local origin,
    not a single boolean-unioned watertight body.
 5. Root cross-section rings are axis-aligned in the crown-local XZ plane
@@ -276,22 +350,28 @@ data and the documentation cannot drift apart:
    any single model can capture.
 9. Cusp of Carabelli is included but marked `optional` (~52–68% population
    prevalence) — callers should default it off unless explicitly enabling
-   the variant.
+   the variant. It also has no `slopeRadiiMm` — deliberately left on the old
+   isotropic bump in the anisotropic-cusp redesign (smaller diff, and it's a
+   minor accessory cusp, not one of the 4 primary cusps that redesign
+   targeted).
 
 Item 2 is the one most likely to matter for the "does this look anatomically
-natural, not generic-AI" bar the spec set — it should be resolved (via a
-different height-field technique, not more tuning of this one) or a
-conscious decision made to accept it before treating this phase's gate as
-passed.
+natural, not generic-AI" bar the spec set. The anisotropic-cusp redesign
+made real, measured progress on it (buccal-view cusps now clearly separate
+and rounded) but the top-down occlusal read is improved, not resolved — it
+should be finished or a conscious decision made to accept the current state
+before treating this phase's gate as passed.
 
 ## Next steps (blocked on the gate)
 
 Per the agreed `next_phase_gate`, do not scale to the remaining 31 teeth, an
 LOD pipeline, the full arch, or odontogram integration until:
 1. A human has reviewed the live render against the 6 standard views, and
-2. Limitation #2 above (the general "crumpled" cusp character) is either
-   fixed — likely requiring a different height-field technique, see above —
-   or explicitly accepted as good enough for this phase.
+2. Limitation #2 above (the top-down occlusal read) is either finished —
+   likely by widening cusps' tangential reach further or reworking the
+   central developmental groove's parameters, not by touching the material
+   or the now-fixed smoothMax/anisotropic-cusp math — or explicitly accepted
+   as good enough for this phase.
 
 If accepted, the next phase should build out the remaining tooth classes
 (incisor, canine, premolar per FDI numbering) reusing this same engine, wire

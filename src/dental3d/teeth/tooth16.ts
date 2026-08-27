@@ -25,11 +25,17 @@ export const TOOTH_16: ToothDefinition = {
 
     cusps: [
       // Mesiolingual (mesiopalatal) — largest and most prominent cusp of the tooth.
-      { name: 'mesiolingual', angleDeg: 315, radialPosition: 0.8, heightMm: 2.0, radiusMm: 2.4, prominence: 1.0 },
-      { name: 'mesiobuccal', angleDeg: 45, radialPosition: 0.75, heightMm: 1.8, radiusMm: 2.2, prominence: 0.85 },
-      { name: 'distobuccal', angleDeg: 135, radialPosition: 0.7, heightMm: 1.5, radiusMm: 1.9, prominence: 0.65 },
+      // slopeRadiiMm: real cusps are closer to a 4-inclined-plane pyramid than an
+      // isotropic dome (see references) — radialInwardMm lets the cusp's slope
+      // reach far enough toward the crown center to meet its neighbors and form a
+      // natural saddle line there, instead of a separately-authored ridge bump
+      // patching the gap. radialOutwardMm stays tighter than radiusMm so the
+      // silhouette doesn't balloon past the crown's defined width.
+      { name: 'mesiolingual', angleDeg: 315, radialPosition: 0.8, heightMm: 2.0, radiusMm: 2.4, prominence: 1.0, slopeRadiiMm: { radialInwardMm: 3.8, radialOutwardMm: 1.8, tangentialMm: 2.4 } },
+      { name: 'mesiobuccal', angleDeg: 45, radialPosition: 0.75, heightMm: 1.8, radiusMm: 2.2, prominence: 0.85, slopeRadiiMm: { radialInwardMm: 3.5, radialOutwardMm: 1.65, tangentialMm: 2.2 } },
+      { name: 'distobuccal', angleDeg: 135, radialPosition: 0.7, heightMm: 1.5, radiusMm: 1.9, prominence: 0.65, slopeRadiiMm: { radialInwardMm: 3.0, radialOutwardMm: 1.43, tangentialMm: 1.9 } },
       // Distolingual — smallest of the four main cusps.
-      { name: 'distolingual', angleDeg: 225, radialPosition: 0.65, heightMm: 1.3, radiusMm: 1.7, prominence: 0.5 },
+      { name: 'distolingual', angleDeg: 225, radialPosition: 0.65, heightMm: 1.3, radiusMm: 1.7, prominence: 0.5, slopeRadiiMm: { radialInwardMm: 2.7, radialOutwardMm: 1.28, tangentialMm: 1.7 } },
       // Cusp of Carabelli — present in ~52-68% of individuals (see references); modelled
       // but flagged optional so callers can render the more common plain-mesiolingual form.
       { name: 'carabelli', angleDeg: 330, radialPosition: 0.55, heightMm: 0.4, radiusMm: 1.0, prominence: 0.15, optional: true },
@@ -160,17 +166,64 @@ export const TOOTH_16: ToothDefinition = {
       type: 'encyclopedic_crossref',
       confirmedFeatures: ['Carabelli cusp on mesiolingual cusp, ~52-68% prevalence, non-functional accessory cusp'],
     },
+    // Added for the anisotropic-cusp redesign (see engine/mathUtils.ts
+    // `anisotropicCuspBump`/`smoothMax`, docs/DENTAL_3D_ENGINE.md): sources
+    // on HOW cusps/ridges are actually shaped and built, not just their
+    // proportions — the gap the first pass at this tooth was missing.
+    {
+      source: 'Dental Anatomy and Morphology of Permanent Teeth (ch. 86255)',
+      url: 'https://www.intechopen.com/chapters/86255',
+      type: 'peer_reviewed',
+      confirmedFeatures: [
+        'cusp described as pyramidal geometry with a quadrangular base (4 inclined planes, not an isotropic dome)',
+        'triangular ridges start from cusp tips toward the occlusal center',
+        'central fossa forms where ridges and grooves converge',
+      ],
+    },
+    {
+      source: 'Anatomical Knowledge for Modeling (dental-technology / CAD modeling chapter)',
+      url: 'https://pocketdentistry.com/anatomical-knowledge-for-modeling/',
+      type: 'technique_description',
+      confirmedFeatures: [
+        'in additive (wax) technique, cusps are built as broad masses moved closer together until their slopes meet — the meeting point is the ridge/groove, not a separately authored connecting bump',
+        'a ridge is defined as a cusp crest formed by two slopes, each ending in a groove',
+      ],
+    },
+    {
+      source: 'Anatomical and Functional Characteristics of Teeth (CE course 5157)',
+      url: 'https://cdeworld.com/courses/5157-anatomical-and-functional-characteristics-of-teeth',
+      type: 'clinical_ce_course',
+      confirmedFeatures: ['stamping (supporting) vs shearing (guiding) cusp roles', 'triangular ridges run from cusp tips to the central sulcus groove'],
+    },
+    {
+      source: 'Essential Shape — The key to a tooth-like restoration',
+      url: 'https://www.styleitaliano.org/essential-shape-tooth-like-restoration/',
+      type: 'technique_description',
+      confirmedFeatures: ['primary (macro-form) / secondary (macro-texture) / tertiary (micro-texture) anatomy framing, used to prioritize which layer this phase targets'],
+    },
+    {
+      source: 'Posterior tooth anatomy: wax carving, Parts 1–2',
+      url: 'https://www.aesthetic-update.co.uk/content/aesthetic-dentistry/posterior-tooth-anatomy-wax-carving-part-1',
+      type: 'technique_description',
+      snippetOnly: true, // direct fetch returned HTTP 403 — known only via search-result snippets, not the full article
+      confirmedFeatures: ['carving order: primary anatomy (main cusp inclines, primary fossae, silhouette) first, secondary anatomy (accessory fissures) carved in afterward'],
+    },
+    {
+      source: 'Cuspal ridge / triangular ridge terminology cross-references (hellopearl.com glossary + aggregated dental-anatomy course results)',
+      type: 'glossary_crossref',
+      confirmedFeatures: ['each cusp has 4 named slopes (mesial, distal, facial/buccal, lingual cuspal ridges) meeting at an apex — corroborates the pyramidal, not isotropic, cusp shape from the IntechOpen source above'],
+    },
   ],
 
   knownLimitations: [
     "crown.outline is set to 'rhomboid' but crownGeometry.ts does not yet read it — the wall/table footprint is currently always a plain ellipse, not the characteristic rhomboidal occlusal outline of a maxillary molar. Known dead field, not yet wired up.",
-    'Occlusal surface still reads as "crumpled/faceted" rather than smoothly rounded when viewed straight down or from the buccal aspect — a real, user-reported defect, only partially addressed. Root cause identified: the height field is authored as a stack of many independently-centered compact-support radial bumps (cusps, ridges, grooves, fossae combined via max()/subtraction); each bump is individually smooth, but several closely-spaced bumps combined create local curvature changes too complex for mesh-level blurring or added tessellation to fully smooth out. A prior version had a worse defect where the oblique ridge and both triangular ridges converged near true center and out-competed the central fossa depth, producing a raised "knot" where the deepest pit should be — that specific bug is fixed (fossa depth/radius increased, ridge height/width reduced, blur upgraded from a 4-tap axis-aligned to an 8-tap radial kernel) and confirmed both by direct height-field sampling and live render. The remaining "crumpled" character was NOT fixed by widening the blur radius (tried 0.35mm through 0.75mm) or by doubling mesh resolution (tried 96 angular segments / 30 table rings, reverted — no visible improvement, not worth the extra triangle count) — a genuinely smooth, natural result likely needs a different height-field authoring technique (e.g. fewer/broader primary landmarks with lower-amplitude secondary detail, or a properly G2-continuous blended surface) rather than further parameter tuning of the current approach.',
-    'Mesial marginal ridge still appears as a visible V-shaped notch between the mesiobuccal and mesiolingual cusps from the mesial view, rather than the fairly continuous, gently undulating ridge line real molars show — not addressed in this pass (effort went to the higher-priority central-fossa bug and the general faceting issue above). Found via live WebGL render.',
+    'Occlusal relief was redesigned from isotropic per-cusp bumps combined via max()/sum to anisotropic bumps (engine/mathUtils.ts `anisotropicCuspBump`) combined via smooth-max (`smoothMaxCompact`, a compact-support-aware wrapper around the standard quadratic smin/smax — Inigo Quilez, "Smooth Minimum Function") — grounded in dental wax-carving/modeling sources documented in `references` above showing real cusps are closer to a 4-inclined-plane pyramid than an isotropic dome, and are built as broad masses that meet at a natural saddle line, not narrow bumps patched together with a separate ridge feature. This fixed two confirmed, measured defects: (1) cusp apex heights no longer overshoot `heightMm` (verified numerically — every apex now samples to exactly its defined height, not +0.2-0.3mm as an earlier smoothMax-based attempt produced); (2) the buccal-view silhouette now reads as two clearly separate, smoothly rounded buccal cusp domes rather than several small jagged spikes (confirmed by live render). The top-down occlusal view is measurably smoother in the underlying height field (verified by sampling — no more flat near-zero "gap" between adjacent cusps) but STILL visually reads as one dome dominated by the central developmental groove cross rather than 4 distinctly separate mounds when viewed straight down — improved, not resolved. A further redesign iteration (e.g. widening the cusps\' tangential reach further, or reworking how the central developmental groove\'s width/depth reads from directly above) would be needed to close that gap; not attempted this pass.',
+    'Mesial marginal ridge still appears as a visible V-shaped notch between the mesiobuccal and mesiolingual cusps from the mesial view, rather than the fairly continuous, gently undulating ridge line real molars show — unchanged by the anisotropic-cusp redesign above (effort went to the primary occlusal-table shape, not this specific ridge). Found via live WebGL render, not yet fixed.',
     'Crown and roots are separate manifold meshes sharing one local origin, not a single boolean-unioned watertight body — see docs/DENTAL_3D_ENGINE.md.',
     'Root cross-section rings are axis-aligned in the crown-local XZ plane rather than fully perpendicular to the (mildly curving) centerline tangent — negligible at these tilt/curvature magnitudes but not physically exact.',
     'Root divergence angles were tuned to approximate the literature mean (DB-palatal ≈44.9°) rather than reproducing one measured specimen.',
     'Internal anatomy (pulp chamber, root canals, dentin) is not modelled — exterior surface only.',
     'One representative instance derived from published ranges, not a segmentation of an actual CT/intraoral scan — real teeth show more individual variation than any single model can capture.',
-    'Cusp of Carabelli is included but marked optional (~52-68% population prevalence, not universal) — callers should default it off unless explicitly enabling the variant.',
+    'Cusp of Carabelli is included but marked optional (~52-68% population prevalence, not universal) — callers should default it off unless explicitly enabling the variant. It also has no `slopeRadiiMm` — deliberately left on the old isotropic bump in this pass (smaller diff, and it is a minor accessory cusp, not one of the 4 primary cusps the anisotropic redesign targeted).',
   ],
 }
