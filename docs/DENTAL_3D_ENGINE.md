@@ -221,7 +221,7 @@ mobile targets.
 
 ## Reference sources (Tooth 16)
 
-21 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
+22 sources cross-checked in `tooth16.ts`'s `references` field. The first 8
 (proportions/prevalence-focused): 2 peer-reviewed papers, 2 CBCT studies, 1
 systematic review, 1 open university course text, and 2 encyclopedic
 cross-references (used only to corroborate, never as a primary source). One
@@ -274,6 +274,14 @@ outline. Also `snippetOnly: true` — direct fetch of the ScienceDirect Topics
 page returned HTTP 403, so this is corroborated across aggregated sources
 rather than one fully-read primary source, the same honesty caveat as the
 crown-equator sources above.
+
+1 more was added for the trace-based outline replacement (see "Bugs found
+and fixed" #13 below), with a new `ReferenceType` — `reviewer_reference_image`
+— introduced specifically for it: the reviewer's own dental-atlas reference
+plate, digitized by hand-tracing (polar-grid overlay + read-off), not cited
+from a publication. Deliberately kept as a distinct, lower-confidence
+category from the peer-reviewed/CBCT/course sources above — never treated
+as equal-confidence evidence.
 
 ## Bugs found and fixed (this phase)
 
@@ -546,19 +554,87 @@ overshoot before it reached a screenshot.
     stylize/exaggerate for clarity beyond a CBCT-measured mean, and no
     further citation was found to justify a wider angle.
 
+13. **The rhomboid-outline formula from #12 was a tuned approximation, not
+    a trace — the reviewer asked directly why not just trace the picture,
+    and they were right.** "почему ты тупо не можешь скопировать?" — a
+    2D illustration can't be pasted into a 3D mesh directly, but the
+    specific method used in #12 (two cosine harmonics, coefficients tuned
+    against the bbox validation tolerance rather than the reference's
+    actual shape) was an unnecessarily indirect way to bridge that gap.
+    The direct, standard technique — used constantly in 3D modeling when
+    working from an orthographic reference — is tracing/rotoscoping: read
+    the outline's actual shape off the picture and use those points
+    directly, instead of guessing a formula that merely resembles it.
+
+    Method: installed Pillow (`pip install pillow`), cropped the occlusal
+    panel from the reviewer's reference image, overlaid a polar grid (8
+    radial lines at 45° intervals matching this file's angle convention —
+    mesial=0°, buccal=90°, distal=180°, lingual=270° — plus 3 concentric
+    reference circles), then read off the outline's radius at each grid
+    line as a fraction of the panel's own average radius. The angle-axis
+    assignment (which image direction is buccal vs lingual) was inferred
+    with reasonable confidence from the largest visible cusp sitting at
+    the image angle matching this file's own `mesiolingual` cusp position
+    (315°) — a real cross-check, not an assumption. Raw 8-sample reading
+    (0°/45°/.../315°, normalized so the mean ≈1.0): `1.014, 1.095, 0.882,
+    0.984, 0.984, 1.045, 0.882, 1.115`.
+
+    Replaced `outlineFactor`'s two-cosine formula with
+    `TRACED_OUTLINE_SAMPLES`, the 8 values above, smoothstep-interpolated
+    between adjacent samples (same monotonic-between-keyframes principle
+    already used elsewhere in this file — see #11/`blendByDirection` —
+    applied here to 8 keyframes instead of 4). This surfaced a genuine
+    finding a symmetric formula could never have produced: the traced
+    outline is **not** 4-fold symmetric. The buccal/lingual sides read
+    consistently more recessed than the mesial/distal sides (a real
+    buccolingual-vs-mesiodistal asymmetry, not just an acute/obtuse corner
+    split), and one corner — mesiolingual, the largest cusp — reads clearly
+    more prominent than the other three, not a clean 2-acute/2-obtuse
+    pairing. Confirmed numerically (occlusal-edge ring radius: mesiolingual
+    ≈4.91mm, mesiobuccal ≈4.82mm, distolingual ≈4.60mm, distobuccal
+    ≈4.33mm, mesial ≈4.26mm, distal ≈4.13mm, buccal/lingual ≈4.06mm each;
+    bbox 10.83×7.28×10.66mm, comfortably inside the `[0.6x, 1.05x]`
+    tolerance with more margin than the formula-tuned version had) and
+    visually (re-rendered occlusal view shows the same asymmetric-corner
+    character as the reference photo, not a uniform rounded square).
+
+    While re-examining the reference's mesial/distal panels at the same
+    careful, cropped-and-zoomed resolution used for the trace (rather than
+    the quicker first look that produced the "visibly wider root splay"
+    read in #12), the roots there actually showed as fairly short and
+    stubby — not more dramatically diverging than this model already
+    produces. So no further root-tilt change was made this round; the
+    #12 correction (aligning the palatal root's tilt to the cited 44.9°
+    DB-palatal divergence) stands as the current state, and this is
+    recorded as a deliberate "checked, no further change needed" outcome,
+    not a silent skip.
+
+    Honest limits of this technique, unavoidable for a hand-traced
+    illustration: the 8 samples were read by eye against an overlaid grid,
+    not machine-measured — real measurement noise from eyeballing a
+    soft-shaded rendering, not sub-millimeter precision; a stylized dental
+    atlas illustration isn't a calibrated scan of tooth 16 specifically;
+    and the traced factor is still applied uniformly at every wall height
+    (cervical line to occlusal edge) rather than varying with height,
+    which a real tooth's cross-section probably does (this exact gap was
+    already flagged for the formula-based version and remains true for the
+    traced one).
+
 ## Known limitations (honest, unresolved)
 
 These are recorded verbatim in `TOOTH_16.knownLimitations` as well, so the
 data and the documentation cannot drift apart:
 
 1. `crown.outline: 'rhomboid'` is now read by `crownGeometry.ts`
-   (`outlineFactor`, see "Bugs found and fixed" #12) — the wall/table
-   footprint pulls toward a rhomboid instead of a plain ellipse. Two honest
-   gaps versus the reference plate that prompted the fix: the modulation
-   strength was tuned to stay safely inside the bbox validation tolerance,
-   not to match the reference's corner sharpness exactly (this model's
-   corners read as a rounded square more than a crisp diamond); and the
-   same angle-only factor applies uniformly at every height, whereas a real
+   (`outlineFactor`, see "Bugs found and fixed" #12/#13) — the wall/table
+   footprint pulls toward a rhomboid instead of a plain ellipse, and since
+   #13 that shape is traced directly from a reviewer-supplied reference
+   plate (8 samples, `TRACED_OUTLINE_SAMPLES`) rather than a tuned formula.
+   Honest gaps that remain: the 8 samples were read by eye against an
+   overlaid grid, not machine-measured, so they carry real estimation
+   noise and aren't sub-millimeter precise; the reference itself is a
+   stylized illustration, not a calibrated scan of tooth 16; and the same
+   angle-only factor applies uniformly at every wall height, whereas a real
    cross-section is probably more rhomboidal near the occlusal table and
    more rounded near the cervical line — not modelled.
 2. **Occlusal surface, viewed straight down, still reads as one dome

@@ -138,33 +138,39 @@ function convexityLobeMm(angleRad: number, hFrac: number, mdHalf: number, blHalf
   return (buccalLobe + mesialLobe) * heightWeight * scale
 }
 
-/** Line-angle sharpness (mm-scale-independent multiplier on the ellipse
- *  baseline) at the 4 diagonal cusp directions (45°=mesiobuccal,
- *  135°=distobuccal, 225°=distolingual, 315°=mesiolingual, per the file
- *  header's angle convention) for the `'rhomboid'` outline family. Real
- *  maxillary molars aren't round in occlusal view — the outline is
- *  rhomboidal: the mesiobuccal and distolingual line angles are ACUTE
- *  (sharper, more prominent corners), the mesiolingual and distobuccal
- *  line angles are OBTUSE (flatter, less prominent corners), and the 4
- *  sides between those corners (running through the buccal/lingual/
- *  mesial/distal cardinal directions) are relatively flat compared to a
- *  smooth ellipse (see references — corroborated across several
- *  independent aggregated dental-anatomy course sources, flagged
- *  `snippetOnly` since direct fetch of the primary textbook pages failed).
- *  Built from two cosine harmonics: `cos(4θ)` alone would give 4 EQUAL
- *  corners (a symmetric 4-pointed star) — adding `cos(2θ)` (same phase,
- *  half the frequency) breaks that symmetry, boosting the 45°/225° pair
- *  over the 135°/315° pair, which is exactly the acute-vs-obtuse
- *  distinction. Modest magnitudes (kept well under the bbox validation
- *  tolerance — see `references`/knownLimitations) since this modulates the
- *  wall's full-height silhouette, not just the occlusal table edge. */
-const RHOMBOID_CORNER_STRENGTH = 0.13
-const RHOMBOID_ACUTE_OBTUSE_SPLIT = 0.09
+/** Occlusal-outline shape multiplier, traced directly from the occlusal
+ *  panel of a reviewer-supplied dental-atlas reference plate — not a
+ *  generic formula. An earlier version approximated the rhomboid with two
+ *  cosine harmonics tuned against the bbox validation tolerance; the
+ *  reviewer directly asked why that wasn't just traced from the picture
+ *  instead of guessed, which is a fair point — a hand-picked formula is an
+ *  indirect stand-in for a shape that's sitting right there in the
+ *  reference. Traced by overlaying a polar grid (0°/45°/.../315°, 3
+ *  concentric reference circles) on the reference's occlusal panel, image
+ *  centered/scaled so the angle convention matches this file's (mesial=0°,
+ *  buccal=90°, distal=180°, lingual=270° — the largest visible cusp sat at
+ *  the image angle matching this file's own `mesiolingual` cusp position,
+ *  315°, which is what fixed the buccal/lingual vs mesial/distal axis
+ *  assignment with reasonable confidence), then reading the outline radius
+ *  at each grid line as a fraction of the panel's own average radius.
+ *  8 samples, normalized so their mean is ~1.0 (see docs/DENTAL_3D_ENGINE.md
+ *  for the raw readings and the tracing method in more detail). Honest
+ *  caveat: this is a hand-traced illustration, not a calibrated specimen
+ *  scan — the samples carry real measurement noise from eyeballing a soft-
+ *  shaded reference against an approximate grid, not sub-millimeter
+ *  precision, and the illustration itself is a stylized rendering, not a
+ *  laser scan of tooth 16 specifically. */
+const TRACED_OUTLINE_SAMPLES = [1.014, 1.095, 0.882, 0.984, 0.984, 1.045, 0.882, 1.115]
 
 function outlineFactor(angleRad: number, outline: CrownDefinition['outline']): number {
   if (outline !== 'rhomboid') return 1
-  const phase = angleRad - Math.PI / 4
-  return 1 + RHOMBOID_CORNER_STRENGTH * Math.cos(4 * phase) + RHOMBOID_ACUTE_OBTUSE_SPLIT * Math.cos(2 * phase)
+  const n = TRACED_OUTLINE_SAMPLES.length
+  const stepRad = (2 * Math.PI) / n
+  const wrapped = ((angleRad % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+  const idx = Math.floor(wrapped / stepRad)
+  const nextIdx = (idx + 1) % n
+  const localT = (wrapped - idx * stepRad) / stepRad
+  return lerp(TRACED_OUTLINE_SAMPLES[idx], TRACED_OUTLINE_SAMPLES[nextIdx], smoothstep(0, 1, localT))
 }
 
 function maxCuspHeightMm(crown: CrownDefinition): number {

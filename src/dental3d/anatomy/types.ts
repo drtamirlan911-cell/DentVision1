@@ -150,6 +150,14 @@ export type ReferenceType =
   /** Glossary/terminology cross-reference — corroborating only, not primary;
    *  never the sole source for a claim. */
   | 'glossary_crossref'
+  /** A reference illustration a human reviewer supplied directly (e.g. a
+   *  dental-atlas plate), digitized by hand-tracing (grid-overlay + read-off)
+   *  rather than cited from a publication. Distinct on purpose: it carries
+   *  real measurement noise from eyeballing a stylized rendering against an
+   *  approximate grid, not the confidence of a measured/peer-reviewed
+   *  source — never treat a value here as equally solid as a CBCT/
+   *  peer-reviewed citation. */
+  | 'reviewer_reference_image'
 
 export interface AnatomicalReference {
   source: string
