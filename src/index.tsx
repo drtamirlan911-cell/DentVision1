@@ -19,7 +19,6 @@ const PublicBooking = lazyWithRetry(() => import('./pages/auth/PublicBooking'));
 const DocumentSign = lazyWithRetry(() => import('./pages/auth/DocumentSign'));
 const TreatmentPresentation = lazyWithRetry(() => import('./pages/patient-portal/TreatmentPresentation'));
 const DiagnosticsRegister = lazyWithRetry(() => import('./pages/DiagnosticsRegister'));
-const Dental3DPreview = lazyWithRetry(() => import('./pages/dev/Dental3DPreview'));
 const PatientPortal = lazyWithRetry(() => import('./pages/patient-portal/PatientPortal'));
 import './styles/global.css';
 import { reportWebVitals } from './utils/vitals';
@@ -145,8 +144,6 @@ if (container) {
                     patient should see one story about themselves, not a CRM. */}
                 <Route path="/plan/:releaseId" element={<Suspense fallback={<PageLoader />}><TreatmentPresentation /></Suspense>} />
                 <Route path="/register-diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsRegister /></Suspense>} />
-                {/* Dental Geometry Engine tech preview — see docs/DENTAL_3D_ENGINE.md */}
-                <Route path="/dental3d-preview" element={<Suspense fallback={<PageLoader />}><Dental3DPreview /></Suspense>} />
                 <Route path="/patient-portal" element={<Suspense fallback={<PageLoader />}><PatientPortal /></Suspense>} />
 
                 {/* Workspace selection (no active clinic) */}
