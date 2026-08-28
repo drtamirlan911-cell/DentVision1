@@ -195,6 +195,43 @@ export default function DentalChart() {
                     patientTeeth={teeth}
                     onToothClick={(n) => setSelectedTooth(n)}
                     selectedTooth={selectedTooth}
+                    onApplyStatus={(n, status) => {
+                      setTeeth((prev) => ({
+                        ...prev,
+                        [n]: {
+                          ...(typeof prev[n] === 'object' ? prev[n] : {}),
+                          status,
+                          // A whole-tooth replacement supersedes surface paint;
+                          // leaving it would draw caries on a tooth that is gone.
+                          ...(status === 'missing' || status === 'extracted' || status === 'implant'
+                            ? { surfaces: {} }
+                            : {}),
+                        },
+                      }))
+                      setSelectedTooth(n)
+                      setDirty(true)
+                    }}
+                    onAction={(action, tooth) => {
+                      if (!tooth) {
+                        showToast('Сначала выберите зуб', 'error')
+                        return
+                      }
+                      if (action === 'note') {
+                        setSelectedTooth(tooth)
+                        return
+                      }
+                      if (action === 'photo') {
+                        navigate(`/crm/patients?patient=${selected.id}&tab=photos`)
+                        return
+                      }
+                      setTeeth((prev) => {
+                        const next = { ...prev }
+                        delete next[tooth]
+                        delete next[String(tooth)]
+                        return next
+                      })
+                      setDirty(true)
+                    }}
                   />
                 </div>
                 {selectedTooth && (

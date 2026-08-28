@@ -468,7 +468,16 @@
     "caries_surfaces": "Caries surfaces: {{surfaces}}",
     "odontogram_summary": "Odontogram: {{summary}}",
     "surfaces_label": "surfaces {{surfaces}}",
-    "plan_from_odonto_title": "Odontogram Plan"
+    "plan_from_odonto_title": "Odontogram Plan",
+    "permanent_teeth": "Permanent teeth",
+    "primary_teeth": "Primary teeth",
+    "change_history": "Change history",
+    "jaw_upper_short": "Upper",
+    "jaw_lower_short": "Lower",
+    "action_note": "Note",
+    "action_photo": "Photo",
+    "action_clear": "Clear",
+    "tool_hint_active": "Tool: {{tool}} — click a tooth"
   },
   "ai": {
     "thinking": "Thinking...",

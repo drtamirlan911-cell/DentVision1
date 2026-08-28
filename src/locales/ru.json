@@ -472,7 +472,16 @@
     "caries_surfaces": "Кариес поверхностей: {{surfaces}}",
     "odontogram_summary": "Одонтограмма: {{summary}}",
     "surfaces_label": "поверхности {{surfaces}}",
-    "plan_from_odonto_title": "План по одонтограмме"
+    "plan_from_odonto_title": "План по одонтограмме",
+    "permanent_teeth": "Постоянные зубы",
+    "primary_teeth": "Молочные зубы",
+    "change_history": "История изменений",
+    "jaw_upper_short": "Верх",
+    "jaw_lower_short": "Низ",
+    "action_note": "Заметка",
+    "action_photo": "Фото",
+    "action_clear": "Удалить",
+    "tool_hint_active": "Инструмент: {{tool}} — кликните по зубу"
   },
   "ai": {
     "thinking": "Думаю...",

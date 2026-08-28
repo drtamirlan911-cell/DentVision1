@@ -46,9 +46,15 @@ describe('SurfaceEditor legend', () => {
 
     // Activate crown (a whole-tooth status in WHOLE_TOOTH_STATUSES that is NOT
     // 'healthy'): the active button flips to crown's colour.
+    //
+    // #3B82F6, not the old #8E44AD: the chart palette moved to the conventional
+    // clinical vocabulary (crown blue) when the odontogram was rebuilt against a
+    // reference chart. The contract this test guards is the --status-color
+    // binding, not any particular hue — but it reads the value from STATUS_META,
+    // so it has to name the one that lives there.
     const crownBtn = legend.getAllByText('Коронка').find((el) => el.closest('button'))!.closest('button')!
     fireEvent.click(crownBtn)
     expect(crownBtn).toHaveClass('bg-[var(--status-color)]')
-    expect(crownBtn.style.getPropertyValue('--status-color').trim()).toBe('#8E44AD')
+    expect(crownBtn.style.getPropertyValue('--status-color').trim()).toBe('#3B82F6')
   })
 })
