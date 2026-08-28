@@ -620,6 +620,57 @@ overshoot before it reached a screenshot.
     already flagged for the formula-based version and remains true for the
     traced one).
 
+14. **Occlusal table read as concave/sunken rather than showing cusp
+    relief.** Direct user feedback ("оключиооная часть выглядит будто
+    вогнута внутрь а она должна иметь рельеф же" — the occlusal part looks
+    concave, but it should have relief), and a real, confirmed, now-fixed
+    cause: `occlusalRelief` combined cusps/ridges via `smoothMaxCompact`
+    (deepest/tallest feature wins, established practice since bugs #5/#6
+    above) but combined grooves and fossae via plain subtraction — summing
+    their depths wherever they overlapped, instead of the deepest one
+    dominating. Sampled numerically at the central fossa's own defined
+    center (`[0, 0.8]`): naive addition gave **-2.283mm** total depth
+    versus the fossa's own defined **1.15mm** — nearly double — because
+    the central developmental groove, a second groove's edge, and the
+    central fossa all converge within ~0.3-0.8mm of that point (by design:
+    the fossa/groove path comments in `tooth16.ts` say as much). This is
+    the exact same bug class as #1 at the top of this list (ridge/cusp
+    stacking), just never applied to the subtractive side. Fixed by
+    combining groove/fossa depth magnitudes via `smoothMaxCompact` before
+    subtracting from `y` (new `GROOVE_FOSSA_BLEND_MM = 0.3` constant).
+    Confirmed numerically (re-sampling a radial cross-section through the
+    fossa: the deepest point rose from Y=3.979mm to Y=4.641mm — the table's
+    total Y-range compressed from a 3.31mm span to a 2.64mm span, a real,
+    measured ~20% reduction in over-deepening) and visually (re-rendered
+    occlusal view). Honest limit: this fixes a confirmed numeric bug but
+    does not by itself resolve the larger, already-documented limitation
+    #2 below (occlusal view still reading as one basin dominated by the
+    groove/fossa system rather than 4 clearly separate raised mounds) —
+    that needs the wider redesign already flagged there, not attempted
+    this pass.
+
+    Separately, the same feedback message also said the crown's height of
+    contour ("экватор") looked wrong again. Investigated by tracing the
+    *actual* silhouette width (not just the raw angle value) at every wall
+    ring for both the buccal-view and mesial-view cameras — the buccal-view
+    silhouette's left/right extent on screen is governed by the crown's
+    mesiodistal profile (not the buccal-direction taper value alone,
+    since screen-left/right in that camera maps to the ±Z/mesiodistal
+    axis), while the mesial-view silhouette is governed by the
+    buccolingual profile. Result: the buccal-view silhouette peaks at
+    hFrac≈0.65, and the mesial-view silhouette peaks at hFrac≈0.17
+    (closely matching the cited buccal height-of-contour figure, 0.16).
+    Cross-checked hFrac≈0.65 against the reference plate itself — measured
+    the reference's own buccal panel by pixel analysis (leftmost/rightmost
+    non-background pixel per row, cervical line located by color
+    transition) and got the crown's own widest point at essentially the
+    same height, hFrac≈0.65. Given the model's silhouette already matches
+    both a direct citation (mesial-view case) and a direct pixel trace of
+    the reviewer's own reference image (buccal-view case), no further
+    equator change was made this round without more specific feedback on
+    what exactly still looks wrong — changing it blind against evidence
+    that already lines up would be guessing, not fixing.
+
 ## Known limitations (honest, unresolved)
 
 These are recorded verbatim in `TOOTH_16.knownLimitations` as well, so the
@@ -657,7 +708,12 @@ data and the documentation cannot drift apart:
    width/depth visually dominates that particular viewing angle. Not
    pursued further this pass; would need either widening the cusps'
    tangential reach further or reworking the central-groove parameters
-   specifically for the top-down read.
+   specifically for the top-down read. A related but distinct bug (grooves/
+   fossae summing their depths instead of the deepest one dominating,
+   nearly doubling the central fossa's effective depth) was found and
+   fixed — see "Bugs found and fixed" #14 — which reduces but does not
+   resolve this item; the fundamental "4 mounds vs 1 dome" redesign
+   described here is still open.
 3. **Mesial marginal ridge notch**, unchanged by the anisotropic-cusp
    redesign: from the mesial view, the ridge between the mesiobuccal and
    mesiolingual cusps still reads as a visible V-shaped notch rather than

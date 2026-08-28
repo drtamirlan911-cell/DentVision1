@@ -58,6 +58,13 @@ const RIDGE_BLEND_MM = 0.25
  *  cusp-driven primary shape — ridges are a small crispening refinement now,
  *  not a competing height source (see occlusalRelief). */
 const RIDGE_NUDGE_CAP_MM = 0.22
+/** Blend radius (mm) for smoothMax between overlapping grooves/fossae —
+ *  same purpose as CUSP_BLEND_MM/RIDGE_BLEND_MM but for the subtractive
+ *  side of occlusalRelief (see occlusalRelief for why this is needed: the
+ *  central fossa and multiple grooves converge by design near the same
+ *  point, and without this their depths summed instead of the deepest one
+ *  dominating). */
+const GROOVE_FOSSA_BLEND_MM = 0.3
 
 function deg2rad(d: number): number {
   return (d * Math.PI) / 180
@@ -195,7 +202,9 @@ function maxCuspHeightMm(crown: CrownDefinition): number {
  *  shape (also via smoothMax, then hard-capped) rather than an equal
  *  competitor via Math.max(cuspRelief, ridgeRelief) — see
  *  docs/DENTAL_3D_ENGINE.md for why the old equal-competitor design produced
- *  a "crumpled" look. Grooves/fossae subtract afterward, unchanged. */
+ *  a "crumpled" look. Grooves/fossae subtract afterward, combined via
+ *  smoothMax on their depth magnitudes (deepest wins) for the same reason
+ *  cusps/ridges are — see the comment right before that combination below. */
 function occlusalRelief(x: number, z: number, crown: CrownDefinition): number {
   let cuspRelief = 0
   for (const cusp of crown.cusps) {
@@ -238,16 +247,31 @@ function occlusalRelief(x: number, z: number, crown: CrownDefinition): number {
     const d = distanceToPolyline(x, z, ridge.path)
     ridgeNudge = smoothMaxCompact(ridgeNudge, radialBump(d, ridge.widthMm) * ridge.heightMm, RIDGE_BLEND_MM)
   }
-  let y = smoothMaxCompact(cuspRelief, Math.min(ridgeNudge, RIDGE_NUDGE_CAP_MM), RIDGE_BLEND_MM)
+  const y = smoothMaxCompact(cuspRelief, Math.min(ridgeNudge, RIDGE_NUDGE_CAP_MM), RIDGE_BLEND_MM)
+  // Combined via max (smoothMaxCompact), not addition, for the same reason
+  // as cusps/ridges above — a real, confirmed bug found via direct user
+  // feedback ("occlusal part looks concave, like it's sunken in") and
+  // numeric sampling: the central fossa, the central developmental groove,
+  // and a developmental groove's edge all converge within ~0.3-0.8mm of
+  // the fossa's own defined center (by design — see the fossa/groove
+  // comments above), and plain subtraction let their depths SUM instead of
+  // the deepest one dominating. Sampled at the central fossa's own center:
+  // naive addition gave -2.283mm total depth versus the fossa's own
+  // defined 1.15mm — nearly double, which read as an overall concave bowl
+  // rather than cusps-with-a-modest-pit. `smoothMaxCompact` on the depth
+  // MAGNITUDES (not the final subtracted y) gives "deepest depression here
+  // wins, blended smoothly with nearby overlaps" — the same fix, applied
+  // to the subtractive side of the relief instead of the additive side.
+  let grooveFossaDepth = 0
   for (const groove of crown.grooves) {
     const d = distanceToPolyline(x, z, groove.path)
-    y -= radialBump(d, groove.widthMm) * groove.depthMm
+    grooveFossaDepth = smoothMaxCompact(grooveFossaDepth, radialBump(d, groove.widthMm) * groove.depthMm, GROOVE_FOSSA_BLEND_MM)
   }
   for (const fossa of crown.fossae) {
     const d = Math.hypot(x - fossa.center[0], z - fossa.center[1])
-    y -= radialBump(d, fossa.radiusMm) * fossa.depthMm
+    grooveFossaDepth = smoothMaxCompact(grooveFossaDepth, radialBump(d, fossa.radiusMm) * fossa.depthMm, GROOVE_FOSSA_BLEND_MM)
   }
-  return y
+  return y - grooveFossaDepth
 }
 
 const BLUR_RING_SAMPLES = 8
