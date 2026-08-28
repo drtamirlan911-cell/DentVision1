@@ -46,79 +46,72 @@ interface AnatomicalToothSvgProps {
 }
 
 /**
- * Crown silhouette, drawn in "upper" orientation: neck at y≈30, biting edge at
- * the bottom. A lower tooth is the same shape flipped (see the transform in the
- * component) — mirroring costs one transform and guarantees the two arches
- * stay consistent, where two hand-drawn sets drift apart.
+ * A tooth is ONE shape.
  *
- * The biting edge is the point of these paths. A molar ends in two cusps with
- * a fissure between them, a canine in one point, an incisor in a flat edge —
- * that silhouette is most of what makes a chart read as teeth rather than as
- * rounded rectangles.
+ * The first pass drew a crown outline and separate root outlines, which is why
+ * the chart read as blocks with prongs stuck on: every tooth carried an
+ * internal border where the crown met the root, and real teeth have no such
+ * line — enamel narrows into the neck and continues as root in one silhouette.
+ * These paths trace that whole outline in a single stroke, dipping back up
+ * between roots so the furcations are part of the shape rather than gaps
+ * between separate shapes.
+ *
+ * Drawn in "upper" orientation: neck at y≈26, biting edge at y≈58, apices near
+ * y≈4. A lower tooth is this mirrored (see the transform in the component), so
+ * the two arches cannot drift apart. Roots take ~55% of the height, which is
+ * the proportion that reads as a tooth rather than as a lollipop.
  */
-function crownPath(pattern: RootPattern): string {
+function toothOutline(pattern: RootPattern): string {
   switch (pattern) {
     case 'incisor':
-      // Flat incisal edge, faintly rounded at the corners.
-      return 'M13 30 C13 26.2 15.4 24 20 24 C24.6 24 27 26.2 27 30 L28 50 C28 54 26 57.4 23 58.5 C21.8 58.9 20.9 59 20 59 C19.1 59 18.2 58.9 17 58.5 C14 57.4 12 54 12 50 Z'
+      return 'M15.6 26 C14.6 32 13.4 40 13.2 46 C13.2 52 15.4 57.4 20 57.6 C24.6 57.4 26.8 52 26.8 46 C26.6 40 25.4 32 24.4 26 C24 19 23.4 10 22.6 5.6 C22.2 3.2 17.8 3.2 17.4 5.6 C16.6 10 16 19 15.6 26 Z'
     case 'canine':
-      // One cusp, tipped slightly — the tooth that tears.
-      return 'M13 29 C13 25 15.5 20.5 20 18.5 C24.5 20.5 27 25 27 29 L28 48 C28 52 25.6 55.6 22.2 58 C21.1 58.8 20.5 60 20 61.2 C19.5 60 18.9 58.8 17.8 58 C14.4 55.6 12 52 12 48 Z'
+      return 'M15.4 26 C14.4 32 13 40 12.8 45.4 C12.8 50.4 14.6 54 17.2 56.2 C18.4 57.2 19.4 58.8 20 60.4 C20.6 58.8 21.6 57.2 22.8 56.2 C25.4 54 27.2 50.4 27.2 45.4 C27 40 25.6 32 24.6 26 C24.2 18 23.6 8 22.8 3.6 C22.4 1.2 17.6 1.2 17.2 3.6 C16.4 8 15.8 18 15.4 26 Z'
     case 'premolar1':
+      return 'M14.2 26 C13 32 11 38 10.8 43.4 C10.8 49 13 54.4 16.6 56 C18.2 56.6 19.4 54.4 20 52.4 C20.6 54.4 21.8 56.6 23.4 56 C27 54.4 29.2 49 29.2 43.4 C29 38 27 32 25.8 26 C25.4 20 24.8 13 24.2 8.4 C23.8 5.4 21.4 5.4 21 8.6 C20.8 13 20.6 19 20.4 24.4 C20.2 26.2 19.8 26.2 19.6 24.4 C19.4 19 19.2 13 19 8.6 C18.6 5.4 16.2 5.4 15.8 8.4 C15.2 13 14.6 20 14.2 26 Z'
     case 'premolar2':
-      // Two cusps, buccal taller than lingual, with a shallow fissure.
-      return 'M10 31 C9.6 26 14 23 20 23 C26 23 30.4 26 30 31 L31 49 C31 53.4 28.2 56.9 24.8 58 C22.8 58.6 21.3 56.4 20 54.4 C18.7 56.4 17.2 58.6 15.2 58 C11.8 56.9 9 53.4 9 49 Z'
+      return 'M14.2 26 C13 32 11 38 10.8 43.4 C10.8 49 13 54.4 16.6 56 C18.2 56.6 19.4 54.4 20 52.4 C20.6 54.4 21.8 56.6 23.4 56 C27 54.4 29.2 49 29.2 43.4 C29 38 27 32 25.8 26 C25.4 19 24.8 10 24 5.4 C23.6 3 16.4 3 16 5.4 C15.2 10 14.6 19 14.2 26 Z'
     case 'molarUpper':
+      return 'M9 26 C7 32 5.6 38 5.6 43 C5.6 50 8 56.4 12.6 58 C14.6 58.6 16.4 56.4 17.4 54.4 C18.2 52.9 21.8 52.9 22.6 54.4 C23.6 56.4 25.4 58.6 27.4 58 C32 56.4 34.4 50 34.4 43 C34.4 38 33 32 31 26 C30.6 20 30 12 29.4 7.4 C29 4.2 25.6 4.2 25.2 7.6 C24.8 13 24.4 20 24.2 24.8 C23.8 26.6 22.6 26.6 22.2 24.8 C22 20 21.8 12.4 21.6 7.6 C21.4 4.2 18.6 4.2 18.4 7.6 C18.2 12.4 18 20 17.8 24.8 C17.4 26.6 16.2 26.6 15.8 24.8 C15.6 20 15 12.4 14.6 7.6 C14.2 4.2 10.8 4.2 10.4 7.4 C9.8 12 9.4 20 9 26 Z'
     case 'molarLower':
     default:
-      // Two broad cusps and a central fissure — the molar table in profile.
-      return 'M6.5 31 C6 25.5 11.5 22.5 20 22.5 C28.5 22.5 34 25.5 33.5 31 L34.5 49 C34.5 54 32.4 57.6 29.4 59 C27.4 59.9 25.8 58.4 24.5 56.4 C23.5 54.9 22.6 54.1 20 54.1 C17.4 54.1 16.5 54.9 15.5 56.4 C14.2 58.4 12.6 59.9 10.6 59 C7.6 57.6 5.5 54 5.5 49 Z'
+      return 'M9 26 C7 32 5.6 38 5.6 43 C5.6 50 8 56.4 12.6 58 C14.6 58.6 16.4 56.4 17.4 54.4 C18.2 52.9 21.8 52.9 22.6 54.4 C23.6 56.4 25.4 58.6 27.4 58 C32 56.4 34.4 50 34.4 43 C34.4 38 33 32 31 26 C30.4 19 29.4 11 28.6 6.6 C28.2 3.6 23.8 3.6 23.4 6.8 C22.8 12 22.4 19 22.2 25 C21.8 27 18.2 27 17.8 25 C17.6 19 17.2 12 16.6 6.8 C16.2 3.6 11.8 3.6 11.4 6.6 C10.6 11 9.6 19 9 26 Z'
   }
 }
 
 /**
- * Roots, same "upper" orientation as the crown: broad at the neck (y≈31),
- * tapering to an apex near the top and splaying outward the way real roots
- * diverge. Closed tapered shapes rather than stroked lines — a stroke of
- * constant width reads as wire, and the earlier chart did look like wire.
+ * The crown portion alone — for marks that belong on the crown and must not
+ * run down the roots, such as a crown restoration's outline.
  */
-function rootPaths(pattern: RootPattern): React.ReactNode {
+function crownPath(pattern: RootPattern): string {
   switch (pattern) {
     case 'incisor':
-      return <path d="M15.8 31 C15.4 23 15.6 13 17 6.5 C17.5 3.2 22.5 3.2 23 6.5 C24.4 13 24.6 23 24.2 31 Z" />
+      return 'M15.6 26 C14.6 32 13.4 40 13.2 46 C13.2 52 15.4 57.4 20 57.6 C24.6 57.4 26.8 52 26.8 46 C26.6 40 25.4 32 24.4 26 Z'
     case 'canine':
-      // The longest root in the mouth — it runs nearly to the top of the box.
-      return <path d="M15.4 31 C15 22 15.2 11 16.6 4.6 C17.1 1.2 22.9 1.2 23.4 4.6 C24.8 11 25 22 24.6 31 Z" />
+      return 'M15.4 26 C14.4 32 13 40 12.8 45.4 C12.8 50.4 14.6 54 17.2 56.2 C18.4 57.2 19.4 58.8 20 60.4 C20.6 58.8 21.6 57.2 22.8 56.2 C25.4 54 27.2 50.4 27.2 45.4 C27 40 25.6 32 24.6 26 Z'
     case 'premolar1':
-      // Two roots, buccal and palatal, splitting below the neck.
-      return (
-        <>
-          <path d="M11.4 31 C10.8 24 9.8 15 9.4 9 C9.2 5.6 14 5.4 14.4 9 C15.2 15 16.4 24 17.2 31 Z" />
-          <path d="M22.8 31 C23.6 24 24.8 15 25.6 9 C26 5.4 30.8 5.6 30.6 9 C30.2 15 29.2 24 28.6 31 Z" />
-        </>
-      )
     case 'premolar2':
-      return <path d="M15.6 31 C15.2 23 15.4 13 16.8 6.8 C17.3 3.4 22.7 3.4 23.2 6.8 C24.6 13 24.8 23 24.4 31 Z" />
+      return 'M14.2 26 C13 32 11 38 10.8 43.4 C10.8 49 13 54.4 16.6 56 C18.2 56.6 19.4 54.4 20 52.4 C20.6 54.4 21.8 56.6 23.4 56 C27 54.4 29.2 49 29.2 43.4 C29 38 27 32 25.8 26 Z'
     case 'molarUpper':
-      // Three: the two buccal roots splay outward, the palatal runs long.
-      return (
-        <>
-          <path d="M6.2 31 C5.6 24 4.6 15 4.2 9 C4 5.6 9 5.2 9.6 8.8 C10.6 15 12.6 24 14 31 Z" />
-          <path d="M16.6 31 C16.4 24 16.6 14 17.4 7 C17.8 3.4 22.2 3.4 22.6 7 C23.4 14 23.6 24 23.4 31 Z" />
-          <path d="M26 31 C27.4 24 29.4 15 30.4 8.8 C31 5.2 36 5.6 35.8 9 C35.4 15 34.4 24 33.8 31 Z" />
-        </>
-      )
     case 'molarLower':
     default:
-      // Two broad roots, mesial and distal.
-      return (
-        <>
-          <path d="M8.6 31 C8 24 7 14 6.6 8 C6.4 4.4 12 4.2 12.4 8 C13.2 14 14.2 24 15 31 Z" />
-          <path d="M25 31 C25.8 24 26.8 14 27.6 8 C28 4.2 33.6 4.4 33.4 8 C33 14 32 24 31.4 31 Z" />
-        </>
-      )
+      return 'M9 26 C7 32 5.6 38 5.6 43 C5.6 50 8 56.4 12.6 58 C14.6 58.6 16.4 56.4 17.4 54.4 C18.2 52.9 21.8 52.9 22.6 54.4 C23.6 56.4 25.4 58.6 27.4 58 C32 56.4 34.4 50 34.4 43 C34.4 38 33 32 31 26 Z'
   }
 }
+
+/** Faint internal lines that suggest form without cutting the silhouette. */
+function toothDetail(pattern: RootPattern): React.ReactNode {
+  const wide = pattern === 'molarUpper' || pattern === 'molarLower'
+  return (
+    <>
+      {/* Cervical line: where enamel ends. A soft curve, not a border. */}
+      <path d={wide ? 'M9.6 27.4 C15 29.6 25 29.6 30.4 27.4' : 'M14.8 27.2 C17 29 23 29 25.2 27.2'} />
+      {/* Developmental lobe on the crown face. */}
+      {wide && <path d="M20 34 C20.4 40 20.4 46 20 51" />}
+    </>
+  )
+}
+
 
 function ImplantGlyph({ upper, fill }: { upper: boolean; fill: string }) {
   if (upper) {
@@ -534,7 +527,7 @@ export function AnatomicalToothSvg({
   const isExtracted = status === 'extracted'
   const rootFill = isRootOnly || isEndoFail ? (STATUS_META[status || 'root']?.color || '#E67E22') : '#E7DFD3'
   const height = Math.round((size * BUCCAL_VB_H) / 40)
-  const crownCy = upper ? 45 : BUCCAL_VB_H - 45
+  const crownCy = upper ? 44 : BUCCAL_VB_H - 44
   const tooltip = `${toothNumber} · ${morph.label}${status && status !== 'healthy' ? ` · ${STATUS_META[status]?.label || status}` : ''}`
 
   const shell = (children: React.ReactNode, boxWidth: number, boxHeight: number) => (
@@ -605,10 +598,12 @@ export function AnatomicalToothSvg({
         <defs>
           {/* Warm ivory rather than the old blue-grey: a tooth is bone, and the
               cool ramp read as porcelain against the reference chart. */}
-          <linearGradient id={`enamel-${toothNumber}`} x1="0.15" y1="0" x2="0.85" y2="1">
-            <stop offset="0%" stopColor="#FEFDFA" />
-            <stop offset="48%" stopColor="#F5EEE1" />
-            <stop offset="100%" stopColor="#E3D6C0" />
+          {/* Root end slightly duller than the crown — one tooth, two tissues. */}
+          <linearGradient id={`enamel-${toothNumber}`} x1="0.2" y1="0" x2="0.55" y2="1">
+            <stop offset="0%" stopColor="#E6D8C2" />
+            <stop offset="34%" stopColor="#F1E7D6" />
+            <stop offset="62%" stopColor="#FDFBF6" />
+            <stop offset="100%" stopColor="#EFE3CE" />
           </linearGradient>
           <linearGradient id={`rootGrad-${toothNumber}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={upper ? '#DFCFB4' : '#F2E9DA'} />
@@ -645,41 +640,37 @@ export function AnatomicalToothSvg({
             </g>
           ) : (
             <g>
-              <g
-                fill={isRootOnly || isEndoFail ? rootFill : `url(#rootGrad-${toothNumber})`}
-                stroke="#B39B7E"
-                strokeOpacity="0.55"
-                strokeWidth="0.8"
-                strokeLinejoin="round"
-              >
-                {rootPaths(morph.pattern)}
-              </g>
-
-              {/* The crown keeps its enamel: findings are drawn on the tooth,
-                  not instead of it — see StatusMarks. */}
+              {/* One path for the whole tooth — crown flowing into root through
+                  the neck, with the furcations cut into the same outline. */}
               <path
-                d={crownPath(morph.pattern)}
-                fill={`url(#enamel-${toothNumber})`}
-                stroke="#B39B7E"
-                strokeOpacity="0.7"
+                d={toothOutline(morph.pattern)}
+                fill={isRootOnly || isEndoFail ? rootFill : `url(#enamel-${toothNumber})`}
+                stroke="#B0967A"
+                strokeOpacity="0.75"
                 strokeWidth="0.9"
                 strokeLinejoin="round"
-                opacity={isRootOnly ? 0.35 : 1}
+                opacity={isRootOnly ? 0.5 : 1}
               />
+
+              {!isRootOnly && (
+                <g fill="none" stroke="#B79E82" strokeOpacity="0.45" strokeWidth="0.8" strokeLinecap="round">
+                  {toothDetail(morph.pattern)}
+                </g>
+              )}
 
               {/* Specular highlight down the buccal face. */}
               {!isRootOnly && (
                 <path
-                  d="M14.5 37 C15.6 43 15.8 48 15.4 52.5"
+                  d="M15 34 C16.1 40 16.3 46 15.9 51"
                   fill="none"
-                  stroke="rgba(255,255,255,0.65)"
-                  strokeWidth="1.7"
+                  stroke="rgba(255,255,255,0.6)"
+                  strokeWidth="1.6"
                   strokeLinecap="round"
                 />
               )}
 
               {!isRootOnly && (
-                <StatusMarks status={status} pattern={morph.pattern} occlusal={false} cx={20} cy={45} />
+                <StatusMarks status={status} pattern={morph.pattern} occlusal={false} cx={20} cy={44} />
               )}
 
               <SurfaceOverlays surfaces={surfaces} upper pattern={morph.pattern} />
