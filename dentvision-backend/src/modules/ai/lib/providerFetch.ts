@@ -128,3 +128,93 @@ export async function providerFetch<T>(url: string, opts: ProviderFetchOptions):
 
   throw lastError ?? new Error('Provider request failed');
 }
+
+/* ── streaming ─────────────────────────────────────────────────────────── */
+
+export interface ProviderStreamOptions extends Omit<ProviderFetchOptions, 'attempts'> {
+  /** Called for every text fragment as the model produces it. */
+  onDelta: (text: string) => void;
+}
+
+/**
+ * Same request, but read as it arrives.
+ *
+ * Deliberately **not** retried. Once a byte has been forwarded to the user's
+ * screen a second attempt would duplicate what they already read; a stream
+ * that dies mid-answer is the caller's problem to surface, not something to
+ * paper over. The non-streaming path keeps its retries.
+ *
+ * Returns the completed response object, so the tool loop that consumes it
+ * does not have to care whether the answer arrived at once or in pieces.
+ */
+export async function providerStream<T>(url: string, opts: ProviderStreamOptions): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${opts.apiKey}`,
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body: JSON.stringify({ ...(opts.body as Record<string, unknown>), stream: true }),
+    signal: AbortSignal.timeout(opts.timeoutMs),
+  });
+
+  if (!res.ok || !res.body) {
+    const detail = await res.text().catch(() => '');
+    const error: ProviderError = new Error(`OpenAI ${res.status}: ${detail.slice(0, 300)}`);
+    error.status = res.status;
+    if (isProviderUnavailable(res.status, detail)) error.providerUnavailable = true;
+    throw error;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let completed: T | null = null;
+
+  // SSE frames are separated by a blank line and can be split across chunks,
+  // so the tail of the buffer is kept until its terminator actually arrives.
+  const drain = (flush = false) => {
+    let index: number;
+    while ((index = buffer.indexOf('\n\n')) !== -1) {
+      const frame = buffer.slice(0, index);
+      buffer = buffer.slice(index + 2);
+      handleFrame(frame);
+    }
+    if (flush && buffer.trim()) {
+      handleFrame(buffer);
+      buffer = '';
+    }
+  };
+
+  const handleFrame = (frame: string) => {
+    for (const line of frame.split('\n')) {
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === '[DONE]') continue;
+      let event: { type?: string; delta?: string; response?: unknown };
+      try {
+        event = JSON.parse(payload);
+      } catch {
+        continue; // a frame we cannot read is not worth failing the answer over
+      }
+      if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+        opts.onDelta(event.delta);
+      } else if (event.type === 'response.completed' && event.response) {
+        completed = event.response as T;
+      }
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    drain();
+  }
+  buffer += decoder.decode();
+  drain(true);
+
+  if (!completed) throw new Error('Provider stream ended without a completed response');
+  return completed;
+}

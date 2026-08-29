@@ -6,6 +6,7 @@ import {
   isProviderUnavailableError,
   parseRetryAfter,
   providerFetch,
+  providerStream,
 } from './providerFetch.js';
 
 /** Queue of responses the stubbed provider hands back, in order. */
@@ -155,6 +156,111 @@ describe('providerFetch', () => {
     const fetchMock = stubResponses(fail(503));
 
     await expect(providerFetch('https://x', { ...OPTS, attempts: 1 })).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('providerStream', () => {
+  /** A body that hands the reader exactly these chunks, in order. */
+  function streamBody(chunks: string[]) {
+    const encoder = new TextEncoder();
+    let i = 0;
+    return {
+      getReader: () => ({
+        read: async () =>
+          i < chunks.length ? { done: false, value: encoder.encode(chunks[i++]) } : { done: true, value: undefined },
+      }),
+    };
+  }
+
+  function stubStream(chunks: string[], status = 200) {
+    const fetchMock = vi.fn(async () => ({
+      ok: status === 200,
+      status,
+      body: streamBody(chunks),
+      text: async () => 'error body',
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  const delta = (text: string) =>
+    `data: ${JSON.stringify({ type: 'response.output_text.delta', delta: text })}\n\n`;
+  const completed = (response: unknown) =>
+    `data: ${JSON.stringify({ type: 'response.completed', response })}\n\n`;
+
+  it('emits each fragment and returns the completed response', async () => {
+    stubStream([delta('При'), delta('вет'), completed({ output_text: 'Привет' })]);
+    const seen: string[] = [];
+
+    const result = await providerStream<{ output_text: string }>('https://x', {
+      apiKey: 'k', body: {}, timeoutMs: 1000, onDelta: (t) => seen.push(t),
+    });
+
+    expect(seen).toEqual(['При', 'вет']);
+    expect(result.output_text).toBe('Привет');
+  });
+
+  it('asks the provider to stream', async () => {
+    const fetchMock = stubStream([completed({})]);
+
+    await providerStream('https://x', { apiKey: 'k', body: { model: 'm' }, timeoutMs: 1000, onDelta: () => {} });
+
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as any).body)).toMatchObject({ model: 'm', stream: true });
+  });
+
+  it('reassembles a frame split across network chunks', async () => {
+    // The decisive case: SSE frames do not align with TCP boundaries, and a
+    // naive parser drops whatever straddles two reads.
+    const frame = delta('целое');
+    stubStream([frame.slice(0, 12), frame.slice(12), completed({})]);
+    const seen: string[] = [];
+
+    await providerStream('https://x', { apiKey: 'k', body: {}, timeoutMs: 1000, onDelta: (t) => seen.push(t) });
+
+    expect(seen).toEqual(['целое']);
+  });
+
+  it('handles several frames arriving in one chunk', async () => {
+    stubStream([delta('a') + delta('b') + completed({})]);
+    const seen: string[] = [];
+
+    await providerStream('https://x', { apiKey: 'k', body: {}, timeoutMs: 1000, onDelta: (t) => seen.push(t) });
+
+    expect(seen).toEqual(['a', 'b']);
+  });
+
+  it('ignores [DONE] and any frame it cannot parse', async () => {
+    stubStream([`data: [DONE]\n\n`, `data: {not json\n\n`, delta('ок'), completed({})]);
+    const seen: string[] = [];
+
+    await expect(
+      providerStream('https://x', { apiKey: 'k', body: {}, timeoutMs: 1000, onDelta: (t) => seen.push(t) }),
+    ).resolves.toBeDefined();
+    expect(seen).toEqual(['ок']);
+  });
+
+  it('fails loudly when the stream ends without a completed response', async () => {
+    // Half an answer must not be returned as if it were whole.
+    stubStream([delta('обрыв')]);
+
+    await expect(
+      providerStream('https://x', { apiKey: 'k', body: {}, timeoutMs: 1000, onDelta: () => {} }),
+    ).rejects.toThrow(/completed/i);
+  });
+
+  it('marks a terminal provider failure, and does not retry', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false, status: 401, body: null, text: async () => 'invalid key',
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const error = await providerStream('https://x', {
+      apiKey: 'k', body: {}, timeoutMs: 1000, onDelta: () => {},
+    }).catch((e) => e);
+
+    expect(isProviderUnavailableError(error)).toBe(true);
+    // Retrying a stream would replay text the user already read.
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

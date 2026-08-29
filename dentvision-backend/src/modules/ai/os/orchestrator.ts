@@ -47,7 +47,7 @@ import {
   tryPlatformMapQuery,
 } from '../lib/deterministicShortcuts.js';
 import { sanitizeUserInput, buildSafeInstructions } from '../lib/promptGuard.js';
-import { providerFetch } from '../lib/providerFetch.js';
+import { providerFetch, providerStream } from '../lib/providerFetch.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
@@ -88,6 +88,14 @@ export interface OrchestratorInput {
   focusId?: string | null;
   /** Verified entity focus (os/context.ts::buildAiContext) — what the kernel substitutes a missing patientId from, never trusted from focusType/focusId directly. */
   entity?: { type: string; id: string } | null;
+  /**
+   * Where to send text as the model produces it.
+   *
+   * Absent for the plain `/query` route, which returns one complete answer.
+   * When present the SSE route forwards each fragment, and no longer has to
+   * fake progressive rendering by slicing a finished string.
+   */
+  onToken?: (text: string) => void;
 }
 
 export interface OrchestratorResult {
@@ -236,12 +244,20 @@ async function callModel(
   body: Record<string, unknown>,
   choice: ModelChoice,
   usageHint: string,
+  onToken?: (text: string) => void,
 ): Promise<ResponsesAPIResult> {
-  const payload = await providerFetch<ResponsesAPIResult>(OPENAI_RESPONSES_URL, {
-    apiKey: env.OPENAI_API_KEY as string,
-    body,
-    timeoutMs: REQUEST_TIMEOUT_MS,
-  });
+  const payload = onToken
+    ? await providerStream<ResponsesAPIResult>(OPENAI_RESPONSES_URL, {
+        apiKey: env.OPENAI_API_KEY as string,
+        body,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+        onDelta: onToken,
+      })
+    : await providerFetch<ResponsesAPIResult>(OPENAI_RESPONSES_URL, {
+        apiKey: env.OPENAI_API_KEY as string,
+        body,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+      });
 
   // What the provider says it billed, not a character count plus a 15% guess.
   const reported = payload.usage?.total_tokens;
@@ -523,11 +539,15 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         instructions,
         input: conversation,
         tools: toolSchemas,
-        reasoning: { effort: choice.reasoningEffort },
+        // Same rule as `llm/client.ts`: `reasoning` goes only to models that
+        // have the mode. This body is assembled here rather than in the
+        // client, so it kept sending the parameter unconditionally.
+        ...(choice.supportsReasoning ? { reasoning: { effort: choice.reasoningEffort } } : {}),
         max_output_tokens: choice.maxOutputTokens,
       },
       choice,
       `${instructions}\n${input.text}`,
+      input.onToken,
     );
 
     let outputItems = response.output || [];
@@ -560,11 +580,12 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
             instructions,
             input: conversation,
             tools: toolSchemas,
-            reasoning: { effort: choice.reasoningEffort },
+            ...(choice.supportsReasoning ? { reasoning: { effort: choice.reasoningEffort } } : {}),
             max_output_tokens: choice.maxOutputTokens,
           },
           choice,
           `${instructions}\n${input.text}`,
+          input.onToken,
         );
         outputItems = response.output || [];
         functionCalls = outputItems.filter((item) => item.type === 'function_call');

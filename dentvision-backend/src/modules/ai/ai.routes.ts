@@ -276,6 +276,7 @@ async function processQuery(
   text: string,
   sessionId: string,
   history: Array<{ role: string; content: string }>,
+  onToken?: (text: string) => void,
 ): Promise<ProcessedResponse> {
   const isGuest = !req.user || req.user.isGuest === true;
   const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
@@ -331,6 +332,7 @@ async function processQuery(
   if (orchestratorEnabled()) {
     try {
       const result = await orchestrate({
+        onToken,
         text,
         userId,
         clinicId,
@@ -460,9 +462,10 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
   }
 });
 
-// The web client uses this endpoint for progressive rendering.  Keep the
-// protocol compatible even when the current AI provider returns a complete
-// response rather than provider-level token events.
+// Progressive rendering, now from the provider's own token events rather than
+// from a finished string cut into pieces. The event contract is unchanged:
+// `token` fragments accumulate on the client and `done` replaces them with the
+// authoritative reply, so an intermediate tool round emitting text is safe.
 aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
   const startTime = Date.now();
   try {
@@ -487,9 +490,16 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       res.write(`data: ${JSON.stringify({ type: 'status', status: 'working' })}\n\n`);
     }, 8000);
 
+    let streamedChars = 0;
+    const onToken = (fragment: string) => {
+      if (!fragment) return;
+      streamedChars += fragment.length;
+      res.write(`data: ${JSON.stringify({ type: 'token', text: fragment })}\n\n`);
+    };
+
     let response: ProcessedResponse;
     try {
-      response = await processQuery(req, text, sessionId, history);
+      response = await processQuery(req, text, sessionId, history, onToken);
       await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
     } finally {
       clearInterval(heartbeat);
@@ -508,11 +518,13 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       status: 'success',
     });
 
-    // Progressive rendering of the final message.
+    // The model's text has already gone out fragment by fragment. What is left
+    // is the case where no model ran at all — a deterministic shortcut — which
+    // answers instantly and has nothing to reveal progressively. Slicing such
+    // an answer into forty pieces was the fake this route used to perform.
     const message = response.message || '';
-    const chunkSize = Math.max(8, Math.ceil(message.length / 40));
-    for (let i = 0; i < message.length; i += chunkSize) {
-      res.write(`data: ${JSON.stringify({ type: 'token', text: message.slice(i, i + chunkSize) })}\n\n`);
+    if (streamedChars === 0 && message) {
+      res.write(`data: ${JSON.stringify({ type: 'token', text: message })}\n\n`);
     }
 
     res.write(`data: ${JSON.stringify({
