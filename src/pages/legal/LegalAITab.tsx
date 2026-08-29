@@ -39,7 +39,7 @@ export default function LegalAITab() {
       <div className="flex flex-wrap gap-2 border-b border-bdr-subtle pb-3">
         {[
           { key: 'explain', label: 'Объяснить', icon: <Sparkles size={14} /> },
-          { key: 'diff', label: 'Сравнить версии', icon: <GitBranch size={14} /> },
+          { key: 'diff', label: 'Сравнить версии', icon: <GitBranch size={14} /> },  // построчное сравнение, без ИИ
           { key: 'check', label: 'Проверить ошибки', icon: <AlertTriangle size={14} /> },
         ].map(m => (
           <button key={m.key} onClick={() => { setMode(m.key as any); setResult(null); }}
@@ -76,7 +76,7 @@ export default function LegalAITab() {
             )}
             {mode === 'check' && (
               <div className="space-y-3">
-                <p className="text-xs text-txt-muted">AI-проверка документа на юридические ошибки и противоречия</p>
+                <p className="text-xs text-txt-muted">Проверка по списку обязательных пунктов: незаполненные переменные, конфиденциальность, срок действия, порядок споров. Считается правилами, без ИИ.</p>
                 <textarea value={content} onChange={e => setContent(e.target.value)} rows={10} className="w-full rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary p-3 font-mono resize-y outline-none focus:ring-1 focus:ring-dv-gold/50" />
                 <Button onClick={() => checkMut.mutate({ content })} loading={isPending} className="min-h-11">Проверить</Button>
               </div>
@@ -86,35 +86,33 @@ export default function LegalAITab() {
 
         <Card>
           <CardContent>
-            <p className="text-sm font-semibold text-txt-primary mb-3">Результат AI</p>
+            <p className="text-sm font-semibold text-txt-primary mb-3">Результат</p>
             {isPending && <p className="text-sm text-txt-muted animate-pulse">Анализируем...</p>}
             {!result && !isPending && <p className="text-sm text-txt-muted">Результат появится здесь</p>}
             {result && (
               <div className="space-y-3 text-sm text-txt-secondary">
                 {mode === 'explain' && (
                   <>
-                    {result.explanation && <GlassCard padding="sm"><p className="text-txt-primary whitespace-pre-wrap">{result.explanation}</p></GlassCard>}
-                    {result.risks && result.risks.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-error mb-1">Риски:</p>
-                        <ul className="list-disc list-inside space-y-1">{result.risks.map((r: string, i: number) => <li key={i} className="text-xs">{r}</li>)}</ul>
-                      </div>
+                    {/* The API returns `reply`. This panel used to read
+                        `explanation` / `risks` / `keyPoints`, none of which it
+                        has ever sent — so the explain tab rendered nothing at
+                        all, whatever the backend answered. */}
+                    {result.unavailable && (
+                      <GlassCard padding="sm"><p className="text-warning text-xs">{result.error}</p></GlassCard>
                     )}
-                    {result.keyPoints && (
-                      <div>
-                        <p className="text-xs font-semibold text-txt-primary mb-1">Ключевые положения:</p>
-                        <p className="text-xs whitespace-pre-wrap">{result.keyPoints}</p>
-                      </div>
+                    {result.reply && (
+                      <GlassCard padding="sm"><p className="text-txt-primary whitespace-pre-wrap">{result.reply}</p></GlassCard>
                     )}
+                    {result.disclaimer && <p className="text-2xs text-txt-ghost">{result.disclaimer}</p>}
                   </>
                 )}
                 {mode === 'diff' && (
                   <>
-                    {result.changes?.map((c: any, i: number) => (
-                      <div key={i} className={`p-2 rounded-lg text-xs ${c.type === 'added' ? 'bg-green-500/10 text-green-400' : c.type === 'removed' ? 'bg-red-500/10 text-red-400' : 'bg-surface-2 text-txt-primary'}`}>
-                        <span className="font-semibold">{c.type === 'added' ? '+' : c.type === 'removed' ? '- ' : '~ '}</span>
-                        {c.text || c.content}
-                      </div>
+                    {/* `changes` is a list of strings ("Строка N: изменено").
+                        Reading `.type` / `.text` off them produced rows with no
+                        content. */}
+                    {result.changes?.map((c: string, i: number) => (
+                      <div key={i} className="p-2 rounded-lg text-xs bg-surface-2 text-txt-primary">{String(c)}</div>
                     ))}
                     {result.summary && <GlassCard padding="sm"><p className="text-xs text-txt-primary">{result.summary}</p></GlassCard>}
                   </>
