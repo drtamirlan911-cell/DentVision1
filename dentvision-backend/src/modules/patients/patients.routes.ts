@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { createHash } from 'node:crypto';
 import prisma from '../../lib/prisma.js';
+import { syncTeeth } from './teethStore.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { publish } from '../../lib/events.js';
@@ -108,24 +109,6 @@ function serializePatient(p: {
   };
 }
 
-async function syncTeeth(patientId: string, teeth: Record<string, any> | undefined) {
-  if (!teeth || typeof teeth !== 'object') return;
-  for (const [num, val] of Object.entries(teeth)) {
-    const number = parseInt(num, 10);
-    if (!Number.isFinite(number)) continue;
-    const condition = typeof val === 'string' ? val : val?.status || val?.condition || 'healthy';
-    const diagnosis = typeof val === 'object' ? val?.diagnosis || null : null;
-    let notes: string | null = typeof val === 'object' ? val?.notes || null : null;
-    if (typeof val === 'object' && val?.surfaces && typeof val.surfaces === 'object') {
-      notes = JSON.stringify({ surfaces: val.surfaces, note: typeof notes === 'string' ? notes : null });
-    }
-    await prisma.tooth.upsert({
-      where: { patientId_number: { patientId, number } },
-      create: { id: uid(), patientId, number, condition, diagnosis, notes },
-      update: { condition, diagnosis, notes },
-    });
-  }
-}
 
 patientsRouter.get('/', async (req: AuthRequest, res) => {
   try {

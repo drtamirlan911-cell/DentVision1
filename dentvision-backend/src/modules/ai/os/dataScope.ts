@@ -44,7 +44,15 @@ export function toolExistsAnywhere(tool: string): boolean {
  * person must approve before the kernel executes it (`kernel.ts` step 6).
  * Every other mutating tool keeps today's single-click confirm behavior.
  */
-export const HIGH_RISK_TOOLS: ReadonlySet<string> = new Set(['createInvoice', 'createTreatmentPlan', 'cancelAppointment']);
+export const HIGH_RISK_TOOLS: ReadonlySet<string> = new Set([
+  'createInvoice',
+  'createTreatmentPlan',
+  'cancelAppointment',
+  // Writing findings onto the odontogram edits the medical record itself,
+  // and the doctor who asked for the read is not automatically the person
+  // who should sign off on the write.
+  'applyToothFindings',
+]);
 
 /**
  * Staff tools whose `patientId` argument is *required* — an unambiguous
@@ -60,6 +68,8 @@ export const HIGH_RISK_TOOLS: ReadonlySet<string> = new Set(['createInvoice', 'c
  */
 export const TOOL_PATIENT_ARG: Record<string, string> = {
   getPatientCard: 'patientId',
+  analyzeRadiograph: 'patientId',
+  applyToothFindings: 'patientId',
   createTreatmentPlan: 'patientId',
   createAppointment: 'patientId',
   createInvoice: 'patientId',
