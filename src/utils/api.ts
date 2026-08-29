@@ -2558,6 +2558,34 @@ export async function rejectAiApproval(id: string, note?: string): Promise<any> 
   })
 }
 
+/**
+ * Send a recording for server-side transcription.
+ *
+ * Used where the browser has no Web Speech recogniser. Nothing is stored: the
+ * response is text, and the audio is not kept.
+ */
+export async function transcribeDictation(blob: Blob, language = 'ru'): Promise<string> {
+  const form = new FormData();
+  form.append('audio', blob, 'dictation.webm');
+  form.append('language', language);
+
+  const headers: Record<string, string> = {};
+  if (_accessToken) headers.Authorization = `Bearer ${_accessToken}`;
+  const csrf = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/);
+  if (csrf) headers['x-csrf-token'] = csrf[1];
+
+  // No Content-Type header: the browser sets the multipart boundary itself.
+  const res = await fetch(`${API_URL}/api/ai/transcribe`, {
+    method: 'POST',
+    headers,
+    body: form,
+    credentials: 'include',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || 'Не удалось распознать речь');
+  return String(data?.data?.text || '');
+}
+
 export async function aiAction(action: string, params: Record<string, unknown> = {}): Promise<any> {
   return apiRequest('/api/ai/action', {
     method: 'POST',

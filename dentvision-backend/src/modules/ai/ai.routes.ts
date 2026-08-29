@@ -13,6 +13,11 @@ import { logAIInteraction } from './lib/auditLogger.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
 import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
 import { buildAiContext } from './os/context.js';
+import multer from 'multer';
+import { transcribeAudio, isTranscriptionFailed, MAX_AUDIO_BYTES } from './lib/transcription.js';
+
+/** Audio is held in memory and forwarded; nothing is written to disk. */
+const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_AUDIO_BYTES } });
 
 const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
 
@@ -461,6 +466,50 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     return res.status(500).json({ ok: false, error: 'AI query failed' });
   }
 });
+
+/**
+ * Chairside dictation for browsers the on-device recogniser does not reach.
+ *
+ * Web Speech is free and keeps audio on the device, so it stays the default;
+ * this is what Firefox — where the microphone button simply does not appear —
+ * and any browser with a bad recognition get instead. The transcript goes into
+ * the same `parseDictation` the typed path uses.
+ */
+aiRouter.post(
+  '/transcribe',
+  authenticate,
+  requirePermission('patient.write'),
+  audioUpload.single('audio'),
+  async (req: AuthRequest, res) => {
+    try {
+      const file = (req as unknown as { file?: Express.Multer.File }).file;
+      if (!file) return res.status(400).json({ ok: false, error: 'Файл аудио не получен' });
+
+      const language = typeof req.body?.language === 'string' ? req.body.language : 'ru';
+      const result = await transcribeAudio({
+        buffer: file.buffer,
+        filename: file.originalname || 'dictation.webm',
+        mimeType: file.mimetype,
+        language,
+      });
+
+      if (isTranscriptionFailed(result)) {
+        // A refusal the doctor can act on, not a 500: wrong format, too long,
+        // or the feature is not configured at all.
+        const status = result.reason === 'PROVIDER_ERROR' ? 502 : 400;
+        return res.status(status).json({ ok: false, error: result.error, code: result.reason });
+      }
+
+      // The audio itself is never stored: it is a keystroke substitute, and
+      // keeping a recording of a clinical conversation would be a different
+      // product decision with its own consent.
+      return res.json({ ok: true, data: { text: result.text, model: result.model } });
+    } catch (error) {
+      console.error('[AI] transcribe', error);
+      return res.status(500).json({ ok: false, error: 'Не удалось распознать речь' });
+    }
+  },
+);
 
 // Progressive rendering, now from the provider's own token events rather than
 // from a finished string cut into pieces. The event contract is unchanged:

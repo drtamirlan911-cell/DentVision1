@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { Textarea } from '@/components/ui/ds/Input'
 import { useToast } from '@/components/ui/ds/Toast'
 import { startRecognition, voiceInputSupported, type VoiceRecognitionHandle } from '@/utils/voice'
+import { transcribeDictation } from '@/utils/api'
 import { normalizeTooth, statusColor, statusLabel, type PatientTeeth } from '@/lib/odontogram'
 import {
   parseDictation,
@@ -133,9 +134,56 @@ export function VisitDictation({ teeth, onApply }: VisitDictationProps) {
   const committedRef = useRef('')
 
   const supported = useMemo(() => voiceInputSupported(), [])
+  // Firefox has no Web Speech recogniser, so the button used to be absent
+  // there entirely. Recording and transcribing on the server covers it.
+  const canRecord = useMemo(
+    () => typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices,
+    [],
+  )
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const mediaRef = useRef<{ recorder: MediaRecorder; stream: MediaStream } | null>(null)
   const draft = useMemo(() => parseDictation(text), [text])
 
-  useEffect(() => () => recognitionRef.current?.stop(), [])
+  useEffect(() => () => {
+    recognitionRef.current?.stop()
+    mediaRef.current?.recorder.stop()
+    mediaRef.current?.stream.getTracks().forEach((t) => t.stop())
+  }, [])
+
+  /** Record, then transcribe on the server. Appends, never replaces. */
+  async function toggleRecording() {
+    if (recording) {
+      mediaRef.current?.recorder.stop()
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      const chunks: Blob[] = []
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        mediaRef.current = null
+        setRecording(false)
+        if (chunks.length === 0) return
+        setTranscribing(true)
+        try {
+          const spoken = await transcribeDictation(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }))
+          if (spoken) setText((prev) => (prev ? `${prev.trim()} ${spoken}` : spoken))
+        } catch (e: any) {
+          toast.error(e?.message || 'Не удалось распознать речь')
+        } finally {
+          setTranscribing(false)
+        }
+      }
+      mediaRef.current = { recorder, stream }
+      recorder.start()
+      setRecording(true)
+    } catch {
+      toast.error('Нет доступа к микрофону')
+    }
+  }
 
   const kept = draft.findings.filter((f) => !excluded.has(findingKey(f)))
   const observedKept = kept.filter((f) => f.kind === 'observed')
@@ -197,7 +245,7 @@ export function VisitDictation({ teeth, onApply }: VisitDictationProps) {
           <h3 className="text-sm font-semibold text-txt-primary">Приём под диктовку</h3>
         </div>
         <div className="flex items-center gap-2">
-          {supported && (
+          {supported ? (
             <Button
               size="sm"
               variant={listening ? 'danger' : 'secondary'}
@@ -206,7 +254,17 @@ export function VisitDictation({ teeth, onApply }: VisitDictationProps) {
             >
               {listening ? 'Стоп' : 'Говорить'}
             </Button>
-          )}
+          ) : canRecord ? (
+            <Button
+              size="sm"
+              variant={recording ? 'danger' : 'secondary'}
+              icon={recording ? <MicOff size={14} /> : <Mic size={14} />}
+              disabled={transcribing}
+              onClick={toggleRecording}
+            >
+              {transcribing ? 'Распознаю…' : recording ? 'Стоп' : 'Записать'}
+            </Button>
+          ) : null}
           {text && (
             <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} onClick={() => { setText(''); setExcluded(new Set()) }}>
               Очистить
@@ -224,6 +282,10 @@ export function VisitDictation({ teeth, onApply }: VisitDictationProps) {
           placeholder={`Опишите приём словами. Например: ${EXAMPLE}`}
         />
       </div>
+
+      {recording && (
+        <p className="mt-2 text-xs text-dv-gold">Идёт запись. Нажмите «Стоп» — текст распознается на сервере.</p>
+      )}
 
       {listening && (
         <p className="mt-2 text-xs text-dv-gold">Слушаю… говорите обычными словами, номера зубов по FDI или «верхняя шестёрка справа».</p>

@@ -61,6 +61,17 @@ export const EMBEDDING_LADDER: readonly string[] = [
   'text-embedding-ada-002',
 ];
 
+/**
+ * Speech-to-text models, best first. `whisper-1` is the floor for the same
+ * reason as elsewhere: long-lived and safe to assume when a probe finds
+ * nothing newer.
+ */
+export const TRANSCRIPTION_LADDER: readonly string[] = [
+  'gpt-4o-transcribe',
+  'gpt-4o-mini-transcribe',
+  'whisper-1',
+];
+
 export interface ResolvedModels {
   full: string;
   mini: string;
@@ -68,6 +79,8 @@ export interface ResolvedModels {
   vision: string | null;
   /** Best available embedding model. */
   embedding: string;
+  /** Best available speech-to-text model. */
+  transcription: string;
   /** `env` when an operator pinned the ids, `probe` when they were discovered. */
   source: 'env' | 'probe';
   /** True when the probe failed and the ladder floor is standing in. */
@@ -154,6 +167,7 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
         // Pinning the chat models says nothing about embeddings, so the floor
         // stands in until a probe runs.
         embedding: EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
+        transcription: TRANSCRIPTION_LADDER[TRANSCRIPTION_LADDER.length - 1],
         source: 'env',
         degraded: false,
         resolvedAt: Date.now(),
@@ -165,6 +179,7 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
       mini: envMini || floorOf(MINI_LADDER).id,
       vision: floorOf(FULL_LADDER).vision ? floorOf(FULL_LADDER).id : null,
       embedding: EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
+      transcription: TRANSCRIPTION_LADDER[TRANSCRIPTION_LADDER.length - 1],
       source: 'probe',
       degraded,
       resolvedAt: Date.now(),
@@ -196,6 +211,9 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
         embedding:
           EMBEDDING_LADDER.find((id) => available.has(id)) ??
           EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
+        transcription:
+          TRANSCRIPTION_LADDER.find((id) => available.has(id)) ??
+          TRANSCRIPTION_LADDER[TRANSCRIPTION_LADDER.length - 1],
         source: 'probe',
         degraded: false,
         resolvedAt: Date.now(),
