@@ -16,8 +16,23 @@ export interface ModelChoice {
   model: string;
   tier: ModelTier;
   reasoningEffort: 'low' | 'medium' | 'high';
+  /** False for models with no reasoning mode — the parameter is then omitted. */
+  supportsReasoning: boolean;
   maxOutputTokens: number;
   reason: string;
+}
+
+/**
+ * Which families take a `reasoning` parameter.
+ *
+ * It used to be sent unconditionally, including to `gpt-4o`, which has no
+ * reasoning mode. Kept as a small maintained pattern rather than a per-model
+ * table: a new family costs one alternative here.
+ */
+const REASONING_MODEL_RE = /^(o\d|gpt-5)/i;
+
+export function supportsReasoning(model: string): boolean {
+  return REASONING_MODEL_RE.test(String(model || '').trim());
 }
 
 export interface ModelUsageSnapshot {
@@ -136,6 +151,7 @@ export function pickModel(input: {
     model: miniModel,
     tier: 'mini',
     reasoningEffort: 'low',
+    supportsReasoning: supportsReasoning(miniModel),
     maxOutputTokens: maxOut,
     reason,
   });
@@ -144,6 +160,7 @@ export function pickModel(input: {
     model: fullModel,
     tier: 'full',
     reasoningEffort: effort,
+    supportsReasoning: supportsReasoning(fullModel),
     maxOutputTokens: maxOut,
     reason,
   });

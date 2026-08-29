@@ -30,8 +30,9 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
   const history = await getRecentMessages(session.id, 20)
   await saveMessage({ sessionId: session.id, role: 'USER', content: userMessage })
 
+  // The system prompt belongs in `instructions`, not in `input` — same as the
+  // staff orchestrator, and it keeps the cacheable prefix in one place.
   const inputMessages: any[] = [
-    { role: 'system', content: clinicContext.systemPrompt },
     ...history.map((m) => ({
       role: m.role.toLowerCase() as string,
       content: m.content,
@@ -40,6 +41,9 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
   ]
 
   const MAX_ITERATIONS = 5
+  const REQUEST_TIMEOUT_MS = 30_000
+  /** Same cap the staff orchestrator uses: a tool must not blow up the prompt. */
+  const MAX_TOOL_OUTPUT_CHARS = 12_000
   let iteration = 0
   const currentMessages = inputMessages
 
@@ -54,13 +58,17 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
           'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: env.OPENAI_MODEL_MINI ?? 'gpt-4o-mini',
+          model: env.OPENAI_MODEL_MINI,
+          instructions: clinicContext.systemPrompt,
           input: currentMessages,
           tools: toolsRegistry,
           tool_choice: 'auto',
           max_output_tokens: 500,
           temperature: 0.3,
         }),
+        // This was the only model call in the codebase with no timeout: a hung
+        // provider held a patient's WhatsApp reply open indefinitely.
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
 
       if (!response.ok) {
@@ -102,16 +110,20 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
             toolResult: toolResult as object,
           })
 
-          // Append tool result to conversation for next iteration
+          // Responses API items, not Chat Completions messages. The previous
+          // shape (`role:'assistant'` + `tool_calls`, then `role:'tool'`) is
+          // not read by this endpoint, so the model never saw what its own
+          // tools returned and looped until MAX_ITERATIONS ran out.
           currentMessages.push({
-            role: 'assistant',
-            content: null,
-            tool_calls: [{ id: toolCall.call_id, type: 'function', function: { name: toolName, arguments: toolCall.arguments } }],
+            type: 'function_call',
+            name: toolName,
+            call_id: toolCall.call_id,
+            arguments: toolCall.arguments,
           })
           currentMessages.push({
-            role: 'tool',
-            tool_call_id: toolCall.call_id,
-            content: JSON.stringify(toolResult),
+            type: 'function_call_output',
+            call_id: toolCall.call_id,
+            output: JSON.stringify(toolResult).slice(0, MAX_TOOL_OUTPUT_CHARS),
           })
         }
         continue

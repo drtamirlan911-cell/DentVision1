@@ -6,6 +6,7 @@ import {
   pickModel,
   recordModelUsage,
   getModelUsageSnapshot,
+  supportsReasoning,
 } from './modelRouter';
 
 describe('estimateTokens', () => {
@@ -91,5 +92,37 @@ describe('pickModel', () => {
     const snap = getModelUsageSnapshot();
     expect(snap.miniUsed).toBe(1000);
     expect(snap.fullUsed).toBe(500);
+  });
+});
+
+describe('supportsReasoning', () => {
+  // `reasoning` used to be sent on every request, including to gpt-4o, which
+  // has no such mode. The predicate is what keeps it off those models.
+  it.each(['o1', 'o1-mini', 'o3', 'gpt-5.4', 'gpt-5.4-mini', 'GPT-5'])(
+    'recognises %s as a reasoning model',
+    (model) => {
+      expect(supportsReasoning(model)).toBe(true);
+    },
+  );
+
+  it.each(['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4o-mini-tts', ''])(
+    'does not claim reasoning for %s',
+    (model) => {
+      expect(supportsReasoning(model)).toBe(false);
+    },
+  );
+});
+
+describe('pickModel — reasoning flag', () => {
+  beforeEach(() => __resetModelUsageForTests());
+
+  it('carries the flag for the model it actually picked', () => {
+    const mini = pickModel({ task: 'polish', text: 'x', miniModel: 'gpt-4o-mini', fullModel: 'o3' });
+    expect(mini.model).toBe('gpt-4o-mini');
+    expect(mini.supportsReasoning).toBe(false);
+
+    const full = pickModel({ task: 'orchestrate', text: 'x', mode: 'full', miniModel: 'gpt-4o-mini', fullModel: 'o3' });
+    expect(full.model).toBe('o3');
+    expect(full.supportsReasoning).toBe(true);
   });
 });

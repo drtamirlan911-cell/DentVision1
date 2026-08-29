@@ -17,29 +17,53 @@ const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
 // ─── Types ───
 
-export type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
-
-export interface ContentPart {
-  type: 'text' | 'image';
-  text?: string;
-  image_url?: { url: string; detail?: string };
-}
+/**
+ * No `'tool'` role: the Responses API has no such role. A tool result is an
+ * item (`function_call_output`), not a message — see `ConversationItem`.
+ * Dropping it from the union is deliberate, so a caller that still speaks
+ * Chat Completions fails to compile instead of failing silently at runtime.
+ */
+export type MessageRole = 'system' | 'user' | 'assistant';
 
 export interface ChatMessage {
   role: MessageRole;
   content: string;
   imageUrl?: string;
-  tool_call_id?: string;
   name?: string;
 }
 
+/** The model asking for a tool, echoed back into the conversation. */
+export interface FunctionCallItem {
+  type: 'function_call';
+  name: string;
+  call_id: string;
+  arguments: string;
+}
+
+/** What the tool returned, addressed to the call that asked for it. */
+export interface FunctionCallOutputItem {
+  type: 'function_call_output';
+  call_id: string;
+  output: string;
+}
+
+export type ConversationItem = ChatMessage | FunctionCallItem | FunctionCallOutputItem;
+
+export function isChatMessage(item: ConversationItem): item is ChatMessage {
+  return 'role' in item;
+}
+
+/**
+ * Flat, as `/v1/responses` requires — the same shape `os/tools.ts::toolSchemasFor`
+ * already emits. This used to be the nested Chat Completions form
+ * (`{ type:'function', function:{ name, ... } }`), which the endpoint does not
+ * accept, so every `chatWithTools` caller was shipping unusable schemas.
+ */
 export interface ToolDefinition {
   type: 'function';
-  function: {
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-  };
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
 }
 
 export interface ToolCall {
@@ -52,7 +76,7 @@ export interface ToolCall {
 }
 
 export interface LLMRequest {
-  messages: ChatMessage[];
+  messages: ConversationItem[];
   tools?: ToolDefinition[];
   task: 'orchestrate' | 'polish';
   text: string;
@@ -91,12 +115,19 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
     escalate: request.escalate,
   });
 
+  const systemMessage = request.messages.find(
+    (m): m is ChatMessage => isChatMessage(m) && m.role === 'system',
+  );
+
   const body: Record<string, unknown> = {
     model: choice.model,
-    instructions: request.messages.find((m) => m.role === 'system')?.content || '',
+    instructions: systemMessage?.content || '',
     input: request.messages
-      .filter((m) => m.role !== 'system')
+      .filter((m) => !isChatMessage(m) || m.role !== 'system')
       .map((m) => {
+        // Tool call and tool result are items, not messages: they pass through
+        // untouched rather than being squeezed into a role.
+        if (!isChatMessage(m)) return m;
         const hasImage = !!m.imageUrl;
         const content = hasImage
           ? [
@@ -107,13 +138,17 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
         return {
           role: m.role,
           content,
-          ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
           ...(m.name ? { name: m.name } : {}),
         };
       }),
-    reasoning: { effort: choice.reasoningEffort },
     max_output_tokens: request.maxTokens || choice.maxOutputTokens,
   };
+
+  // `reasoning` is a reasoning-model parameter. It used to be sent on every
+  // request, including to models that have no such mode.
+  if (choice.supportsReasoning) {
+    body.reasoning = { effort: choice.reasoningEffort };
+  }
 
   if (request.tools && request.tools.length > 0) {
     body.tools = request.tools;
@@ -168,7 +203,9 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
   }
 
   const tokens = estimateTokens(
-    request.messages.map((m) => m.content).join(''),
+    request.messages
+      .map((m) => (isChatMessage(m) ? m.content : m.type === 'function_call' ? m.arguments : m.output))
+      .join(''),
     content
   );
   recordModelUsage(choice.tier, tokens);
@@ -206,7 +243,7 @@ export async function simpleChat(
 
 export async function chatWithTools(
   systemPrompt: string,
-  messages: ChatMessage[],
+  messages: ConversationItem[],
   tools: ToolDefinition[],
   opts?: { isGuest?: boolean; round?: number; toolsUsed?: number }
 ): Promise<LLMResponse> {
@@ -214,7 +251,8 @@ export async function chatWithTools(
     messages: [{ role: 'system', content: systemPrompt }, ...messages],
     tools,
     task: 'orchestrate',
-    text: messages.map((m) => m.content).join(' '),
+    // Routing looks at what the user said, not at tool plumbing.
+    text: messages.filter(isChatMessage).map((m) => m.content).join(' '),
     isGuest: opts?.isGuest,
     round: opts?.round,
     toolsUsed: opts?.toolsUsed,
