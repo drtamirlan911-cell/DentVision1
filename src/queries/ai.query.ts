@@ -38,3 +38,46 @@ export function useDismissAiInsight(entityType: string, entityId: string | null 
     },
   })
 }
+
+/**
+ * The approval queue. Polled rather than pushed: rows appear both from a live
+ * request the user just made and from a durable agent that proposed something
+ * overnight, and only the first of those is tied to anything happening in this
+ * tab.
+ */
+export function useAiApprovals(status?: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.aiApprovals(status),
+    queryFn: () => api.listAiApprovals(status),
+    refetchInterval: 60_000,
+    enabled,
+  })
+}
+
+/**
+ * Count for the sidebar badge. Shares the `pending` query key with the
+ * Approval Center, so opening the page costs no extra request and deciding a
+ * row updates the badge without its own invalidation.
+ */
+export function usePendingApprovalCount(enabled: boolean) {
+  const { data } = useAiApprovals('pending', enabled)
+  return data?.length ?? 0
+}
+
+function useApprovalDecision(fn: (id: string, note?: string) => Promise<unknown>) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string }) => fn(id, note),
+    // Deciding one row changes the pending count every other surface reads, so
+    // invalidate the whole family rather than the one filtered list in view.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['aiApprovals'] }),
+  })
+}
+
+export function useApproveAiApproval() {
+  return useApprovalDecision(api.approveAiApproval)
+}
+
+export function useRejectAiApproval() {
+  return useApprovalDecision(api.rejectAiApproval)
+}

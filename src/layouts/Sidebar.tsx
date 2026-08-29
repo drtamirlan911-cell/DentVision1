@@ -13,6 +13,7 @@ import { Avatar } from '@/components/ui/ds/Avatar';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Tooltip } from '@/components/ui/ds/Tooltip';
 import { queryKeys } from '@/queries/keys';
+import { usePendingApprovalCount } from '@/queries/ai.query';
 import * as api from '@/utils/api';
 import { useAuth, useAuthStore } from '@/store/auth.store';
 import { firstAllowedCrmPath } from '@/lib/roleAccess';
@@ -105,6 +106,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const clinicId = authUser?.clinicId || '';
   const { t } = useTranslation();
 
+  // A queued approval is invisible work: nothing happens until someone decides
+  // it, and it expires on its own if nobody does. The badge is what turns the
+  // queue into something people actually open.
+  const pendingApprovals = usePendingApprovalCount(!isGuest && iam.canAccessPage('ai-approvals'));
+
   const NAV_ITEMS: NavItem[] = [
     { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} strokeWidth={1.75} />, path: '/crm/schedule', color: '#C9A96E', section: 'services' },
     { id: 'diagnostics', label: t('nav.diagnostics'), icon: <Activity size={18} strokeWidth={1.75} />, path: '/diagnostics', color: '#27AE60', section: 'services' },
@@ -125,6 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'partner-legal', label: t('nav.partner_legal'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/partner-legal', color: '#C9A96E', section: 'platform' },
     { id: 'audit', label: t('nav.audit'), icon: <FileText size={18} strokeWidth={1.75} />, path: '/audit', color: '#FBBF24', section: 'platform' },
     { id: 'agent-activity', label: t('nav.agent_activity'), icon: <Bot size={18} strokeWidth={1.75} />, path: '/agent-activity', color: '#C9A96E', section: 'platform' },
+    { id: 'ai-approvals', label: t('nav.ai_approvals'), icon: <ShieldCheck size={18} strokeWidth={1.75} />, path: '/ai-approvals', color: '#C9A96E', section: 'platform', badge: pendingApprovals || undefined },
     { id: 'backup', label: t('nav.backup'), icon: <Database size={18} strokeWidth={1.75} />, path: '/backup', color: '#38BDF8', section: 'platform' },
     { id: 'settings', label: t('nav.settings'), icon: <Settings size={18} strokeWidth={1.75} />, path: '/settings', color: '#94A3B8', section: 'platform' },
   ];

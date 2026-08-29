@@ -2511,6 +2511,53 @@ export async function dismissAiInsight(id: string): Promise<{ dismissed: boolean
   return { dismissed: !!(res?.data?.dismissed ?? res?.dismissed) }
 }
 
+// ─── Approval Center ───
+// The queue the kernel writes to when a high-risk tool is called
+// (`ai/os/dataScope.ts::HIGH_RISK_TOOLS`) and where durable agents park what
+// they propose instead of doing (`jobs/recallAgent.ts`). Rows are only ever
+// read and decided here — nothing in the client creates one.
+
+export interface AiApproval {
+  id: string
+  clinicId: string | null
+  requestedByUserId: string
+  surface: string
+  agentId: string | null
+  tool: string
+  params: Record<string, unknown>
+  summary: string
+  requiredPermission: string | null
+  riskLevel: string
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'failed' | string
+  decidedByUserId: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  resultActivityId: string | null
+  expiresAt: string | null
+  createdAt: string
+}
+
+export async function listAiApprovals(status?: string): Promise<AiApproval[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : ''
+  const res = await apiRequest(`/api/ai/approvals${qs}`)
+  const raw = res?.data ?? res
+  return Array.isArray(raw) ? raw : []
+}
+
+export async function approveAiApproval(id: string, note?: string): Promise<any> {
+  return apiRequest(`/api/ai/approvals/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ note: note || undefined }),
+  })
+}
+
+export async function rejectAiApproval(id: string, note?: string): Promise<any> {
+  return apiRequest(`/api/ai/approvals/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ note: note || undefined }),
+  })
+}
+
 export async function aiAction(action: string, params: Record<string, unknown> = {}): Promise<any> {
   return apiRequest('/api/ai/action', {
     method: 'POST',

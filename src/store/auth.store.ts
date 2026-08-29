@@ -29,7 +29,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   owner: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'agent-activity', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-results', 'profile', 'bi', 'patient-inbox', 'workflow'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-results', 'profile', 'bi', 'patient-inbox', 'workflow'],
     canSeeSalary: true,
     canSeeSuperAdmin: true,
     canAddStaff: true,
@@ -41,7 +41,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   director: {
     label: 'Руководитель',
     icon: '👔',
-    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'agent-activity', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-results', 'profile', 'bi', 'patient-inbox', 'workflow'],
+    pages: ['dashboard', 'schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-results', 'profile', 'bi', 'patient-inbox', 'workflow'],
     canSeeSalary: true,
     canSeeReports: true,
     canAddStaff: true,
@@ -54,14 +54,17 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   admin: {
     label: 'Администратор',
     icon: '💼',
-    pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-results', 'profile', 'patient-inbox', 'workflow'],
+    pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'finance', 'cashier', 'pricelist', 'lab', 'reminders', 'promotions', 'inventory', 'staff', 'shop', 'school', 'analytics', 'settings', 'clinic-settings', 'billing', 'treatment-plans', 'dental-chart', 'diagnostics', 'diagnostics-referrals', 'diagnostics-results', 'profile', 'patient-inbox', 'workflow', 'ai-approvals'],
     canSeeSalary: false,
     canSeeExpenses: false,
     canAddStaff: true,
     canManageClinicSettings: true,
     canManageFinance: true,
   },
-  doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'reminders', 'school', 'treatment-plans', 'dental-chart', 'diagnostics-referrals', 'diagnostics-results', 'profile'], canSeeSalary: false, canSeeOwnSalary: true, ownDataOnly: true },
+  // 'ai-approvals': a doctor's own high-risk AI request (plan, invoice) parks in
+  // the queue awaiting someone else's decision. Without the page they cannot see
+  // that their own request is pending, only that nothing happened.
+  doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'reminders', 'school', 'treatment-plans', 'dental-chart', 'diagnostics-referrals', 'diagnostics-results', 'profile', 'ai-approvals'], canSeeSalary: false, canSeeOwnSalary: true, ownDataOnly: true },
   // Can create referrals (diagnostics-referrals) — needs diagnostics-results too,
   // otherwise there's no way to see the outcome of a referral they made.
   assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school', 'diagnostics-referrals', 'diagnostics-results', 'profile'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
@@ -84,7 +87,7 @@ export const PLATFORM_ROLES: Record<string, RoleConfig> = {
   superadmin: {
     label: 'Super Admin',
     icon: '⚙️',
-    pages: ['admin', 'audit', 'agent-activity', 'backup', 'analytics', 'settings', 'security', 'quality',
+    pages: ['admin', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'analytics', 'settings', 'security', 'quality',
       'diagnostics', 'diagnostics-centers', 'diagnostics-labs',
       'platform-finance', 'ai-governance', 'support', 'profile', 'bi', 'supplier'],
     canSeeSalary: false,
@@ -96,7 +99,7 @@ export const PLATFORM_ROLES: Record<string, RoleConfig> = {
     canManageFinance: true,
   },
   support: { label: 'Поддержка', icon: '🛟', pages: ['admin', 'analytics', 'settings', 'profile'] },
-  developer: { label: 'Разработчик', icon: '🛠️', pages: ['admin', 'quality', 'analytics', 'settings', 'audit', 'agent-activity', 'backup', 'profile', 'security'] },
+  developer: { label: 'Разработчик', icon: '🛠️', pages: ['admin', 'quality', 'analytics', 'settings', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'profile', 'security'] },
   user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },
   verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },
 }
