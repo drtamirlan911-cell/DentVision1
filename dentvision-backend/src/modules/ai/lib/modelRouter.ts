@@ -46,8 +46,6 @@ export interface ModelUsageSnapshot {
 const COMPLEX_RE =
   /анализ|стратег|сравни|почему|разбер|объясни подробно|план\s+лечен|дифференц|прогноз|аудит|оптимиз|риск|многошаг|комплексн|сводн(ый|ая)\s+отч[её]т|deep\s*dive|analyze|compare|why\b|treatment\s+plan/i;
 
-const DEFAULT_MINI_MODEL = 'gpt-5.4-mini';
-const DEFAULT_FULL_MODEL = 'gpt-5.4';
 const DEFAULT_MINI_BUDGET = 2_400_000;
 const DEFAULT_FULL_BUDGET = 240_000;
 
@@ -126,8 +124,9 @@ export function pickModel(input: {
   /** Force escalate after a weak mini reply / empty output. */
   escalate?: boolean;
   mode?: ModelMode;
-  miniModel?: string;
-  fullModel?: string;
+  /** Resolved by `modelCatalog`; required, so no stale default can win here. */
+  miniModel: string;
+  fullModel: string;
   reasoningEffort?: 'low' | 'medium' | 'high';
   miniUsed?: number;
   fullUsed?: number;
@@ -136,8 +135,7 @@ export function pickModel(input: {
 }): ModelChoice {
   ensureDay();
   const mode = input.mode ?? 'auto';
-  const miniModel = input.miniModel ?? DEFAULT_MINI_MODEL;
-  const fullModel = input.fullModel ?? DEFAULT_FULL_MODEL;
+  const { miniModel, fullModel } = input;
   const effort = input.reasoningEffort ?? 'low';
   const miniBudget = input.miniBudget ?? configuredMiniBudget;
   const fullBudget = input.fullBudget ?? configuredFullBudget;
@@ -214,7 +212,7 @@ export function pickModel(input: {
   );
 }
 
-/** Production entry — reads live env + soft in-process budgets. */
+/** Production entry — resolved model ids + live env + soft in-process budgets. */
 export async function chooseOpenAIModel(input: {
   task: 'orchestrate' | 'polish';
   text: string;
@@ -225,13 +223,23 @@ export async function chooseOpenAIModel(input: {
   escalate?: boolean;
 }): Promise<ModelChoice> {
   const { env } = await import('../../../config.js');
+  const { resolveModels } = await import('./modelCatalog.js');
   configuredMiniBudget = env.OPENAI_DAILY_MINI_TOKENS;
   configuredFullBudget = env.OPENAI_DAILY_FULL_TOKENS;
+
+  // Which ids exist is the catalog's business; which tier to use is this
+  // file's. Keeping them apart is what stopped two places from disagreeing.
+  const models = await resolveModels({
+    apiKey: env.OPENAI_API_KEY,
+    envFull: env.OPENAI_MODEL,
+    envMini: env.OPENAI_MODEL_MINI,
+  });
+
   return pickModel({
     ...input,
     mode: env.OPENAI_MODEL_MODE,
-    miniModel: env.OPENAI_MODEL_MINI,
-    fullModel: env.OPENAI_MODEL,
+    miniModel: models.mini,
+    fullModel: models.full,
     reasoningEffort: env.OPENAI_REASONING_EFFORT,
   });
 }

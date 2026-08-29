@@ -137,6 +137,8 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
 
 interface ProcessedResponse extends AIResponse {
   toolsUsed?: string[];
+  /** Model id that answered; absent when a deterministic path did. */
+  model?: string;
   actions?: Array<{ type: string; label: string; params?: Record<string, unknown>; confidence?: number }>;
   messageId?: string;
   learnedHint?: string;
@@ -363,6 +365,7 @@ async function processQuery(
         needsConfirmation: result.needsConfirmation,
         confirmData: result.confirmData,
         toolsUsed: result.toolsUsed,
+        model: result.model,
         messageId: result.messageId,
         learnedHint,
         learnedLabels,
@@ -418,7 +421,9 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,
       sessionId,
-      model: 'orchestrator',
+      // Real id, so the audit can answer "what generated this?". A
+      // deterministic shortcut answers without any model at all.
+      model: response.model || 'deterministic',
       toolsCalled: toolsUsed,
       latencyMs: Date.now() - startTime,
       status: 'success',
@@ -445,7 +450,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,
       sessionId: req.body?.sessionId || undefined,
-      model: 'orchestrator',
+      model: 'unknown',
       toolsCalled: [],
       latencyMs: Date.now() - startTime,
       status: 'error',
@@ -495,7 +500,9 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,
       sessionId,
-      model: 'orchestrator',
+      // Real id, so the audit can answer "what generated this?". A
+      // deterministic shortcut answers without any model at all.
+      model: response.model || 'deterministic',
       toolsCalled: toolsUsed,
       latencyMs: Date.now() - startTime,
       status: 'success',
@@ -530,7 +537,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,
       sessionId: req.body?.sessionId || undefined,
-      model: 'orchestrator',
+      model: 'unknown',
       toolsCalled: [],
       latencyMs: Date.now() - startTime,
       status: 'error',

@@ -112,6 +112,12 @@ export interface OrchestratorResult {
   confirmData?: Record<string, unknown>;
   /** Which tools ran — provenance for the UI / audit. */
   toolsUsed: string[];
+  /**
+   * The model id that actually answered, or undefined when a deterministic
+   * shortcut did and no model was called. The audit used to record the literal
+   * `'orchestrator'`, which could not answer "what generated this?".
+   */
+  model?: string;
   /** Persisted assistant message id for feedback thumbs. */
   messageId?: string;
   /** Labels of prefs applied this turn (for UI chip). */
@@ -511,6 +517,8 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   // PLAN → SELECT TOOLS → EXECUTE → VERIFY loop.
   // Cheap-first: mini by default; escalate once if the first mini pass is empty.
   let escalated = false;
+  /** Survives the loop so the exhausted-budget return can still name the model. */
+  let lastModel: string | undefined;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     let choice = await chooseOpenAIModel({
       task: 'orchestrate',
@@ -577,6 +585,9 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
       }
     }
 
+    // After any escalation, so this is the model that actually served the round.
+    lastModel = choice.model;
+
     if (round === 0) {
       console.info(`[AI OS] model=${choice.model} tier=${choice.tier} reason=${choice.reason}`);
     }
@@ -601,6 +612,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         needsConfirmation: Boolean(pendingConfirmation),
         confirmData: pendingConfirmation,
         toolsUsed,
+        model: choice.model,
         messageId,
         ...personaMeta,
       };
@@ -662,6 +674,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
     intent: 'CHAT',
     suggestions: defaultSuggestions(input.role),
     toolsUsed,
+    model: lastModel,
     messageId,
     ...personaMeta,
   };

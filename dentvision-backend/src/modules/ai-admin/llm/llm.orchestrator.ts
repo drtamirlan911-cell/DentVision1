@@ -2,6 +2,7 @@ import { env } from '../../../config.js'
 import { getRecentMessages, saveMessage } from '../conversation/conversation.manager.js'
 import { toolsRegistry } from './tools/tools.registry.js'
 import { runAiAction } from '../../ai/os/kernel.js'
+import { resolveModels } from '../../ai/lib/modelCatalog.js'
 import type { ClinicContext } from '../context/context.builder.js'
 import type { AiAdminSession } from '@prisma/client'
 
@@ -26,6 +27,16 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
   const toolsCalled: string[] = []
   let totalTokens = 0
   let escalated = false
+
+  // Same resolution as every other surface: an operator pin if there is one,
+  // otherwise whatever `/v1/models` says this account can call. This used to
+  // read `env.OPENAI_MODEL_MINI ?? 'gpt-4o-mini'`, where the fallback was
+  // unreachable and the variable was never set in production.
+  const models = await resolveModels({
+    apiKey: env.OPENAI_API_KEY,
+    envFull: env.OPENAI_MODEL,
+    envMini: env.OPENAI_MODEL_MINI,
+  })
 
   const history = await getRecentMessages(session.id, 20)
   await saveMessage({ sessionId: session.id, role: 'USER', content: userMessage })
@@ -58,7 +69,7 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
           'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: env.OPENAI_MODEL_MINI,
+          model: models.mini,
           instructions: clinicContext.systemPrompt,
           input: currentMessages,
           tools: toolsRegistry,

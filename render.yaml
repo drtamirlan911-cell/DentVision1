@@ -31,6 +31,18 @@ services:
         value: "https://dent-vision1.vercel.app,http://localhost:5173"
       - key: OPENAI_API_KEY
         sync: false
+      # Model selection is discovered, not hardcoded: on first use the backend
+      # asks /v1/models what this account can call and takes the best entry of
+      # the preference ladder in `ai/lib/modelCatalog.ts`.
+      #
+      # Set OPENAI_MODEL and OPENAI_MODEL_MINI ONLY to pin specific ids — both
+      # together, or neither. They used to carry defaults, which is how
+      # production silently ran a two-year-old model: the default beat the
+      # newer id declared in code, and neither variable was ever set here.
+      - key: OPENAI_MODEL_MODE
+        value: auto
+      - key: OPENAI_REASONING_EFFORT
+        value: low
       - key: PUBLIC_API_URL
         value: "https://dentvision-api.onrender.com"
       - key: FRONTEND_URL
