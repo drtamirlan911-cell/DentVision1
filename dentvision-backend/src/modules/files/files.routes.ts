@@ -184,7 +184,7 @@ filesRouter.post('/upload', upload.single('file'), requirePermission('patient.wr
       return res.status(403).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' });
     }
 
-    const { patientId, type } = req.body as { patientId?: string; type?: string };
+    const { patientId, type, imageType: requestedImageType } = req.body as { patientId?: string; type?: string; imageType?: string };
     if (patientId) {
       const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
       if (!patient) return res.status(404).json({ ok: false, error: 'Пациент не найден' });
@@ -217,7 +217,14 @@ filesRouter.post('/upload', upload.single('file'), requirePermission('patient.wr
     });
 
     if (patientId && ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP'].includes(fileType)) {
-      const imageType = req.file.mimetype.includes('dicom') ? 'DICOM' : 'PHOTO';
+      // `type` above is the file extension; what kind of study this is has to
+      // be said separately. Without `imageType` this path hardcoded PHOTO, so
+      // X_RAY, CBCT and SCAN were never produced by it at all — an uploaded
+      // radiograph was filed as a photo.
+      const VALID_IMAGE_TYPES = ['PHOTO', 'X_RAY', 'CBCT', 'DICOM', 'SCAN'];
+      const imageType = VALID_IMAGE_TYPES.includes(String(requestedImageType || '').toUpperCase())
+        ? String(requestedImageType).toUpperCase()
+        : req.file.mimetype.includes('dicom') ? 'DICOM' : 'PHOTO';
       await prisma.patientImage.create({
         data: {
           id: uid(),

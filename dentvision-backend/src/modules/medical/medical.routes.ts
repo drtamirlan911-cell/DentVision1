@@ -8,6 +8,7 @@ import { uid } from '../../lib/helpers.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { DENTAL_ICD10_SEED, mapIcd10Row, searchDentalCatalog } from './icd10.catalog.js';
+import { persistImagePayload, resolveImageUrls } from '../../lib/imageUrl.js';
 import {
   collectPlanTeeth,
   enrichStages,
@@ -381,12 +382,17 @@ medicalRouter.post('/images', requirePermission('patient.write'), async (req: Au
 
     if (!(await requirePatientAccess(req, res, patientId))) return;
 
+    // The CRM sends a base64 data URI. Whole radiographs used to be written
+    // straight into this column; new ones go to object storage. Existing rows
+    // are deliberately left alone — see lib/imageUrl.ts.
+    const storedUrl = await persistImagePayload(url, `patients/${patientId}/images`);
+
     const image = await prisma.patientImage.create({
       data: {
         id: uid(),
         patientId,
         type,
-        url,
+        url: storedUrl,
         metadata: metadata || undefined,
       },
     });
@@ -414,7 +420,9 @@ medicalRouter.get('/images/:patientId', requirePermission('patient.read'), async
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ ok: true, data: images });
+    // Storage keys are unusable by an <img>: anything uploaded through
+    // /api/files/upload landed here as `s3://…` and silently failed to render.
+    res.json({ ok: true, data: await resolveImageUrls(images) });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch patient images' });
   }

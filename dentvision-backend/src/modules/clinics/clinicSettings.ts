@@ -46,6 +46,15 @@ export interface ClinicSettingsPayload {
   scheduleConflictMode?: 'warn' | 'block';
   /** Doctor commission base: 'net' (default) or 'gross'. */
   payrollBase?: 'net' | 'gross';
+  /**
+   * Lets the clinic send patient radiographs and photos to the model.
+   *
+   * Off unless the clinic turns it on: images are medical data leaving the
+   * platform, so it is an explicit decision, not a default. A registered
+   * patient additionally has to consent for themselves — see
+   * `ai/os/imageConsent.ts`.
+   */
+  aiImageAnalysis?: boolean;
   /** Public online booking link (Instagram / 2GIS) */
   bookingLink?: string;
   /** Allow patients to book online via /book/:clinicId */
@@ -101,6 +110,7 @@ export const DEFAULT_CLINIC_SETTINGS: ClinicSettingsPayload = {
   notifyNoShow: true,
   requireChair: false,
   autoDeductItems: '',
+  aiImageAnalysis: false,
   bookingLink: '',
   onlineBookingEnabled: true,
   payments: { ...DEFAULT_CLINIC_PAYMENTS },
