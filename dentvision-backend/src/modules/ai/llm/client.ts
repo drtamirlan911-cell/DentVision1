@@ -6,6 +6,7 @@
  */
 
 import { env } from '../../../config.js';
+import { providerFetch } from '../lib/providerFetch.js';
 import {
   chooseOpenAIModel,
   estimateTokens,
@@ -177,22 +178,11 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
     };
   }
 
-  const result = await fetch(OPENAI_RESPONSES_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30_000),
+  const payload = await providerFetch<Record<string, unknown>>(OPENAI_RESPONSES_URL, {
+    apiKey: env.OPENAI_API_KEY,
+    body,
+    timeoutMs: 30_000,
   });
-
-  if (!result.ok) {
-    const detail = await result.text().catch(() => 'unknown error');
-    throw new Error(`OpenAI ${result.status}: ${detail.slice(0, 300)}`);
-  }
-
-  const payload = await result.json() as Record<string, unknown>;
   const output = (payload.output || []) as Array<Record<string, unknown>>;
 
   let content = '';
@@ -221,12 +211,18 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
     }
   }
 
-  const tokens = estimateTokens(
-    request.messages
-      .map((m) => (isChatMessage(m) ? m.content : m.type === 'function_call' ? m.arguments : m.output))
-      .join(''),
-    content
-  );
+  // The provider reports what it actually billed. The old chars/4 estimate was
+  // the only input to the daily budget, so the budget was guarding a number
+  // nobody had measured.
+  const reported = (payload.usage as { total_tokens?: number } | undefined)?.total_tokens;
+  const tokens = Number.isFinite(reported) && (reported as number) > 0
+    ? (reported as number)
+    : estimateTokens(
+        request.messages
+          .map((m) => (isChatMessage(m) ? m.content : m.type === 'function_call' ? m.arguments : m.output))
+          .join(''),
+        content,
+      );
   recordModelUsage(choice.tier, tokens);
 
   return {

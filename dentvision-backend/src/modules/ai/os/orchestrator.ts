@@ -47,6 +47,7 @@ import {
   tryPlatformMapQuery,
 } from '../lib/deterministicShortcuts.js';
 import { sanitizeUserInput, buildSafeInstructions } from '../lib/promptGuard.js';
+import { providerFetch } from '../lib/providerFetch.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
@@ -59,20 +60,8 @@ const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
  * through improveResponseWithLLM. The user waits through two round-trips to be
  * told nothing. These failures short-circuit instead.
  */
-export interface ProviderError extends Error {
-  providerUnavailable?: boolean;
-}
-
-export function isProviderUnavailable(status: number, detail: string): boolean {
-  if (status === 401 || status === 403) return true;
-  if (status !== 429) return false;
-  // 429 is both "slow down" (retryable) and "no credits" (terminal).
-  return /insufficient_quota|credit_balance_exhausted|billing|no credits/i.test(detail);
-}
-
-export function isProviderUnavailableError(error: unknown): boolean {
-  return Boolean(error && (error as ProviderError).providerUnavailable);
-}
+export type { ProviderError } from '../lib/providerFetch.js';
+export { isProviderUnavailable, isProviderUnavailableError } from '../lib/providerFetch.js';
 
 const MAX_TOOL_ROUNDS = 6;
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -234,6 +223,13 @@ interface ResponsesAPIOutputItem {
 interface ResponsesAPIResult {
   output?: ResponsesAPIOutputItem[];
   output_text?: string;
+  /** What the provider actually billed, including the cached-prefix breakdown. */
+  usage?: {
+    total_tokens?: number;
+    input_tokens?: number;
+    output_tokens?: number;
+    input_tokens_details?: { cached_tokens?: number };
+  };
 }
 
 async function callModel(
@@ -241,31 +237,22 @@ async function callModel(
   choice: ModelChoice,
   usageHint: string,
 ): Promise<ResponsesAPIResult> {
-  const res = await fetch(OPENAI_RESPONSES_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  const payload = await providerFetch<ResponsesAPIResult>(OPENAI_RESPONSES_URL, {
+    apiKey: env.OPENAI_API_KEY as string,
+    body,
+    timeoutMs: REQUEST_TIMEOUT_MS,
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    const error = new Error(`OpenAI ${res.status}: ${detail.slice(0, 300)}`);
-    if (isProviderUnavailable(res.status, detail)) {
-      (error as ProviderError).providerUnavailable = true;
-    }
-    throw error;
+
+  // What the provider says it billed, not a character count plus a 15% guess.
+  const reported = payload.usage?.total_tokens;
+  if (Number.isFinite(reported) && (reported as number) > 0) {
+    recordModelUsage(choice.tier, reported as number);
+  } else {
+    const outText =
+      (typeof payload.output_text === 'string' ? payload.output_text : '') ||
+      JSON.stringify(payload.output || []).slice(0, 4000);
+    recordModelUsage(choice.tier, estimateTokens(usageHint, outText));
   }
-  const payload = (await res.json()) as ResponsesAPIResult;
-  const outText =
-    (typeof payload.output_text === 'string' ? payload.output_text : '') ||
-    JSON.stringify(payload.output || []).slice(0, 4000);
-  recordModelUsage(
-    choice.tier,
-    estimateTokens(usageHint, outText) + Math.ceil(choice.maxOutputTokens * 0.15),
-  );
   return payload;
 }
 
