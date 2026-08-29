@@ -6,6 +6,8 @@ import { useAuth } from '@/store/auth.store';
 import { useDataQuery } from '@/queries/useDataQuery';
 import { Odontogram3D, ToothLegend, SurfaceEditor, AutoTreatmentPlan } from '@/components/Odontogram3D';
 import { syncOdontogramToTreatmentPlan } from '@/lib/odontogram-plan-sync';
+import { statusLabel } from '@/lib/odontogram';
+import { VisitDictation } from '@/components/odontogram/VisitDictation';
 import { Card, CardContent } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Input } from '@/components/ui/ds/Input';
@@ -189,6 +191,48 @@ export default function DentalChart() {
                     Полная карта
                   </Button>
                 </div>
+                <VisitDictation
+                  teeth={teeth}
+                  onApply={(findings) => {
+                    setTeeth((prev) => {
+                      const next = { ...prev };
+                      for (const f of findings) {
+                        const current = typeof next[f.tooth] === 'object' ? { ...next[f.tooth] } : {};
+                        if (f.kind === 'planned') {
+                          // A recommendation is not a state. It is recorded on the
+                          // tooth so it is not lost, but it must never repaint the
+                          // chart — the crown the doctor proposed does not exist yet.
+                          const note = `Рекомендовано: ${statusLabel(f.status)}`;
+                          const existing = String(current.notes || '');
+                          next[f.tooth] = {
+                            ...current,
+                            notes: existing.includes(note) ? existing : [existing, note].filter(Boolean).join('; '),
+                          };
+                          continue;
+                        }
+                        next[f.tooth] = {
+                          ...current,
+                          status: f.status,
+                          ...(f.surfaces.length > 0
+                            ? {
+                                surfaces: {
+                                  ...(typeof current.surfaces === 'object' ? current.surfaces : {}),
+                                  ...Object.fromEntries(f.surfaces.map((s) => [s, f.status])),
+                                },
+                              }
+                            : {}),
+                          // Same rule the toolbar follows: a tooth that is gone
+                          // cannot keep surface paint from when it was there.
+                          ...(f.status === 'missing' || f.status === 'extracted' || f.status === 'implant'
+                            ? { surfaces: {} }
+                            : {}),
+                        };
+                      }
+                      return next;
+                    });
+                    setDirty(true);
+                  }}
+                />
                 <div className="overflow-x-auto w-full">
                   <ToothLegend />
                   <Odontogram3D

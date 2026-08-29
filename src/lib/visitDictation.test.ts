@@ -196,6 +196,32 @@ describe('parseDictation — visit fields', () => {
   })
 })
 
+describe('parseDictation — warnings stay worth reading', () => {
+  it('does not warn about a complaint that names a tooth without a state', () => {
+    // A complaint is not a chart claim. Warning here would teach the doctor to
+    // scroll past the warnings that do matter.
+    const draft = parseDictation('Пациент жалуется на боль в верхней шестёрке справа')
+    expect(draft.unresolved).toEqual([])
+  })
+
+  it('does not warn about an unresolvable tooth inside a complaint', () => {
+    expect(parseDictation('Шестёрка болит').unresolved).toEqual([])
+  })
+
+  it('does not warn about a clinical term recalled in the history', () => {
+    expect(parseDictation('Со слов пациента, ранее была пломба').unresolved).toEqual([])
+  })
+
+  it('still warns outside narrative sentences', () => {
+    expect(parseDictation('Шестёрка кариес').unresolved.map((u) => u.reason)).toEqual(['ambiguous_tooth'])
+  })
+
+  it('reports the whole word it could not place, not the matched stem', () => {
+    const [u] = parseDictation('Шестёрка кариес').unresolved
+    expect(u.span.text).toBe('Шестёрка')
+  })
+})
+
 describe('parseDictation — Cyrillic word boundaries', () => {
   // JS `\w` is [A-Za-z0-9_] and `\b` is defined by it, so both are blind to
   // Cyrillic. Every pattern here failed silently until the classes were made

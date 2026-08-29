@@ -203,7 +203,12 @@ function findToothMentions(segment: string, offset: number): ToothMention[] {
       const right = RIGHT_HINT.test(segment)
       const left = LEFT_HINT.test(segment)
       const start = offset + m.index
-      const end = start + m[0].length
+      // Carry the match to the end of the word: the stem is what the pattern
+      // needs, but «Шестёрк» is not what the doctor should be shown as the
+      // fragment we failed to read.
+      let wordEnd = m.index + m[0].length
+      while (wordEnd < segment.length && /[а-я]/.test(segment[wordEnd])) wordEnd++
+      const end = offset + wordEnd
       if (upper === lower || right === left) {
         mentions.push({ tooth: null, ambiguous: true, start, end })
         continue
@@ -343,8 +348,16 @@ export function parseDictation(raw: string): DictationDraft {
     const mentions = findToothMentions(sentNorm, sentence.start)
     const resolved = mentions.filter((x) => x.tooth !== null)
 
-    for (const ambiguous of mentions.filter((x) => x.ambiguous)) {
-      unresolved.push({ reason: 'ambiguous_tooth', span: span(text, ambiguous.start, ambiguous.end) })
+    // A complaint or a history is not a chart statement. «Пациент жалуется на
+    // боль в шестёрке» names a tooth and no state, and that is exactly right —
+    // warning about it would train the doctor to ignore the warnings.
+    const isNarrative = COMPLAINT_MARKER.test(sentNorm) || ANAMNESIS_MARKER.test(sentNorm)
+
+    const ambiguousMentions = mentions.filter((x) => x.ambiguous)
+    if (!isNarrative) {
+      for (const ambiguous of ambiguousMentions) {
+        unresolved.push({ reason: 'ambiguous_tooth', span: span(text, ambiguous.start, ambiguous.end) })
+      }
     }
 
     let producedFinding = false
@@ -352,7 +365,10 @@ export function parseDictation(raw: string): DictationDraft {
     if (resolved.length === 0) {
       // A clinical word with nothing to attach it to is surfaced, not dropped:
       // it usually means the doctor named the tooth in a way we do not read.
-      if (firstMatch(STATUS_PATTERNS, sentNorm)) {
+      // Not when the sentence already reported an unreadable tooth: «Шестёрка
+      // кариес» has one problem, and saying it twice is how warning lists stop
+      // being read.
+      if (!isNarrative && ambiguousMentions.length === 0 && firstMatch(STATUS_PATTERNS, sentNorm)) {
         unresolved.push({ reason: 'finding_without_tooth', span: span(text, sentence.start, sentence.end) })
       }
     } else {
@@ -382,7 +398,7 @@ export function parseDictation(raw: string): DictationDraft {
         }
 
         if (!observed && !planned) {
-          unresolved.push({ reason: 'tooth_without_finding', span: owned })
+          if (!isNarrative) unresolved.push({ reason: 'tooth_without_finding', span: owned })
           continue
         }
 
