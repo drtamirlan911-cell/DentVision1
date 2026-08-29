@@ -7,24 +7,21 @@ import { Skeleton } from '@/components/ui/ds/Skeleton';
 import { PageHeader, StatCard } from '@/components/ui/ds/StatCard';
 import { statusInfo, toneClasses } from '@/lib/referralStatus';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/store/auth.store';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
+import { useDiagnosticsOrgScope } from './orgScope';
+
+const COMPLETED_STATUSES = ['COMPLETED', 'REVIEWED', 'DELIVERED', 'CLOSED'];
 
 export default function DiagnosticStatistics() {
-  const { clinic, activeMembership } = useAuth();
-  const clinicId = clinic?.id || activeMembership?.clinicId || '';
+  const { clinicId, orgKind, orgId } = useDiagnosticsOrgScope();
+  const scopeParams: Record<string, string> = orgKind === 'LAB' ? { labId: orgId } : orgKind === 'CENTER' ? { centerId: orgId } : { clinicId };
+  const scopeReady = orgKind ? !!orgId : !!clinicId;
 
-  const { data: dashData, isLoading } = useQuery({
-    queryKey: queryKeys.diagnostics.dashboard(clinicId),
-    queryFn: () => api.getDiagnosticsDashboard(clinicId),
-    enabled: !!clinicId,
-  });
-
-  const { data: listData } = useQuery({
-    queryKey: queryKeys.diagnostics.referrals({ clinicId, limit: '500' }),
-    queryFn: () => api.getDiagnosticReferrals({ clinicId, limit: '500' }),
-    enabled: !!clinicId,
+  const { data: listData, isLoading } = useQuery({
+    queryKey: queryKeys.diagnostics.referrals({ ...scopeParams, limit: '500' }),
+    queryFn: () => api.getDiagnosticReferrals({ ...scopeParams, limit: '500' }),
+    enabled: scopeReady,
   });
 
   const statusCounts = useMemo(() => {
@@ -33,6 +30,22 @@ export default function DiagnosticStatistics() {
       counts[r.status] = (counts[r.status] || 0) + 1;
     });
     return counts;
+  }, [listData]);
+
+  // Derived from the same scoped referral list the status breakdown below
+  // uses — the dedicated dashboard endpoint returns a different shape per org
+  // kind (revenue/commissions, not total/pending/completed), so it can't
+  // drive these cards directly for every caller.
+  const dashData = useMemo(() => {
+    const items: any[] = listData?.items || [];
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return {
+      total: listData?.total ?? items.length,
+      todayCount: items.filter((r) => new Date(r.createdAt) >= todayStart).length,
+      completed: items.filter((r) => COMPLETED_STATUSES.includes(r.status)).length,
+      pending: items.filter((r) => !COMPLETED_STATUSES.includes(r.status)).length,
+    };
   }, [listData]);
 
   const maxCount = Math.max(...Object.values(statusCounts), 1);

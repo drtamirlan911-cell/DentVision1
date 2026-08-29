@@ -717,9 +717,12 @@ export async function addComment(referralId: string, authorId: string, text: str
 
 // ─── Dashboard ───
 
-export async function getDashboardStats(clinicId?: string) {
+export async function getDashboardStats(scope: { clinicId?: string; centerId?: string; labId?: string } = {}) {
+  const { clinicId, centerId, labId } = scope;
   const where: any = {};
   if (clinicId) where.clinicId = clinicId;
+  if (centerId) where.centerId = centerId;
+  if (labId) where.labId = labId;
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
 

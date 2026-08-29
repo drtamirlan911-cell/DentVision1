@@ -405,8 +405,14 @@ diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess(true), a
 
 diagnosticsRouter.get('/dashboard', loadClinicAccess, async (req: AuthRequest, res) => {
   try {
-    const clinicId = req.query.clinicId as string || req.user?.clinicId || undefined;
-    const data = await svc.getDashboardStats(clinicId);
+    const centerId = req.query.centerId as string || undefined;
+    const labId = req.query.labId as string || undefined;
+    const clinicId = centerId || labId ? undefined : (req.query.clinicId as string || req.user?.clinicId || undefined);
+
+    const authz = await authorizeReferralListScope(req.user, { clinicId, centerId, labId });
+    if (authz.ok !== true) return res.status(authz.status).json({ ok: false, error: authz.error } satisfies ApiResponse);
+
+    const data = await svc.getDashboardStats({ clinicId, centerId, labId });
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);

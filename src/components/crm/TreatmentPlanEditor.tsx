@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   Plus, Trash2, Save, Printer, Layers, ChevronDown, ChevronUp, GripVertical, ShieldCheck,
 } from 'lucide-react'
-import { Modal } from '@/components/ui/ds/Modal'
+import { Modal, ConfirmModal } from '@/components/ui/ds/Modal'
 import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
 import { Badge } from '@/components/ui/ds/Badge'
@@ -86,6 +86,7 @@ export function TreatmentPlanEditor({
   const { showToast } = useToast()
   const [saving, setSaving] = useState(false)
   const [approving, setApproving] = useState(false)
+  const [confirmPublishOpen, setConfirmPublishOpen] = useState(false)
   const [services, setServices] = useState<ServiceOption[]>([])
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null)
   const [pickerTeeth, setPickerTeeth] = useState<number[]>([])
@@ -318,7 +319,7 @@ export function TreatmentPlanEditor({
    * says the patient may see it. Until this runs, the patient sees nothing —
    * an unapproved plan is not visible in the portal at all.
    */
-  const handleApproveAndPublish = async () => {
+  const openPublishConfirm = () => {
     if (!draft.patientId) {
       showToast(t('crm.select_patient'), 'warning')
       return
@@ -327,7 +328,11 @@ export function TreatmentPlanEditor({
       showToast(t('treatmentPlan.toast_add_service'), 'warning')
       return
     }
+    setConfirmPublishOpen(true)
+  }
 
+  const handleApproveAndPublish = async () => {
+    setConfirmPublishOpen(false)
     setApproving(true)
     try {
       const stages = enrichStagesWithCosts(draft.stages)
@@ -654,12 +659,21 @@ export function TreatmentPlanEditor({
             <Button size="sm" variant="secondary" onClick={handleSave} disabled={saving || approving} icon={<Save size={14} />}>
               {saving ? t('treatmentPlan.saving_plan') : t('treatmentPlan.save_plan')}
             </Button>
-            <Button size="sm" onClick={handleApproveAndPublish} disabled={saving || approving} icon={<ShieldCheck size={14} />}>
+            <Button size="sm" onClick={openPublishConfirm} disabled={saving || approving} icon={<ShieldCheck size={14} />}>
               {approving ? t('treatmentPlan.publishing') : t('treatmentPlan.approve_and_publish')}
             </Button>
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmPublishOpen}
+        onClose={() => setConfirmPublishOpen(false)}
+        onConfirm={handleApproveAndPublish}
+        title={t('treatmentPlan.approve_and_publish')}
+        message="Утверждённый план будет опубликован пациенту как согласованное лечение и станет виден в его портале. Изменить его после этого можно будет только новой версией."
+        confirmLabel={t('treatmentPlan.approve_and_publish')}
+      />
     </Modal>
   )
 }

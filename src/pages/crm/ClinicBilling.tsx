@@ -26,6 +26,21 @@ const PLAN_ICON: Record<string, React.ReactNode> = {
   enterprise: <Crown size={18} className="text-purple-400" />,
 }
 
+const PLAN_LABEL_FALLBACK: Record<string, string> = {
+  free: 'Бесплатный',
+  starter: 'Starter',
+  professional: 'Professional',
+  enterprise: 'Enterprise',
+}
+
+const SUB_STATUS_LABEL: Record<string, string> = {
+  trialing: 'Пробный период',
+  active: 'Активна',
+  expired: 'Истекла',
+  suspended: 'Приостановлена',
+  cancelled: 'Отменена',
+}
+
 function fmtMoney(n: number): string {
   return Number(n || 0).toLocaleString('ru-RU') + ' ₸'
 }
@@ -157,6 +172,8 @@ export default function ClinicBilling() {
   const plans: any[] = data?.plans || []
   const currentPlan = String(data?.saasPlan || sub?.plan || 'free')
   const status = String(sub?.status || 'active')
+  const currentPlanLabel = plans.find((p) => p.id === currentPlan)?.name || PLAN_LABEL_FALLBACK[currentPlan] || currentPlan
+  const statusLabel = SUB_STATUS_LABEL[status] || status
 
   return (
     <div className="dv-page max-w-full overflow-x-hidden xl:max-w-5xl mx-auto py-4 md:py-6 space-y-6">
@@ -182,8 +199,8 @@ export default function ClinicBilling() {
                 <div>
                   <p className="text-sm font-semibold text-txt-primary">{data?.clinic?.name || 'Клиника'}</p>
                   <p className="text-xs text-txt-muted mt-1">
-                    Текущий план: <span className="text-txt-primary">{currentPlan}</span>
-                    {' · '}статус: {status}
+                    Текущий план: <span className="text-txt-primary">{currentPlanLabel}</span>
+                    {' · '}статус: {statusLabel}
                     {' · '}до {fmtDate(sub?.periodEnd)}
                     {data?.daysLeft != null ? ` · осталось ${data.daysLeft} дн.` : ''}
                   </p>

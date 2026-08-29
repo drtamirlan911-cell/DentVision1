@@ -8,15 +8,37 @@ export const WHOLE_TOOTH_STATUSES = [
   'healthy',
   'crown',
   'missing',
+  'extracted',
   'root',
   'implant',
   'veneer',
+  'fracture',
+  'inflammation',
   'endo_ok',
   'endo_fail',
 ] as const
 
 /** Surface-level statuses (paint on MODBL). */
 export const SURFACE_STATUSES = ['caries', 'filled', 'healthy'] as const
+
+/**
+ * Permanent dentition, chart order (patient-facing: right quadrant first).
+ * Re-exported from the odontogram model so a chart does not have to reach into
+ * seed data for the thing it is a chart *of*.
+ */
+export const UPPER_PERMANENT = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28] as const
+export const LOWER_PERMANENT = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38] as const
+
+/** Primary (deciduous) dentition — 10 per arch, same right-first order. */
+export const UPPER_PRIMARY = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65] as const
+export const LOWER_PRIMARY = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75] as const
+
+export type Dentition = 'permanent' | 'primary'
+
+export function archTeeth(dentition: Dentition, upper: boolean): readonly number[] {
+  if (dentition === 'primary') return upper ? UPPER_PRIMARY : LOWER_PRIMARY
+  return upper ? UPPER_PERMANENT : LOWER_PERMANENT
+}
 
 export type ToothStatusKey =
   | (typeof WHOLE_TOOTH_STATUSES)[number]
@@ -36,49 +58,90 @@ export interface ToothData {
 
 export type PatientTeeth = Record<string | number, string | ToothData>
 
+/**
+ * Clinical status palette.
+ *
+ * These are the marks a dentist reads at a glance, so they follow the
+ * conventional chart vocabulary rather than a decorative ramp: caries red,
+ * a restoration graphite, a crown blue, an implant green. `healthy` stays the
+ * green it has always been — nothing is drawn for it, it only labels the
+ * "clear this tooth" control.
+ *
+ * Deliberately *not* theme tokens: a chart mark means the same thing on a
+ * light and a dark surface, and a token that flips with the theme would make
+ * "red" stop meaning caries. The design-token guard permits this — it governs
+ * `className` and inline `style`, and these values reach SVG paint attributes.
+ */
 export const STATUS_META: Record<string, { label: string; color: string }> = {
   healthy: { label: 'Здоров', color: '#27AE60' },
-  caries: { label: 'Кариес', color: '#F39C12' },
-  filled: { label: 'Пломба', color: '#2980B9' },
-  crown: { label: 'Коронка', color: '#8E44AD' },
-  missing: { label: 'Отсутствует', color: '#E74C3C' },
+  caries: { label: 'Кариес', color: '#E5484D' },
+  filled: { label: 'Пломба', color: '#33383F' },
+  crown: { label: 'Коронка', color: '#3B82F6' },
+  implant: { label: 'Имплант', color: '#0EA371' },
+  missing: { label: 'Отсутствует', color: '#94A3B8' },
+  extracted: { label: 'Удалён', color: '#64748B' },
+  fracture: { label: 'Трещина', color: '#E5484D' },
+  inflammation: { label: 'Воспаление', color: '#F43F5E' },
   root: { label: 'Корень', color: '#E67E22' },
-  implant: { label: 'Имплант', color: '#00BCD4' },
   veneer: { label: 'Винир', color: '#E91E8C' },
   endo_ok: { label: 'Эндо ✓', color: '#2ECC71' },
   endo_fail: { label: 'Эндо ✗', color: '#C0392B' },
 }
 
+/**
+ * Hex → status, for teeth saved before statuses had names.
+ *
+ * Early charts stored the swatch itself (`{ O: '#F39C12' }`) rather than a key,
+ * and those rows are still in patients' records. The reverse lookup used to
+ * walk STATUS_META, which worked only while the palette never moved — the
+ * moment it did, every legacy tooth silently stopped resolving and rendered as
+ * an unknown colour with no label. Pinning the old values here decouples "what
+ * a stored hex meant" from "what we paint today", so the palette can change
+ * again without taking historical data with it.
+ */
+const LEGACY_STATUS_HEX: Record<string, string> = {
+  '#27ae60': 'healthy',
+  '#f39c12': 'caries',
+  '#2980b9': 'filled',
+  '#8e44ad': 'crown',
+  '#e74c3c': 'missing',
+  '#e67e22': 'root',
+  '#00bcd4': 'implant',
+  '#e91e8c': 'veneer',
+  '#2ecc71': 'endo_ok',
+  '#c0392b': 'endo_fail',
+}
+
+/** Status key for a stored value, whether it is a key or any-era hex. */
+function statusKeyOf(value: string): string | undefined {
+  if (STATUS_META[value]) return value
+  const lower = value.toLowerCase()
+  for (const [key, meta] of Object.entries(STATUS_META)) {
+    if (meta.color.toLowerCase() === lower) return key
+  }
+  return LEGACY_STATUS_HEX[lower]
+}
+
 /** Resolve color whether value is a status key or a legacy hex. */
 export function statusColor(value?: string | null): string {
   if (!value) return 'transparent'
-  if (STATUS_META[value]) return STATUS_META[value].color
+  const key = statusKeyOf(value)
+  if (key) return STATUS_META[key].color
   if (value.startsWith('#') || value.startsWith('rgb')) return value
-  // reverse-map legacy hex → known status
-  for (const meta of Object.values(STATUS_META)) {
-    if (meta.color.toLowerCase() === value.toLowerCase()) return meta.color
-  }
   return value
 }
 
 export function statusLabel(value?: string | null): string {
   if (!value) return '—'
-  if (STATUS_META[value]) return STATUS_META[value].label
-  for (const [_key, meta] of Object.entries(STATUS_META)) {
-    if (meta.color.toLowerCase() === String(value).toLowerCase()) return meta.label
-  }
+  const key = statusKeyOf(String(value))
+  if (key) return STATUS_META[key].label
   return String(value)
 }
 
 /** Normalize surface value (hex or key) → status key when possible. */
 export function normalizeSurfaceStatus(value?: string | null): ToothStatusKey | undefined {
   if (!value) return undefined
-  if (STATUS_META[value]) return value
-  const lower = value.toLowerCase()
-  for (const [key, meta] of Object.entries(STATUS_META)) {
-    if (meta.color.toLowerCase() === lower) return key
-  }
-  return value
+  return statusKeyOf(value) ?? value
 }
 
 export function normalizeTooth(raw: string | ToothData | null | undefined): ToothData {
@@ -175,6 +238,36 @@ export function buildPlanFromOdontogram(teeth: PatientTeeth): PlanRecommendation
         estimatedPrice: 18000,
         reason: 'Кариес (зуб)',
         status: 'caries',
+      })
+    }
+    if (status === 'extracted') {
+      out.push({
+        tooth: num,
+        procedure: 'Имплантация или ортопедическое восстановление',
+        urgency: 'low',
+        estimatedPrice: 250000,
+        reason: 'Зуб удалён',
+        status: 'extracted',
+      })
+    }
+    if (status === 'fracture') {
+      out.push({
+        tooth: num,
+        procedure: 'Восстановление коронковой части / ортопедия',
+        urgency: 'high',
+        estimatedPrice: 60000,
+        reason: 'Трещина / скол',
+        status: 'fracture',
+      })
+    }
+    if (status === 'inflammation') {
+      out.push({
+        tooth: num,
+        procedure: 'Лечение периодонтита / противовоспалительная терапия',
+        urgency: 'high',
+        estimatedPrice: 55000,
+        reason: 'Воспаление',
+        status: 'inflammation',
       })
     }
 

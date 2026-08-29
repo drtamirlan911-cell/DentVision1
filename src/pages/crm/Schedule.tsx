@@ -28,7 +28,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Car
 import { Input, Select } from '@/components/ui/ds/Input'
 import { DatePicker } from '@/components/ui/ds/DatePicker'
 import { Badge, StatusBadge } from '@/components/ui/ds/Badge'
-import { Modal } from '@/components/ui/ds/Modal'
+import { Modal, ConfirmModal } from '@/components/ui/ds/Modal'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import type { Clinic, User as UserType, RoleInfo } from '@/types'
@@ -119,6 +119,7 @@ export default function Schedule() {
   const [editAppt, setEditAppt] = useState<Appointment | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [dragged, setDragged] = useState<Appointment | null>(null)
+  const [overbookConfirm, setOverbookConfirm] = useState<{ message: string; retry: () => Promise<void> } | null>(null)
   const [viewMode, setViewMode] = useState<'doctors' | 'single' | 'chairs'>('doctors')
   const [periodMode, setPeriodMode] = useState<'day' | 'week'>('day')
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all')
@@ -143,6 +144,7 @@ export default function Schedule() {
   const newPatientIinError = newPatient.iin && !isValidIin(newPatient.iin) ? 'Неверный формат ИИН' : undefined
   const [searchAppts, setSearchAppts] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
+  const [nextActionPrompt, setNextActionPrompt] = useState<{ patientId: string; patientName: string; doctorId: string } | null>(null)
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
   const [pendingSync, setPendingSync] = useState(0)
 
@@ -321,6 +323,13 @@ export default function Schedule() {
     setShowNewPatient(false)
     setModalOpen(true)
   }
+  const openFollowUp = (patientId: string, doctorId: string): void => {
+    setEditAppt(null)
+    setForm({ ...EMPTY_FORM, patientId, doctorId: doctorId || '' })
+    setShowNewPatient(false)
+    setNewPatient(EMPTY_PATIENT)
+    setModalOpen(true)
+  }
 
   const handleCreatePatient = async (): Promise<Patient | null> => {
     if (!newPatient.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return null }
@@ -368,15 +377,18 @@ export default function Schedule() {
     } catch (err: any) {
       const msg = String(err?.message || '')
       if (msg.includes('Конфликт') || msg.includes('конфликт')) {
-        const force = window.confirm(`${msg}\n\nСохранить запись всё равно (овербукинг)?`)
-        if (!force) return
-        try {
-          await upsertAppointment({ ...payload, force: true } as any)
-          showToast('Запись сохранена с овербукингом', 'warning')
-          setModalOpen(false)
-        } catch {
-          showToast('Ошибка сохранения', 'error')
-        }
+        setOverbookConfirm({
+          message: `${msg}\n\nСохранить запись всё равно (овербукинг)?`,
+          retry: async () => {
+            try {
+              await upsertAppointment({ ...payload, force: true } as any)
+              showToast('Запись сохранена с овербукингом', 'warning')
+              setModalOpen(false)
+            } catch {
+              showToast('Ошибка сохранения', 'error')
+            }
+          },
+        })
         return
       }
       showToast(msg || 'Ошибка сохранения', 'error')
@@ -394,11 +406,14 @@ export default function Schedule() {
     } catch (err: any) {
       const msg = String(err?.message || '')
       if (msg.includes('Конфликт') || msg.includes('конфликт')) {
-        const force = window.confirm(`${msg}\n\nПеренести всё равно?`)
-        if (force) {
-          await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId, force: true })
-          showToast('Перенесено с овербукингом', 'warning')
-        }
+        const d = dragged
+        setOverbookConfirm({
+          message: `${msg}\n\nПеренести всё равно?`,
+          retry: async () => {
+            await upsertAppointment({ ...d, time: timeSlot, date: selDate, doctorId: doctorId || d.doctorId, force: true })
+            showToast('Перенесено с овербукингом', 'warning')
+          },
+        })
       } else {
         showToast(msg || 'Не удалось перенести', 'error')
       }
@@ -446,8 +461,14 @@ export default function Schedule() {
           : 'Приём закрыт',
         'success',
       )
+      const closedPatientId = closeAppt.patientId
+      const closedDoctorId = closeAppt.doctorId
       setCloseOpen(false)
       setCloseAppt(null)
+      if (closedPatientId) {
+        const patient = patients.find((p) => p.id === closedPatientId)
+        setNextActionPrompt({ patientId: closedPatientId, patientName: patient?.name || 'пациента', doctorId: closedDoctorId || '' })
+      }
     } catch (err: any) {
       showToast(err?.message || 'Не удалось закрыть приём', 'error')
     } finally {
@@ -524,7 +545,7 @@ export default function Schedule() {
         })
       }
 
-      if (payload.closeVisit && !['done', 'completed', 'cancelled'].includes(String(payAppt.status))) {
+      if (payload.closeVisit && !['done', 'cancelled'].includes(String(payAppt.status))) {
         const services = closeServices.length
           ? closeServices
           : [{ name: serviceName, price: payload.amount, matCost: 0 }]
@@ -591,7 +612,7 @@ export default function Schedule() {
         total += Number(r.total || r.amount || 0)
       }
     }
-    const doneAppts = dayAppts.filter((a) => ['done', 'completed'].includes(a.status))
+    const doneAppts = dayAppts.filter((a) => a.status === 'done')
     const unpaid = doneAppts.filter((a) => a.paymentStatus !== 'paid')
     const methodRows = Object.entries(byMethod).map(([m, v]) => `<tr><td>${m}</td><td style="text-align:right">${v.toLocaleString('ru-RU')} ₸</td></tr>`).join('')
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Z-отчёт ${selDate}</title>
@@ -617,7 +638,7 @@ export default function Schedule() {
     confirmed: dayAppts.filter(a => ['confirmed', 'reminderSent'].includes(a.status)).length,
     arrived: dayAppts.filter(a => a.status === 'arrived').length,
     inChair: dayAppts.filter(a => a.status === 'in_chair').length,
-    done: dayAppts.filter(a => ['done', 'completed'].includes(a.status)).length,
+    done: dayAppts.filter(a => a.status === 'done').length,
     cancelled: dayAppts.filter(a => ['cancelled', 'noShow'].includes(a.status)).length,
   }), [dayAppts])
 
@@ -998,11 +1019,14 @@ export default function Schedule() {
                                       } catch (err: any) {
                                         const msg = String(err?.message || '')
                                         if (msg.includes('Конфликт') || msg.includes('конфликт')) {
-                                          const force = window.confirm(`${msg}\n\nПеренести всё равно?`)
-                                          if (force) {
-                                            await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
-                                            showToast('Перенесено с овербукингом', 'warning')
-                                          }
+                                          const d = dragged
+                                          setOverbookConfirm({
+                                            message: `${msg}\n\nПеренести всё равно?`,
+                                            retry: async () => {
+                                              await upsertAppointment({ ...d, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
+                                              showToast('Перенесено с овербукингом', 'warning')
+                                            },
+                                          })
                                         } else {
                                           showToast(msg || 'Не удалось перенести', 'error')
                                         }
@@ -1253,66 +1277,74 @@ export default function Schedule() {
             onChange={e => { const svc = ALL_SERVICES.find(s => s.id === e.target.value); setForm({ ...form, service: e.target.value }); if (svc) { setForm(f => ({ ...f, serviceName: svc.name, servicePrice: svc.price })); } }}
             options={serviceOptions} required />
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className={cn('grid grid-cols-1 gap-2', editAppt ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
             <Select label="Время" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} options={HOURS.map(h => ({ value: h, label: h }))} required />
             <Select label="Длительность" value={String(form.duration)} onChange={e => setForm({ ...form, duration: Number(e.target.value) })} options={[{ value: '30', label: '30 мин' }, { value: '45', label: '45 мин' }, { value: '60', label: '1 час' }, { value: '90', label: '1.5 ч' }, { value: '120', label: '2 часа' }]} />
-            <Select label="Статус" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
+            {editAppt && (
+              <Select label="Статус" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label }))} />
+            )}
           </div>
 
-          {/* Diagnosis ICD-10 */}
-          <div className="space-y-1">
-            <label className="text-2xs font-semibold text-txt-muted uppercase">Диагноз (МКБ-10)</label>
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-              <input
-                placeholder="Введите код или название диагноза..."
-                value={form.diagnosis}
-                onChange={e => setForm({ ...form, diagnosis: e.target.value })}
-                className="w-full pl-9"
-                list="icd10-suggestions"
-              />
-              <datalist id="icd10-suggestions">
-                {DENTAL_ICD10.filter(d =>
-                  d.code.toLowerCase().includes(form.diagnosis.toLowerCase()) ||
-                  d.name.toLowerCase().includes(form.diagnosis.toLowerCase())
-                ).map(d => (
-                  <option key={d.code} value={`${d.code} — ${d.name}`} />
-                ))}
-              </datalist>
-            </div>
-          </div>
+          {/* Diagnosis/tooth belong to the visit itself, not the booking —
+              asking for them while just reserving a slot means guessing before
+              the patient has even been seen. Shown only once there's an
+              appointment on record to attach findings to. */}
+          {editAppt && (
+            <>
+              <div className="space-y-1">
+                <label className="text-2xs font-semibold text-txt-muted uppercase">Диагноз (МКБ-10)</label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
+                  <input
+                    placeholder="Введите код или название диагноза..."
+                    value={form.diagnosis}
+                    onChange={e => setForm({ ...form, diagnosis: e.target.value })}
+                    className="w-full pl-9"
+                    list="icd10-suggestions"
+                  />
+                  <datalist id="icd10-suggestions">
+                    {DENTAL_ICD10.filter(d =>
+                      d.code.toLowerCase().includes(form.diagnosis.toLowerCase()) ||
+                      d.name.toLowerCase().includes(form.diagnosis.toLowerCase())
+                    ).map(d => (
+                      <option key={d.code} value={`${d.code} — ${d.name}`} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
 
-          {/* Tooth Number */}
-          <div className="space-y-1">
-            <label className="text-2xs font-semibold text-txt-muted uppercase">Зуб (номер по FDI)</label>
-            <select
-              className="dv-select"
-              value={form.toothNumber}
-              onChange={e => setForm({ ...form, toothNumber: e.target.value })}
-            >
-              <option value="">— Выберите зуб —</option>
-              <optgroup label="Верхняя челюсть (правая)">
-                {[18,17,16,15,14,13,12,11].map(n => (
-                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Верхняя челюсть (левая)">
-                {[21,22,23,24,25,26,27,28].map(n => (
-                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Нижняя челюсть (левая)">
-                {[31,32,33,34,35,36,37,38].map(n => (
-                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Нижняя челюсть (правая)">
-                {[41,42,43,44,45,46,47,48].map(n => (
-                  <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
-                ))}
-              </optgroup>
-            </select>
-          </div>
+              <div className="space-y-1">
+                <label className="text-2xs font-semibold text-txt-muted uppercase">Зуб (номер по FDI)</label>
+                <select
+                  className="dv-select"
+                  value={form.toothNumber}
+                  onChange={e => setForm({ ...form, toothNumber: e.target.value })}
+                >
+                  <option value="">— Выберите зуб —</option>
+                  <optgroup label="Верхняя челюсть (правая)">
+                    {[18,17,16,15,14,13,12,11].map(n => (
+                      <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Верхняя челюсть (левая)">
+                    {[21,22,23,24,25,26,27,28].map(n => (
+                      <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Нижняя челюсть (левая)">
+                    {[31,32,33,34,35,36,37,38].map(n => (
+                      <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Нижняя челюсть (правая)">
+                    {[41,42,43,44,45,46,47,48].map(n => (
+                      <option key={n} value={n}>{n} — {TOOTH_NAMES[n]}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+            </>
+          )}
 
           <Input label="Заметки" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Дополнительная информация" />
 
@@ -1350,9 +1382,9 @@ export default function Schedule() {
                   type="button"
                   size="sm"
                   icon={<Wallet size={14} />}
-                  onClick={() => openAcceptPayment(editAppt, { closeVisit: false })}
+                  onClick={() => openAcceptPayment(editAppt, { closeVisit: !['done', 'cancelled'].includes(String(editAppt.status)) })}
                 >
-                  Принять оплату
+                  {['done', 'cancelled'].includes(String(editAppt.status)) ? 'Принять оплату' : 'Оплатить и закрыть приём'}
                 </Button>
               ) : (
                 <Badge variant="warning" size="sm">Не оплачено</Badge>
@@ -1362,7 +1394,7 @@ export default function Schedule() {
 
           <div className="flex gap-2 pt-2 flex-wrap">
             <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? 'Сохранение…' : (editAppt ? 'Сохранить' : 'Создать запись')}</Button>
-            {editAppt && !['done', 'completed', 'cancelled'].includes(editAppt.status) && (
+            {editAppt && !['done', 'cancelled'].includes(editAppt.status) && (
               <Button type="button" variant="secondary" icon={<ClipboardCheck size={14} />} onClick={() => openCloseVisit(editAppt)}>
                 Закрыть приём
               </Button>
@@ -1478,7 +1510,7 @@ export default function Schedule() {
         toothNumber={payAppt?.toothNumber || ''}
         suggestedAmount={suggestedPayAmount(payAppt, payDefaultClose ? closeServices : undefined)}
         defaultMethod={PAY_METHODS[1] || PAY_METHODS[0]}
-        allowCloseVisit={payDefaultClose || !!(payAppt && !['done', 'completed', 'cancelled'].includes(String(payAppt.status)))}
+        allowCloseVisit={payDefaultClose || !!(payAppt && !['done', 'cancelled'].includes(String(payAppt.status)))}
         defaultCloseVisit={payDefaultClose}
         saving={paySaving}
         clinicId={clinicId}
@@ -1509,6 +1541,48 @@ export default function Schedule() {
           <div className="flex flex-wrap gap-2 pt-2">
             <Button onClick={handleSaveWait} className="flex-1" loading={waitSaving} disabled={waitSaving}>{editWaitId ? 'Обновить' : 'Добавить'}</Button>
             <Button variant="ghost" onClick={() => { setWaitModalOpen(false); setEditWaitId(null) }}>Отмена</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmModal
+        open={!!overbookConfirm}
+        onClose={() => setOverbookConfirm(null)}
+        onConfirm={() => { const c = overbookConfirm; setOverbookConfirm(null); c?.retry() }}
+        title="Конфликт расписания"
+        message={overbookConfirm?.message || ''}
+        confirmLabel="Всё равно"
+        variant="warning"
+      />
+
+      <Modal open={!!nextActionPrompt} onClose={() => setNextActionPrompt(null)} title="Приём закрыт">
+        <div className="space-y-3">
+          <p className="text-sm text-txt-secondary">
+            Что дальше для пациента {nextActionPrompt?.patientName}?
+          </p>
+          <div className="flex flex-col gap-2">
+            <Button
+              className="w-full justify-center"
+              onClick={() => {
+                if (nextActionPrompt) navigate(`/crm/treatment-plans?patient=${nextActionPrompt.patientId}`)
+                setNextActionPrompt(null)
+              }}
+            >
+              Создать план лечения
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full justify-center"
+              onClick={() => {
+                if (nextActionPrompt) openFollowUp(nextActionPrompt.patientId, nextActionPrompt.doctorId)
+                setNextActionPrompt(null)
+              }}
+            >
+              Запланировать повтор
+            </Button>
+            <Button variant="ghost" className="w-full justify-center" onClick={() => setNextActionPrompt(null)}>
+              Не сейчас
+            </Button>
           </div>
         </div>
       </Modal>

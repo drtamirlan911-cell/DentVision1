@@ -11,6 +11,7 @@ import { Modal } from '../../components/ui/ds/Modal'
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
 import { tg, ALL_SERVICES } from '../../utils/constants'
 import { cn } from '../../lib/utils'
+import { downloadCsv } from '../../lib/financePeriod'
 import type { Clinic, User, RoleInfo } from '../../types'
 
 type ServiceRow = {
@@ -112,6 +113,14 @@ export default function PriceList() {
     ? allServices
     : allServices.filter(s => s.cat === selectedCategory)
 
+  const handleExport = () => {
+    downloadCsv(
+      `pricelist-${clinic?.name || 'clinic'}.csv`,
+      ['Категория', 'Услуга', 'Цена, ₸'],
+      filteredServices.map(s => [s.cat, s.name, getServicePrice(s.id, s.price)]),
+    )
+  }
+
   const openEdit = (service: ServiceRow) => {
     setEditingService({ ...service, price: getServicePrice(service.id, service.price) })
     setModalOpen(true)
@@ -194,7 +203,7 @@ export default function PriceList() {
               Добавить услугу
             </Button>
             <Button variant="secondary" icon={<Download size={16} />}
-              onClick={() => showToast('Прайс экспортирован в Excel', 'success')} className="min-h-11">
+              onClick={handleExport} className="min-h-11">
               Экспорт
             </Button>
           </div>

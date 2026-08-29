@@ -62,13 +62,20 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
     canManageFinance: true,
   },
   doctor: { label: 'Врач', icon: '👨‍⚕️', pages: ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'reminders', 'school', 'treatment-plans', 'dental-chart', 'diagnostics-referrals', 'diagnostics-results', 'profile'], canSeeSalary: false, canSeeOwnSalary: true, ownDataOnly: true },
-  assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school', 'diagnostics-referrals', 'profile'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
+  // Can create referrals (diagnostics-referrals) — needs diagnostics-results too,
+  // otherwise there's no way to see the outcome of a referral they made.
+  assistant: { label: 'Ассистент', icon: '🤝', pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school', 'diagnostics-referrals', 'diagnostics-results', 'profile'], canSeeSalary: false, ownDataOnly: true, readOnly: true },
   reception: { label: 'Регистратор', icon: '📋', pages: ['schedule', 'patients', 'documents', 'reminders', 'shop', 'profile'], canAddStaff: false, readOnly: true },
   accountant: { label: 'Бухгалтер', icon: '📊', pages: ['analytics', 'finance', 'cashier', 'pricelist', 'dashboard', 'profile'], canSeeSalary: true, canSeeExpenses: true, canManageFinance: true },
   laboratory: { label: 'Лаборатория', icon: '🔬', pages: ['lab', 'shop', 'diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'profile'] },
   lab: { label: 'Лаборатория', icon: '🔬', pages: ['lab', 'shop', 'diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'profile'] },
   manager: { label: 'Менеджер', icon: '🧭', pages: ['dashboard', 'schedule', 'patients', 'analytics', 'staff', 'promotions', 'shop', 'profile'], canSeeReports: true, canAddStaff: true },
   intern: { label: 'Стажёр', icon: '🌱', pages: ['schedule', 'patients', 'visits', 'documents', 'school', 'profile'], ownDataOnly: true, readOnly: true },
+  // External learner, not clinic staff — maps to the backend's zero-permission
+  // STUDENT role (roleMatrix.ts). Without this entry, resolveRoleInfo() below
+  // fell through to ORG_ROLES.doctor for any STUDENT with a clinic membership,
+  // handing full patient-record access to someone the server grants nothing.
+  student: { label: 'Студент', icon: '🎓', pages: ['school', 'profile'], ownDataOnly: true, readOnly: true },
   diagnostic_center: { label: 'Диагностический центр', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
   lab_diagnostic: { label: 'Лаборатория', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
 }

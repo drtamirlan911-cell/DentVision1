@@ -20,7 +20,7 @@ export function buildFollowUps(appointments: Array<{
   status?: string
 }>, patients?: Array<{ id: string; name?: string; phone?: string }>) {
   const recent = [...appointments]
-    .filter((a) => ['done', 'completed', 'COMPLETED'].includes(String(a.status || '')) || isFollowUpNotes(a.notes))
+    .filter((a) => a.status === 'done' || isFollowUpNotes(a.notes))
     .filter((a) => isFollowUpNotes(a.notes))
     .slice(0, 40)
 

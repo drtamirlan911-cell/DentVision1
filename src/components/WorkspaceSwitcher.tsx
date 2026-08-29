@@ -144,7 +144,8 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.chairs })
 
       if (ws.scopeType === 'CLINIC' && !location.pathname.startsWith('/crm')) navigate('/crm/schedule')
-      if (ws.scopeType === 'DIAGNOSTIC_CENTER' || ws.scopeType === 'LABORATORY') navigate('/center-workspace')
+      if (ws.scopeType === 'DIAGNOSTIC_CENTER') navigate('/diagnostics/center-dashboard')
+      if (ws.scopeType === 'LABORATORY') navigate('/diagnostics/lab-dashboard')
       if (ws.scopeType === 'SUPPLIER') navigate('/supplier')
     } catch (e) {
       toast.error((e as Error)?.message || t('platform.clinic_switch_error'))

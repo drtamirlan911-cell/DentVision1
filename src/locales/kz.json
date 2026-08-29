@@ -472,7 +472,16 @@
     "caries_surfaces": "Кариес беттері: {{surfaces}}",
     "odontogram_summary": "Одонтограмма: {{summary}}",
     "surfaces_label": "беттер {{surfaces}}",
-    "plan_from_odonto_title": "Одонтограмма бойынша жоспар"
+    "plan_from_odonto_title": "Одонтограмма бойынша жоспар",
+    "permanent_teeth": "Тұрақты тістер",
+    "primary_teeth": "Сүт тістері",
+    "change_history": "Өзгерістер тарихы",
+    "jaw_upper_short": "Жоғарғы",
+    "jaw_lower_short": "Төменгі",
+    "action_note": "Ескертпе",
+    "action_photo": "Фото",
+    "action_clear": "Тазалау",
+    "tool_hint_active": "Құрал: {{tool}} — тіске басыңыз"
   },
   "ai": {
     "thinking": "Ойлануда...",

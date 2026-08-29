@@ -57,6 +57,7 @@ const DiagnosticStatistics = lazyWithRetry(() => import('./pages/diagnostics/Dia
 const DiagnosticSettings = lazyWithRetry(() => import('./pages/diagnostics/DiagnosticSettings'));
 const CenterDashboard = lazyWithRetry(() => import('./pages/diagnostics/CenterDashboard'));
 const LabDashboard = lazyWithRetry(() => import('./pages/diagnostics/LabDashboard'));
+const WorkspaceEntry = lazyWithRetry(() => import('./pages/diagnostics/WorkspaceEntry'));
 const RegistrationRequests = lazyWithRetry(() => import('./pages/diagnostics/RegistrationRequests'));
 
 // CRM sub-app pages
@@ -210,7 +211,7 @@ if (container) {
                   <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
                   <Route path="school/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
                   <Route path="school-workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
-                  <Route path="center-workspace" element={<Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense>} />
+                  <Route path="center-workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
 
                   {/* Diagnostics sub-app — under IntelligenceLayout sidebar */}
                   <Route path="diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsLayout /></Suspense>}>

@@ -78,6 +78,28 @@ export default function ReferralForm() {
 
   const update = (key: string, value: any) => setForm(f => ({ ...f, [key]: value }));
 
+  // Referral created from a patient's chart — pull IIN/DOB/gender/allergies
+  // from records that already exist instead of asking the doctor to retype
+  // them. allergies lives on Patient.medicalHistory and is already flattened
+  // onto the GET /api/patients/:id response, so one fetch covers everything.
+  const { data: prefillPatient } = useQuery({
+    queryKey: queryKeys.patient(initialPatientId),
+    queryFn: () => api.getPatient(initialPatientId),
+    enabled: !!initialPatientId,
+  });
+
+  useEffect(() => {
+    if (!prefillPatient) return;
+    setForm(f => ({
+      ...f,
+      patientIin: f.patientIin || prefillPatient.iin || '',
+      patientBirth: f.patientBirth || prefillPatient.dob || '',
+      patientGender: f.patientGender || prefillPatient.gender || '',
+      patientEmail: f.patientEmail || prefillPatient.email || '',
+      allergies: f.allergies || (prefillPatient as any).allergies || '',
+    }));
+  }, [prefillPatient]);
+
   const selectedClinicId = clinic?.id || activeMembership?.clinicId || '';
   const clinicCity = clinic?.city || '';
   const [files, setFiles] = useState<{ id: string; fileName: string; fileType: string; fileUrl: string; fileSize?: number }[]>([]);
@@ -173,6 +195,7 @@ export default function ReferralForm() {
     if (!form.studyType) { toast.warn('Выберите тип исследования'); return; }
 
     const payload = {
+      patientId: initialPatientId || undefined,
       patientName: form.patientName,
       patientIin: form.patientIin || undefined,
       patientBirth: form.patientBirth || undefined,

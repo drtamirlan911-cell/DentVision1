@@ -35,16 +35,41 @@ export const TOOTH_MORPHOLOGY: Record<number, ToothMorphology> = {
   36: ML('1 моляр'), 37: ML('2 моляр'), 38: ML('Зуб мудрости'),
 }
 
-export function getToothMorphology(fdi: number): ToothMorphology {
-  return TOOTH_MORPHOLOGY[fdi] || INC('Зуб')
+/**
+ * Primary (deciduous) teeth 51–85.
+ *
+ * Same five silhouettes as the permanent set — a milk molar is still a molar —
+ * but the labels say so, because "1 моляр" on a chart switched to milk teeth
+ * would be the wrong tooth entirely.
+ */
+export const PRIMARY_TOOTH_MORPHOLOGY: Record<number, ToothMorphology> = {
+  55: MU('2 молочный моляр'), 54: MU('1 молочный моляр'), 53: CAN('Молочный клык'),
+  52: INC('2 молочный резец'), 51: INC('1 молочный резец'),
+  61: INC('1 молочный резец'), 62: INC('2 молочный резец'), 63: CAN('Молочный клык'),
+  64: MU('1 молочный моляр'), 65: MU('2 молочный моляр'),
+
+  85: ML('2 молочный моляр'), 84: ML('1 молочный моляр'), 83: CAN('Молочный клык'),
+  82: INC('2 молочный резец'), 81: INC('1 молочный резец'),
+  71: INC('1 молочный резец'), 72: INC('2 молочный резец'), 73: CAN('Молочный клык'),
+  74: ML('1 молочный моляр'), 75: ML('2 молочный моляр'),
 }
 
-/** Quadrant from FDI: 1 UR, 2 UL, 3 LL, 4 LR */
+export function getToothMorphology(fdi: number): ToothMorphology {
+  return TOOTH_MORPHOLOGY[fdi] || PRIMARY_TOOTH_MORPHOLOGY[fdi] || INC('Зуб')
+}
+
+/** Quadrant from FDI: 1 UR, 2 UL, 3 LL, 4 LR — 5–8 are the primary mirror. */
 export function fdiQuadrant(fdi: number): 1 | 2 | 3 | 4 {
-  return Math.floor(fdi / 10) as 1 | 2 | 3 | 4
+  const q = Math.floor(fdi / 10)
+  return (q > 4 ? q - 4 : q) as 1 | 2 | 3 | 4
 }
 
 export function isUpperArch(fdi: number): boolean {
   const q = fdiQuadrant(fdi)
   return q === 1 || q === 2
+}
+
+/** True for 51–85 — a deciduous tooth, drawn slightly smaller and rounder. */
+export function isPrimaryTooth(fdi: number): boolean {
+  return fdi >= 51 && fdi <= 85 && Math.floor(fdi / 10) >= 5
 }

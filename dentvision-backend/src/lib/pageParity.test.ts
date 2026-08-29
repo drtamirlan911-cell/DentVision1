@@ -37,7 +37,7 @@ const LEGACY_ORG_PAGES: Record<string, { backendRole: string; pages: string[] }>
   assistant: {
     backendRole: 'ASSISTANT',
     pages: ['schedule', 'patients', 'visits', 'documents', 'reminders', 'shop', 'school',
-      'diagnostics-referrals', 'profile'],
+      'diagnostics-referrals', 'diagnostics-results', 'profile'],
   },
   lab: {
     backendRole: 'LAB',
@@ -48,9 +48,13 @@ const LEGACY_ORG_PAGES: Record<string, { backendRole: string; pages: string[] }>
     backendRole: 'MANAGER',
     pages: ['dashboard', 'schedule', 'patients', 'analytics', 'staff', 'promotions', 'shop', 'profile'],
   },
-  intern: {
+  // `intern` (a different frontend role, still permissive) no longer maps to
+  // backend STUDENT — see `ORG_ROLES.student` in auth.store.ts. STUDENT is
+  // deliberately narrower: an external learner has no clinical reason to see
+  // patient data at all.
+  student: {
     backendRole: 'STUDENT',
-    pages: ['schedule', 'patients', 'visits', 'documents', 'school', 'profile'],
+    pages: ['school', 'profile'],
   },
 };
 

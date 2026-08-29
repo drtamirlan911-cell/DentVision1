@@ -130,10 +130,12 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     diagnostics:  ['read'],
   },
 
+  // External learner, not clinic staff. Previously granted read access to
+  // patients/appointments/medical — the same clinic-data exposure the legacy
+  // frontend role config (auth.store.ts ORG_ROLES) independently leaked via a
+  // missing fallback case. Narrowed to match: a STUDENT has no clinical
+  // reason to read patient records at all.
   STUDENT: {
-    patients:     ['read'],
-    appointments: ['read'],
-    medical:      ['read'],
     shop:         ['read'],
     academy:      ['read'],
   },

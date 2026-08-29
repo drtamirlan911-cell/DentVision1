@@ -17,7 +17,7 @@ import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Textarea, Select } from '../../components/ui/ds/Input'
 import { Badge } from '../../components/ui/ds/Badge'
-import { Modal } from '../../components/ui/ds/Modal'
+import { Modal, ConfirmModal } from '../../components/ui/ds/Modal'
 import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { PageHeader } from '../../components/ui/ds/StatCard'
 import { Avatar } from '../../components/ui/ds/Avatar'
@@ -308,7 +308,8 @@ export default function Staff() {
     setModalOpen(true)
   }
 
-  const handleDeleteStaff = async (member: UserType) => {
+  const [deleteStaffTarget, setDeleteStaffTarget] = useState<UserType | null>(null)
+  const confirmDeleteStaff = (member: UserType) => {
     if (!clinicId) {
       showToast('Выберите клинику', 'warning')
       return
@@ -317,10 +318,10 @@ export default function Staff() {
       showToast('Нельзя удалить самого себя', 'warning')
       return
     }
-    const label = member.name || member.email || 'сотрудника'
-    if (!window.confirm(`Удалить ${label} из клиники?\n\nДоступ к этой клинике будет отозван. Аккаунт пользователя сохранится.`)) {
-      return
-    }
+    setDeleteStaffTarget(member)
+  }
+  const handleDeleteStaff = async (member: UserType) => {
+    setDeleteStaffTarget(null)
     setDeletingId(member.id)
     try {
       await api.deleteClinicStaff(clinicId, member.id)
@@ -733,7 +734,7 @@ export default function Staff() {
                 variant="danger"
                 icon={<Trash2 size={16} />}
                 loading={deletingId === profileModal.id}
-                onClick={() => { void handleDeleteStaff(profileModal) }}
+                onClick={() => confirmDeleteStaff(profileModal)}
               >
                 Удалить
               </Button>
@@ -932,7 +933,7 @@ export default function Staff() {
                             className="w-full sm:w-auto text-error hover:text-error min-h-11"
                             icon={<Trash2 size={14} />}
                             loading={deletingId === member.id}
-                            onClick={(e) => { e.stopPropagation(); void handleDeleteStaff(member) }}
+                            onClick={(e) => { e.stopPropagation(); confirmDeleteStaff(member) }}
                             title="Удалить из клиники"
                           >
                             Удалить
@@ -951,6 +952,15 @@ export default function Staff() {
       {inviteModal}
       {staffFormModal}
       {profileDetailModal}
+
+      <ConfirmModal
+        open={!!deleteStaffTarget}
+        onClose={() => setDeleteStaffTarget(null)}
+        onConfirm={() => { if (deleteStaffTarget) void handleDeleteStaff(deleteStaffTarget) }}
+        title="Удалить сотрудника?"
+        message={`Удалить ${deleteStaffTarget?.name || deleteStaffTarget?.email || 'сотрудника'} из клиники? Доступ к этой клинике будет отозван. Аккаунт пользователя сохранится.`}
+        confirmLabel="Удалить"
+      />
     </div>
   )
 }

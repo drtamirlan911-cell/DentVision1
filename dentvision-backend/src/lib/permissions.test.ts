@@ -84,11 +84,13 @@ describe('permissionsForRole', () => {
     expect(p).not.toContain('patients.write');
   });
 
-  it('STUDENT has academy + patient read', () => {
+  it('STUDENT has academy read but no clinic-data access', () => {
     const p = permissionsForRole('STUDENT');
     expect(p).toContain('academy.read');
-    expect(p).toContain('patients.read');
+    expect(p).not.toContain('patients.read');
     expect(p).not.toContain('patients.write');
+    expect(p).not.toContain('medical.read');
+    expect(p).not.toContain('appointments.read');
   });
 
   it('unknown/empty role yields no permissions', () => {
