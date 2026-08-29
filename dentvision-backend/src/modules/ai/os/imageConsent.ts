@@ -31,9 +31,22 @@ export type ImageConsentDenyReason =
   | 'PATIENT_DECLINED'
   | 'PATIENT_NOT_ASKED';
 
+export type ImageConsentDenied = { allowed: false; reason: ImageConsentDenyReason };
+
 export type ImageConsentResult =
   | { allowed: true; patientRegistered: boolean }
-  | { allowed: false; reason: ImageConsentDenyReason };
+  | ImageConsentDenied;
+
+/**
+ * Explicit predicate rather than `if (!result.allowed)`.
+ *
+ * This package compiles without `strictNullChecks`, and control-flow narrowing
+ * of a boolean-discriminated union is unreliable there — callers would end up
+ * reaching for `as any` to read `reason`.
+ */
+export function isImageConsentDenied(result: ImageConsentResult): result is ImageConsentDenied {
+  return result.allowed === false;
+}
 
 /** Human wording for the UI — a refusal has to say what to do about it. */
 export const IMAGE_CONSENT_MESSAGE: Record<ImageConsentDenyReason, string> = {

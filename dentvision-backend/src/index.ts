@@ -236,6 +236,14 @@ async function main() {
   await ensureSchemaMigrationsTable();
 
   // Run schema migrations
+  await runOnceMigration('diagnostic_result_ai_saw_source', 'DiagnosticResult.aiSawSource column', async (tx) => {
+    // Existing reports were all written without the image ever being sent, so
+    // the false default is also the correct backfill.
+    await tx.$executeRawUnsafe(
+      `ALTER TABLE IF EXISTS "diagnostic_results" ADD COLUMN IF NOT EXISTS "aiSawSource" BOOLEAN NOT NULL DEFAULT false`,
+    );
+  });
+
   await runOnceMigration('patients_iin', 'Patient.iin column', async (tx) => {
     await tx.$executeRawUnsafe(`ALTER TABLE IF EXISTS "patients" ADD COLUMN IF NOT EXISTS "iin" TEXT`);
     await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patients_iin_idx" ON "patients"("iin")`);

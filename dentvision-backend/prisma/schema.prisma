@@ -2931,6 +2931,15 @@ model DiagnosticResult {
   signedAt    DateTime?
   aiSummary   String?
   aiGenerated Boolean   @default(false)
+  /**
+   * Whether the AI pass actually looked at the attached study.
+   *
+   * It used to describe "находки" for a radiograph it was never sent, so a
+   * reader had no way to tell a report grounded in an image from one composed
+   * out of the referral's free text. False also covers a refusal: no consent,
+   * no file, no vision-capable model.
+   */
+  aiSawSource Boolean   @default(false)
   templateId  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
