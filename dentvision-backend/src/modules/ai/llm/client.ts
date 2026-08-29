@@ -87,6 +87,14 @@ export interface LLMRequest {
   escalate?: boolean;
   temperature?: number;
   maxTokens?: number;
+  /**
+   * Make the provider guarantee the shape instead of asking for it in prose.
+   *
+   * Structured outputs are strict: the root must be an object, every property
+   * must be listed in `required`, and `additionalProperties` must be false. An
+   * array answer therefore has to be wrapped in a named field.
+   */
+  jsonSchema?: { name: string; schema: Record<string, unknown> };
 }
 
 export interface LLMResponse {
@@ -158,6 +166,17 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
     body.temperature = request.temperature;
   }
 
+  if (request.jsonSchema) {
+    body.text = {
+      format: {
+        type: 'json_schema',
+        name: request.jsonSchema.name,
+        strict: true,
+        schema: request.jsonSchema.schema,
+      },
+    };
+  }
+
   const result = await fetch(OPENAI_RESPONSES_URL, {
     method: 'POST',
     headers: {
@@ -225,17 +244,23 @@ export async function chatCompletion(request: LLMRequest): Promise<LLMResponse> 
 export async function simpleChat(
   systemPrompt: string,
   userMessage: string,
-  opts?: { isGuest?: boolean; maxTokens?: number }
+  opts?: {
+    isGuest?: boolean;
+    maxTokens?: number;
+    imageUrl?: string;
+    jsonSchema?: { name: string; schema: Record<string, unknown> };
+  }
 ): Promise<string> {
   const response = await chatCompletion({
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage },
+      { role: 'user', content: userMessage, ...(opts?.imageUrl ? { imageUrl: opts.imageUrl } : {}) },
     ],
     task: 'orchestrate',
     text: userMessage,
     isGuest: opts?.isGuest,
     maxTokens: opts?.maxTokens,
+    jsonSchema: opts?.jsonSchema,
   });
 
   return response.content;

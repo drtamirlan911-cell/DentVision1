@@ -131,6 +131,33 @@ describe('chatCompletion — Responses API request shape', () => {
     ]);
   });
 
+  it('asks the provider to guarantee the shape when a schema is given', async () => {
+    const body = captureFetch();
+    const schema = {
+      type: 'object',
+      additionalProperties: false,
+      required: ['beats'],
+      properties: { beats: { type: 'array', items: { type: 'string' } } },
+    };
+    await chatCompletion({
+      messages: [{ role: 'user', content: 'x' }],
+      task: 'orchestrate',
+      text: 'x',
+      jsonSchema: { name: 'beats_payload', schema },
+    });
+
+    expect(body().text).toEqual({
+      format: { type: 'json_schema', name: 'beats_payload', strict: true, schema },
+    });
+  });
+
+  it('leaves the response free-form when no schema is given', async () => {
+    const body = captureFetch();
+    await chatCompletion({ messages: [{ role: 'user', content: 'x' }], task: 'orchestrate', text: 'x' });
+
+    expect(body()).not.toHaveProperty('text');
+  });
+
   it('does not call the provider at all without an API key', async () => {
     const key = mockEnv.OPENAI_API_KEY;
     mockEnv.OPENAI_API_KEY = '';
