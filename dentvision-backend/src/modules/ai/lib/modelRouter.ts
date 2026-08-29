@@ -9,6 +9,8 @@
  * hard clinic tasks, and stop escalating when the soft full-day budget is gone.
  */
 
+import { counterKeys, incrementDaily, readDaily } from '../../../lib/dailyCounter.js';
+
 export type ModelTier = 'mini' | 'full';
 export type ModelMode = 'auto' | 'mini' | 'full';
 
@@ -87,11 +89,20 @@ export function isComplexQuery(
   return COMPLEX_RE.test(t);
 }
 
-export function recordModelUsage(tier: ModelTier, tokens: number): void {
+/**
+ * Record what a call cost.
+ *
+ * Written to the shared daily counter when Redis is available, so the budget
+ * is one number across instances instead of one per process, and survives a
+ * restart. The in-memory tally is kept in step regardless — it is the fallback
+ * and what `getModelUsageSnapshot` reports.
+ */
+export async function recordModelUsage(tier: ModelTier, tokens: number): Promise<void> {
   ensureDay();
   const n = Math.max(0, Math.floor(tokens));
   if (tier === 'full') fullUsed += n;
   else miniUsed += n;
+  await incrementDaily(counterKeys.modelBudget(tier), n);
 }
 
 export function getModelUsageSnapshot(): ModelUsageSnapshot {
@@ -235,11 +246,22 @@ export async function chooseOpenAIModel(input: {
     envMini: env.OPENAI_MODEL_MINI,
   });
 
+  // Read the shared spend here and hand it to `pickModel` through the
+  // parameters it already had. That keeps `pickModel` a pure synchronous
+  // function — which is how its 21 existing tests exercise it — while the
+  // budget it consults becomes cluster-wide.
+  const [sharedMini, sharedFull] = await Promise.all([
+    readDaily(counterKeys.modelBudget('mini')),
+    readDaily(counterKeys.modelBudget('full')),
+  ]);
+
   return pickModel({
     ...input,
     mode: env.OPENAI_MODEL_MODE,
     miniModel: models.mini,
     fullModel: models.full,
     reasoningEffort: env.OPENAI_REASONING_EFFORT,
+    ...(sharedMini !== null ? { miniUsed: sharedMini } : {}),
+    ...(sharedFull !== null ? { fullUsed: sharedFull } : {}),
   });
 }

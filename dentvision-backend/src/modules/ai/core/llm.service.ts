@@ -79,7 +79,7 @@ export async function improveResponseWithLLM(
 
     const payload = await result.json() as { output_text?: unknown };
     const text = typeof payload.output_text === 'string' ? payload.output_text.trim() : '';
-    recordModelUsage(choice.tier, estimateTokens(instructions, input, text));
+    await recordModelUsage(choice.tier, estimateTokens(instructions, input, text));
     return text ? preferClinicCurrency(text, currencyCode) : null;
   } catch (error) {
     console.warn('[AI] OpenAI request failed; using deterministic response', error);

@@ -22,7 +22,7 @@ aiRouter.use(optionalAuth);
 aiRouter.use(guardAiAccess);
 
 /** Enforce guest daily AI quota before burning OpenAI credits. */
-function enforceGuestAiQuota(req: AuthRequest, res: import('express').Response): boolean {
+async function enforceGuestAiQuota(req: AuthRequest, res: import('express').Response): Promise<boolean> {
   const isGuest = !req.user || req.user.isGuest === true;
   if (!isGuest) return true;
   const userId = req.user?.id;
@@ -35,7 +35,7 @@ function enforceGuestAiQuota(req: AuthRequest, res: import('express').Response):
     });
     return false;
   }
-  const remaining = consumeGuestAi(userId);
+  const remaining = await consumeGuestAi(userId);
   if (remaining < 0) {
     res.status(429).json({
       ok: false,
@@ -409,7 +409,7 @@ async function processQuery(
 aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {
   const startTime = Date.now();
   try {
-    if (!enforceGuestAiQuota(req, res)) return;
+    if (!(await enforceGuestAiQuota(req, res))) return;
     const { text, message, sessionId: rawSession, history = [] } = req.body;
     const prompt = String(text || message || '').trim();
     const sessionId = await resolveUserSessionId(req, rawSession);
@@ -441,7 +441,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
         learnedLabels: response.learnedLabels,
         activePersona: response.activePersona,
         activePersonaLabel: response.activePersonaLabel,
-        aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
+        aiRequestsLeft: req.user?.isGuest ? await guestAiRemaining(req.user.id) : undefined,
       },
     });
   } catch (error) {
@@ -466,7 +466,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
 aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
   const startTime = Date.now();
   try {
-    if (!enforceGuestAiQuota(req, res)) return;
+    if (!(await enforceGuestAiQuota(req, res))) return;
     const text = req.body.text || req.body.message;
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ ok: false, error: 'Text is required' });
@@ -528,7 +528,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       learnedLabels: response.learnedLabels,
       activePersona: response.activePersona,
       activePersonaLabel: response.activePersonaLabel,
-      aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
+      aiRequestsLeft: req.user?.isGuest ? await guestAiRemaining(req.user.id) : undefined,
     })}\n\n`);
     res.end();
   } catch (error) {
