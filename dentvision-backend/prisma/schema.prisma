@@ -3544,6 +3544,29 @@ model AgentActivity {
 
 /// Observable evidence for one `AgentActivity` row — never chain-of-thought,
 /// only what was actually read or written (Agentic OS §6).
+/**
+ * Content-addressed cache of text embeddings.
+ *
+ * Same idea as `VoiceAsset`: the same text embedded by the same model always
+ * yields the same vector, so paying for it twice is waste. Keyed by a hash of
+ * (model + text), which also means a model change simply misses the cache
+ * rather than silently mixing vectors from two different spaces — comparing
+ * those would produce confident nonsense.
+ */
+model EmbeddingCache {
+  id        String   @id @default(uuid())
+  /** sha256 of `${model}|${text}`. */
+  hash      String   @unique
+  model     String
+  /** The vector itself. Postgres float8[] — no extension required. */
+  vector    Float[]
+  dimension Int
+  createdAt DateTime @default(now())
+
+  @@index([model])
+  @@map("embedding_cache")
+}
+
 model ActionEvidence {
   id         String   @id @default(uuid())
   activityId String

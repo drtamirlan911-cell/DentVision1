@@ -236,6 +236,20 @@ async function main() {
   await ensureSchemaMigrationsTable();
 
   // Run schema migrations
+  await runOnceMigration('embedding_cache_table', 'EmbeddingCache table', async (tx) => {
+    await tx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "embedding_cache" (
+      "id" TEXT NOT NULL,
+      "hash" TEXT NOT NULL,
+      "model" TEXT NOT NULL,
+      "vector" DOUBLE PRECISION[] NOT NULL,
+      "dimension" INTEGER NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "embedding_cache_pkey" PRIMARY KEY ("id")
+    )`);
+    await tx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "embedding_cache_hash_key" ON "embedding_cache"("hash")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "embedding_cache_model_idx" ON "embedding_cache"("model")`);
+  });
+
   await runOnceMigration('diagnostic_result_ai_saw_source', 'DiagnosticResult.aiSawSource column', async (tx) => {
     // Existing reports were all written without the image ever being sent, so
     // the false default is also the correct backfill.

@@ -24,6 +24,7 @@ export const TOOL_PERMISSIONS: Record<string, string> = {
 
   // Medical — PHI (anamnesis, diagnoses, odontogram, treatment plans).
   getPatientCard: 'medical.read',
+  searchClinicalNotes: 'medical.read',
   analyzeRadiograph: 'medical.read',
   applyToothFindings: 'medical.write',
   getVisits: 'medical.read',

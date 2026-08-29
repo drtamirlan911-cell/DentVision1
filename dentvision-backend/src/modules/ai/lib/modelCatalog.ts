@@ -47,11 +47,27 @@ export const MINI_LADDER: readonly ModelCandidate[] = [
   { id: 'gpt-4o-mini', vision: true },
 ];
 
+/**
+ * Embedding models, best first.
+ *
+ * The floor is the oldest widely-available one, so a probe that finds nothing
+ * newer still yields working search rather than none. `text-embedding-3-small`
+ * is what the repo's own (now deleted) knowledge module named as the intended
+ * replacement for its hand-rolled hash.
+ */
+export const EMBEDDING_LADDER: readonly string[] = [
+  'text-embedding-3-large',
+  'text-embedding-3-small',
+  'text-embedding-ada-002',
+];
+
 export interface ResolvedModels {
   full: string;
   mini: string;
   /** Best available model that accepts images, or null when none does. */
   vision: string | null;
+  /** Best available embedding model. */
+  embedding: string;
   /** `env` when an operator pinned the ids, `probe` when they were discovered. */
   source: 'env' | 'probe';
   /** True when the probe failed and the ladder floor is standing in. */
@@ -135,6 +151,9 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
         full: envFull,
         mini: envMini,
         vision: visionPin,
+        // Pinning the chat models says nothing about embeddings, so the floor
+        // stands in until a probe runs.
+        embedding: EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
         source: 'env',
         degraded: false,
         resolvedAt: Date.now(),
@@ -145,6 +164,7 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
       full: envFull || floorOf(FULL_LADDER).id,
       mini: envMini || floorOf(MINI_LADDER).id,
       vision: floorOf(FULL_LADDER).vision ? floorOf(FULL_LADDER).id : null,
+      embedding: EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
       source: 'probe',
       degraded,
       resolvedAt: Date.now(),
@@ -173,6 +193,9 @@ export async function resolveModels(opts: ResolveOptions = {}): Promise<Resolved
         full: envFull || full?.id || floorOf(FULL_LADDER).id,
         mini: envMini || mini?.id || floorOf(MINI_LADDER).id,
         vision: visionCandidate?.id ?? null,
+        embedding:
+          EMBEDDING_LADDER.find((id) => available.has(id)) ??
+          EMBEDDING_LADDER[EMBEDDING_LADDER.length - 1],
         source: 'probe',
         degraded: false,
         resolvedAt: Date.now(),

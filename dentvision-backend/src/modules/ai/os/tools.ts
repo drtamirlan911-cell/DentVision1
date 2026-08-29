@@ -16,6 +16,7 @@ import { simpleChat } from '../llm/client.js';
 import { resolveImageUrl } from '../../../lib/imageUrl.js';
 import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE } from './imageConsent.js';
 import { applyToothFindings as applyToothFindingsToChart, isValidFdi } from '../../patients/teethStore.js';
+import { searchClinicalNotes } from '../lib/clinicalSearch.js';
 import { uid } from '../../../lib/helpers.js';
 import { isClinicMember } from '../../../lib/orgContext.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
@@ -1287,6 +1288,48 @@ export const TOOLS: Record<string, ToolSpec> = {
         ok: true,
         data: { opened: path, section, label },
         navigate: path,
+      };
+    },
+  },
+
+  searchClinicalNotes: {
+    name: 'searchClinicalNotes',
+    description:
+      'Смысловой поиск по записям приёмов клиники (жалобы, анамнез, диагноз, примечания). ' +
+      'Находит по смыслу, а не по совпадению слов: «воспаление у верхушки корня» найдёт запись про периодонтит. ' +
+      'Можно ограничить одним пациентом через patientId.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Что ищем, обычными словами' },
+        patientId: { type: 'string', description: 'Ограничить поиск одним пациентом' },
+        limit: { type: 'number', description: 'Сколько записей вернуть (1-25, по умолчанию 8)' },
+      },
+      required: ['query'],
+    },
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const query = String(args.query || '').trim();
+      if (!query) return { ok: false, error: 'Нужен текст запроса' };
+
+      const result = await searchClinicalNotes({
+        clinicId,
+        query,
+        patientId: args.patientId ? String(args.patientId) : undefined,
+        limit: typeof args.limit === 'number' ? args.limit : undefined,
+      });
+
+      return {
+        ok: true,
+        data: {
+          ...result,
+          // Say how the list was ordered. A lexical fallback returns rough
+          // matches, and presenting those as semantic hits would overstate
+          // what the answer is worth.
+          note: result.ranking === 'semantic'
+            ? 'Отсортировано по смысловой близости.'
+            : 'Смысловой поиск недоступен — показаны совпадения по словам, начиная с недавних.',
+        },
       };
     },
   },
