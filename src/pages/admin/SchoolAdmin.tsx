@@ -148,7 +148,7 @@ function CoursesManager() {
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
+        {loading ? <p className="text-sm text-txt-muted">Загрузка...</p>
           : filtered.length === 0 ? <EmptyState icon={<BookOpen size={16} />} title="Нет курсов" description="Создайте первый курс Академии" />
             : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -157,14 +157,14 @@ function CoursesManager() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-medium truncate">{c.title}</p>
-                        <p className="text-xs text-muted-foreground">{c.category}{c.instructor ? ' · ' + c.instructor : ''}</p>
+                        <p className="text-xs text-txt-muted">{c.category}{c.instructor ? ' · ' + c.instructor : ''}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)} className="min-h-11"><Pencil size={16} /></Button>
                         <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(c)} className="min-h-11"><Trash2 size={16} /></Button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-2 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap gap-2 mt-2 text-xs text-txt-muted">
                       <Badge variant="default">{c.difficulty}</Badge>
                       <span>{c.durationHours} ч</span>
                       <span>· {c.lessonCount} ур.</span>
@@ -205,9 +205,9 @@ function CoursesManager() {
           </div>
           <div className="space-y-2">
               {(form.modules || []).map((m: any, mi: number) => (
-              <div key={mi} className="border rounded-lg p-3 bg-muted/30">
+              <div key={mi} className="border rounded-lg p-3 bg-surface-2/30">
                 <div className="flex items-center gap-2">
-                  <GripVertical size={16} className="text-muted-foreground" />
+                  <GripVertical size={16} className="text-txt-muted" />
                   <Input placeholder="Название модуля" value={m.title} onChange={e => updateModule(mi, { title: e.target.value })} className="flex-1 min-h-11" />
                   <Button variant="ghost" size="icon" aria-label="Удалить модуль" onClick={() => removeModule(mi)} className="min-h-11"><Trash2 size={16} /></Button>
                 </div>
@@ -225,7 +225,7 @@ function CoursesManager() {
                 </div>
               </div>
             ))}
-            {(form.modules || []).length === 0 && <p className="text-xs text-muted-foreground">Модули не добавлены — курс без уроков</p>}
+            {(form.modules || []).length === 0 && <p className="text-xs text-txt-muted">Модули не добавлены — курс без уроков</p>}
           </div>
         </div>
 
@@ -281,7 +281,7 @@ function CasesManager() {
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
+        {loading ? <p className="text-sm text-txt-muted">Загрузка...</p>
           : items.length === 0 ? <EmptyState icon={<Lightbulb size={16} />} title="Нет кейсов" description="Добавьте разбор клинического случая" />
             : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -289,7 +289,7 @@ function CasesManager() {
                   <div key={c.id} className="border rounded-lg p-3 flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium truncate">{c.title}</p>
-                      <p className="text-xs text-muted-foreground">{c.category}{c.author ? ' · ' + c.author : ''}</p>
+                      <p className="text-xs text-txt-muted">{c.category}{c.author ? ' · ' + c.author : ''}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)} className="min-h-11"><Pencil size={16} /></Button>
@@ -361,22 +361,22 @@ function LibraryManager() {
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
+        {loading ? <p className="text-sm text-txt-muted">Загрузка...</p>
           : items.length === 0 ? <EmptyState icon={<Library size={16} />} title="Пусто" description="Добавьте статьи, видео и файлы" />
             : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-muted-foreground border-b">
-                      <th className="py-2 pr-2">Название</th><th className="pr-2">Тип</th><th className="pr-2">Категория</th><th></th>
+                    <tr className="border-b border-bdr-subtle">
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Название</th><th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Тип</th><th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Категория</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map(l => (
                       <tr key={l.id} className="border-b last:border-0">
                         <td className="py-2 pr-2 font-medium">{l.title}</td>
-                        <td className="pr-2"><Badge variant="default">{l.type}</Badge></td>
-                        <td className="pr-2">{l.category || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-txt-primary"><Badge variant="default">{l.type}</Badge></td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">{l.category || '—'}</td>
                         <td className="text-right whitespace-nowrap">
                           <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(l)} className="min-h-11"><Pencil size={16} /></Button>
                           <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(l)} className="min-h-11"><Trash2 size={16} /></Button>

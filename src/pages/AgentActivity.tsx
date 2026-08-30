@@ -125,12 +125,12 @@ export default function AgentActivity() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-bdr-subtle">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Время</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Пользователь</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Инструмент</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Роль</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Статус</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Длительность</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Время</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Пользователь</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Инструмент</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Роль</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Статус</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Длительность</th>
                 </tr>
               </thead>
               <tbody>

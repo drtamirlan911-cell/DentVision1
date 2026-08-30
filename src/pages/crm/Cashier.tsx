@@ -635,7 +635,7 @@ export default function Cashier() {
                     <thead>
                       <tr className="border-b border-bdr-subtle">
                         {['Дата', 'Пациент', 'Услуга', 'Зуб', 'Диагноз', 'Способ', 'Статус', 'Сумма', ''].map(h => (
-                          <th key={h || 'actions'} className="text-left py-2 px-3 text-2xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
+                          <th key={h || 'actions'} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>

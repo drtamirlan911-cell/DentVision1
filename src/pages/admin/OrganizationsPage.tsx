@@ -146,12 +146,12 @@ export default function OrganizationsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/5 text-txt-muted">
-                    <th className="text-left py-3 px-2">Название</th>
-                    <th className="text-left py-3 px-2">Тип</th>
-                    <th className="text-left py-3 px-2">Телефон</th>
-                    <th className="text-left py-3 px-2">Email</th>
-                    <th className="text-left py-3 px-2">Дата создания</th>
+                  <tr className="border-b border-bdr-subtle">
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Название</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Тип</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Телефон</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Дата создания</th>
                     <th className="text-right py-3 px-2">Действия</th>
                   </tr>
                 </thead>

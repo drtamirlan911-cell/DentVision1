@@ -137,12 +137,12 @@ export default function PersonsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/5 text-txt-muted">
-                    <th className="text-left py-3 px-2">Имя</th>
-                    <th className="text-left py-3 px-2">Тип</th>
-                    <th className="text-left py-3 px-2">Организация</th>
-                    <th className="text-left py-3 px-2">Специализация</th>
-                    <th className="text-left py-3 px-2">Телефон</th>
+                  <tr className="border-b border-bdr-subtle">
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Имя</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Тип</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Организация</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Специализация</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Телефон</th>
                     <th className="text-right py-3 px-2">Действия</th>
                   </tr>
                 </thead>

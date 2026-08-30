@@ -156,8 +156,8 @@ export default function Backup() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-bdr-subtle">
-                        <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-txt-muted">Таблица</th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-txt-muted">Записей</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Таблица</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Записей</th>
                       </tr>
                     </thead>
                     <tbody>

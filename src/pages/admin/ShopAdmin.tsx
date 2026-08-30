@@ -139,26 +139,26 @@ function ProductsManager() {
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
+        {loading ? <p className="text-sm text-txt-muted">Загрузка...</p>
           : filtered.length === 0 ? <EmptyState icon={<Package size={16} />} title="Нет товаров" description="Добавьте первый товар в Магазин" />
             : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[600px]">
                   <thead>
-                    <tr className="text-left text-muted-foreground border-b">
-                      <th className="py-2 pr-2">Название</th><th className="pr-2">Бренд</th>
-                      <th className="pr-2">Категория</th><th className="pr-2">Цена</th>
-                      <th className="pr-2">Остаток</th><th></th>
+                    <tr className="border-b border-bdr-subtle">
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Название</th><th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Бренд</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Категория</th><th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Цена</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Остаток</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map(i => (
                       <tr key={i.id} className="border-b last:border-0">
                         <td className="py-2 pr-2 font-medium">{i.name}</td>
-                        <td className="pr-2">{i.brand || '—'}</td>
-                        <td className="pr-2">{i.category_name || '—'}</td>
-                        <td className="pr-2">{i.price?.toLocaleString()} ₸</td>
-                        <td className="pr-2">
+                        <td className="px-4 py-3 text-sm text-txt-primary">{i.brand || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">{i.category_name || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">{i.price?.toLocaleString()} ₸</td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">
                           <Badge variant={i.stock > i.minStock ? 'success' : 'error'}>{i.stock}</Badge>
                         </td>
                         <td className="text-right whitespace-nowrap">
@@ -238,7 +238,7 @@ function CategoriesManager() {
         <Button onClick={openCreate} icon={<Plus size={16} />} className="min-h-11">Добавить</Button>
       </CardHeader>
       <CardContent>
-        {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
+        {loading ? <p className="text-sm text-txt-muted">Загрузка...</p>
           : items.length === 0 ? <EmptyState icon={<Tag size={16} />} title="Нет категорий" description="Сгруппируйте товары по категориям" />
             : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -246,7 +246,7 @@ function CategoriesManager() {
                   <div key={c.id} className="flex items-center justify-between border rounded-lg p-3">
                     <div className="min-w-0">
                       <p className="font-medium truncate">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">{c.slug} {c.icon ? '· ' + c.icon : ''}</p>
+                      <p className="text-xs text-txt-muted">{c.slug} {c.icon ? '· ' + c.icon : ''}</p>
                     </div>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(c)}><Pencil size={16} /></Button>
@@ -328,25 +328,25 @@ function SuppliersManager() {
         <Button onClick={openCreate} icon={<Plus size={16} />} className="min-h-11">Добавить</Button>
       </CardHeader>
       <CardContent>
-        {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p>
+        {loading ? <p className="text-sm text-txt-muted">Загрузка...</p>
           : items.length === 0 ? <EmptyState icon={<Truck size={16} />} title="Нет поставщиков" description="Добавьте поставщиков оборудования" />
             : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[600px]">
                   <thead>
-                    <tr className="text-left text-muted-foreground border-b">
-                      <th className="py-2 pr-2">Название</th><th className="pr-2">Город</th>
-                      <th className="pr-2">Телефон</th><th className="pr-2">Рейтинг</th><th className="pr-2">Доставка, дн.</th><th></th>
+                    <tr className="border-b border-bdr-subtle">
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Название</th><th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Город</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Телефон</th><th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Рейтинг</th><th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Доставка, дн.</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map(s => (
                       <tr key={s.id} className="border-b last:border-0">
                         <td className="py-2 pr-2 font-medium">{s.name}</td>
-                        <td className="pr-2">{s.city || '—'}</td>
-                        <td className="pr-2">{s.phone || '—'}</td>
-                        <td className="pr-2">{s.rating ? '★ ' + s.rating : '—'}</td>
-                        <td className="pr-2">{s.deliveryDays || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">{s.city || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">{s.phone || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">{s.rating ? '★ ' + s.rating : '—'}</td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">{s.deliveryDays || '—'}</td>
                         <td className="text-right whitespace-nowrap">
                           <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => openEdit(s)}><Pencil size={16} /></Button>
                           <Button variant="ghost" size="icon" aria-label="Удалить" onClick={() => setToDelete(s)}><Trash2 size={16} /></Button>

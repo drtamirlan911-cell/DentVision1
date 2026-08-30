@@ -107,14 +107,14 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-txt-muted text-xs uppercase tracking-wider border-b border-bdr-subtle">
-                  <th className="pb-2 pr-3">Пациент</th>
-                  <th className="pb-2 pr-3">Исследование</th>
-                  <th className="pb-2 pr-3">Клиника</th>
-                  <th className="pb-2 pr-3">Стоимость</th>
-                  <th className="pb-2 pr-3">Статус</th>
-                  <th className="pb-2 pr-3">Дата</th>
-                  <th className="pb-2 pr-3">Действия</th>
+                <tr className="border-b border-bdr-subtle">
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Пациент</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Исследование</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Клиника</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Стоимость</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Статус</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Дата</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Действия</th>
                 </tr>
               </thead>
               <tbody>

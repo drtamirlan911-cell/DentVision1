@@ -35,7 +35,11 @@ export function DataTable<T extends Record<string, any>>({
   className,
   compact = false,
 }: DataTableProps<T>) {
-  const pyClass = compact ? 'py-2' : 'py-2.5'
+  // Отступы и вес шрифта совпадают с тем, как таблицы в приложении уже
+  // свёрстаны руками (px-4 py-3, text-xs font-bold uppercase у шапки). Раньше
+  // компонент был в меньшинстве: он рисовал плотнее и легче, чем одиннадцать
+  // таблиц вокруг, и перевод любой из них на него читался бы как поломка.
+  const pyClass = compact ? 'py-2' : 'py-3'
 
   return (
     <div className={cn('w-full overflow-x-auto', className)}>
@@ -46,7 +50,7 @@ export function DataTable<T extends Record<string, any>>({
               <th
                 key={col.key}
                 className={cn(
-                  'px-3 text-2xs font-semibold uppercase tracking-wider text-txt-muted',
+                  'px-4 text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap',
                   pyClass,
                   col.sortable && 'cursor-pointer select-none hover:text-txt-primary transition-colors',
                   col.className
@@ -72,7 +76,7 @@ export function DataTable<T extends Record<string, any>>({
         <tbody>
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-3 py-8 text-center text-sm text-txt-muted">
+              <td colSpan={columns.length} className="px-4 py-8 text-center text-sm text-txt-muted">
                 {emptyText}
               </td>
             </tr>
@@ -87,7 +91,7 @@ export function DataTable<T extends Record<string, any>>({
                 )}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className={cn('px-3 text-xs text-txt-primary', pyClass, col.className)}>
+                  <td key={col.key} className={cn('px-4 text-sm text-txt-primary', pyClass, col.className)}>
                     {col.render ? col.render(row, idx) : row[col.key]}
                   </td>
                 ))}

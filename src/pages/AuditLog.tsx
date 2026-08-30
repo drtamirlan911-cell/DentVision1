@@ -128,11 +128,11 @@ export default function AuditLog() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-bdr-subtle">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Время</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Пользователь</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Действие</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Объект</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Время</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Пользователь</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Действие</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Объект</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">ID</th>
                 </tr>
               </thead>
               <tbody>
