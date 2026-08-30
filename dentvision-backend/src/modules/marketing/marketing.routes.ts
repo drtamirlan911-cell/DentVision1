@@ -62,6 +62,16 @@ marketingRouter.post('/content-plan', requirePermission('patient.write'), async 
       tone,
     });
 
+    // Пустой план не сохраняем. У клиники без закрытых приёмов, акций и
+    // истории записи фактуры просто нет, а документ из нуля идей — мусор,
+    // который пользователю потом придётся удалять руками.
+    if (plan.ideas.length === 0) {
+      return res.status(422).json({
+        ok: false,
+        error: 'Данных клиники пока не хватает на план: закройте несколько приёмов или заведите акцию',
+      } satisfies ApiResponse);
+    }
+
     // Сохраняем сразу: план, живущий только в состоянии браузера, исчезал
     // вместе с вкладкой, и работа пропадала.
     const stored = await savePlan({ clinicId, userId: req.user?.id, tone, plan });
