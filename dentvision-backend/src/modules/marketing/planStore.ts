@@ -229,3 +229,69 @@ export async function deletePlan(clinicId: string, planId: string): Promise<bool
   const result = await prisma.contentPlan.deleteMany({ where: { id: planId, clinicId } });
   return result.count > 0;
 }
+
+/**
+ * Идея вместе с названием клиники — всё, что нужно промпту обложки.
+ *
+ * Скоуп по клинике идёт через связь с планом: у самой идеи `clinicId` нет,
+ * и проверять только её собственный id было бы дырой.
+ */
+export async function findIdea(clinicId: string, ideaId: string): Promise<
+  { id: string; title: string; format: string; hook: string; basedOn: string; clinicName: string } | null
+> {
+  const row = await prisma.contentIdea.findFirst({
+    where: { id: ideaId, plan: { clinicId } },
+    select: {
+      id: true, title: true, format: true, hook: true, basedOn: true,
+      plan: { select: { clinic: { select: { name: true } } } },
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    format: row.format,
+    hook: row.hook,
+    basedOn: row.basedOn,
+    clinicName: row.plan.clinic.name,
+  };
+}
+
+/** Привязать сгенерированные картинки к идее. Ссылки хранятся как `s3://`. */
+export async function attachImages(
+  clinicId: string,
+  ideaId: string,
+  images: { coverUrl?: string; slideUrls?: string[]; imagePrompt?: string },
+): Promise<StoredIdea | null> {
+  const existing = await prisma.contentIdea.findFirst({
+    where: { id: ideaId, plan: { clinicId } },
+    select: { id: true },
+  });
+  if (!existing) return null;
+
+  const updated = await prisma.contentIdea.update({
+    where: { id: ideaId },
+    data: {
+      ...(images.coverUrl !== undefined && { coverUrl: images.coverUrl }),
+      ...(images.slideUrls !== undefined && { slideUrls: images.slideUrls as never }),
+      ...(images.imagePrompt !== undefined && { imagePrompt: images.imagePrompt }),
+    },
+  });
+
+  return {
+    id: updated.id,
+    position: updated.position,
+    title: updated.title,
+    format: updated.format as ContentIdea['format'],
+    hook: updated.hook,
+    caption: updated.caption,
+    hashtags: (updated.hashtags as string[]) || [],
+    callToAction: updated.callToAction,
+    basedOn: updated.basedOn,
+    edited: updated.edited,
+    coverUrl: await toBrowserUrl(updated.coverUrl),
+    slideUrls: (await Promise.all(
+      ((updated.slideUrls as string[]) || []).map((u) => toBrowserUrl(u)),
+    )).filter((u): u is string => Boolean(u)),
+  };
+}

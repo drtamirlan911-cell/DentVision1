@@ -34,6 +34,12 @@ const envSchema = z.object({
   /** auto = cheap-first router; mini/full = force one tier. */
   OPENAI_MODEL_MODE: z.enum(['auto', 'mini', 'full']).default('auto'),
   /** Soft in-process daily budgets (approx tokens). Leave headroom vs provider caps. */
+  /// Модель генерации картинок для контента. Отдельно от текстовой:
+  /// у неё своя доступность и своя цена за штуку.
+  OPENAI_IMAGE_MODEL: z.string().default('gpt-image-1'),
+  /// Сколько картинок в сутки может сгенерировать одна клиника.
+  /// Первая функция в проекте с оплатой за штуку — без потолка выпускать нельзя.
+  MARKETING_IMAGE_DAILY_LIMIT: z.coerce.number().default(10),
   OPENAI_DAILY_MINI_TOKENS: z.coerce.number().default(2_400_000),
   OPENAI_DAILY_FULL_TOKENS: z.coerce.number().default(240_000),
   /** Reasoning effort for full-tier calls; mini always uses low. */

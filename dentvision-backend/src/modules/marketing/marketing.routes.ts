@@ -6,7 +6,7 @@
  * детерминированная и ничего не стоит, а генерация плана дёргает модель.
  */
 
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -14,7 +14,12 @@ import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.j
 import { auditFromReq } from '../compliance/audit.service.js';
 import { buildMarketingContext } from './contentContext.js';
 import { generateContentPlan } from './contentPlan.js';
-import { savePlan, listPlans, getPlan, updateIdea, deletePlan } from './planStore.js';
+import { savePlan, listPlans, getPlan, updateIdea, deletePlan, attachImages, findIdea } from './planStore.js';
+import {
+  imagesConfigured, buildImagePrompt, generateImage, consumeImageQuota, peekImageQuota,
+  MAX_CAROUSEL_SLIDES,
+} from './coverImage.js';
+import { isProviderUnavailableError } from '../ai/lib/providerFetch.js';
 
 const marketingRouter = Router();
 
@@ -152,6 +157,135 @@ marketingRouter.delete('/content-plans/:id', requirePermission('patient.write'),
   } catch (error) {
     console.error('[marketing] content-plan delete', error);
     return res.status(500).json({ ok: false, error: 'Не удалось удалить план' } satisfies ApiResponse);
+  }
+});
+
+/** Сколько картинок ещё можно сегодня — экран показывает это рядом с кнопкой. */
+marketingRouter.get('/image-quota', requirePermission('patient.read'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    }
+    const quota = await peekImageQuota(clinicId);
+    return res.json({ ok: true, data: { ...quota, configured: imagesConfigured() } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[marketing] image-quota', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось прочитать лимит' } satisfies ApiResponse);
+  }
+});
+
+/**
+ * Общая часть генерации: проверить доступность, списать потолок, нарисовать.
+ *
+ * Отказ здесь честный и разный по причине. «Хранилище не настроено» — это не
+ * ошибка пользователя и не повод молча положить base64 в базу; «кончились
+ * деньги у провайдера» — не то же самое, что «притормози».
+ */
+async function runImageGeneration(
+  req: AuthRequest,
+  res: Response,
+  count: number,
+): Promise<{ clinicId: string; idea: Awaited<ReturnType<typeof findIdea>> } | null> {
+  const clinicId = req.user?.clinicId;
+  if (!clinicId) {
+    res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    return null;
+  }
+  if (!imagesConfigured()) {
+    res.status(503).json({
+      ok: false,
+      error: 'Генерация картинок не настроена: нужны ключ модели и объектное хранилище',
+    } satisfies ApiResponse);
+    return null;
+  }
+  const idea = await findIdea(clinicId, String(req.params.id));
+  if (!idea) {
+    res.status(404).json({ ok: false, error: 'Идея не найдена' } satisfies ApiResponse);
+    return null;
+  }
+  const quota = await consumeImageQuota(clinicId, count);
+  if (!quota.allowed) {
+    res.status(429)
+      .set('X-Marketing-Images-Remaining', '0')
+      .json({
+        ok: false,
+        error: `Дневной лимит картинок исчерпан: ${quota.limit} в сутки`,
+        code: 'IMAGE_DAILY_LIMIT',
+      } as ApiResponse);
+    return null;
+  }
+  res.set('X-Marketing-Images-Remaining', String(quota.remaining));
+  return { clinicId, idea };
+}
+
+marketingRouter.post('/content-ideas/:id/cover', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+  try {
+    const ctx = await runImageGeneration(req, res, 1);
+    if (!ctx) return;
+    const prompt = buildImagePrompt(ctx.idea!, ctx.idea!.clinicName);
+    const url = await generateImage({ clinicId: ctx.clinicId, prompt });
+    if (!url) {
+      return res.status(502).json({ ok: false, error: 'Модель не вернула изображение' } satisfies ApiResponse);
+    }
+    const idea = await attachImages(ctx.clinicId, String(req.params.id), { coverUrl: url, imagePrompt: prompt });
+    await auditFromReq(req, {
+      action: 'marketing.cover.generated',
+      entity: 'contentIdea',
+      entityId: String(req.params.id),
+      details: { count: 1 },
+    });
+    return res.json({ ok: true, data: idea } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[marketing] cover', error);
+    const spent = isProviderUnavailableError(error);
+    return res.status(spent ? 402 : 500).json({
+      ok: false,
+      error: spent ? 'Провайдер отклонил запрос: проверьте баланс или ключ' : 'Не удалось сгенерировать обложку',
+    } satisfies ApiResponse);
+  }
+});
+
+marketingRouter.post('/content-ideas/:id/carousel', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+  const slides = Math.min(Math.max(Number(req.body?.slides) || 3, 2), MAX_CAROUSEL_SLIDES);
+  try {
+    const ctx = await runImageGeneration(req, res, slides);
+    if (!ctx) return;
+    if (ctx.idea!.format !== 'carousel') {
+      return res.status(400).json({
+        ok: false,
+        error: 'Слайды имеют смысл только для идеи в формате карусели',
+      } satisfies ApiResponse);
+    }
+    const base = buildImagePrompt(ctx.idea!, ctx.idea!.clinicName);
+    const urls: string[] = [];
+    for (let i = 0; i < slides; i++) {
+      // Слайды различаем номером в промпте: одинаковый промпт вернул бы одну
+      // и ту же картинку из кэша, и карусель получилась бы из клонов.
+      const url = await generateImage({
+        clinicId: ctx.clinicId,
+        prompt: `${base}\n\nКадр ${i + 1} из ${slides}: другой ракурс и композиция, та же палитра и стиль.`,
+      });
+      if (url) urls.push(url);
+    }
+    if (urls.length === 0) {
+      return res.status(502).json({ ok: false, error: 'Модель не вернула изображения' } satisfies ApiResponse);
+    }
+    const idea = await attachImages(ctx.clinicId, String(req.params.id), { slideUrls: urls });
+    await auditFromReq(req, {
+      action: 'marketing.carousel.generated',
+      entity: 'contentIdea',
+      entityId: String(req.params.id),
+      details: { count: urls.length },
+    });
+    return res.json({ ok: true, data: idea } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[marketing] carousel', error);
+    const spent = isProviderUnavailableError(error);
+    return res.status(spent ? 402 : 500).json({
+      ok: false,
+      error: spent ? 'Провайдер отклонил запрос: проверьте баланс или ключ' : 'Не удалось сгенерировать слайды',
+    } satisfies ApiResponse);
   }
 });
 
