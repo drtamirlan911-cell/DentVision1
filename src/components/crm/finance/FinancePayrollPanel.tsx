@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { ListSkeleton } from '@/components/ui/ds';
 import { Wallet, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { Button } from '@/components/ui/ds/Button'
@@ -55,9 +56,7 @@ export function FinancePayrollPanel({ rows, money, loading, periodLabel }: Props
 
   if (loading) {
     return (
-      <div className="flex justify-center py-10">
-        <div className="w-8 h-8 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
-      </div>
+      <ListSkeleton count={4} />
     )
   }
 

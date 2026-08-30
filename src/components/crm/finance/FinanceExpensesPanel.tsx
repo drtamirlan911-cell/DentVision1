@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Plus, Receipt, Trash2, Download } from 'lucide-react'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { Button } from '@/components/ui/ds/Button'
 import { Badge } from '@/components/ui/ds/Badge'
+import { ConfirmModal } from '@/components/ui/ds/Modal'
 import { downloadCsv } from '@/lib/financePeriod'
 import { fd } from '@/utils/constants'
 import type { Expense } from '@/types'
@@ -26,6 +27,8 @@ export function FinanceExpensesPanel({
   onDelete,
 }: Props) {
   const { t } = useTranslation()
+  /** Расход, удаление которого ждёт подтверждения. */
+  const [toDelete, setToDelete] = useState<Expense | null>(null)
   const filtered = useMemo(
     () =>
       expenses.filter((e) => {
@@ -112,9 +115,7 @@ export function FinanceExpensesPanel({
                   type="button"
                   className="p-1.5 rounded-lg text-txt-muted hover:text-error hover:bg-error/10 transition-colors"
                   title={t('finance.expenses_delete')}
-                  onClick={() => {
-                    if (window.confirm(t('finance.expenses_delete_confirm'))) onDelete(exp.id)
-                  }}
+                  onClick={() => setToDelete(exp)}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -123,6 +124,15 @@ export function FinanceExpensesPanel({
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        open={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => { if (toDelete) onDelete(toDelete.id) }}
+        title={t('finance.expenses_delete')}
+        message={toDelete ? `${toDelete.category || ''} · ${money(Number(toDelete.amount) || 0)}`.replace(/^ · /, '') : ''}
+        confirmLabel={t('finance.expenses_delete')}
+      />
     </div>
   )
 }

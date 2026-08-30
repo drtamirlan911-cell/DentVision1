@@ -58,6 +58,53 @@ const TRANSLUCENT_WASH = /\b(?:rgba|hsla)\([^)]*,\s*0?\.[0-5]\d*\s*\)/g
 const SHADOW_DECL = /\bbox-?[Ss]hadow\s*:/
 
 /**
+ * A colour class that names a token this project does not have.
+ *
+ * These are leftovers from a different design system (shadcn's `primary` /
+ * `muted` / `foreground` / `border` roles). In tailwind.config.js `primary` and
+ * `muted` live *inside* the `txt` group, so the classes that exist are
+ * `text-txt-primary` and `text-txt-muted`; there is no top-level `primary`,
+ * `foreground`, `border` or `input` colour at all.
+ *
+ * Tailwind does not warn about this — it simply emits nothing, so the element
+ * silently inherits whatever is above it. That is how the BI tab shipped with
+ * an active sub-tab distinguishable from an inactive one only by its shadow,
+ * and a chat where the user's bubble and the assistant's were the same colour.
+ *
+ * The literal-colour rule above cannot catch these: the colour is not written
+ * literally, it is written as a name that resolves to nothing. Hence a separate,
+ * explicit list rather than a general "is this class real?" check — the latter
+ * would need the whole utility surface (text-sm, border-2, …) to be modelled to
+ * avoid false positives.
+ */
+const FOREIGN_TOKEN = new RegExp(
+  '(?<![\\w-])(?:' + [
+    'text-muted-foreground', 'text-primary-foreground', 'text-foreground',
+    'text-primary', 'text-destructive',
+    'bg-primary', 'bg-muted', 'bg-surface', 'bg-accent',
+    'border-border', 'border-input', 'ring-ring',
+  ].join('|') + ')(?![-\\w])',
+)
+
+/**
+ * A loading spinner hand-built out of a div.
+ *
+ * `ds/Skeleton` exists and 43 screens use it; 18 others reimplemented a
+ * spinning circle, which says nothing about the content that is coming and
+ * makes the layout jump when it arrives.
+ *
+ * Deliberately narrow: it matches the div-circle shape, not every
+ * `animate-spin`. A lucide icon that spins is a different and correct idiom —
+ * the refresh icon on a "Refresh" button, the spinner inside a Button while a
+ * mutation runs, a labelled progress line over content that is already on
+ * screen. Those stayed.
+ */
+const HAND_ROLLED_SPINNER = /animate-spin(?=[^"'`]*rounded-full)(?=[^"'`]*border)|rounded-full(?=[^"'`]*animate-spin)(?=[^"'`]*border-)/
+
+/** A browser dialog: unstyled, unlocalised, and blocking. */
+const NATIVE_DIALOG = /(?<![\w$.])(?:window\.)?(?:confirm|alert|prompt)\s*\(/
+
+/**
  * Every exception carries the reason it is one. An entry here is a claim that
  * the literal is correct — not a to-do.
  */
@@ -234,6 +281,72 @@ describe('design tokens in page markup', () => {
       expect(LITERAL_COLOUR.test(line), `${allowed.file}:${allowed.line} no longer has a literal-coloured heading`).toBe(true)
       expect(allowed.why.length).toBeGreaterThan(20)
     }
+  })
+
+  it('never names a colour token that does not exist', () => {
+    const violations: Violation[] = []
+
+    for (const absolute of files) {
+      const file = relative(ROOT, absolute)
+      const source = readFileSync(absolute, 'utf8')
+
+      for (const match of source.matchAll(CLASS_ATTR)) {
+        const cls = match[0]
+        if (!FOREIGN_TOKEN.test(cls)) continue
+        violations.push({ file, line: lineOf(source, match.index ?? 0), snippet: cls.replace(/\s+/g, ' ').slice(0, 140) })
+      }
+    }
+
+    expect(
+      violations,
+      `These classes resolve to nothing — Tailwind emits no rule and the element inherits.\n`
+      + `Use text-txt-primary / text-txt-muted / bg-surface-1..4 / border-bdr-subtle / bg-dv-gold:\n${format(violations)}`,
+    ).toEqual([])
+  })
+
+  it('shows loading through Skeleton, not a hand-built spinner', () => {
+    const violations: Violation[] = []
+
+    for (const absolute of files) {
+      const file = relative(ROOT, absolute)
+      // ds/Skeleton and ds/Button are where the real thing lives.
+      if (file.startsWith('src/components/ui/ds/')) continue
+      const source = readFileSync(absolute, 'utf8')
+
+      for (const match of source.matchAll(CLASS_ATTR)) {
+        const cls = match[0]
+        if (!HAND_ROLLED_SPINNER.test(cls)) continue
+        violations.push({ file, line: lineOf(source, match.index ?? 0), snippet: cls.replace(/\s+/g, ' ').slice(0, 140) })
+      }
+    }
+
+    expect(
+      violations,
+      `Use Skeleton / CardSkeleton / ListSkeleton for content, or Button's own \`loading\` inside a button:\n${format(violations)}`,
+    ).toEqual([])
+  })
+
+  it('asks for confirmation through ConfirmModal, not a browser dialog', () => {
+    const violations: Violation[] = []
+
+    for (const absolute of files) {
+      const file = relative(ROOT, absolute)
+      const source = readFileSync(absolute, 'utf8')
+
+      for (const match of source.matchAll(new RegExp(NATIVE_DIALOG, 'g'))) {
+        const index = match.index ?? 0
+        violations.push({
+          file,
+          line: lineOf(source, index),
+          snippet: source.slice(index, index + 90).split('\n')[0],
+        })
+      }
+    }
+
+    expect(
+      violations,
+      `A native dialog is unstyled, unlocalised and blocking. Use ConfirmModal from ds/Modal:\n${format(violations)}`,
+    ).toEqual([])
   })
 })
 

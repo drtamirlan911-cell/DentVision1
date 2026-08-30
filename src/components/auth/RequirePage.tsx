@@ -1,4 +1,5 @@
 import React from 'react'
+import { Skeleton } from '@/components/ui/ds';
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/store/auth.store'
 import { useGuestStore } from '@/store/guest.store'
@@ -34,8 +35,9 @@ export function RequirePage({
   // switches restoreSession() runs asynchronously and pages may be empty.
   if (loading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" />
+      <div className="dv-page py-6 space-y-4">
+        <Skeleton className="h-32" />
+        <Skeleton variant="text" lines={4} />
       </div>
     )
   }
