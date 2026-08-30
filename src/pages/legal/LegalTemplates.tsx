@@ -4,6 +4,7 @@ import {
   Card, Button, Badge, Modal, Input, Select, EmptyState, Skeleton,
 } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ds/Toast';
+import { ConfirmModal } from '../../components/ui/ds/Modal';
 import { apiRequest } from '../../utils/api';
 import {
   FileText, Plus, Search, Eye, Archive, Send, ChevronDown, ChevronRight,
@@ -67,6 +68,8 @@ export default function LegalTemplates() {
   const [form, setForm] = useState({ type: 'CONTRACT', name: '', description: '' });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [publishId, setPublishId] = useState<string | null>(null);
+  /** Шаблон, архивирование которого ждёт подтверждения. */
+  const [toArchive, setToArchive] = useState<{ id: string; name: string } | null>(null);
   const [publishVersion, setPublishVersion] = useState('');
 
   const templates = useQuery({
@@ -221,7 +224,7 @@ export default function LegalTemplates() {
                               )}
                               {t.versions?.[0]?.status === 'PUBLISHED' && (
                                 <Button size="sm" variant="ghost" icon={<Archive size={14} />}
-                                  onClick={() => { if (confirm('Архивировать шаблон?')) archiveTemplate.mutate(t.id); }}
+                                  onClick={() => setToArchive({ id: t.id, name: t.name || 'Без названия' })}
                                   loading={archiveTemplate.isPending}
                                   className="min-h-11">
                                   Архивировать
@@ -281,6 +284,16 @@ export default function LegalTemplates() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={!!toArchive}
+        onClose={() => setToArchive(null)}
+        onConfirm={() => { if (toArchive) archiveTemplate.mutate(toArchive.id); }}
+        title="Архивировать шаблон?"
+        message={toArchive ? `«${toArchive.name}» перестанет быть доступен для новых документов. Уже созданные документы не изменятся.` : ''}
+        confirmLabel="Архивировать"
+        variant="warning"
+      />
     </div>
   );
 }

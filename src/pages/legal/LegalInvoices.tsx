@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, Button, Badge, Modal, Input, Select, EmptyState, Skeleton } from '../../components/ui/ds';
-import { useToast } from '../../components/ui/ds';
+import { useToast, ConfirmModal } from '../../components/ui/ds';
 import { apiRequest } from '../../utils/api';
 import { Receipt, Plus, Search } from 'lucide-react';
 
@@ -40,6 +40,9 @@ export default function LegalInvoices() {
     mutationFn: ({ id, status }: any) => apiRequest(`/api/legal/invoices/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['legal-invoices'] }); toast.showToast('Статус обновлён', 'success'); },
   });
+
+  /** Инвойс, отметка об оплате которого ждёт подтверждения. */
+  const [toMarkPaid, setToMarkPaid] = useState<{ id: string; number: string; amount: number } | null>(null);
 
   const invoices = data?.data || [];
   const filtered = invoices.filter((i: any) => {
@@ -86,7 +89,7 @@ export default function LegalInvoices() {
                 <td className="px-4 py-3 text-xs text-txt-muted">{fd(inv.createdAt)}</td>
                 <td className="px-4 py-3 text-xs text-txt-muted">{inv.paidAt ? fd(inv.paidAt) : inv.dueAt ? fd(inv.dueAt) : '—'}</td>
                 <td className="px-4 py-3">
-                  {inv.status === 'unpaid' && <Button size="xs" onClick={() => { if (confirm('Отметить как оплаченный?')) statusMutation.mutate({ id: inv.id, status: 'paid' }); }}>Оплачен</Button>}
+                  {inv.status === 'unpaid' && <Button size="xs" onClick={() => setToMarkPaid({ id: inv.id, number: inv.invoiceNumber, amount: inv.amountKzt })}>Оплачен</Button>}
                 </td>
               </tr>
             ))}
@@ -109,6 +112,16 @@ export default function LegalInvoices() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={!!toMarkPaid}
+        onClose={() => setToMarkPaid(null)}
+        onConfirm={() => { if (toMarkPaid) statusMutation.mutate({ id: toMarkPaid.id, status: 'paid' }); }}
+        title="Отметить инвойс оплаченным?"
+        message={toMarkPaid ? `Инвойс ${toMarkPaid.number} на ${fmtKzt(toMarkPaid.amount)} перейдёт в статус «оплачен».` : ''}
+        confirmLabel="Отметить оплаченным"
+        variant="warning"
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   Input, Select, EmptyState,
 } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ds/Toast';
+import { ConfirmModal } from '../../components/ui/ds/Modal';
 import { getPersons, createPerson, updatePerson, deletePerson, getOrganizations } from '../../utils/api';
 import { Users, Plus, Search, Pencil, Trash2 } from 'lucide-react';
 
@@ -43,6 +44,8 @@ export default function PersonsPage() {
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  /** Персона, удаление которой ждёт подтверждения. */
+  const [toDelete, setToDelete] = useState<{ id: string; fullName: string } | null>(null);
   const [form, setForm] = useState({ fullName: '', personType: 'DOCTOR', organizationId: '', phone: '', email: '', specialization: '', bio: '' });
 
   const { data, isLoading } = useQuery({
@@ -158,7 +161,7 @@ export default function PersonsPage() {
                           <Button size="icon-sm" variant="ghost" onClick={() => openEdit(p)} title="Редактировать" className="min-h-11">
                             <Pencil size={14} />
                           </Button>
-                          <Button size="icon-sm" variant="ghost" onClick={() => { if (confirm('Удалить?')) deleteMut.mutate(p.id); }} title="Удалить" className="min-h-11">
+                          <Button size="icon-sm" variant="ghost" onClick={() => setToDelete({ id: p.id, fullName: p.fullName })} title="Удалить" className="min-h-11">
                             <Trash2 size={14} />
                           </Button>
                         </div>
@@ -195,6 +198,15 @@ export default function PersonsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        open={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => { if (toDelete) deleteMut.mutate(toDelete.id); }}
+        title="Удалить персону?"
+        message={toDelete ? `«${toDelete.fullName}» будет удалена безвозвратно.` : ''}
+        confirmLabel="Удалить"
+      />
     </div>
   );
 }

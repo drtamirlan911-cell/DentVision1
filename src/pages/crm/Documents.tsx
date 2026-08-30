@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ds
 import { Button } from '../../components/ui/ds/Button';
 import { Badge } from '../../components/ui/ds/Badge';
 import { Input, Textarea, Select } from '../../components/ui/ds/Input';
-import { Modal } from '../../components/ui/ds/Modal';
+import { Modal, ConfirmModal } from '../../components/ui/ds/Modal';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { PageHeader } from '../../components/ui/ds/StatCard';
 import { useAutosaveDraft } from '@/hooks/useAutosaveDraft';
@@ -448,6 +448,7 @@ export default function Documents() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [toDelete, setToDelete] = useState<Document | null>(null);
   const [filterType, setFilterType] = useState('all');
   const [contentSnapshot, setContentSnapshot] = useState('');
   const [form, setForm] = useState<DocForm>({
@@ -601,9 +602,9 @@ export default function Documents() {
     resetForm();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Удалить документ?')) return;
-    await deleteDocument(id);
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    await deleteDocument(toDelete.id);
     toast.success('Документ удалён');
   };
 
@@ -836,6 +837,15 @@ export default function Documents() {
         </Modal>
       )}
 
+      <ConfirmModal
+        open={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={confirmDelete}
+        title="Удалить документ?"
+        message={toDelete ? `«${toDelete.title || 'Документ'}» будет удалён безвозвратно.` : ''}
+        confirmLabel="Удалить"
+      />
+
       <div className="space-y-2">
         {filteredDocs.length === 0 ? (
           <EmptyState
@@ -874,7 +884,7 @@ export default function Documents() {
                       <Button variant="ghost" size="icon-xs" icon={<Copy size={14} />} onClick={() => copyDoc(doc.content || '')} title="Копировать" aria-label="Копировать" />
                       <Button variant="ghost" size="icon-xs" icon={<Download size={14} />} onClick={() => downloadDoc(doc)} title="Скачать" aria-label="Скачать" />
                       <Button variant="ghost" size="icon-xs" icon={<Edit3 size={14} />} onClick={() => startEdit(doc)} title="Редактировать" aria-label="Редактировать" />
-                      <Button variant="ghost" size="icon-xs" icon={<Trash2 size={14} />} onClick={() => handleDelete(doc.id)} title="Удалить" aria-label="Удалить" className="text-txt-muted hover:text-error" />
+                      <Button variant="ghost" size="icon-xs" icon={<Trash2 size={14} />} onClick={() => setToDelete(doc)} title="Удалить" aria-label="Удалить" className="text-txt-muted hover:text-error" />
                       {(doc.status as string) !== 'signed' && (
                         <>
                           <Button variant="ghost" size="icon-xs" icon={<Send size={14} />} onClick={() => handleSendForSignature(doc)} title="Отправить на подпись" aria-label="Отправить на подпись" />

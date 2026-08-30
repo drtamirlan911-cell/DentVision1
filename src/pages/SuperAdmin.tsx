@@ -13,7 +13,7 @@ import { Button } from '../components/ui/ds/Button';
 import { Card } from '../components/ui/ds/Card';
 import { Input, Select } from '../components/ui/ds/Input';
 import { Badge } from '../components/ui/ds/Badge';
-import { Modal } from '../components/ui/ds/Modal';
+import { Modal, ConfirmModal } from '../components/ui/ds/Modal';
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard';
 import { GlassCard } from '../components/ui/ds/GlassCard';
 import { Skeleton } from '../components/ui/ds/Skeleton';
@@ -110,6 +110,9 @@ export default function SuperAdmin() {
   const [clinicForm, setClinicForm] = useState({ name: '', city: '', phone: '', address: '', plan: 'starter' });
   const [deleteModal, setDeleteModal] = useState<any>(null);
   const [pwModal, setPwModal] = useState<any>(null);
+  /** Пользователь и ассистент, удаление которых ждёт подтверждения. */
+  const [toDeleteUser, setToDeleteUser] = useState<any>(null);
+  const [toDeleteSupport, setToDeleteSupport] = useState<any>(null);
   const [pw, setPw] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [userModal, setUserModal] = useState(false);
@@ -430,7 +433,7 @@ export default function SuperAdmin() {
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           <Button size="icon-sm" variant="ghost" className="min-h-11" title="Reset password" onClick={() => { setPwModal(u); setPw(''); }}><KeyRound size={14} /></Button>
-                          <Button size="icon-sm" variant="danger" className="min-h-11" title="Delete user" onClick={() => { if (confirm(`Удалить ${u.name}?`)) deleteUser.mutate(u.id); }}><Trash2 size={14} /></Button>
+                          <Button size="icon-sm" variant="danger" className="min-h-11" title="Delete user" onClick={() => setToDeleteUser(u)}><Trash2 size={14} /></Button>
                         </div>
                       </td>
                     </tr>
@@ -472,7 +475,7 @@ export default function SuperAdmin() {
                       <td className="px-4 py-3 text-sm text-txt-muted">{u.email || '—'}</td>
                       <td className="px-4 py-3 text-xs text-txt-muted">{u.createdAt ? fd(u.createdAt) : '—'}</td>
                       <td className="px-4 py-3">
-                        <Button size="icon-sm" variant="danger" className="min-h-11" title="Delete assistant" onClick={() => { if (confirm(`Удалить ассистента ${u.name}?`)) deleteSupport.mutate(u.id); }}><Trash2 size={14} /></Button>
+                        <Button size="icon-sm" variant="danger" className="min-h-11" title="Delete assistant" onClick={() => setToDeleteSupport(u)}><Trash2 size={14} /></Button>
                       </td>
                     </tr>
                   ))}
@@ -647,6 +650,24 @@ export default function SuperAdmin() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={!!toDeleteUser}
+        onClose={() => setToDeleteUser(null)}
+        onConfirm={() => { if (toDeleteUser) deleteUser.mutate(toDeleteUser.id); }}
+        title="Удалить пользователя?"
+        message={toDeleteUser ? `«${toDeleteUser.name}» потеряет доступ к системе. Действие необратимо.` : ''}
+        confirmLabel="Удалить"
+      />
+
+      <ConfirmModal
+        open={!!toDeleteSupport}
+        onClose={() => setToDeleteSupport(null)}
+        onConfirm={() => { if (toDeleteSupport) deleteSupport.mutate(toDeleteSupport.id); }}
+        title="Удалить ассистента поддержки?"
+        message={toDeleteSupport ? `«${toDeleteSupport.name}» потеряет доступ к панели поддержки. Действие необратимо.` : ''}
+        confirmLabel="Удалить"
+      />
     </motion.div>
   );
 }

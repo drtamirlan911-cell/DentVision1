@@ -178,16 +178,22 @@ function ConfirmModal({
       <div onKeyDown={handleKeyDown}>
         <p className="text-sm text-txt-secondary mb-6">{body}</p>
         <div className="flex justify-end gap-2">
+          {/*
+            min-h-11 — сенсорная цель, которую держит вся остальная система.
+            Здесь её не было, а диалог расходится по десяткам мест: на
+            телефоне кнопка «Отмена» высотой 36px промахивается ровно там,
+            где цена промаха выше всего — рядом с необратимым действием.
+          */}
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-txt-secondary hover:text-txt-primary rounded-lg hover:bg-white/5 transition-colors"
+            className="px-4 py-2 min-h-11 text-sm font-medium text-txt-secondary hover:text-txt-primary rounded-lg hover:bg-white/5 transition-colors"
           >
             Отмена
           </button>
           <button
             onClick={() => { onConfirm(); onClose() }}
             className={cn(
-              'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+              'px-4 py-2 min-h-11 text-sm font-medium rounded-lg transition-colors',
               variant === 'danger'
                 ? 'bg-error text-white hover:bg-error/90'
                 : 'bg-warning text-surface-0 hover:bg-warning/90'

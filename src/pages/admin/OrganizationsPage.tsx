@@ -5,6 +5,7 @@ import {
   Input, Select, Textarea, EmptyState,
 } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ds/Toast';
+import { ConfirmModal } from '../../components/ui/ds/Modal';
 import { getOrganizations, createOrganization, updateOrganization, deleteOrganization, getOrganizationTypes } from '../../utils/api';
 import { Building2, Plus, Search, RefreshCw, Pencil, Trash2, ExternalLink } from 'lucide-react';
 
@@ -48,6 +49,8 @@ export default function OrganizationsPage() {
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  /** Организация, удаление которой ждёт подтверждения. */
+  const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState({ name: '', type: 'ACADEMY', taxId: '', address: '', phone: '', email: '' });
 
   const { data, isLoading } = useQuery({
@@ -169,7 +172,7 @@ export default function OrganizationsPage() {
                           <Button size="icon-sm" variant="ghost" onClick={() => openEdit(org)} title="Редактировать" className="min-h-11">
                             <Pencil size={14} />
                           </Button>
-                          <Button size="icon-sm" variant="ghost" onClick={() => { if (confirm('Удалить?')) deleteMut.mutate(org.id); }} title="Удалить" className="min-h-11">
+                          <Button size="icon-sm" variant="ghost" onClick={() => setToDelete({ id: org.id, name: org.name })} title="Удалить" className="min-h-11">
                             <Trash2 size={14} />
                           </Button>
                         </div>
@@ -209,6 +212,15 @@ export default function OrganizationsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        open={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => { if (toDelete) deleteMut.mutate(toDelete.id); }}
+        title="Удалить организацию?"
+        message={toDelete ? `«${toDelete.name}» будет удалена безвозвратно.` : ''}
+        confirmLabel="Удалить"
+      />
     </div>
   );
 }
