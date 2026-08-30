@@ -821,7 +821,9 @@ export async function closeAppointment(
   id: string,
   data: {
     notes?: string;
-    services?: Array<{ name: string; price: number; matCost?: number }>;
+    // `code` — идентификатор услуги из прайса: по нему срабатывают правила
+    // списания «на эту услугу». Без него правило не к чему привязать.
+    services?: Array<{ code?: string; name: string; price: number; matCost?: number }>;
     serviceName?: string;
     servicePrice?: number;
     matCost?: number;
@@ -829,6 +831,8 @@ export async function closeAppointment(
     paymentStatus?: string;
     diagnosis?: string;
     toothNumber?: string;
+    /** Код услуги, когда закрывают одной позицией, а не списком `services`. */
+    service?: string;
   },
 ): Promise<any> {
   return apiRequest(`/api/appointments/${id}/close`, {

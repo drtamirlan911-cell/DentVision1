@@ -236,6 +236,80 @@ async function main() {
   await ensureSchemaMigrationsTable();
 
   // Run schema migrations
+  // Склад: журнал движений + правила списания по услугам и диагнозам.
+  // Зеркалит prisma/migrations/20260830_inventory_rules/migration.sql.
+  await runOnceMigration('inventory_deduction_rules', 'Inventory movements & deduction rules', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "sku" TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "productId" TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "autoRestock" BOOLEAN NOT NULL DEFAULT true`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "inventory_clinicId_productId_idx" ON "inventory"("clinicId", "productId")`);
+
+    await tx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "inventory_movements" (
+      "id" TEXT NOT NULL,
+      "clinicId" TEXT NOT NULL,
+      "itemId" TEXT NOT NULL,
+      "delta" INTEGER NOT NULL,
+      "reason" TEXT NOT NULL,
+      "refType" TEXT,
+      "refId" TEXT,
+      "note" TEXT,
+      "userId" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "inventory_movements_pkey" PRIMARY KEY ("id")
+    )`);
+    // Ключ идемпотентности: один заказ или приём не тронет позицию дважды.
+    // Ручные движения держат refType/refId пустыми, а NULL-ы в Postgres не
+    // равны друг другу — под ограничение они не попадают.
+    await tx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "inventory_movements_refType_refId_itemId_key" ON "inventory_movements"("refType", "refId", "itemId")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "inventory_movements_clinicId_createdAt_idx" ON "inventory_movements"("clinicId", "createdAt")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "inventory_movements_itemId_createdAt_idx" ON "inventory_movements"("itemId", "createdAt")`);
+
+    await tx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "stock_deduction_rules" (
+      "id" TEXT NOT NULL,
+      "clinicId" TEXT NOT NULL,
+      "scope" TEXT NOT NULL DEFAULT 'always',
+      "matchKey" TEXT NOT NULL DEFAULT '',
+      "label" TEXT,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3),
+      CONSTRAINT "stock_deduction_rules_pkey" PRIMARY KEY ("id")
+    )`);
+    await tx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "stock_deduction_rules_clinicId_scope_matchKey_key" ON "stock_deduction_rules"("clinicId", "scope", "matchKey")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "stock_deduction_rules_clinicId_active_idx" ON "stock_deduction_rules"("clinicId", "active")`);
+
+    await tx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "stock_deduction_rule_items" (
+      "id" TEXT NOT NULL,
+      "ruleId" TEXT NOT NULL,
+      "itemId" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL DEFAULT 1,
+      CONSTRAINT "stock_deduction_rule_items_pkey" PRIMARY KEY ("id")
+    )`);
+    await tx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "stock_deduction_rule_items_ruleId_itemId_key" ON "stock_deduction_rule_items"("ruleId", "itemId")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "stock_deduction_rule_items_itemId_idx" ON "stock_deduction_rule_items"("itemId")`);
+
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'inventory_movements_clinicId_fkey') THEN
+          ALTER TABLE "inventory_movements" ADD CONSTRAINT "inventory_movements_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'inventory_movements_itemId_fkey') THEN
+          ALTER TABLE "inventory_movements" ADD CONSTRAINT "inventory_movements_itemId_fkey" FOREIGN KEY ("itemId") REFERENCES "inventory"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'stock_deduction_rules_clinicId_fkey') THEN
+          ALTER TABLE "stock_deduction_rules" ADD CONSTRAINT "stock_deduction_rules_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'stock_deduction_rule_items_ruleId_fkey') THEN
+          ALTER TABLE "stock_deduction_rule_items" ADD CONSTRAINT "stock_deduction_rule_items_ruleId_fkey" FOREIGN KEY ("ruleId") REFERENCES "stock_deduction_rules"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'stock_deduction_rule_items_itemId_fkey') THEN
+          ALTER TABLE "stock_deduction_rule_items" ADD CONSTRAINT "stock_deduction_rule_items_itemId_fkey" FOREIGN KEY ("itemId") REFERENCES "inventory"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+  });
+
   await runOnceMigration('embedding_cache_table', 'EmbeddingCache table', async (tx) => {
     await tx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "embedding_cache" (
       "id" TEXT NOT NULL,
@@ -283,6 +357,24 @@ async function main() {
       )
     `);
   });
+
+  // Перенос старой строки авто-списания в правила склада.
+  // Не под флагом: функция сходится к бездействию сама — берёт только те
+  // клиники, у которых строка ещё не пуста, и очищает её после переноса.
+  try {
+    const { migrateLegacyAutoDeduct } = await import('./modules/inventory/deductionRules.js');
+    const res = await migrateLegacyAutoDeduct();
+    if (res.migrated > 0) {
+      console.log(`[MIGRATION] Правила списания перенесены для ${res.migrated} клиник`);
+    }
+    if (res.skipped.length > 0) {
+      // Названия из старой строки, которым не нашлось позиции на складе.
+      // Молчать нельзя: клиника считала, что они списываются.
+      console.warn('[MIGRATION] Не найдены на складе:', res.skipped.join(', '));
+    }
+  } catch (err) {
+    console.error('[MIGRATION] Перенос авто-списания не удался (не фатально):', err);
+  }
 
   // Backfill trial subscriptions for existing centers that don't have one yet
   try {

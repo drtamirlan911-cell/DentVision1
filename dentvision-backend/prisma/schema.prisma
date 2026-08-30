@@ -128,18 +128,18 @@ enum PaymentStatus {
 // --- USER SYSTEM ---
 
 model User {
-  id    String @id @default(uuid())
-  email String @unique
+  id          String   @id @default(uuid())
+  email       String   @unique
   /// Absent for accounts that only ever signed in with Google. `comparePassword`
   /// has exactly one caller, which refuses a password login when this is null —
   /// the account is not passwordless by accident, it simply has no password yet.
   /// Password reset is the supported way to add one.
-  password  String?
+  password    String?
   /// Google's stable subject id. The link is recorded as a fact rather than
   /// inferred from "has no password", so an account cannot be quietly
   /// re-pointed at a different Google identity.
-  googleId  String? @unique
-  firstName String
+  googleId    String?  @unique
+  firstName   String
   lastName    String
   avatar      String?
   phone       String?
@@ -156,7 +156,7 @@ model User {
   orders                        Order[]
   enrollments                   SchoolEnrollment[]
   appointments                  Appointment[]
-  labOrdersOrdered              LabOrder[]        @relation("LabOrderDoctor")
+  labOrdersOrdered              LabOrder[]                   @relation("LabOrderDoctor")
   academies                     Academy[]
   lecturerProfile               Lecturer?
   aiMessages                    AIMessage[]
@@ -172,17 +172,17 @@ model User {
   developerApps                 DeveloperApp[]
   userSessions                  UserSession[]
   consents                      Consent[]
-  uploadedMedicalFiles          MedicalFileAccess[]      @relation("UploadedFiles")
-  viewedMedicalFiles            MedicalFileAccess[]      @relation("ViewedFiles")
-  downloadedMedicalFiles        MedicalFileAccess[]      @relation("DownloadedFiles")
+  uploadedMedicalFiles          MedicalFileAccess[]          @relation("UploadedFiles")
+  viewedMedicalFiles            MedicalFileAccess[]          @relation("ViewedFiles")
+  downloadedMedicalFiles        MedicalFileAccess[]          @relation("DownloadedFiles")
   passwordResets                PasswordReset[]
   patients                      Patient[]
-  aiActionLogs                  AIActionLog[]            @relation("UserActions")
-  confirmedAiActions            AIActionLog[]            @relation("ConfirmedActions")
+  aiActionLogs                  AIActionLog[]                @relation("UserActions")
+  confirmedAiActions            AIActionLog[]                @relation("ConfirmedActions")
   jobVacancies                  JobVacancy[]
   jobApplications               JobApplication[]
   diagnosticReferrals           Referral[]
-  reviewedReferrals             Referral[]               @relation("ReferralReviewer")
+  reviewedReferrals             Referral[]                   @relation("ReferralReviewer")
   uploadedReferralFiles         ReferralFile[]
   referralComments              ReferralComment[]
   signedResults                 DiagnosticResult[]
@@ -190,27 +190,27 @@ model User {
   laboratoryMembers             LaboratoryMember[]
   operators                     Operator[]
   radiologists                  Radiologist[]
-  legalTemplatesCreated         LegalTemplate[]          @relation("TemplateCreator")
-  legalTemplateVersionsCreated  LegalTemplateVersion[]   @relation("VersionCreator")
-  legalTemplateVersionsApproved LegalTemplateVersion[]   @relation("VersionApprover")
-  legalBlocksCreated            LegalBlock[]             @relation("BlockCreator")
-  legalPartnersCreated          LegalPartner[]           @relation("PartnerCreator")
-  legalPartnerUser              LegalPartner?            @relation
-  legalDocumentsCreated         LegalDocument[]          @relation("DocCreator")
-  legalDocumentsApproved        LegalDocument[]          @relation("DocApprover")
-  legalDocumentVersionsCreated  LegalDocumentVersion[]   @relation("DocVersionCreator")
+  legalTemplatesCreated         LegalTemplate[]              @relation("TemplateCreator")
+  legalTemplateVersionsCreated  LegalTemplateVersion[]       @relation("VersionCreator")
+  legalTemplateVersionsApproved LegalTemplateVersion[]       @relation("VersionApprover")
+  legalBlocksCreated            LegalBlock[]                 @relation("BlockCreator")
+  legalPartnersCreated          LegalPartner[]               @relation("PartnerCreator")
+  legalPartnerUser              LegalPartner?                @relation
+  legalDocumentsCreated         LegalDocument[]              @relation("DocCreator")
+  legalDocumentsApproved        LegalDocument[]              @relation("DocApprover")
+  legalDocumentVersionsCreated  LegalDocumentVersion[]       @relation("DocVersionCreator")
   legalAuditLogs                LegalAuditLog[]
   legalInvoicesCreated          LegalInvoice[]
-  notificationPreferences        NotificationPreference[]
+  notificationPreferences       NotificationPreference[]
   auditLogs                     AuditLog[]
   aiEvents                      AIEvent[]
-  crossClinicGrantsAsPatient     CrossClinicAccessGrant[] @relation("CrossClinicGrantAsPatient")
-  crossClinicGrantsRequested     CrossClinicAccessGrant[] @relation("CrossClinicGrantRequestedBy")
-  crossClinicAccessLogs          CrossClinicAccessLog[]
-  planReleasesApproved           TreatmentPlanRelease[]       @relation("PlanReleaseApprover")
-  patientConversationsAsPatient  PatientConversation[]        @relation("PatientConversationAsPatient")
-  patientConversationsAssigned   PatientConversation[]        @relation("PatientConversationAssignee")
-  patientConversationMessages    PatientConversationMessage[]
+  crossClinicGrantsAsPatient    CrossClinicAccessGrant[]     @relation("CrossClinicGrantAsPatient")
+  crossClinicGrantsRequested    CrossClinicAccessGrant[]     @relation("CrossClinicGrantRequestedBy")
+  crossClinicAccessLogs         CrossClinicAccessLog[]
+  planReleasesApproved          TreatmentPlanRelease[]       @relation("PlanReleaseApprover")
+  patientConversationsAsPatient PatientConversation[]        @relation("PatientConversationAsPatient")
+  patientConversationsAssigned  PatientConversation[]        @relation("PatientConversationAssignee")
+  patientConversationMessages   PatientConversationMessage[]
 
   @@map("users")
 }
@@ -237,6 +237,8 @@ model Clinic {
   treatmentPlans      TreatmentPlan[]
   invoices            Invoice[]
   inventory           InventoryItem[]
+  inventoryMovements  InventoryMovement[]
+  stockDeductionRules StockDeductionRule[]
   orders              Order[]
   waitingList         WaitingList[]
   expenses            Expense[]
@@ -252,9 +254,9 @@ model Clinic {
   serviceAccesses     ServiceAccess[]
   diagnosticReferrals Referral[]
 
-  reviews ShopReview[]
-  auditLogs AuditLog[]
-  aiEvents  AIEvent[]
+  reviews                      ShopReview[]
+  auditLogs                    AuditLog[]
+  aiEvents                     AIEvent[]
   crossClinicGrantsAsSource    CrossClinicAccessGrant[] @relation("CrossClinicGrantAsSource")
   crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantAsReceiving")
   patientConversations         PatientConversation[]
@@ -359,19 +361,19 @@ model Patient {
   deletedAt      DateTime?
   userId         String?
 
-  clinic              Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  user               User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
-  visits              Visit[]
-  appointments        Appointment[]
-  teeth               Tooth[]
-  treatmentPlans      TreatmentPlan[]
-  images              PatientImage[]
-  documents           Document[]
-  labOrders           LabOrder[]
-  invoices            Invoice[]
-  aiActionLogs        AIActionLog[]
-  medicalFileAccesses MedicalFileAccess[]
-  diagnosticReferrals Referral[]
+  clinic                       Clinic                   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user                         User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  visits                       Visit[]
+  appointments                 Appointment[]
+  teeth                        Tooth[]
+  treatmentPlans               TreatmentPlan[]
+  images                       PatientImage[]
+  documents                    Document[]
+  labOrders                    LabOrder[]
+  invoices                     Invoice[]
+  aiActionLogs                 AIActionLog[]
+  medicalFileAccesses          MedicalFileAccess[]
+  diagnosticReferrals          Referral[]
   crossClinicGrantsAsSource    CrossClinicAccessGrant[] @relation("CrossClinicGrantSourcePatient")
   crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantReceivingPatient")
   treatmentPlanReleases        TreatmentPlanRelease[]
@@ -387,17 +389,17 @@ model Patient {
 // --- APPOINTMENTS ---
 
 model Appointment {
-  id        String            @id @default(uuid())
-  clinicId  String
-  patientId String
-  doctorId  String
-  date      DateTime
-  time      String?
-  duration  Int?              @default(30)
-  status    AppointmentStatus @default(pending)
-  type      String?
-  notes     String?
-  meta      Json?
+  id              String            @id @default(uuid())
+  clinicId        String
+  patientId       String
+  doctorId        String
+  date            DateTime
+  time            String?
+  duration        Int?              @default(30)
+  status          AppointmentStatus @default(pending)
+  type            String?
+  notes           String?
+  meta            Json?
   /// The plan this visit was booked to carry out, if any.
   ///
   /// Stage-level linkage already existed, but only inside
@@ -595,8 +597,8 @@ model TreatmentPlan {
   notes     String?
   deletedAt DateTime?
 
-  patient      Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  clinic       Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  patient      Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic       Clinic?                @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   releases     TreatmentPlanRelease[]
   appointments Appointment[]
   invoices     Invoice[]
@@ -619,12 +621,12 @@ model TreatmentPlan {
 /// Not a patient document: this never appears in the Documents tab and is not
 /// reachable through the files routes.
 model VoiceAsset {
-  id       String @id @default(uuid())
+  id         String @id @default(uuid())
   /// sha256(provider|model|voice|locale|normalised text)
-  cacheKey String @unique
-  locale   String
-  voice    String
-  model    String
+  cacheKey   String @unique
+  locale     String
+  voice      String
+  model      String
   /// `s3://<key>` — see lib/storage.ts::toStorageUrl.
   storageUrl String
   durationMs Int?
@@ -731,11 +733,11 @@ enum PatientPresentationStatus {
 /// clinic that never generates a presentation still shows patients the plain
 /// deterministic wording, unaffected by any of this.
 model PatientPresentation {
-  id        String                     @id @default(uuid())
+  id        String                    @id @default(uuid())
   releaseId String
   clinicId  String
-  locale    String                     @default("ru")
-  status    PatientPresentationStatus  @default(draft)
+  locale    String                    @default("ru")
+  status    PatientPresentationStatus @default(draft)
 
   script           Json
   generatorByBeat  Json
@@ -776,17 +778,17 @@ model PatientImage {
 }
 
 model Document {
-  id        String    @id @default(uuid())
-  patientId String?
-  clinicId  String?
-  type      String
-  name      String?
-  url       String
-  signed    Boolean   @default(false)
-  signedAt  DateTime?
-  deletedAt DateTime?
+  id            String    @id @default(uuid())
+  patientId     String?
+  clinicId      String?
+  type          String
+  name          String?
+  url           String
+  signed        Boolean   @default(false)
+  signedAt      DateTime?
+  deletedAt     DateTime?
   /// One-time public link token for remote patient signing (send-signature).
-  signToken     String? @unique
+  signToken     String?   @unique
   /// Signature image payload (base64 PNG from SignaturePad) — durable proof of consent.
   signatureData String?
   signedByName  String?
@@ -822,7 +824,7 @@ model LabOrder {
   /// without guessing. Nullable, and deliberately **not** backfilled — the
   /// information does not exist for orders already placed, and inventing an
   /// attribution for clinical work would be worse than leaving it blank.
-  doctorId  String?
+  doctorId String?
 
   clinic  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
@@ -840,15 +842,15 @@ model LabOrder {
 // --- BILLING ---
 
 model Invoice {
-  id        String        @id @default(uuid())
-  clinicId  String
-  patientId String?
-  amount    Int
-  status    InvoiceStatus @default(unpaid)
-  items     Json
-  notes     String?
-  paidAt    DateTime?
-  deletedAt DateTime?
+  id              String        @id @default(uuid())
+  clinicId        String
+  patientId       String?
+  amount          Int
+  status          InvoiceStatus @default(unpaid)
+  items           Json
+  notes           String?
+  paidAt          DateTime?
+  deletedAt       DateTime?
   /// The plan this invoice bills, if any. Same rationale as
   /// `Appointment.treatmentPlanId` — the per-stage JSON link
   /// (`items.stages[].invoiceId`) already existed but isn't queryable.
@@ -880,13 +882,125 @@ model InventoryItem {
   unit     String?
   supplier String?
 
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  /// Артикул поставщика. Единственный надёжный ключ сопоставления с
+  /// маркетплейсом: названия у одного и того же товара расходятся от
+  /// поставщика к поставщику.
+  sku String?
+
+  /// Товар маркетплейса, который отражает эта позиция склада.
+  ///
+  /// Заполняется, когда позицию создал приход заказа или когда её выбрали
+  /// из каталога при добавлении вручную. Специально без внешнего ключа:
+  /// товар могут снять с продажи, а склад клиники от этого не должен
+  /// потерять свою позицию.
+  productId String?
+
+  /// Принимать ли автоприход из доставленных заказов маркета.
+  ///
+  /// Клиника может вести часть позиций строго вручную (например, товар,
+  /// который приходуется по факту вскрытия коробки), и автоматический
+  /// плюс к остатку такую позицию ломает.
+  autoRestock Boolean @default(true)
+
+  clinic         Clinic                   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  movements      InventoryMovement[]
+  deductionLines StockDeductionRuleItem[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([clinicId])
+  @@index([clinicId, productId])
   @@map("inventory")
+}
+
+/// Каждое изменение остатка — приход, списание, ручная правка.
+///
+/// Две задачи сразу. Во-первых, ответ на вопрос «куда делись перчатки»:
+/// раньше остаток менялся молча и восстановить историю было нечем.
+/// Во-вторых, идемпотентность: уникальный ключ (refType, refId, itemId) не даёт
+/// одному и тому же заказу или приёму списать/оприходовать позицию дважды,
+/// сколько бы раз ни повторился вызов.
+model InventoryMovement {
+  id       String @id @default(uuid())
+  clinicId String
+  itemId   String
+
+  /// Изменение остатка со знаком: плюс — приход, минус — списание.
+  delta Int
+
+  /// Причина: order_delivery | appointment_close | manual | correction.
+  reason String
+
+  /// На что ссылается движение: order | appointment | null для ручных.
+  refType String?
+  refId   String?
+
+  note   String?
+  userId String?
+
+  clinic Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  /// NULL-ы в Postgres не равны друг другу, поэтому ручные движения
+  /// (refType/refId = NULL) под это ограничение не попадают и могут
+  /// повторяться сколько угодно — ровно то, что нужно.
+  @@unique([refType, refId, itemId])
+  @@index([clinicId, createdAt])
+  @@index([itemId, createdAt])
+  @@map("inventory_movements")
+}
+
+/// Правило: что списать со склада после приёма.
+///
+/// Пришло на смену строке `autoDeductItems` в настройках клиники, которая
+/// не умела ни количества, ни привязки к тому, что на приёме собственно
+/// делали. Область действия — одна из трёх:
+///   always    — расходники каждого приёма (перчатки, маска, слюноотсос);
+///   service   — код услуги из прайса (`matchKey` = serviceCode);
+///   diagnosis — код МКБ-10 (`matchKey` = код, сравнение по корню).
+model StockDeductionRule {
+  id       String @id @default(uuid())
+  clinicId String
+
+  /// always | service | diagnosis
+  scope String @default("always")
+
+  /// Код услуги или диагноза. Для `always` — пустая строка, а не NULL:
+  /// иначе уникальный индекс не удержит вторую запись «на каждый приём».
+  matchKey String @default("")
+
+  /// Понятное имя правила для списка настроек.
+  label String?
+
+  active Boolean @default(true)
+
+  clinic Clinic                   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  items  StockDeductionRuleItem[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([clinicId, scope, matchKey])
+  @@index([clinicId, active])
+  @@map("stock_deduction_rules")
+}
+
+/// Строка правила: сколько единиц конкретной позиции склада уходит.
+model StockDeductionRuleItem {
+  id       String @id @default(uuid())
+  ruleId   String
+  itemId   String
+  quantity Int    @default(1)
+
+  rule StockDeductionRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  item InventoryItem      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, itemId])
+  @@index([itemId])
+  @@map("stock_deduction_rule_items")
 }
 
 // --- AI CORE ---
@@ -999,23 +1113,23 @@ model SupplierDocument {
 }
 
 model Product {
-  id          String  @id @default(uuid())
-  name        String
-  brand       String?
-  category    String? // kept for backward compat
-  categoryId  String? // FK to ShopCategory tree
-  price       Int
-  oldPrice    Int? // original price for discount display
-  stock       Int     @default(0)
-  minStock    Int     @default(0)
-  description String?
-  imageUrl    String? // main image
-  images      Json? // additional images array
-  rating      Float?
-  reviewCount Int     @default(0)
-  supplierId  String?
+  id              String  @id @default(uuid())
+  name            String
+  brand           String?
+  category        String? // kept for backward compat
+  categoryId      String? // FK to ShopCategory tree
+  price           Int
+  oldPrice        Int? // original price for discount display
+  stock           Int     @default(0)
+  minStock        Int     @default(0)
+  description     String?
+  imageUrl        String? // main image
+  images          Json? // additional images array
+  rating          Float?
+  reviewCount     Int     @default(0)
+  supplierId      String?
   sharedProductId String? @map("shared_product_id") // canonical product id grouping supplier offers
-  ownBrand    Boolean @default(false)
+  ownBrand        Boolean @default(false)
 
   // Rich catalog fields
   sku            String? // Р°СЂС‚РёРєСѓР»
@@ -1329,18 +1443,18 @@ model Academy {
 }
 
 model Lecturer {
-  id          String      @id @default(uuid())
-  userId      String      @unique
-  level       ExpertLevel @default(new)
-  bio         String?
-  speciality  String?
-  academyId   String?
+  id         String      @id @default(uuid())
+  userId     String      @unique
+  level      ExpertLevel @default(new)
+  bio        String?
+  speciality String?
+  academyId  String?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   academy       Academy?             @relation(fields: [academyId], references: [id], onDelete: SetNull)
-  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   verifications ExpertVerification[]
   courses       Course[]
 
@@ -1416,16 +1530,16 @@ model Lesson {
 }
 
 model SchoolEnrollment {
-   id               String  @id @default(uuid())
-   userId           String
-   courseId         String
-   progress         Int     @default(0)
-   completed        Boolean @default(false)
-   certificateUrl   String?
-   completedLessons Json?   // array of lesson IDs that user completed
+  id               String  @id @default(uuid())
+  userId           String
+  courseId         String
+  progress         Int     @default(0)
+  completed        Boolean @default(false)
+  certificateUrl   String?
+  completedLessons Json? // array of lesson IDs that user completed
 
-   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -1455,10 +1569,10 @@ model Notification {
 }
 
 model NotificationPreference {
-  id        String  @id @default(uuid())
-  userId    String
-  type      String
-  enabled   Boolean @default(true)
+  id      String  @id @default(uuid())
+  userId  String
+  type    String
+  enabled Boolean @default(true)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1656,7 +1770,6 @@ model DmMessage {
 
 /**
  * The live-human channel a patient's assistant conversation escalates into.
- *
  * Distinct from `DmConversation` above (staff-to-staff, `pairKey`-unique 1:1)
  * and from `AISession`/`AIMessage` (the patient's conversation with the
  * assistant): this is the thread a human at the clinic actually answers on,
@@ -1673,10 +1786,10 @@ enum PatientConversationStatus {
 }
 
 model PatientConversation {
-  id                   String                     @id @default(uuid())
+  id                   String                    @id @default(uuid())
   patientUserId        String
   clinicId             String
-  status               PatientConversationStatus  @default(WAITING)
+  status               PatientConversationStatus @default(WAITING)
   assignedToUserId     String?
   /// Why the assistant handed this over — shown to staff, never to the patient.
   escalationReason     String?
@@ -1687,9 +1800,9 @@ model PatientConversation {
   onCallNotifiedAt     DateTime?
   resolvedAt           DateTime?
 
-  patientUser User    @relation("PatientConversationAsPatient", fields: [patientUserId], references: [id], onDelete: Cascade)
-  clinic      Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  assignedTo  User?   @relation("PatientConversationAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  patientUser User                         @relation("PatientConversationAsPatient", fields: [patientUserId], references: [id], onDelete: Cascade)
+  clinic      Clinic                       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  assignedTo  User?                        @relation("PatientConversationAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
   messages    PatientConversationMessage[]
 
   createdAt DateTime  @default(now())
@@ -1710,7 +1823,7 @@ enum PatientConversationAuthorType {
 }
 
 model PatientConversationMessage {
-  id             String                         @id @default(uuid())
+  id             String                        @id @default(uuid())
   conversationId String
   authorType     PatientConversationAuthorType
   /// Set for STAFF messages, null for PATIENT (identity comes from the
@@ -2431,11 +2544,11 @@ model UserSession {
 }
 
 model Consent {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   userId    String?
   type      String
-  version   String   @default("1.0")
-  accepted  Boolean  @default(false)
+  version   String  @default("1.0")
+  accepted  Boolean @default(false)
   ipAddress String?
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -2488,7 +2601,7 @@ enum CrossClinicAccessStatus {
 /// one User to Patient rows across clinics) — this reuses that mechanism
 /// rather than inventing a parallel global-patient-identity model.
 model CrossClinicAccessGrant {
-  id                 String                   @id @default(uuid())
+  id                 String                  @id @default(uuid())
   patientUserId      String
   sourceClinicId     String
   /// The specific Patient row at sourceClinicId this grant reads from.
@@ -2501,18 +2614,18 @@ model CrossClinicAccessGrant {
   receivingPatientId String
   requestedByUserId  String
   status             CrossClinicAccessStatus @default(PENDING)
-  requestedAt        DateTime                 @default(now())
+  requestedAt        DateTime                @default(now())
   respondedAt        DateTime?
   revokedAt          DateTime?
   /// Optional TTL — null means indefinite until the patient revokes it.
   expiresAt          DateTime?
 
-  patientUser      User    @relation("CrossClinicGrantAsPatient", fields: [patientUserId], references: [id], onDelete: Cascade)
-  sourceClinic     Clinic  @relation("CrossClinicGrantAsSource", fields: [sourceClinicId], references: [id], onDelete: Cascade)
-  sourcePatient    Patient @relation("CrossClinicGrantSourcePatient", fields: [sourcePatientId], references: [id], onDelete: Cascade)
-  receivingClinic  Clinic  @relation("CrossClinicGrantAsReceiving", fields: [receivingClinicId], references: [id], onDelete: Cascade)
-  receivingPatient Patient @relation("CrossClinicGrantReceivingPatient", fields: [receivingPatientId], references: [id], onDelete: Cascade)
-  requestedBy      User    @relation("CrossClinicGrantRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  patientUser      User                   @relation("CrossClinicGrantAsPatient", fields: [patientUserId], references: [id], onDelete: Cascade)
+  sourceClinic     Clinic                 @relation("CrossClinicGrantAsSource", fields: [sourceClinicId], references: [id], onDelete: Cascade)
+  sourcePatient    Patient                @relation("CrossClinicGrantSourcePatient", fields: [sourcePatientId], references: [id], onDelete: Cascade)
+  receivingClinic  Clinic                 @relation("CrossClinicGrantAsReceiving", fields: [receivingClinicId], references: [id], onDelete: Cascade)
+  receivingPatient Patient                @relation("CrossClinicGrantReceivingPatient", fields: [receivingPatientId], references: [id], onDelete: Cascade)
+  requestedBy      User                   @relation("CrossClinicGrantRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
   accessLogs       CrossClinicAccessLog[]
 
   createdAt DateTime  @default(now())
@@ -2867,20 +2980,20 @@ model Referral {
 /// Patients pay the center directly; the platform collects its accrued
 /// `Referral.platformFee` from the center via these settlements.
 model Settlement {
-  id              String     @id @default(uuid())
+  id              String    @id @default(uuid())
   ownerType       String // 'CENTER' | 'LAB'
   ownerId         String
   periodStart     DateTime
   periodEnd       DateTime
-  referralCount   Int        @default(0)
+  referralCount   Int       @default(0)
   /// Total commission for the period, in minor units (тиын).
-  commissionMinor BigInt     @default(0)
-  status          String     @default("open") // open | invoiced | paid | void
+  commissionMinor BigInt    @default(0)
+  status          String    @default("open") // open | invoiced | paid | void
   paymentId       String?
   dueDate         DateTime?
   paidAt          DateTime?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   referrals Referral[] @relation("SettlementReferrals")
 
@@ -2933,7 +3046,6 @@ model DiagnosticResult {
   aiGenerated Boolean   @default(false)
   /**
    * Whether the AI pass actually looked at the attached study.
-   *
    * It used to describe "находки" for a radiograph it was never sent, so a
    * reader had no way to tell a report grounded in an image from one composed
    * out of the referral's free text. False also covers a refusal: no consent,
@@ -3401,7 +3513,7 @@ model Person {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  organization Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   personRoles  PersonRole[]
   compensation PersonCompensation?
 
@@ -3546,7 +3658,6 @@ model AgentActivity {
 /// only what was actually read or written (Agentic OS §6).
 /**
  * Content-addressed cache of text embeddings.
- *
  * Same idea as `VoiceAsset`: the same text embedded by the same model always
  * yields the same vector, so paying for it twice is waste. Keyed by a hash of
  * (model + text), which also means a model change simply misses the cache
@@ -3555,10 +3666,14 @@ model AgentActivity {
  */
 model EmbeddingCache {
   id        String   @id @default(uuid())
-  /** sha256 of `${model}|${text}`. */
+  /**
+   * sha256 of `${model}|${text}`.
+   */
   hash      String   @unique
   model     String
-  /** The vector itself. Postgres float8[] — no extension required. */
+  /**
+   * The vector itself. Postgres float8[] — no extension required.
+   */
   vector    Float[]
   dimension Int
   createdAt DateTime @default(now())

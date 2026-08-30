@@ -132,8 +132,10 @@ export default function Schedule() {
   const [closeOpen, setCloseOpen] = useState(false)
   const [closeAppt, setCloseAppt] = useState<Appointment | null>(null)
   const [closeNotes, setCloseNotes] = useState('')
-  const [closeServices, setCloseServices] = useState<Array<{ name: string; price: number; matCost: number }>>([])
-  const [priceOptions, setPriceOptions] = useState<Array<{ name: string; price: number; matCost: number }>>([])
+  // `code` — идентификатор услуги из прайса. Без него правило списания
+  // «на эту услугу» не к чему привязать: по названию сопоставлять нельзя,
+  // клиника переименовывает услуги в своём прайсе.
+  const [closeServices, setCloseServices] = useState<Array<{ code?: string; name: string; price: number; matCost: number }>>([])
   const [closeSaving, setCloseSaving] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
   const [payAppt, setPayAppt] = useState<Appointment | null>(null)
@@ -314,6 +316,21 @@ export default function Schedule() {
   )
   const selectedService = pricedServices.find(s => s.id === form.service)
 
+  // Тот же прайс, что и при записи. Раньше список собирался только из строк,
+  // которые клиника явно сохранила, — у новой клиники он был пуст, и добавить
+  // услугу при закрытии приёма было не из чего.
+  const closeServiceOptions = useMemo(
+    () => [
+      { value: '', label: '— добавить услугу —' },
+      ...pricedServices.map(s => ({
+        value: s.id,
+        label: `${s.name} · ${tg(s.clinicPrice)}`,
+        group: s.cat,
+      })),
+    ],
+    [pricedServices],
+  )
+
   const openNew = (): void => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
   const openSlotBooking = (time: string, doctorId: string, chairId = ''): void => {
     setEditAppt(null)
@@ -438,26 +455,30 @@ export default function Schedule() {
   }
   const handleDelete = async (): Promise<void> => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
 
-  const openCloseVisit = async (appt: Appointment) => {
+  const openCloseVisit = (appt: Appointment) => {
     setCloseAppt(appt)
     setCloseNotes(appt.notes || '')
-    setCloseServices(appt.service || appt.serviceName
-      ? [{ name: String(appt.service || appt.serviceName), price: Number(appt.servicePrice || 0), matCost: Number((appt as any).matCost || 0) }]
-      : [])
+    // Услугу записи разворачиваем через прайс: в `appt.service` лежит код
+    // («s3»), и без разворачивания он попадал в строку закрытия как название.
+    const booked = pricedServices.find((x) => x.id === appt.service)
+    if (booked) {
+      setCloseServices([{
+        code: booked.id,
+        name: booked.name,
+        price: Number(appt.servicePrice || booked.clinicPrice || 0),
+        matCost: booked.clinicMatCost,
+      }])
+    } else if (appt.serviceName || appt.service) {
+      setCloseServices([{
+        name: String(appt.serviceName || appt.service),
+        price: Number(appt.servicePrice || 0),
+        matCost: Number((appt as any).matCost || 0),
+      }])
+    } else {
+      setCloseServices([])
+    }
     setCloseOpen(true)
     setModalOpen(false)
-    try {
-      const rows = await api.getPriceList()
-      const opts = (rows || []).map((r: any) => ({
-        name: r.name || r.serviceCode,
-        price: Number(r.price || 0),
-        matCost: Number(r.matCost || 0),
-      })).filter((r: any) => r.name)
-      // Also include catalog defaults lightly
-      setPriceOptions(opts)
-    } catch {
-      setPriceOptions([])
-    }
   }
 
   const handleCloseVisit = async () => {
@@ -471,12 +492,21 @@ export default function Schedule() {
       })
       await queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
       await queryClient.invalidateQueries({ queryKey: [...queryKeys.inventory, clinicId] })
+      // Нехватку показываем отдельным предупреждением: списание прошло
+      // частично, и врач должен узнать об этом сейчас, а не на инвентаризации.
+      const short = Array.isArray(res?.shortages) ? res.shortages : []
       showToast(
         res?.deducted?.length
-          ? `Приём закрыт. Склад: ${res.deducted.join(', ')}`
+          ? `Приём закрыт. Списано: ${res.deducted.join(', ')}`
           : 'Приём закрыт',
         'success',
       )
+      if (short.length > 0) {
+        showToast(
+          `Не хватило на складе: ${short.map((x: any) => `${x.name} (${x.taken} из ${x.requested})`).join(', ')}`,
+          'warning',
+        )
+      }
       const closedPatientId = closeAppt.patientId
       const closedDoctorId = closeAppt.doctorId
       setCloseOpen(false)
@@ -564,7 +594,12 @@ export default function Schedule() {
       if (payload.closeVisit && !['done', 'cancelled'].includes(String(payAppt.status))) {
         const services = closeServices.length
           ? closeServices
-          : [{ name: serviceName, price: payload.amount, matCost: 0 }]
+          : [{
+              ...(payAppt.service ? { code: String(payAppt.service) } : {}),
+              name: serviceName,
+              price: payload.amount,
+              matCost: 0,
+            }]
         await api.closeAppointment(payAppt.id, {
           notes: closeNotes || payAppt.notes || '',
           services,
@@ -1480,11 +1515,16 @@ export default function Schedule() {
                   label="Из прайса"
                   value=""
                   onChange={(e) => {
-                    const opt = priceOptions.find((p) => p.name === e.target.value)
+                    const opt = pricedServices.find((p) => p.id === e.target.value)
                     if (!opt) return
-                    setCloseServices([...closeServices, { ...opt }])
+                    setCloseServices([...closeServices, {
+                      code: opt.id,
+                      name: opt.name,
+                      price: opt.clinicPrice,
+                      matCost: opt.clinicMatCost,
+                    }])
                   }}
-                  options={[{ value: '', label: '— добавить услугу —' }, ...priceOptions.map((p) => ({ value: p.name, label: `${p.name} · ${p.price}` }))]}
+                  options={closeServiceOptions}
                 />
                 <Button
                   variant="secondary"
