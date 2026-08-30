@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { ListSkeleton } from '@/components/ui/ds';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Package, Clock, Truck, QrCode } from 'lucide-react';
@@ -121,9 +122,7 @@ export default function ShopOrders() {
   };
 
   if (loading) return (
-    <div className="flex justify-center py-16">
-      <div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
-    </div>
+    <ListSkeleton count={5} />
   );
 
   return (

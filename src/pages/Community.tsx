@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react'
+import { ListSkeleton } from '@/components/ui/ds';
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -296,8 +297,8 @@ export default function CommunityPage() {
                   rows={3}
                 />
                 <div className="flex items-center justify-end gap-2">
-                  <Button className="min-h-11" size="sm" onClick={publish} disabled={!draft.trim() || publishing}>
-                    {publishing ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
+                  <Button className="min-h-11" size="sm" onClick={publish}
+                    disabled={!draft.trim()} loading={publishing} icon={<Plus size={14} />}>
                     Опубликовать
                   </Button>
                 </div>
@@ -324,7 +325,7 @@ export default function CommunityPage() {
           )}
 
           {loading ? (
-            <div className="flex justify-center py-16 text-txt-muted"><Loader2 className="animate-spin" size={22} /></div>
+            <ListSkeleton count={4} />
           ) : posts.length === 0 ? (
             <EmptyState
               title={tab === 'saved' ? 'Нет сохранённых' : 'Лента пуста'}
@@ -414,7 +415,7 @@ export default function CommunityPage() {
             </div>
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-[12rem]">
               {commentsLoading ? (
-                <div className="flex justify-center py-8 text-txt-muted"><Loader2 className="animate-spin" size={20} /></div>
+                <ListSkeleton count={3} />
               ) : comments.length === 0 ? (
                 <p className="text-center text-xs text-txt-muted py-8">Пока тихо — напишите первым</p>
               ) : (

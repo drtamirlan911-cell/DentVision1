@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ListSkeleton } from '@/components/ui/ds';
 import { Shield, Smartphone, Monitor, Globe, Clock, CheckCircle2, Brain } from 'lucide-react';
 import * as api from '../utils/api';
 import { useAuthStore } from '../store/auth.store';
@@ -113,9 +114,7 @@ export default function SecurityCompliance() {
           <p className="text-txt-muted text-sm">Войдите в аккаунт для доступа к безопасности и согласиям</p>
         </div>
       ) : loading ? (
-        <div className="flex justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" />
-        </div>
+        <ListSkeleton count={5} />
       ) : (
         <>
           {/* Active Sessions */}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { ListSkeleton } from '@/components/ui/ds';
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Store, Package, Wallet, BarChart3, Plus, Trash2, CheckCircle2, Clock,
@@ -357,9 +358,7 @@ export default function SupplierWorkspace() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
-      </div>
+      <ListSkeleton count={6} />
     )
   }
 

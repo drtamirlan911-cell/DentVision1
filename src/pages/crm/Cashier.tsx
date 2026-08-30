@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import { ListSkeleton } from '@/components/ui/ds';
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -755,9 +756,7 @@ export default function Cashier() {
                 </Button>
               </div>
               {reportLoading ? (
-                <div className="flex justify-center py-10">
-                  <div className="w-8 h-8 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
-                </div>
+                <ListSkeleton count={3} />
               ) : !financeReport ? (
                 <EmptyState icon={<TrendingUp size={32} />} title="Нет данных" description="Оплатите счета — отчёт появится автоматически" />
               ) : (

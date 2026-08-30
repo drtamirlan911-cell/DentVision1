@@ -481,15 +481,12 @@ export default function BITab() {
                 />
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!chatInput.trim() || cfoChatMutation.isPending}
+                  disabled={!chatInput.trim()}
+                  loading={cfoChatMutation.isPending}
                   size="icon"
                   className="min-h-11 min-w-11"
                 >
-                  {cfoChatMutation.isPending ? (
-                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Send size={16} />
-                  )}
+                  <Send size={16} />
                 </Button>
               </div>
             </CardContent>

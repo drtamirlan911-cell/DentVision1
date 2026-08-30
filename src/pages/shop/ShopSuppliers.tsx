@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CardSkeleton } from '@/components/ui/ds';
 import { motion } from 'framer-motion';
 import { Truck, MapPin, Phone, Globe, Star } from 'lucide-react';
 import * as api from '../../utils/api';
@@ -21,9 +22,7 @@ export default function ShopSuppliers() {
   }, []);
 
   if (loading) return (
-    <div className="flex justify-center py-16">
-      <div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
-    </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}</div>
   );
 
   return (

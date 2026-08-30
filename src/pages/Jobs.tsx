@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react'
+import { ListSkeleton } from '@/components/ui/ds';
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -182,7 +183,7 @@ export default function JobsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16 text-txt-muted"><Loader2 className="animate-spin" size={22} /></div>
+        <ListSkeleton count={5} />
       ) : vacancies.length === 0 ? (
         <EmptyState
           icon={<Briefcase size={28} />}

@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { ListSkeleton } from '@/components/ui/ds';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -74,7 +75,7 @@ export default function MyClinics() {
   };
 
   if (loading) return (
-    <div className="flex justify-center py-20"><Loader2 size={28} className="animate-spin text-dv-gold" /></div>
+    <div className="dv-page py-6"><ListSkeleton count={3} /></div>
   );
 
   const enterClinic = async (clinicId: string) => {

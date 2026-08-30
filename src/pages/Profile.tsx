@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react'
+import { Skeleton } from '@/components/ui/ds';
 import { useNavigate } from 'react-router-dom'
 import {
   User as UserIcon, Mail, Phone, MapPin, Briefcase, Award, Star,
@@ -191,7 +192,7 @@ export default function Profile() {
   const handleLogout = () => { logout(); navigate('/login') }
 
   if (loading) {
-    return <div className="flex min-h-[50vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" /></div>
+    return <div className="dv-page py-6 space-y-4"><Skeleton className="h-32" /><Skeleton variant="text" lines={5} /></div>
   }
 
   return (

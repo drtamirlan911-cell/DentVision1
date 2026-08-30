@@ -170,9 +170,9 @@ export default function ReferralDetail() {
         )}
 
         {aiMutation.isPending && (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-6 w-6 border-2 border-dv-gold border-t-transparent" />
-            <span className="ml-3 text-sm text-txt-muted">AI генерирует заключение...</span>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-txt-muted">ИИ готовит заключение…</p>
+            <Skeleton variant="text" lines={6} />
           </div>
         )}
 
