@@ -22,6 +22,7 @@ export const queryKeys = {
   priceList: ['priceList'] as const,
   stockRules: ['stockRules'] as const,
   marketing: ['marketing'] as const,
+  contentPlans: ['contentPlans'] as const,
   labOrders: ['labOrders'] as const,
   expenses: ['expenses'] as const,
   promotions: ['promotions'] as const,

@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { Megaphone, Sparkles, Copy, RefreshCw, TrendingDown, Tag, Stethoscope, Info } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Megaphone, Sparkles, RefreshCw, TrendingDown, Tag, Stethoscope, Info, Trash2, History,
+} from 'lucide-react'
 import { Button } from '@/components/ui/ds/Button'
 import { Card } from '@/components/ui/ds/Card'
 import { Badge } from '@/components/ui/ds/Badge'
@@ -9,18 +11,14 @@ import { Select } from '@/components/ui/ds/Input'
 import { Skeleton, ListSkeleton } from '@/components/ui/ds/Skeleton'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
+import { ConfirmModal } from '@/components/ui/ds/Modal'
 import { useToast } from '@/components/ui/ds/Toast'
+import { ContentIdeaCard } from '@/components/crm/ContentIdeaCard'
 import { queryKeys } from '@/queries/keys'
+import { cn } from '@/lib/utils'
 import * as api from '@/utils/api'
-import type { ContentIdea, ContentPlan } from '@/utils/api'
+import type { StoredIdea, StoredPlan, PlanSummary } from '@/utils/api'
 import type { Clinic, User, RoleInfo } from '@/types'
-
-const FORMAT_LABEL: Record<ContentIdea['format'], string> = {
-  post: 'Пост',
-  reels: 'Reels',
-  story: 'Сторис',
-  carousel: 'Карусель',
-}
 
 const TONES = [
   { value: 'спокойная, профессиональная, без давления', label: 'Спокойная и профессиональная' },
@@ -32,17 +30,20 @@ const TONES = [
 /**
  * Контент и продвижение.
  *
- * Идеи строятся на данных, которые в системе уже есть: что в клинике реально
- * делают, по каким ценам, какие акции идут, в каком месяце проседает запись.
- * Каждая идея показывает, на какой факт она опирается — без этого её нельзя
- * отличить от текста, который подошёл бы любой клинике.
+ * Идеи строятся на данных, которые в системе уже есть, и каждая показывает,
+ * на какой факт опирается. Планы сохраняются: до этого работа исчезала вместе
+ * с вкладкой.
  */
 export default function Marketing() {
   const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>()
   const { showToast } = useToast()
+  const queryClient = useQueryClient()
+
   const [count, setCount] = useState('6')
   const [tone, setTone] = useState(TONES[0].value)
-  const [plan, setPlan] = useState<ContentPlan | null>(null)
+  const [openPlanId, setOpenPlanId] = useState<string | null>(null)
+  const [toDelete, setToDelete] = useState<PlanSummary | null>(null)
+  const [busyIdeaId, setBusyIdeaId] = useState<string | null>(null)
 
   const contextQ = useQuery({
     queryKey: [...queryKeys.marketing, 'context', clinic?.id ?? ''],
@@ -50,23 +51,79 @@ export default function Marketing() {
     enabled: !!clinic?.id,
   })
 
-  const planMutation = useMutation({
+  const plansQ = useQuery({
+    queryKey: [...queryKeys.contentPlans, clinic?.id ?? ''],
+    queryFn: () => api.listContentPlans(),
+    enabled: !!clinic?.id,
+  })
+
+  const planQ = useQuery({
+    queryKey: [...queryKeys.contentPlans, 'one', openPlanId ?? ''],
+    queryFn: () => api.getContentPlan(openPlanId as string),
+    enabled: !!openPlanId,
+  })
+
+  const quotaQ = useQuery({
+    queryKey: [...queryKeys.marketing, 'image-quota', clinic?.id ?? ''],
+    queryFn: () => api.getImageQuota(),
+    enabled: !!clinic?.id,
+  })
+
+  const refreshPlans = () => queryClient.invalidateQueries({ queryKey: queryKeys.contentPlans })
+  const refreshQuota = () => queryClient.invalidateQueries({ queryKey: queryKeys.marketing })
+
+  const generate = useMutation({
     mutationFn: () => api.generateContentPlan(Number(count), tone),
-    onSuccess: (res) => {
-      setPlan(res)
+    onSuccess: (plan) => {
+      setOpenPlanId(plan.id)
+      refreshPlans()
       showToast(
-        res.deterministic
-          ? 'План собран из данных клиники, без модели'
-          : `Готово: ${res.ideas.length} идей`,
-        res.deterministic ? 'info' : 'success',
+        plan.deterministic ? 'План собран из данных клиники, без модели' : `Готово: ${plan.ideas.length} идей`,
+        plan.deterministic ? 'info' : 'success',
       )
     },
     onError: (e: Error) => showToast(e.message || 'Не удалось собрать план', 'error'),
   })
 
-  const ctx = contextQ.data
+  const removePlan = useMutation({
+    mutationFn: (id: string) => api.deleteContentPlan(id),
+    onSuccess: (_r, id) => {
+      if (openPlanId === id) setOpenPlanId(null)
+      refreshPlans()
+      showToast('План удалён', 'success')
+    },
+    onError: (e: Error) => showToast(e.message || 'Не удалось удалить', 'error'),
+  })
 
-  const copyIdea = async (idea: ContentIdea) => {
+  const patchIdea = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof api.updateContentIdea>[1] }) =>
+      api.updateContentIdea(id, patch),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.contentPlans })
+      showToast('Правка сохранена', 'success')
+    },
+    onError: (e: Error) => showToast(e.message || 'Не удалось сохранить', 'error'),
+  })
+
+  const makeImages = useMutation({
+    mutationFn: ({ id, kind }: { id: string; kind: 'cover' | 'carousel' }) =>
+      kind === 'cover' ? api.generateIdeaCover(id) : api.generateIdeaCarousel(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.contentPlans })
+      refreshQuota()
+      showToast('Готово', 'success')
+    },
+    onError: (e: Error) => showToast(e.message || 'Не удалось сгенерировать', 'error'),
+    onSettled: () => setBusyIdeaId(null),
+  })
+
+  const ctx = contextQ.data
+  const plans = plansQ.data || []
+  const plan: StoredPlan | undefined = planQ.data
+  const quota = quotaQ.data
+  const canGenerateImages = Boolean(quota?.configured && (quota?.remaining ?? 0) > 0)
+
+  const copyIdea = async (idea: StoredIdea) => {
     const text = [idea.hook, '', idea.caption, '', idea.hashtags.join(' '), '', idea.callToAction].join('\n')
     try {
       await navigator.clipboard.writeText(text)
@@ -74,6 +131,11 @@ export default function Marketing() {
     } catch {
       showToast('Браузер не дал доступ к буферу обмена', 'warning')
     }
+  }
+
+  const runImages = (id: string, kind: 'cover' | 'carousel') => {
+    setBusyIdeaId(id)
+    makeImages.mutate({ id, kind })
   }
 
   return (
@@ -117,7 +179,7 @@ export default function Marketing() {
                     <TrendingDown size={14} className="text-warning shrink-0" />
                     <span>
                       <span className="text-txt-muted">Спад записи: </span>
-                      {ctx.quietestMonth.month} ({ctx.quietestMonth.appointments} приёмов)
+                      {ctx.quietestMonth.month} ({ctx.quietestMonth.appointments})
                     </span>
                   </p>
                 )}
@@ -125,12 +187,6 @@ export default function Marketing() {
                   <p className="m-0 text-txt-secondary">
                     <span className="text-txt-muted">В прайсе есть, но не делают: </span>
                     {ctx.neglectedServices.slice(0, 4).join(', ')}
-                  </p>
-                )}
-                {ctx.frequentDiagnoses.length > 0 && (
-                  <p className="m-0 text-txt-secondary">
-                    <span className="text-txt-muted">Частые диагнозы: </span>
-                    {ctx.frequentDiagnoses.map((d) => `${d.code} (${d.count})`).join(', ')}
                   </p>
                 )}
                 {ctx.appointmentsAnalysed === 0 && (
@@ -144,101 +200,115 @@ export default function Marketing() {
         )}
       </section>
 
-      {/* ── Генерация ── */}
+      {/* ── Сборка ── */}
       <Card padding="md" className="mb-6">
         <div className="flex flex-wrap gap-3 items-end">
           <div className="w-full sm:w-56">
-            <Select
-              label="Тональность"
-              value={tone}
-              onChange={(e) => setTone(e.target.value)}
-              options={TONES}
-              className="min-h-11"
-            />
+            <Select label="Тональность" value={tone} options={TONES} className="min-h-11"
+              onChange={(e) => setTone(e.target.value)} />
           </div>
           <div className="w-full sm:w-36">
-            <Select
-              label="Сколько идей"
-              value={count}
-              onChange={(e) => setCount(e.target.value)}
+            <Select label="Сколько идей" value={count} className="min-h-11"
               options={['3', '6', '9', '12'].map((v) => ({ value: v, label: v }))}
-              className="min-h-11"
-            />
+              onChange={(e) => setCount(e.target.value)} />
           </div>
-          <Button
-            className="min-h-11"
-            icon={plan ? <RefreshCw size={16} /> : <Sparkles size={16} />}
-            loading={planMutation.isPending}
-            onClick={() => planMutation.mutate()}
-          >
-            {plan ? 'Собрать заново' : 'Собрать контент-план'}
+          <Button className="min-h-11" icon={<Sparkles size={16} />}
+            loading={generate.isPending} onClick={() => generate.mutate()}>
+            Собрать контент-план
           </Button>
+          {quota && (
+            <p className="text-2xs text-txt-muted m-0 pb-3">
+              {quota.configured
+                ? `Картинок сегодня: ${quota.remaining} из ${quota.limit}`
+                : 'Генерация картинок не настроена'}
+            </p>
+          )}
         </div>
       </Card>
 
-      {/* ── План ── */}
-      {planMutation.isPending ? (
-        <ListSkeleton count={4} />
-      ) : !plan ? (
-        <EmptyState
-          icon={<Megaphone size={28} />}
-          title="Плана пока нет"
-          description="Соберите контент-план — идеи возьмутся из услуг, цен, акций и загрузки вашей клиники."
-        />
-      ) : (
-        <div className="space-y-3">
-          {plan.deterministic && (
-            <div className="rounded-xl border border-bdr-subtle bg-surface-1 px-4 py-3">
-              <p className="text-sm text-txt-secondary m-0">
-                План собран без языковой модели — только из фактов клиники. Формулировки суше,
-                но ничего не выдумано.
-              </p>
+      {/* ── История планов ── */}
+      <section className="mb-6">
+        <h2 className="text-sm font-bold text-txt-primary mb-2">Сохранённые планы</h2>
+        {plansQ.isLoading ? (
+          <ListSkeleton count={3} />
+        ) : plans.length === 0 ? (
+          <EmptyState
+            icon={<History size={28} />}
+            title="Планов пока нет"
+            description="Соберите первый — он сохранится и будет доступен завтра."
+          />
+        ) : (
+          <div className="space-y-2">
+            {plans.map((p) => (
+              <Card key={p.id} padding="md"
+                className={cn('cursor-pointer transition-colors', openPlanId === p.id && 'border-dv-gold/40')}
+                onClick={() => setOpenPlanId(openPlanId === p.id ? null : p.id)}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-txt-primary m-0">{p.title}</p>
+                    <p className="text-2xs text-txt-muted m-0 mt-0.5">
+                      {new Date(p.createdAt).toLocaleDateString('ru-RU')} · идей: {p.ideaCount}
+                      {p.deterministic && ' · без модели'}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="icon-sm"
+                    className="min-h-11 min-w-11 text-error/70 hover:text-error"
+                    icon={<Trash2 size={14} />} aria-label={`Удалить план: ${p.title}`}
+                    onClick={(e) => { e.stopPropagation(); setToDelete(p) }} />
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Открытый план ── */}
+      {openPlanId && (
+        <section>
+          <h2 className="text-sm font-bold text-txt-primary mb-2">
+            {plan?.title || 'План'}
+          </h2>
+          {planQ.isLoading ? (
+            <ListSkeleton count={4} />
+          ) : !plan ? (
+            <Card padding="md">
+              <p className="text-sm text-txt-muted m-0">План не найден.</p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {plan.deterministic && (
+                <div className="rounded-xl border border-bdr-subtle bg-surface-1 px-4 py-3">
+                  <p className="text-sm text-txt-secondary m-0">
+                    План собран без языковой модели — только из фактов клиники. Формулировки
+                    суше, но ничего не выдумано.
+                  </p>
+                </div>
+              )}
+              {plan.ideas.map((idea) => (
+                <ContentIdeaCard
+                  key={idea.id}
+                  idea={idea}
+                  canGenerateImages={canGenerateImages}
+                  busyImage={busyIdeaId === idea.id}
+                  onCopy={() => copyIdea(idea)}
+                  onSave={(patch) => patchIdea.mutate({ id: idea.id, patch })}
+                  onCover={() => runImages(idea.id, 'cover')}
+                  onCarousel={() => runImages(idea.id, 'carousel')}
+                />
+              ))}
             </div>
           )}
-
-          {plan.ideas.map((idea, i) => (
-            <Card key={`${idea.title}-${i}`} padding="md">
-              <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-bold text-txt-primary m-0">{idea.title}</h3>
-                    <Badge variant="info" size="sm">{FORMAT_LABEL[idea.format] || idea.format}</Badge>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="min-h-11"
-                  icon={<Copy size={14} />}
-                  onClick={() => copyIdea(idea)}
-                >
-                  Копировать
-                </Button>
-              </div>
-
-              <p className="text-sm font-semibold text-dv-gold m-0 mb-2">{idea.hook}</p>
-              <p className="text-sm text-txt-secondary whitespace-pre-wrap m-0 mb-3">{idea.caption}</p>
-
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {idea.hashtags.map((h) => (
-                  <span key={h} className="text-2xs text-txt-muted">{h.startsWith('#') ? h : `#${h}`}</span>
-                ))}
-              </div>
-
-              <div className="rounded-lg bg-surface-1 border border-bdr-subtle p-3 space-y-1">
-                <p className="text-2xs text-txt-muted m-0">
-                  <span className="font-bold">Призыв: </span>{idea.callToAction}
-                </p>
-                {/* Главное поле карточки: без него идея неотличима от текста,
-                    который подошёл бы любой клинике. */}
-                <p className="text-2xs text-txt-muted m-0">
-                  <span className="font-bold">Опирается на: </span>{idea.basedOn}
-                </p>
-              </div>
-            </Card>
-          ))}
-        </div>
+        </section>
       )}
+
+      <ConfirmModal
+        open={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => { if (toDelete) removePlan.mutate(toDelete.id) }}
+        title="Удалить план?"
+        message={toDelete ? `«${toDelete.title}» и все ${toDelete.ideaCount} идей будут удалены безвозвратно.` : ''}
+        confirmLabel="Удалить"
+      />
     </div>
   )
 }

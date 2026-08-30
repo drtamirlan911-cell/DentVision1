@@ -833,10 +833,84 @@ export async function getMarketingContext(): Promise<MarketingContext> {
   return apiRequest('/api/marketing/context');
 }
 
-export async function generateContentPlan(count = 6, tone?: string): Promise<ContentPlan> {
+export interface StoredIdea extends ContentIdea {
+  id: string;
+  position: number;
+  /** Текст правил человек — карточка перестаёт выдавать его за машинный. */
+  edited: boolean;
+  coverUrl: string | null;
+  slideUrls: string[];
+}
+
+export interface StoredPlan {
+  id: string;
+  title: string;
+  tone: string | null;
+  deterministic: boolean;
+  createdAt: string;
+  ideas: StoredIdea[];
+  context: MarketingContext;
+}
+
+export interface PlanSummary {
+  id: string;
+  title: string;
+  deterministic: boolean;
+  ideaCount: number;
+  createdAt: string;
+}
+
+export interface ImageQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+  /** Генерация настроена: есть и ключ модели, и объектное хранилище. */
+  configured: boolean;
+}
+
+/** Собрать план и сразу сохранить — он больше не живёт только во вкладке. */
+export async function generateContentPlan(count = 6, tone?: string): Promise<StoredPlan> {
   return apiRequest('/api/marketing/content-plan', {
     method: 'POST',
     body: JSON.stringify({ count, tone }),
+  });
+}
+
+export async function listContentPlans(limit = 20): Promise<PlanSummary[]> {
+  return collection(await apiRequest(`/api/marketing/content-plans?limit=${limit}`));
+}
+
+export async function getContentPlan(id: string): Promise<StoredPlan> {
+  return apiRequest(`/api/marketing/content-plans/${id}`);
+}
+
+export async function deleteContentPlan(id: string): Promise<void> {
+  await apiRequest(`/api/marketing/content-plans/${id}`, { method: 'DELETE' });
+}
+
+/** Правка текстов идеи. `basedOn` не отправляем — сервер его и не примет. */
+export async function updateContentIdea(
+  id: string,
+  patch: { title?: string; hook?: string; caption?: string; hashtags?: string[]; callToAction?: string },
+): Promise<StoredIdea> {
+  return apiRequest(`/api/marketing/content-ideas/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function getImageQuota(): Promise<ImageQuota> {
+  return apiRequest('/api/marketing/image-quota');
+}
+
+export async function generateIdeaCover(id: string): Promise<StoredIdea> {
+  return apiRequest(`/api/marketing/content-ideas/${id}/cover`, { method: 'POST' });
+}
+
+export async function generateIdeaCarousel(id: string, slides = 3): Promise<StoredIdea> {
+  return apiRequest(`/api/marketing/content-ideas/${id}/carousel`, {
+    method: 'POST',
+    body: JSON.stringify({ slides }),
   });
 }
 
