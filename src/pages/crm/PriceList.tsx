@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { DollarSign, Download, Edit, RotateCcw, Plus, Search, Clock, Percent } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -106,18 +106,21 @@ export default function PriceList() {
     [customServices],
   )
 
-  const getServicePrice = (serviceId: string, basePrice?: number): number => {
+  // useCallback, чтобы средняя маржа ниже могла честно указать их в
+  // зависимостях: обе читают состояние прайса, и без стабильной ссылки
+  // мемо пришлось бы перечислять это состояние в обход самих функций.
+  const getServicePrice = useCallback((serviceId: string, basePrice?: number): number => {
     const custom = clinicPrices[serviceId]
     if (custom !== undefined) return custom
     const base = ALL_SERVICES.find(s => s.id === serviceId)
     return base?.price ?? basePrice ?? 0
-  }
+  }, [clinicPrices])
 
-  const getMatCost = (service: ServiceRow): number => {
+  const getMatCost = useCallback((service: ServiceRow): number => {
     const own = clinicMatCosts[service.id]
     if (own !== undefined) return own
     return service.matCost ?? 0
-  }
+  }, [clinicMatCosts])
 
   const handleSavePrice = async (
     serviceId: string,
@@ -267,7 +270,7 @@ export default function PriceList() {
     if (!rows.length) return 0
     const total = rows.reduce((sum, r) => sum + (r.price - r.mat) / r.price, 0)
     return Math.round((total / rows.length) * 100)
-  }, [filteredServices, clinicPrices, clinicMatCosts])
+  }, [filteredServices, getServicePrice, getMatCost])
 
   return (
     <div className="dv-page py-4 md:py-6 max-w-full overflow-x-hidden">
