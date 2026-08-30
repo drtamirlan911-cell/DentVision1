@@ -797,6 +797,49 @@ export async function getInventorySuggestions(q: string, limit = 12): Promise<In
   return (res?.suggestions || []) as InventorySuggestion[];
 }
 
+export interface MarketingContext {
+  clinicName: string;
+  city: string | null;
+  topServices: Array<{ name: string; count: number; averagePrice: number }>;
+  neglectedServices: string[];
+  activePromotions: Array<{ title: string; description: string | null; discountPercent: number; endsAt: string | null }>;
+  busiestMonth: { month: string; appointments: number } | null;
+  quietestMonth: { month: string; appointments: number } | null;
+  frequentDiagnoses: Array<{ code: string; count: number }>;
+  doctorCount: number;
+  appointmentsAnalysed: number;
+}
+
+export interface ContentIdea {
+  title: string;
+  format: 'post' | 'reels' | 'story' | 'carousel';
+  hook: string;
+  caption: string;
+  hashtags: string[];
+  callToAction: string;
+  /** Факт из данных клиники, на котором стоит идея. */
+  basedOn: string;
+}
+
+export interface ContentPlan {
+  ideas: ContentIdea[];
+  context: MarketingContext;
+  /** true — план собран без модели, из одних фактов. */
+  deterministic: boolean;
+}
+
+/** Факты о клинике, на которых строится контент. Без обращения к модели. */
+export async function getMarketingContext(): Promise<MarketingContext> {
+  return apiRequest('/api/marketing/context');
+}
+
+export async function generateContentPlan(count = 6, tone?: string): Promise<ContentPlan> {
+  return apiRequest('/api/marketing/content-plan', {
+    method: 'POST',
+    body: JSON.stringify({ count, tone }),
+  });
+}
+
 export interface StockRuleLine {
   id?: string;
   itemId: string;

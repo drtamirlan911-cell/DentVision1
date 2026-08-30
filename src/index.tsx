@@ -71,6 +71,7 @@ const PriceList = lazyWithRetry(() => import('./pages/crm/PriceList'));
 const Promotions = lazyWithRetry(() => import('./pages/crm/Promotions'));
 const Inventory = lazyWithRetry(() => import('./pages/crm/Inventory'));
 const StockRules = lazyWithRetry(() => import('./pages/crm/StockRules'));
+const Marketing = lazyWithRetry(() => import('./pages/crm/Marketing'));
 const MedicalCard = lazyWithRetry(() => import('./pages/crm/MedicalCard'));
 const ICD10 = lazyWithRetry(() => import('./pages/crm/ICD10'));
 const Visits = lazyWithRetry(() => import('./pages/crm/Visits'));
@@ -186,6 +187,7 @@ if (container) {
                   <Route path="crm/lab" element={guarded('lab', <Lab />)} />
                   <Route path="crm/inventory" element={guarded('inventory', <Inventory />)} />
                   <Route path="crm/stock-rules" element={guarded('inventory', <StockRules />)} />
+                  <Route path="crm/marketing" element={guarded('promotions', <Marketing />)} />
                   <Route path="crm/promotions" element={guarded('promotions', <Promotions />)} />
                   <Route path="crm/staff" element={guarded('staff', <Staff />)} />
                   <Route path="crm/medical-card" element={guarded('medical-card', <MedicalCard />)} />
