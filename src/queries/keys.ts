@@ -19,6 +19,7 @@ export const queryKeys = {
   notifications: ['notifications'] as const,
   receipts: ['receipts'] as const,
   inventory: ['inventory'] as const,
+  priceList: ['priceList'] as const,
   labOrders: ['labOrders'] as const,
   expenses: ['expenses'] as const,
   promotions: ['promotions'] as const,

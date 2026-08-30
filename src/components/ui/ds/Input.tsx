@@ -254,10 +254,23 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 
 Textarea.displayName = 'Textarea'
 
+interface SelectOption {
+  value: string
+  label: string
+  /**
+   * Заголовок группы, в которую попадает опция.
+   *
+   * Задан хотя бы у одной — список рисуется через `<optgroup>`. Без этого
+   * длинный справочник (155 услуг прайса) превращается в плоскую простыню,
+   * по которой невозможно ориентироваться.
+   */
+  group?: string
+}
+
 interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
   label?: string
   error?: string
-  options: { value: string; label: string }[]
+  options: SelectOption[]
   placeholder?: string
   size?: 'sm' | 'md' | 'lg'
 }
@@ -266,6 +279,28 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, label, error, options, placeholder, size = 'md', ...props }, ref) => {
     const generatedId = React.useId()
     const selectId = props.id || generatedId
+
+    /**
+     * Группы в порядке первого появления — порядок опций, который задал
+     * вызывающий, остаётся значимым (категории прайса идут не по алфавиту).
+     * `null`, когда групп нет: тогда рисуем плоский список, как раньше.
+     */
+    const groups = React.useMemo(() => {
+      if (!options.some((o) => o.group)) return null
+      const ordered: Array<[string, SelectOption[]]> = []
+      const index = new Map<string, SelectOption[]>()
+      for (const opt of options) {
+        const key = opt.group || ''
+        let bucket = index.get(key)
+        if (!bucket) {
+          bucket = []
+          index.set(key, bucket)
+          ordered.push([key, bucket])
+        }
+        bucket.push(opt)
+      }
+      return ordered
+    }, [options])
 
     return (
       <div className="space-y-1.5">
@@ -288,11 +323,31 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             {placeholder && (
               <option value="">{placeholder}</option>
             )}
-            {options.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
+            {groups
+              ? groups.map(([groupLabel, groupOptions]) =>
+                  groupLabel ? (
+                    <optgroup key={groupLabel} label={groupLabel}>
+                      {groupOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    // Опции без группы (обычно «— не выбрано —») остаются
+                    // на верхнем уровне, иначе они уезжают под чужой заголовок.
+                    groupOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))
+                  ),
+                )
+              : options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
           </select>
           <ChevronDown
             size={16}

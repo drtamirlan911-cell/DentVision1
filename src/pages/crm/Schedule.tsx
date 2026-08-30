@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '@/queries/useDataQuery'
+import { useClinicPriceList } from '@/queries/priceList.query'
+import { snapDuration } from '@/lib/clinicPrices'
 import { queryKeys } from '@/queries/keys'
 import * as api from '@/utils/api'
 import {
@@ -96,6 +98,8 @@ export default function Schedule() {
     upsertWaitingListItem, deleteWaitingListItem,
     isLoading: crmLoading, isError: crmError, refetchCore,
   } = useDataQuery(clinicId)
+
+  const { services: pricedServices } = useClinicPriceList(clinicId)
 
   const queryClient = useQueryClient()
   const chairsQ = useQuery({
@@ -295,8 +299,20 @@ export default function Schedule() {
     return list
   }, [doctors, selectedDoctorFilter, appointments, user, clinic?.id])
 
-  const serviceOptions = [{ value: '', label: '— Выберите услугу —' }, ...ALL_SERVICES.map(s => ({ value: s.id, label: `${s.name} — ${tg(s.price)}` }))]
-  const selectedService = ALL_SERVICES.find(s => s.id === form.service)
+  // Цены берём из прайса клиники, а не из справочника: клиника, поднявшая
+  // прайс, иначе видит при записи одну сумму, а в чеке — другую.
+  const serviceOptions = useMemo(
+    () => [
+      { value: '', label: '— Выберите услугу —' },
+      ...pricedServices.map(s => ({
+        value: s.id,
+        label: `${s.name} — ${tg(s.clinicPrice)}`,
+        group: s.cat,
+      })),
+    ],
+    [pricedServices],
+  )
+  const selectedService = pricedServices.find(s => s.id === form.service)
 
   const openNew = (): void => { setEditAppt(null); setForm(EMPTY_FORM); setShowNewPatient(false); setNewPatient(EMPTY_PATIENT); setModalOpen(true) }
   const openSlotBooking = (time: string, doctorId: string, chairId = ''): void => {
@@ -361,7 +377,7 @@ export default function Schedule() {
       patientId,
       serviceId: form.service,
       serviceName: selectedService?.name || form.service,
-      servicePrice: selectedService?.price || 0,
+      servicePrice: selectedService?.clinicPrice || 0,
       reason: selectedService?.name || form.service,
       diagnosis: form.diagnosis,
       toothNumber: form.toothNumber,
@@ -484,8 +500,8 @@ export default function Schedule() {
     if (!appt) return 0
     const price = Number(appt.servicePrice || 0)
     if (price > 0) return price
-    const fromCatalog = ALL_SERVICES.find((s) => s.id === appt.service || s.name === appt.service || s.name === appt.serviceName)
-    return Number(fromCatalog?.price || 0)
+    const fromCatalog = pricedServices.find((s) => s.id === appt.service || s.name === appt.service || s.name === appt.serviceName)
+    return Number(fromCatalog?.clinicPrice || 0)
   }
 
   const openAcceptPayment = (appt: Appointment, opts?: { closeVisit?: boolean }) => {
@@ -1274,7 +1290,21 @@ export default function Schedule() {
             options={[{ value: '', label: '— Без кресла —' }, ...chairs.map((c) => ({ value: c.id, label: c.name }))]}
           />
           <Select label="Услуга из прайса" value={form.service}
-            onChange={e => { const svc = ALL_SERVICES.find(s => s.id === e.target.value); setForm({ ...form, service: e.target.value }); if (svc) { setForm(f => ({ ...f, serviceName: svc.name, servicePrice: svc.price })); } }}
+            onChange={e => {
+              const svc = pricedServices.find(s => s.id === e.target.value)
+              setForm({ ...form, service: e.target.value })
+              if (svc) {
+                // Длительность подставляем только у новой записи: у уже
+                // существующей врач мог развести время под себя.
+                const snapped = editAppt ? undefined : snapDuration(svc.durationMin)
+                setForm(f => ({
+                  ...f,
+                  serviceName: svc.name,
+                  servicePrice: svc.clinicPrice,
+                  ...(snapped ? { duration: snapped } : {}),
+                }))
+              }
+            }}
             options={serviceOptions} required />
 
           <div className={cn('grid grid-cols-1 gap-2', editAppt ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
