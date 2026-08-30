@@ -53,7 +53,11 @@ jobs:
       # 71: jobs/biSnapshotCron.ts's boot-log line, matching every other cron
       # job's own console.log("[xCron] started...") — the ceiling had zero
       # headroom left, so this one in-pattern line needed the bump.
-      - run: npx eslint src/ --max-warnings 71
+      # 72: index.ts reports how many clinics had their legacy auto-deduct
+      # string converted into stock rules — the only signal that the
+      # conversion ran, and written exactly like the center-subscriptions
+      # backfill log a few lines below it.
+      - run: npx eslint src/ --max-warnings 72
         working-directory: dentvision-backend
 
   e2e:
