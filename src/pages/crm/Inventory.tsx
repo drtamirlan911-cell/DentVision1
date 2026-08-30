@@ -1,7 +1,7 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign, ShoppingCart, History } from 'lucide-react'
+import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign, ShoppingCart, History, PackageMinus } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -202,9 +202,15 @@ export default function Inventory() {
         subtitle={`${clinic?.name} · ${stats.total} позиций`}
         icon={<Package size={20} />}
         actions={
-          <Button className="min-h-11" icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
-            Добавить товар
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button className="min-h-11" icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
+              Добавить товар
+            </Button>
+            <Button variant="secondary" className="min-h-11" icon={<PackageMinus size={16} />}
+              onClick={() => navigate('/crm/stock-rules')}>
+              Списание после приёма
+            </Button>
+          </div>
         }
       />
 

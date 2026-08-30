@@ -797,6 +797,61 @@ export async function getInventorySuggestions(q: string, limit = 12): Promise<In
   return (res?.suggestions || []) as InventorySuggestion[];
 }
 
+export interface StockRuleLine {
+  id?: string;
+  itemId: string;
+  quantity: number;
+  item?: { id: string; name: string; unit: string | null; quantity: number };
+}
+
+export interface StockRule {
+  id: string;
+  scope: 'always' | 'service' | 'diagnosis';
+  matchKey: string;
+  label: string | null;
+  active: boolean;
+  items: StockRuleLine[];
+}
+
+/** Правила списания расходников после приёма. */
+export async function getStockRules(): Promise<StockRule[]> {
+  return collection(await apiRequest('/api/stock-rules'));
+}
+
+export async function saveStockRule(data: {
+  scope: 'always' | 'service' | 'diagnosis';
+  matchKey?: string;
+  label?: string | null;
+  active?: boolean;
+  items: Array<{ itemId: string; quantity: number }>;
+}): Promise<StockRule> {
+  return apiRequest('/api/stock-rules', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function deleteStockRule(id: string): Promise<void> {
+  await apiRequest(`/api/stock-rules/${id}`, { method: 'DELETE' });
+}
+
+export interface StockDeductionPreviewLine {
+  itemId: string;
+  itemName: string;
+  unit: string | null;
+  quantity: number;
+  available: number;
+  sources: string[];
+}
+
+/** Что спишется за приём с такими услугами и диагнозом — до самого приёма. */
+export async function previewStockDeduction(
+  serviceCodes: string[],
+  diagnosis?: string,
+): Promise<StockDeductionPreviewLine[]> {
+  const params = new URLSearchParams();
+  if (serviceCodes.length) params.set('services', serviceCodes.join(','));
+  if (diagnosis) params.set('diagnosis', diagnosis);
+  return collection(await apiRequest(`/api/stock-rules/preview?${params.toString()}`));
+}
+
 export interface InventoryMovementRow {
   id: string;
   delta: number;

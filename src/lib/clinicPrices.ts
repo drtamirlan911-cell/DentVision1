@@ -79,11 +79,15 @@ const DURATION_STEPS = [30, 45, 60, 90, 120]
  *
  * Справочник знает точное время (например 75 или 130 минут), а форма
  * предлагает пять шагов — подставлять надо ближайший, а не игнорировать.
+ *
+ * Ничья разрешается вверх (75 минут → 90, а не 60): лишние пятнадцать минут
+ * кресла двигают следующего пациента, а нехватка сажает его встык к приёму,
+ * который ещё идёт.
  */
 export function snapDuration(minutes: number | undefined | null): number | undefined {
   const m = Number(minutes)
   if (!Number.isFinite(m) || m <= 0) return undefined
   return DURATION_STEPS.reduce((best, step) =>
-    Math.abs(step - m) < Math.abs(best - m) ? step : best,
+    Math.abs(step - m) <= Math.abs(best - m) ? step : best,
   )
 }

@@ -103,7 +103,6 @@ export interface ClinicSettings {
   taxPercent?: number
   notifyNoShow?: boolean
   requireChair?: boolean
-  autoDeductItems?: string
   /** Schedule conflict behaviour: warn-and-allow (default) or hard block. */
   scheduleConflictMode?: 'warn' | 'block'
   /** Doctor commission base: from net (revenue − materials, default) or gross. */

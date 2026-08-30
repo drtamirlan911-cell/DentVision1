@@ -24,6 +24,7 @@ import { appointmentsRouter } from './modules/appointments/appointments.routes.j
 import { medicalRouter } from './modules/medical/medical.routes.js';
 import { billingRouter } from './modules/billing/billing.routes.js';
 import { inventoryRouter } from './modules/inventory/inventory.routes.js';
+import { stockRulesRouter } from './modules/inventory/deductionRules.routes.js';
 import { shopRouter } from './modules/shop/shop.routes.js';
 import { schoolRouter } from './modules/school/school.routes.js';
 import { aiRouter } from './modules/ai/ai.routes.js';
@@ -281,6 +282,7 @@ app.use('/api/payments', paymentsRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/clinic-billing', clinicBillingRouter);
 app.use('/api/inventory', inventoryRouter);
+app.use('/api/stock-rules', stockRulesRouter);
 app.use('/api/shop', shopRouter);
 app.use('/api/suppliers', suppliersRouter);
 app.use('/api/supplier', supplierWorkspaceRouter);
