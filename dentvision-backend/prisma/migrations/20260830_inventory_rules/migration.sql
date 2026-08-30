@@ -5,6 +5,7 @@
 
 ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "sku" TEXT;
 ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "productId" TEXT;
+ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "expiryDate" TIMESTAMP(3);
 ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "autoRestock" BOOLEAN NOT NULL DEFAULT true;
 
 CREATE INDEX IF NOT EXISTS "inventory_clinicId_productId_idx" ON "inventory"("clinicId", "productId");

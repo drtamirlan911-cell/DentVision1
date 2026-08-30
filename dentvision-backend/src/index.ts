@@ -241,6 +241,7 @@ async function main() {
   await runOnceMigration('inventory_deduction_rules', 'Inventory movements & deduction rules', async (tx) => {
     await tx.$executeRawUnsafe(`ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "sku" TEXT`);
     await tx.$executeRawUnsafe(`ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "productId" TEXT`);
+    await tx.$executeRawUnsafe(`ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "expiryDate" TIMESTAMP(3)`);
     await tx.$executeRawUnsafe(`ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "autoRestock" BOOLEAN NOT NULL DEFAULT true`);
     await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "inventory_clinicId_productId_idx" ON "inventory"("clinicId", "productId")`);
 

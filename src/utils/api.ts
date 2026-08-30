@@ -724,15 +724,91 @@ export async function upsertExpense(data: Partial<Expense>): Promise<any> {
   return apiRequest('/api/crm/expenses', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertInventoryItem(data: Partial<InventoryItem>): Promise<any> {
+/** Поля склада на бэкенде зовутся иначе, чем в UI: minimum/price против minQuantity/cost. */
+function inventoryPayload(data: Partial<InventoryItem>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  if (data.minQuantity !== undefined || data.min !== undefined) {
+    out.minimum = data.minQuantity ?? data.min ?? 0;
+  }
+  const cost = (data as any).cost ?? (data as any).price;
+  if (cost !== undefined) out.price = cost;
+  // `id` на создании не нужен — сервер выдаёт свой; на обновлении он в пути.
+  delete out.id;
+  return out;
+}
+
+export async function createInventoryItem(data: Partial<InventoryItem>): Promise<any> {
   return apiRequest('/api/inventory', {
     method: 'POST',
-    body: JSON.stringify({
-      ...data,
-      minimum: data.minQuantity ?? data.min ?? 0,
-      price: (data as any).cost ?? (data as any).price,
-    }),
+    body: JSON.stringify({ quantity: 0, ...inventoryPayload(data) }),
   });
+}
+
+export async function updateInventoryItem(id: string, data: Partial<InventoryItem>): Promise<any> {
+  return apiRequest(`/api/inventory/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(inventoryPayload(data)),
+  });
+}
+
+/**
+ * Создать или обновить позицию склада.
+ *
+ * Раньше эта функция всегда слала POST, а POST на бэкенде всегда создаёт
+ * новую строку с новым идентификатором. То есть редактирование позиции и
+ * каждый клик «+/−» заводили на складе дубликат.
+ */
+export async function upsertInventoryItem(data: Partial<InventoryItem>): Promise<any> {
+  return data.id ? updateInventoryItem(String(data.id), data) : createInventoryItem(data);
+}
+
+/**
+ * Приход или списание на заданное число единиц.
+ *
+ * Отдельно от обновления позиции: остаток меняется движением, поэтому
+ * «+1» — это приход в журнале, а не новое значение поля, затирающее то,
+ * что параллельно списал закрытый приём.
+ */
+export async function adjustInventoryItem(id: string, delta: number, note?: string): Promise<any> {
+  return apiRequest(`/api/inventory/${id}/adjust`, {
+    method: 'POST',
+    body: JSON.stringify({ delta, note }),
+  });
+}
+
+export interface InventorySuggestion {
+  key: string;
+  source: 'clinic' | 'shop' | 'preset' | 'catalog';
+  name: string;
+  category: string | null;
+  unit: string | null;
+  price: number | null;
+  supplier: string | null;
+  sku: string | null;
+  productId: string | null;
+  existingItemId: string | null;
+  existingQuantity: number | null;
+  stock: number | null;
+}
+
+/** Подсказки товаров при добавлении позиции вручную. */
+export async function getInventorySuggestions(q: string, limit = 12): Promise<InventorySuggestion[]> {
+  const res = await apiRequest(`/api/inventory/suggest?q=${encodeURIComponent(q)}&limit=${limit}`);
+  return (res?.suggestions || []) as InventorySuggestion[];
+}
+
+export interface InventoryMovementRow {
+  id: string;
+  delta: number;
+  reason: string;
+  refType: string | null;
+  refId: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export async function getInventoryMovements(id: string, limit = 50): Promise<InventoryMovementRow[]> {
+  return collection(await apiRequest(`/api/inventory/${id}/movements?limit=${limit}`));
 }
 
 export async function upsertUser(data: Partial<User> & { clinicId?: string; password?: string; login?: string }): Promise<any> {
