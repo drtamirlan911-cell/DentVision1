@@ -239,6 +239,7 @@ model Clinic {
   inventory           InventoryItem[]
   inventoryMovements  InventoryMovement[]
   stockDeductionRules StockDeductionRule[]
+  contentPlans        ContentPlan[]
   orders              Order[]
   waitingList         WaitingList[]
   expenses            Expense[]
@@ -993,6 +994,107 @@ model StockDeductionRule {
   @@unique([clinicId, scope, matchKey])
   @@index([clinicId, active])
   @@map("stock_deduction_rules")
+}
+
+// --- КОНТЕНТ И ПРОДВИЖЕНИЕ ---
+
+/// Сохранённый контент-план клиники.
+model ContentPlan {
+  id       String @id @default(uuid())
+  clinicId String
+
+  /// Имя плана; по умолчанию — дата сборки.
+  title String?
+
+  /// Тональность, с которой план собирали, — чтобы «собрать заново» повторило условия.
+  tone String?
+
+  /// Снимок фактуры клиники на момент сборки.
+  ///
+  /// План, собранный в феврале, объясняет себя февральскими фактами. Без
+  /// снимка строка «опирается на спад записи в феврале» через полгода не
+  /// проверяется — а проверяемость и есть весь смысл поля `basedOn`.
+  contextSnapshot Json
+
+  /// План собран без языковой модели, из одних фактов.
+  deterministic Boolean @default(false)
+
+  createdByUserId String?
+
+  clinic Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  ideas  ContentIdea[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId, createdAt])
+  @@map("content_plans")
+}
+
+/// Одна идея поста внутри плана.
+model ContentIdea {
+  id       String @id @default(uuid())
+  planId   String
+  position Int
+
+  title        String
+  /// post | reels | story | carousel
+  format       String
+  hook         String
+  caption      String
+  hashtags     Json
+  callToAction String
+
+  /// Факт из данных клиники, на котором построена идея.
+  ///
+  /// Правке не подлежит: это происхождение идеи, а не копирайт. Разрешить его
+  /// менять значило бы позволить сочинить обоснование задним числом, и поле
+  /// перестало бы что-либо значить.
+  basedOn String
+
+  /// Текст правил человек — карточка перестаёт выдавать его за машинный.
+  edited Boolean @default(false)
+
+  /// Обложка: `s3://<key>`, см. lib/storage.ts::toStorageUrl.
+  coverUrl String?
+
+  /// Слайды карусели по порядку: ["s3://…", …].
+  slideUrls Json?
+
+  /// Промпт обложки — чтобы повтор был воспроизводим.
+  imagePrompt String?
+
+  plan ContentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@unique([planId, position])
+  @@index([planId])
+  @@map("content_ideas")
+}
+
+/// Кэш сгенерированных картинок — та же роль, что у VoiceAsset для озвучки.
+///
+/// Ключ содержательный: одинаковый промпт того же размера генерируется на
+/// платформе один раз. Картинки — первая функция в проекте с оплатой за штуку,
+/// и повторный клик не должен стоить денег.
+model MarketingAsset {
+  id String @id @default(uuid())
+
+  /// sha256(provider|model|size|prompt)
+  cacheKey String @unique
+  model    String
+  size     String
+
+  /// `s3://<key>` — см. lib/storage.ts::toStorageUrl.
+  storageUrl String
+  bytes      Int
+
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@map("marketing_assets")
 }
 
 /// Строка правила: сколько единиц конкретной позиции склада уходит.
