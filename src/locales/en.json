@@ -68,6 +68,7 @@
     "admin": "Platform",
     "audit": "Audit",
     "agent_activity": "AI Activity",
+    "ai_approvals": "AI Approvals",
     "backup": "Backups",
     "pricing": "Pricing",
     "demo": "Demo Clinic",

@@ -9,6 +9,8 @@
  * hard clinic tasks, and stop escalating when the soft full-day budget is gone.
  */
 
+import { counterKeys, incrementDaily, readDaily } from '../../../lib/dailyCounter.js';
+
 export type ModelTier = 'mini' | 'full';
 export type ModelMode = 'auto' | 'mini' | 'full';
 
@@ -16,8 +18,23 @@ export interface ModelChoice {
   model: string;
   tier: ModelTier;
   reasoningEffort: 'low' | 'medium' | 'high';
+  /** False for models with no reasoning mode — the parameter is then omitted. */
+  supportsReasoning: boolean;
   maxOutputTokens: number;
   reason: string;
+}
+
+/**
+ * Which families take a `reasoning` parameter.
+ *
+ * It used to be sent unconditionally, including to `gpt-4o`, which has no
+ * reasoning mode. Kept as a small maintained pattern rather than a per-model
+ * table: a new family costs one alternative here.
+ */
+const REASONING_MODEL_RE = /^(o\d|gpt-5)/i;
+
+export function supportsReasoning(model: string): boolean {
+  return REASONING_MODEL_RE.test(String(model || '').trim());
 }
 
 export interface ModelUsageSnapshot {
@@ -31,8 +48,6 @@ export interface ModelUsageSnapshot {
 const COMPLEX_RE =
   /анализ|стратег|сравни|почему|разбер|объясни подробно|план\s+лечен|дифференц|прогноз|аудит|оптимиз|риск|многошаг|комплексн|сводн(ый|ая)\s+отч[её]т|deep\s*dive|analyze|compare|why\b|treatment\s+plan/i;
 
-const DEFAULT_MINI_MODEL = 'gpt-5.4-mini';
-const DEFAULT_FULL_MODEL = 'gpt-5.4';
 const DEFAULT_MINI_BUDGET = 2_400_000;
 const DEFAULT_FULL_BUDGET = 240_000;
 
@@ -74,11 +89,20 @@ export function isComplexQuery(
   return COMPLEX_RE.test(t);
 }
 
-export function recordModelUsage(tier: ModelTier, tokens: number): void {
+/**
+ * Record what a call cost.
+ *
+ * Written to the shared daily counter when Redis is available, so the budget
+ * is one number across instances instead of one per process, and survives a
+ * restart. The in-memory tally is kept in step regardless — it is the fallback
+ * and what `getModelUsageSnapshot` reports.
+ */
+export async function recordModelUsage(tier: ModelTier, tokens: number): Promise<void> {
   ensureDay();
   const n = Math.max(0, Math.floor(tokens));
   if (tier === 'full') fullUsed += n;
   else miniUsed += n;
+  await incrementDaily(counterKeys.modelBudget(tier), n);
 }
 
 export function getModelUsageSnapshot(): ModelUsageSnapshot {
@@ -111,8 +135,9 @@ export function pickModel(input: {
   /** Force escalate after a weak mini reply / empty output. */
   escalate?: boolean;
   mode?: ModelMode;
-  miniModel?: string;
-  fullModel?: string;
+  /** Resolved by `modelCatalog`; required, so no stale default can win here. */
+  miniModel: string;
+  fullModel: string;
   reasoningEffort?: 'low' | 'medium' | 'high';
   miniUsed?: number;
   fullUsed?: number;
@@ -121,8 +146,7 @@ export function pickModel(input: {
 }): ModelChoice {
   ensureDay();
   const mode = input.mode ?? 'auto';
-  const miniModel = input.miniModel ?? DEFAULT_MINI_MODEL;
-  const fullModel = input.fullModel ?? DEFAULT_FULL_MODEL;
+  const { miniModel, fullModel } = input;
   const effort = input.reasoningEffort ?? 'low';
   const miniBudget = input.miniBudget ?? configuredMiniBudget;
   const fullBudget = input.fullBudget ?? configuredFullBudget;
@@ -136,6 +160,7 @@ export function pickModel(input: {
     model: miniModel,
     tier: 'mini',
     reasoningEffort: 'low',
+    supportsReasoning: supportsReasoning(miniModel),
     maxOutputTokens: maxOut,
     reason,
   });
@@ -144,6 +169,7 @@ export function pickModel(input: {
     model: fullModel,
     tier: 'full',
     reasoningEffort: effort,
+    supportsReasoning: supportsReasoning(fullModel),
     maxOutputTokens: maxOut,
     reason,
   });
@@ -197,7 +223,7 @@ export function pickModel(input: {
   );
 }
 
-/** Production entry — reads live env + soft in-process budgets. */
+/** Production entry — resolved model ids + live env + soft in-process budgets. */
 export async function chooseOpenAIModel(input: {
   task: 'orchestrate' | 'polish';
   text: string;
@@ -208,13 +234,34 @@ export async function chooseOpenAIModel(input: {
   escalate?: boolean;
 }): Promise<ModelChoice> {
   const { env } = await import('../../../config.js');
+  const { resolveModels } = await import('./modelCatalog.js');
   configuredMiniBudget = env.OPENAI_DAILY_MINI_TOKENS;
   configuredFullBudget = env.OPENAI_DAILY_FULL_TOKENS;
+
+  // Which ids exist is the catalog's business; which tier to use is this
+  // file's. Keeping them apart is what stopped two places from disagreeing.
+  const models = await resolveModels({
+    apiKey: env.OPENAI_API_KEY,
+    envFull: env.OPENAI_MODEL,
+    envMini: env.OPENAI_MODEL_MINI,
+  });
+
+  // Read the shared spend here and hand it to `pickModel` through the
+  // parameters it already had. That keeps `pickModel` a pure synchronous
+  // function — which is how its 21 existing tests exercise it — while the
+  // budget it consults becomes cluster-wide.
+  const [sharedMini, sharedFull] = await Promise.all([
+    readDaily(counterKeys.modelBudget('mini')),
+    readDaily(counterKeys.modelBudget('full')),
+  ]);
+
   return pickModel({
     ...input,
     mode: env.OPENAI_MODEL_MODE,
-    miniModel: env.OPENAI_MODEL_MINI,
-    fullModel: env.OPENAI_MODEL,
+    miniModel: models.mini,
+    fullModel: models.full,
     reasoningEffort: env.OPENAI_REASONING_EFFORT,
+    ...(sharedMini !== null ? { miniUsed: sharedMini } : {}),
+    ...(sharedFull !== null ? { fullUsed: sharedFull } : {}),
   });
 }

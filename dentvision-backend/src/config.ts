@@ -20,10 +20,17 @@ const envSchema = z.object({
   S3_SECRET_KEY: z.string().optional(),
   ENCRYPTION_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().min(20).optional(),
-  /** Frontier / full model — GPT-4o. Used for complex tasks: diagnostics, legal, BI. */
-  OPENAI_MODEL: z.string().default('gpt-4o'),
-  /** Cheap default — GPT-4o-mini. Used for chat, simple queries. */
-  OPENAI_MODEL_MINI: z.string().default('gpt-4o-mini'),
+  /**
+   * Optional operator pin for the full tier. Leave unset and `modelCatalog`
+   * discovers the best available model via `/v1/models`.
+   *
+   * These used to carry defaults, which is how production ended up on a
+   * two-year-old model that nobody chose: the default always beat the newer id
+   * declared elsewhere, and `render.yaml` never set either variable.
+   */
+  OPENAI_MODEL: z.string().optional(),
+  /** Optional operator pin for the cheap tier. Unset ⇒ discovered. */
+  OPENAI_MODEL_MINI: z.string().optional(),
   /** auto = cheap-first router; mini/full = force one tier. */
   OPENAI_MODEL_MODE: z.enum(['auto', 'mini', 'full']).default('auto'),
   /** Soft in-process daily budgets (approx tokens). Leave headroom vs provider caps. */

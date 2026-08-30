@@ -13,6 +13,11 @@ import { logAIInteraction } from './lib/auditLogger.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
 import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
 import { buildAiContext } from './os/context.js';
+import multer from 'multer';
+import { transcribeAudio, isTranscriptionFailed, MAX_AUDIO_BYTES } from './lib/transcription.js';
+
+/** Audio is held in memory and forwarded; nothing is written to disk. */
+const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_AUDIO_BYTES } });
 
 const DEMO_CLINIC_ID = process.env.DEMO_CLINIC_ID || '';
 
@@ -22,7 +27,7 @@ aiRouter.use(optionalAuth);
 aiRouter.use(guardAiAccess);
 
 /** Enforce guest daily AI quota before burning OpenAI credits. */
-function enforceGuestAiQuota(req: AuthRequest, res: import('express').Response): boolean {
+async function enforceGuestAiQuota(req: AuthRequest, res: import('express').Response): Promise<boolean> {
   const isGuest = !req.user || req.user.isGuest === true;
   if (!isGuest) return true;
   const userId = req.user?.id;
@@ -35,7 +40,7 @@ function enforceGuestAiQuota(req: AuthRequest, res: import('express').Response):
     });
     return false;
   }
-  const remaining = consumeGuestAi(userId);
+  const remaining = await consumeGuestAi(userId);
   if (remaining < 0) {
     res.status(429).json({
       ok: false,
@@ -137,6 +142,8 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
 
 interface ProcessedResponse extends AIResponse {
   toolsUsed?: string[];
+  /** Model id that answered; absent when a deterministic path did. */
+  model?: string;
   actions?: Array<{ type: string; label: string; params?: Record<string, unknown>; confidence?: number }>;
   messageId?: string;
   learnedHint?: string;
@@ -274,6 +281,7 @@ async function processQuery(
   text: string,
   sessionId: string,
   history: Array<{ role: string; content: string }>,
+  onToken?: (text: string) => void,
 ): Promise<ProcessedResponse> {
   const isGuest = !req.user || req.user.isGuest === true;
   const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
@@ -329,6 +337,7 @@ async function processQuery(
   if (orchestratorEnabled()) {
     try {
       const result = await orchestrate({
+        onToken,
         text,
         userId,
         clinicId,
@@ -363,6 +372,7 @@ async function processQuery(
         needsConfirmation: result.needsConfirmation,
         confirmData: result.confirmData,
         toolsUsed: result.toolsUsed,
+        model: result.model,
         messageId: result.messageId,
         learnedHint,
         learnedLabels,
@@ -406,7 +416,7 @@ async function processQuery(
 aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {
   const startTime = Date.now();
   try {
-    if (!enforceGuestAiQuota(req, res)) return;
+    if (!(await enforceGuestAiQuota(req, res))) return;
     const { text, message, sessionId: rawSession, history = [] } = req.body;
     const prompt = String(text || message || '').trim();
     const sessionId = await resolveUserSessionId(req, rawSession);
@@ -418,7 +428,9 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,
       sessionId,
-      model: 'orchestrator',
+      // Real id, so the audit can answer "what generated this?". A
+      // deterministic shortcut answers without any model at all.
+      model: response.model || 'deterministic',
       toolsCalled: toolsUsed,
       latencyMs: Date.now() - startTime,
       status: 'success',
@@ -436,7 +448,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
         learnedLabels: response.learnedLabels,
         activePersona: response.activePersona,
         activePersonaLabel: response.activePersonaLabel,
-        aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
+        aiRequestsLeft: req.user?.isGuest ? await guestAiRemaining(req.user.id) : undefined,
       },
     });
   } catch (error) {
@@ -445,7 +457,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,
       sessionId: req.body?.sessionId || undefined,
-      model: 'orchestrator',
+      model: 'unknown',
       toolsCalled: [],
       latencyMs: Date.now() - startTime,
       status: 'error',
@@ -455,13 +467,58 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
   }
 });
 
-// The web client uses this endpoint for progressive rendering.  Keep the
-// protocol compatible even when the current AI provider returns a complete
-// response rather than provider-level token events.
+/**
+ * Chairside dictation for browsers the on-device recogniser does not reach.
+ *
+ * Web Speech is free and keeps audio on the device, so it stays the default;
+ * this is what Firefox — where the microphone button simply does not appear —
+ * and any browser with a bad recognition get instead. The transcript goes into
+ * the same `parseDictation` the typed path uses.
+ */
+aiRouter.post(
+  '/transcribe',
+  authenticate,
+  requirePermission('patient.write'),
+  audioUpload.single('audio'),
+  async (req: AuthRequest, res) => {
+    try {
+      const file = (req as unknown as { file?: Express.Multer.File }).file;
+      if (!file) return res.status(400).json({ ok: false, error: 'Файл аудио не получен' });
+
+      const language = typeof req.body?.language === 'string' ? req.body.language : 'ru';
+      const result = await transcribeAudio({
+        buffer: file.buffer,
+        filename: file.originalname || 'dictation.webm',
+        mimeType: file.mimetype,
+        language,
+      });
+
+      if (isTranscriptionFailed(result)) {
+        // A refusal the doctor can act on, not a 500: wrong format, too long,
+        // or the feature is not configured at all.
+        const status = result.reason === 'PROVIDER_ERROR' ? 502 : 400;
+        return res.status(status).json({ ok: false, error: result.error, code: result.reason });
+      }
+
+      // The audio itself is never stored: it is a keystroke substitute, and
+      // keeping a recording of a clinical conversation would be a different
+      // product decision with its own consent.
+      return res.json({ ok: true, data: { text: result.text, model: result.model } });
+    } catch (error) {
+      console.error('[AI] transcribe', error);
+      return res.status(500).json({ ok: false, error: 'Не удалось распознать речь' });
+    }
+  },
+);
+
+// Progressive rendering, now from the provider's own token events rather than
+// from a finished string cut into pieces. The event contract is unchanged:
+// `token` fragments accumulate on the client and `done` replaces them with the
+// authoritative reply, so an intermediate tool round emitting text is safe.
 aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
   const startTime = Date.now();
   try {
-    if (!enforceGuestAiQuota(req, res)) return;
+    if (!(await enforceGuestAiQuota(req, res))) return;
     const text = req.body.text || req.body.message;
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ ok: false, error: 'Text is required' });
@@ -482,9 +539,16 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       res.write(`data: ${JSON.stringify({ type: 'status', status: 'working' })}\n\n`);
     }, 8000);
 
+    let streamedChars = 0;
+    const onToken = (fragment: string) => {
+      if (!fragment) return;
+      streamedChars += fragment.length;
+      res.write(`data: ${JSON.stringify({ type: 'token', text: fragment })}\n\n`);
+    };
+
     let response: ProcessedResponse;
     try {
-      response = await processQuery(req, text, sessionId, history);
+      response = await processQuery(req, text, sessionId, history, onToken);
       await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
     } finally {
       clearInterval(heartbeat);
@@ -495,17 +559,21 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,
       sessionId,
-      model: 'orchestrator',
+      // Real id, so the audit can answer "what generated this?". A
+      // deterministic shortcut answers without any model at all.
+      model: response.model || 'deterministic',
       toolsCalled: toolsUsed,
       latencyMs: Date.now() - startTime,
       status: 'success',
     });
 
-    // Progressive rendering of the final message.
+    // The model's text has already gone out fragment by fragment. What is left
+    // is the case where no model ran at all — a deterministic shortcut — which
+    // answers instantly and has nothing to reveal progressively. Slicing such
+    // an answer into forty pieces was the fake this route used to perform.
     const message = response.message || '';
-    const chunkSize = Math.max(8, Math.ceil(message.length / 40));
-    for (let i = 0; i < message.length; i += chunkSize) {
-      res.write(`data: ${JSON.stringify({ type: 'token', text: message.slice(i, i + chunkSize) })}\n\n`);
+    if (streamedChars === 0 && message) {
+      res.write(`data: ${JSON.stringify({ type: 'token', text: message })}\n\n`);
     }
 
     res.write(`data: ${JSON.stringify({
@@ -521,7 +589,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       learnedLabels: response.learnedLabels,
       activePersona: response.activePersona,
       activePersonaLabel: response.activePersonaLabel,
-      aiRequestsLeft: req.user?.isGuest ? guestAiRemaining(req.user.id) : undefined,
+      aiRequestsLeft: req.user?.isGuest ? await guestAiRemaining(req.user.id) : undefined,
     })}\n\n`);
     res.end();
   } catch (error) {
@@ -530,7 +598,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,
       sessionId: req.body?.sessionId || undefined,
-      model: 'orchestrator',
+      model: 'unknown',
       toolsCalled: [],
       latencyMs: Date.now() - startTime,
       status: 'error',

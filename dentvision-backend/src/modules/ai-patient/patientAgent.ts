@@ -8,7 +8,7 @@
  * card and hands anything else to a human.
  */
 
-import { chatWithTools, type ChatMessage, type ToolDefinition } from '../ai/llm/client.js';
+import { chatWithTools, type ChatMessage, type ConversationItem, type ToolDefinition } from '../ai/llm/client.js';
 import { PATIENT_TOOLS, type PatientToolContext } from './patientTools.js';
 import { runAiAction } from '../ai/os/kernel.js';
 
@@ -64,11 +64,9 @@ export interface PatientAgentResult {
 function toolDefinitions(): ToolDefinition[] {
   return Object.values(PATIENT_TOOLS).map((tool) => ({
     type: 'function' as const,
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters as Record<string, unknown>,
-    },
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters as Record<string, unknown>,
   }));
 }
 
@@ -77,7 +75,7 @@ export async function runPatientTurn(
   history: ChatMessage[],
   ctx: PatientToolContext,
 ): Promise<PatientAgentResult> {
-  const messages: ChatMessage[] = [...history, { role: 'user', content: userText }];
+  const messages: ConversationItem[] = [...history, { role: 'user', content: userText }];
   const toolsUsed: string[] = [];
   const data: Record<string, unknown> = {};
 
@@ -97,7 +95,18 @@ export async function runPatientTurn(
       return { reply: response.content.trim(), toolsUsed, data, unavailable: false };
     }
 
-    messages.push({ role: 'assistant', content: response.content || '' });
+    // The Responses API wants the call echoed back as an item before its
+    // result. This used to push an assistant message and then a `role: 'tool'`
+    // message — Chat Completions shape, which this endpoint does not read, so
+    // the model never actually saw what its own tools returned.
+    for (const call of response.toolCalls) {
+      messages.push({
+        type: 'function_call',
+        name: call.function?.name || '',
+        call_id: call.id,
+        arguments: call.function?.arguments || '{}',
+      });
+    }
 
     for (const call of response.toolCalls) {
       const name = call.function?.name || '';
@@ -124,10 +133,10 @@ export async function runPatientTurn(
         payload = { error: String(e?.message || e) };
       }
       messages.push({
-        role: 'tool',
-        content: JSON.stringify(payload).slice(0, 8000),
-        name,
-      } as ChatMessage);
+        type: 'function_call_output',
+        call_id: call.id,
+        output: JSON.stringify(payload).slice(0, 8000),
+      });
     }
   }
 

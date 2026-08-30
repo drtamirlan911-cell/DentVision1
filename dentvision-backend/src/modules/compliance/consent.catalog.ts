@@ -38,6 +38,11 @@ export const REQUIRED_CONSENTS: RequiredConsent[] = [
   // appointment is — and would make "agree or leave" the price of the record
   // they already consented to under `data_processing`.
   { type: 'ai_assistant', version: '1.0', audience: ['patient'], title: 'Согласие на обработку медицинских данных ИИ-ассистентом', mandatory: false, link: '/legal/ai-assistant' },
+  // Separate from `ai_assistant` on purpose. Agreeing to chat with the
+  // assistant is not agreeing to have your radiographs read by a model, and
+  // one consent standing in for the other would be consent the patient never
+  // actually gave. Non-mandatory for the same reason as `ai_assistant`.
+  { type: 'ai_image_analysis', version: '1.0', audience: ['patient'], title: 'Согласие на анализ снимков ИИ', mandatory: false, link: '/legal/ai-assistant' },
 ];
 
 export type ConsentState = 'accepted' | 'stale' | 'missing';

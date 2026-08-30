@@ -12,6 +12,11 @@
 
 import type { Prisma, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 import prisma from '../../../lib/prisma.js';
+import { simpleChat } from '../llm/client.js';
+import { resolveImageUrl } from '../../../lib/imageUrl.js';
+import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE } from './imageConsent.js';
+import { applyToothFindings as applyToothFindingsToChart, isValidFdi } from '../../patients/teethStore.js';
+import { searchClinicalNotes } from '../lib/clinicalSearch.js';
 import { uid } from '../../../lib/helpers.js';
 import { isClinicMember } from '../../../lib/orgContext.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
@@ -56,6 +61,45 @@ interface ToolSpec {
   mutating?: boolean;
   execute: (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
 }
+
+/** Chart status vocabulary — must match `src/lib/odontogram.ts::STATUS_META`. */
+const CHART_STATUSES = new Set([
+  'healthy', 'caries', 'filled', 'crown', 'implant', 'missing',
+  'extracted', 'fracture', 'inflammation', 'root', 'veneer', 'endo_ok', 'endo_fail',
+]);
+
+/** Formats a vision model can look at. A DICOM or STL is not one. */
+function isViewableImage(url: string | null, name: string | null): boolean {
+  const u = String(url || '');
+  if (/^data:image\/(jpeg|jpg|png|gif|webp);base64,/i.test(u)) return true;
+  return /\.(jpe?g|png|gif|webp)$/i.test(String(name || '')) || /\.(jpe?g|png|gif|webp)$/i.test(u.split('?')[0]);
+}
+
+/** Findings come back as fields, never parsed out of prose. */
+const RADIOGRAPH_FINDINGS_SCHEMA = {
+  name: 'radiograph_findings',
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['findings'],
+    properties: {
+      findings: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['tooth', 'status', 'surfaces', 'note'],
+          properties: {
+            tooth: { type: 'integer' },
+            status: { type: 'string' },
+            surfaces: { type: 'array', items: { type: 'string' } },
+            note: { type: ['string', 'null'] },
+          },
+        },
+      },
+    },
+  },
+} as const;
 
 function requireClinic(ctx: ToolContext): string {
   if (!ctx.clinicId) throw new Error('NO_CLINIC');
@@ -1244,6 +1288,193 @@ export const TOOLS: Record<string, ToolSpec> = {
         ok: true,
         data: { opened: path, section, label },
         navigate: path,
+      };
+    },
+  },
+
+  searchClinicalNotes: {
+    name: 'searchClinicalNotes',
+    description:
+      'Смысловой поиск по записям приёмов клиники (жалобы, анамнез, диагноз, примечания). ' +
+      'Находит по смыслу, а не по совпадению слов: «воспаление у верхушки корня» найдёт запись про периодонтит. ' +
+      'Можно ограничить одним пациентом через patientId.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Что ищем, обычными словами' },
+        patientId: { type: 'string', description: 'Ограничить поиск одним пациентом' },
+        limit: { type: 'number', description: 'Сколько записей вернуть (1-25, по умолчанию 8)' },
+      },
+      required: ['query'],
+    },
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const query = String(args.query || '').trim();
+      if (!query) return { ok: false, error: 'Нужен текст запроса' };
+
+      const result = await searchClinicalNotes({
+        clinicId,
+        query,
+        patientId: args.patientId ? String(args.patientId) : undefined,
+        limit: typeof args.limit === 'number' ? args.limit : undefined,
+      });
+
+      return {
+        ok: true,
+        data: {
+          ...result,
+          // Say how the list was ordered. A lexical fallback returns rough
+          // matches, and presenting those as semantic hits would overstate
+          // what the answer is worth.
+          note: result.ranking === 'semantic'
+            ? 'Отсортировано по смысловой близости.'
+            : 'Смысловой поиск недоступен — показаны совпадения по словам, начиная с недавних.',
+        },
+      };
+    },
+  },
+
+  analyzeRadiograph: {
+    name: 'analyzeRadiograph',
+    description:
+      'Прочитать рентген/ОПТГ/фото пациента и вернуть находки по зубам FDI. ' +
+      'Только читает: ничего в карту не пишет — для записи есть applyToothFindings. ' +
+      'Требует включённого клиникой анализа снимков и согласия пациента, если он зарегистрирован.',
+    parameters: {
+      type: 'object',
+      properties: {
+        patientId: { type: 'string' },
+        imageId: { type: 'string', description: 'Конкретный снимок; по умолчанию — последний читаемый' },
+      },
+      required: ['patientId'],
+    },
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const patientId = String(args.patientId || '');
+
+      const consent = await checkImageAnalysisConsent(clinicId, patientId);
+      if (isImageConsentDenied(consent)) {
+        return { ok: false, error: IMAGE_CONSENT_MESSAGE[consent.reason] };
+      }
+
+      const images = await prisma.patientImage.findMany({
+        where: { patientId, deletedAt: null, ...(args.imageId ? { id: String(args.imageId) } : {}) },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, url: true, name: true, type: true, createdAt: true },
+      });
+      const viewable = images.find((i) => isViewableImage(i.url, i.name));
+      if (!viewable) {
+        return { ok: false, error: 'Нет снимка в читаемом формате (JPG, PNG, GIF, WEBP)' };
+      }
+
+      const imageUrl = await resolveImageUrl(viewable.url);
+      const raw = await simpleChat(
+        'Ты — стоматолог-рентгенолог. Перед тобой снимок пациента. Опиши находки по зубам в нотации FDI. ' +
+          'Указывай ТОЛЬКО то, что видно; если зуб не просматривается — не включай его. ' +
+          'status выбирай из: caries, filled, crown, implant, missing, extracted, fracture, inflammation, root, veneer, endo_ok, endo_fail. ' +
+          'surfaces — только когда поверхность действительно различима: M, O, D, B, L.',
+        `Снимок: ${viewable.type}. Верни находки по зубам.`,
+        { maxTokens: 1200, imageUrl, jsonSchema: RADIOGRAPH_FINDINGS_SCHEMA },
+      );
+
+      let parsed: { findings?: unknown };
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return { ok: false, error: 'Модель вернула ответ в неожиданном формате' };
+      }
+      const findings = Array.isArray(parsed.findings) ? parsed.findings : [];
+      const clean = findings
+        .map((f: any) => ({
+          tooth: Number(f?.tooth),
+          status: String(f?.status || ''),
+          surfaces: Array.isArray(f?.surfaces) ? f.surfaces.map(String) : [],
+          note: typeof f?.note === 'string' ? f.note : null,
+        }))
+        .filter((f) => isValidFdi(f.tooth) && CHART_STATUSES.has(f.status));
+
+      return {
+        ok: true,
+        data: {
+          imageId: viewable.id,
+          imageType: viewable.type,
+          findings: clean,
+          // Nothing is written here. Saying so keeps the model from reporting
+          // to the doctor that the chart has been updated.
+          note: 'Находки не внесены в карту. Для внесения вызови applyToothFindings.',
+        },
+      };
+    },
+  },
+
+  applyToothFindings: {
+    name: 'applyToothFindings',
+    description:
+      'Внести находки по зубам (FDI) в одонтограмму пациента. Меняет медицинскую карту. ' +
+      'ТРЕБУЕТ подтверждения: без confirmed=true возвращает черновик с диффом «было → станет».',
+    parameters: {
+      type: 'object',
+      properties: {
+        patientId: { type: 'string' },
+        findings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              tooth: { type: 'number' },
+              status: { type: 'string' },
+              surfaces: { type: 'array', items: { type: 'string' } },
+              note: { type: 'string' },
+            },
+          },
+        },
+        sourceImageId: { type: 'string', description: 'Снимок, из которого получены находки' },
+        confirmed: { type: 'boolean' },
+      },
+      required: ['patientId', 'findings'],
+    },
+    mutating: true,
+    async execute(args, ctx) {
+      const clinicId = requireClinic(ctx);
+      const patientId = String(args.patientId || '');
+      const patient = await prisma.patient.findFirst({
+        where: scopedId(clinicId, patientId),
+        select: { id: true, firstName: true, lastName: true },
+      });
+      if (!patient) return { ok: false, error: 'Пациент не найден' };
+
+      const raw = Array.isArray(args.findings) ? args.findings : [];
+      const findings = raw
+        .map((f: any) => ({
+          tooth: Number(f?.tooth),
+          status: String(f?.status || ''),
+          surfaces: Array.isArray(f?.surfaces) ? f.surfaces.map(String) : [],
+          note: typeof f?.note === 'string' ? f.note : null,
+        }))
+        .filter((f) => isValidFdi(f.tooth) && CHART_STATUSES.has(f.status));
+
+      if (findings.length === 0) {
+        return { ok: false, error: 'Нет пригодных находок: проверьте номера FDI и названия статусов' };
+      }
+
+      if (!args.confirmed) {
+        return {
+          ok: true,
+          needsConfirmation: {
+            action: 'applyToothFindings',
+            params: { ...args, findings, confirmed: true },
+            summary:
+              `Внести в карту ${patient.firstName} ${patient.lastName}: ` +
+              findings.map((f) => `${f.tooth} → ${f.status}`).join(', '),
+          },
+        };
+      }
+
+      const changes = await applyToothFindingsToChart(patientId, clinicId, findings);
+      return {
+        ok: true,
+        data: { patientId, applied: changes.length, changes, sourceImageId: args.sourceImageId || null },
       };
     },
   },

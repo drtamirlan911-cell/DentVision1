@@ -61,7 +61,7 @@ aiPatientRouter.get('/status', async (req: AuthRequest, res) => {
       data: {
         linked: Boolean(match),
         consented: await hasAiConsent(req.user.id),
-        remaining: patientAiRemaining(req.user.id),
+        remaining: await patientAiRemaining(req.user.id),
         dailyLimit: PATIENT_AI_DAILY_LIMIT,
       },
     });
@@ -127,7 +127,7 @@ aiPatientRouter.post('/chat', async (req: AuthRequest, res) => {
       return res.status(412).json({ ok: false, error: 'CONSENT_REQUIRED' });
     }
 
-    const remaining = consumePatientAi(req.user.id);
+    const remaining = await consumePatientAi(req.user.id);
     if (remaining < 0) {
       return res.status(429).json({
         ok: false,

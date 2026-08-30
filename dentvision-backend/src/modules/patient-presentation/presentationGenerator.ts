@@ -51,6 +51,37 @@ function extractJsonArray(text: string): string {
   return body.slice(start, end + 1);
 }
 
+/**
+ * The shape the rewrite must come back in.
+ *
+ * `saySimple` is nullable rather than optional: strict structured outputs
+ * require every property to be listed in `required`, so "absent" is expressed
+ * as an explicit null.
+ */
+const REWRITE_SCHEMA = {
+  name: 'presentation_rewrite',
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['beats'],
+    properties: {
+      beats: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['id', 'say', 'saySimple'],
+          properties: {
+            id: { type: 'string' },
+            say: { type: 'string' },
+            saySimple: { type: ['string', 'null'] },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 function allBeats(script: PresentationScript): Beat[] {
   return script.acts.flatMap((act) => act.beats);
 }
@@ -73,7 +104,10 @@ export async function rewriteScript(script: PresentationScript): Promise<Map<str
 
   let raw: string;
   try {
-    raw = await simpleChat(buildInstructions(script.locale), input, { maxTokens: 4000 });
+    raw = await simpleChat(buildInstructions(script.locale), input, {
+      maxTokens: 4000,
+      jsonSchema: REWRITE_SCHEMA,
+    });
   } catch (error) {
     console.warn('[Presentation] LLM rewrite request failed; keeping template', error);
     return null;
@@ -82,15 +116,27 @@ export async function rewriteScript(script: PresentationScript): Promise<Map<str
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(extractJsonArray(raw));
+    parsed = JSON.parse(raw);
   } catch {
-    console.warn('[Presentation] LLM rewrite returned unparsable output; keeping template');
-    return null;
+    // Should be unreachable under a strict schema, but a provider that ignores
+    // it must not cost the doctor their presentation: fall back to digging the
+    // array out of prose, which is what this did before the schema existed.
+    try {
+      parsed = JSON.parse(extractJsonArray(raw));
+    } catch {
+      console.warn('[Presentation] LLM rewrite returned unparsable output; keeping template');
+      return null;
+    }
   }
-  if (!Array.isArray(parsed)) return null;
+
+  // Strict mode requires an object at the root, so the array arrives wrapped.
+  const beats: unknown = Array.isArray(parsed)
+    ? parsed
+    : (parsed as { beats?: unknown })?.beats;
+  if (!Array.isArray(beats)) return null;
 
   const out = new Map<string, BeatCandidate>();
-  for (const entry of parsed) {
+  for (const entry of beats) {
     if (!entry || typeof entry !== 'object') continue;
     const id = String((entry as Record<string, unknown>).id ?? '').trim();
     const say = String((entry as Record<string, unknown>).say ?? '').trim();

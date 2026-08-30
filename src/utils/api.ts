@@ -2511,6 +2511,81 @@ export async function dismissAiInsight(id: string): Promise<{ dismissed: boolean
   return { dismissed: !!(res?.data?.dismissed ?? res?.dismissed) }
 }
 
+// ─── Approval Center ───
+// The queue the kernel writes to when a high-risk tool is called
+// (`ai/os/dataScope.ts::HIGH_RISK_TOOLS`) and where durable agents park what
+// they propose instead of doing (`jobs/recallAgent.ts`). Rows are only ever
+// read and decided here — nothing in the client creates one.
+
+export interface AiApproval {
+  id: string
+  clinicId: string | null
+  requestedByUserId: string
+  surface: string
+  agentId: string | null
+  tool: string
+  params: Record<string, unknown>
+  summary: string
+  requiredPermission: string | null
+  riskLevel: string
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'failed' | string
+  decidedByUserId: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  resultActivityId: string | null
+  expiresAt: string | null
+  createdAt: string
+}
+
+export async function listAiApprovals(status?: string): Promise<AiApproval[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : ''
+  const res = await apiRequest(`/api/ai/approvals${qs}`)
+  const raw = res?.data ?? res
+  return Array.isArray(raw) ? raw : []
+}
+
+export async function approveAiApproval(id: string, note?: string): Promise<any> {
+  return apiRequest(`/api/ai/approvals/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ note: note || undefined }),
+  })
+}
+
+export async function rejectAiApproval(id: string, note?: string): Promise<any> {
+  return apiRequest(`/api/ai/approvals/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ note: note || undefined }),
+  })
+}
+
+/**
+ * Send a recording for server-side transcription.
+ *
+ * Used where the browser has no Web Speech recogniser. Nothing is stored: the
+ * response is text, and the audio is not kept.
+ */
+export async function transcribeDictation(blob: Blob, language = 'ru'): Promise<string> {
+  const form = new FormData();
+  form.append('audio', blob, 'dictation.webm');
+  form.append('language', language);
+
+  const headers: Record<string, string> = {};
+  if (_accessToken) headers.Authorization = `Bearer ${_accessToken}`;
+  const csrf = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/);
+  if (csrf) headers['x-csrf-token'] = csrf[1];
+
+  // No Content-Type header: the browser sets the multipart boundary itself.
+  const res = await fetch(`${API_URL}/api/ai/transcribe`, {
+    method: 'POST',
+    headers,
+    body: form,
+    credentials: 'include',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || 'Не удалось распознать речь');
+  return String(data?.data?.text || '');
+}
+
 export async function aiAction(action: string, params: Record<string, unknown> = {}): Promise<any> {
   return apiRequest('/api/ai/action', {
     method: 'POST',

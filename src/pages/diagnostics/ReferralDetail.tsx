@@ -185,6 +185,16 @@ export default function ReferralDetail() {
               </>
             ) : (
               <>
+                {result?.aiGenerated && (
+                  // Whether the pass looked at the study or only at the
+                  // referral's text is the difference between an observation
+                  // and a composition — the reader has to be able to tell.
+                  <Badge variant={result.aiSawSource ? 'info' : 'warning'} size="xs">
+                    {result.aiSawSource
+                      ? 'ИИ: по приложенному снимку'
+                      : 'ИИ: без снимка, по данным направления'}
+                  </Badge>
+                )}
                 <div className="text-sm text-txt-secondary whitespace-pre-wrap leading-relaxed">{reportText}</div>
                 {conclusion && (
                   <div className="p-3 rounded-lg bg-surface-1 border border-bdr-subtle">

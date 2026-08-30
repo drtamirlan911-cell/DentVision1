@@ -63,7 +63,7 @@ guestRouter.post('/session', async (req, res) => {
         return res.json({
           guestId: existing.id,
           token: accessToken,
-          aiRequestsLeft: guestAiRemaining(existing.id),
+          aiRequestsLeft: await guestAiRemaining(existing.id),
         });
       }
     }

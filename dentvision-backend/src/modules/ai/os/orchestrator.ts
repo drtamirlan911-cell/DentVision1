@@ -47,6 +47,7 @@ import {
   tryPlatformMapQuery,
 } from '../lib/deterministicShortcuts.js';
 import { sanitizeUserInput, buildSafeInstructions } from '../lib/promptGuard.js';
+import { providerFetch, providerStream } from '../lib/providerFetch.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
@@ -59,20 +60,8 @@ const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
  * through improveResponseWithLLM. The user waits through two round-trips to be
  * told nothing. These failures short-circuit instead.
  */
-export interface ProviderError extends Error {
-  providerUnavailable?: boolean;
-}
-
-export function isProviderUnavailable(status: number, detail: string): boolean {
-  if (status === 401 || status === 403) return true;
-  if (status !== 429) return false;
-  // 429 is both "slow down" (retryable) and "no credits" (terminal).
-  return /insufficient_quota|credit_balance_exhausted|billing|no credits/i.test(detail);
-}
-
-export function isProviderUnavailableError(error: unknown): boolean {
-  return Boolean(error && (error as ProviderError).providerUnavailable);
-}
+export type { ProviderError } from '../lib/providerFetch.js';
+export { isProviderUnavailable, isProviderUnavailableError } from '../lib/providerFetch.js';
 
 const MAX_TOOL_ROUNDS = 6;
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -99,6 +88,14 @@ export interface OrchestratorInput {
   focusId?: string | null;
   /** Verified entity focus (os/context.ts::buildAiContext) — what the kernel substitutes a missing patientId from, never trusted from focusType/focusId directly. */
   entity?: { type: string; id: string } | null;
+  /**
+   * Where to send text as the model produces it.
+   *
+   * Absent for the plain `/query` route, which returns one complete answer.
+   * When present the SSE route forwards each fragment, and no longer has to
+   * fake progressive rendering by slicing a finished string.
+   */
+  onToken?: (text: string) => void;
 }
 
 export interface OrchestratorResult {
@@ -112,6 +109,12 @@ export interface OrchestratorResult {
   confirmData?: Record<string, unknown>;
   /** Which tools ran — provenance for the UI / audit. */
   toolsUsed: string[];
+  /**
+   * The model id that actually answered, or undefined when a deterministic
+   * shortcut did and no model was called. The audit used to record the literal
+   * `'orchestrator'`, which could not answer "what generated this?".
+   */
+  model?: string;
   /** Persisted assistant message id for feedback thumbs. */
   messageId?: string;
   /** Labels of prefs applied this turn (for UI chip). */
@@ -228,38 +231,44 @@ interface ResponsesAPIOutputItem {
 interface ResponsesAPIResult {
   output?: ResponsesAPIOutputItem[];
   output_text?: string;
+  /** What the provider actually billed, including the cached-prefix breakdown. */
+  usage?: {
+    total_tokens?: number;
+    input_tokens?: number;
+    output_tokens?: number;
+    input_tokens_details?: { cached_tokens?: number };
+  };
 }
 
 async function callModel(
   body: Record<string, unknown>,
   choice: ModelChoice,
   usageHint: string,
+  onToken?: (text: string) => void,
 ): Promise<ResponsesAPIResult> {
-  const res = await fetch(OPENAI_RESPONSES_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    const error = new Error(`OpenAI ${res.status}: ${detail.slice(0, 300)}`);
-    if (isProviderUnavailable(res.status, detail)) {
-      (error as ProviderError).providerUnavailable = true;
-    }
-    throw error;
+  const payload = onToken
+    ? await providerStream<ResponsesAPIResult>(OPENAI_RESPONSES_URL, {
+        apiKey: env.OPENAI_API_KEY as string,
+        body,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+        onDelta: onToken,
+      })
+    : await providerFetch<ResponsesAPIResult>(OPENAI_RESPONSES_URL, {
+        apiKey: env.OPENAI_API_KEY as string,
+        body,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+      });
+
+  // What the provider says it billed, not a character count plus a 15% guess.
+  const reported = payload.usage?.total_tokens;
+  if (Number.isFinite(reported) && (reported as number) > 0) {
+    await recordModelUsage(choice.tier, reported as number);
+  } else {
+    const outText =
+      (typeof payload.output_text === 'string' ? payload.output_text : '') ||
+      JSON.stringify(payload.output || []).slice(0, 4000);
+    await recordModelUsage(choice.tier, estimateTokens(usageHint, outText));
   }
-  const payload = (await res.json()) as ResponsesAPIResult;
-  const outText =
-    (typeof payload.output_text === 'string' ? payload.output_text : '') ||
-    JSON.stringify(payload.output || []).slice(0, 4000);
-  recordModelUsage(
-    choice.tier,
-    estimateTokens(usageHint, outText) + Math.ceil(choice.maxOutputTokens * 0.15),
-  );
   return payload;
 }
 
@@ -511,6 +520,8 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   // PLAN → SELECT TOOLS → EXECUTE → VERIFY loop.
   // Cheap-first: mini by default; escalate once if the first mini pass is empty.
   let escalated = false;
+  /** Survives the loop so the exhausted-budget return can still name the model. */
+  let lastModel: string | undefined;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     let choice = await chooseOpenAIModel({
       task: 'orchestrate',
@@ -528,11 +539,15 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         instructions,
         input: conversation,
         tools: toolSchemas,
-        reasoning: { effort: choice.reasoningEffort },
+        // Same rule as `llm/client.ts`: `reasoning` goes only to models that
+        // have the mode. This body is assembled here rather than in the
+        // client, so it kept sending the parameter unconditionally.
+        ...(choice.supportsReasoning ? { reasoning: { effort: choice.reasoningEffort } } : {}),
         max_output_tokens: choice.maxOutputTokens,
       },
       choice,
       `${instructions}\n${input.text}`,
+      input.onToken,
     );
 
     let outputItems = response.output || [];
@@ -565,17 +580,21 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
             instructions,
             input: conversation,
             tools: toolSchemas,
-            reasoning: { effort: choice.reasoningEffort },
+            ...(choice.supportsReasoning ? { reasoning: { effort: choice.reasoningEffort } } : {}),
             max_output_tokens: choice.maxOutputTokens,
           },
           choice,
           `${instructions}\n${input.text}`,
+          input.onToken,
         );
         outputItems = response.output || [];
         functionCalls = outputItems.filter((item) => item.type === 'function_call');
         messageText = extractAssistantText(response);
       }
     }
+
+    // After any escalation, so this is the model that actually served the round.
+    lastModel = choice.model;
 
     if (round === 0) {
       console.info(`[AI OS] model=${choice.model} tier=${choice.tier} reason=${choice.reason}`);
@@ -601,6 +620,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
         needsConfirmation: Boolean(pendingConfirmation),
         confirmData: pendingConfirmation,
         toolsUsed,
+        model: choice.model,
         messageId,
         ...personaMeta,
       };
@@ -662,6 +682,7 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
     intent: 'CHAT',
     suggestions: defaultSuggestions(input.role),
     toolsUsed,
+    model: lastModel,
     messageId,
     ...personaMeta,
   };

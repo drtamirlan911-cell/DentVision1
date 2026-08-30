@@ -30,6 +30,7 @@ const BIWorkspace = lazyWithRetry(() => import('./pages/bi/BIWorkspace'));
 const SecurityCompliance = lazyWithRetry(() => import('./pages/SecurityCompliance'));
 const AuditLog = lazyWithRetry(() => import('./pages/AuditLog'));
 const AgentActivity = lazyWithRetry(() => import('./pages/AgentActivity'));
+const AiApprovals = lazyWithRetry(() => import('./pages/AiApprovals'));
 const Backup = lazyWithRetry(() => import('./pages/Backup'));
 const Analytics = lazyWithRetry(() => import('./pages/Analytics'));
 const SettingsPage = lazyWithRetry(() => import('./pages/Settings'));
@@ -165,6 +166,7 @@ if (container) {
                   <Route path="security" element={guarded('security', <SecurityCompliance />)} />
                   <Route path="audit" element={guarded('audit', <AuditLog />)} />
                   <Route path="agent-activity" element={guarded('agent-activity', <AgentActivity />)} />
+                  <Route path="ai-approvals" element={guarded('ai-approvals', <AiApprovals />)} />
                   <Route path="backup" element={guarded('backup', <Backup />)} />
                   <Route path="profile" element={guarded('profile', <Profile />)} />
                   <Route path="supplier" element={<Suspense fallback={<PageLoader />}><SupplierWorkspace /></Suspense>} />

@@ -371,6 +371,12 @@ diagnosticsRouter.post('/results/ai-generate', requireReferralAccess(true), asyn
     const data = await svc.aiGenerateResult(referralId, req.user!.id);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
+    // Declining to describe a study nobody showed us is not a server fault:
+    // the doctor gets the reason and can act on it (turn the setting on, ask
+    // the patient, attach the file) instead of seeing "500".
+    if (e instanceof svc.DiagnosticAiUnavailable) {
+      return res.status(409).json({ ok: false, error: e.message, code: e.reason } as ApiResponse);
+    }
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
 });

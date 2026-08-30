@@ -10,6 +10,8 @@ import {
 } from '../../services/notification.service.js';
 import { dispatchNotifications } from '../notifications/dispatch.service.js';
 import { assertValidIinFormat, checkIinCrossFields } from '../../lib/patientIin.js';
+import { resolveImageUrl } from '../../lib/imageUrl.js';
+import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE } from '../ai/os/imageConsent.js';
 import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@prisma/client';
 
 // ─── Center Subscription ───
@@ -745,6 +747,114 @@ export async function getDashboardStats(scope: { clinicId?: string; centerId?: s
 
 // ─── Results ───
 
+/**
+ * Refusal the route turns into a plain message for the doctor.
+ *
+ * Distinct from a crash: nothing went wrong, we are declining to write a
+ * report about a study nobody showed us.
+ */
+export class DiagnosticAiUnavailable extends Error {
+  readonly reason: string;
+  constructor(reason: string, message: string) {
+    super(message);
+    this.name = 'DiagnosticAiUnavailable';
+    this.reason = reason;
+  }
+}
+
+/** Formats a vision model can actually look at. A .dcm or .stl is not one. */
+const VIEWABLE_IMAGE_RE = /\.(jpe?g|png|gif|webp)$/i;
+const VIEWABLE_DATA_URI_RE = /^data:image\/(jpeg|jpg|png|gif|webp);base64,/i;
+
+function isViewable(file: { fileUrl?: string | null; fileName?: string | null }): boolean {
+  const url = String(file.fileUrl || '');
+  if (VIEWABLE_DATA_URI_RE.test(url)) return true;
+  return VIEWABLE_IMAGE_RE.test(String(file.fileName || '')) || VIEWABLE_IMAGE_RE.test(url.split('?')[0]);
+}
+
+/** The shape a report has to come back in, so nothing is parsed out of prose. */
+const REPORT_SCHEMA = {
+  name: 'diagnostic_report',
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['description', 'findings', 'conclusion', 'recommendations'],
+    properties: {
+      description: { type: 'string' },
+      findings: { type: 'array', items: { type: 'string' } },
+      conclusion: { type: 'string' },
+      recommendations: { type: 'array', items: { type: 'string' } },
+    },
+  },
+} as const;
+
+interface StructuredReport {
+  description: string;
+  findings: string[];
+  conclusion: string;
+  recommendations: string[];
+}
+
+function renderReport(report: StructuredReport): string {
+  const list = (items: string[]) => items.filter(Boolean).map((i) => `- ${i}`).join('\n') || '- не выявлено';
+  return [
+    `**Описание исследования**\n${report.description}`,
+    `**Находки**\n${list(report.findings)}`,
+    `**Заключение**\n${report.conclusion}`,
+    `**Рекомендации**\n${list(report.recommendations)}`,
+  ].join('\n\n');
+}
+
+function parseReport(raw: string): StructuredReport | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<StructuredReport>;
+    if (!parsed || typeof parsed.description !== 'string' || typeof parsed.conclusion !== 'string') return null;
+    return {
+      description: parsed.description,
+      findings: Array.isArray(parsed.findings) ? parsed.findings.map(String) : [],
+      conclusion: parsed.conclusion,
+      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.map(String) : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Both consent gates, plus something to actually look at.
+ *
+ * Throws rather than degrading: the previous behaviour was to write findings
+ * for a study the model never saw, and a quiet fallback would restore exactly
+ * that.
+ */
+async function requireViewableSource(referral: {
+  clinicId: string;
+  patientId: string | null;
+  files?: Array<{ fileUrl: string | null; fileName: string | null }>;
+}): Promise<string> {
+  if (!referral.patientId) {
+    throw new DiagnosticAiUnavailable(
+      'NO_PATIENT',
+      'Направление не связано с пациентом — согласие на анализ снимка проверить невозможно',
+    );
+  }
+
+  const consent = await checkImageAnalysisConsent(referral.clinicId, referral.patientId);
+  if (isImageConsentDenied(consent)) {
+    throw new DiagnosticAiUnavailable(consent.reason, IMAGE_CONSENT_MESSAGE[consent.reason]);
+  }
+
+  const viewable = (referral.files || []).find(isViewable);
+  if (!viewable?.fileUrl) {
+    throw new DiagnosticAiUnavailable(
+      'NO_VIEWABLE_FILE',
+      'К направлению не приложен снимок в читаемом формате (JPG, PNG, GIF, WEBP) — заключение по неувиденному исследованию не выдаётся',
+    );
+  }
+
+  return resolveImageUrl(viewable.fileUrl);
+}
+
 export async function aiGenerateResult(referralId: string, userId: string) {
   const referral = await prisma.referral.findUnique({
     where: { id: referralId },
@@ -756,14 +866,26 @@ export async function aiGenerateResult(referralId: string, userId: string) {
   // 3D imaging categories — never auto-modify Patient Card
   const imagingCategories = ['CBCT', 'OPG', 'TRG', 'TMJ', 'STL', 'FACE_SCAN', 'DICOM'];
   if (imagingCategories.includes(category)) {
-    const aiContent = await simpleChat(
-      `Ты — врач-рентгенолог. Опиши результат ${referral.studyType} для пациента ${referral.patientName}.
+    // This branch used to tell the model "ты врач-рентгенолог, опиши находки"
+    // and send it the patient's name and complaints — never the radiograph.
+    // The report landed in the record with aiGenerated: true, so a reader had
+    // no way to know the findings were composed rather than observed.
+    const imageUrl = await requireViewableSource(referral);
+
+    const raw = await simpleChat(
+      `Ты — врач-рентгенолог. Перед тобой снимок исследования ${referral.studyType} пациента ${referral.patientName}.
 Жалобы: ${referral.complaints || 'не указаны'}. Предв. диагноз: ${referral.preliminaryDx || 'нет'}.
-Цель: ${referral.studyGoal || 'не указана'}. Выдай заключение: 1) описание, 2) находки, 3) заключение, 4) рекомендации.`,
-      'Заключение рентгенолога на русском языке.',
-      { maxTokens: 1000 },
+Цель: ${referral.studyGoal || 'не указана'}.
+Описывай ТОЛЬКО то, что видно на снимке. Если структура не просматривается — так и пиши, не додумывай.`,
+      'Опиши снимок и выдай заключение на русском языке.',
+      { maxTokens: 1000, imageUrl, jsonSchema: REPORT_SCHEMA },
     );
-    return upsertResult(referralId, aiContent);
+
+    const report = parseReport(raw);
+    if (!report) {
+      throw new DiagnosticAiUnavailable('UNPARSABLE', 'Модель вернула ответ в неожиданном формате — заключение не сохранено');
+    }
+    return upsertResult(referralId, renderReport(report), { sawSource: true, conclusion: report.conclusion });
   }
 
   // Lab categories — extract indicators, compare with patient history, propose changes
@@ -791,24 +913,39 @@ export async function aiGenerateResult(referralId: string, userId: string) {
 4. Рекомендации`;
 
   const aiContent = await simpleChat(prompt, 'Сгенерируй заключение на русском языке.', { maxTokens: 1000 });
-  return upsertResult(referralId, aiContent);
+  // Composed from the referral's own fields — there is no study attached to
+  // this category to look at, and `aiSawSource: false` records that.
+  return upsertResult(referralId, aiContent, { sawSource: false });
 }
 
-async function upsertResult(referralId: string, aiContent: string) {
+async function upsertResult(
+  referralId: string,
+  aiContent: string,
+  opts: { sawSource: boolean; conclusion?: string } = { sawSource: false },
+) {
+  const data = {
+    reportText: aiContent,
+    aiGenerated: true,
+    aiSawSource: opts.sawSource,
+    ...(opts.conclusion ? { conclusion: opts.conclusion } : {}),
+  };
   const existing = await prisma.diagnosticResult.findUnique({ where: { referralId } });
   if (existing) {
-    return prisma.diagnosticResult.update({ where: { referralId }, data: { reportText: aiContent, aiGenerated: true } });
+    return prisma.diagnosticResult.update({ where: { referralId }, data });
   }
-  return prisma.diagnosticResult.create({ data: { id: uid(), referralId, reportText: aiContent, aiGenerated: true } });
+  return prisma.diagnosticResult.create({ data: { id: uid(), referralId, ...data } });
 }
 
 async function aiAnalyzeLabResult(referralId: string, referral: any, _userId: string) {
-  // Build prompt to extract structured indicators from lab result data
-  const fileUrls = referral.files?.map((f: any) => f.fileUrl).filter(Boolean) || [];
-  const hasFiles = fileUrls.length > 0;
+  // This used to compute `fileUrls`, never use it, tell the model "к
+  // направлению приложены файлы результатов", ask it to "извлеки показатели"
+  // from data it was not given, and then save "показатели извлечены". The
+  // result sheet now actually goes to the model, or nothing is written.
+  const imageUrl = await requireViewableSource(referral);
 
   const prompt = `Ты — лабораторный аналитик. Пациент: ${referral.patientName}. Исследование: ${referral.studyType}.
-${hasFiles ? 'К направлению приложены файлы результатов анализов.' : 'Анализируй по типу исследования.'}
+Перед тобой изображение бланка результатов. Извлекай ТОЛЬКО те значения, которые видны на нём;
+если показатель не читается — так и напиши, не подставляй типичные значения.
 
 Извлеки из результатов следующие показатели (если применимо):
 - Название показателя
@@ -835,23 +972,16 @@ ${hasFiles ? 'К направлению приложены файлы резул
 
 💡 **Предложение:** AI обнаружил следующие изменения. Рекомендуется добавить их в карточку пациента после подтверждения врача.`;
 
-  const aiContent = await simpleChat(prompt, 'Проанализируй лабораторные показатели на русском.', { maxTokens: 1200 });
+  const aiContent = await simpleChat(prompt, 'Проанализируй лабораторные показатели на русском.', {
+    maxTokens: 1200,
+    imageUrl,
+  });
 
-  // Store AI analysis with indicators flag for doctor review
+  const summary = '🔬 Показатели считаны с приложенного бланка. Требуется подтверждение врача для внесения в карту пациента.';
   const result = await prisma.diagnosticResult.upsert({
     where: { referralId },
-    update: {
-      reportText: aiContent,
-      aiGenerated: true,
-      aiSummary: '🔬 Лабораторные показатели извлечены. Требуется подтверждение врача для внесения в карту пациента.',
-    },
-    create: {
-      id: uid(),
-      referralId,
-      reportText: aiContent,
-      aiGenerated: true,
-      aiSummary: '🔬 Лабораторные показатели извлечены. Требуется подтверждение врача для внесения в карту пациента.',
-    },
+    update: { reportText: aiContent, aiGenerated: true, aiSawSource: true, aiSummary: summary },
+    create: { id: uid(), referralId, reportText: aiContent, aiGenerated: true, aiSawSource: true, aiSummary: summary },
   });
 
   // Notify referring doctor that indicators need review
