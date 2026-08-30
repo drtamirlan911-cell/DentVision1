@@ -107,7 +107,9 @@ export const IntelligenceLayout: React.FC = () => {
   const { data: billingSnap } = useQuery({
     queryKey: ['clinic-billing-access', clinicId],
     queryFn: () => api.getClinicBilling(),
-    enabled: Boolean(clinicId) && isAuthenticated && !isGuest,
+    // Снимок биллинга закрыт правом finance.manage: без этой проверки
+    // запрос уходил под любой ролью и отказом сыпал в консоль на каждой странице.
+    enabled: Boolean(clinicId) && isAuthenticated && !isGuest && Boolean(roleInfo?.canManageFinance),
     staleTime: 60_000,
     retry: 1,
   });
