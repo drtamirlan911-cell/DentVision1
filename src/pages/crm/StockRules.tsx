@@ -100,7 +100,13 @@ export default function StockRules() {
       return services.find(s => s.id === rule.matchKey)?.name || rule.matchKey
     }
     const dx = DENTAL_ICD10.find(d => d.code === rule.matchKey)
-    return dx ? `${dx.code} — ${dx.name}` : rule.matchKey
+    if (dx) return `${dx.code} — ${dx.name}`
+    // Корень рубрики («K02») отдельной строкой в справочнике не лежит —
+    // без пояснения он выглядел бы просто голым кодом.
+    const inGroup = DENTAL_ICD10.filter(d => d.code.startsWith(`${rule.matchKey}.`))
+    return inGroup.length > 0
+      ? `${rule.matchKey} — вся рубрика (${inGroup.length} кодов)`
+      : rule.matchKey
   }
 
   /** Коды, на которые правило уже есть: второй раз предлагать их незачем. */

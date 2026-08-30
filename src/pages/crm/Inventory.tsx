@@ -409,6 +409,17 @@ export default function Inventory() {
             autoFocus={!editing}
             onChange={(name) => setForm(f => ({ ...f, name }))}
             onPick={(s) => {
+              // Позиция с таким названием уже заведена — открываем её вместо
+              // создания второй. Иначе подсказка честно писала бы «уже на
+              // складе», а выбор всё равно вёл бы к дубликату.
+              const known = s.existingItemId
+                ? inventory.find(i => i.id === s.existingItemId)
+                : undefined
+              if (known) {
+                openEdit(known)
+                showToast(`«${known.name}» уже на складе — открыли карточку`, 'info')
+                return
+              }
               // Один выбор заполняет всю карточку: название, категорию,
               // единицу, цену, поставщика и связь с товаром маркета.
               setForm(f => ({
@@ -421,9 +432,6 @@ export default function Inventory() {
                 sku: s.sku || '',
                 productId: s.productId || '',
               }))
-              if (s.existingItemId) {
-                showToast('Такая позиция уже есть — сохранение пополнит её', 'info')
-              }
             }}
           />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

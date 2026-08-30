@@ -18,8 +18,6 @@ interface Props {
   onChange: (name: string) => void
   /** Выбор подсказки — заполняет остальные поля формы. */
   onPick: (s: InventorySuggestion) => void
-  /** Открыть уже существующую позицию вместо создания дубликата. */
-  onOpenExisting?: (itemId: string) => void
   label?: string
   autoFocus?: boolean
   disabled?: boolean
@@ -34,7 +32,7 @@ interface Props {
  * пресеты и встроенный справочник расходников.
  */
 export function InventoryItemPicker({
-  value, onChange, onPick, onOpenExisting, label = 'Название *', autoFocus, disabled,
+  value, onChange, onPick, label = 'Название *', autoFocus, disabled,
 }: Props) {
   const [suggestions, setSuggestions] = useState<InventorySuggestion[]>([])
   const [open, setOpen] = useState(false)
@@ -159,7 +157,7 @@ export function InventoryItemPicker({
                   {s.supplier && <span>· {s.supplier}</span>}
                   {s.stock != null && s.stock > 0 && <span className="text-success">· в наличии {s.stock}</span>}
                 </div>
-                {s.existingItemId && (
+                {s.existingItemId && s.source !== 'clinic' && (
                   <p className="mt-1 text-2xs text-warning">
                     Уже на складе: {s.existingQuantity ?? 0} — выбор пополнит эту позицию
                   </p>
@@ -170,22 +168,6 @@ export function InventoryItemPicker({
         </div>
       )}
 
-      {/* Позиция с таким названием уже заведена — предлагаем открыть её. */}
-      {!open && onOpenExisting && (() => {
-        const exact = suggestions.find(
-          (s) => s.source === 'clinic' && s.name.trim().toLowerCase() === value.trim().toLowerCase(),
-        )
-        if (!exact || !value.trim()) return null
-        return (
-          <button
-            type="button"
-            onClick={() => onOpenExisting(exact.key.replace('clinic:', ''))}
-            className="mt-1 text-2xs text-dv-gold underline underline-offset-2"
-          >
-            Такая позиция уже есть — открыть её
-          </button>
-        )
-      })()}
     </div>
   )
 }

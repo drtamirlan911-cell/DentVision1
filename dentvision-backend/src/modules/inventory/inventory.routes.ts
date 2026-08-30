@@ -147,11 +147,14 @@ inventoryRouter.get('/suggest', async (req: AuthRequest, res) => {
     const push = (s: Omit<Suggestion, 'score' | 'existingItemId' | 'existingQuantity'>) => {
       const score = scoreSuggestion(s.name, q);
       if (score === 0) return;
+      // Признак «эта позиция уже есть на складе» заполняется и для строк
+      // самого склада: выбор любой из них должен вести к пополнению
+      // существующей позиции, а не к заведению второй такой же.
       const existing = ownByName.get(normalizeItemName(s.name));
       out.push({
         ...s,
-        existingItemId: existing && s.source !== 'clinic' ? existing.id : null,
-        existingQuantity: existing && s.source !== 'clinic' ? existing.quantity : null,
+        existingItemId: existing ? existing.id : null,
+        existingQuantity: existing ? existing.quantity : null,
         score,
       });
     };
